@@ -59,6 +59,7 @@ pub(super) struct Session {
     callers: Vec<CallerState>,
     required: super::intrinsics::Entries,
     ordinary: bool,
+    feedback: bool,
     allocation_elision: bool,
     imported: crate::imported_bodies::ImportedBodies,
 }
@@ -119,9 +120,14 @@ impl Session {
             callers,
             required,
             ordinary,
+            feedback: false,
             allocation_elision,
             imported,
         }
+    }
+
+    pub(super) fn enable_feedback(&mut self) {
+        self.feedback = true;
     }
 
     pub(super) fn run(
@@ -184,6 +190,7 @@ impl Session {
                 imported_summaries: &self.imported_summaries,
                 required: &self.required,
                 ordinary: self.ordinary,
+                feedback: self.feedback,
                 allocation_elision: self.allocation_elision,
                 imported: &self.imported,
                 observer,
@@ -242,6 +249,7 @@ struct Context<'a, 'report> {
     imported_summaries: &'a HashMap<mir::ExternalCallableUseId, OnceCell<summary::Summary>>,
     required: &'a super::intrinsics::Entries,
     ordinary: bool,
+    feedback: bool,
     allocation_elision: bool,
     imported: &'a crate::imported_bodies::ImportedBodies,
     observer: Option<&'a Observer<'report>>,

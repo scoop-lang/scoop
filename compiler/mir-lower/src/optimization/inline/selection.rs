@@ -70,10 +70,9 @@ impl Context<'_, '_> {
             };
             for (statement_index, statement) in block.statements.iter().enumerate() {
                 if let mir::StatementKind::Call(effect) = &statement.kind {
-                    let heat = policy::with_profile(
+                    let heat = self.heat(
                         heats[index(block_id)],
                         mir::profile_call_before(block, statement_index),
-                        &self.module.meta.profiling,
                     );
                     let resolved = self
                         .ordinary
@@ -372,14 +371,18 @@ impl Context<'_, '_> {
                         ),
                         outcome,
                         estimate: None,
-                        heat: policy::with_profile(
-                            static_heat,
-                            mir::profile_call_before(block, statement),
-                            &self.module.meta.profiling,
-                        ),
+                        heat: self.heat(static_heat, mir::profile_call_before(block, statement)),
                     },
                 );
             }
+        }
+    }
+
+    fn heat(&self, heat: InlineHeat, marker: Option<&mir::ProfileMarker>) -> InlineHeat {
+        if self.feedback {
+            policy::with_profile(heat, marker, &self.module.meta.profiling)
+        } else {
+            heat
         }
     }
 }

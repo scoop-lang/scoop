@@ -2,6 +2,8 @@
 
 日期：2026-11-14。分析基于 profiling / PGO 首版实现 `ae0e3c1ac4`，结合[已有验收数据](VALIDATION.md)、普通默认 release 的补充对照、MIR/LIR 和优化决策报告。本次只增加分析文档，没有修改优化实现或默认配置。
 
+后续进展：已按讨论实现“默认内联先执行、PGO 只追加”，Long hash 的默认展开与性能已恢复，复测见 [VALIDATION.md](VALIDATION.md) 的追加内联记录。下文保留首版分析口径；精确上下文传播仍待实施，Boolean hash 另已观察到反馈标记阻止 poll 分块的结构差异。
+
 **结论。** 当前最有依据的改进是消除“拼接结果只用于读取 `byteLength`”的临时字符串。默认 release 已正确内联算术热点中的小 helper；现有数据不支持全局放宽内联阈值、把默认系统库改为 full，或调整默认 GC 参数。PGO 的嵌套内联热度传播另有明确问题，应单独修复，不能将它的回归解释为普通 release 的缺陷。
 
 **比较口径。** 前一轮为隔离 PGO 的效果，普通与反馈构建均使用 Release/full 系统库和 full 根产物。这里补建真正的默认 release：仅使用 `--release`，不传 `--export-ir` 或 `--system-library-root`，消费普通系统库。对照组复用前一轮无反馈的 Release/full binary；两组均无探针。

@@ -109,3 +109,11 @@
 - Windows 三种 CRT 全部通过完整正式组合，各 2 项、13 次外部进程调用。MSVC-UCRT 的 GC／完整 profiling 用例分别为 7.86／365.61 s，MinGW-UCRT 为 29.19／409.82 s，MinGW-MSVCRT 为 29.04／407.59 s。初期缺少配套 `llvm-profdata`、混用 Clang driver 与 linker 名称属于测试环境准备问题；补齐真实 LLVM 22.1.8 工具并按 CRT 选择后，程序及计数验证通过。测试中的时钟精度和换行问题已按上节修正。
 - 连同 Darwin 和 Linux GNU/musl，设计要求的六个原生目标均完成 instrument → merge → optimize → run，以及正常／非零退出、缓存更新、失败不发布和无探针输出。性能收益与采集开销只在本机测量，未把跨目标正确性结果扩大为跨平台性能结论。
 - 实现、规范、编程材料、独立组件和外部发行配套均已分批提交推送，并逐轮合并 `origin/main`。清理一次性压缩包、安装目录、旧的失败尝试及不再使用的辅助工具；保留可复用的 sysroot／缓存、有效验证目录和仓库外原始记录。
+
+### 保留默认内联、PGO 只追加
+
+- 先修订实现规范，再将普通静态选择与反馈追加分为同一会话内的两个阶段，各最多三轮。共享原模板、摘要、ancestry 和 caller／region 累计增长；默认选择不读取 profile，也不冒充反馈消费者。反馈继续选择剩余调用和新暴露的机会，普通 release 阈值、字符串独立反馈及采集行为保持。
+- 新增冷计数、嵌套 callee 归一化、默认与热候选争用累计增长，以及纯默认展开不计反馈消费者的回归；MIR-lower 共 223 项通过。真实优化报告确认 Long hash 的三层默认展开保留，热 `mix` 仍追加展开。三个程序的六种输入完成五对 AB/BA，同轮旧 PGO 的约 61% hash 退化不再复现；未训练 Boolean hash 仍慢约 19%，已确认反馈标记阻止 poll 分块的结构差异。具体数据和范围见 [VALIDATION.md](VALIDATION.md)。
+- 按用户要求清理 workspace 既有 Clippy 警告，固定分块使用带长度的数组视图，保留尾部长度、顺序和格式检查；协议解码仅将可选 profile 摘要间接存储，不改变 wire 格式。平台测试辅助模块按真实调用平台编译，不关闭 lint 或删除测试。workspace 测试同时发现旧 runtime 缓存路径断言，改为检查构建实际返回的目录。macOS debug 编译器的 unwind 表尺寸警告按用户要求保留，未调整开发编译配置。
+- 最终 `cargo fmt --all` 与 `cargo clippy --workspace --all-targets -- -D warnings` 通过；HIR、identity、MIR-lower 及文档测试合计 1,446 项通过，linker／toolchain 83 项通过。重新构建正式命令后，完整 profiling fixture 再次通过 9 次外部调用，覆盖训练、合并、反馈构建、运行、缓存更新、失败不发布及无探针输出。
+- 全 workspace 执行曾得到 6,446 项通过、53 项失败；修正本分支 schema 演进后的两处测试期望，并补齐本机 LLD 搜索路径后，相关测试复验通过。剩余失败涉及旧 TaskContext 快照、core descriptor 测试辅助逻辑，以及本机 LLVM 缺少项目要求的 Windows statepoint 补丁；前两类在独立主线 checkout 的代表测试中同样复现。本轮未改这些既有合同和工具链，范围见 [VALIDATION.md](VALIDATION.md)。

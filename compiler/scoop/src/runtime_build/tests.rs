@@ -49,7 +49,12 @@ fn missing_runtime_vendor_reports_the_selected_path() {
             .to_string()
             .contains(&format!("vendor source root {}:", missing.display()))
     );
-    assert!(!directory.path().join("runtime-v11").exists());
+    assert!(
+        std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none()
+    );
 }
 
 #[test]
@@ -119,7 +124,7 @@ fn actual_runtime_archive_roundtrips_and_reuses_paths() {
         2
     );
     assert!(
-        std::fs::read_dir(cache.path().join("runtime-v11"))
+        std::fs::read_dir(first.index().parent().unwrap())
             .unwrap()
             .all(|entry| !entry
                 .unwrap()
@@ -197,7 +202,7 @@ fn runtime_cache_tracks_sources_headers_candidates_and_flags() {
     assert!(!build(RuntimeOptimization::None).cache_hit());
     assert!(!build(RuntimeOptimization::Optimized).cache_hit());
     let records = || {
-        std::fs::read_dir(cache.join("runtime-v11"))
+        std::fs::read_dir(first.index().parent().unwrap())
             .unwrap()
             .map(|e| e.unwrap().path())
             .filter(|p| p.extension().is_some_and(|e| e == "json"))

@@ -4,6 +4,8 @@
 
 基于这些数据对普通默认 release 的补充对照、具体优化机会及建议顺序见 [RELEASE-ANALYSIS.md](RELEASE-ANALYSIS.md)。
 
+下述六目标闭环及首版性能数据对应首版实现；本次追加内联的本机复验与新性能结果见文末“保留默认内联、PGO 只追加”。
+
 **原生闭环。** 使用真实目标 compiler-rt、普通与 profiling runtime、两套 full core/std，执行 GC 时间线和 profiling/PGO 正式 fixture。每个完成目标覆盖 2 项、13 次外部进程调用，PGO 子流程另含 16 次命令操作；没有把跨目标对象生成当作原生运行。
 
 | 原生目标 | LLVM | 结果 |
@@ -73,3 +75,28 @@ Long hash 的回归已经对应到具体决策：`Long.hash → coreLongHash →
 | consumer binary／构建 | 816,848 | 850,160 | 7.509 | 8.191 |
 
 core/std 构建 CPU 分别约为 27.573／29.854 s 与 27.898／32.062 s；consumer CPU 为 7.757／8.663 s。完整 profiling 组件额外包含所有系统 Cone 的两套机器码与模板，实际下载和磁盘成本应使用前面的组件数字。
+
+## 保留默认内联、PGO 只追加
+
+2026-11-14 在相同 Darwin AArch64／LLVM 22.1.8 环境重新构建三个代表程序。普通与反馈构建均使用相同 Release/full 系统库、full 根产物和现有 native 计时 helper；反馈直接复用首版训练数据。先执行默认最多三轮，再追加最多三轮反馈选择，两阶段共用模板、内联 ancestry 及累计增长。没有改变普通 release 阈值，也没有重训、修改输入或引入新的命令参数。
+
+真实优化报告确认 `Long.hash → coreLongHash → coreULongHash` 三层均在默认阶段以循环热度 4 展开；Boolean hash 的两个默认展开也保持。`mix` 在默认阶段仍因收益不足保留调用，反馈阶段仍将热位置按热度 32 追加内联。默认展开的 heat 不含 profile，且不计入反馈消费者；增长争用回归检查确认进入追加阶段后不会重新获得已消耗的 caller 额度。
+
+每个输入预热一对，再进行五对 AB/BA 交错测量；表中为 native helper 内核时间中位数，标准输出逐次相等，计时期间没有本任务的构建。GC 设置沿用一个 worker、增量模式和 64 MiB nursery 上限，仅用于保持比较条件。百分比不是统计显著性结论，也不外推到其他原生目标。
+
+| 输入 | 迭代次数 | Release/full / ms | 追加 PGO / ms | 耗时变化 |
+| --- | ---: | ---: | ---: | ---: |
+| 调用点常用分支 | 10,000,000 | 108.507 | 108.955 | +0.41% |
+| 调用点未训练稀疏分支 | 7,000,000 | 77.922 | 76.724 | −1.54% |
+| Long hash | 50,000,000 | 42.502 | 42.142 | −0.85% |
+| Boolean hash，未训练 | 30,000,000 | 17.692 | 21.005 | +18.73% |
+| 字符串 chain | 20,000,000 | 187.238 | 186.476 | −0.41% |
+| 字符串 shared，未训练 | 12,000,000 | 212.001 | 211.754 | −0.12% |
+
+另用保留的旧 PGO binary 在同轮做五对 Long hash 对照：普通构建 42.363 ms、旧 PGO 68.414 ms，仍慢 61.49%。新策略保住默认展开后，这一退化不再复现；其余接近 1% 的变化不足以宣称稳定加速。计时之外，Long hash 两组均分配 104 字节、无 GC；chain 两组均分配 960,000,168 字节、919 次 minor GC。
+
+Boolean hash 的回退仍需处理。比较最终 LIR，普通构建包含 `poll.chunk` 和无逐轮 poll 的分块正文，反馈构建没有分块，循环保留逐轮 poll。反馈的 `Profile` 标记落入当前标量区域识别的不支持分支，阻止了原有转换；标记还引入独立控制流块。默认内联已经相同，因此不能再把该现象归因于“PGO 取消默认内联”。此处记录已确认的结构差异，未做隔离消融来量化它对全部 18.73% 差距的贡献。标记对既有优化的透明性与精确上下文反馈一并列入[后续第一批](NEXT-STEPS.md)，本次没有扩大到修改循环或 GC 契约。
+
+**实现与警告清理验收。** 格式化及 `cargo clippy --workspace --all-targets -- -D warnings` 通过，未关闭 lint。HIR、identity、MIR-lower 和文档测试合计 1,446 项通过，其中 MIR-lower 223 项；补齐 Mach-O LLD 搜索路径后，linker／toolchain 83 项通过。按普通开发配置重建命令，完整 profiling fixture 再次通过 9 次外部调用，包含 instrument → merge → optimize → run、配置与缓存更新、失败保留输出和无探针验证。macOS debug 编译器的 unwind 表尺寸警告按用户要求保留。
+
+全 workspace 执行记录为 6,446 项通过、53 项失败，不能作为全量通过结论。其中两项是本分支 schema 演进后遗留的 wire golden／未知 tag 期望，十项依赖本机 Mach-O LLD 搜索路径，修正后分别纳入上述复验。其余为 18 项旧 TaskContext 布局快照、22 项 core descriptor 测试辅助逻辑失败，以及一项 Windows statepoint return-PC 检查。主线 `b59f7fc1db` 的 `lowers_hello_world` 与 `actual_core_sources_produce_closed_mir_and_lir_export_tables` 分别复现相同的布局快照和 `CoroutineStartWork` descriptor 缺失；本机 Homebrew LLVM 未包含项目要求的 Windows statepoint 补丁。原生六目标首版验收使用配套工具链的结论保持原有范围，本轮没有为这些失败放宽断言或修改无关实现。

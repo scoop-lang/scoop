@@ -4,6 +4,8 @@ use scoop_profile::{
     Counter, Feedback, FeedbackConsumer, IndexedRecord, Location, ProfileMap, Record,
 };
 
+mod additive;
+
 fn feedback(
     module: &mir::Module,
     count: impl Fn(&scoop_profile::BodyLayout, u32) -> u64,
@@ -50,7 +52,7 @@ fn feedback(
     .unwrap()
 }
 
-fn cost_program() -> hir::ExportHirOutput {
+fn cost_program(addend: i32) -> hir::ExportHirOutput {
     let mut h = Harness::new();
     let (int, boolean, unit) = (h.int, h.boolean, h.unit);
     let mut locals = Arena::new();
@@ -83,7 +85,15 @@ fn cost_program() -> hir::ExportHirOutput {
     let mut locals = Arena::new();
     let input = locals.alloc(local("input", int));
     let active = locals.alloc(local("active", boolean));
-    let call = expr_stmt(call_typed(large, vec![local_ref(input, int)], int));
+    let addend = int_lit(&h, addend);
+    let argument = integer_binary(
+        &mut h,
+        hir::IntegerKind::SIGNED_32,
+        hir::IntegerBinaryOperator::Add,
+        local_ref(input, int),
+        addend,
+    );
+    let call = expr_stmt(call_typed(large, vec![argument], int));
     h.user_fn_full(
         "scope",
         vec![],
@@ -119,7 +129,7 @@ fn cost_program() -> hir::ExportHirOutput {
 
 #[test]
 fn feedback_changes_cost_and_orders_the_hot_call_before_the_cold_call() {
-    let source = cost_program();
+    let source = cost_program(0);
     let trained = lower_profile(&source, ProfilingInput::Generate, false);
     let scope = layout(&trained, "scope");
     let calls = scope
@@ -153,7 +163,9 @@ fn feedback_changes_cost_and_orders_the_hot_call_before_the_cold_call() {
                     outcome,
                     heat,
                     ..
-                } if module.functions[*id].name == "large" => Some((*outcome, *heat)),
+                } if module.functions[*id].name == "large" && heat.profile.is_some() => {
+                    Some((*outcome, *heat))
+                }
                 _ => None,
             }
         })
@@ -183,16 +195,16 @@ fn feedback_changes_cost_and_orders_the_hot_call_before_the_cold_call() {
 
 #[test]
 fn feedback_zero_entry_and_changed_body_fall_back_without_claiming_use() {
-    let source = plain_program(24, false);
+    let source = cost_program(0);
     let trained = lower_profile(&source, ProfilingInput::Generate, false);
     for (source, data, reason) in [
         (
-            plain_program(24, false),
+            cost_program(0),
             feedback(&trained, |_, _| 0),
             scoop_profile::MissingCount::ZeroEntry,
         ),
         (
-            plain_program(25, false),
+            cost_program(1),
             feedback(&trained, |_, _| 1),
             scoop_profile::MissingCount::BodyChanged,
         ),
@@ -203,7 +215,11 @@ fn feedback_zero_entry_and_changed_body_fall_back_without_claiming_use() {
         let event = report
             .events
             .iter()
-            .find(|event| module.functions[event.site.function].name == "main")
+            .find(|event| {
+                module.functions[event.site.function].name == "scope"
+                    && matches!(&event.decision, OptimizationDecision::Inline { heat, .. }
+                        if heat.profile.is_some())
+            })
             .unwrap();
         let OptimizationDecision::Inline { heat, .. } = &event.decision else {
             panic!("call decision")
