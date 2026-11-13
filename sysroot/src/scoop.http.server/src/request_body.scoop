@@ -32,9 +32,7 @@ public class HttpRequestBody internal constructor(
         options: RequestMultipartOptions = requestMultipartOptions()
     ): RequestMultipart = state.multipart(requestMultipartBoundary(fields), options)
 
-    internal suspend fun closeView() {
-        state.close()
-    }
+    internal fun takeViewsToClose(): RequestBodyViews? = state.takeViewsToClose()
     internal fun configureDecoding(options: RequestDecompressionOptions) {
         state.configure(options)
     }

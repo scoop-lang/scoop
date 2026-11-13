@@ -133,28 +133,41 @@ internal class RequestBodyState(
             throw IllegalStateException(Some("request body already has a consumer"))
     }
 
+    fun takeViewsToClose(): RequestBodyViews? =
+        lock.withLock {
+            ended = true
+            if (present(selected))
+                selected!!.invalidate()
+            val multipart = multipartView
+            val decoder = decoded
+            multipartView = None
+            decoded = None
+            if (!present(multipart) && !present(decoder)) {
+                if (present(input))
+                    input!!.invalidate()
+                None
+            } else
+                Some(RequestBodyViews(multipart, decoder, input))
+        }
+}
+
+internal struct RequestBodyViews(
+    val multipart: RequestMultipart?,
+    val decoded: RequestDecompressionSource?,
+    val input: RequestBodySource?
+) {
     suspend fun close() {
-        val views =
-            lock.withLock {
-                ended = true
-                if (present(selected))
-                    selected!!.invalidate()
-                val result = (multipartView, decoded, input)
-                multipartView = None;
-                decoded = None
-                result
-            }
         var failure: Throwable? = None
         try {
-            if (present(views._1))
-                views._1!!.close()
+            if (present(multipart))
+                multipart!!.close()
         }
         catch (error: Throwable) {
             failure = Some(error)
         }
         try {
-            if (present(views._2))
-                views._2!!.close()
+            if (present(decoded))
+                decoded!!.close()
         }
         catch (error: Throwable) {
             failure =
@@ -165,8 +178,8 @@ internal class RequestBodyState(
                         error
                 )
         }
-        if (present(views._3))
-            views._3!!.invalidate()
+        if (present(input))
+            input!!.invalidate()
         if (present(failure))
             throw failure!!
     }

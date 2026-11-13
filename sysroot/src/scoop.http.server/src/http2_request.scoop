@@ -48,7 +48,9 @@ internal suspend fun executeHttp2Request(
         result.failure = Some(error)
     }
     finally {
-        closeRequestViews(result)
+        val views = takeRequestViews(result)
+        if (present(views))
+            closeRequestViews(result, views!!)
         try {
             if (!incoming.stream.isReadComplete || !incoming.stream.isWriteComplete)
                 incoming.stream.close()

@@ -47,7 +47,9 @@ internal suspend fun executeHttp1Request(
         result.failure = Some(error)
     }
     finally {
-        closeRequestViews(result)
+        val views = takeRequestViews(result)
+        if (present(views))
+            closeRequestViews(result, views!!)
         try {
             incoming.body.close()
         }
@@ -67,11 +69,27 @@ internal suspend fun executeHttp1Request(
         throw result.failure!!
 }
 
-internal suspend fun closeRequestViews(result: RequestExecution) {
+internal fun takeRequestViews(result: RequestExecution): RequestBodyViews? {
     if (!present(result.context))
-        return
+        return None
     try {
-        result.context!!.request.body.closeView()
+        return result.context!!.request.body.takeViewsToClose()
+    }
+    catch (cleanup: Throwable) {
+        result.failure =
+            Some(
+                if (present(result.failure))
+                    ResourceUseException(result.failure!!, cleanup)
+                else
+                    cleanup
+            )
+        return None
+    }
+}
+
+internal suspend fun closeRequestViews(result: RequestExecution, views: RequestBodyViews) {
+    try {
+        views.close()
     }
     catch (cleanup: Throwable) {
         result.failure =

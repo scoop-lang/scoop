@@ -16,7 +16,9 @@ private class ServerBodySelectionLifetimeTests {
             assertFalse(body.isComplete)
             assertEquals(0L, body.receivedBytes)
             assertEquals(0L, body.deliveredBytes)
-            body.closeView()
+            val views = body.takeViewsToClose()
+            if (present(views))
+                views!!.close()
             expectState { body.openStream() }
             expectState { body.openRawStream() }
             expectState { body.setLimit(None) }
@@ -56,7 +58,10 @@ private class ServerBodySelectionLifetimeTests {
                 assertEquals(3L, body.receivedBytes)
                 assertFalse(body.isComplete)
             } finally {
-                body.closeView()
+                val views = body.takeViewsToClose()
+                if (present(views))
+                    views!!.close()
+                Unit
             }
         }
     }
@@ -88,7 +93,9 @@ private class ServerBodySelectionLifetimeTests {
                 assertEquals(3L, body.deliveredBytes)
                 expectState { body.openRawStream() }
             } finally {
-                body.closeView()
+                val views = body.takeViewsToClose()
+                if (present(views))
+                    views!!.close()
             }
             assertEquals(3L, body.receivedBytes)
             assertEquals(3L, body.deliveredBytes)
