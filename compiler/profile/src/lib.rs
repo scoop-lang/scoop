@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 mod digest;
 mod feedback;
+mod instrumentation;
 mod mapping;
 
 pub use digest::{BodyId, Fingerprint};

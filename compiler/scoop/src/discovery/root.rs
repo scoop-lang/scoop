@@ -27,29 +27,40 @@ impl BuildGraphRequest {
             artifact_search_roots,
             cache_root,
             sysroot,
+            system_library_root,
             target,
             compiler,
             diagnostics,
             optimization,
             debug_info,
             export_ir,
+            instrumentation,
             purpose,
             jobs,
             generators,
         } = self.into_parts();
 
+        let system_library_root = system_library_root.unwrap_or_else(|| {
+            scoop_toolchain::system_library_root(
+                sysroot.as_path(),
+                target.lir_target(),
+                instrumentation,
+            )
+        });
         LoadedBuildRoot::from_input(
             root,
             BuildContext {
                 artifact_search_roots,
                 cache_root,
                 sysroot,
+                system_library_root,
                 target,
                 compiler,
                 diagnostics,
                 optimization,
                 debug_info,
                 export_ir,
+                instrumentation,
                 purpose,
                 jobs,
                 generators,

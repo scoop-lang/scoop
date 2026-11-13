@@ -10,9 +10,9 @@
 | --- | --- | --- |
 | 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | 逻辑位置及 MIR/LIR/LLVM 通道已实现；CLI 与真实训练验收随 profiling 批次接入 | 确定计数、内联映射、多线程、对象选择/裁剪 |
 | off/default/full IR template 导出 | 已实现，三平台代表目标验收完成 | 完整模板、语义必需模板保留、实际 consumer 与 Strong 归属 |
-| profiling profile 与 runtime 采集 | 待实现 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
+| profiling profile 与 runtime 采集 | 已接通，本机真实运行验收通过；原生跨平台验收待成组进行 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
 | MIR cost 反馈及 `scoop-pgo` | 待实现 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
-| 可选 profiling 系统库组件 | 待实现 | 两套 full 库、自动选库、独立下载安装和移除 |
+| 可选 profiling 系统库组件 | 准备脚本及训练选库已实现；全量库构建、打包与安装接线进行中 | 两套 full 库、自动选库、独立下载安装和移除 |
 | GC phase/slice 事件 | 待实现 | 时间语义、采集开销和真实进程输出 |
 | 使用材料及发行配套 | 待实现 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
 
@@ -40,4 +40,13 @@
 - 使用本分支正式脚本准备本机 runtime，并实际构建 default/full core。观察到两种 core 产物分别为 12,224,056 与 12,541,705 字节；这是当前构建的体积记录，不是普遍开销承诺。
 - Linux GNU x86-64（LLVM 22.1.2）与 Windows MinGW-UCRT x86-64（LLVM 22.1.8）：均使用独立源码目录和正式准备入口构建 runtime、Release/full core；消费 full core 的导出语义用例通过 3 档、15 次进程调用，普通跨 Cone 内联用例通过 4 个组合、16 次进程调用。Linux 另通过 4 项完整 HIR 导出定向单测。尚未用本项单独覆盖 Linux musl、Windows MSVC/MinGW-MSVCRT，不能由上述结果推定所有发行目标已验收。
 - Windows 验收发现深层缓存目录中的优化报告发布失败：`tempfile::persist` 直接调用 Windows API，没有处理超长路径。发布前将已有目录解析为扩展路径后闭合；定向回归在原实现真实失败，修复后通过，随后上述 CLI 组合全部通过。本机格式化、`scoop` 定向 Clippy 和 2 项观察缓存测试通过。修复仅影响显式阶段输出复制，不增加普通缓存命中的内容检查。
-- 运行期 profiling、反馈优化与独立 profiling 组件仍按表中状态推进。
+- full 系统库构建暴露出 provider 存储访问器的导入边界：当前消费方不能直接表达外来 backing slot 和初始化门。保留完整模板，在使用时保留 provider 入口并报告 `unsupported-body`；不引入另一套存储 ABI。新增动态初始化及 image 值读写后，三档正式导出 fixture 在本机再次通过。
+
+### Profiling 构建与运行时
+
+- build/run/test 与 scoopc 接通 Profiling：Release 优化、Generate 计数及默认 line-tables。采集配置经 compiler protocol 33、manifest 7 和普通缓存键传递；位置映射是 Generate 的正常结果，旁置保存，构建成功 JSON 报告实际映射及未覆盖依赖。命中缓存只确认所需结果存在，不读映射内容。
+- 系统库在依赖解析前选择，PM protocol 8 接收上层选择的目录；训练默认选择 `profiling/instrumented`。维护入口 `--system-library-root` 与 `prepare_sysroot.py --profiling --profile-runtime ...` 生产两套 full 库，第三方 native 资源复用原目录。发布端与安装器接线继续下一批。
+- Runtime index schema 9 明确采集配置及目标 compiler-rt archive。普通 runtime 不编译采集源文件；profiling runtime 在正常返回、显式 exit 或宿主 atexit 时一次写出 raw 计数、启动和 GC 总指标，标准流保留原用途。输出目录保留原生路径编码，每次运行独立命名，不能被 `%` 当作 LLVM 路径模板解释；I/O 失败报告但不改变业务退出码。
+- LLVM profile counters/data/names 作为 callable 的 associated atoms 参与对象定义、fingerprint、重定位及 ODR 选择，不跳过验证；COFF 使用既有 COMDAT 关联。显式由 Scoop runtime 管理生命周期，避免每个对象产生独立的 LLVM runtime hook 函数。`scoopc profile-summary` 复用 LLVM reader 还原逻辑次数。
+- 本机正式 runtime fixture 通过 7 次外部调用，内部运行多线程程序、正常返回与 `exit(7)`，合并后 main=2、choose=6、worker=8、leaf=8004、未执行递归函数=0。覆盖中文/空格/百分号路径、默认 cwd、写出失败、系统 core 计数、零记录、构建复用、Release 无探针，以及错误混入 Generate 库时失败且保留已有输出。
+- 格式化及 workspace Clippy 通过（仅既有警告）；协议 48 项、slib 270 项、缓存 17 项、LLVM 对象/reader 3 项通过，三种对象格式均执行关联定义和重定位验证。Fixture runner 84 项通过（4 项平台条件跳过）。目前真实训练的原生目标为 macOS AArch64；Linux/Windows 原生覆盖随完整 PGO 批次进行。

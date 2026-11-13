@@ -306,3 +306,14 @@ fn every_currently_variable_cache_key_dimension_misses_independently() {
         input.dependencies[0].lir = LirFingerprint::from_array([9; 32]);
     });
 }
+
+#[test]
+fn instrumentation_changes_code_reuse_without_changing_language_identity() {
+    let ordinary = input(1);
+    let instrumented = ordinary
+        .clone()
+        .with_instrumentation(scoop_profile::Instrumentation::Generate);
+    assert_ne!(ordinary.key().unwrap(), instrumented.key().unwrap());
+    assert_eq!(ordinary.current_semantic(), instrumented.current_semantic());
+    assert_eq!(ordinary.cone(), instrumented.cone());
+}

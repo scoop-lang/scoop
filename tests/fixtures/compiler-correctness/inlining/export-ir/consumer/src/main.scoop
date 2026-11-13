@@ -29,6 +29,10 @@ class Completion: Continuation<Int> {
 }
 
 fun main(): Int {
+    if (stored != 8 || imageValue != 13) return 8
+    stored += 1
+    if (stored != 9) return 9
+
     if (generic(defaulted()) != 7 || ordinary(41) != 42)
         return 1
     val read = make(7)

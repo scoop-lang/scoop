@@ -143,7 +143,7 @@ impl Lowerer {
             ),
             Kind::InitializationEnsure(_) => {
                 return Err(ImportedDefaultMaterializationError::Plan(
-                    "preflight admitted an unsupported dependency default statement".to_owned(),
+                    "dependency initialization gate requires its provider entry".to_owned(),
                 ));
             }
         };

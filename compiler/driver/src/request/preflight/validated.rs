@@ -96,6 +96,10 @@ impl<'input> ValidatedSingleConeBuildRequest<'input> {
         self.request.debug_info
     }
 
+    pub const fn instrumentation(&self) -> scoop_profile::Instrumentation {
+        self.request.instrumentation
+    }
+
     pub const fn export_ir(&self) -> scoop_hir::IrTemplateExport {
         self.request.export_ir
     }

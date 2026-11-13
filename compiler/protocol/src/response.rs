@@ -138,6 +138,7 @@ pub struct ScoopcSuccessV1 {
     emitted_dump_descriptors: Vec<EmittedDumpDescriptorV1>,
     used_generators: Vec<crate::GeneratorToolInputV1>,
     compiler_inputs: Vec<crate::CompilerInputV1>,
+    profile_map: Option<HostPathCarrier>,
 }
 
 impl ScoopcSuccessV1 {
@@ -157,12 +158,22 @@ impl ScoopcSuccessV1 {
             emitted_dump_descriptors,
             used_generators: Vec::new(),
             compiler_inputs: Vec::new(),
+            profile_map: None,
         })
     }
 
     pub fn with_used_generators(mut self, inputs: Vec<crate::GeneratorToolInputV1>) -> Self {
         self.used_generators = inputs;
         self
+    }
+
+    pub fn with_profile_map(mut self, path: Option<HostPathCarrier>) -> Self {
+        self.profile_map = path;
+        self
+    }
+
+    pub fn profile_map(&self) -> Option<&HostPathCarrier> {
+        self.profile_map.as_ref()
     }
 
     pub fn with_compiler_inputs(mut self, inputs: Vec<crate::CompilerInputV1>) -> Self {
@@ -296,7 +307,7 @@ fn encode_success(
     request_id: RequestCorrelationId,
     result: &ScoopcSuccessV1,
 ) -> Result<(), scoop_wire::cbor::EncodeError> {
-    encoder.map(7)?;
+    encoder.map(8)?;
     encoder.field(0)?;
     encoder.unsigned(1)?;
     encoder.field(1)?;
@@ -319,6 +330,11 @@ fn encode_success(
     encoder.array(result.compiler_inputs.len() as u64)?;
     for input in &result.compiler_inputs {
         input.encode(encoder)?;
+    }
+    encoder.field(7)?;
+    encoder.array(u64::from(result.profile_map.is_some()))?;
+    if let Some(path) = &result.profile_map {
+        path.encode(encoder)?;
     }
     Ok(())
 }

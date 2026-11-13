@@ -85,12 +85,12 @@ pub(super) struct BuildOptions {
     pub target: Option<String>,
     #[command(flatten)]
     pub native: NativeOptions,
-    /// Compiler optimization and output profile; release enables optimized code.
+    /// Build profile: debug, release, or profiling (release optimization with runtime counters).
     #[arg(long, conflicts_with = "release")]
     pub profile: Option<BuildProfile>,
     #[arg(long, conflicts_with = "profile")]
     pub release: bool,
-    /// Native source debug information: none, line-tables or full; debug defaults to full.
+    /// Native debug information: debug defaults to full, profiling to line-tables, release to none.
     #[arg(long)]
     pub debug_info: Option<scoop_lir::DebugInfoLevel>,
     /// Optional cross-Cone IR templates: off, default or full.
@@ -110,6 +110,9 @@ pub(super) struct BuildOptions {
     pub jobs: Option<std::num::NonZeroUsize>,
     #[arg(long)]
     pub cone_path: Vec<PathBuf>,
+    /// Override the target system library directory for sysroot maintenance.
+    #[arg(long)]
+    pub system_library_root: Option<PathBuf>,
     #[arg(long, conflicts_with = "runtime_objects")]
     pub runtime_root: Option<PathBuf>,
     #[arg(long, conflicts_with = "runtime_root")]

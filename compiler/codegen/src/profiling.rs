@@ -30,13 +30,13 @@ pub fn record(function: &scoop_lir::Function) -> Option<scoop_profile::Record> {
 
 /// Save the same physical layouts used by instruction emission. This is an
 /// ordinary compilation result, independent of debug/symbol observations.
-pub fn profile_map(module: &scoop_lir::Module, target: &str) -> Option<scoop_profile::ProfileMap> {
-    (!module.meta.profile_bodies.is_empty()).then(|| scoop_profile::ProfileMap {
+pub fn profile_map(module: &scoop_lir::Module, target: &str) -> scoop_profile::ProfileMap {
+    scoop_profile::ProfileMap {
         schema: scoop_profile::SCHEMA,
         target: target.into(),
         bodies: module.meta.profile_bodies.clone(),
         records: module.callable_bodies().filter_map(record).collect(),
-    })
+    }
 }
 
 unsafe extern "C" {

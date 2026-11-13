@@ -7,13 +7,21 @@ pub enum BuildProfile {
     #[default]
     Debug,
     Release,
+    Profiling,
 }
 
 impl BuildProfile {
     pub const fn optimization(self) -> scoop_lir::OptimizationMode {
         match self {
             Self::Debug => scoop_lir::OptimizationMode::Debug,
-            Self::Release => scoop_lir::OptimizationMode::Release,
+            Self::Release | Self::Profiling => scoop_lir::OptimizationMode::Release,
+        }
+    }
+
+    pub const fn instrumentation(self) -> scoop_profile::Instrumentation {
+        match self {
+            Self::Profiling => scoop_profile::Instrumentation::Generate,
+            Self::Debug | Self::Release => scoop_profile::Instrumentation::Off,
         }
     }
 
@@ -21,6 +29,7 @@ impl BuildProfile {
         match self {
             Self::Debug => "debug",
             Self::Release => "release",
+            Self::Profiling => "profiling",
         }
     }
 }

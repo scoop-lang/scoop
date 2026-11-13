@@ -14,7 +14,7 @@ def decisions(name):
     return events
 
 
-for name in ["Request.<init>", "delayed"]:
+for name in ["Request.<init>", "delayed", "stored", "imageValue"]:
     expected = "unsupported-body" if mode == "full" else "no-mir-body"
     assert all(item["outcome"] == expected for item in decisions(name)), name
 

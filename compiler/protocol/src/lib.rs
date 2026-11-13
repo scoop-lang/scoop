@@ -23,6 +23,7 @@ pub use purpose::CompilationPurpose;
 mod request;
 pub use scoop_hir::IrTemplateExport;
 pub use scoop_lir::{DebugInfoLevel, OptimizationMode};
+pub use scoop_profile::Instrumentation;
 mod response;
 #[cfg(test)]
 mod test_support;
@@ -47,7 +48,7 @@ pub use response::{
 };
 
 /// Version selected by the unique `scoopc` machine transport entrypoint.
-pub const PROTOCOL_VERSION: u32 = 32;
+pub const PROTOCOL_VERSION: u32 = 33;
 
 pub(crate) const MAX_EMITTED_DUMPS: usize = StageDumpKindV1::ALL.len();
 

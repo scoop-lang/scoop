@@ -35,11 +35,23 @@ pub(super) fn requests(
     let debug_info = args.debug_info.unwrap_or(match profile {
         BuildProfile::Debug => scoop_lir::DebugInfoLevel::Full,
         BuildProfile::Release => scoop_lir::DebugInfoLevel::None,
+        BuildProfile::Profiling => scoop_lir::DebugInfoLevel::LineTables,
     });
     let sysroot = absolute(
         &cwd,
         scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
     )?;
+    let system_library_root = args
+        .system_library_root
+        .map(|root| absolute(&cwd, root))
+        .transpose()?
+        .unwrap_or_else(|| {
+            scoop_toolchain::system_library_root(
+                &sysroot,
+                selection.target(),
+                profile.instrumentation(),
+            )
+        });
     let search = paths(&cwd, args.cone_path)?;
     let inputs = prepare(PrepareInput {
         cwd: &cwd,
@@ -49,6 +61,7 @@ pub(super) fn requests(
         purpose,
         target: selection.target().contract().canonical_triple(),
         sysroot: &sysroot,
+        system_library_root: Some(&system_library_root),
         search: &search,
     })?;
     let target_dir = inputs.target_root(&cwd, args.target_dir)?;
@@ -70,12 +83,21 @@ pub(super) fn requests(
     let runtime = match (args.runtime_objects, args.runtime_root) {
         (Some(index), _) => RuntimeInput::ObjectIndex(absolute(&cwd, index)?),
         (_, Some(root)) => RuntimeInput::SourceRoot(absolute(&cwd, root)?),
-        (None, None) => RuntimeInput::ObjectIndex(scoop_toolchain::default_runtime_index(
-            &sysroot,
-            target.lir_target(),
-            enable_gc_stress,
-            enable_startup_stats,
-        )),
+        (None, None) => RuntimeInput::ObjectIndex(if profile == BuildProfile::Profiling {
+            scoop_toolchain::default_profiling_runtime_index(
+                &sysroot,
+                target.lir_target(),
+                enable_gc_stress,
+                enable_startup_stats,
+            )
+        } else {
+            scoop_toolchain::default_runtime_index(
+                &sysroot,
+                target.lir_target(),
+                enable_gc_stress,
+                enable_startup_stats,
+            )
+        }),
     };
     let context = BuildContext {
         artifact_search_roots: search
@@ -85,12 +107,14 @@ pub(super) fn requests(
             .map_err(config)?,
         cache_root: cache,
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
+        system_library_root,
         target,
         compiler: PairedScoopcLocator::new(compiler).map_err(config)?,
         diagnostics,
         optimization: profile.optimization(),
         debug_info,
         export_ir: args.export_ir,
+        instrumentation: profile.instrumentation(),
         purpose,
         jobs: args.jobs.unwrap_or_else(|| {
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)

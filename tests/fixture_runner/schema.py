@@ -91,6 +91,7 @@ BUILTINS = {
     "link_args",
     "ar",
     "llc",
+    "llvm-profdata",
     "zstd",
     "sdk",
     "deployment",

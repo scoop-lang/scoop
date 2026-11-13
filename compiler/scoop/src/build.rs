@@ -14,6 +14,7 @@ use crate::{
 mod error;
 mod executable;
 mod outcome;
+mod profiling;
 mod request;
 pub use error::*;
 pub use outcome::*;
@@ -90,6 +91,9 @@ fn prepare(
         prepared.observe_dumps(dumps).map_err(output_error)?;
     }
     let publish = move |graph: crate::BuildGraphOutcome| {
+        let profiling = (request.profile == BuildProfile::Profiling)
+            .then(|| profiling::collect(&graph))
+            .transpose()?;
         let finish = || -> BuildResult<_> {
             if request.emit_slib || matches!(graph, crate::BuildGraphOutcome::Library { .. }) {
                 output
@@ -105,6 +109,26 @@ fn prepare(
                         ),
                     )
                     .map_err(output_error)?;
+                if graph.root().artifact().summary().instrumentation()
+                    == scoop_profile::Instrumentation::Generate
+                {
+                    let source = scoop_toolchain::profile_map_path(graph.root().artifact_locator());
+                    let destination = scoop_toolchain::profile_map_path(output.path());
+                    OutputLocation::new(&destination)
+                        .map_err(output_error)?
+                        .publish(
+                            &source,
+                            Some(
+                                graph
+                                    .root()
+                                    .artifact()
+                                    .summary()
+                                    .artifact_fingerprint()
+                                    .as_array(),
+                            ),
+                        )
+                        .map_err(output_error)?;
+                }
                 return Ok(None);
             }
             let linked = executable::get(executable::Request {
@@ -153,6 +177,7 @@ fn prepare(
             profile: request.profile,
             graph,
             sources,
+            profiling,
         };
         let native_app = build.graph.root().artifact().summary().cone().kind()
             == scoop_slib::ConeKind::NativeApp;
@@ -178,6 +203,7 @@ fn prepare(
     Ok((prepared, publish))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn runtime_input(
     input: &RuntimeInput,
     target: &ResolvedTargetProfile,
@@ -186,6 +212,7 @@ fn runtime_input(
     vendor_root: &Path,
     enable_gc_stress: bool,
     enable_startup_stats: bool,
+    enable_profiling: bool,
 ) -> BuildResult<(RuntimeObjectSet, PathBuf, Vec<PathBuf>)> {
     let failure = |error| {
         BuildFailure::tool(
@@ -208,6 +235,9 @@ fn runtime_input(
             objects
                 .require_startup_stats(enable_startup_stats)
                 .map_err(|error| failure(error.to_string()))?;
+            objects
+                .require_profiling(enable_profiling)
+                .map_err(|error| failure(error.to_string()))?;
             let mut paths = objects.input_paths().to_vec();
             paths.push(index.clone());
             Ok((objects, index.clone(), paths))
@@ -226,6 +256,16 @@ fn runtime_input(
                         .map_err(|error| failure(error.to_string()))?,
                     )
                 };
+            let profile_runtime = if enable_profiling {
+                let sysroot = scoop_toolchain::configured_sysroot_root(final_link.sysroot.clone())
+                    .map_err(|e| failure(e.to_string()))?;
+                Some(scoop_toolchain::profiling_runtime_archive(
+                    &sysroot,
+                    target.lir_target(),
+                ))
+            } else {
+                None
+            };
             let runtime = build_runtime(RuntimeBuildRequest {
                 target,
                 runtime_root: root,
@@ -234,6 +274,7 @@ fn runtime_input(
                 optimization: Default::default(),
                 enable_gc_stress,
                 enable_startup_stats,
+                profile_runtime: profile_runtime.as_deref(),
                 unwind_prefix: unwind.as_deref(),
             })
             .map_err(|error| failure(error.to_string()))?;

@@ -35,7 +35,7 @@ fn profiling_counters_survive_production_object_emission() {
                 }),
             );
         }
-        let map = crate::profiling::profile_map(&module, "test-target").unwrap();
+        let map = crate::profiling::profile_map(&module, "test-target");
         assert_eq!(map.records.len(), module.functions.len());
         let input = scoop_lir::ConeLirOutput::try_new(module, Vec::new()).unwrap();
         let profile =
@@ -51,8 +51,49 @@ fn profiling_counters_survive_production_object_emission() {
             std::num::NonZeroUsize::MIN,
         )
         .unwrap_or_else(|error| panic!("{target:?}: {error}"));
+        let partition =
+            scoop_lir::ProducerUnitPartitionV1::from_foundation(&emitted.foundation).unwrap();
+        let plans = scoop_slib::PlannedLinkObjectMemberSetV1::new(
+            emitted.target(),
+            &partition,
+            emitted
+                .members
+                .iter()
+                .map(|member| {
+                    scoop_slib::CanonicalScoopLirObjectUnitSetV1::new(
+                        member.units.definition_plans().to_vec(),
+                    )
+                    .unwrap()
+                })
+                .collect(),
+            Vec::new(),
+        )
+        .unwrap();
+        let symbols = scoop_slib::PlannedStrongObjectSymbolSetV1::new(
+            emitted.target(),
+            emitted.production.canonical_definitions(),
+            &plans,
+        )
+        .unwrap();
         let mut instrumented = 0;
         for member in &emitted.members {
+            let sections = scoop_slib::validate_scoop_lir_llvm_22_1_object_envelope_v1(
+                emitted.target(),
+                &member.bytes,
+            )
+            .unwrap()
+            .into_sections();
+            let id = plans
+                .member_for_definition(member.units.definition_plans()[0])
+                .unwrap();
+            let definitions = scoop_slib::read_member_object_definitions_v1(
+                &member.bytes,
+                sections,
+                symbols.member(id).unwrap(),
+            )
+            .unwrap();
+            scoop_slib::verify_member_object_relocations_v1(definitions)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
             let file = object::File::parse(member.bytes.as_slice()).unwrap();
             let has_counters = file.sections().any(|section| {
                 let name = section.name().unwrap_or_default();

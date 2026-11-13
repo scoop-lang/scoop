@@ -3,6 +3,7 @@ use std::path::Path;
 use scoop_wire::{WireErrorKind, decode_canonical, encode};
 
 use super::*;
+use crate::Instrumentation;
 
 mod check;
 mod documentation;
@@ -79,10 +80,24 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
     assert_eq!(decoded.build().optimization(), OptimizationMode::Release);
     assert_eq!(decoded.build().target(), request.build().target());
     let mut unknown = bytes;
-    let optimization = unknown.len() - 13;
+    let optimization = unknown.len() - 15;
     assert_eq!(unknown[optimization], 2);
     unknown[optimization] = 3;
     assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown).is_err());
+
+    for mode in [Instrumentation::Off, Instrumentation::Generate] {
+        let request = ScoopcRequestEnvelopeV1::new(
+            request.request_id(),
+            request.build().clone().with_instrumentation(mode),
+        );
+        assert_eq!(
+            decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&encode(&request).unwrap())
+                .unwrap()
+                .validate()
+                .unwrap(),
+            request,
+        );
+    }
 
     for mode in [
         IrTemplateExport::Off,
@@ -131,15 +146,15 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
         test
     );
     let mut unknown_purpose = bytes;
-    let purpose = unknown_purpose.len() - 9;
+    let purpose = unknown_purpose.len() - 11;
     assert_eq!(unknown_purpose[purpose], 2);
     unknown_purpose[purpose] = 3;
     assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown_purpose).is_err());
     let mut missing = encode(request.build()).unwrap();
-    let purpose = missing.len() - 8;
-    assert_eq!(&missing[purpose..], &[11, 1, 12, 0x80, 13, 0, 14, 2]);
+    let purpose = missing.len() - 10;
+    assert_eq!(&missing[purpose..], &[11, 1, 12, 0x80, 13, 0, 14, 2, 15, 1]);
     missing.drain(purpose..purpose + 2);
-    missing[0] = 0xad;
+    missing[0] = 0xae;
     assert!(decode_canonical::<super::decode::DecodedScoopcBuildRequestV1>(&missing).is_err());
 }
 

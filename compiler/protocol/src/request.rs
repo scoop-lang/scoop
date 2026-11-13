@@ -122,6 +122,7 @@ pub struct ScoopcBuildRequestV1 {
     optimization: OptimizationMode,
     debug_info: DebugInfoLevel,
     export_ir: IrTemplateExport,
+    instrumentation: scoop_profile::Instrumentation,
     purpose: crate::CompilationPurpose,
     native_inputs: Vec<HostPathCarrier>,
     generators: Vec<crate::GeneratorRegistrationV1>,
@@ -159,6 +160,7 @@ impl ScoopcBuildRequestV1 {
             optimization: OptimizationMode::Debug,
             debug_info: DebugInfoLevel::None,
             export_ir: IrTemplateExport::Default,
+            instrumentation: scoop_profile::Instrumentation::Off,
             purpose: crate::CompilationPurpose::Production,
             native_inputs: Vec::new(),
             generators: Vec::new(),
@@ -179,9 +181,18 @@ impl ScoopcBuildRequestV1 {
         self.debug_info
     }
 
+    pub fn with_instrumentation(mut self, mode: scoop_profile::Instrumentation) -> Self {
+        self.instrumentation = mode;
+        self
+    }
+
     pub fn with_export_ir(mut self, mode: IrTemplateExport) -> Self {
         self.export_ir = mode;
         self
+    }
+
+    pub const fn instrumentation(&self) -> scoop_profile::Instrumentation {
+        self.instrumentation
     }
 
     pub const fn export_ir(&self) -> IrTemplateExport {
@@ -276,7 +287,7 @@ impl ScoopcBuildRequestV1 {
 
 impl WireEncode for ScoopcBuildRequestV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(14)?;
+        encoder.map(15)?;
         encoder.field(1)?;
         self.current.encode(encoder)?;
         encoder.field(2)?;
@@ -307,7 +318,9 @@ impl WireEncode for ScoopcBuildRequestV1 {
         encoder.field(13)?;
         self.debug_info.encode(encoder)?;
         encoder.field(14)?;
-        self.export_ir.encode(encoder)
+        self.export_ir.encode(encoder)?;
+        encoder.field(15)?;
+        self.instrumentation.encode(encoder)
     }
 }
 

@@ -989,6 +989,10 @@ JSON／CLI 的现有解析适配通过 platform 数值入口复用精确解析�
 
 ## 7. 程序启动与退出
 
+profiling 构建使用 `SCOOP_ENABLE_PROFILING=1` 的独立 runtime，普通 runtime 为 0，关闭时不编入采集生命周期、指标文件和计时代码。LLVM InstrProf 的 64 位原子计数由生成机器码直接更新，runtime 不在函数调用热点执行回调，不新增托管对象地址、GC roots 或对象头字段。
+
+采集 runtime 在程序初始化前为本次进程创建输出目录；`SCOOP_PROFILE_DIR` 指定输出根，缺省为 cwd 下的 `scoop-profile`。每次运行使用独立子目录，compiler-rt 生成 `.profraw`，runtime 在独立 JSONL 中写出既有启动阶段和分配/GC 总指标以及具有明确边界的单调时间；不污染程序 stdout，现有显式 stderr 诊断保持原合同。路径和写入失败报告普通 I/O 诊断，不改变业务返回码。正常返回、native-app 进程退出以及显式 `scoop_rt_exit` 尝试写出一次；fatal abort、强制终止和系统故障不保证完整数据。最终计数与指标写出不等待未知用户线程，不读取已经释放的托管状态；所有计数仅作观测，不能参与程序语义。
+
 工具链按目标及运行配置交付一份预编译 runtime native 归档（`.a`／`.lib`）及索引，普通程序链接默认直接消费所选 sysroot 的归档，不提取独立 `.o`；显式源码构建和对象覆盖遵守实现规范 2.7、2.8。索引消费只检查实际目标、runtime ABI 与部署兼容性，不要求生产与消费工具路径相同，也不改变本节的启动顺序。
 
 启动先保存 2.8 的原始 argc/argv，建立运行时基础状态并验证全部 image/registration，再建立 GC、主线程与可执行 managed boundary。任何 managed initializer、Context 分配、argv 的 managed 构造或 main 之前必须完成相应登记；C coordinator 不提前构造未登记的 String 或 Array。

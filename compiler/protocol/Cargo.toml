@@ -13,6 +13,7 @@ scoop-lir.workspace = true
 scoop-slib.workspace = true
 scoop-manifest.workspace = true
 scoop-wire.workspace = true
+scoop-profile.workspace = true
 
 [dev-dependencies]
 scoop-target-data.workspace = true

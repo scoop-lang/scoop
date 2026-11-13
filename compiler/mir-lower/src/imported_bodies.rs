@@ -21,6 +21,20 @@ impl Lowerer {
         let mut bodies = HashMap::new();
         let mut call_sites = HashMap::new();
         let mut unsupported = HashSet::new();
+        for (id, source) in module.imported_dependency_callables.iter() {
+            if source.requires_provider_entry()
+                && let Some(ImportedCallableTarget {
+                    entry:
+                        ImportedCallableEntry::Scoop {
+                            callable,
+                            native_c: None,
+                        },
+                    ..
+                }) = self.imported_dependency_callable_map.get(&id)
+            {
+                unsupported.insert(*callable);
+            }
+        }
         for (_, source) in module.imported_inline_bodies.iter() {
             let Some(ImportedCallableTarget {
                 entry:

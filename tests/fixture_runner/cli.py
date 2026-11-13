@@ -68,6 +68,7 @@ def arguments(argv):
     parser.add_argument("--unwind-prefix", type=Path, help="selected target's LLVM unwind prefix")
     parser.add_argument("--linker", type=Path, help="final executable linker")
     parser.add_argument("--llc", type=Path, help="LLVM 22.1 compiler for IR companions")
+    parser.add_argument("--llvm-profdata", type=Path, help="paired LLVM 22.1 profile merger")
     args = parser.parse_args(argv)
     if args.jobs < 1:
         parser.error("--jobs must be positive")
@@ -220,6 +221,7 @@ def environment(repo, work, fixtures, args):
         "cc",
         "ar",
         "llc",
+        "llvm-profdata",
         "python",
         "zstd",
     }
@@ -230,22 +232,26 @@ def environment(repo, work, fixtures, args):
         if located is None:
             raise EnvironmentError("required compression tool is missing: zstd")
         common["zstd"] = located
-    if "llc" in needed:
-        configured = args.llc or os.environ.get("SCOOP_TEST_PAIRED_LLC")
+    for name in ("llc", "llvm-profdata"):
+        if name not in needed:
+            continue
+        configured = getattr(args, name.replace("-", "_")) or os.environ.get(
+            "SCOOP_TEST_PAIRED_" + name.upper().replace("-", "_")
+        )
         prefix = os.environ.get("LLVM_SYS_221_PREFIX")
         program = (
             str(configured)
             if configured
-            else str(Path(prefix) / "bin" / ("llc.exe" if os.name == "nt" else "llc"))
+            else str(Path(prefix) / "bin" / (name + (".exe" if os.name == "nt" else "")))
             if prefix
-            else shutil.which("llc-22") or "llc"
+            else shutil.which(name + "-22") or name
         )
         located = shutil.which(program)
         if located is None:
             raise EnvironmentError(f"required LLVM 22.1 tool is missing: {program}")
         if not re.search(r"\bversion 22\.1(?:\.|\b)", tool_output([located, "--version"])):
-            raise EnvironmentError(f"IR companions require LLVM 22.1: {located}")
-        common["llc"] = located
+            raise EnvironmentError(f"LLVM companions require LLVM 22.1: {located}")
+        common[name] = located
     if needed & {"cc", "ar"} and target_os == "darwin":
         common.update(
             cc_family="clang",

@@ -139,6 +139,7 @@ pub(super) struct DecodedScoopcBuildRequestV1 {
     optimization: OptimizationMode,
     debug_info: DebugInfoLevel,
     export_ir: IrTemplateExport,
+    instrumentation: scoop_profile::Instrumentation,
     purpose: crate::CompilationPurpose,
     native_inputs: Vec<DecodedHostPathCarrier>,
     generators: Vec<crate::GeneratorRegistrationV1>,
@@ -170,6 +171,7 @@ impl DecodedScoopcBuildRequestV1 {
                 .with_optimization(self.optimization)
                 .with_debug_info(self.debug_info)
                 .with_export_ir(self.export_ir)
+                .with_instrumentation(self.instrumentation)
                 .with_native_inputs(native_inputs)
                 .with_purpose(self.purpose)
         })
@@ -179,7 +181,7 @@ impl DecodedScoopcBuildRequestV1 {
 
 impl WireEncode for DecodedScoopcBuildRequestV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(14)?;
+        encoder.map(15)?;
         encoder.field(1)?;
         self.current.encode(encoder)?;
         encoder.field(2)?;
@@ -210,13 +212,15 @@ impl WireEncode for DecodedScoopcBuildRequestV1 {
         encoder.field(13)?;
         self.debug_info.encode(encoder)?;
         encoder.field(14)?;
-        self.export_ir.encode(encoder)
+        self.export_ir.encode(encoder)?;
+        encoder.field(15)?;
+        self.instrumentation.encode(encoder)
     }
 }
 
 impl WireDecode for DecodedScoopcBuildRequestV1 {
     fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
-        decoder.expect_map(14)?;
+        decoder.expect_map(15)?;
         let current = decoder.field(1, DecodedCurrentConeRequestV1::decode)?;
         let direct_slibs = decoder.field(2, |decoder| {
             decoder.decode_array(|decoder, _| DecodedHostPathCarrier::decode(decoder))
@@ -250,6 +254,7 @@ impl WireDecode for DecodedScoopcBuildRequestV1 {
             })?,
             debug_info: decoder.field(13, DebugInfoLevel::decode)?,
             export_ir: decoder.field(14, IrTemplateExport::decode)?,
+            instrumentation: decoder.field(15, scoop_profile::Instrumentation::decode)?,
         })
     }
 }

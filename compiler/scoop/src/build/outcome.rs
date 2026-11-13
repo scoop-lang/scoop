@@ -10,6 +10,14 @@ pub struct BuiltArtifacts {
     pub profile: BuildProfile,
     pub graph: BuildGraphOutcome,
     pub sources: Vec<SelectedSource>,
+    pub profiling: Option<ProfilingBuildOutput>,
+}
+
+#[derive(Debug, Default)]
+pub struct ProfilingBuildOutput {
+    pub maps: Vec<PathBuf>,
+    pub missing_maps: Vec<PathBuf>,
+    pub uninstrumented_cones: Vec<String>,
 }
 
 #[derive(Debug)]

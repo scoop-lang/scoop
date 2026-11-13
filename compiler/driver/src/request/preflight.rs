@@ -103,6 +103,7 @@ pub struct LoadedSingleConeBuildRequest {
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
     export_ir: scoop_hir::IrTemplateExport,
+    instrumentation: scoop_profile::Instrumentation,
     purpose: CompilationPurpose,
     native_inputs: super::NativeInputOrigin,
     generators: scoop_toolchain::GeneratorPrograms,

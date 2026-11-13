@@ -8,6 +8,7 @@ mod layout;
 mod layout_references;
 mod layout_selection;
 mod native;
+mod profiling;
 mod protocols;
 pub use errors::{CurrentConeProductionError, CurrentConeProductionFailure};
 pub use layout::LayoutProductionError;
@@ -188,6 +189,7 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
                 },
             ));
         }
+        let mut profile_map = None;
         let artifact = (|| {
             let ControlFlow::Continue(artifact) = protocols::lower_machine(
                 hir,
@@ -200,7 +202,22 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
             else {
                 return Ok(ControlFlow::Break(()));
             };
+            profile_map = artifact
+                .profile_map
+                .map(|map| {
+                    profiling::publish_map(
+                        &map,
+                        self.request
+                            .output()
+                            .artifact()
+                            .expect("machine artifact output")
+                            .as_path(),
+                    )
+                })
+                .transpose()
+                .map_err(CurrentConeProductionFailure::Profiling)?;
             artifact
+                .artifact
                 .publish(
                     self.request
                         .output()
@@ -234,6 +251,7 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
                     compiler_inputs,
                 );
                 success.documentation = documentation;
+                success.profile_map = profile_map;
                 Ok(SingleConeCompilation::Published(Box::new(success)))
             }
             Err(cause) => Err(CurrentConeProductionError::after_hir(cause, warnings)),

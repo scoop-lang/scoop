@@ -10,6 +10,11 @@
 
 extern "C" void scoop_lower_profile_counters(LLVMModuleRef module,
                                              LLVMTargetMachineRef target) {
+  auto *ir = llvm::unwrap(module);
+  // Scoop links compiler-rt explicitly and owns its initialization and flush.
+  // The declaration tells InstrProfiling not to emit a per-module hook body.
+  ir->getOrInsertGlobal("__llvm_profile_runtime",
+                        llvm::Type::getInt32Ty(ir->getContext()));
   auto *machine = reinterpret_cast<llvm::TargetMachine *>(target);
   llvm::LoopAnalysisManager loops;
   llvm::FunctionAnalysisManager functions;
@@ -26,7 +31,7 @@ extern "C" void scoop_lower_profile_counters(LLVMModuleRef module,
   options.Atomic = true;
   llvm::ModulePassManager passes;
   passes.addPass(llvm::InstrProfilingLoweringPass(options));
-  passes.run(*llvm::unwrap(module), modules);
+  passes.run(*ir, modules);
 }
 
 using ScoopProfileRecordSink = void (*)(void *, const char *, size_t, uint64_t,

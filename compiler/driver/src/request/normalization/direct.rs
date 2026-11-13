@@ -5,6 +5,7 @@ pub struct DirectBuildOptions {
     pub optimization: scoop_lir::OptimizationMode,
     pub debug_info: scoop_lir::DebugInfoLevel,
     pub export_ir: scoop_hir::IrTemplateExport,
+    pub instrumentation: scoop_profile::Instrumentation,
     pub target: Option<String>,
     pub sysroot: Option<PathBuf>,
     pub c_toolchain: scoop_toolchain::CToolchainOptions,
@@ -140,6 +141,7 @@ fn normalize_direct(
             .with_optimization(options.optimization)
             .with_debug_info(options.debug_info)
             .with_export_ir(options.export_ir)
+            .with_instrumentation(options.instrumentation)
     })
     .map_err(BuildRequestNormalizationError::Request)
 }

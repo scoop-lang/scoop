@@ -22,8 +22,7 @@ pub(super) fn assemble(
     machine_dependencies: slib::ValidatedCrossConeArtifactClosure,
     dump: &mut Vec<EmittedStageDump>,
     stop_after: Option<StageDumpKind>,
-) -> Result<ControlFlow<(), slib::AssembledCrossConeLayoutArtifactV1>, CurrentConeProductionFailure>
-{
+) -> Result<ControlFlow<(), protocols::MachineProduct>, CurrentConeProductionFailure> {
     let closure = machine_dependencies.semantic();
     let dependencies = closure.layout_dependencies().collect::<Vec<_>>();
     let selected = closure
@@ -42,6 +41,7 @@ pub(super) fn assemble(
                 lir::OptimizationMode::Release => scoop_mir_lower::MirOptimizationOptions::RELEASE,
             },
             report.as_mut(),
+            request.instrumentation(),
         )
         .map_err(CurrentConeProductionFailure::Mir)?;
     dump.extend(capture_stage_dump(
@@ -289,6 +289,13 @@ pub(super) fn assemble(
     .map_err(Error::Codegen)?
     .with_optimization(request.optimization())
     .with_debug_info(request.debug_info());
+    let profile_map =
+        (request.instrumentation() == scoop_profile::Instrumentation::Generate).then(|| {
+            scoop_codegen::profiling::profile_map(
+                lir.module(),
+                request.target().lir_target().contract().canonical_triple(),
+            )
+        });
     let objects = scoop_codegen::emit_object_set_v2(&lir, registration, backend, request.jobs())
         .map_err(Error::Codegen)?;
     let generated = crate::generated_c::emit_c_bridge_object_set(
@@ -324,13 +331,19 @@ pub(super) fn assemble(
     crate::CrossConeLayoutArtifactMetadataInputV1::new(metadata, &source, &mir_section, &section)
         .with_dependencies(&machine_dependencies)
         .with_test_directory(hir.test_directory)
+        .with_instrumentation(request.instrumentation())
         .with_native_objects(native_objects)
         .with_native_libraries(
             super::native::libraries(request).map_err(CurrentConeProductionFailure::Native)?,
         )
         .with_native_cxx(super::native::cxx(request))
         .assemble(objects, generated, &owners)
-        .map(ControlFlow::Continue)
+        .map(|artifact| {
+            ControlFlow::Continue(protocols::MachineProduct {
+                artifact,
+                profile_map,
+            })
+        })
         .map_err(Error::Artifact)
         .map_err(Into::into)
 }

@@ -45,3 +45,7 @@ public suspend fun delayed(registration: SuspendRegistration<Int>): Int {
     val value = suspendCoroutine(registration)
     return handled(value)
 }
+
+private fun initialValue(): Int = 8
+public var stored: Int = initialValue()
+public val imageValue: Int = 13

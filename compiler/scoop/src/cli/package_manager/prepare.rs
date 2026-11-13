@@ -43,6 +43,7 @@ pub(in crate::cli) struct PrepareInput<'a> {
     pub purpose: CompilationPurpose,
     pub target: &'a str,
     pub sysroot: &'a Path,
+    pub system_library_root: Option<&'a Path>,
     pub search: &'a [PathBuf],
 }
 
@@ -107,6 +108,7 @@ pub(in crate::cli) fn prepare(input: PrepareInput<'_>) -> BuildResult<Inputs> {
         purpose: input.purpose,
         target: input.target.into(),
         sysroot: path(input.sysroot)?,
+        system_library_root: input.system_library_root.map(path).transpose()?,
         artifact_roots: input
             .search
             .iter()

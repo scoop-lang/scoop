@@ -269,3 +269,10 @@ wait 之前只有后台进程的 `.pid` 可引用；result／stdout 等要等完
 内置 Cone 的测试入口使用仓库 `sysroot/src` 中的当前源码；`--sysroot` 只选择预编译系统库与 native 资源。把 sysroot 指向独立的已准备目录时，不会误跑该目录中的旧版测试源码。
 
 workspace 多根命令使用 `json = "batch-stderr"`，按顺序在 `${step.records}` 保留每个构建／检查／测试结果；`result` 与 `test_result` 分别为最后一个对应结果。单次运行程序仍用原 `stderr` 模式，在首个工具结果后保留程序的 stderr 原文。
+
+Profiling 正确性用例使用显式准备的 `lib-profiling-<target>` 系统库组件；可用
+`prepare_sysroot.py --profiling --profile-runtime <目标 compiler-rt archive>` 准备。
+它们声明 `tools = ["llvm-profdata", ...]`，通过 `${llvm-profdata}` 合并计数。
+工具依次取 `--llvm-profdata`、`SCOOP_TEST_PAIRED_LLVM_PROFDATA`、
+`LLVM_SYS_221_PREFIX/bin/llvm-profdata`，否则查找 `llvm-profdata-22` / `llvm-profdata`；
+要求实际版本为 LLVM 22.1。fixture 不自动准备组件或复制系统库。

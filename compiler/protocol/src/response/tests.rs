@@ -98,3 +98,18 @@ fn observation_response_needs_no_artifact_summary() {
         response
     );
 }
+
+#[test]
+fn response_preserves_profiling_output_path() {
+    let path =
+        HostPathCarrier::from_path(std::path::Path::new("output.slib.profile.json")).unwrap();
+    let result = success(Vec::new(), Vec::new())
+        .unwrap()
+        .with_profile_map(Some(path));
+    let response =
+        ScoopcResponseEnvelopeV1::success(RequestCorrelationId::from_array([4; 16]), result);
+    assert_eq!(
+        crate::decode_response_frame(&crate::encode_response_frame(&response).unwrap()).unwrap(),
+        response
+    );
+}

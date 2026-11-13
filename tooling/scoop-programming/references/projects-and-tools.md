@@ -91,6 +91,10 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 普通应用验证使用 release，已有项目的明确 profile 要求优先。选择其他 target 时先确认工具包及 native 环境确实支持它，使用 `--target <triple>`，不从规划文档推断已支持的平台。
 
+采集执行次数使用 `scoop build . --profile profiling`，它采用 release 优化并默认保留行表；普通 debug/release 不采集。程序运行时在 `SCOOP_PROFILE_DIR` 指定目录下为每次运行创建独立子目录，缺省为运行 cwd 下的 `scoop-profile/`。其中 `counts.profraw` 是 LLVM 计数，`runtime.jsonl` 保存启动、GC 总指标与退出信息；业务标准流保留原用途。正常返回和显式 `exit` 都尝试写出，业务非零退出仍可有有效样本，崩溃或强制终止不保证完整数据。
+
+profiling 默认需要所选目标的专用系统库，目录为 `<sysroot>/lib/<target>/profiling/instrumented`；其中所有系统 Cone 都采用 full 模板导出。缺失时按所用版本的组件安装提示准备，维护构建见仓库 `scripts/README.md`，不自动降级为普通系统库。采集计数可用配套 `llvm-profdata merge` 合并；Scoop 位置映射随 `.slib` 以 `.profile.json` 后缀保存，`scoopc profile-summary <profile-index.json> --message-format json` 读取 Scoop 数据索引并报告逻辑次数。次数不代表耗时，性能比较应使用无插桩 release 程序；独立 PGO 流程的交付状态以 `docs/profiling/PROGRESS.md` 为准。
+
 构建库时可以用 `--export-ir off|default|full` 选择跨 Cone 优化正文的导出范围，例如 `scoop build library --release --export-ir full`。默认 `default` 保留当前可移植的普通正文及 helper 闭包；`full` 保留所有有 Scoop 正文的函数、方法、构造器和访问器及其支持声明，最终是否内联仍由 consumer 决定。`off` 关闭额外普通优化正文，泛型、默认实参等语义必需模板仍会导出。这一选项不改变公开可见性，也不能恢复预编译依赖已剪掉的正文；只影响本次实际构建的源码 Cone。
 
 single-file run 允许第一个普通程序位置参数开始转发；为避免选项歧义，示例统一使用显式 `--`。从样例复制命令时，确认工作目录、文件名、运行前提和参数都对应当前项目。

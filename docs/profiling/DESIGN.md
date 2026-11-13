@@ -125,7 +125,7 @@ off 关闭的是**通过普通导出正文进行的跨 Cone 优化**，不是禁
 
 导出负责提供完整正文。消费方仍只为实际使用的声明准备优化正文；full 不要求预先具体化或降低库中的全部函数。内联器分别判断正文是否可处理、是否满足递归/异常/GC/初始化约束，以及调用点收益是否值得增长代码。
 
-现有普通正文导入阶段也使用可移植性过滤。实施时应把它同 default 的导出策略分开：full 正文不能在导入时又被按 default 集合丢弃；沿完整模板路径降低已使用正文，再由 MIR 判断是否可以、是否值得展开。常量引用保留真正的 provider 和 callable/property 归属。
+现有普通正文导入阶段也使用可移植性过滤。实施时应把它同 default 的导出策略分开：full 正文不能在导入时又被按 default 集合丢弃；沿完整模板路径处理已使用正文，再由 MIR 判断是否可以、是否值得展开。需要直接操作 provider 全局存储或初始化门的访问器仍调用 provider 入口：当前导入正文的存储模型不能表达这类展开，优化报告标为 unsupported-body；full 仍完整导出其模板，不为内联另建一套外来存储 ABI。常量引用保留真正的 provider 和 callable/property 归属。
 
 取得 private helper 的模板不会让它变成源码可见。普通外来 Strong 定义仍属于 provider；消费方可展开其正文，但不能因模板存在而额外发射该 Strong 的机器定义。泛型物化与 ODR 继续遵守现有所有权和选择规则。
 
@@ -425,9 +425,8 @@ installer: scoop-install component add profiling --target <target>
   profiling/
     instrumented/*.slib          Profiling/full 系统库
     release/*.slib               Release/full 系统库
-    maps/                        训练计数位置映射
-    runtime/                     profiling runtime 及对象索引
-    compiler-rt/                 该 target 的 profile runtime 链接库
+    instrumented/*.slib.profile.json  与训练库同名的计数位置映射
+    runtime*/                    profiling runtime、对象索引及 profile.a（compiler-rt）
 ```
 
 采集元数据是组件的正常内容，不依赖用户安装 vendor 或在本机生成。位置映射在首次形成训练数据集时随本次构建结果保存，后续仍可解释原训练数据；不在每次缓存命中时重新读取全部系统库或复核其内容。

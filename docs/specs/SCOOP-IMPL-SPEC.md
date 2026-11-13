@@ -1119,7 +1119,15 @@ native 预处理同时取得实际 include 名称及其所在文件，按该次 
 
 生产用途的 library 不要求 main；executable 必须恰有一个本 Cone 顶层 ordinary、非泛型、非 suspend 的 main，接受无参数或单个 `Array<String>` 参数，返回 Unit 或 Int，具体规则见语言规范 12.4.4。依赖的同名函数不参与入口选择，manifest 与 single-file mode 使用相同规则。测试用途仅适用于 manifest Cone，由前端选择本 Cone 的 generated TestEntry；其测试 `.slib` 是 executable root。请求机器产物时，scoopc 的正式产物是当前 `.slib`；仅文档请求按前述合同返回渲染输入。scoopc 不构建 runtime、不解析 native library 搜索目录、不调用最终 linker。
 
-build/run 接受 `--profile debug|release`，默认 debug；`--release` 为 release 简写，与显式 profile 同时出现为参数错误。实际优化合同见 2.19。
+build/run/test 与 scoopc 接受 `--profile debug|release|profiling`，默认 debug；`--release` 为 release 简写，与显式 profile 同时出现为参数错误。profiling 使用 Release 优化、Generate 采集和默认 line-tables 调试信息；debug/release 默认关闭采集。显式 debug-info 覆盖默认值。采集配置独立于 OptimizationMode，经编译请求、缓存键及 MIR/LIR 正常数据通道传递；计数位置与反馈合同见 [profiling 设计](../profiling/DESIGN.md)。实际优化合同见 2.19。
+
+`scoopc profile-summary <profile.json> --message-format json` 只读 Scoop 数据索引、位置映射及 LLVM indexed profile，沿同一 reader 返回逻辑正文和位置计数。零、缺失、部分覆盖分别表达，错误输入退出非零；human 输出为可读摘要，JSON 写 stdout，诊断写 stderr。Generate 的 `.slib` 保存机器码带探针这一事实：bootstrap manifest schema 为 7，字段 12 为采集模式（Off=1、Generate=2）；container schema 保持 6。manifest summary 同步携带该字段，供最终链接和更新记录使用；该配置不进入语言实体身份或 ABI。compiler protocol 为 33，build request 字段 15 携带采集模式。Generate 同时产出 `<artifact>.profile.json` 位置映射，作为成功响应中的正常编译结果及缓存要求的输出。映射解释逻辑正文、内联副本与物理计数记录，不从显示名或 symbols 观察重建；缓存命中仅判断输入更新与所需结果存在，不读取映射或 `.slib` 复核内容。
+
+full 导出的普通访问器若直接操作 provider 全局存储或初始化门，消费方保留原入口并报告 unsupported-body。模板仍完整保存在产物中；当前外来正文的 HIR 存储模型没有对应实体时，不能把合法程序变成编译错误，也不能把 GlobalRead 改写为对同一访问器的递归展开。
+
+LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的原生辅助数据，由 LLVM 的 section/COMDAT 规则选择和裁剪。产物以 callable 的三个关联对象 atom（ProfileCounters、ProfileData、ProfileNames）保存这些段及原生重定位，使代码 fingerprint 与 ODR 选择涵盖实际计数布局；不解析或重建 LLVM 记录内部格式，不增加 GC roots 或语言 ABI。正文对这些本对象数据的引用按关联 atom 边界解析。该规则不放宽 Scoop callable、runtime record 或 GC metadata 的检查。
+
+维护生产可用 `--system-library-root` 显式选择一套目标系统库目录，沿相同依赖通道传递，不改变 native sysroot。PM protocol 为 8，prepare request 的 `system_library_root` 传递上层已选路径；PM 沿正常依赖规则消费该路径，不决定采集或反馈模式。系统库在依赖解析之前选择：profiling 使用 `<sysroot>/lib/<target>/profiling/instrumented`，Release 反馈构建使用配套的 `profiling/release`，普通构建使用原 target 根。两套库由可选组件 `lib-profiling-<target>` 提供，所有系统 Cone 使用 full 导出。缺失组件时报告所需组件和安装方式，不隐式下载或回退到普通库；显式低层依赖及 core bootstrap 仍能生产该组件。native/GUI 资源沿原组件复用，runtime 选择独立带采集能力的对象索引和目标对应的 compiler-rt profile archive。程序输出目录与 `SCOOP_PROFILE_DIR` 不作为源码编译输入。
 
 `scoop --enable-gc-stress` 是可放在子命令前后的全局构建选项，对 build/run/test/link 的最终 runtime 选择生效，独立于 debug/release；低层 scoop-link 提供同名选项。默认选择不含 stress 支持的 runtime，启用后选择含 stress 能力的版本，再由运行时环境变量控制开关（运行时规范第 3 章）。该选择不改变 Scoop 源码编译或普通库 `.slib` 的身份、profile 和缓存；只影响 runtime 对象及最终链接结果。显式 `--runtime-objects` 的能力必须与请求相符。
 
@@ -1313,7 +1321,9 @@ post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-b
 
 Linux 和 Windows 的最终链接直接使用所选 Scoop sysroot 的 `lib/<target>/unwind/lib/libunwind.a`，显式 `--unwind-prefix` 选择该 prefix 的 `lib/libunwind.a`；不为最终链接读取 `unwind.h` 或编译探测程序。实际链接需要时才选择 archive，最终程序命中时跳过链接准备。runtime 源码构建仍使用维护 prefix 的头文件与 archive，不要求先组装发行目录，并按普通更新规则跟踪自身实际源码与头文件输入。随包公共 unwind 头继续供实际源码编译使用，不构成工具资格检查。
 
-runtime 构建使用 `runtime-v11` 普通记录，按实际源码根、选中源码、include／unwind 配置、flags 与目标定位，不将工具或 SDK 状态作为更新输入。命中前只查询上次实际源码、depfile 头文件及 include 候选的路径／mtime／大小；不读取源码、扫描并复制整棵头文件树或重读 compiler 内容。更新时直接从原始源码预处理并编译，观察实际 include 名称；C 编译产生的独立对象只保存在本次临时目录，Darwin 先完成下述空代码标签清理，再读取成员摘要并执行普通对象／ABI 检查，按原排序打成一份 runtime 归档。全部成功后只保留归档、index 与记录，临时对象随构建结束回收。准备脚本复制这两个已知输出，不改写索引或重新提取对象信息。各次结果采用稳定且互不覆盖的位置；所需 index／归档缺失时补产，真实输入缺失照常报错，失败不发布新记录或替换已有结果。本机 metadata 不改变 runtime ABI。
+profiling runtime 的对象 index schema 为 9，生产配置显式保存采集开关。启用时 index 同目录的 `profile.a` 是目标 compiler-rt profile archive，作为普通 native 输入参与符号选择、链接与更新判断；关闭时没有该输入。采集开关及所选 archive 路径进入 runtime 更新输入，实际 archive 更新触发重新生产；不扫描工具文件。最终链接只允许带采集能力的 runtime 消费 Generate `.slib`，普通 Release 及反馈产物不得混入探针。
+
+runtime 构建使用 `runtime-v12` 普通记录，按实际源码根、选中源码、include／unwind 配置、flags 与目标定位，不将工具或 SDK 状态作为更新输入。命中前只查询上次实际源码、depfile 头文件及 include 候选的路径／mtime／大小；不读取源码、扫描并复制整棵头文件树或重读 compiler 内容。更新时直接从原始源码预处理并编译，观察实际 include 名称；C 编译产生的独立对象只保存在本次临时目录，Darwin 先完成下述空代码标签清理，再读取成员摘要并执行普通对象／ABI 检查，按原排序打成一份 runtime 归档。全部成功后只保留归档、index 与记录，临时对象随构建结束回收。准备脚本复制这两个已知输出，不改写索引或重新提取对象信息。各次结果采用稳定且互不覆盖的位置；所需 index／归档缺失时补产，真实输入缺失照常报错，失败不发布新记录或替换已有结果。本机 metadata 不改变 runtime ABI。
 
 Darwin 最终 executable 将 Scoop 保留的持久符号命名空间（`_scoop$1$*`，包含 callable、类型／派发表、注册记录和 bridge）设为 private external，移出动态导出。跨 Cone 的 Strong／ODR 选择与全部引用在静态链接闭包中完成；选中的 weak 定义不再供 dyld 再绑定，直接调用可由 native linker 绑定到同一镜像中的实际入口。对象和 `.slib` 仍保留原定义与 ODR 合并规则，exact 类型／接口身份、别名地址及 GC／EH 元数据引用不变。源码 public 可见性不等于 native 动态导出；普通 native／runtime C 符号、系统库导入和通过地址传递的 callback 保持原合同。该配置对全部 profile 生效，进入既有 final-link 指纹；消费旧的相容预编译对象时同样适用，不按其他宽泛前缀隐藏 native 符号，也不增加产物格式或 runtime ABI 版本。
 
