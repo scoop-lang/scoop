@@ -2,9 +2,8 @@ package scoop.http.asyncio
 
 import scoop.asyncio.*
 
-internal class HttpLock {
-    private val held: AtomicBoolean = AtomicBoolean(false)
-
+// Copies share the atomic state without another heap wrapper.
+internal struct HttpLock(val held: AtomicBoolean = AtomicBoolean(false)) {
     private fun acquire() {
         while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
     }

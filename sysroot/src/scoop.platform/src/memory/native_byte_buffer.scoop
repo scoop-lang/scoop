@@ -3,6 +3,24 @@ package scoop.platform.memory
 import scoop.bytes.ByteOrder
 import scoop.platform.system.*
 
+private fun copyPinnedByteRange(
+    destination: Ptr<Byte>,
+    source: Array<Byte>,
+    offset: Long,
+    count: Long
+) {
+    @Unsafe
+    {
+        source.withDataPointer {
+            pointer,
+            _ -> @Unsafe
+            {
+                nativeMemoryMove(destination, pointer + offset, count)
+            }
+        }
+    }
+}
+
 /**
  * Owned growable native byte storage with separate read and write positions. Outstanding native
  * borrows restrict mutation and closure; explicitly close the buffer after use.
@@ -318,42 +336,23 @@ public class NativeByteBuffer private constructor(): Closeable {
      */
     public fun writeBytes(array: List<Byte>, offset: Long = 0L, count: Long = array.size - offset) {
         requireArrayRange(array.size, offset, count)
-        @Unsafe
-        {
-            withWritableBytes {
-                destination, available ->
-                if (count > available)
-                    throw IndexOutOfBoundsException()
-                if (count > 0L) {
-                    if (array is Array<Byte>) {
-                        val source = array as Array<Byte>
-                        @Unsafe
-                        {
-                            source.withDataPointer {
-                                pointer,
-                                _ -> @Unsafe
-                                {
-                                    nativeMemoryMove(destination!!, pointer + offset, count)
-                                }
-                            }
-                        }
-                    } else {
-                        val snapshot = Array<Byte>(count) { index -> array[offset + index] }
-                        @Unsafe
-                        {
-                            snapshot.withDataPointer {
-                                pointer,
-                                _ -> @Unsafe
-                                {
-                                    nativeMemoryMove(destination!!, pointer, count)
-                                }
-                            }
-                        }
-                    }
+        val(destination, available) = beginScopedBorrow(true)
+        try {
+            if (count > available)
+                throw IndexOutOfBoundsException()
+            if (count > 0L) {
+                if (array is Array<Byte>) {
+                    copyPinnedByteRange(destination!!, array as Array<Byte>, offset, count)
+                } else {
+                    val snapshot = Array<Byte>(count) { index -> array[offset + index] }
+                    copyPinnedByteRange(destination!!, snapshot, 0L, count)
                 }
-                count
             }
+        } catch (error: Throwable) {
+            finishBorrow(0L, available, true)
+            throw error
         }
+        finishBorrow(count, available, true)
     }
 
     private fun read(width: Long, order: ByteOrder): ULong {

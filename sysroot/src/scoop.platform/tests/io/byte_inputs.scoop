@@ -1,6 +1,7 @@
 package scoop.platform.io
 
 import scoop.platform.fs.*
+import scoop.platform.concurrent.Thread
 import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.net.IpAddress
 import scoop.platform.system.OsString
@@ -24,8 +25,67 @@ private class BufferByteInput(private val buffer: NativeByteBuffer): List<Byte> 
         Array<Byte>(size) { get(it) }.iterator()
 }
 
+private class CollectingBufferInput(
+    private val buffer: NativeByteBuffer,
+    private val failure: Throwable? = None
+): List<Byte> {
+    var reads: Long = 0L
+    public override val size: Long get() = 3L
+    public override operator fun get(index: Long): Byte {
+        if (index < 0L || index >= size)
+            throw IndexOutOfBoundsException()
+        reads += 1L
+        assertEquals(1L, buffer.writePosition)
+        assertEquals(65.toByte(), buffer.getByte(0L))
+        assertFailsWith<IllegalStateException> { buffer.clear() }
+        assertFailsWith<IllegalStateException> { buffer.writeBytes(Array<Byte>(0L) { 0.toByte() }) }
+        if (index == 0L)
+            Thread.start {
+                assertEquals(1L, buffer.writePosition)
+                assertFailsWith<IllegalStateException> { buffer.close() }
+                gcCollect()
+            }.use { it.join() }
+        gcCollect()
+        if (index == 1L)
+            when (failure) {
+                case Some(val error) -> throw error
+                case None -> {}
+            }
+        return (120L + index).toByte()
+    }
+    public override operator fun iterator(): Iterator<Byte> =
+        Array<Byte>(size) { get(it) }.iterator()
+}
+
 @Test
 private class ByteInputListTest {
+    @Test
+    fun `list copying retains its borrow through reentry and collection`() {
+        NativeByteBuffer.allocate(4L).use {
+            buffer ->
+            buffer.writeByte(65.toByte())
+            val input = CollectingBufferInput(buffer)
+            buffer.writeBytes(input)
+            assertEquals(3L, input.reads)
+            assertEquals("Axyz", String.fromUtf8(buffer.readBytes(4L)))
+        }
+    }
+
+    @Test
+    fun `a later getter failure releases copying without committing partial progress`() {
+        NativeByteBuffer.allocate(4L).use {
+            buffer ->
+            buffer.writeByte(65.toByte())
+            val failure = IllegalStateException(Some("second input getter"))
+            val input = CollectingBufferInput(buffer, Some(failure))
+            assertSame(failure, assertFailsWith<IllegalStateException> { buffer.writeBytes(input) })
+            assertEquals(2L, input.reads)
+            assertEquals(1L, buffer.writePosition)
+            buffer.writeBytes("bc".toByteArray())
+            assertEquals("Abc", String.fromUtf8(buffer.readBytes(3L)))
+        }
+    }
+
     @Test
     fun `immutable arrays through a list preserve selected ranges and buffer positions`() {
         val bytes: List<Byte> = "abcdef".toByteArray()
