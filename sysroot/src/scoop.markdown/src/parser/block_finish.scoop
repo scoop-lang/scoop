@@ -1,0 +1,149 @@
+package scoop.markdown
+
+internal fun MdBlockParser.continueCode(node: MdBuildNode): Int {
+    when (val fence = node.fence) {
+        case Some(val data) -> {
+            val length = input.run(nextNonspace, data.marker.code)
+            if (
+                indent <
+                    4L &&
+                    length >=
+                    data.length &&
+                    input.spaces(nextNonspace + length) >=
+                    line.end
+            ) {
+                node.fence = Some(MarkdownFence(data.marker, data.length, data.indent, true))
+                node.markers.add(input.range(nextNonspace, nextNonspace + length))
+                finalize(node, lineIndex)
+                return 2
+            }
+            var remaining = data.indent
+            while (remaining > 0L && offset < line.end && mdSpace(input.at(offset))) {
+                advance(1L, true)
+                remaining -= 1L
+            }
+            return 0
+        }
+        case None -> {
+            if (indent >= 4L) {
+                advance(4L, true);
+                return 0
+            }
+            if (blank) {
+                advanceNonspace();
+                return 0
+            }
+            return 1
+        }
+    }
+}
+
+internal fun MdBlockParser.finalize(node: MdBuildNode, endLine: Long) {
+    node.open = false
+    node.endLine =
+        if (endLine >= node.startLine)
+            endLine
+        else
+            node.startLine
+    node.end =
+        if (endLine >= 0L && endLine < lines.size)
+            lines[endLine].next
+        else
+            node.start
+    when (node.kind) {
+        case MdKind.Code -> {
+            var content = node.input()
+            when (node.fence) {
+                case None -> {
+                    val bodyLines = mdLines(content)
+                    var last = bodyLines.size
+                    while (last > 0L) {
+                        val bodyLine = bodyLines[last - 1L]
+                        if (content.spaces(bodyLine.start) < bodyLine.end)
+                            break
+                        last -= 1L
+                    }
+                    val end =
+                        if (last == 0L)
+                            0L
+                        else
+                            bodyLines[last - 1L].next
+                    content = MdInput(content.slice(0L, end))
+                    if (end > 0L) {
+                        node.end = content.range(0L, end).end
+                        node.endLine = sourceLine(node.end - 1L)
+                    }
+                }
+                case Some(_) -> Unit
+            }
+            node.text = content.value
+        }
+        case MdKind.Html -> {
+            val content = node.input()
+            node.text =
+                content.slice(
+                    0L,
+                    if (content.at(content.size - 1L) == 10)
+                        content.size - 1L
+                    else
+                        content.size
+                )
+        }
+        case MdKind.Item -> {
+            when (node.last) {
+                case Some(val child) -> {
+                    node.end = child.end;
+                    node.endLine = child.endLine
+                }
+                case None -> {
+                    node.end = lines[node.startLine].end;
+                    node.endLine = node.startLine
+                }
+            }
+        }
+        case MdKind.ListBlock -> {
+            val data = node.list!!
+            var item = node.first
+            while (true) {
+                val current = item ?: break
+                when (current.next) {
+                    case Some(val next) -> if (current.endLine + 1L < next.startLine)
+                        data.tight = false
+                    case None -> Unit
+                }
+                var block = current.first
+                while (true) {
+                    val part = block ?: break
+                    when (part.next) {
+                        case Some(val next) -> if (part.endLine + 1L < next.startLine)
+                            data.tight = false
+                        case None -> Unit
+                    }
+                    block = part.next
+                }
+                item = current.next
+            }
+            val last = node.last!!
+            node.end = last.end
+            node.endLine = last.endLine
+        }
+        else -> Unit
+    }
+    tip = node.parent ?: root
+}
+
+internal fun MdBlockParser.sourceLine(position: Long): Long {
+    var low = 0L
+    var high = lines.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (lines[middle].start <= position)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return if (low == 0L)
+        0L
+    else
+        low - 1L
+}

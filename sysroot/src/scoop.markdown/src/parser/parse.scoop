@@ -1,0 +1,148 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+/** Parses explicitly on the calling thread; snapshot reads and source edits never call this. */
+public fun parseMarkdown(
+    snapshot: MarkdownSnapshot,
+    profile: MarkdownProfile = MarkdownProfile.Gfm
+): ParsedMarkdown {
+    val syntax = MdSyntax()
+    try {
+        val source = mdSource(snapshot)
+        val root = MdBlockParser(source, syntax, profile).parse()
+        val references = HashMap<String, MarkdownLinkTarget>()
+        val blocks = mdBuildNodes(root)
+        for (node in blocks)
+            if (node.kind == MdKind.Paragraph)
+                mdCollectReferences(node, references)
+        for (node in mdBuildNodes(root)) {
+            if (
+                node.kind ==
+                    MdKind.Paragraph ||
+                    node.kind ==
+                    MdKind.Heading ||
+                    node.kind ==
+                    MdKind.Cell
+            ) {
+                var input = node.input().trim()
+                if (profile.taskLists && node.kind == MdKind.Paragraph)
+                    input = mdTask(node, input)
+                MdInlineParser(node, input, syntax, profile, references).parse()
+            }
+        }
+        mdMergeText(root)
+        if (profile.autolinks)
+            mdGfmAutolinks(root, syntax)
+        return mdFreeze(snapshot, profile, root)
+    } finally {
+        syntax.close()
+    }
+}
+
+internal fun mdBuildNodes(root: MdBuildNode): Array<MdBuildNode> {
+    val result = ArrayList<MdBuildNode>()
+    val pending = ArrayList<MdBuildNode>()
+    pending.add(root)
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L)
+        result.add(node)
+        var child = node.last
+        while (true) {
+            val current = child ?: break
+            pending.add(current)
+            child = current.previous
+        }
+    }
+    return result.toArray()
+}
+
+internal fun mdCollectReferences(
+    paragraph: MdBuildNode,
+    references: HashMap<String, MarkdownLinkTarget>
+) {
+    val input = paragraph.input()
+    var offset = 0L
+    while (input.at(offset) == 91) {
+        val reference = MdLinkScanner(input, offset).reference() ?: break
+        if (!references.containsKey(reference.label))
+            references[reference.label] = reference.target
+        val range = input.range(offset, reference.end)
+        val node = MdBuildNode(MdKind.Reference, range.start, range.end)
+        node.label = reference.label
+        node.target = Some(reference.target)
+        node.open = false
+        paragraph.insertBefore(node)
+        offset = reference.end
+    }
+    if (offset > 0L) {
+        val remainder = MdInput(input.slice(offset, input.size)).trim()
+        if (remainder.size == 0L)
+            paragraph.unlink()
+        else {
+            paragraph.ready = Some(remainder.value)
+            paragraph.start = remainder.range(0L, 0L).start
+        }
+    }
+}
+
+internal fun MdBuildNode.insertBefore(child: MdBuildNode) {
+    child.unlink()
+    child.parent = parent
+    child.next = Some(this)
+    child.previous = previous
+    when (previous) {
+        case Some(val before) -> before.next = Some(child)
+        case None -> parent!!.first = Some(child)
+    }
+    previous = Some(child)
+}
+
+internal fun mdTask(paragraph: MdBuildNode, input: MdInput): MdInput {
+    val parent = paragraph.parent ?: return input
+    if (
+        parent.kind !=
+            MdKind.Item ||
+            parent.first!! !==
+            paragraph ||
+            input.at(0L) !=
+            91 ||
+            input.at(2L) !=
+            93
+    )
+        return input
+    val mark = input.at(1L)
+    if (mark != 32 && mark != 120 && mark != 88)
+        return input
+    if (input.size > 3L && !mdWhitespace(input.at(3L)))
+        return input
+    parent.task = Some(mark != 32)
+    parent.markers.add(input.range(0L, 3L))
+    val end = input.spaces(3L)
+    return MdInput(input.slice(end, input.size))
+}
+
+internal fun mdMergeText(root: MdBuildNode) {
+    for (parent in mdBuildNodes(root)) {
+        var child = parent.first
+        while (true) {
+            val node = child ?: break
+            if (node.kind == MdKind.Text && (node.next?.kind ?: MdKind.Document) == MdKind.Text) {
+                var following = node.next
+                val combined = MdTextBuilder()
+                combined.append(node.text)
+                while (true) {
+                    val next = following ?: break
+                    if (next.kind != MdKind.Text)
+                        break
+                    combined.append(next.text)
+                    node.end = next.end
+                    following = next.next
+                    next.unlink()
+                }
+                node.text = combined.build(node.start)
+            }
+            child = node.next
+        }
+    }
+}

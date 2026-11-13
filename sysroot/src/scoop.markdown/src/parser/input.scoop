@@ -1,0 +1,138 @@
+package scoop.markdown
+
+internal fun mdSpace(code: Int): Boolean = code == 32 || code == 9
+
+internal fun mdWhitespace(code: Int): Boolean =
+    mdSpace(code) || code == 10 || code == 13 || code == 12 || code == 11
+
+internal fun mdDigit(code: Int): Boolean = code >= 48 && code <= 57
+
+internal fun mdLetter(code: Int): Boolean =
+    (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+
+internal fun mdEscape(code: Int): Boolean =
+    (code >= 33 && code <= 47) ||
+        (code >= 58 && code <= 64) ||
+        (code >= 91 && code <= 96) ||
+        (code >= 123 && code <= 126)
+
+internal class MdInput(internal val value: MarkdownText) {
+    internal val bytes: Array<Byte> = value.bytes
+    internal val size: Long get() = bytes.size
+    internal fun at(offset: Long): Int =
+        if (offset < 0L || offset >= size)
+            -1
+        else
+            bytes[offset].toInt().and(255)
+    internal fun text(start: Long, end: Long): String = mdBytesText(bytes, start, end)
+    internal fun slice(start: Long, end: Long): MarkdownText = mdTextSlice(value, start, end)
+    internal fun range(start: Long, end: Long): MarkdownRange {
+        val first = value.sourceAt(MarkdownPosition(start), MarkdownBias.After).byteOffset
+        return MarkdownRange(
+            first,
+            if (start == end)
+                first
+            else
+                value.sourceAt(MarkdownPosition(end), MarkdownBias.Before).byteOffset
+        )
+    }
+    internal fun run(offset: Long, code: Int): Long {
+        var end = offset
+        while (at(end) == code)
+            end += 1L
+        return end - offset
+    }
+    internal fun spaces(offset: Long): Long {
+        var end = offset
+        while (mdSpace(at(end)))
+            end += 1L
+        return end
+    }
+    internal fun trim(): MdInput {
+        var start = 0L
+        var end = size
+        while (start < end && (mdSpace(at(start)) || at(start) == 10 || at(start) == 13))
+            start += 1L
+        while (end > start && (mdSpace(at(end - 1L)) || at(end - 1L) == 10 || at(end - 1L) == 13))
+            end -= 1L
+        return MdInput(slice(start, end))
+    }
+    internal fun scalarEnd(offset: Long): Long {
+        var end = offset + 1L
+        while (end < size && at(end).and(192) == 128)
+            end += 1L
+        return end
+    }
+    internal fun scalarBefore(offset: Long): String {
+        if (offset == 0L)
+            return "\n"
+        var start = offset - 1L
+        while (start > 0L && at(start).and(192) == 128)
+            start -= 1L
+        return text(start, offset)
+    }
+    internal fun scalarAfter(offset: Long): String =
+        if (offset >= size)
+            "\n"
+        else
+            text(offset, scalarEnd(offset))
+}
+
+internal struct MdLine(val start: Long, val end: Long, val next: Long)
+
+internal fun mdSource(snapshot: MarkdownSnapshot): MdInput {
+    val text = snapshot.toMarkdown()
+    val spans =
+        if (text.byteLength == 0L)
+            []
+        else
+            [
+                MarkdownTextSpan(
+                    MarkdownRange(0L, text.byteLength),
+                    MarkdownRange(0L, text.byteLength),
+                    MarkdownTextMapping.Literal
+                )
+            ]
+    return MdInput(MarkdownText(text, spans, 0L))
+}
+
+internal fun mdLines(input: MdInput): Array<MdLine> {
+    val lines = ArrayList<MdLine>()
+    var start = 0L
+    var end = 0L
+    while (end < input.size) {
+        if (input.at(end) == 10 || input.at(end) == 13) {
+            val next =
+                end +
+                    if (input.at(end) == 13 && input.at(end + 1L) == 10)
+                        2L
+                    else
+                        1L
+            lines.add(MdLine(start, end, next))
+            start = next
+            end = next
+        } else
+            end += 1L
+    }
+    if (start < input.size)
+        lines.add(MdLine(start, input.size, input.size))
+    return lines.toArray()
+}
+
+internal fun mdAppendSource(builder: MdTextBuilder, input: MdInput, start: Long, end: Long) {
+    var offset = start
+    var run = start
+    while (offset < end) {
+        if (input.at(offset) == 0) {
+            builder.append(input.slice(run, offset))
+            builder.add(
+                "\u{FFFD}",
+                input.range(offset, offset + 1L),
+                MarkdownTextMapping.Normalized
+            )
+            run = offset + 1L
+        }
+        offset += 1L
+    }
+    builder.append(input.slice(run, end))
+}

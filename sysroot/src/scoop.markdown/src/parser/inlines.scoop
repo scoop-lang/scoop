@@ -1,0 +1,229 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+import scoop.text.*
+
+internal class MdInlineParser(
+    val block: MdBuildNode,
+    val input: MdInput,
+    val syntax: MdSyntax,
+    val profile: MarkdownProfile,
+    val references: HashMap<String, MarkdownLinkTarget>
+) {
+    var position = 0L
+    val delimiters = ArrayList<MdDelimiter>()
+    var topDelimiter = -1L
+    val brackets = ArrayList<MdBracket>()
+    var topBracket = -1L
+    val ticks = HashMap<Long, ArrayList<Long>>()
+
+    fun parse() {
+        var offset = 0L
+        while (offset < input.size) {
+            if (input.at(offset) == 96) {
+                val count = input.run(offset, 96)
+                val positions = ticks[count] ?: ArrayList<Long>()
+                positions.add(offset)
+                ticks[count] = positions
+                offset += count
+            } else
+                offset += 1L
+        }
+        while (position < input.size) {
+            val start = position
+            val code = input.at(position)
+            when (code) {
+                case 10 -> newline()
+                case 92 -> backslash()
+                case 96 -> backticks()
+                case 42 -> delimiter(code)
+                case 95 -> delimiter(code)
+                case 126 -> if (profile.strikethrough)
+                    delimiter(code)
+                else
+                    plain()
+                case 91 -> openBracket(false)
+                case 33 -> if (input.at(position + 1L) == 91)
+                    openBracket(true)
+                else
+                    plain()
+                case 93 -> closeBracket()
+                case 60 -> if (!angle())
+                    plain()
+                case 38 -> {
+                    when (val entity = mdEntity(input, position)) {
+                        case Some(val value) -> {
+                            val builder = MdTextBuilder()
+                            builder.add(
+                                value.text,
+                                input.range(position, value.end),
+                                MarkdownTextMapping.Entity
+                            )
+                            addText(
+                                position,
+                                value.end,
+                                builder.build(input.range(position, position).start)
+                            )
+                            position = value.end
+                        }
+                        case None -> plain()
+                    }
+                }
+                else -> {
+                    position = input.scalarEnd(position)
+                    while (position < input.size) {
+                        val current = input.at(position)
+                        if (
+                            current ==
+                                10 ||
+                                current ==
+                                92 ||
+                                current ==
+                                96 ||
+                                current ==
+                                42 ||
+                                current ==
+                                95 ||
+                                current ==
+                                91 ||
+                                current ==
+                                93 ||
+                                current ==
+                                33 ||
+                                current ==
+                                60 ||
+                                current ==
+                                38 ||
+                                (profile.strikethrough && current == 126)
+                        )
+                            break
+                        position = input.scalarEnd(position)
+                    }
+                    addText(start, position, input.slice(start, position))
+                }
+            }
+        }
+        processEmphasis(-1L)
+    }
+
+    fun addText(start: Long, end: Long, value: MarkdownText): MdBuildNode {
+        val range = input.range(start, end)
+        val node = MdBuildNode(MdKind.Text, range.start, range.end)
+        node.text = value
+        block.append(node)
+        return node
+    }
+
+    fun plain() {
+        val end = input.scalarEnd(position)
+        addText(position, end, input.slice(position, end))
+        position = end
+    }
+
+    fun backslash() {
+        val start = position
+        position += 1L
+        if (input.at(position) == 10) {
+            position += 1L
+            val range = input.range(start, position)
+            val node = MdBuildNode(MdKind.HardBreak, range.start, range.end)
+            node.markers.add(input.range(start, start + 1L))
+            block.append(node)
+            position = input.spaces(position)
+        } else
+            if (mdEscape(input.at(position))) {
+                val builder = MdTextBuilder()
+                builder.add(
+                    input.text(position, position + 1L),
+                    input.range(start, position + 1L),
+                    MarkdownTextMapping.Escape
+                )
+                position += 1L
+                addText(start, position, builder.build(input.range(start, start).start))
+            } else
+                addText(start, position, input.slice(start, position))
+    }
+
+    fun newline() {
+        val start = position
+        var rangeStart = input.range(start, start).start
+        var hard = false
+        when (val previous = block.last) {
+            case Some(val node) -> if (node.kind == MdKind.Text) {
+                val text = MdInput(node.text)
+                var end = text.size
+                while (end > 0L && text.at(end - 1L) == 32)
+                    end -= 1L
+                hard = text.size - end >= 2L
+                if (end < text.size) {
+                    rangeStart = text.range(end, end).start
+                    node.text = text.slice(0L, end)
+                    node.end = rangeStart
+                    if (end == 0L)
+                        node.unlink()
+                }
+            }
+            case None -> Unit
+        }
+        position += 1L
+        val node =
+            MdBuildNode(
+                if (hard)
+                    MdKind.HardBreak
+                else
+                    MdKind.SoftBreak,
+                rangeStart,
+                input.range(start, position).end
+            )
+        if (hard)
+            node.markers.add(MarkdownRange(rangeStart, input.range(start, start).start))
+        block.append(node)
+        position = input.spaces(position)
+    }
+
+    fun backticks() {
+        val start = position
+        val length = input.run(start, 96)
+        position += length
+        val positions = ticks[length] ?: ArrayList<Long>()
+        var low = 0L
+        var high = positions.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (positions[middle] <= start)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (low == positions.size) {
+            addText(start, position, input.slice(start, position));
+            return
+        }
+        val close = positions[low]
+        val builder = MdTextBuilder()
+        var run = position
+        var nonspace = false
+        for (index in position ..< close) {
+            val code = input.at(index)
+            if (code == 10) {
+                builder.append(input.slice(run, index))
+                builder.add(" ", input.range(index, index + 1L), MarkdownTextMapping.Normalized)
+                run = index + 1L
+            } else
+                if (code != 32)
+                    nonspace = true
+        }
+        builder.append(input.slice(run, close))
+        var value = builder.build(input.range(position, position).start)
+        val body = MdInput(value)
+        if (nonspace && body.size >= 2L && body.at(0L) == 32 && body.at(body.size - 1L) == 32)
+            value = body.slice(1L, body.size - 1L)
+        position = close + length
+        val range = input.range(start, position)
+        val node = MdBuildNode(MdKind.CodeSpan, range.start, range.end)
+        node.text = value
+        node.markers.add(input.range(start, start + length))
+        node.markers.add(input.range(close, position))
+        block.append(node)
+    }
+}

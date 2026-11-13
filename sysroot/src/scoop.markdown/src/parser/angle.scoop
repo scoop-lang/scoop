@@ -1,0 +1,123 @@
+package scoop.markdown
+
+internal fun MdInput.starts(offset: Long, value: String): Boolean {
+    val expected = value.toByteArray()
+    if (offset + expected.size > size)
+        return false
+    for (index in 0L ..< expected.size)
+        if (bytes[offset + index] != expected[index])
+            return false
+    return true
+}
+
+internal fun mdHtmlEnd(input: MdInput, start: Long): Long {
+    val comment = input.starts(start, "<!--")
+    val processing = input.starts(start, "<?")
+    val cdata = input.starts(start, "<![CDATA[")
+    if (comment && input.at(start + 4L) == 62)
+        return start + 5L
+    if (comment && input.at(start + 4L) == 45 && input.at(start + 5L) == 62)
+        return start + 6L
+    if (comment || processing || cdata) {
+        var end =
+            start +
+                if (comment)
+                    4L
+                else
+                    if (cdata)
+                        9L
+                    else
+                        2L
+        while (end < input.size) {
+            if (
+                input.at(end) ==
+                    62 &&
+                    (
+                        (comment && input.at(end - 1L) == 45 && input.at(end - 2L) == 45) ||
+                            (processing && input.at(end - 1L) == 63) ||
+                            (cdata && input.at(end - 1L) == 93 && input.at(end - 2L) == 93)
+                    )
+            )
+                return end + 1L
+            end += 1L
+        }
+        return 0L
+    }
+    if (!mdLetter(input.at(start + 1L)) && input.at(start + 1L) != 47 && input.at(start + 1L) != 33)
+        return 0L
+    var quote = 0
+    var end = start + 1L
+    while (end < input.size) {
+        val code = input.at(end)
+        if (quote != 0) {
+            if (code == quote)
+                quote = 0
+        }
+        else
+            if (code == 34 || code == 39)
+                quote = code
+            else
+                if (code == 62)
+                    return end + 1L
+                else
+                    if (code == 60)
+                        return 0L
+        end += 1L
+    }
+    return 0L
+}
+
+internal fun MdInlineParser.angle(): Boolean {
+    val start = position
+    var end = start + 1L
+    while (end < input.size && input.at(end) != 62 && input.at(end) != 60 && input.at(end) != 10)
+        end += 1L
+    if (input.at(end) == 62) {
+        val label = input.slice(start + 1L, end)
+        val email = syntax.email.matches(label.text)
+        if (email || syntax.uri.matches(label.text)) {
+            val destination = MdTextBuilder()
+            if (email)
+                destination.add(
+                    "mailto:",
+                    input.range(start + 1L, start + 1L),
+                    MarkdownTextMapping.Normalized
+                )
+            destination.append(label)
+            val range = input.range(start, end + 1L)
+            val node = MdBuildNode(MdKind.Link, range.start, range.end)
+            node.target =
+                Some(
+                    MarkdownLinkTarget(
+                        mdNormalizeUri(destination.build(range.start)),
+                        mdEmptyText(range.end),
+                        MarkdownLinkStyle.Autolink,
+                        "",
+                        Some(input.range(start + 1L, end)),
+                        None
+                    )
+                )
+            node.markers.add(input.range(start, start + 1L))
+            node.markers.add(input.range(end, end + 1L))
+            val textRange = input.range(start + 1L, end)
+            val text = MdBuildNode(MdKind.Text, textRange.start, textRange.end)
+            text.text = label
+            node.append(text)
+            block.append(node)
+            position = end + 1L
+            deactivateLinkBrackets()
+            return true
+        }
+    }
+    end = mdHtmlEnd(input, start)
+    if (end == 0L)
+        return false
+    val candidate = input.text(start, end)
+    val matched = syntax.htmlTag.find(candidate) ?: return false
+    position = start + matched.value.byteLength
+    val range = input.range(start, position)
+    val node = MdBuildNode(MdKind.InlineHtml, range.start, range.end)
+    node.text = input.slice(start, position)
+    block.append(node)
+    return true
+}

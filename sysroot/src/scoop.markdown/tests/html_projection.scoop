@@ -1,0 +1,200 @@
+package scoop.markdown
+
+import scoop.text.*
+
+// Test-only projection for the published CommonMark/GFM HTML examples.
+internal fun mdTestEscape(text: String): String =
+    text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+internal fun mdTestHtml(parsed: ParsedMarkdown): String {
+    val output = StringBuilder()
+    mdTestRender(parsed.root, output, false)
+    return output.toString()
+}
+
+private fun mdTestChildren(node: MarkdownNode, output: StringBuilder, tight: Boolean = false) {
+    for (child in node.children)
+        mdTestRender(child, output, tight)
+}
+
+private fun mdTestAlt(node: MarkdownNode): String {
+    val output = StringBuilder()
+    when (node.content) {
+        case MarkdownContent.Text(val value) -> output.append(value.text)
+        case MarkdownContent.CodeSpan(val value) -> output.append(value.text)
+        case MarkdownContent.HtmlInline(val value) -> output.append(value.text)
+        case MarkdownContent.SoftBreak -> output.append('\n')
+        case MarkdownContent.HardBreak -> output.append('\n')
+        else -> for (child in node.children)
+            output.append(mdTestAlt(child))
+    }
+    return output.toString()
+}
+
+private fun mdTestItem(node: MarkdownNode, output: StringBuilder, tight: Boolean) {
+    output.append("<li>")
+    val visible = ArrayList<MarkdownNode>()
+    for (child in node.children)
+        when (child.content) {
+            case MarkdownContent.ReferenceDefinition(_, _) -> Unit
+            else -> visible.add(child)
+        }
+    when (node.content) {
+        case MarkdownContent.ListItem(Some(val checked)) -> {
+            output.append("<input type=\"checkbox\" ")
+            if (checked)
+                output.append("checked=\"\" ")
+            output.append("disabled=\"\" /> ")
+        }
+        else -> Unit
+    }
+    for (index in 0L ..< visible.size) {
+        val child = visible[index]
+        val inline =
+            tight &&
+                when (child.content) {
+                    case MarkdownContent.Paragraph -> true;
+                    else -> false
+                }
+        if (index == 0L && !inline)
+            output.append('\n')
+        mdTestRender(child, output, tight)
+        if (inline && index + 1L < visible.size)
+            output.append('\n')
+    }
+    output.append("</li>\n")
+}
+
+private fun mdTestRender(node: MarkdownNode, output: StringBuilder, tight: Boolean) {
+    when (node.content) {
+        case MarkdownContent.Document -> mdTestChildren(node, output)
+        case MarkdownContent.Paragraph -> {
+            if (!tight)
+                output.append("<p>")
+            mdTestChildren(node, output)
+            if (!tight)
+                output.append("</p>\n")
+        }
+        case MarkdownContent.Heading(val level, _) -> {
+            output.append("<h").append(level).append('>')
+            mdTestChildren(node, output)
+            output.append("</h").append(level).append(">\n")
+        }
+        case MarkdownContent.BlockQuote -> {
+            output.append("<blockquote>\n");
+            mdTestChildren(node, output);
+            output.append("</blockquote>\n")
+        }
+        case MarkdownContent.ListBlock(val data) -> {
+            if (data.ordered) {
+                output.append("<ol")
+                if (data.start != 1L)
+                    output.append(" start=\"").append(data.start).append('"')
+                output.append(">\n")
+            } else
+                output.append("<ul>\n")
+            for (child in node.children)
+                mdTestItem(child, output, data.tight)
+            output.append(
+                if (data.ordered)
+                    "</ol>\n"
+                else
+                    "</ul>\n"
+            )
+        }
+        case MarkdownContent.ListItem(_) -> mdTestItem(node, output, tight)
+        case MarkdownContent.ThematicBreak -> output.append("<hr />\n")
+        case MarkdownContent.CodeBlock(_, val info, val text) -> {
+            output.append("<pre><code")
+            val words = info.text.replace("\t", " ").replace("\n", " ").split(" ")
+            if (info.byteLength > 0L)
+                output.append(" class=\"language-").append(mdTestEscape(words[0L])).append('"')
+            output.append('>').append(mdTestEscape(text.text)).append("</code></pre>\n")
+        }
+        case MarkdownContent.HtmlBlock(val text) -> output.append(text.text).append('\n')
+        case MarkdownContent.ReferenceDefinition(_, _) -> Unit
+        case MarkdownContent.Table(_) -> {
+            output.append("<table>\n<thead>\n")
+            if (node.children.size > 0L)
+                mdTestRow(node.children[0L], output, true)
+            output.append("</thead>\n")
+            if (node.children.size > 1L) {
+                output.append("<tbody>\n")
+                for (index in 1L ..< node.children.size)
+                    mdTestRow(node.children[index], output, false)
+                output.append("</tbody>\n")
+            }
+            output.append("</table>\n")
+        }
+        case MarkdownContent.TableRow(val header) -> mdTestRow(node, output, header)
+        case MarkdownContent.TableCell(_) -> mdTestChildren(node, output)
+        case MarkdownContent.Text(val text) -> output.append(mdTestEscape(text.text))
+        case MarkdownContent.CodeSpan(val text) -> output.append("<code>").append(
+            mdTestEscape(text.text)
+        ).append("</code>")
+        case MarkdownContent.Emphasis -> {
+            output.append("<em>");
+            mdTestChildren(node, output);
+            output.append("</em>")
+        }
+        case MarkdownContent.Strong -> {
+            output.append("<strong>");
+            mdTestChildren(node, output);
+            output.append("</strong>")
+        }
+        case MarkdownContent.Strikethrough -> {
+            output.append("<del>");
+            mdTestChildren(node, output);
+            output.append("</del>")
+        }
+        case MarkdownContent.Link(val target) -> {
+            output.append("<a href=\"").append(mdTestEscape(target.destination.text)).append('"')
+            if (target.title.byteLength > 0L)
+                output.append(" title=\"").append(mdTestEscape(target.title.text)).append('"')
+            output.append('>')
+            mdTestChildren(node, output)
+            output.append("</a>")
+        }
+        case MarkdownContent.Image(val target) -> {
+            output.append("<img src=\"").append(mdTestEscape(target.destination.text)).append(
+                "\" alt=\""
+            ).append(mdTestEscape(mdTestAlt(node))).append('"')
+            if (target.title.byteLength > 0L)
+                output.append(" title=\"").append(mdTestEscape(target.title.text)).append('"')
+            output.append(" />")
+        }
+        case MarkdownContent.HtmlInline(val text) -> output.append(text.text)
+        case MarkdownContent.SoftBreak -> output.append('\n')
+        case MarkdownContent.HardBreak -> output.append("<br />\n")
+    }
+}
+
+private fun mdTestRow(row: MarkdownNode, output: StringBuilder, header: Boolean) {
+    output.append("<tr>\n")
+    val tag =
+        if (header)
+            "th"
+        else
+            "td"
+    for (cell in row.children) {
+        output.append('<').append(tag)
+        when (cell.content) {
+            case MarkdownContent.TableCell(val alignment) -> {
+                val value =
+                    when (alignment) {
+                        case MarkdownAlignment.Left -> "left";
+                        case MarkdownAlignment.Center -> "center";
+                        case MarkdownAlignment.Right -> "right";
+                        case MarkdownAlignment.None -> ""
+                    }
+                if (value != "")
+                    output.append(" align=\"").append(value).append('"')
+            }
+            else -> Unit
+        }
+        output.append('>')
+        mdTestChildren(cell, output)
+        output.append("</").append(tag).append(">\n")
+    }
+    output.append("</tr>\n")
+}

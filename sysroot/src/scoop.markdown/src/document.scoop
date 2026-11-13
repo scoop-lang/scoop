@@ -4,6 +4,7 @@ package scoop.markdown
 public class MarkdownDocument private constructor(private var current: MarkdownSnapshot) {
     private val subscriptions = ArrayList<MarkdownSubscription>()
     private var notifying = false
+    private var parsed: ParsedMarkdown? = None
 
     public val documentId: MarkdownDocumentId get() = current.documentId
     public val revision: Long get() = current.revision
@@ -11,6 +12,16 @@ public class MarkdownDocument private constructor(private var current: MarkdownS
     public val lineCount: Long get() = current.lineCount
 
     public fun snapshot(): MarkdownSnapshot = current
+    public fun parse(profile: MarkdownProfile = MarkdownProfile.Gfm): ParsedMarkdown {
+        when (parsed) {
+            case Some(val value) -> if (value.profile == profile)
+                return value
+            case None -> Unit
+        }
+        val value = parseMarkdown(current, profile)
+        parsed = Some(value)
+        return value
+    }
     public fun toMarkdown(): String = current.toMarkdown()
     public fun writeTo(writer: TextWriter) {
         current.writeTo(writer)
@@ -50,6 +61,7 @@ public class MarkdownDocument private constructor(private var current: MarkdownS
             return change
         val listeners = subscriptions.toArray()
         current = change.after
+        parsed = None
         notifying = true
         try {
             var firstFailure: Throwable? = None

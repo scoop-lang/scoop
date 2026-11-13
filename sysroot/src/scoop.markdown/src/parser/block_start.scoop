@@ -1,0 +1,254 @@
+package scoop.markdown
+
+internal fun MdBlockParser.atxLength(): Long {
+    val count = input.run(nextNonspace, 35)
+    return if (
+        count >=
+            1L &&
+            count <=
+            6L &&
+            (nextNonspace + count == line.end || mdSpace(input.at(nextNonspace + count)))
+    )
+        count
+    else
+        0L
+}
+
+internal fun MdBlockParser.fenceLength(): Long {
+    val code = input.at(nextNonspace)
+    if (code != 96 && code != 126)
+        return 0L
+    val length = input.run(nextNonspace, code)
+    if (length < 3L)
+        return 0L
+    if (code == 96)
+        for (index in (nextNonspace + length) ..< line.end)
+            if (input.at(index) == 96)
+                return 0L
+    return length
+}
+
+internal fun MdBlockParser.isRule(): Boolean {
+    val code = input.at(nextNonspace)
+    if (code != 42 && code != 45 && code != 95)
+        return false
+    var count = 0L
+    for (index in nextNonspace ..< line.end) {
+        val current = input.at(index)
+        if (current == code)
+            count += 1L
+        else
+            if (!mdSpace(current))
+                return false
+    }
+    return count >= 3L
+}
+
+internal fun MdBlockParser.listMarker(paragraph: Boolean, consume: Boolean): MdList? {
+    if (indent >= 4L)
+        return None
+    var end = nextNonspace
+    var start = 1L
+    var marker = input.at(end)
+    val ordered = mdDigit(marker)
+    if (ordered) {
+        start = 0L
+        while (mdDigit(input.at(end)) && end - nextNonspace < 9L) {
+            start = start * 10L + (input.at(end) - 48).toLong()
+            end += 1L
+        }
+        marker = input.at(end)
+        if ((marker != 46 && marker != 41) || (paragraph && start != 1L))
+            return None
+    } else
+        if (marker != 42 && marker != 43 && marker != 45)
+            return None
+    end += 1L
+    if (end < line.end && !mdSpace(input.at(end)))
+        return None
+    if (paragraph && input.spaces(end) >= line.end)
+        return None
+    val markerOffset = indent
+    val markerLength = end - nextNonspace
+    if (!consume)
+        return Some(MdList(ordered, start, marker, markerOffset, markerLength + 1L))
+    advanceNonspace()
+    advance(markerLength)
+    val afterColumn = column
+    val afterOffset = offset
+    do {
+        advance(1L, true)
+    } while (column - afterColumn < 5L && offset < line.end && mdSpace(input.at(offset)))
+    val spaces = column - afterColumn
+    var padding = 0L
+    if (spaces >= 5L || spaces < 1L || offset == line.end) {
+        padding = markerLength + 1L
+        column = afterColumn
+        offset = afterOffset
+        partialTab = false
+        if (offset < line.end && mdSpace(input.at(offset)))
+            advance(1L, true)
+    } else
+        padding = markerLength + spaces
+    return Some(MdList(ordered, start, marker, markerOffset, padding))
+}
+
+internal fun MdBlockParser.startBlock(container: MdBuildNode): Int {
+    if (blank)
+        return 0
+    val start = nextNonspace
+    val code = input.at(start)
+    if (indent < 4L && code == 62) {
+        advanceNonspace()
+        advance(1L)
+        if (offset < line.end && mdSpace(input.at(offset)))
+            advance(1L, true)
+        closeUnmatched()
+        val node = add(MdKind.Quote, start)
+        node.markers.add(input.range(start, offset))
+        return 1
+    }
+    if (indent < 4L) {
+        val hashes = atxLength()
+        if (hashes > 0L) {
+            closeUnmatched()
+            val node = add(MdKind.Heading, start)
+            node.level = hashes.toInt()
+            node.markers.add(input.range(start, start + hashes))
+            val bodyStart = input.spaces(start + hashes)
+            var bodyEnd = line.end
+            while (bodyEnd > bodyStart && mdSpace(input.at(bodyEnd - 1L)))
+                bodyEnd -= 1L
+            var closer = bodyEnd
+            while (closer > bodyStart && input.at(closer - 1L) == 35)
+                closer -= 1L
+            if (closer < bodyEnd && (closer == bodyStart || mdSpace(input.at(closer - 1L)))) {
+                node.markers.add(input.range(closer, bodyEnd))
+                bodyEnd = closer
+                while (bodyEnd > bodyStart && mdSpace(input.at(bodyEnd - 1L)))
+                    bodyEnd -= 1L
+            }
+            mdAppendSource(node.source, input, bodyStart, bodyEnd)
+            offset = line.end
+            skipContent = true
+            return 2
+        }
+        val fence = fenceLength()
+        if (fence > 0L) {
+            val fenceIndent = indent
+            closeUnmatched()
+            val node = add(MdKind.Code, start)
+            node.fence = Some(MarkdownFence(code.toChar(), fence, fenceIndent, false))
+            node.markers.add(input.range(start, start + fence))
+            val builder = MdTextBuilder()
+            mdAppendSource(builder, input, start + fence, line.end)
+            node.info = mdUnescape(MdInput(builder.build(start + fence)).trim().value)
+            offset = line.end
+            skipContent = true
+            return 2
+        }
+        if (code == 60) {
+            val html =
+                syntax.htmlStart(
+                    input.text(start, line.end),
+                    container.kind ==
+                        MdKind.Paragraph ||
+                        (!allClosed && tip.kind == MdKind.Paragraph)
+                )
+            if (html > 0) {
+                closeUnmatched()
+                val node = add(MdKind.Html, offset)
+                node.htmlType = html
+                return 2
+            }
+        }
+        if (container.kind == MdKind.Paragraph) {
+            val underline =
+                if (code == 61 || code == 45)
+                    input.run(start, code)
+                else
+                    0L
+            if (
+                underline >
+                    0L &&
+                    input.spaces(start + underline) >=
+                    line.end &&
+                    startSetext(container, code)
+            )
+                return 2
+            if (
+                profile.tables && (code == 124 || code == 58 || code == 45) && startTable(container)
+            )
+                return 2
+        }
+        if (isRule()) {
+            closeUnmatched()
+            add(MdKind.Rule, start).markers.add(input.range(start, line.end))
+            offset = line.end
+            skipContent = true
+            return 2
+        }
+    }
+    when (val marker = listMarker(container.kind == MdKind.Paragraph, true)) {
+        case Some(val data) -> {
+            closeUnmatched()
+            val matching =
+                if (tip.kind == MdKind.ListBlock)
+                    tip.list!!.matches(data)
+                else
+                    false
+            if (!matching)
+                add(MdKind.ListBlock, start).list = Some(data)
+            val node = add(MdKind.Item, start)
+            node.list = Some(data)
+            node.markers.add(input.range(start, offset))
+            return 1
+        }
+        case None -> Unit
+    }
+    if (indent >= 4L && tip.kind != MdKind.Paragraph) {
+        advance(4L, true)
+        closeUnmatched()
+        add(MdKind.Code, offset)
+        return 2
+    }
+    return 0
+}
+
+internal fun MdBlockParser.startSetext(paragraph: MdBuildNode, marker: Int): Boolean {
+    val body = paragraph.input()
+    var consumed = 0L
+    while (body.at(consumed) == 91) {
+        val reference = MdLinkScanner(body, consumed).reference() ?: break
+        consumed = reference.end
+    }
+    if (consumed == body.size)
+        return false
+    closeUnmatched()
+    var heading = paragraph
+    if (consumed > 0L) {
+        heading = MdBuildNode(MdKind.Heading, body.range(consumed, consumed).start, line.next)
+        heading.startLine = sourceLine(heading.start)
+        heading.endLine = lineIndex
+        heading.ready = Some(body.slice(consumed, body.size))
+        paragraph.ready = Some(body.slice(0L, consumed))
+        paragraph.end = body.range(0L, consumed).end
+        paragraph.endLine = sourceLine(paragraph.end - 1L)
+        paragraph.open = false
+        paragraph.insertAfter(heading)
+    } else {
+        heading = paragraph;
+        heading.kind = MdKind.Heading
+    }
+    heading.level =
+        if (marker == 61)
+            1
+        else
+            2
+    heading.setext = true
+    heading.markers.add(input.range(nextNonspace, line.end))
+    tip = heading
+    offset = line.end
+    skipContent = true
+    return true
+}

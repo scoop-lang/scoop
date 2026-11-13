@@ -1,0 +1,186 @@
+package scoop.markdown
+
+internal fun mdTableCells(input: MdInput): Array<MarkdownText> {
+    val cells = ArrayList<MarkdownText>()
+    val trimmed = input.trim()
+    var start =
+        if (trimmed.at(0L) == 124)
+            1L
+        else
+            0L
+    var end = trimmed.size
+    if (end > start && trimmed.at(end - 1L) == 124) {
+        var backslashes = 0L
+        var index = end - 1L
+        while (index > start && trimmed.at(index - 1L) == 92) {
+            backslashes += 1L;
+            index -= 1L
+        }
+        if (backslashes % 2L == 0L)
+            end -= 1L
+    }
+    var offset = start
+    var run = start
+    var body = MdTextBuilder()
+    while (offset < end) {
+        if (trimmed.at(offset) == 92 && trimmed.at(offset + 1L) == 92) {
+            offset += 2L;
+            continue
+        }
+        if (trimmed.at(offset) == 92 && trimmed.at(offset + 1L) == 124) {
+            body.append(trimmed.slice(run, offset))
+            body.add("|", trimmed.range(offset, offset + 2L), MarkdownTextMapping.Escape)
+            offset += 2L
+            run = offset
+        } else
+            if (trimmed.at(offset) == 124) {
+                body.append(trimmed.slice(run, offset))
+                cells.add(MdInput(body.build(trimmed.range(start, start).start)).trim().value)
+                body = MdTextBuilder()
+                offset += 1L
+                start = offset
+                run = offset
+            } else
+                offset += 1L
+    }
+    body.append(trimmed.slice(run, end))
+    cells.add(MdInput(body.build(trimmed.range(start, start).start)).trim().value)
+    return cells.toArray()
+}
+
+internal fun mdTableAlignments(input: MdInput): Array<MarkdownAlignment>? {
+    val cells = mdTableCells(input)
+    val result = ArrayList<MarkdownAlignment>()
+    for (cell in cells) {
+        val value = MdInput(cell)
+        var start = 0L
+        var end = value.size
+        val left = value.at(start) == 58
+        if (left)
+            start += 1L
+        val right = value.at(end - 1L) == 58
+        if (right)
+            end -= 1L
+        if (end <= start)
+            return None
+        for (offset in start ..< end)
+            if (value.at(offset) != 45)
+                return None
+        result.add(
+            if (left && right)
+                MarkdownAlignment.Center
+            else
+                if (left)
+                    MarkdownAlignment.Left
+                else
+                    if (right)
+                        MarkdownAlignment.Right
+                    else
+                        MarkdownAlignment.None
+        )
+    }
+    return Some(result.toArray())
+}
+
+internal fun mdAddTableRow(
+    table: MdBuildNode,
+    input: MdInput,
+    range: MarkdownRange,
+    header: Boolean,
+    line: Long
+) {
+    val row = MdBuildNode(MdKind.Row, range.start, range.end)
+    row.header = header
+    row.startLine = line
+    row.endLine = line
+    row.open = false
+    val cells = mdTableCells(input)
+    for (index in 0L ..< table.alignments.size) {
+        val value =
+            if (index < cells.size)
+                cells[index]
+            else
+                mdEmptyText(range.end)
+        val mapped = MdInput(value)
+        val raw = mapped.range(0L, mapped.size)
+        val cell = MdBuildNode(MdKind.Cell, raw.start, raw.end)
+        cell.alignment = table.alignments[index]
+        cell.ready = Some(value)
+        cell.open = false
+        row.append(cell)
+    }
+    table.append(row)
+}
+
+internal fun MdBlockParser.startTable(paragraph: MdBuildNode): Boolean {
+    val delimiter = MdInput(input.slice(nextNonspace, line.end))
+    val alignments = mdTableAlignments(delimiter) ?: return false
+    val body = paragraph.input().trim()
+    val bodyLines = mdLines(body)
+    if (bodyLines.size == 0L)
+        return false
+    val headerLine = bodyLines[bodyLines.size - 1L]
+    val headerBody = MdInput(body.slice(headerLine.start, headerLine.end))
+    val header = mdTableCells(headerBody)
+    if (header.size != alignments.size)
+        return false
+    closeUnmatched()
+    var table = paragraph
+    if (bodyLines.size > 1L) {
+        val headerRange = headerBody.range(0L, headerBody.size)
+        table = MdBuildNode(MdKind.Table, headerRange.start, line.next)
+        table.startLine = lineIndex - 1L
+        table.endLine = lineIndex
+        paragraph.ready = Some(body.slice(0L, headerLine.start))
+        paragraph.end = body.range(0L, headerLine.start).end
+        paragraph.endLine = sourceLine(paragraph.end - 1L)
+        paragraph.open = false
+        paragraph.insertAfter(table)
+        tip = table
+    } else
+        paragraph.kind = MdKind.Table
+    table.alignments = alignments
+    table.markers.add(input.range(nextNonspace, line.end))
+    mdAddTableRow(
+        table,
+        headerBody,
+        MarkdownRange(table.start, lines[lineIndex - 1L].next),
+        true,
+        lineIndex - 1L
+    )
+    offset = line.end
+    skipContent = true
+    return true
+}
+
+internal fun MdBlockParser.continueTable(table: MdBuildNode): Int {
+    if (blank)
+        return 1
+    if (indent < 4L) {
+        if (input.at(nextNonspace) == 62 || atxLength() > 0L || fenceLength() > 0L || isRule())
+            return 1
+        when (listMarker(true, false)) {
+            case Some(_) -> return 1;
+            case None -> Unit
+        }
+        if (
+            input.at(nextNonspace) ==
+                60 &&
+                syntax.htmlStart(input.text(nextNonspace, line.end), true) >
+                0
+        )
+            return 1
+    }
+    val builder = MdTextBuilder()
+    mdAppendSource(builder, input, nextNonspace, line.end)
+    mdAddTableRow(
+        table,
+        MdInput(builder.build(nextNonspace)),
+        input.range(nextNonspace, line.next),
+        false,
+        lineIndex
+    )
+    table.end = line.next
+    table.endLine = lineIndex
+    return 2
+}

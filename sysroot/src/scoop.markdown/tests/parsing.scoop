@@ -1,0 +1,147 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownParsingTests {
+    @Test
+    fun `decoded spans retain exact source for entities escapes and Unicode`() {
+        val source = "# 雪\r\n\r\n> a &amp; \\*b\r\n> c\u{0}\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        var entities = 0L
+        var escapes = 0L
+        var nul = 0L
+        for (node in parsed.nodes()) {
+            parsed.snapshot.read(node.range)
+            for (marker in node.markers)
+                parsed.snapshot.read(marker)
+            when (node.content) {
+                case MarkdownContent.Text(val text) -> {
+                    var end = 0L
+                    for (span in text.spans) {
+                        assertEquals(end, span.textRange.start)
+                        end = span.textRange.end
+                        val original = parsed.snapshot.read(span.sourceRange)
+                        when (span.mapping) {
+                            case MarkdownTextMapping.Entity -> {
+                                entities += 1L
+                                assertEquals("&amp;", original)
+                                assertEquals(
+                                    span.sourceRange.start,
+                                    text.sourceAt(MarkdownPosition(span.textRange.start)).byteOffset
+                                )
+                                assertEquals(
+                                    span.textRange.start,
+                                    text.textAt(
+                                        MarkdownPosition(span.sourceRange.start + 2L),
+                                        MarkdownBias.Before
+                                    ).byteOffset
+                                )
+                                assertEquals(
+                                    span.textRange.end,
+                                    text.textAt(
+                                        MarkdownPosition(span.sourceRange.start + 2L),
+                                        MarkdownBias.After
+                                    ).byteOffset
+                                )
+                            }
+                            case MarkdownTextMapping.Escape -> {
+                                escapes += 1L;
+                                assertEquals("\\*", original)
+                            }
+                            case MarkdownTextMapping.Normalized -> {
+                                nul += 1L;
+                                assertEquals("\u{0}", original)
+                            }
+                            case MarkdownTextMapping.Literal -> Unit
+                        }
+                    }
+                    assertEquals(text.byteLength, end)
+                }
+                else -> Unit
+            }
+        }
+        assertEquals(1L, entities)
+        assertEquals(1L, escapes)
+        assertEquals(1L, nul)
+        assertEquals(source, document.toMarkdown())
+        when (parsed.nodeAt(MarkdownPosition(0L)).content) {
+            case MarkdownContent.Heading(val level, _) -> assertEquals(1, level)
+            else -> assertTrue(false, Some("heading marker should resolve to the heading"))
+        }
+    }
+
+    @Test
+    fun `code spans normalize only their displayed content`() {
+        val source = "` a\r\n雪 `"
+        val parsed = MarkdownDocument.fromText(source).parse()
+        val code = parsed.root.children[0L].children[0L]
+        when (code.content) {
+            case MarkdownContent.CodeSpan(val text) -> {
+                assertEquals("a 雪", text.text)
+                assertEquals(2L, text.sourceAt(MarkdownPosition(0L)).byteOffset)
+                assertEquals("\r\n", parsed.snapshot.read(text.spans[1L].sourceRange))
+                assertEquals("`", parsed.snapshot.read(code.markers[0L]))
+                assertEquals("`", parsed.snapshot.read(code.markers[1L]))
+            }
+            else -> assertTrue(false, Some("expected a mapped code span"))
+        }
+        assertEquals(source, parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun `definitions resolve forward Unicode labels and remain queryable`() {
+        val source = "[go][STRASSE]\n\n[straße]: <a b> 'title'\n[strasse]: /second\n"
+        val parsed = MarkdownDocument.fromText(source).parse()
+        val link = parsed.root.children[0L].children[0L]
+        when (link.content) {
+            case MarkdownContent.Link(val target) -> {
+                assertEquals("a%20b", target.destination.text)
+                assertEquals("title", target.title.text)
+                assertEquals(MarkdownLinkStyle.FullReference, target.style)
+                assertEquals("strasse", target.label)
+                assertEquals("a b", parsed.snapshot.read(target.destinationRange!!))
+            }
+            else -> assertTrue(false, Some("expected a reference link"))
+        }
+        assertEquals(3L, parsed.root.children.size)
+        when (parsed.root.children[1L].content) {
+            case MarkdownContent.ReferenceDefinition(val label, _) -> assertEquals("strasse", label)
+            else -> assertTrue(false, Some("definition must remain in the source tree"))
+        }
+    }
+
+    @Test
+    fun `parse cache keys content and profile while snapshots and ids remain owned`() {
+        val document = MarkdownDocument.fromText("# before\n")
+        val first = document.parse()
+        val id = first.root.children[0L].id
+        assertTrue(first === document.parse())
+        document.replace(MarkdownRange(2L, 8L), "before")
+        assertTrue(first === document.parse())
+        document.replace(MarkdownRange(2L, 8L), "after")
+        val second = document.parse()
+        assertFalse(first === second)
+        assertEquals(0L, first.revision)
+        assertEquals(1L, second.revision)
+        assertEquals("# before\n", first.snapshot.toMarkdown())
+        assertTrue(first.node(id) === first.root.children[0L])
+        assertFailsWith<IllegalArgumentException> { second.node(id) }
+        assertFalse(second === document.parse(MarkdownProfile.CommonMark))
+    }
+
+    @Test
+    fun `deep containers and traversal do not consume the native call stack`() {
+        val source = StringBuilder()
+        for (index in 0L ..< 3000L)
+            source.append("> ")
+        source.append("雪\n")
+        val parsed = MarkdownDocument.fromText(source.toString()).parse()
+        var count = 0L
+        for (node in parsed.nodes())
+            count += 1L
+        assertEquals(3003L, count)
+        assertEquals(source.toString(), parsed.snapshot.toMarkdown())
+    }
+}

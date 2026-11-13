@@ -1,0 +1,265 @@
+package scoop.markdown
+
+// Adapted from commonmark.js's container parser (BSD-2-Clause; see licenses).
+internal class MdBlockParser(
+    val input: MdInput,
+    val syntax: MdSyntax,
+    val profile: MarkdownProfile
+) {
+    val lines = mdLines(input)
+    val root = MdBuildNode(MdKind.Document, 0L, input.size)
+    var tip = root
+    var oldTip = root
+    var lastMatched = root
+    var allClosed = true
+    var lineIndex = 0L
+    var line = MdLine(0L, 0L, 0L)
+    var offset = 0L
+    var column = 0L
+    var nextNonspace = 0L
+    var nextColumn = 0L
+    var indent = 0L
+    var blank = false
+    var partialTab = false
+    var skipContent = false
+
+    fun parse(): MdBuildNode {
+        while (lineIndex < lines.size) {
+            line = lines[lineIndex]
+            incorporate()
+            lineIndex += 1L
+        }
+        while (tip !== root)
+            finalize(tip, lines.size - 1L)
+        root.open = false
+        return root
+    }
+
+    fun findNonspace() {
+        var index = offset
+        var columns = column
+        while (index < line.end) {
+            if (input.at(index) == 32) {
+                index += 1L;
+                columns += 1L
+            }
+            else
+                if (input.at(index) == 9) {
+                    index += 1L;
+                    columns += 4L - columns % 4L
+                }
+                else
+                    break
+        }
+        nextNonspace = index
+        nextColumn = columns
+        indent = columns - column
+        blank = index == line.end
+    }
+
+    fun advanceNonspace() {
+        offset = nextNonspace;
+        column = nextColumn;
+        partialTab = false
+    }
+
+    fun advance(count: Long, columns: Boolean = false) {
+        var remaining = count
+        while (remaining > 0L && offset < line.end) {
+            if (input.at(offset) == 9) {
+                val width = 4L - column % 4L
+                if (columns) {
+                    partialTab = width > remaining
+                    val used =
+                        if (partialTab)
+                            remaining
+                        else
+                            width
+                    column += used
+                    if (!partialTab)
+                        offset += 1L
+                    remaining -= used
+                } else {
+                    partialTab = false
+                    column += width
+                    offset += 1L
+                    remaining -= 1L
+                }
+            } else {
+                partialTab = false;
+                offset += 1L;
+                column += 1L;
+                remaining -= 1L
+            }
+        }
+    }
+
+    fun addLine() {
+        tip.ready = None
+        if (partialTab) {
+            val spaces = StringBuilder()
+            for (index in 0L ..< (4L - column % 4L))
+                spaces.append(' ')
+            tip.source.add(
+                spaces.toString(),
+                input.range(offset, offset + 1L),
+                MarkdownTextMapping.Normalized
+            )
+            offset += 1L
+        }
+        mdAppendSource(tip.source, input, offset, line.end)
+        tip.source.add(
+            "\n",
+            input.range(line.end, line.next),
+            if (line.next - line.end == 1L && input.at(line.end) == 10)
+                MarkdownTextMapping.Literal
+            else
+                MarkdownTextMapping.Normalized
+        )
+    }
+
+    fun canContain(parent: MdKind, child: MdKind): Boolean =
+        when (parent) {
+            case MdKind.Document -> child != MdKind.Item
+            case MdKind.Quote -> child != MdKind.Item
+            case MdKind.Item -> child != MdKind.Item
+            case MdKind.ListBlock -> child == MdKind.Item
+            else -> false
+        }
+
+    fun add(kind: MdKind, start: Long): MdBuildNode {
+        while (!canContain(tip.kind, kind))
+            finalize(tip, lineIndex - 1L)
+        val node = MdBuildNode(kind, start, line.next)
+        node.startLine = lineIndex
+        node.endLine = lineIndex
+        tip.append(node)
+        tip = node
+        return node
+    }
+
+    fun closeUnmatched() {
+        if (allClosed)
+            return
+        while (oldTip !== lastMatched) {
+            val parent = oldTip.parent!!
+            finalize(oldTip, lineIndex - 1L)
+            oldTip = parent
+        }
+        allClosed = true
+    }
+
+    fun continueBlock(node: MdBuildNode): Int =
+        when (node.kind) {
+            case MdKind.Document -> 0
+            case MdKind.ListBlock -> 0
+            case MdKind.Quote -> {
+                if (indent < 4L && input.at(nextNonspace) == 62) {
+                    val start = nextNonspace
+                    advanceNonspace()
+                    advance(1L)
+                    if (mdSpace(input.at(offset)))
+                        advance(1L, true)
+                    node.markers.add(input.range(start, offset))
+                    0
+                } else
+                    1
+            }
+            case MdKind.Item -> {
+                val data = node.list!!
+                if (indent >= data.offset + data.padding) {
+                    advance(data.offset + data.padding, true);
+                    0
+                }
+                else
+                    if (
+                        blank &&
+                            when (node.first) {
+                                case Some(_) -> true;
+                                case None -> false
+                            }
+                    ) {
+                        advanceNonspace();
+                        0
+                    }
+                    else
+                        1
+            }
+            case MdKind.Paragraph -> if (blank)
+                1
+            else
+                0
+            case MdKind.Html -> if (blank && node.htmlType >= 6)
+                1
+            else
+                0
+            case MdKind.Code -> continueCode(node)
+            case MdKind.Table -> continueTable(node)
+            else -> 1
+        }
+
+    private fun incorporate() {
+        var container = root
+        oldTip = tip
+        offset = line.start
+        column = 0L
+        partialTab = false
+        blank = false
+        skipContent = false
+        while (true) {
+            val child = container.last ?: break
+            if (!child.open)
+                break
+            findNonspace()
+            val result = continueBlock(child)
+            if (result == 2)
+                return
+            if (result == 1)
+                break
+            container = child
+        }
+        allClosed = container === oldTip
+        lastMatched = container
+        var leaf = container.kind == MdKind.Code || container.kind == MdKind.Html
+        while (!leaf) {
+            findNonspace()
+            val result = startBlock(container)
+            if (result == 0) {
+                advanceNonspace();
+                break
+            }
+            container = tip
+            if (result == 2)
+                leaf = true
+        }
+        if (!allClosed && !blank && tip.kind == MdKind.Paragraph)
+            addLine()
+        else {
+            closeUnmatched()
+            if (
+                !skipContent &&
+                    (
+                        container.kind ==
+                            MdKind.Code ||
+                            container.kind ==
+                            MdKind.Html ||
+                            container.kind ==
+                            MdKind.Paragraph
+                    )
+            ) {
+                addLine()
+                if (
+                    container.kind ==
+                        MdKind.Html &&
+                        syntax.htmlEnd(input.text(offset, line.end), container.htmlType)
+                )
+                    finalize(container, lineIndex)
+            } else
+                if (!skipContent && offset < line.end && !blank) {
+                    add(MdKind.Paragraph, offset)
+                    advanceNonspace()
+                    addLine()
+                }
+        }
+    }
+}

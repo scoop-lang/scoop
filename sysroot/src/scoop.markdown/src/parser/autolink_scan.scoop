@@ -1,0 +1,199 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal struct MdBareLink(val start: Long, val end: Long, val prefix: String)
+
+internal fun mdGfmLocal(code: Int): Boolean =
+    mdLetter(code) || mdDigit(code) || code == 46 || code == 45 || code == 95 || code == 43
+
+internal fun mdBareUriEnd(input: MdInput, start: Long): Long {
+    var end = start
+    var depth = 0L
+    while (end < input.size) {
+        val code = input.at(end)
+        if (code == 60 || code == 62 || code == 34 || code == 39 || mdWhitespace(code))
+            break
+        if (code >= 128 && input.scalarAfter(end).isBlank())
+            break
+        if (code == 40)
+            depth += 1L
+        if (code == 41)
+            depth -= 1L
+        end = input.scalarEnd(end)
+    }
+    while (end > start) {
+        val code = input.at(end - 1L)
+        if (
+            code ==
+                63 ||
+                code ==
+                33 ||
+                code ==
+                46 ||
+                code ==
+                44 ||
+                code ==
+                58 ||
+                code ==
+                42 ||
+                code ==
+                95 ||
+                code ==
+                126
+        )
+            end -= 1L
+        else
+            if (code == 41 && depth < 0L) {
+                end -= 1L;
+                depth += 1L
+            }
+            else
+                if (code == 59) {
+                    var amp = end - 1L
+                    while (
+                        amp > start && (mdLetter(input.at(amp - 1L)) || mdDigit(input.at(amp - 1L)))
+                    )
+                        amp -= 1L
+                    if (amp > start && amp < end - 1L && input.at(amp - 1L) == 38)
+                        end = amp - 1L
+                    else
+                        break
+                } else
+                    break
+    }
+    return end
+}
+
+internal fun mdBareEmailEnd(input: MdInput, start: Long, syntax: MdSyntax): Long {
+    if (!mdGfmLocal(input.at(start)))
+        return 0L
+    var at = start
+    while (mdGfmLocal(input.at(at)))
+        at += 1L
+    if (input.at(at) != 64)
+        return 0L
+    var end = at + 1L
+    var dot = false
+    while (
+        mdLetter(input.at(end)) ||
+            mdDigit(input.at(end)) ||
+            input.at(end) ==
+            45 ||
+            input.at(end) ==
+            46 ||
+            input.at(end) ==
+            95
+    ) {
+        if (input.at(end) == 46)
+            dot = true
+        end += 1L
+    }
+    while (end > at + 1L && input.at(end - 1L) == 46)
+        end -= 1L
+    if (!dot || !mdLetter(input.at(end - 1L)) || !syntax.email.matches(input.text(start, end)))
+        return 0L
+    return end
+}
+
+internal fun mdBareLink(input: MdInput, start: Long, syntax: MdSyntax): MdBareLink? {
+    val before = input.at(start - 1L)
+    val first = input.at(start)
+    if (!mdGfmLocal(before)) {
+        val mailto = first == 109 && input.starts(start, "mailto:")
+        val xmpp = first == 120 && input.starts(start, "xmpp:")
+        if (mailto || xmpp) {
+            var end =
+                mdBareEmailEnd(
+                    input,
+                    start +
+                        if (mailto)
+                            7L
+                        else
+                            5L,
+                    syntax
+                )
+            if (end > 0L) {
+                if (xmpp && input.at(end) == 47)
+                    end = mdBareUriEnd(input, end)
+                return Some(MdBareLink(start, end, ""))
+            }
+        }
+    }
+    val boundary =
+        before <
+            0 ||
+            mdWhitespace(before) ||
+            before ==
+            40 ||
+            before ==
+            42 ||
+            before ==
+            95 ||
+            before ==
+            126 ||
+            before ==
+            34 ||
+            before ==
+            39 ||
+            (before >= 128 && input.scalarBefore(start).isBlank())
+    val www = first == 119 && boundary && input.starts(start, "www.")
+    val http = first == 104 && (input.starts(start, "http://") || input.starts(start, "https://"))
+    if (www || http) {
+        val hostStart =
+            start +
+                if (www)
+                    4L
+                else
+                    if (input.starts(start, "http://"))
+                        7L
+                    else
+                        8L
+        var hostEnd = hostStart
+        while (hostEnd < input.size) {
+            val code = input.at(hostEnd)
+            if (mdLetter(code) || mdDigit(code) || code == 45 || code == 46 || code == 95)
+                hostEnd += 1L
+            else
+                if (code >= 128 && !input.scalarAfter(hostEnd).isBlank())
+                    hostEnd = input.scalarEnd(hostEnd)
+                else
+                    break
+        }
+        if (hostEnd == hostStart)
+            return None
+        val labels = input.text(hostStart, hostEnd).trimEnd { code -> code == '.' }.split(".")
+        if (www && labels.size < 2L)
+            return None
+        var index =
+            if (labels.size >= 2L)
+                labels.size - 2L
+            else
+                0L
+        while (index < labels.size) {
+            if (labels[index] == "" || labels[index].contains("_"))
+                return None
+            index += 1L
+        }
+        val end = mdBareUriEnd(input, start)
+        if (end <= hostStart)
+            return None
+        return Some(
+            MdBareLink(
+                start,
+                end,
+                if (www)
+                    "http://"
+                else
+                    ""
+            )
+        )
+    }
+    if (mdGfmLocal(before))
+        return None
+    val end = mdBareEmailEnd(input, start, syntax)
+    return if (end == 0L)
+        None
+    else
+        Some(MdBareLink(start, end, "mailto:"))
+}

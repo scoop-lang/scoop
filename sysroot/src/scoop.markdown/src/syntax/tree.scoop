@@ -1,0 +1,90 @@
+package scoop.markdown
+
+/** Identity belongs to one parse result, independent of source labels and offsets. */
+public class MarkdownNodeId internal constructor(internal val ordinal: Long)
+
+public class MarkdownNode internal constructor(
+    public val id: MarkdownNodeId,
+    public val content: MarkdownContent,
+    public val range: MarkdownRange,
+    public val markers: Array<MarkdownRange>,
+    public val children: Array<MarkdownNode>
+)
+
+/** A complete immutable tree for exactly one source snapshot and profile. */
+public class ParsedMarkdown internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val profile: MarkdownProfile,
+    public val root: MarkdownNode,
+    private val index: Array<MarkdownNode>
+) {
+    public val documentId: MarkdownDocumentId get() = snapshot.documentId
+    public val revision: Long get() = snapshot.revision
+
+    public fun node(id: MarkdownNodeId): MarkdownNode {
+        requireMarkdown(
+            id.ordinal >= 0L && id.ordinal < index.size,
+            "Node is outside this Markdown parse"
+        )
+        val value = index[id.ordinal]
+        requireMarkdown(value.id === id, "Node belongs to a different Markdown parse")
+        return value
+    }
+
+    /** Preorder traversal includes the root and does not recurse on the native stack. */
+    public fun nodes(): Iterable<MarkdownNode> = MdNodes(root)
+
+    /** Finds the deepest syntax node at a source position, including hidden markup. */
+    public fun nodeAt(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownNode {
+        snapshot.checkPosition(position.byteOffset)
+        var result = root
+        while (true) {
+            var selected: MarkdownNode? = None
+            var low = 0L
+            var high = result.children.size
+            while (low < high) {
+                val middle = low + (high - low) / 2L
+                val child = result.children[middle]
+                if (
+                    child.range.end <
+                        position.byteOffset ||
+                        (child.range.end == position.byteOffset && bias == MarkdownBias.After)
+                )
+                    low = middle + 1L
+                else
+                    high = middle
+            }
+            if (low < result.children.size) {
+                val child = result.children[low]
+                if (child.range.start <= position.byteOffset)
+                    selected = Some(child)
+            }
+            result = selected ?: return result
+        }
+    }
+}
+
+private class MdNodes(private val root: MarkdownNode): Iterable<MarkdownNode> {
+    public override operator fun iterator(): Iterator<MarkdownNode> = MdNodeIterator(root)
+}
+
+private class MdNodeIterator(root: MarkdownNode): Iterator<MarkdownNode> {
+    private val pending = ArrayList<MarkdownNode>()
+    init {
+        pending.add(root)
+    }
+    public override fun next(): MarkdownNode? {
+        if (pending.size == 0L)
+            return None
+        val result = pending.removeAt(pending.size - 1L)
+        var index = result.children.size
+        while (index > 0L) {
+            index -= 1L
+            pending.add(result.children[index])
+        }
+        return Some(result)
+    }
+}

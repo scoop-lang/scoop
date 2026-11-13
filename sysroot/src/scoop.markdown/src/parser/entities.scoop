@@ -1,0 +1,171 @@
+package scoop.markdown
+
+import scoop.compiler.includeStr
+import scoop.collections.HashMap
+import scoop.text.*
+
+internal object MdEntities {
+    private val values: HashMap<String, String> = load()
+    private fun load(): HashMap<String, String> {
+        val result = HashMap<String, String>()
+        for (line in includeStr("data/entities.tsv").lines()) {
+            if (line == "")
+                continue
+            val columns = line.split("\t")
+            val value = StringBuilder()
+            for (code in columns[1L].split(","))
+                value.append(code.toInt().toChar())
+            result[columns[0L]] = value.toString()
+        }
+        return result
+    }
+    fun get(name: String): String? = values[name]
+}
+
+internal struct MdEntity(val end: Long, val text: String)
+
+internal fun mdEntity(input: MdInput, start: Long): MdEntity? {
+    if (input.at(start) != 38)
+        return None
+    var end = start + 1L
+    if (input.at(end) == 35) {
+        end += 1L
+        val hex = input.at(end) == 120 || input.at(end) == 88
+        if (hex)
+            end += 1L
+        val digits = end
+        var value = 0
+        while (true) {
+            val code = input.at(end)
+            val digit =
+                if (mdDigit(code))
+                    code - 48
+                else
+                    if (hex && code >= 65 && code <= 70)
+                        code - 55
+                    else
+                        if (hex && code >= 97 && code <= 102)
+                            code - 87
+                        else
+                            -1
+            if (digit < 0)
+                break
+            if (
+                end -
+                    digits >=
+                    if (hex)
+                        6L
+                    else
+                        7L
+            )
+                return None
+            value =
+                value *
+                    (
+                        if (hex)
+                            16
+                        else
+                            10
+                    ) +
+                    digit
+            end += 1L
+        }
+        if (end == digits || input.at(end) != 59)
+            return None
+        if (value == 0 || value > 1114111 || (value >= 55296 && value <= 57343))
+            value = 65533
+        return Some(MdEntity(end + 1L, value.toChar().toString()))
+    }
+    if (!mdLetter(input.at(end)))
+        return None
+    while (mdLetter(input.at(end)) || mdDigit(input.at(end))) {
+        end += 1L
+        if (end - start > 32L)
+            return None
+    }
+    if (input.at(end) != 59)
+        return None
+    val decoded = MdEntities.get(input.text(start + 1L, end)) ?: return None
+    return Some(MdEntity(end + 1L, decoded))
+}
+
+internal fun mdUnescape(value: MarkdownText): MarkdownText {
+    val input = MdInput(value)
+    val output = MdTextBuilder()
+    var position = 0L
+    var run = 0L
+    while (position < input.size) {
+        if (input.at(position) == 92 && mdEscape(input.at(position + 1L))) {
+            output.append(input.slice(run, position))
+            output.add(
+                input.text(position + 1L, position + 2L),
+                input.range(position, position + 2L),
+                MarkdownTextMapping.Escape
+            )
+            position += 2L
+            run = position
+        } else
+            if (input.at(position) == 38) {
+                when (val entity = mdEntity(input, position)) {
+                    case Some(val matched) -> {
+                        output.append(input.slice(run, position))
+                        output.add(
+                            matched.text,
+                            input.range(position, matched.end),
+                            MarkdownTextMapping.Entity
+                        )
+                        position = matched.end
+                        run = position
+                    }
+                    case None -> position += 1L
+                }
+            } else
+                position += 1L
+    }
+    output.append(input.slice(run, input.size))
+    return output.build(value.emptyPosition)
+}
+
+internal fun mdHex(value: Int): Boolean =
+    mdDigit(value) || (value >= 65 && value <= 70) || (value >= 97 && value <= 102)
+
+internal fun mdNormalizeUri(value: MarkdownText): MarkdownText {
+    val input = MdInput(value)
+    val result = MdTextBuilder()
+    val hex = "0123456789ABCDEF".toByteArray()
+    var position = 0L
+    var run = 0L
+    while (position < input.size) {
+        val code = input.at(position)
+        if (
+            mdLetter(code) ||
+                mdDigit(code) ||
+                (code >= 0 && ";/?:@&=+$,-_.!~*'()#".contains(code.toChar().toString())) ||
+                (code == 37 && mdHex(input.at(position + 1L)) && mdHex(input.at(position + 2L)))
+        ) {
+            position += if (code == 37)
+                3L
+            else
+                1L
+        } else {
+            result.append(input.slice(run, position))
+            val end = input.scalarEnd(position)
+            val encoded = StringBuilder()
+            for (index in position ..< end) {
+                val byte = input.at(index)
+                encoded.append('%').append(hex[(byte / 16).toLong()].toInt().toChar()).append(
+                    hex[(byte % 16).toLong()].toInt().toChar()
+                )
+            }
+            result.add(
+                encoded.toString(),
+                input.range(position, end),
+                MarkdownTextMapping.Normalized
+            )
+            position = end
+            run = end
+        }
+    }
+    result.append(input.slice(run, input.size))
+    return result.build(value.emptyPosition)
+}

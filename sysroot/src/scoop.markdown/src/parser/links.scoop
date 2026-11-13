@@ -1,0 +1,220 @@
+package scoop.markdown
+
+import scoop.charset.unicodeCasefold
+import scoop.text.*
+
+internal fun mdReferenceLabel(value: String): String {
+    val result = StringBuilder()
+    var whitespace = false
+    for (code in value.trim()) {
+        if (mdWhitespace(code.code))
+            whitespace = true
+        else {
+            if (whitespace)
+                result.append(' ')
+            result.append(code)
+            whitespace = false
+        }
+    }
+    return unicodeCasefold(result.toString())
+}
+
+internal struct MdReference(val end: Long, val label: String, val target: MarkdownLinkTarget)
+
+internal class MdLinkScanner(val input: MdInput, var position: Long = 0L) {
+    var destinationRange: MarkdownRange? = None
+    var titleRange: MarkdownRange? = None
+
+    fun spaceNewline() {
+        position = input.spaces(position)
+        if (input.at(position) == 10)
+            position = input.spaces(position + 1L)
+    }
+
+    fun labelEnd(): Long {
+        val start = position
+        if (input.at(start) != 91)
+            return 0L
+        var end = start + 1L
+        var count = 0L
+        while (end < input.size && count <= 999L) {
+            val code = input.at(end)
+            if (code == 93)
+                return if (count <= 999L)
+                    end + 1L
+                else
+                    0L
+            if (code == 91)
+                return 0L
+            if (code == 92 && end + 1L < input.size) {
+                end += 1L
+                count += 1L
+            }
+            end = input.scalarEnd(end)
+            count += 1L
+        }
+        return 0L
+    }
+
+    fun destination(): MarkdownText? {
+        val start = position
+        var end = start
+        if (input.at(start) == 60) {
+            end += 1L
+            while (end < input.size) {
+                val code = input.at(end)
+                if (code == 62) {
+                    destinationRange = Some(input.range(start + 1L, end))
+                    position = end + 1L
+                    return Some(mdNormalizeUri(mdUnescape(input.slice(start + 1L, end))))
+                }
+                if (code == 60 || code == 10)
+                    return None
+                if (code == 92 && mdEscape(input.at(end + 1L)))
+                    end += 1L
+                end += 1L
+            }
+            return None
+        }
+        var depth = 0L
+        while (end < input.size) {
+            val code = input.at(end)
+            if (code == 92 && mdEscape(input.at(end + 1L)))
+                end += 2L
+            else
+                if (code == 40) {
+                    depth += 1L;
+                    end += 1L
+                }
+                else
+                    if (code == 41) {
+                        if (depth == 0L)
+                            break
+                        depth -= 1L
+                        end += 1L
+                    } else
+                        if (code <= 32)
+                            break
+                        else
+                            end += 1L
+        }
+        if (depth != 0L || (end == start && input.at(end) != 41))
+            return None
+        destinationRange = Some(input.range(start, end))
+        position = end
+        return Some(mdNormalizeUri(mdUnescape(input.slice(start, end))))
+    }
+
+    fun title(): MarkdownText? {
+        val start = position
+        val opener = input.at(start)
+        if (opener != 34 && opener != 39 && opener != 40)
+            return None
+        val closer =
+            if (opener == 40)
+                41
+            else
+                opener
+        var end = start + 1L
+        while (end < input.size) {
+            val code = input.at(end)
+            if (code == closer) {
+                position = end + 1L
+                titleRange = Some(input.range(start + 1L, end))
+                return Some(mdUnescape(input.slice(start + 1L, end)))
+            }
+            if (code == 40 && opener == 40)
+                return None
+            if (code == 10 && input.at(input.spaces(end + 1L)) == 10)
+                return None
+            if (code == 92 && mdEscape(input.at(end + 1L)))
+                end += 1L
+            end += 1L
+        }
+        return None
+    }
+
+    fun reference(): MdReference? {
+        val start = position
+        val labelEnd = labelEnd()
+        if (labelEnd == 0L || input.at(labelEnd) != 58)
+            return None
+        val label = mdReferenceLabel(input.text(start + 1L, labelEnd - 1L))
+        if (label == "")
+            return None
+        position = labelEnd + 1L
+        spaceNewline()
+        val destination = destination() ?: return None
+        val beforeTitle = position
+        spaceNewline()
+        var title: MarkdownText? =
+            if (position > beforeTitle)
+                title()
+            else
+                None
+        when (title) {
+            case None -> position = beforeTitle;
+            case Some(_) -> Unit
+        }
+        var end = input.spaces(position)
+        if (input.at(end) != 10 && end != input.size) {
+            when (title) {
+                case Some(_) -> {
+                    title = None;
+                    titleRange = None;
+                    position = beforeTitle;
+                    end = input.spaces(position)
+                }
+                case None -> return None
+            }
+        }
+        if (input.at(end) != 10 && end != input.size)
+            return None
+        if (input.at(end) == 10)
+            end += 1L
+        position = end
+        return Some(
+            MdReference(
+                end,
+                label,
+                MarkdownLinkTarget(
+                    destination,
+                    title ?: mdEmptyText(input.range(beforeTitle, beforeTitle).start),
+                    MarkdownLinkStyle.FullReference,
+                    label,
+                    destinationRange,
+                    titleRange
+                )
+            )
+        )
+    }
+
+    fun inlineTarget(): MarkdownLinkTarget? {
+        if (input.at(position) != 40)
+            return None
+        position += 1L
+        spaceNewline()
+        val destination = destination() ?: return None
+        val beforeTitle = position
+        spaceNewline()
+        val title =
+            if (position > beforeTitle)
+                title()
+            else
+                None
+        spaceNewline()
+        if (input.at(position) != 41)
+            return None
+        position += 1L
+        return Some(
+            MarkdownLinkTarget(
+                destination,
+                title ?: mdEmptyText(input.range(beforeTitle, beforeTitle).start),
+                MarkdownLinkStyle.Inline,
+                "",
+                destinationRange,
+                titleRange
+            )
+        )
+    }
+}

@@ -1,0 +1,193 @@
+package scoop.markdown
+
+// Container and delimiter algorithms follow commonmark.js. See licenses/commonmark-js.txt.
+internal enum MdKind {
+    Document, Paragraph, Heading, Quote, ListBlock, Item, Rule, Code, Html, Reference,
+    Table, Row, Cell, Text, CodeSpan, Emphasis, Strong, Strike, Link, Image, InlineHtml, SoftBreak, HardBreak
+}
+
+internal class MdList(
+    val ordered: Boolean,
+    val start: Long,
+    val marker: Int,
+    val offset: Long,
+    val padding: Long
+) {
+    var tight: Boolean = true
+    fun matches(other: MdList): Boolean = ordered == other.ordered && marker == other.marker
+}
+
+internal class MdBuildNode(
+    internal var kind: MdKind,
+    internal var start: Long,
+    internal var end: Long
+) {
+    var parent: MdBuildNode? = None
+    var first: MdBuildNode? = None
+    var last: MdBuildNode? = None
+    var previous: MdBuildNode? = None
+    var next: MdBuildNode? = None
+    var open = true
+    var startLine = 0L
+    var endLine = 0L
+    var source = MdTextBuilder()
+    var ready: MarkdownText? = None
+    var text: MarkdownText = mdEmptyText(start)
+    var info: MarkdownText = mdEmptyText(start)
+    var level = 0
+    var setext = false
+    var list: MdList? = None
+    var task: Boolean? = None
+    var fence: MarkdownFence? = None
+    var htmlType = 0
+    var target: MarkdownLinkTarget? = None
+    var label = ""
+    var alignments: Array<MarkdownAlignment> = []
+    var alignment = MarkdownAlignment.None
+    var header = false
+    val markers = ArrayList<MarkdownRange>()
+    var ordinal = 0L
+    var frozen: MarkdownNode? = None
+
+    fun input(): MdInput {
+        val result = ready ?: source.build(start)
+        ready = Some(result)
+        return MdInput(result)
+    }
+
+    fun unlink() {
+        val p = parent
+        val before = previous
+        val after = next
+        when (before) {
+            case Some(val node) -> node.next = after;
+            case None -> when (p) {
+                case Some(val node) -> node.first = after;
+                case None -> Unit
+            }
+        }
+        when (after) {
+            case Some(val node) -> node.previous = before;
+            case None -> when (p) {
+                case Some(val node) -> node.last = before;
+                case None -> Unit
+            }
+        }
+        parent = None
+        previous = None
+        next = None
+    }
+
+    fun append(child: MdBuildNode) {
+        child.unlink()
+        child.parent = Some(this)
+        child.previous = last
+        when (last) {
+            case Some(val node) -> node.next = Some(child);
+            case None -> first = Some(child)
+        }
+        last = Some(child)
+    }
+
+    fun insertAfter(child: MdBuildNode) {
+        child.unlink()
+        child.parent = parent
+        child.previous = Some(this)
+        child.next = next
+        when (next) {
+            case Some(val node) -> node.previous = Some(child);
+            case None -> when (parent) {
+                case Some(val node) -> node.last = Some(child);
+                case None -> Unit
+            }
+        }
+        next = Some(child)
+    }
+
+    fun content(): MarkdownContent =
+        when (kind) {
+            case MdKind.Document -> MarkdownContent.Document
+            case MdKind.Paragraph -> MarkdownContent.Paragraph
+            case MdKind.Heading -> MarkdownContent.Heading(
+                level,
+                if (setext)
+                    MarkdownHeadingStyle.Setext
+                else
+                    MarkdownHeadingStyle.Atx
+            )
+            case MdKind.Quote -> MarkdownContent.BlockQuote
+            case MdKind.ListBlock -> {
+                val data = list!!
+                MarkdownContent.ListBlock(
+                    MarkdownListInfo(data.ordered, data.start, data.marker.toChar(), data.tight)
+                )
+            }
+            case MdKind.Item -> MarkdownContent.ListItem(task)
+            case MdKind.Rule -> MarkdownContent.ThematicBreak
+            case MdKind.Code -> MarkdownContent.CodeBlock(fence, info, text)
+            case MdKind.Html -> MarkdownContent.HtmlBlock(text)
+            case MdKind.Reference -> MarkdownContent.ReferenceDefinition(label, target!!)
+            case MdKind.Table -> MarkdownContent.Table(alignments)
+            case MdKind.Row -> MarkdownContent.TableRow(header)
+            case MdKind.Cell -> MarkdownContent.TableCell(alignment)
+            case MdKind.Text -> MarkdownContent.Text(text)
+            case MdKind.CodeSpan -> MarkdownContent.CodeSpan(text)
+            case MdKind.Emphasis -> MarkdownContent.Emphasis
+            case MdKind.Strong -> MarkdownContent.Strong
+            case MdKind.Strike -> MarkdownContent.Strikethrough
+            case MdKind.Link -> MarkdownContent.Link(target!!)
+            case MdKind.Image -> MarkdownContent.Image(target!!)
+            case MdKind.InlineHtml -> MarkdownContent.HtmlInline(text)
+            case MdKind.SoftBreak -> MarkdownContent.SoftBreak
+            case MdKind.HardBreak -> MarkdownContent.HardBreak
+        }
+}
+
+internal fun mdFreeze(
+    snapshot: MarkdownSnapshot,
+    profile: MarkdownProfile,
+    root: MdBuildNode
+): ParsedMarkdown {
+    val nodes = ArrayList<MdBuildNode>()
+    val stack = ArrayList<MdBuildNode>()
+    stack.add(root)
+    while (stack.size > 0L) {
+        val node = stack.removeAt(stack.size - 1L)
+        node.ordinal = nodes.size
+        nodes.add(node)
+        var child = node.last
+        while (true) {
+            val current = child ?: break
+            stack.add(current)
+            child = current.previous
+        }
+    }
+    var index = nodes.size
+    while (index > 0L) {
+        index -= 1L
+        val node = nodes[index]
+        val children = ArrayList<MarkdownNode>()
+        var child = node.first
+        while (true) {
+            val current = child ?: break
+            children.add(current.frozen!!)
+            child = current.next
+        }
+        node.frozen =
+            Some(
+                MarkdownNode(
+                    MarkdownNodeId(index),
+                    node.content(),
+                    MarkdownRange(node.start, node.end),
+                    node.markers.toArray(),
+                    children.toArray()
+                )
+            )
+    }
+    return ParsedMarkdown(
+        snapshot,
+        profile,
+        root.frozen!!,
+        Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! }
+    )
+}

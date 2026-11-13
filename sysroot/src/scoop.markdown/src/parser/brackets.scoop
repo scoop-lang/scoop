@@ -1,0 +1,135 @@
+package scoop.markdown
+
+internal class MdBracket(
+    val node: MdBuildNode,
+    val offset: Long,
+    val image: Boolean,
+    val previous: Long,
+    val previousDelimiter: Long
+) {
+    var active = true
+    var bracketAfter = false
+}
+
+internal fun MdInlineParser.openBracket(image: Boolean) {
+    val start = position
+    position += if (image)
+        2L
+    else
+        1L
+    val node = addText(start, position, input.slice(start, position))
+    if (topBracket >= 0L)
+        brackets[topBracket].bracketAfter = true
+    val bracket =
+        MdBracket(
+            node,
+            if (image)
+                start + 1L
+            else
+                start,
+            image,
+            topBracket,
+            topDelimiter
+        )
+    topBracket = brackets.size
+    brackets.add(bracket)
+}
+
+internal fun MdInlineParser.closeBracket() {
+    val closing = position
+    position += 1L
+    val after = position
+    if (topBracket < 0L) {
+        addText(closing, position, input.slice(closing, position));
+        return
+    }
+    val opener = brackets[topBracket]
+    if (!opener.active) {
+        topBracket = opener.previous
+        addText(closing, position, input.slice(closing, position))
+        return
+    }
+    val scanner = MdLinkScanner(input, position)
+    var target = scanner.inlineTarget()
+    when (target) {
+        case Some(_) -> position = scanner.position
+        case None -> {
+            val labelEnd = MdLinkScanner(input, position).labelEnd()
+            val explicit = labelEnd > position + 2L
+            val label =
+                if (explicit)
+                    mdReferenceLabel(input.text(position + 1L, labelEnd - 1L))
+                else
+                    if (!opener.bracketAfter)
+                        mdReferenceLabel(input.text(opener.offset + 1L, closing))
+                    else
+                        ""
+            when (val reference = references[label]) {
+                case Some(val value) -> {
+                    target =
+                        Some(
+                            MarkdownLinkTarget(
+                                value.destination,
+                                value.title,
+                                if (explicit)
+                                    MarkdownLinkStyle.FullReference
+                                else
+                                    if (labelEnd > position)
+                                        MarkdownLinkStyle.CollapsedReference
+                                    else
+                                        MarkdownLinkStyle.ShortcutReference,
+                                label,
+                                value.destinationRange,
+                                value.titleRange
+                            )
+                        )
+                    if (labelEnd > position)
+                        position = labelEnd
+                }
+                case None -> Unit
+            }
+        }
+    }
+    topBracket = opener.previous
+    when (target) {
+        case Some(val value) -> {
+            val node =
+                MdBuildNode(
+                    if (opener.image)
+                        MdKind.Image
+                    else
+                        MdKind.Link,
+                    opener.node.start,
+                    input.range(after, position).end
+                )
+            node.target = Some(value)
+            node.markers.add(MarkdownRange(opener.node.start, opener.node.end))
+            node.markers.add(input.range(closing, position))
+            var child = opener.node.next
+            while (true) {
+                val current = child ?: break
+                child = current.next
+                node.append(current)
+            }
+            block.append(node)
+            processEmphasis(opener.previousDelimiter)
+            opener.node.unlink()
+            if (!opener.image)
+                deactivateLinkBrackets()
+        }
+        case None -> {
+            position = after
+            addText(closing, position, input.slice(closing, position))
+        }
+    }
+}
+
+internal fun MdInlineParser.deactivateLinkBrackets() {
+    var index = topBracket
+    while (index >= 0L) {
+        val bracket = brackets[index]
+        if (!bracket.image)
+            bracket.active = false
+        index = bracket.previous
+    }
+}

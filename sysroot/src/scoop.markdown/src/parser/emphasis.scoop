@@ -1,0 +1,174 @@
+package scoop.markdown
+
+import scoop.text.isBlank
+
+// CommonMark delimiter stack and rule of three; adapted from commonmark.js.
+internal class MdDelimiter(
+    val code: Int,
+    var count: Long,
+    val original: Long,
+    val node: MdBuildNode,
+    val canOpen: Boolean,
+    val canClose: Boolean,
+    var previous: Long,
+    var next: Long = -1L
+)
+
+internal fun MdInlineParser.delimiter(code: Int) {
+    val start = position
+    val count = input.run(position, code)
+    position += count
+    val node = addText(start, position, input.slice(start, position))
+    if (code == 126 && count > 2L)
+        return
+    val before = input.scalarBefore(start)
+    val after = input.scalarAfter(position)
+    val beforeSpace = before.isBlank()
+    val afterSpace = after.isBlank()
+    val beforePunctuation = syntax.isPunctuation(before)
+    val afterPunctuation = syntax.isPunctuation(after)
+    val left = !afterSpace && (!afterPunctuation || beforeSpace || beforePunctuation)
+    val right = !beforeSpace && (!beforePunctuation || afterSpace || afterPunctuation)
+    val canOpen = left && (code != 95 || !right || beforePunctuation)
+    val canClose = right && (code != 95 || !left || afterPunctuation)
+    if (!canOpen && !canClose)
+        return
+    val delimiter = MdDelimiter(code, count, count, node, canOpen, canClose, topDelimiter)
+    val index = delimiters.size
+    delimiters.add(delimiter)
+    if (topDelimiter >= 0L)
+        delimiters[topDelimiter].next = index
+    topDelimiter = index
+}
+
+internal fun MdInlineParser.removeDelimiter(index: Long) {
+    val delimiter = delimiters[index]
+    if (delimiter.previous >= 0L)
+        delimiters[delimiter.previous].next = delimiter.next
+    if (delimiter.next >= 0L)
+        delimiters[delimiter.next].previous = delimiter.previous
+    else
+        topDelimiter = delimiter.previous
+}
+
+internal fun MdInlineParser.processEmphasis(bottom: Long) {
+    val lower = MutableArray<Long>(16L) { _ -> bottom }
+    var closer = topDelimiter
+    while (closer >= 0L && delimiters[closer].previous != bottom)
+        closer = delimiters[closer].previous
+    while (closer >= 0L) {
+        val close = delimiters[closer]
+        if (!close.canClose) {
+            closer = close.next;
+            continue
+        }
+        val bucket =
+            if (close.code == 126)
+                12L + close.count
+            else
+                (
+                    if (close.code == 95)
+                        0L
+                    else
+                        6L
+                ) +
+                    (
+                        if (close.canOpen)
+                            3L
+                        else
+                            0L
+                    ) +
+                    close.original %
+                    3L
+        var opener = close.previous
+        var found = false
+        while (opener >= 0L && opener != bottom && opener != lower[bucket]) {
+            val open = delimiters[opener]
+            val odd =
+                close.code !=
+                    126 &&
+                    (close.canOpen || open.canClose) &&
+                    close.original %
+                    3L !=
+                    0L &&
+                    (open.original + close.original) %
+                    3L ==
+                    0L
+            if (
+                open.code ==
+                    close.code &&
+                    open.canOpen &&
+                    !odd &&
+                    (close.code != 126 || open.count == close.count)
+            ) {
+                found = true;
+                break
+            }
+            opener = open.previous
+        }
+        if (!found) {
+            lower[bucket] = close.previous
+            val next = close.next
+            if (!close.canOpen)
+                removeDelimiter(closer)
+            closer = next
+            continue
+        }
+        val open = delimiters[opener]
+        val used =
+            if (close.code == 126)
+                close.count
+            else
+                if (open.count >= 2L && close.count >= 2L)
+                    2L
+                else
+                    1L
+        val openText = MdInput(open.node.text)
+        val closeText = MdInput(close.node.text)
+        val openRange = openText.range(openText.size - used, openText.size)
+        val closeRange = closeText.range(0L, used)
+        val node =
+            MdBuildNode(
+                if (close.code == 126)
+                    MdKind.Strike
+                else
+                    if (used == 2L)
+                        MdKind.Strong
+                    else
+                        MdKind.Emphasis,
+                openRange.start,
+                closeRange.end
+            )
+        node.markers.add(openRange)
+        node.markers.add(closeRange)
+        open.count -= used
+        close.count -= used
+        open.node.text = openText.slice(0L, openText.size - used)
+        open.node.end = openRange.start
+        close.node.text = closeText.slice(used, closeText.size)
+        close.node.start = closeRange.end
+        var child = open.node.next
+        while (true) {
+            val current = child ?: break
+            if (current === close.node)
+                break
+            child = current.next
+            node.append(current)
+        }
+        open.node.insertAfter(node)
+        open.next = closer
+        close.previous = opener
+        if (open.count == 0L) {
+            open.node.unlink();
+            removeDelimiter(opener)
+        }
+        if (close.count == 0L) {
+            close.node.unlink()
+            val next = close.next
+            removeDelimiter(closer)
+            closer = next
+        }
+    }
+    while (topDelimiter >= 0L && topDelimiter != bottom)
+        removeDelimiter(topDelimiter)
+}

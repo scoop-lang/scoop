@@ -1,0 +1,204 @@
+package scoop.markdown
+
+public enum MarkdownTextMapping {
+    Literal, Normalized, Escape, Entity
+}
+
+/** Ranges are UTF-8 bytes in the displayed text and the original document, respectively. */
+public struct MarkdownTextSpan(
+    val textRange: MarkdownRange,
+    val sourceRange: MarkdownRange,
+    val mapping: MarkdownTextMapping
+)
+
+/** Decoded text with complete, ordered source mappings, independent of the live document. */
+public class MarkdownText internal constructor(
+    public val text: String,
+    public val spans: Array<MarkdownTextSpan>,
+    internal val emptyPosition: Long
+) {
+    internal val bytes: Array<Byte> = text.toByteArray()
+    public val byteLength: Long get() = bytes.size
+
+    public fun sourceAt(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownPosition {
+        val offset = position.byteOffset
+        requireMarkdown(
+            offset >= 0L && offset <= byteLength,
+            "Text position is outside decoded Markdown"
+        )
+        requireMarkdown(
+            offset == byteLength || !markdownContinuation(bytes[offset]),
+            "Text position splits a UTF-8 scalar"
+        )
+        if (spans.size == 0L)
+            return MarkdownPosition(emptyPosition)
+        var low = 0L
+        var high = spans.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (
+                spans[middle].textRange.end <
+                    offset ||
+                    (spans[middle].textRange.end == offset && bias == MarkdownBias.After)
+            )
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (low == spans.size)
+            return MarkdownPosition(spans[low - 1L].sourceRange.end)
+        val span = spans[low]
+        if (span.mapping == MarkdownTextMapping.Literal)
+            return MarkdownPosition(span.sourceRange.start + offset - span.textRange.start)
+        if (offset <= span.textRange.start)
+            return MarkdownPosition(span.sourceRange.start)
+        if (offset >= span.textRange.end)
+            return MarkdownPosition(span.sourceRange.end)
+        return MarkdownPosition(
+            if (bias == MarkdownBias.Before)
+                span.sourceRange.start
+            else
+                span.sourceRange.end
+        )
+    }
+
+    /** Prefixes and removed delimiters map to the nearest displayed boundary with the given bias. */
+    public fun textAt(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownPosition {
+        val offset = position.byteOffset
+        requireMarkdown(offset >= 0L, "Source position is negative")
+        var previous = 0L
+        for (span in spans) {
+            if (offset < span.sourceRange.start)
+                return MarkdownPosition(
+                    if (bias == MarkdownBias.Before)
+                        previous
+                    else
+                        span.textRange.start
+                )
+            if (offset <= span.sourceRange.end) {
+                if (span.mapping == MarkdownTextMapping.Literal) {
+                    val target = span.textRange.start + offset - span.sourceRange.start
+                    requireMarkdown(
+                        target == byteLength || !markdownContinuation(bytes[target]),
+                        "Source position splits a UTF-8 scalar"
+                    )
+                    return MarkdownPosition(target)
+                }
+                if (offset == span.sourceRange.start)
+                    return MarkdownPosition(span.textRange.start)
+                if (offset == span.sourceRange.end)
+                    return MarkdownPosition(span.textRange.end)
+                return MarkdownPosition(
+                    if (bias == MarkdownBias.Before)
+                        span.textRange.start
+                    else
+                        span.textRange.end
+                )
+            }
+            previous = span.textRange.end
+        }
+        return MarkdownPosition(byteLength)
+    }
+}
+
+internal fun mdEmptyText(position: Long): MarkdownText = MarkdownText("", [], position)
+
+internal fun mdBytesText(bytes: Array<Byte>, start: Long, end: Long): String {
+    val selected = Array<Byte>(end - start) { index -> bytes[start + index] }
+    @Unsafe
+    {
+        return String.fromUtf8Unchecked(selected)
+    }
+}
+
+internal fun mdTextSlice(text: MarkdownText, start: Long, end: Long): MarkdownText {
+    if (start == 0L && end == text.byteLength)
+        return text
+    val builder = MdTextBuilder()
+    // Locate the first segment without rescanning all previous lines in a long block.
+    var low = 0L
+    var high = text.spans.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (text.spans[middle].textRange.end <= start)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    while (low < text.spans.size) {
+        val span = text.spans[low]
+        if (span.textRange.start >= end)
+            break
+        val a =
+            if (span.textRange.start > start)
+                span.textRange.start
+            else
+                start
+        val b =
+            if (span.textRange.end < end)
+                span.textRange.end
+            else
+                end
+        val source =
+            if (span.mapping == MarkdownTextMapping.Literal)
+                MarkdownRange(
+                    span.sourceRange.start + a - span.textRange.start,
+                    span.sourceRange.start + b - span.textRange.start
+                )
+            else
+                span.sourceRange
+        builder.add(mdBytesText(text.bytes, a, b), source, span.mapping)
+        low += 1L
+    }
+    return builder.build(text.sourceAt(MarkdownPosition(start)).byteOffset)
+}
+
+internal class MdTextBuilder {
+    private val text = StringBuilder()
+    private val spans = ArrayList<MarkdownTextSpan>()
+    internal var length: Long = 0L
+
+    internal fun add(
+        value: String,
+        source: MarkdownRange,
+        mapping: MarkdownTextMapping = MarkdownTextMapping.Literal
+    ) {
+        if (value.byteLength == 0L)
+            return
+        text.append(value)
+        val span =
+            MarkdownTextSpan(MarkdownRange(length, length + value.byteLength), source, mapping)
+        length += value.byteLength
+        if (spans.size > 0L && mapping == MarkdownTextMapping.Literal) {
+            val previous = spans[spans.size - 1L]
+            if (previous.mapping == mapping && previous.sourceRange.end == source.start) {
+                spans[spans.size - 1L] =
+                    MarkdownTextSpan(
+                        MarkdownRange(previous.textRange.start, length),
+                        MarkdownRange(previous.sourceRange.start, source.end),
+                        mapping
+                    )
+                return
+            }
+        }
+        spans.add(span)
+    }
+
+    internal fun append(value: MarkdownText) {
+        for (span in value.spans)
+            add(
+                mdBytesText(value.bytes, span.textRange.start, span.textRange.end),
+                span.sourceRange,
+                span.mapping
+            )
+    }
+
+    internal fun build(emptyPosition: Long): MarkdownText =
+        MarkdownText(text.toString(), spans.toArray(), emptyPosition)
+}

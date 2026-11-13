@@ -1,0 +1,75 @@
+package scoop.markdown
+
+import scoop.regex.Regex
+import scoop.text.*
+
+// HTML productions and delimiter classification follow CommonMark 0.31.2.
+internal class MdSyntax: Closeable {
+    private val punctuation = Regex("^[\\p{P}\\p{S}]$")
+    private val tagName = "[A-Za-z][A-Za-z0-9-]*"
+    private val attribute =
+        "(?:[ \\t\\n\\r]+[A-Za-z_:][A-Za-z0-9:._-]*(?:[ \\t\\n\\r]*=[ \\t\\n\\r]*(?:[^\"'=<>`\\x00-\\x20]+|'[^']*'|\"[^\"]*\"))?)"
+    private val tag =
+        "(?:<" + tagName + attribute + "*[ \\t\\n\\r]*/?>|</" + tagName + "[ \\t\\n\\r]*>)"
+    val htmlTag =
+        Regex(
+            "^(?:" +
+                tag +
+                "|<!-->|<!--->|<!--[\\s\\S]*?-->|<\\?[\\s\\S]*?\\?>|<![A-Za-z]+[^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>)"
+        )
+    private val fullTag = Regex("^" + tag + "[ \\t]*$")
+    private val rawOpen = Regex("(?i)^<(?:script|pre|textarea|style)(?:[ \\t]|>|$)")
+    private val rawClose = Regex("(?i)</(?:script|pre|textarea|style)>")
+    private val blockTag =
+        Regex(
+            "(?i)^</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|search|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \\t]|/?>|$)"
+        )
+    val email =
+        Regex(
+            "^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$"
+        )
+    val uri = Regex("^[A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\\x00-\\x20]*$")
+
+    fun isPunctuation(value: String): Boolean =
+        if (value.byteLength == 1L)
+            mdEscape(value.getCharAt(0L).code)
+        else
+            punctuation.matches(value)
+    fun htmlStart(value: String, interrupt: Boolean): Int {
+        if (rawOpen.containsMatchIn(value))
+            return 1
+        if (value.startsWith("<!--"))
+            return 2
+        if (value.startsWith("<?"))
+            return 3
+        if (value.byteLength > 2L && value.startsWith("<!") && mdLetter(value.getCharAt(2L).code))
+            return 4
+        if (value.startsWith("<![CDATA["))
+            return 5
+        if (blockTag.containsMatchIn(value))
+            return 6
+        return if (!interrupt && fullTag.matches(value))
+            7
+        else
+            0
+    }
+    fun htmlEnd(value: String, type: Int): Boolean =
+        when (type) {
+            case 1 -> rawClose.containsMatchIn(value)
+            case 2 -> value.contains("-->")
+            case 3 -> value.contains("?>")
+            case 4 -> value.contains(">")
+            case 5 -> value.contains("]]>")
+            else -> false
+        }
+    public override fun close() {
+        punctuation.close()
+        htmlTag.close()
+        fullTag.close()
+        rawOpen.close()
+        rawClose.close()
+        blockTag.close()
+        email.close()
+        uri.close()
+    }
+}

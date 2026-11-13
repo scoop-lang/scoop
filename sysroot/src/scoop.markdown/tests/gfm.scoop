@@ -1,0 +1,36 @@
+package scoop.markdown
+
+import scoop.compiler.includeStr
+import scoop.json.Json
+import scoop.test.*
+
+@Test
+private class MarkdownGfmTests {
+    @Test
+    fun `published GFM extension examples`() {
+        val examples = Json.parse(includeStr("data/gfm-extensions.json"))
+        assertEquals(26L, examples.size)
+        var failed = 0L
+        val details = StringBuilder()
+        for (example in examples.elements()) {
+            val source = example["markdown"]!!.asString()
+            val expected = example["html"]!!.asString()
+            val document = MarkdownDocument.fromText(source)
+            val actual = mdTestHtml(document.parse())
+            if (actual != expected && expected != "<IGNORE>\n") {
+                failed += 1L
+                details.append("Example ").append(example["example"]!!.asLong()).append(
+                    ": "
+                ).append(example["section"]!!.asString()).append('\n')
+                details.append("Source: ").append(Json.stringify(example["markdown"]!!)).append(
+                    '\n'
+                )
+                details.append("Expected: ").append(expected).append("Actual: ").append(
+                    actual
+                ).append('\n')
+            }
+            assertEquals(source, document.toMarkdown())
+        }
+        assertEquals(0L, failed, Some(details.toString()))
+    }
+}

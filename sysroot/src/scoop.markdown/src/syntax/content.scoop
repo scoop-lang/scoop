@@ -1,0 +1,77 @@
+package scoop.markdown
+
+/** Independently selectable GFM additions to CommonMark 0.31.2. */
+public struct MarkdownProfile(
+    val tables: Boolean = true,
+    val taskLists: Boolean = true,
+    val strikethrough: Boolean = true,
+    val autolinks: Boolean = true
+) {
+    public companion object {
+        public val CommonMark: MarkdownProfile = MarkdownProfile(false, false, false, false)
+        public val Gfm: MarkdownProfile = MarkdownProfile()
+    }
+}
+
+public enum MarkdownHeadingStyle {
+    Atx, Setext
+}
+
+public enum MarkdownAlignment {
+    None, Left, Center, Right
+}
+
+public enum MarkdownLinkStyle {
+    Inline, FullReference, CollapsedReference, ShortcutReference, Autolink
+}
+
+public struct MarkdownListInfo(
+    val ordered: Boolean,
+    val start: Long,
+    val marker: Char,
+    val tight: Boolean
+)
+
+public struct MarkdownFence(
+    val marker: Char,
+    val length: Long,
+    val indent: Long,
+    val closed: Boolean
+)
+
+/** A resolved destination and its original syntax, including reference forms. */
+public class MarkdownLinkTarget internal constructor(
+    public val destination: MarkdownText,
+    public val title: MarkdownText,
+    public val style: MarkdownLinkStyle,
+    public val label: String,
+    public val destinationRange: MarkdownRange?,
+    public val titleRange: MarkdownRange?
+)
+
+/** Each variant carries the fields required by that syntax. Child structure lives on the node. */
+public enum MarkdownContent {
+    Document,
+    Paragraph,
+    Heading(Int, MarkdownHeadingStyle),
+    BlockQuote,
+    ListBlock(MarkdownListInfo),
+    ListItem(Boolean?),
+    ThematicBreak,
+    CodeBlock(MarkdownFence?, MarkdownText, MarkdownText),
+    HtmlBlock(MarkdownText),
+    ReferenceDefinition(String, MarkdownLinkTarget),
+    Table(Array<MarkdownAlignment>),
+    TableRow(Boolean),
+    TableCell(MarkdownAlignment),
+    Text(MarkdownText),
+    CodeSpan(MarkdownText),
+    Emphasis,
+    Strong,
+    Strikethrough,
+    Link(MarkdownLinkTarget),
+    Image(MarkdownLinkTarget),
+    HtmlInline(MarkdownText),
+    SoftBreak,
+    HardBreak
+}

@@ -1,0 +1,42 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownParsingExampleTests {
+    @Test
+    fun `headless consumers inspect typed nodes and exact original syntax`() {
+        val document =
+            MarkdownDocument.fromText("# 雪 &amp; rain\n\n[go][target]\n\n[target]: <docs/a b.md>\n")
+        val parsed = document.parse(MarkdownProfile.CommonMark)
+        val heading = parsed.root.children[0L]
+        when (heading.content) {
+            case MarkdownContent.Heading(val level, val style) -> {
+                assertEquals(1, level)
+                assertEquals(MarkdownHeadingStyle.Atx, style)
+            }
+            else -> assertTrue(false, Some("expected a heading"))
+        }
+        when (heading.children[0L].content) {
+            case MarkdownContent.Text(val text) -> {
+                assertEquals("雪 & rain", text.text)
+                assertEquals(2L, text.sourceAt(MarkdownPosition(0L)).byteOffset)
+            }
+            else -> assertTrue(false, Some("expected mapped heading text"))
+        }
+        assertEquals("#", parsed.snapshot.read(heading.markers[0L]))
+        assertTrue(parsed.node(heading.id) === heading)
+        var definitions = 0L
+        for (node in parsed.nodes())
+            when (node.content) {
+                case MarkdownContent.ReferenceDefinition(_, val target) -> {
+                    definitions += 1L
+                    assertEquals("docs/a%20b.md", target.destination.text)
+                    assertEquals("docs/a b.md", parsed.snapshot.read(target.destinationRange!!))
+                }
+                else -> Unit
+            }
+        assertEquals(1L, definitions)
+    }
+}

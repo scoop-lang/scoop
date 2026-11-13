@@ -1,0 +1,70 @@
+package scoop.markdown
+
+internal fun mdGfmAutolinks(root: MdBuildNode, syntax: MdSyntax) {
+    val pending = ArrayList<MdBuildNode>()
+    pending.add(root)
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L)
+        if (node.kind == MdKind.Link || node.kind == MdKind.Image)
+            continue
+        if (node.kind == MdKind.Text) {
+            val input = MdInput(node.text)
+            var offset = 0L
+            var run = 0L
+            while (offset < input.size) {
+                when (val match = mdBareLink(input, offset, syntax)) {
+                    case Some(val link) -> {
+                        if (run < offset) {
+                            val range = input.range(run, offset)
+                            val text = MdBuildNode(MdKind.Text, range.start, range.end)
+                            text.text = input.slice(run, offset)
+                            node.insertBefore(text)
+                        }
+                        val range = input.range(offset, link.end)
+                        val child = MdBuildNode(MdKind.Link, range.start, range.end)
+                        val target = MdTextBuilder()
+                        target.add(
+                            link.prefix,
+                            MarkdownRange(range.start, range.start),
+                            MarkdownTextMapping.Normalized
+                        )
+                        target.append(input.slice(offset, link.end))
+                        child.target =
+                            Some(
+                                MarkdownLinkTarget(
+                                    mdNormalizeUri(target.build(range.start)),
+                                    mdEmptyText(range.end),
+                                    MarkdownLinkStyle.Autolink,
+                                    "",
+                                    Some(range),
+                                    None
+                                )
+                            )
+                        val text = MdBuildNode(MdKind.Text, range.start, range.end)
+                        text.text = input.slice(offset, link.end)
+                        child.append(text)
+                        node.insertBefore(child)
+                        offset = link.end
+                        run = offset
+                    }
+                    case None -> offset = input.scalarEnd(offset)
+                }
+            }
+            if (run > 0L) {
+                if (run == input.size)
+                    node.unlink()
+                else {
+                    node.text = input.slice(run, input.size);
+                    node.start = input.range(run, run).start
+                }
+            }
+        } else {
+            var child = node.last
+            while (true) {
+                val current = child ?: break
+                pending.add(current)
+                child = current.previous
+            }
+        }
+    }
+}
