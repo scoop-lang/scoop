@@ -2420,7 +2420,7 @@ dispatchResume 与 dispatch 共用同一活动登记、恰好一次执行及 Dra
 
 所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。仅转交相同类型结果、没有后续处理或清理的尾挂起链可以共用调用方的握手，不要求每一层建立 frame／adapter；低层任务入口也必须提供这一边界，不能把用户 completion 直接交给 registration。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；从其他 execution 或无 execution 的上下文提交的结果按外部恢复调度，不能因经过尾转交而变成内部完成。公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
 
-execution 的驱动权、action 槽与调度义务通过同一原子状态交接；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。当前驱动读取自身登记由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
+execution 的外部恢复通过同一原子状态交接驱动权、action 槽与调度义务；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。同一 execution 的内部完成复用当前驱动的独占执行权：确认仍处于 Running 后写入 action 并以 release 发布内部 ready，不经过跨驱动槽位竞争，仍须等当前 frame／Context／catch 访问退出后才消费。当前驱动读取自身登记也由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
 
 withExecutor 总是排队建立结构化子作用域，即使参数等于当前 executor；它保留调用方 Job 的父子关系和 coroutineScope 的失败边界，结束整个子树后回到原 execution 返回或抛出。等待收尾不被调用方取消提前中断，也不在出口用后来的取消覆盖已提交结果或清理异常。nonCancellableScope 保留执行归属，只隔离父取消。
 

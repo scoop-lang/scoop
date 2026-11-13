@@ -57,6 +57,15 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
 
     public override fun resume(work: CoroutineWork, external: Boolean) {
         var current = state.load(MemoryOrder.Acquire)
+        if (!external) {
+            // The adapter compares execution identity, so this completion
+            // already owns the current drive and cannot race its exit.
+            if (current != DRIVE_RUNNING)
+                throw IllegalStateException(Some("coroutine is not waiting"))
+            pending = Some(work)
+            state.store(DRIVE_READY_INTERNAL, MemoryOrder.Release)
+            return
+        }
         while (true) {
             val claimed =
                 when (current) {
@@ -76,15 +85,10 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
             schedule(true)
             return
         }
-        val ready =
-            if (external)
-                DRIVE_READY_EXTERNAL
-            else
-                DRIVE_READY_INTERNAL
         when (
             state.compareAndExchange(
                 DRIVE_PUBLISHING,
-                ready,
+                DRIVE_READY_EXTERNAL,
                 MemoryOrder.AcqRel,
                 MemoryOrder.Acquire
             )

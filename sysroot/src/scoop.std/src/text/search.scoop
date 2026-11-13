@@ -1,7 +1,8 @@
 package scoop.text
 
 private fun requireTextIndex(index: Long, length: Long) {
-    if (index < 0L || index > length) throw IndexOutOfBoundsException()
+    if (index < 0L || index > length)
+        throw IndexOutOfBoundsException()
 }
 
 /**
@@ -11,13 +12,15 @@ private fun requireTextIndex(index: Long, length: Long) {
 public fun String.indexOf(value: String, startIndex: Long = 0L): Long {
     requireTextIndex(startIndex, charLength)
     val pattern = TextPattern(value)
-    if (pattern.size == 0L) return startIndex
+    if (pattern.size == 0L)
+        return startIndex
     var index = 0L
     var matched = 0L
     for (character in this) {
         if (index >= startIndex) {
             matched = pattern.advance(matched, character)
-            if (matched == pattern.size) return index - pattern.size + 1L
+            if (matched == pattern.size)
+                return index - pattern.size + 1L
         }
         index += 1L
     }
@@ -32,15 +35,22 @@ public fun String.lastIndexOf(value: String, startIndex: Long = this.charLength)
     val length = this.charLength
     requireTextIndex(startIndex, length)
     val pattern = TextPattern(value)
-    if (pattern.size == 0L) return startIndex
-    val limit = if (pattern.size > length - startIndex) length else startIndex + pattern.size
+    if (pattern.size == 0L)
+        return startIndex
+    val limit =
+        if (pattern.size > length - startIndex)
+            length
+        else
+            startIndex + pattern.size
     var result = -1L
     var index = 0L
     var matched = 0L
     for (character in this) {
-        if (index == limit) break
+        if (index == limit)
+            break
         matched = pattern.advance(matched, character)
-        if (matched == pattern.size) result = index - pattern.size + 1L
+        if (matched == pattern.size)
+            result = index - pattern.size + 1L
         index += 1L
     }
     return result
@@ -50,16 +60,44 @@ public fun String.lastIndexOf(value: String, startIndex: Long = this.charLength)
  * Returns the first matching Unicode-scalar index at or after startIndex, or -1. The starting
  * index must be in 0..charLength.
  */
-public fun String.indexOf(value: Char, startIndex: Long = 0L): Long = indexOf(value.toString(), startIndex)
+public fun String.indexOf(value: Char, startIndex: Long = 0L): Long {
+    if (startIndex < 0L)
+        throw IndexOutOfBoundsException()
+    var index = 0L
+    for (character in this) {
+        if (index >= startIndex && character == value)
+            return index
+        index += 1L
+    }
+    requireTextIndex(startIndex, index)
+    return -1L
+}
+
 /**
  * Returns the last matching Unicode-scalar start index no greater than startIndex, or -1. The
  * starting index must be in 0..charLength.
  */
-public fun String.lastIndexOf(value: Char, startIndex: Long = this.charLength): Long = lastIndexOf(value.toString(), startIndex)
+public fun String.lastIndexOf(value: Char, startIndex: Long = this.charLength): Long {
+    if (startIndex < 0L)
+        throw IndexOutOfBoundsException()
+    var index = 0L
+    var result = -1L
+    for (character in this) {
+        if (index > startIndex)
+            return result
+        if (character == value)
+            result = index
+        index += 1L
+    }
+    requireTextIndex(startIndex, index)
+    return result
+}
+
 /**
  * Tests for an exact literal occurrence, without case folding.
  */
 public operator fun String.contains(value: String): Boolean = indexOf(value) >= 0L
+
 /**
  * Tests for an exact literal occurrence, without case folding.
  */
@@ -68,8 +106,14 @@ public operator fun String.contains(value: Char): Boolean = indexOf(value) >= 0L
 private fun String.matchesAt(value: String, start: Long): Boolean {
     val source = iterator()
     var skip = start
-    while (skip > 0L) { source.next(); skip -= 1L }
-    for (character in value) { if (source.next() != Some(character)) return false }
+    while (skip > 0L) {
+        source.next();
+        skip -= 1L
+    }
+    for (character in value) {
+        if (source.next() != Some(character))
+            return false
+    }
     return true
 }
 
@@ -77,10 +121,12 @@ private fun String.matchesAt(value: String, start: Long): Boolean {
  * Tests for an exact literal prefix, without case folding.
  */
 public fun String.startsWith(prefix: String): Boolean = matchesAt(prefix, 0L)
+
 /**
  * Tests for an exact literal prefix, without case folding.
  */
-public fun String.startsWith(prefix: Char): Boolean = startsWith(prefix.toString())
+public fun String.startsWith(prefix: Char): Boolean = byteLength != 0L && getCharAt(0L) == prefix
+
 /**
  * Tests for an exact literal suffix, without case folding.
  */
@@ -88,7 +134,13 @@ public fun String.endsWith(suffix: String): Boolean {
     val start = charLength - suffix.charLength
     return start >= 0L && matchesAt(suffix, start)
 }
+
 /**
  * Tests for an exact literal suffix, without case folding.
  */
-public fun String.endsWith(suffix: Char): Boolean = endsWith(suffix.toString())
+public fun String.endsWith(suffix: Char): Boolean {
+    var last: Char? = None
+    for (character in this)
+        last = Some(character)
+    return last == Some(suffix)
+}

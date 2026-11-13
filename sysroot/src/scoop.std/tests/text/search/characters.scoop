@@ -1,0 +1,70 @@
+package scoop.std.tests.text.search
+
+import scoop.collections.listOf
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class CharacterSearchTests {
+    @Test
+    fun `character overloads agree at every Unicode scalar boundary`() {
+        val texts = listOf<String>("", "a", "aaaaa", "/a?b#c", "雪😀雪", "A\u0000😀A", "e\u0301é")
+        val values = listOf<Char>('a', '/', '?', '#', '雪', '😀', '\u0000', 'e', '\u0301', 'é')
+        for (text in texts) {
+            for (value in values) {
+                val needle = value.toString()
+                var start = 0L
+                while (start <= text.charLength) {
+                    assertEquals(text.indexOf(needle, start), text.indexOf(value, start))
+                    assertEquals(text.lastIndexOf(needle, start), text.lastIndexOf(value, start))
+                    start += 1L
+                }
+                assertEquals(text.indexOf(needle), text.indexOf(value))
+                assertEquals(text.lastIndexOf(needle), text.lastIndexOf(value))
+                assertEquals(text.contains(needle), text.contains(value))
+                assertEquals(text.startsWith(needle), text.startsWith(value))
+                assertEquals(text.endsWith(needle), text.endsWith(value))
+            }
+        }
+    }
+
+    @Test
+    fun `character searches reject out of range starting indices`() {
+        for (text in listOf<String>("", "a", "😀a😀")) {
+            for (start in listOf<Long>(Long.MIN_VALUE, -1L, text.charLength + 1L, Long.MAX_VALUE)) {
+                assertFailsWith<IndexOutOfBoundsException> {
+                    text.indexOf('a', start);
+                    Unit
+                }
+                assertFailsWith<IndexOutOfBoundsException> {
+                    text.lastIndexOf('a', start);
+                    Unit
+                }
+            }
+            assertEquals(-1L, text.indexOf('a', text.charLength))
+        }
+        assertEquals(0L, "😀a😀".lastIndexOf('😀', 0L))
+        assertEquals(0L, "😀a😀".lastIndexOf('😀', 1L))
+        assertEquals(2L, "😀a😀".lastIndexOf('😀', 2L))
+    }
+
+    @Test
+    fun `character delimiters remove exactly one scalar`() {
+        for (text in listOf<String>("", "😀", "😀雪😀", "a\u0000😀b", "e\u0301é")) {
+            for (delimiter in listOf<Char>('😀', '雪', '\u0000', '\u0301', '!')) {
+                val needle = delimiter.toString()
+                assertEquals(text.substringBefore(needle), text.substringBefore(delimiter))
+                assertEquals(text.substringAfter(needle), text.substringAfter(delimiter))
+                assertEquals(
+                    text.substringBefore(needle, "absent"),
+                    text.substringBefore(delimiter, "absent")
+                )
+                assertEquals(
+                    text.substringAfter(needle, "absent"),
+                    text.substringAfter(delimiter, "absent")
+                )
+            }
+        }
+        assertEquals("雪😀", "😀雪😀".substringAfter('😀'))
+    }
+}
