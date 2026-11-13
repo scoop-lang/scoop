@@ -1,9 +1,10 @@
 //! Logical observations carried through MIR transformations.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use scoop_profile::{
-    BodyLayout, Count, Counter, Frequency, Instrumentation, Location, MissingCount, PositionKind,
+    BodyLayout, Count, Counter, FeedbackConsumer, Frequency, Instrumentation, Location,
+    MissingCount, PositionKind, UseSummary,
 };
 
 /// A compile-local reference into the complete profile layout table.
@@ -67,12 +68,45 @@ impl ProfileMarker {
 #[derive(Debug, Default)]
 pub struct MirProfiling {
     pub instrumentation: Instrumentation,
+    pub feedback: bool,
     pub plans: Vec<BodyLayout>,
     pub counts: BTreeMap<ProfileSite, Count>,
     pub frequencies: BTreeMap<ProfileSite, Result<Frequency, MissingCount>>,
+    pub used: BTreeMap<FeedbackConsumer, BTreeSet<Location>>,
 }
 
 impl MirProfiling {
+    pub fn use_summary(&self) -> Option<UseSummary> {
+        if !self.feedback {
+            return None;
+        }
+        let mut summary = UseSummary::default();
+        let mut functions = BTreeSet::new();
+        let mut positions = BTreeSet::new();
+        for (&site, &count) in &self.counts {
+            let location = self.location(site);
+            if !positions.insert(location) {
+                continue;
+            }
+            match count {
+                Count::Observed { partial, .. } => {
+                    functions.insert(location.body);
+                    summary.matched_positions += 1;
+                    summary.partial_positions += usize::from(partial);
+                }
+                Count::Missing(MissingCount::BodyChanged) => summary.changed_positions += 1,
+                Count::Missing(_) => summary.missing_positions += 1,
+            }
+        }
+        summary.matched_functions = functions.len();
+        summary.consumers = self
+            .used
+            .iter()
+            .map(|(&kind, sites)| (kind, sites.len()))
+            .collect();
+        Some(summary)
+    }
+
     pub fn location(&self, site: ProfileSite) -> Location {
         Location {
             body: self.plans[site.plan.0 as usize].key,

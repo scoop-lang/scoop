@@ -209,7 +209,7 @@ fn run_with_intrinsics(
         active = changed;
     }
     if options.allocation_elision {
-        strings::run(module);
+        strings::run(module, observer.as_ref());
     }
     if options.poll_chunking {
         poll_chunks::run(module, &mut registry);

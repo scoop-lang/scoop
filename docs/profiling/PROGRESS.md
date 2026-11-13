@@ -11,7 +11,7 @@
 | 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | 逻辑位置及 MIR/LIR/LLVM 通道已实现；CLI 与真实训练验收随 profiling 批次接入 | 确定计数、内联映射、多线程、对象选择/裁剪 |
 | off/default/full IR template 导出 | 已实现，三平台代表目标验收完成 | 完整模板、语义必需模板保留、实际 consumer 与 Strong 归属 |
 | profiling profile 与 runtime 采集 | 已接通，本机真实运行验收通过；原生跨平台验收待成组进行 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
-| MIR cost 反馈及 `scoop-pgo` | 待实现 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
+| MIR cost 反馈及 `scoop-pgo` | MIR 消费及位置诊断已实现；build Use 接线与便利命令进行中 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
 | 可选 profiling 系统库组件 | 准备脚本及训练选库已实现；全量库构建、打包与安装接线进行中 | 两套 full 库、自动选库、独立下载安装和移除 |
 | GC phase/slice 事件 | 待实现 | 时间语义、采集开销和真实进程输出 |
 | 使用材料及发行配套 | 待实现 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
@@ -51,3 +51,9 @@
 - LLVM profile counters/data/names 作为 callable 的 associated atoms 参与对象定义、fingerprint、重定位及 ODR 选择，不跳过验证；COFF 使用既有 COMDAT 关联。显式由 Scoop runtime 管理生命周期，避免每个对象产生独立的 LLVM runtime hook 函数。`scoopc profile-summary` 复用 LLVM reader 还原逻辑次数。
 - 本机正式 runtime fixture 通过 7 次外部调用，内部运行多线程程序、正常返回与 `exit(7)`，合并后 main=2、choose=6、worker=8、leaf=8004、未执行递归函数=0。覆盖中文/空格/百分号路径、默认 cwd、写出失败、系统 core 计数、零记录、构建复用、Release 无探针，以及错误混入 Generate 库时失败且保留已有输出。
 - 格式化及 workspace Clippy 通过（仅既有警告）；协议 48 项、slib 270 项、缓存 17 项、LLVM 对象/reader 3 项通过，三种对象格式均执行关联定义和重定位验证。Fixture runner 84 项通过（4 项平台条件跳过）。目前真实训练的原生目标为 macOS AArch64；Linux/Windows 原生覆盖随完整 PGO 批次进行。
+
+### MIR 反馈消费
+
+- Use 以相同逻辑位置读取配对计数，普通内联按动态热度排序、评分并选择既有增长档位；比例保留原始整数并截断到 [1/8, 32]，使用宽整数运算避免计数乘法溢出。字符串融合消费原基本块的配对频次，内联后仍沿原标记选择正文范围。
+- 优化事件保存位置、原始次数、部分覆盖、实际比例和回退原因；正常 MIR 结果另记录去重后的匹配范围和实际反馈消费者。无正文等原有理由与数据状态分别报告，读取到数据不等于实际使用反馈。
+- 本机格式化与相关 crate Clippy 通过（仅既有警告）；MIR 全部 220 项与共享反馈 5 项通过。新增测试确认同一 callee 的热调用先内联、零次冷调用保留，字符串单次拼接随动态块热度改变策略，零入口和正文变化回退且不声称使用反馈。CLI 端到端与性能对照尚待下一批。

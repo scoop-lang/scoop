@@ -35,6 +35,7 @@ impl ProfilingInput<'_> {
             Instrumentation::Off
         };
         if let Self::Use(feedback) = self {
+            profiling.feedback = true;
             for (index, plan) in profiling.plans.iter().enumerate() {
                 for (position, definition) in plan.positions.iter().enumerate() {
                     let site = mir::ProfileSite {
@@ -46,7 +47,7 @@ impl ProfilingInput<'_> {
                         position: position as u32,
                     };
                     profiling.counts.insert(site, feedback.count(location));
-                    if definition.kind == PositionKind::Call {
+                    if matches!(definition.kind, PositionKind::Call | PositionKind::Block) {
                         profiling
                             .frequencies
                             .insert(site, feedback.frequency(location));

@@ -165,7 +165,7 @@ impl Feedback {
                     } else {
                         add_count(*total, count)
                     };
-                    if definition.kind != PositionKind::Call {
+                    if !matches!(definition.kind, PositionKind::Call | PositionKind::Block) {
                         continue;
                     }
                     let frequency = match (count, entry) {

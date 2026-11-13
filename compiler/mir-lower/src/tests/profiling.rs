@@ -1,6 +1,8 @@
 use super::*;
 use scoop_profile::{InlineOrigin, PositionKind};
 
+mod feedback;
+
 fn lower_profile(
     source: &hir::ExportHirOutput,
     input: ProfilingInput<'_>,

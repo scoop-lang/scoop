@@ -5,7 +5,7 @@ use la_arena::Arena;
 use scoop_identity::CallableMaterialization;
 
 use super::observation::Observer;
-pub(super) use policy::heats;
+pub(super) use policy::{heats, with_profile};
 
 use super::{
     flow,
@@ -188,8 +188,17 @@ impl Session {
                 imported: &self.imported,
                 observer,
             };
-            let (body, rewritten) =
+            let (body, rewritten, used) =
                 context.optimize(id, owner, registry, &mut self.callers[index(id)]);
+            if !used.is_empty() {
+                module
+                    .meta
+                    .profiling
+                    .used
+                    .entry(scoop_profile::FeedbackConsumer::Inline)
+                    .or_default()
+                    .extend(used);
+            }
             module.functions[id].body = body;
             changed[index(id)] = rewritten;
         }
@@ -288,14 +297,15 @@ impl Context<'_, '_> {
         owner: CallableMaterialization,
         registry: &mut LocalValueRegistry,
         state: &mut CallerState,
-    ) -> (mir::Body, bool) {
+    ) -> (mir::Body, bool, Vec<scoop_profile::Location>) {
         let mut function = self.module.functions[id].clone();
         let mut debug_records = mir::DebugRecords::default();
         let mut changed = false;
+        let mut used = Vec::new();
         loop {
             changed |=
                 !exception_edges::separate_entries(&mut function, &mut state.ancestry).is_empty();
-            let choices = self.choose(id, &function, &state.ancestry, &mut state.growth);
+            let choices = self.choose(id, &function, &state.ancestry, &mut state.growth, &mut used);
             if choices.is_empty() {
                 break;
             }
@@ -318,10 +328,10 @@ impl Context<'_, '_> {
             }
         }
         if !self.ordinary && !changed {
-            return (function.body, false);
+            return (function.body, false, used);
         }
         let (body, simplified) = simplify::body(self.module, &function);
-        (body, changed || simplified)
+        (body, changed || simplified, used)
     }
 }
 
