@@ -22,7 +22,8 @@ public class State<T> internal constructor(initial: T) {
         publish(value)
     }
 
-    internal fun checkMutation() {
+    /** Checks the owner and evaluation phase before mutating an external model; has no state effects. */
+    public fun checkMutation() {
         checkUiThread(thread)
         when (currentEvaluation()) {
             case Some(_) -> throw IllegalStateException(

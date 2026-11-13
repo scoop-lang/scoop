@@ -1,0 +1,256 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+
+internal struct MdEditorValue(
+    val snapshot: MarkdownSnapshot,
+    val selection: MarkdownSelection,
+    val canUndo: Boolean,
+    val canRedo: Boolean,
+    val savedRevision: Long
+)
+
+internal enum MdReplay {
+    None, Undo, Redo
+}
+
+internal class MdPendingEdit(
+    val kind: MarkdownEditKind,
+    val after: MarkdownSelection?,
+    val replay: MdReplay = MdReplay.None
+)
+
+private fun mdEditorInitial(
+    document: MarkdownDocument,
+    selection: MarkdownSelection
+): MdEditorValue {
+    val snapshot = document.snapshot()
+    mdCheckSelection(snapshot, selection)
+    return MdEditorValue(snapshot, selection, false, false, snapshot.revision)
+}
+
+/** Shared document selection and history for Markdown views; the state borrows its document. */
+public class MarkdownEditorState public constructor(
+    public val document: MarkdownDocument,
+    selection: MarkdownSelection = MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+): Closeable {
+    private val storage = state(mdEditorInitial(document, selection))
+    private val history = MdHistory()
+    private var pending: MdPendingEdit? = None
+    private var closed = false
+    private val subscription = document.observe { change -> changed(change) }
+
+    public val snapshot: MarkdownSnapshot get() = value().snapshot
+    public val selection: MarkdownSelection get() = value().selection
+    public val canUndo: Boolean get() = value().canUndo
+    public val canRedo: Boolean get() = value().canRedo
+    public val savedRevision: Long get() = value().savedRevision
+    public val isDirty: Boolean get() {
+        val current = value();
+        return current.snapshot.revision != current.savedRevision
+    }
+    public val isClosed: Boolean get() {
+        storage.value;
+        return closed
+    }
+
+    private fun value(): MdEditorValue {
+        val value = storage.value
+        if (closed)
+            throw IllegalStateException(Some("Markdown editor state is closed"))
+        return value
+    }
+
+    private fun checkEdit() {
+        storage.checkMutation()
+        if (closed)
+            throw IllegalStateException(Some("Markdown editor state is closed"))
+        when (pending) {
+            case Some(_) -> throw IllegalStateException(
+                Some("Markdown editor changes cannot reenter")
+            );
+            case None -> Unit
+        }
+    }
+
+    public fun setSelection(selection: MarkdownSelection): Boolean {
+        checkEdit()
+        val previous = storage.value
+        mdCheckSelection(previous.snapshot, selection)
+        history.breakGroup()
+        if (previous.selection == selection)
+            return false
+        storage.value =
+            MdEditorValue(
+                previous.snapshot,
+                selection,
+                history.canUndo,
+                history.canRedo,
+                previous.savedRevision
+            )
+        return true
+    }
+
+    public fun breakUndoGroup() {
+        checkEdit();
+        history.breakGroup()
+    }
+
+    public fun replaceSelection(
+        text: String,
+        kind: MarkdownEditKind = MarkdownEditKind.Separate
+    ): MarkdownChange = replace(selection.range, text, kind)
+
+    public fun replace(
+        range: MarkdownRange,
+        text: String,
+        kind: MarkdownEditKind = MarkdownEditKind.Separate
+    ): MarkdownChange {
+        checkEdit()
+        pending = Some(MdPendingEdit(kind, Some(mdCaret(range.start + text.byteLength))))
+        try {
+            val change = document.replace(range, text)
+            if (!change.changed) {
+                val previous = storage.value
+                val after = mdCaret(range.start + text.byteLength)
+                if (after != previous.selection) {
+                    history.breakGroup()
+                    storage.value =
+                        MdEditorValue(
+                            previous.snapshot,
+                            after,
+                            history.canUndo,
+                            history.canRedo,
+                            previous.savedRevision
+                        )
+                }
+            }
+            return change
+        } finally {
+            pending = None
+        }
+    }
+
+    public fun apply(edit: MarkdownEdit): MarkdownChange {
+        checkEdit()
+        pending = Some(MdPendingEdit(MarkdownEditKind.Separate, None))
+        try {
+            return document.apply(edit)
+        } finally {
+            pending = None
+        }
+    }
+
+    public fun transform(
+        parsed: ParsedMarkdown,
+        configure: MarkdownTransformBuilder.() -> Unit
+    ): MarkdownChange {
+        checkEdit()
+        pending = Some(MdPendingEdit(MarkdownEditKind.Separate, None))
+        try {
+            return document.transform(parsed, configure)
+        } finally {
+            pending = None
+        }
+    }
+
+    public fun undo(): Boolean {
+        checkEdit()
+        if (!history.canUndo)
+            return false
+        val entry = history.undoEntry()
+        pending = Some(MdPendingEdit(MarkdownEditKind.Separate, Some(entry.before), MdReplay.Undo))
+        try {
+            document.apply(MarkdownEdit(document.revision, entry.replacements(true)));
+            return true
+        }
+        finally {
+            pending = None
+        }
+    }
+
+    public fun redo(): Boolean {
+        checkEdit()
+        if (!history.canRedo)
+            return false
+        val entry = history.redoEntry()
+        pending = Some(MdPendingEdit(MarkdownEditKind.Separate, Some(entry.after), MdReplay.Redo))
+        try {
+            document.apply(MarkdownEdit(document.revision, entry.replacements(false)));
+            return true
+        }
+        finally {
+            pending = None
+        }
+    }
+
+    public fun markSaved(revision: Long) {
+        checkEdit()
+        val previous = storage.value
+        if (revision < 0L || revision > previous.snapshot.revision)
+            throw IllegalArgumentException(
+                Some("Saved Markdown revision is outside the document history")
+            )
+        storage.value =
+            MdEditorValue(
+                previous.snapshot,
+                previous.selection,
+                history.canUndo,
+                history.canRedo,
+                revision
+            )
+    }
+
+    private fun changed(change: MarkdownChange) {
+        storage.checkMutation()
+        val previous = storage.value
+        val selection =
+            if (change.kind == MarkdownChangeKind.Reset) {
+                history.clear()
+                MarkdownSelection(
+                    mdResetPosition(change.after, previous.selection.anchor),
+                    mdResetPosition(change.after, previous.selection.cursor),
+                    previous.selection.anchorBias,
+                    previous.selection.cursorBias
+                )
+            } else {
+                val intent = pending ?: MdPendingEdit(MarkdownEditKind.Separate, None)
+                val after = intent.after ?: previous.selection.map(change)
+                when (intent.replay) {
+                    case MdReplay.None -> history.append(
+                        change,
+                        previous.selection,
+                        after,
+                        intent.kind
+                    )
+                    case MdReplay.Undo -> history.didUndo()
+                    case MdReplay.Redo -> history.didRedo()
+                }
+                after
+            }
+        storage.value =
+            MdEditorValue(
+                change.after,
+                selection,
+                history.canUndo,
+                history.canRedo,
+                previous.savedRevision
+            )
+    }
+
+    public override fun close() {
+        storage.checkMutation()
+        if (closed)
+            return
+        when (pending) {
+            case Some(_) -> throw IllegalStateException(
+                Some("Markdown editor cannot close during its edit")
+            );
+            case None -> Unit
+        }
+        subscription.close()
+        history.clear()
+        closed = true
+    }
+}

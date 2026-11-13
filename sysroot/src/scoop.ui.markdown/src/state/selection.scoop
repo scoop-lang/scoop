@@ -1,0 +1,56 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Directional source selection; each endpoint retains its insertion-side intent. */
+public struct MarkdownSelection(
+    val anchor: MarkdownPosition,
+    val cursor: MarkdownPosition,
+    val anchorBias: MarkdownBias = MarkdownBias.After,
+    val cursorBias: MarkdownBias = MarkdownBias.After
+) {
+    public val range: MarkdownRange get() =
+        if (anchor.byteOffset <= cursor.byteOffset)
+            MarkdownRange(anchor.byteOffset, cursor.byteOffset)
+        else
+            MarkdownRange(cursor.byteOffset, anchor.byteOffset)
+    public val collapsed: Boolean get() = anchor == cursor
+
+    public fun map(change: MarkdownChange): MarkdownSelection {
+        val a = change.map(MarkdownAnchor(anchor, anchorBias))
+        val c = change.map(MarkdownAnchor(cursor, cursorBias))
+        return MarkdownSelection(a.position, c.position, a.bias, c.bias)
+    }
+}
+
+public enum MarkdownEditKind {
+    Separate, Typing, Backspace, Delete
+}
+
+internal fun mdCheckSelection(snapshot: MarkdownSnapshot, selection: MarkdownSelection) {
+    snapshot.read(MarkdownRange(selection.anchor.byteOffset, selection.anchor.byteOffset))
+    snapshot.read(MarkdownRange(selection.cursor.byteOffset, selection.cursor.byteOffset))
+}
+
+internal fun mdCaret(position: Long): MarkdownSelection =
+    MarkdownSelection(MarkdownPosition(position), MarkdownPosition(position))
+
+internal fun mdResetPosition(
+    snapshot: MarkdownSnapshot,
+    position: MarkdownPosition
+): MarkdownPosition {
+    var offset =
+        if (position.byteOffset < snapshot.byteLength)
+            position.byteOffset
+        else
+            snapshot.byteLength
+    while (offset > 0L && offset < snapshot.byteLength) {
+        try {
+            snapshot.read(MarkdownRange(offset, offset))
+            break
+        } catch (error: IllegalArgumentException) {
+            offset -= 1L
+        }
+    }
+    return MarkdownPosition(offset)
+}

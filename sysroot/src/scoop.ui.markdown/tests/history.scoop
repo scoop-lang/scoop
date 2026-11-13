@@ -1,0 +1,30 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownHistoryTests {
+    @Test
+    fun `long typing groups replay once within a megabyte document`() {
+        val source = "line 中文\n".repeat(100_000L)
+        val document = MarkdownDocument.fromText(source)
+        val position = document.snapshot().positionOfLine(50_000L)
+        val editor = MarkdownEditorState(document, MarkdownSelection(position, position))
+        for (index in 0L ..< 1000L)
+            editor.replaceSelection("字", MarkdownEditKind.Typing)
+        val typed = document.snapshot()
+        assertEquals(source.byteLength + 3000L, typed.byteLength)
+        assertEquals(
+            "字".repeat(1000L),
+            typed.read(MarkdownRange(position.byteOffset, position.byteOffset + 3000L))
+        )
+        assertTrue(editor.undo())
+        assertFalse(editor.canUndo)
+        assertEquals(source, document.toMarkdown())
+        editor.redo()
+        assertEquals(typed.toMarkdown(), document.toMarkdown())
+        editor.close()
+    }
+}

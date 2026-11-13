@@ -26,6 +26,7 @@
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
 | Markdown 源文档、解析、事务与生成 | `scoop.markdown` 的 README 与 `examples/source`；`parseMarkdown`／`MarkdownDocument.parse` 显式解析，`ParsedMarkdown.nodes()`／`parent(id)` 查询节点；`document.transform(parsed)` 将标题、格式、链接、任务和表格行修改编译为源码事务；`markdownDocument`／`markdownText` 使用 receiver DSL 生成。未安装的新库使用 path 依赖；后续能力以库说明为准 |
+| Markdown 编辑状态 | `scoop.ui.markdown` 的 README；`MarkdownEditorState` 共享源码选区、文档事务、撤销／重做与保存 revision，生命周期由宿主管理；当前视图能力以实施记录为准 |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get`、`http/existing-connection` 及各库 README |
 | HTTP 协议与异步传输适配                           | `scoop.http`、`scoop.http.asyncio`；仅在需要协议层时使用                                       |
 | 命令行参数与测试                                  | `scoop.cli`、`scoop.test`；`cli/options`、`test/assertions`                                    |
@@ -34,7 +35,7 @@
 | 数学、大整数和十进制数                            | `scoop.math` 的 README／示例                                                                   |
 | 日志与控制台 provider                             | `scoop.log`、`scoop.log.console` 的 README／示例                                               |
 | 终端、异步终端与交互行编辑                        | `terminal/output`；`scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例           |
-| UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；使用当前目标可用的库  |
+| UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；独立控件修改借用模型前可调用 `State.checkMutation()`，使用当前目标可用的库  |
 
 ## JSON 与 DTO
 

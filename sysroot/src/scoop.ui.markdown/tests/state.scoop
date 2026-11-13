@@ -1,0 +1,168 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownEditorStateTests {
+    @Test
+    fun `typing shares one history item and one undo transaction`() {
+        val document = MarkdownDocument.fromText("")
+        val editor = MarkdownEditorState(document)
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = document.observe { value -> changes.add(value) }
+        editor.replaceSelection("你", MarkdownEditKind.Typing)
+        editor.replaceSelection("好", MarkdownEditKind.Typing)
+        editor.replaceSelection("😀", MarkdownEditKind.Typing)
+        assertEquals("你好😀", document.toMarkdown())
+        assertEquals(10L, editor.selection.cursor.byteOffset)
+        assertTrue(editor.canUndo)
+        assertTrue(editor.undo())
+        assertEquals("", document.toMarkdown())
+        assertEquals(0L, editor.selection.cursor.byteOffset)
+        assertEquals(4L, changes.size)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.canRedo)
+        assertTrue(editor.redo())
+        assertEquals("你好😀", document.toMarkdown())
+        assertEquals(10L, editor.selection.cursor.byteOffset)
+        subscription.close()
+        editor.close()
+    }
+
+    @Test
+    fun `backward and forward deletion merge in source order`() {
+        val document = MarkdownDocument.fromText("你😀好")
+        val editor = MarkdownEditorState(document, mdCaret(10L))
+        editor.replace(MarkdownRange(7L, 10L), "", MarkdownEditKind.Backspace)
+        editor.replace(MarkdownRange(3L, 7L), "", MarkdownEditKind.Backspace)
+        assertEquals("你", document.toMarkdown())
+        editor.undo()
+        assertEquals("你😀好", document.toMarkdown())
+        assertEquals(10L, editor.selection.cursor.byteOffset)
+        editor.setSelection(mdCaret(3L))
+        editor.replace(MarkdownRange(3L, 7L), "", MarkdownEditKind.Delete)
+        editor.replace(MarkdownRange(3L, 6L), "", MarkdownEditKind.Delete)
+        editor.undo()
+        assertEquals("你😀好", document.toMarkdown())
+        assertEquals(3L, editor.selection.cursor.byteOffset)
+        editor.close()
+    }
+
+    @Test
+    fun `selection commands and new edits end groups and discard redo`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        editor.replaceSelection("a", MarkdownEditKind.Typing)
+        editor.setSelection(mdCaret(1L))
+        editor.replaceSelection("b", MarkdownEditKind.Typing)
+        editor.undo()
+        assertEquals("a", editor.document.toMarkdown())
+        assertTrue(editor.canRedo)
+        editor.replaceSelection("c")
+        assertFalse(editor.canRedo)
+        editor.undo()
+        editor.undo()
+        assertEquals("", editor.document.toMarkdown())
+        editor.close()
+    }
+
+    @Test
+    fun `structure transactions restore directional selections and exact source`() {
+        val source = "# old ###\r\n\r\n[link](old)\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val selected =
+            MarkdownSelection(
+                MarkdownPosition(source.byteLength),
+                MarkdownPosition(2L),
+                MarkdownBias.Before,
+                MarkdownBias.After
+            )
+        val editor = MarkdownEditorState(document, selected)
+        val parsed = document.parse()
+        editor.transform(parsed) {
+            setHeading(parsed.root.children[0L].id, 3)
+            setLinkTarget(parsed.root.children[1L].children[0L].id, "new")
+        }
+        assertTrue(editor.selection.anchor.byteOffset > editor.selection.cursor.byteOffset)
+        editor.undo()
+        assertEquals(source, document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        editor.redo()
+        assertEquals("### old ###\r\n\r\n[link](<new>)\r\n", document.toMarkdown())
+        editor.close()
+    }
+
+    @Test
+    fun `external edits map selection and reloads clear history at scalar boundaries`() {
+        val document = MarkdownDocument.fromText("abc")
+        val editor =
+            MarkdownEditorState(
+                document,
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(2L))
+            )
+        document.replace(MarkdownRange(0L, 0L), "z")
+        assertEquals(MarkdownRange(2L, 3L), editor.selection.range)
+        assertTrue(editor.undo())
+        assertEquals("abc", document.toMarkdown())
+        document.reset("雪")
+        assertEquals(MarkdownRange(0L, 0L), editor.selection.range)
+        assertFalse(editor.canUndo)
+        assertFalse(editor.canRedo)
+        editor.close()
+        editor.close()
+        document.replace(MarkdownRange(0L, 3L), "after close")
+        assertTrue(editor.isClosed)
+        assertFailsWith<IllegalStateException> { editor.undo() }
+    }
+
+    @Test
+    fun `no-op text replacement still moves selection without changing source revision`() {
+        val document = MarkdownDocument.fromText("abc")
+        val editor =
+            MarkdownEditorState(
+                document,
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(3L))
+            )
+        val change = editor.replaceSelection("abc")
+        assertFalse(change.changed)
+        assertEquals(0L, document.revision)
+        assertEquals(mdCaret(3L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertFalse(editor.isDirty)
+        editor.close()
+    }
+
+    @Test
+    fun `failed source edits preserve state and late saves keep new input dirty`() {
+        val document = MarkdownDocument.fromText("雪")
+        val editor = MarkdownEditorState(document)
+        assertFailsWith<IllegalArgumentException> { editor.replace(MarkdownRange(1L, 2L), "x") }
+        assertEquals("雪", editor.snapshot.toMarkdown())
+        assertEquals(mdCaret(0L), editor.selection)
+        assertFalse(editor.canUndo)
+        editor.replaceSelection("a")
+        val written = document.revision
+        editor.replaceSelection("b")
+        editor.markSaved(written)
+        assertTrue(editor.isDirty)
+        editor.markSaved(document.revision)
+        assertFalse(editor.isDirty)
+        assertFailsWith<IllegalArgumentException> { editor.markSaved(document.revision + 1L) }
+        editor.close()
+    }
+
+    @Test
+    fun `published edits retain consistent history when another observer throws`() {
+        val document = MarkdownDocument.fromText("")
+        val editor = MarkdownEditorState(document)
+        val subscription =
+            document.observe { _ -> throw IllegalStateException(Some("observer failure")) }
+        assertFailsWith<IllegalStateException> { editor.replaceSelection("committed") }
+        assertEquals("committed", editor.snapshot.toMarkdown())
+        assertTrue(editor.canUndo)
+        subscription.close()
+        editor.undo()
+        assertEquals("", document.toMarkdown())
+        editor.close()
+    }
+}
