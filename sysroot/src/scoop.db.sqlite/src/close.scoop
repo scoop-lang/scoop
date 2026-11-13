@@ -1,0 +1,93 @@
+package scoop.db.sqlite
+
+import scoop.platform.concurrent.Mutex
+
+/** Coordinates the actual close calls shared by connection and statement aliases. */
+internal class SqliteClose {
+    private val lock = Mutex()
+    private var started = false
+    private var finished = false
+    private var failure: Throwable? = None
+    private val waiters = ArrayList<Continuation<Unit>>()
+    internal val isStarted: Boolean get() = lock.withLock { started }
+    internal val isFinished: Boolean get() = lock.withLock { finished }
+
+    internal suspend fun run(block: suspend () -> Unit) {
+        val gate = this
+        nonCancellableScope { gate.runUncancelled(block) }
+    }
+
+    private suspend fun runUncancelled(block: suspend () -> Unit) {
+        val role =
+            lock.withLock {
+                if (finished)
+                    0
+                else
+                    if (started)
+                        1
+                    else {
+                        started = true;
+                        2
+                    }
+            }
+        if (role == 0)
+            return
+        if (role == 1) {
+            await();
+            return
+        }
+        var error: Throwable? = None
+        try {
+            block()
+        }
+        catch (caught: Throwable) {
+            error = Some(caught)
+        }
+        val outcome = error
+        val pending =
+            lock.withLock {
+                failure = outcome
+                finished = true
+                val snapshot = waiters.toArray()
+                waiters.clear()
+                snapshot
+            }
+        for (waiter in pending) {
+            when (outcome) {
+                case Some(val caught) -> waiter.resumeWithException(caught)
+                case None -> waiter.resume(Unit)
+            }
+        }
+        when (outcome) {
+            case Some(val caught) -> throw caught
+            case None -> {}
+        }
+    }
+
+    internal suspend fun await() {
+        suspendCoroutine<Unit> {
+            continuation ->
+            val(ready, error) =
+                lock.withLock<(Boolean, Throwable?)> {
+                    if (finished)
+                        (true, failure)
+                    else {
+                        waiters.add(continuation);
+                        (false, None)
+                    }
+                }
+            if (ready) {
+                when (error) {
+                    case Some(val caught) -> continuation.resumeWithException(caught)
+                    case None -> continuation.resume(Unit)
+                }
+            }
+        }
+    }
+}
+
+internal fun combineFailure(primary: Throwable?, next: Throwable): Throwable =
+    when (primary) {
+        case Some(val first) -> ResourceUseException(first, next)
+        case None -> next
+    }

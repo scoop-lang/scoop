@@ -1,0 +1,80 @@
+package scoop.db.sqlite
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.platform.fs.Path
+import scoop.time.Duration
+
+public enum SqliteLocation {
+    Memory, File(Path)
+}
+
+public struct SqliteOptions(
+    val readOnly: Boolean = false,
+    val busyTimeout: Duration = Duration.ZERO
+)
+
+/** Retains SQLite's extended error code; primaryCode is its low byte. */
+public class SqliteException public constructor(
+    operation: String,
+    public val extendedCode: Int,
+    message: String
+): DbException(operation, message) {
+    public val primaryCode: Int get() = extendedCode % 256
+}
+
+/** Creates an independent SQLite connection using the current EventLoop's blocking workers. */
+public class SqliteDataSource public constructor(
+    private val location: SqliteLocation,
+    private val configuration: SqliteOptions = SqliteOptions()
+): DataSource<SqliteConnection> {
+    public override suspend fun connect(options: DbCallOptions): SqliteConnection {
+        requireDatabaseCall(options, "connect")
+        if (configuration.busyTimeout < Duration.ZERO)
+            throw IllegalArgumentException(Some("negative SQLite busy timeout"))
+        val bytes: Array<Byte> =
+            when (location) {
+                case SqliteLocation.Memory -> {
+                    if (configuration.readOnly)
+                        throw IllegalArgumentException(
+                            Some("an in-memory database cannot be read-only")
+                        )
+                    ":memory:".toByteArray()
+                }
+                case SqliteLocation.File(val path) -> {
+                    val value = path.toOsString().toByteArray()
+                    if (value.size == 0L || path == Path.fromString(":memory:"))
+                        throw IllegalArgumentException(
+                            Some(
+                                "use Memory for an in-memory database and a nonempty file path otherwise"
+                            )
+                        )
+                    value
+                }
+            }
+        val loop = currentEventLoop()
+        val executor = loop.executor
+        val pointer = allocateConnectionState(configuration.busyTimeout)
+        val connection = SqliteConnection(pointer, loop, executor)
+        try {
+            connection.open(bytes, configuration.readOnly, options)
+            return connection
+        } catch (error: Throwable) {
+            try {
+                connection.close()
+            }
+            catch (cleanup: Throwable) {
+                throw ResourceUseException(error, cleanup)
+            }
+            throw error
+        }
+    }
+}
+
+private fun allocateConnectionState(busy: Duration): Ptr<Unit> {
+    @Unsafe
+    {
+        return nativeCreate(busy.floorSeconds, busy.nanosecondsOfSecond) ?:
+            throw DbException("connect", "could not allocate SQLite connection state")
+    }
+}

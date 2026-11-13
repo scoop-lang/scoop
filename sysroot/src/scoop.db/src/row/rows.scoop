@@ -1,0 +1,71 @@
+package scoop.db.row
+
+public enum UnknownColumnPolicy {
+    Ignore, Reject
+}
+
+public struct RowDecodingOptions(
+    val unknownColumns: UnknownColumnPolicy = UnknownColumnPolicy.Ignore
+)
+
+/** Explicit adapters between ordinary value codecs and immutable database rows. */
+public object Rows {
+    public fun <T> encodeToRow(value: T, codec: ValueEncoder<T>): Row {
+        val encoder = RowEncoder("")
+        codec.encode(value, encoder)
+        return when (encoder.result()) {
+            case RowValue.Record(val row) -> row
+            else -> throw EncodingException("", "expected a keyed record root")
+        }
+    }
+
+    public fun <T> decodeFromRow(
+        row: Row,
+        codec: ValueDecoder<T>,
+        options: RowDecodingOptions = RowDecodingOptions()
+    ): T = codec.decode(decoder(row, options))
+
+    public fun decoder(row: Row, options: RowDecodingOptions = RowDecodingOptions()): Decoder =
+        RowDecoder(RowValue.Record(row), "", options)
+
+    public fun valueDecoder(value: RowValue): Decoder = RowDecoder(value, "", RowDecodingOptions())
+}
+
+/** An optional binary capability of a format's single-value container. */
+public interface BinaryEncodingContainer: SingleValueEncodingContainer {
+    public fun writeBytes(value: List<Byte>)
+}
+
+public interface BinaryDecodingContainer: SingleValueDecodingContainer {
+    public fun readBytes(): Array<Byte>
+}
+
+/** Encodes byte arrays as binary values, independently of the default sequence codec. */
+public object RowBytesCodec: ValueEncoder<Array<Byte>>, ValueDecoder<Array<Byte>> {
+    public override fun encode(value: Array<Byte>, encoder: Encoder) {
+        val container = encoder.singleValue()
+        if (container is BinaryEncodingContainer)
+            container.writeBytes(value)
+        else
+            throw EncodingException(encoder.path, "format has no binary scalar")
+    }
+    public override fun decode(decoder: Decoder): Array<Byte> {
+        val container = decoder.singleValue()
+        if (container is BinaryDecodingContainer)
+            return container.readBytes()
+        throw DecodingException(decoder.path, "format has no binary scalar")
+    }
+}
+
+internal fun rowPath(parent: String, name: String): String {
+    val result = StringBuilder()
+    result.append(parent).append("/")
+    for (character in name) {
+        when (character) {
+            case '~' -> result.append("~0")
+            case '/' -> result.append("~1")
+            else -> result.append(character)
+        }
+    }
+    return result.toString()
+}

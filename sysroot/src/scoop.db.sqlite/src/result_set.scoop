@@ -1,0 +1,89 @@
+package scoop.db.sqlite
+
+import scoop.db.*
+import scoop.db.row.*
+import scoop.db.sql.*
+
+internal class SqliteResultSet(
+    private val statement: SqliteStatement,
+    public override val schema: RowSchema,
+    internal var buffered: Row?,
+    internal var ended: Boolean
+): ResultSet {
+    internal val closing = SqliteClose()
+    internal var failed = false
+    public override val isClosed: Boolean get() = closing.isStarted || statement.isClosed
+
+    public override suspend fun next(options: DbCallOptions): Row? {
+        requireDatabaseCall(options, "next")
+        val done =
+            statement.connection.lock.withLock {
+                if (closing.isStarted || statement.closedUnderLock())
+                    throw DbClosedException("next")
+                if (failed)
+                    throw IllegalStateException(Some("result stream has failed"))
+                ended
+            }
+        if (done)
+            return None
+        val rows = this
+        return statement.connection.runCall<Row?>(
+            "next",
+            options,
+            Some(statement),
+            statement.transaction,
+            Some(this),
+            !statement.readOnly,
+            { rows.nextNative() },
+            { _ -> rows.statement.resetNative(true) },
+            { rows.statement.resetNative(true) }
+        )
+    }
+
+    private fun nextNative(): Row? {
+        val value =
+            statement.connection.lock.withLock {
+                if (failed)
+                    throw IllegalStateException(Some("result stream has failed"))
+                val value = buffered
+                buffered = None
+                value
+            }
+        when (value) {
+            case Some(_) -> return value;
+            case None -> {}
+        }
+        if (statement.connection.lock.withLock { ended })
+            return None
+        @Unsafe
+        {
+            val handle = statement.pointer!!
+            statement.lastStep = nativeStep(handle)
+            if (statement.lastStep == 100)
+                return Some(readRow(statement.connection, handle, schema))
+            if (statement.lastStep != 101)
+                statement.connection.check(statement.lastStep, "next")
+            statement.resetNative(false)
+            return None
+        }
+    }
+
+    public override suspend fun close() {
+        val rows = this
+        val owner = statement
+        closing.run {
+            owner.connection.cleanupResource(
+                "close result",
+                Some(owner),
+                None,
+                {
+                    when (owner.result) {
+                        case Some(val current) -> current === rows
+                        case None -> false
+                    }
+                },
+                { owner.resetNative(false) }
+            )
+        }
+    }
+}

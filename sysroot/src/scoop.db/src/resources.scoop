@@ -1,0 +1,39 @@
+package scoop.db
+
+import scoop.asyncio.AsyncCloseable
+import scoop.time.Duration
+
+/** A logical database resource. Close waits for owned local work and resources to retire. */
+public interface Connection: AsyncCloseable {
+    public val isClosed: Boolean
+}
+
+/** Creates independently owned logical connections without taking ownership of them. */
+public interface DataSource<C: Connection> {
+    public suspend fun connect(options: DbCallOptions = DbCallOptions()): C
+}
+
+/** A single-consumer, pull-driven stream whose delivered values outlive the stream. */
+public interface ResultStream<T>: AsyncCloseable {
+    public val isClosed: Boolean
+    public suspend fun next(options: DbCallOptions = DbCallOptions()): T?
+}
+
+/** A relative deadline for one call, including queueing and any internal continuation pages. */
+public struct DbCallOptions(val timeout: Duration? = None)
+
+/** A database failure. The cause retains native or protocol details supplied by a driver. */
+public open class DbException public constructor(
+    public val operation: String,
+    message: String,
+    public val cause: Throwable? = None
+): Exception(Some(message))
+
+public class DbClosedException public constructor(operation: String)
+: DbException(operation, "database resource is closed")
+
+public class DbBusyException public constructor(operation: String)
+: DbException(operation, "database resource is busy")
+
+public class DbTimeoutException public constructor(operation: String)
+: DbException(operation, "database operation timed out")

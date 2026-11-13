@@ -1,0 +1,26 @@
+package scoop.db.sql
+
+import scoop.asyncio.AsyncCloseable
+import scoop.asyncio.useAsync
+import scoop.db.DbCallOptions
+
+public enum SqlTransactionState {
+    Active, Committed, RolledBack, Invalid
+}
+
+/** An exclusive SQL session transaction. Close rolls back only an active transaction. */
+public interface SqlTransaction: SqlSession, AsyncCloseable {
+    public val state: SqlTransactionState
+    public suspend fun commit(options: DbCallOptions = DbCallOptions())
+    public suspend fun rollback()
+}
+
+/** Waits for the body's children before committing, retaining body and rollback failures. */
+public suspend fun <T> TransactionalSqlConnection.transaction(block: suspend (SqlSession) -> T): T =
+    beginTransaction().useAsync {
+        transaction ->
+        val result = coroutineScope { block(transaction) }
+        ensureActive()
+        transaction.commit()
+        result
+    }

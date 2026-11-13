@@ -1,0 +1,49 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.db:0.1.0
+//! dep: scoop:scoop.db.sql:0.1.0
+//! dep: scoop:scoop.db.sqlite:0.1.0
+
+import scoop.asyncio.*
+import scoop.db.row.*
+import scoop.db.sql.*
+import scoop.db.sqlite.*
+
+struct User(val id: Long, val name: String, @Serialize(emitNull = true) val note: String?) {
+    public companion object: ValueEncoder<User>, ValueDecoder<User>
+}
+
+fun main() {
+    eventLoop().run {
+        SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+            connection ->
+            connection.transaction {
+                session ->
+                session.prepare("CREATE TABLE users(id INTEGER, name TEXT, note TEXT)").useAsync {
+                    statement -> statement.execute(SqlArguments.empty())
+                }
+                session.prepare("INSERT INTO users(id,name,note) VALUES(?,?,?)").useAsync {
+                    statement ->
+                    val row = Rows.encodeToRow(User(7L, "Ada", None), User.Companion)
+                    statement.execute(SqlArguments.fromRow(row, ["id", "name", "note"]))
+                }
+            }
+            connection.prepare("SELECT name,note,id FROM users ORDER BY id").useAsync {
+                statement -> when (statement.execute(SqlArguments.empty())) {
+                    case SqlResult.Rows(val rows) -> rows.decodeRecords(User.Companion).useAsync {
+                        records -> while (true) {
+                            when (records.next()) {
+                                case Some(val user) -> println(
+                                    f"${user.id}: ${user.name} (${user.note ?: "no note"})"
+                                )
+                                case None -> break
+                            }
+                        }
+                    }
+                    case SqlResult.Update(_) -> throw IllegalStateException(
+                        Some("query returned no columns")
+                    )
+                }
+            }
+        }
+    }
+}

@@ -969,6 +969,12 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - [循环中稳定来源的查询复用](program-performance/INTERFACE-QUERY-REUSE.md)已交付：release 对参数或所有 CFG 环外单次定义的局部引用，首次实际检查后复用 exact interface 的命中／未命中 entry；含 Boolean、空接口和稳定来源的异常继续路径，不增加对象副本、roots 或 ABI。三目标主要目录负载降低约 13%～87%，静态／编译成本和短目录、布局敏感回退均已记录。
 - 延续桌面短暂停与内存目标，按吞吐、应用尾延迟、RSS 和启动分别验收；调研不表示优化已实现或已完成跨语言性能比较。具体实施前先修订实际受影响的规范，不预先占用新的里程碑编号。
 
+### 数据库基础框架与 record 映射（首版已实现）
+
+- [设计](database/DESIGN.md)以数据库无关的逻辑连接、异步结果流和既有 codec 为公共层；SQL 语句/事务、HBase cells、Cosmos DB 文档/分页/分区批次保留专属接口。
+- 已交付完整异步取消与关闭、稳定结果所有权、Row 与普通 record 的双向映射，以及缺失/NULL/写入意图的区别。SQLite 为首个真实驱动，HBase 与 Cosmos DB 用于检验抽象边界。
+- 公共层、SQL 能力与 SQLite 共 43 项本地 Cone 测试通过，提供 record 往返[示例](../sysroot/src/scoop.db.sqlite/examples/README.md)；合同见[规范](specs/SCOOP-DB-SPEC.md)，实际完成项和本地验证见[记录](database/PROGRESS.md)。本轮不做跨平台验证，不引入 ORM、反射、数据库宏或新的编译器/runtime 机制。
+
 ### 独立 Math 库（已实现）
 
 - 参考 Java Math/java.math 的功能范围，交付显式依赖的 `scoop.math` Cone；公共合同见[规范](specs/SCOOP-MATH-SPEC.md)，存储和算法见[设计](math/DESIGN.md)，测试与性能边界见[实施记录](math/PROGRESS.md)。

@@ -1,0 +1,103 @@
+package scoop.db.sqlite
+
+@CLayout
+internal struct NativePrepared(val statement: Ptr<Unit>?, val code: Int)
+
+@Extern(name = "scoop_db_sqlite_create")
+internal fun nativeCreate(seconds: Long, nanos: Int): Ptr<Unit>?
+
+@Extern(name = "scoop_db_sqlite_begin")
+internal fun nativeBegin(state: Ptr<Unit>, seconds: Long, nanos: Int)
+
+@Extern(name = "scoop_db_sqlite_stop")
+internal fun nativeStop(state: Ptr<Unit>, reason: Int): Int
+
+@Extern(name = "scoop_db_sqlite_stopped")
+internal fun nativeStopped(state: Ptr<Unit>): Int
+
+@Extern(name = "scoop_db_sqlite_open")
+internal fun nativeOpen(state: Ptr<Unit>, path: Ptr<Byte>, readOnly: Int): Int
+
+@Extern(name = "scoop_db_sqlite_close")
+internal fun nativeClose(state: Ptr<Unit>): Int
+
+@Extern(name = "scoop_db_sqlite_destroy")
+internal fun nativeDestroy(state: Ptr<Unit>)
+
+@Extern(name = "scoop_db_sqlite_error")
+internal fun nativeError(state: Ptr<Unit>, code: Int): Ptr<Byte>
+
+@Extern(name = "scoop_db_sqlite_changes")
+internal fun nativeChanges(state: Ptr<Unit>): Long
+
+@Extern(name = "scoop_db_sqlite_autocommit")
+internal fun nativeAutocommit(state: Ptr<Unit>): Int
+
+@Extern(name = "scoop_db_sqlite_control")
+internal fun nativeControl(state: Ptr<Unit>, sql: Ptr<Byte>): Int
+
+@Extern(name = "scoop_db_sqlite_prepare")
+internal fun nativePrepare(state: Ptr<Unit>, sql: Ptr<Byte>): NativePrepared
+
+@Extern(name = "scoop_db_sqlite_bind_bytes")
+internal fun nativeBindBytes(
+    statement: Ptr<Unit>,
+    slot: Int,
+    data: Ptr<Byte>,
+    length: Long,
+    text: Int
+): Int
+
+@Extern(name = "scoop_db_sqlite_reset")
+internal fun nativeReset(statement: Ptr<Unit>): Int
+
+@Extern(name = "sqlite3_step")
+internal fun nativeStep(statement: Ptr<Unit>): Int
+
+@Extern(name = "sqlite3_finalize")
+internal fun nativeFinalize(statement: Ptr<Unit>): Int
+
+@Extern(name = "sqlite3_stmt_readonly")
+internal fun nativeReadonly(statement: Ptr<Unit>): Int
+
+@Extern(name = "sqlite3_bind_parameter_count")
+internal fun nativeParameterCount(statement: Ptr<Unit>): Int
+
+@Extern(name = "sqlite3_bind_parameter_name")
+internal fun nativeParameterName(statement: Ptr<Unit>, slot: Int): Ptr<Byte>?
+
+@Extern(name = "sqlite3_bind_null")
+internal fun nativeBindNull(statement: Ptr<Unit>, slot: Int): Int
+
+@Extern(name = "sqlite3_bind_int64")
+internal fun nativeBindLong(statement: Ptr<Unit>, slot: Int, value: Long): Int
+
+@Extern(name = "sqlite3_bind_double")
+internal fun nativeBindDouble(statement: Ptr<Unit>, slot: Int, value: Double): Int
+
+@Extern(name = "sqlite3_column_count")
+internal fun nativeColumnCount(statement: Ptr<Unit>): Int
+
+@Extern(name = "sqlite3_column_name")
+internal fun nativeColumnName(statement: Ptr<Unit>, column: Int): Ptr<Byte>?
+
+@Extern(name = "sqlite3_column_decltype")
+internal fun nativeColumnDeclaredType(statement: Ptr<Unit>, column: Int): Ptr<Byte>?
+
+@Extern(name = "sqlite3_column_type")
+internal fun nativeColumnType(statement: Ptr<Unit>, column: Int): Int
+
+@Extern(name = "sqlite3_column_int64")
+internal fun nativeColumnLong(statement: Ptr<Unit>, column: Int): Long
+
+@Extern(name = "sqlite3_column_double")
+internal fun nativeColumnDouble(statement: Ptr<Unit>, column: Int): Double
+
+@Extern(name = "sqlite3_column_text")
+internal fun nativeColumnText(statement: Ptr<Unit>, column: Int): Ptr<UInt8>?
+
+@Extern(name = "sqlite3_column_blob")
+internal fun nativeColumnBlob(statement: Ptr<Unit>, column: Int): Ptr<Byte>?
+
+@Extern(name = "sqlite3_column_bytes")
+internal fun nativeColumnBytes(statement: Ptr<Unit>, column: Int): Int

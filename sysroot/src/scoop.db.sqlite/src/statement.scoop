@@ -1,0 +1,174 @@
+package scoop.db.sqlite
+
+import scoop.db.*
+import scoop.db.row.*
+import scoop.db.sql.*
+
+internal class SqliteStatement(
+    internal val connection: SqliteConnection,
+    internal var pointer: Ptr<Unit>?,
+    public override val parameters: Array<SqlParameterInfo>,
+    internal val transaction: SqliteTransaction?
+): Statement {
+    internal val closing = SqliteClose()
+    internal var result: SqliteResultSet? = None
+    internal var lastStep: Int = 0
+    internal val readOnly: Boolean = statementReadonly(pointer!!)
+    public override val isClosed: Boolean get() = connection.lock.withLock { closedUnderLock() }
+
+    internal fun closedUnderLock(): Boolean {
+        if (closing.isStarted || connection.isClosed || pointer == None)
+            return true
+        return when (transaction) {
+            case Some(val expected) -> when (connection.transactionOwner) {
+                case Some(val actual) -> actual !== expected
+                case None -> true
+            }
+            case None -> false
+        }
+    }
+
+    public override suspend fun execute(
+        arguments: SqlArguments,
+        options: DbCallOptions
+    ): SqlResult {
+        val values = arguments.resolve(parameters)
+        validateBindings(values)
+        val statement = this
+        return connection.runCall<SqlResult>(
+            "execute",
+            options,
+            Some(this),
+            transaction,
+            None,
+            !readOnly,
+            { statement.executeNative(values) },
+            { _ -> statement.resetNative(false) },
+            { statement.resetNative(true) }
+        )
+    }
+
+    private fun executeNative(values: Array<SqlParameter>): SqlResult {
+        @Unsafe
+        {
+            val handle = pointer!!
+            connection.check(nativeReset(handle), "reset bindings")
+            bindValues(connection, handle, values)
+            val before = nativeChanges(connection.native)
+            lastStep = nativeStep(handle)
+            if (lastStep != 100 && lastStep != 101)
+                connection.check(lastStep, "execute")
+            val columns = nativeColumnCount(handle)
+            connection.updateTransaction(false)
+            if (columns > 0) {
+                val schema = columnMetadata(handle)
+                val first =
+                    if (lastStep == 100)
+                        Some(readRow(connection, handle, schema))
+                    else
+                        None
+                val rows = SqliteResultSet(this, schema, first, lastStep == 101)
+                if (lastStep == 101)
+                    resetNative(false)
+                else
+                    connection.lock.withLock {
+                        result = Some(rows)
+                        connection.resultOwner = Some(rows)
+                    }
+                return SqlResult.Rows(rows)
+            }
+            if (lastStep != 101)
+                throw IllegalStateException(Some("SQLite returned a row without columns"))
+            val changed = nativeChanges(connection.native) - before
+            resetNative(false)
+            return SqlResult.Update(UpdateResult(Some(changed)))
+        }
+    }
+
+    internal fun resetNative(failed: Boolean) {
+        @Unsafe
+        {
+            val code = nativeReset(pointer!!)
+            val previous = lastStep
+            lastStep = 0
+            connection.lock.withLock {
+                when (result) {
+                    case Some(val rows) -> {
+                        rows.ended = true
+                        rows.failed = failed
+                        rows.buffered = None
+                        when (connection.resultOwner) {
+                            case Some(val owner) -> if (owner === rows)
+                                connection.resultOwner = None
+                            case None -> {}
+                        }
+                    }
+                    case None -> {}
+                }
+                result = None
+            }
+            // reset reports the previous step's error again; it is not another cleanup failure.
+            if (!(failed && code == previous))
+                connection.check(code, "reset")
+            connection.updateTransaction(failed)
+        }
+    }
+
+    internal fun finalizeNative() {
+        val handle = connection.lock.withLock { pointer }
+        var code = 0
+        when (handle) {
+            case Some(val value) -> @Unsafe
+            {
+                code = nativeFinalize(value)
+            }
+            case None -> return
+        }
+        // Keep ownership published until native finalization has stopped borrowing it.
+        connection.lock.withLock {
+            pointer = None
+            when (result) {
+                case Some(val rows) -> {
+                    rows.ended = true
+                    rows.buffered = None
+                    when (connection.resultOwner) {
+                        case Some(val owner) -> if (owner === rows)
+                            connection.resultOwner = None
+                        case None -> {}
+                    }
+                }
+                case None -> {}
+            }
+            result = None
+            var index = 0L
+            while (index < connection.statements.size) {
+                if (connection.statements[index] === this) {
+                    connection.statements.removeAt(index)
+                    break
+                }
+                index = index + 1L
+            }
+        }
+        connection.check(code, "finalize")
+    }
+
+    public override suspend fun close() {
+        val statement = this
+        closing.run {
+            statement.connection.cleanupResource(
+                "close statement",
+                Some(statement),
+                None,
+                { statement.pointer != None },
+                { statement.finalizeNative() }
+            )
+        }
+    }
+}
+
+private fun statementReadonly(pointer: Ptr<Unit>): Boolean {
+    @Unsafe
+    {
+        return nativeReadonly(pointer) != 0
+    }
+}

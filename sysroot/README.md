@@ -54,6 +54,7 @@ scoop run --release typed.scoop
 | [scoop.idna](src/scoop.idna/examples/README.md) | 国际化域名、原始 Punycode | 独立运行 |
 | [scoop.url](src/scoop.url/examples/README.md) | 相对解析、组件构建、query 与表单 | 独立运行 |
 | [scoop.json](src/scoop.json/examples/README.md) | 类型 codec、不可变值树 | 独立运行 |
+| [scoop.db.sqlite](src/scoop.db.sqlite/examples/README.md) | 公共数据库接口、事务、row 与 record 映射 | SQLite 3.37+；独立内存库 |
 | [scoop.regex](src/scoop.regex/examples/README.md) | 捕获、匹配、替换、分割 | 独立运行 |
 | [scoop.crypto](src/scoop.crypto/examples/README.md) | SHA-256、增量摘要、HMAC | 独立运行 |
 | [scoop.compression](src/scoop.compression/examples/README.md) | zstd/gzip 内存操作、文件流 | 临时文件自动清理 |

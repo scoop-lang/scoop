@@ -1,0 +1,218 @@
+package scoop.db.sqlite.tests
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.db.sql.*
+import scoop.db.sqlite.*
+import scoop.platform.fs.Path
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class SQLiteFileTests {
+    @Test
+    fun `file data survives reconnect and read only connections reject writes`() {
+        val loop = eventLoop()
+        loop.run {
+            val temporary = loop.createTempFile(prefix = "scoop-sqlite-")
+            temporary.close()
+            try {
+                val location = SqliteLocation.File(temporary.path)
+                SqliteDataSource(location).connect().useAsync {
+                    connection ->
+                    executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                    assertEquals(1L, executeSql(connection, "INSERT INTO items VALUES(7)"))
+                    assertEquals(0L, executeSql(connection, "CREATE TABLE other(id INTEGER)"))
+                }
+                SqliteDataSource(location, SqliteOptions(readOnly = true)).connect().useAsync {
+                    connection ->
+                    assertEquals(
+                        7L,
+                        rowLong(querySql(connection, "SELECT id FROM items")[0L], "id")
+                    )
+                    try {
+                        executeSql(connection, "INSERT INTO items VALUES(8)")
+                        fail(Some("read-only write succeeded"))
+                    } catch (error: SqliteException) {
+                        assertEquals(8, error.primaryCode)
+                    }
+                    assertEquals(
+                        1L,
+                        rowLong(querySql(connection, "SELECT count(*) AS n FROM items")[0L], "n")
+                    )
+                }
+            } finally {
+                loop.deleteFile(temporary.path)
+            }
+        }
+    }
+
+    @Test
+    fun `memory connections are independent and invalid locations fail before opening`() {
+        eventLoop().run {
+            val source = SqliteDataSource(SqliteLocation.Memory)
+            source.connect().useAsync {
+                first ->
+                executeSql(first, "CREATE TABLE items(id INTEGER)")
+                source.connect().useAsync {
+                    second -> assertEquals(
+                        0L,
+                        querySql(second, "SELECT name FROM sqlite_master WHERE name='items'").size
+                    )
+                }
+            }
+            for (
+                source in [
+                    SqliteDataSource(SqliteLocation.Memory, SqliteOptions(readOnly = true)),
+                    SqliteDataSource(SqliteLocation.File(Path.fromString(""))),
+                    SqliteDataSource(SqliteLocation.File(Path.fromString(":memory:"))),
+                    SqliteDataSource(
+                        SqliteLocation.Memory,
+                        SqliteOptions(busyTimeout = Duration.milliseconds(-1L))
+                    )
+                ]
+            ) {
+                try {
+                    source.connect().useAsync { fail(Some("invalid connection was opened")) }
+                } catch (_: IllegalArgumentException) {}
+            }
+        }
+    }
+
+    @Test
+    fun `busy cancellation stops waiting retires interrupt and allows retry after rollback`() {
+        val loop = eventLoop()
+        val observed = AtomicBoolean(false)
+        loop.run {
+            val scope = this
+            val temporary = loop.createTempFile(prefix = "scoop-sqlite-busy-")
+            temporary.close()
+            try {
+                val source =
+                    SqliteDataSource(
+                        SqliteLocation.File(temporary.path),
+                        SqliteOptions(busyTimeout = Duration.seconds(10L))
+                    )
+                source.connect().useAsync {
+                    first ->
+                    executeSql(first, "CREATE TABLE items(id INTEGER)")
+                    source.connect().useAsync {
+                        second ->
+                        second.prepare("INSERT INTO items VALUES(2)").useAsync {
+                            insert ->
+                            first.beginTransaction().useAsync {
+                                transaction ->
+                                executeSql(transaction, "INSERT INTO items VALUES(1)")
+                                val pending =
+                                    scope.launch {
+                                        try {
+                                            insert.execute(SqlArguments.empty())
+                                            fail(Some("write bypassed another connection's lock"))
+                                        } catch (error: SqliteException) {
+                                            // A begun write retains its native outcome after cancellation.
+                                            assertTrue(
+                                                error.primaryCode == 5 || error.primaryCode == 9
+                                            )
+                                            observed.store(true)
+                                        }
+                                    }
+                                loop.sleep(Duration.milliseconds(20L))
+                                assertFalse(pending.isCompleted)
+                                pending.cancel()
+                                pending.join()
+                                assertTrue(observed.load())
+                                transaction.rollback()
+                            }
+                            when (insert.execute(SqlArguments.empty())) {
+                                case SqlResult.Update(val result) -> assertEquals(
+                                    Some(1L),
+                                    result.affectedRows
+                                )
+                                case SqlResult.Rows(_) -> fail(Some("unexpected rows"))
+                            }
+                        }
+                        assertEquals(
+                            2L,
+                            rowLong(querySql(second, "SELECT id FROM items")[0L], "id")
+                        )
+                    }
+                }
+            } finally {
+                loop.deleteFile(temporary.path)
+            }
+        }
+    }
+
+    @Test
+    fun `invalid UTF8 fails a read without poisoning the connection`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                try {
+                    querySql(connection, "SELECT CAST(X'80' AS TEXT) AS value")
+                    fail(Some("invalid UTF8 was silently replaced"))
+                } catch (error: CharacterCodingException) {
+                    assertEquals(0L, error.byteOffset)
+                }
+                assertEquals(
+                    "ok",
+                    rowText(querySql(connection, "SELECT 'ok' AS value")[0L], "value")
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `result close waits for native statement finalization blocked by a reader`() {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this
+            val temporary = loop.createTempFile(prefix = "scoop-sqlite-finalize-")
+            temporary.close()
+            try {
+                val source =
+                    SqliteDataSource(
+                        SqliteLocation.File(temporary.path),
+                        SqliteOptions(busyTimeout = Duration.seconds(10L))
+                    )
+                source.connect().useAsync {
+                    first ->
+                    executeSql(first, "CREATE TABLE items(id INTEGER)")
+                    executeSql(first, "INSERT INTO items VALUES(1),(2)")
+                    source.connect().useAsync {
+                        second ->
+                        first.prepare("SELECT id FROM items").useAsync {
+                            read -> resultRows(read).useAsync {
+                                reading ->
+                                assertEquals(1L, rowLong(reading.next()!!, "id"))
+                                second.prepare(
+                                    "INSERT INTO items VALUES(3) RETURNING id"
+                                ).useAsync {
+                                    write ->
+                                    val returning = resultRows(write)
+                                    val closing = scope.async { write.close() }
+                                    loop.sleep(Duration.milliseconds(20L))
+                                    assertFalse(closing.isCompleted)
+                                    val alias = scope.async { returning.close() }
+                                    loop.sleep(Duration.milliseconds(20L))
+                                    assertFalse(alias.isCompleted)
+                                    reading.close()
+                                    closing.await()
+                                    alias.await()
+                                    assertTrue(write.isClosed)
+                                    assertTrue(returning.isClosed)
+                                }
+                            }
+                        }
+                        assertEquals(
+                            3L,
+                            rowLong(querySql(second, "SELECT count(*) AS n FROM items")[0L], "n")
+                        )
+                    }
+                }
+            } finally {
+                loop.deleteFile(temporary.path)
+            }
+        }
+    }
+}

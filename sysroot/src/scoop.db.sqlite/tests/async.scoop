@@ -1,0 +1,263 @@
+package scoop.db.sqlite.tests
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.db.sql.*
+import scoop.db.sqlite.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.sleep as sleepThread
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class SQLiteAsyncTests {
+    @Test
+    fun `running queries yield to the loop cancel and leave the connection reusable`() {
+        val loop = eventLoop()
+        val owner = currentThreadId()
+        val cancelled = AtomicBoolean(false)
+        loop.run {
+            val scope = this
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection -> connection.prepare(longQuery).useAsync {
+                    statement ->
+                    val reader =
+                        scope.async {
+                            try {
+                                statement.execute(SqlArguments.empty());
+                                false
+                            }
+                            catch (_: CancellationException) {
+                                cancelled.store(true)
+                                true
+                            }
+                        }
+                    loop.sleep(Duration.milliseconds(20L))
+                    assertFalse(reader.isCompleted)
+                    reader.cancel()
+                    try {
+                        reader.await()
+                    } catch (_: CancellationException) {}
+                    reader.join()
+                    assertTrue(cancelled.load())
+                    assertEquals(owner, currentThreadId())
+                    for (index in 1L .. 3L) {
+                        assertEquals(
+                            index,
+                            rowLong(
+                                querySql(connection, "SELECT ? AS value", numbers([index]))[0L],
+                                "value"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `deadline interrupts native work and zero timeout never submits`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                connection.prepare(longQuery).useAsync {
+                    statement -> try {
+                        statement.execute(
+                            SqlArguments.empty(),
+                            DbCallOptions(Some(Duration.milliseconds(5L)))
+                        );
+                        fail(Some("deadline did not stop query"))
+                    }
+                    catch (_: DbTimeoutException) {}
+                }
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                connection.prepare("INSERT INTO items VALUES(1)").useAsync {
+                    statement -> try {
+                        statement.execute(SqlArguments.empty(), DbCallOptions(Some(Duration.ZERO)));
+                        fail(Some("zero timeout submitted write"))
+                    }
+                    catch (_: DbTimeoutException) {}
+                }
+                assertEquals(
+                    0L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `queued cancellation skips writes and waits for the accepted worker shell`() {
+        val loop = eventLoop { blocking { threads = 1 } }
+        val entered = AtomicBoolean(false)
+        val release = AtomicBoolean(false)
+        val cancelled = AtomicBoolean(false)
+        loop.run {
+            val scope = this
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                connection.prepare("INSERT INTO items VALUES(1)").useAsync {
+                    statement ->
+                    val held =
+                        scope.async {
+                            blocking {
+                                entered.store(true)
+                                while (!release.load())
+                                    sleepThread(Duration.milliseconds(1L))
+                            }
+                        }
+                    while (!entered.load())
+                        yieldCoroutine()
+                    try {
+                        val pending =
+                            scope.launch {
+                                try {
+                                    statement.execute(SqlArguments.empty())
+                                }
+                                catch (_: CancellationException) {
+                                    cancelled.store(true)
+                                }
+                            }
+                        yieldCoroutine()
+                        pending.cancel()
+                        release.store(true)
+                        pending.join()
+                        assertTrue(cancelled.load())
+                    } finally {
+                        release.store(true);
+                        held.await()
+                    }
+                }
+                assertEquals(
+                    0L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `closing an active result stops next and rejects a second reader`() {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection -> connection.prepare(
+                    "SELECT 0 AS total UNION ALL SELECT (" + longQuery + ")"
+                ).useAsync {
+                    statement ->
+                    val rows = resultRows(statement)
+                    assertEquals(0L, rowLong(rows.next()!!, "total"))
+                    val reader =
+                        scope.async {
+                            try {
+                                rows.next();
+                                false
+                            }
+                            catch (_: DbClosedException) {
+                                true
+                            }
+                        }
+                    loop.sleep(Duration.milliseconds(20L))
+                    assertFalse(reader.isCompleted)
+                    try {
+                        rows.next();
+                        fail(Some("concurrent next was accepted"))
+                    }
+                    catch (_: DbBusyException) {}
+                    rows.close()
+                    assertTrue(reader.await())
+                    assertTrue(rows.isClosed)
+                    assertEquals(
+                        8L,
+                        rowLong(querySql(connection, "SELECT 8 AS value")[0L], "value")
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `connection close retires an active query and all child resources`() {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this
+            val connection = SqliteDataSource(SqliteLocation.Memory).connect()
+            val statement = connection.prepare(longQuery)
+            val reader =
+                scope.async {
+                    try {
+                        statement.execute(SqlArguments.empty());
+                        false
+                    }
+                    catch (_: DbClosedException) {
+                        true
+                    }
+                }
+            loop.sleep(Duration.milliseconds(20L))
+            assertFalse(reader.isCompleted)
+            connection.close()
+            assertTrue(reader.await())
+            assertTrue(connection.isClosed)
+            assertTrue(statement.isClosed)
+            statement.close()
+            connection.close()
+        }
+    }
+
+    @Test
+    fun `confirmed native writes survive cancellation and restore the caller executor`() {
+        val accepted = AtomicBoolean(false)
+        val owner = currentThreadId()
+        eventLoop().run {
+            val scope = this
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                val child =
+                    scope.launch {
+                        val caller = currentJobOrNone()!!
+                        val result =
+                            connection.runCall<Long>(
+                                "confirmed write",
+                                DbCallOptions(),
+                                None,
+                                None,
+                                None,
+                                true,
+                                {
+                                    assertNotEquals(owner, currentThreadId())
+                                    connection.controlNative(
+                                        "INSERT INTO items VALUES(1)",
+                                        "insert"
+                                    )
+                                    caller.cancel()
+                                    7L
+                                },
+                                { _ -> fail(Some("confirmed write was discarded")) },
+                                { Unit }
+                            )
+                        assertEquals(7L, result)
+                        assertEquals(owner, currentThreadId())
+                        accepted.store(true)
+                    }
+                child.join()
+                assertTrue(accepted.load())
+                assertEquals(
+                    1L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+}

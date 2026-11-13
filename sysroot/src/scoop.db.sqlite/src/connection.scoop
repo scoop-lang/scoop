@@ -1,0 +1,441 @@
+package scoop.db.sqlite
+
+import scoop.asyncio.EventLoop
+import scoop.db.*
+import scoop.db.sql.*
+import scoop.platform.concurrent.Mutex
+
+internal struct ActiveSqliteCall(
+    val operation: SqliteOperation,
+    val statement: SqliteStatement?,
+    val transaction: SqliteTransaction?,
+    val cleanup: Boolean
+)
+
+internal enum CleanupAdmission {
+    Done, Closing, Busy(ActiveSqliteCall), Ready(SqliteOperation)
+}
+
+/** A single-lane SQLite session. All handle access runs on its borrowed blocking executor. */
+public class SqliteConnection internal constructor(
+    internal val native: Ptr<Unit>,
+    private val loop: EventLoop,
+    private val executor: CoroutineExecutor
+): TransactionalSqlConnection {
+    internal val lock = Mutex()
+    internal val closing = SqliteClose()
+    internal val statements = ArrayList<SqliteStatement>()
+    internal var transactionOwner: SqliteTransaction? = None
+    internal var resultOwner: SqliteResultSet? = None
+    private var active: ActiveSqliteCall? = None
+    private val idleWaiters = ArrayList<Continuation<Unit>>()
+    private var opened = false
+    private val invalid = AtomicBoolean(false)
+    public override val isClosed: Boolean get() = closing.isStarted || invalid.load()
+
+    internal fun check(code: Int, operation: String) {
+        if (code != 0) {
+            @Unsafe
+            {
+                throw SqliteException(
+                    operation,
+                    code,
+                    String.fromCString(nativeError(native, code))
+                )
+            }
+        }
+    }
+
+    internal suspend fun open(path: Array<Byte>, readOnly: Boolean, options: DbCallOptions) {
+        val connection = this
+        runCall<Unit>(
+            "connect",
+            options,
+            None,
+            None,
+            None,
+            false,
+            {
+                val terminated =
+                    Array<Byte>(path.size + 1L) {
+                        index -> if (index == path.size)
+                            0.toByte()
+                        else
+                            path[index]
+                    }
+                @Unsafe
+                {
+                    val code =
+                        terminated.withDataPointer {
+                            pointer,
+                            _ -> @Unsafe
+                            {
+                                return@withDataPointer nativeOpen(
+                                    connection.native,
+                                    pointer,
+                                    if (readOnly)
+                                        1
+                                    else
+                                        0
+                                )
+                            }
+                        }
+                    connection.opened = true
+                    connection.check(code, "connect")
+                }
+            },
+            { _ -> Unit },
+            { Unit }
+        )
+    }
+
+    public override suspend fun prepare(sql: String, options: DbCallOptions): Statement =
+        prepareIn(sql, options, None)
+
+    public override suspend fun beginTransaction(options: DbCallOptions): SqlTransaction =
+        beginSqliteTransaction(this, options)
+
+    internal suspend fun prepareIn(
+        sql: String,
+        options: DbCallOptions,
+        transaction: SqliteTransaction?
+    ): SqliteStatement {
+        val connection = this
+        return runCall<SqliteStatement>(
+            "prepare",
+            options,
+            None,
+            transaction,
+            None,
+            false,
+            {
+                @Unsafe
+                {
+                    val prepared =
+                        sql.withCString {
+                            text -> @Unsafe
+                            {
+                                return@withCString nativePrepare(connection.native, text)
+                            }
+                        }
+                    if (prepared.code == -1)
+                        throw IllegalArgumentException(Some("SQL has no executable statement"))
+                    if (prepared.code == -2)
+                        throw IllegalArgumentException(
+                            Some("prepare accepts one executable statement")
+                        )
+                    connection.check(prepared.code, "prepare")
+                    val pointer = prepared.statement!!
+                    try {
+                        val statement =
+                            SqliteStatement(
+                                connection,
+                                Some(pointer),
+                                parameterMetadata(pointer),
+                                transaction
+                            )
+                        connection.lock.withLock { connection.statements.add(statement) }
+                        return@runCall statement
+                    } catch (error: Throwable) {
+                        nativeFinalize(pointer)
+                        throw error
+                    }
+                }
+            },
+            { statement -> statement.finalizeNative() },
+            { Unit }
+        )
+    }
+
+    internal suspend fun <T> runCall(
+        name: String,
+        options: DbCallOptions,
+        statement: SqliteStatement?,
+        transaction: SqliteTransaction?,
+        result: SqliteResultSet?,
+        writes: Boolean,
+        block: () -> T,
+        discard: (T) -> Unit,
+        failed: () -> Unit
+    ): T {
+        val caller = requireDatabaseCall(options, name)
+        val operation =
+            lock.withLock {
+                if (isClosed)
+                    throw DbClosedException(name)
+                when (active) {
+                    case Some(_) -> throw DbBusyException(name);
+                    case None -> {}
+                }
+                when (transactionOwner) {
+                    case Some(val owner) -> {
+                        if (owner.closing.isStarted)
+                            throw DbClosedException(name)
+                        when (transaction) {
+                            case Some(val requested) -> if (owner !== requested)
+                                throw IllegalStateException(
+                                    Some("SQL transaction owns this connection")
+                                )
+                            case None -> throw IllegalStateException(
+                                Some("SQL transaction owns this connection")
+                            )
+                        }
+                    }
+                    case None -> when (transaction) {
+                        case Some(_) -> throw DbClosedException(name);
+                        case None -> {}
+                    }
+                }
+                when (statement) {
+                    case Some(val owner) -> if (owner.closing.isStarted || owner.pointer == None)
+                        throw DbClosedException(name)
+                    case None -> {}
+                }
+                when (result) {
+                    case Some(val rows) -> if (rows.closing.isStarted)
+                        throw DbClosedException(name)
+                    case None -> {}
+                }
+                when (resultOwner) {
+                    case Some(val owner) -> {
+                        when (result) {
+                            case Some(val requested) -> if (owner !== requested)
+                                throw DbBusyException(name)
+                            case None -> throw DbBusyException(name)
+                        }
+                    }
+                    case None -> {}
+                }
+                val created = SqliteOperation(native, executor, loop, name, options, writes)
+                active = Some(ActiveSqliteCall(created, statement, transaction, false))
+                created
+            }
+        try {
+            return operation.run(caller, block, discard, failed)
+        }
+        finally {
+            releaseCall()
+        }
+    }
+
+    private fun releaseCall() {
+        val pending =
+            lock.withLock {
+                active = None
+                val pending = idleWaiters.toArray()
+                idleWaiters.clear()
+                pending
+            }
+        for (waiter in pending)
+            waiter.resume(Unit)
+    }
+
+    private suspend fun awaitIdle() {
+        suspendCoroutine<Unit> {
+            continuation ->
+            val ready =
+                lock.withLock {
+                    when (active) {
+                        case None -> true
+                        case Some(_) -> {
+                            idleWaiters.add(continuation);
+                            false
+                        }
+                    }
+                }
+            if (ready)
+                continuation.resume(Unit)
+        }
+    }
+
+    internal suspend fun cleanupResource(
+        name: String,
+        statement: SqliteStatement?,
+        transaction: SqliteTransaction?,
+        needed: () -> Boolean,
+        block: () -> Unit
+    ) {
+        while (true) {
+            val claim =
+                lock.withLock {
+                    if (closing.isStarted)
+                        CleanupAdmission.Closing
+                    else
+                        if (!needed())
+                            CleanupAdmission.Done
+                        else
+                            when (active) {
+                                case Some(val call) -> CleanupAdmission.Busy(call)
+                                case None -> {
+                                    val operation =
+                                        SqliteOperation(
+                                            native,
+                                            executor,
+                                            loop,
+                                            name,
+                                            DbCallOptions(),
+                                            true
+                                        )
+                                    active =
+                                        Some(
+                                            ActiveSqliteCall(
+                                                operation,
+                                                statement,
+                                                transaction,
+                                                true
+                                            )
+                                        )
+                                    CleanupAdmission.Ready(operation)
+                                }
+                            }
+                }
+            when (claim) {
+                case CleanupAdmission.Done -> return
+                case CleanupAdmission.Closing -> {
+                    if (!closing.isFinished)
+                        closing.await()
+                    return
+                }
+                case CleanupAdmission.Busy(val call) -> {
+                    var matches = false
+                    when ((statement, call.statement)) {
+                        case(Some(val requested), Some(val running)) -> {
+                            matches = requested === running
+                        }
+                        else -> {}
+                    }
+                    when ((transaction, call.transaction)) {
+                        case(Some(val requested), Some(val running)) -> {
+                            matches = matches || requested === running
+                        }
+                        else -> {}
+                    }
+                    if (matches && !call.cleanup)
+                        call.operation.cancel(DbClosedException(call.operation.name), 3)
+                    awaitIdle()
+                }
+                case CleanupAdmission.Ready(val operation) -> {
+                    try {
+                        operation.run(currentJobOrNone()!!, block, { _ -> Unit }, { Unit })
+                    }
+                    finally {
+                        releaseCall()
+                    }
+                    return
+                }
+            }
+        }
+    }
+
+    public override suspend fun close() {
+        val connection = this
+        closing.run { connection.closeUncancelled() }
+    }
+
+    private suspend fun closeUncancelled() {
+        val running = lock.withLock { active }
+        when (running) {
+            case Some(val call) -> if (!call.cleanup)
+                call.operation.cancel(DbClosedException(call.operation.name), 3)
+            case None -> {}
+        }
+        awaitIdle()
+        val connection = this
+        executor.blocking { connection.destroyNative() }
+    }
+
+    private fun destroyNative() {
+        var failure: Throwable? = None
+        @Unsafe
+        {
+            nativeBegin(native, -1L, 0)
+            val owned = lock.withLock { statements.toArray() }
+            for (statement in owned) {
+                try {
+                    statement.finalizeNative()
+                }
+                catch (error: Throwable) {
+                    failure = Some(combineFailure(failure, error))
+                }
+            }
+            if (opened && nativeAutocommit(native) == 0) {
+                try {
+                    controlNative("ROLLBACK", "rollback")
+                }
+                catch (error: Throwable) {
+                    failure = Some(combineFailure(failure, error))
+                }
+            }
+            val transaction = lock.withLock { transactionOwner }
+            when (transaction) {
+                case Some(val owner) -> owner.finish(
+                    if (nativeAutocommit(native) != 0)
+                        SqlTransactionState.RolledBack
+                    else
+                        SqlTransactionState.Invalid
+                )
+                case None -> {}
+            }
+            try {
+                check(nativeClose(native), "close")
+            }
+            catch (error: Throwable) {
+                failure = Some(combineFailure(failure, error))
+            }
+            nativeDestroy(native)
+        }
+        when (failure) {
+            case Some(val error) -> throw error;
+            case None -> {}
+        }
+    }
+
+    internal fun controlNative(sql: String, name: String) {
+        @Unsafe
+        {
+            val code =
+                sql.withCString {
+                    text -> @Unsafe
+                    {
+                        return@withCString nativeControl(native, text)
+                    }
+                }
+            check(code, name)
+        }
+    }
+
+    internal fun updateTransaction(failed: Boolean) {
+        if (invalid.load())
+            return
+        @Unsafe
+        {
+            val owner = lock.withLock { transactionOwner }
+            when (owner) {
+                case Some(val transaction) -> if (nativeAutocommit(native) != 0) {
+                    transaction.finish(
+                        if (failed)
+                            SqlTransactionState.RolledBack
+                        else
+                            SqlTransactionState.Invalid
+                    )
+                    if (!failed) {
+                        invalid.store(true)
+                        throw IllegalStateException(
+                            Some("SQL changed the managed transaction state")
+                        )
+                    }
+                }
+                case None -> if (nativeAutocommit(native) == 0) {
+                    invalid.store(true)
+                    throw IllegalStateException(
+                        Some("use beginTransaction to control the SQL session")
+                    )
+                }
+            }
+        }
+    }
+
+    internal fun invalidate() {
+        invalid.store(true)
+    }
+}

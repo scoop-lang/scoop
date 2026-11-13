@@ -1,0 +1,90 @@
+package scoop.db.row
+
+/** Column metadata is descriptive; it does not determine a value's runtime kind. */
+public struct Column(val name: String, val nativeTypeName: String? = None)
+
+/** Immutable ordered metadata. Duplicate names remain accessible by ordinal. */
+public class RowSchema private constructor(public val columns: Array<Column>) {
+    public fun indexOf(name: String): Long? {
+        var result: Long? = None
+        for (index in 0L ..< columns.size) {
+            if (columns[index].name == name) {
+                if (result != None)
+                    throw AmbiguousColumnException(name)
+                result = Some(index)
+            }
+        }
+        return result
+    }
+
+    public companion object {
+        public fun fromColumns(columns: List<Column>): RowSchema = RowSchema(columns.toArray())
+    }
+}
+
+/** The lossless value domain of the optional tabular adapter, not a universal database type. */
+public enum RowValue {
+    Null
+    Boolean(Boolean)
+    Signed(Long)
+    Unsigned(ULong)
+    Float32(Float)
+    Float64(Double)
+    Text(String)
+    Bytes(Array<Byte>)
+    Record(Row)
+    Sequence(Array<RowValue>)
+}
+
+/** An immutable row snapshot with stable values and zero-based ordinals. */
+public class Row private constructor(
+    public val schema: RowSchema,
+    private val values: Array<RowValue>
+) {
+    public fun get(index: Long): RowValue = values[index]
+
+    public fun get(name: String): RowValue =
+        when (schema.indexOf(name)) {
+            case Some(val index) -> values[index]
+            case None -> throw MissingColumnException(name)
+        }
+
+    public fun getOrNone(name: String): RowValue? =
+        when (schema.indexOf(name)) {
+            case Some(val index) -> Some(values[index])
+            case None -> None
+        }
+
+    /** Selects by ordinal and assigns unique output names without copying immutable payloads. */
+    public fun select(columns: List<ColumnSelection>): Row {
+        val selected = columns.toArray()
+        val metadata = ArrayList<Column>()
+        val output = ArrayList<RowValue>()
+        for (column in selected) {
+            for (prior in metadata) {
+                if (prior.name == column.name)
+                    throw AmbiguousColumnException(column.name)
+            }
+            metadata.add(Column(column.name, schema.columns[column.index].nativeTypeName))
+            output.add(get(column.index))
+        }
+        return Row.fromValues(RowSchema.fromColumns(metadata), output)
+    }
+
+    public companion object {
+        public fun fromValues(schema: RowSchema, values: List<RowValue>): Row {
+            val snapshot = values.toArray()
+            if (snapshot.size != schema.columns.size)
+                throw IllegalArgumentException(Some("column and value counts differ"))
+            return Row(schema, snapshot)
+        }
+    }
+}
+
+public struct ColumnSelection(val name: String, val index: Long)
+
+public class MissingColumnException public constructor(name: String)
+: Exception(Some("missing column: " + name))
+
+public class AmbiguousColumnException public constructor(name: String)
+: Exception(Some("ambiguous column: " + name))

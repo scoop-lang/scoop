@@ -1,0 +1,110 @@
+package scoop.db.sql
+
+import scoop.db.row.*
+
+public struct SqlParameter(val value: RowValue, val nativeTypeName: String? = None)
+
+public struct NamedSqlParameter(val name: String, val parameter: SqlParameter)
+
+private enum ArgumentValues {
+    Positional(Array<SqlParameter>)
+    Named(Array<NamedSqlParameter>)
+}
+
+/** An immutable parameter set. Resolution validates complete binding before native execution. */
+public class SqlArguments private constructor(private val values: ArgumentValues) {
+    public fun resolve(parameters: List<SqlParameterInfo>): Array<SqlParameter> {
+        val slots = parameters.toArray()
+        for (index in 0L ..< slots.size) {
+            if (slots[index].index != index)
+                throw IllegalArgumentException(
+                    Some("parameter slots must be consecutive and zero-based")
+                )
+        }
+        return when (values) {
+            case ArgumentValues.Positional(val items) -> {
+                if (items.size != slots.size)
+                    throw IllegalArgumentException(Some("parameter count differs"))
+                items
+            }
+            case ArgumentValues.Named(val items) -> resolveNamed(slots, items)
+        }
+    }
+
+    public companion object {
+        public fun empty(): SqlArguments = SqlArguments(ArgumentValues.Positional([]))
+        public fun positional(values: List<SqlParameter>): SqlArguments {
+            val snapshot = values.toArray()
+            for (value in snapshot)
+                checkScalar(value)
+            return SqlArguments(ArgumentValues.Positional(snapshot))
+        }
+        public fun named(values: List<NamedSqlParameter>): SqlArguments {
+            val snapshot = values.toArray()
+            for (index in 0L ..< snapshot.size) {
+                checkScalar(snapshot[index].parameter)
+                for (prior in 0L ..< index) {
+                    if (snapshot[index].name == snapshot[prior].name)
+                        throw IllegalArgumentException(Some("duplicate parameter name"))
+                }
+            }
+            return SqlArguments(ArgumentValues.Named(snapshot))
+        }
+        public fun fromRow(row: Row, fieldOrder: List<String>): SqlArguments {
+            val fields = fieldOrder.toArray()
+            val output = ArrayList<SqlParameter>()
+            for (index in 0L ..< fields.size) {
+                for (prior in 0L ..< index) {
+                    if (fields[index] == fields[prior])
+                        throw IllegalArgumentException(Some("duplicate field in parameter order"))
+                }
+                output.add(SqlParameter(row.get(fields[index])))
+            }
+            return positional(output)
+        }
+    }
+}
+
+private fun checkScalar(parameter: SqlParameter) {
+    when (parameter.value) {
+        case RowValue.Record(_) -> throw IllegalArgumentException(
+            Some("record requires an explicit column codec")
+        )
+        case RowValue.Sequence(_) -> throw IllegalArgumentException(
+            Some("sequence requires an explicit column codec")
+        )
+        else -> {}
+    }
+}
+
+private fun resolveNamed(slots: Array<SqlParameterInfo>, items: Array<NamedSqlParameter>): Array<
+    SqlParameter
+> {
+    if (slots.size != items.size)
+        throw IllegalArgumentException(Some("parameter count differs"))
+    val output = ArrayList<SqlParameter>()
+    for (index in 0L ..< slots.size) {
+        val name =
+            when (slots[index].name) {
+                case Some(val value) -> value
+                case None -> throw IllegalArgumentException(
+                    Some("named binding requires names for every slot")
+                )
+            }
+        for (prior in 0L ..< index) {
+            if (slots[prior].name == Some(name))
+                throw IllegalArgumentException(Some("ambiguous parameter name"))
+        }
+        var found: Boolean = false
+        for (item in items) {
+            if (item.name == name) {
+                output.add(item.parameter)
+                found = true
+                break
+            }
+        }
+        if (!found)
+            throw IllegalArgumentException(Some("missing parameter: " + name))
+    }
+    return output.toArray()
+}

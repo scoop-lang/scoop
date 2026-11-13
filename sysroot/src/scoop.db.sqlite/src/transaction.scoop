@@ -1,0 +1,154 @@
+package scoop.db.sqlite
+
+import scoop.db.*
+import scoop.db.sql.*
+
+internal suspend fun beginSqliteTransaction(
+    connection: SqliteConnection,
+    options: DbCallOptions
+): SqliteTransaction {
+    val transaction = SqliteTransaction(connection)
+    return connection.runCall<SqliteTransaction>(
+        "begin transaction",
+        options,
+        None,
+        None,
+        None,
+        false,
+        {
+            connection.controlNative("BEGIN", "begin transaction")
+            connection.lock.withLock { connection.transactionOwner = Some(transaction) }
+            transaction
+        },
+        { value -> value.rollbackNative() },
+        {
+            @Unsafe
+            {
+                if (nativeAutocommit(connection.native) == 0)
+                    connection.controlNative("ROLLBACK", "rollback begin")
+            }
+        }
+    )
+}
+
+internal class SqliteTransaction(internal val connection: SqliteConnection): SqlTransaction {
+    internal val closing = SqliteClose()
+    private var current = SqlTransactionState.Active
+    public override val state: SqlTransactionState get() = connection.lock.withLock { current }
+
+    internal fun finish(value: SqlTransactionState) {
+        connection.lock.withLock<Unit> {
+            current = value
+            when (connection.transactionOwner) {
+                case Some(val owner) -> if (owner === this)
+                    connection.transactionOwner = None
+                case None -> {}
+            }
+        }
+        if (value == SqlTransactionState.Invalid)
+            connection.invalidate()
+    }
+
+    public override suspend fun prepare(sql: String, options: DbCallOptions): Statement {
+        if (closing.isStarted || state != SqlTransactionState.Active)
+            throw DbClosedException("prepare")
+        return connection.prepareIn(sql, options, Some(this))
+    }
+
+    public override suspend fun commit(options: DbCallOptions) {
+        if (state != SqlTransactionState.Active)
+            throw IllegalStateException(Some("transaction is not active"))
+        if (closing.isStarted)
+            throw DbClosedException("commit")
+        val transaction = this
+        connection.runCall<Unit>(
+            "commit",
+            options,
+            None,
+            Some(this),
+            None,
+            true,
+            {
+                transaction.connection.controlNative("COMMIT", "commit")
+                transaction.finish(SqlTransactionState.Committed)
+                transaction.finalizeStatements()
+            },
+            { _ -> Unit },
+            {
+                @Unsafe
+                {
+                    if (
+                        transaction.state ==
+                            SqlTransactionState.Active &&
+                            nativeAutocommit(transaction.connection.native) !=
+                            0
+                    )
+                        transaction.finish(SqlTransactionState.Invalid)
+                }
+            }
+        )
+    }
+
+    internal fun finalizeStatements() {
+        val owned = connection.lock.withLock { connection.statements.toArray() }
+        var failure: Throwable? = None
+        for (statement in owned) {
+            when (statement.transaction) {
+                case Some(val owner) -> if (owner === this) {
+                    try {
+                        statement.finalizeNative()
+                    }
+                    catch (error: Throwable) {
+                        failure = Some(combineFailure(failure, error))
+                    }
+                }
+                case None -> {}
+            }
+        }
+        when (failure) {
+            case Some(val error) -> throw error;
+            case None -> {}
+        }
+    }
+
+    internal fun rollbackNative() {
+        var failure: Throwable? = None
+        try {
+            finalizeStatements()
+        }
+        catch (error: Throwable) {
+            failure = Some(error)
+        }
+        if (state == SqlTransactionState.Active) {
+            try {
+                @Unsafe
+                {
+                    if (nativeAutocommit(connection.native) == 0)
+                        connection.controlNative("ROLLBACK", "rollback")
+                }
+                finish(SqlTransactionState.RolledBack)
+            } catch (error: Throwable) {
+                finish(SqlTransactionState.Invalid)
+                failure = Some(combineFailure(failure, error))
+            }
+        }
+        when (failure) {
+            case Some(val error) -> throw error;
+            case None -> {}
+        }
+    }
+
+    public override suspend fun rollback() {
+        val transaction = this
+        closing.run {
+            transaction.connection.cleanupResource(
+                "rollback",
+                None,
+                Some(transaction),
+                { true },
+                { transaction.rollbackNative() }
+            )
+        }
+    }
+    public override suspend fun close(): Unit = rollback()
+}

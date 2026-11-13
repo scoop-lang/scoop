@@ -1,0 +1,138 @@
+package scoop.db.row
+
+internal class RowDecoder(
+    private val value: RowValue,
+    public override val path: String,
+    internal val options: RowDecodingOptions
+): Decoder, BinaryDecodingContainer {
+    public override fun keyed(): KeyedDecodingContainer =
+        when (value) {
+            case RowValue.Record(val row) -> RowKeyedDecoder(this, row)
+            else -> throw DecodingException(path, "expected a record")
+        }
+    public override fun unkeyed(): UnkeyedDecodingContainer =
+        when (value) {
+            case RowValue.Sequence(val values) -> RowUnkeyedDecoder(this, values)
+            else -> throw DecodingException(path, "expected a sequence")
+        }
+    public override fun singleValue(): SingleValueDecodingContainer = this
+    public override fun isNull(): Boolean =
+        when (value) {
+            case RowValue.Null -> true
+            else -> false
+        }
+    public override fun readNull() {
+        if (!isNull())
+            throw DecodingException(path, "expected null")
+    }
+    public override fun readBoolean(): Boolean =
+        when (value) {
+            case RowValue.Boolean(val result) -> result
+            else -> throw DecodingException(path, "expected a Boolean")
+        }
+    public override fun readLong(): Long =
+        when (value) {
+            case RowValue.Signed(val result) -> result
+            case RowValue.Unsigned(val result) -> {
+                if (result > Long.MAX_VALUE.toULong())
+                    throw DecodingException(path, "integer is out of range")
+                result.toLong()
+            }
+            else -> throw DecodingException(path, "expected an integer")
+        }
+    public override fun readULong(): ULong =
+        when (value) {
+            case RowValue.Unsigned(val result) -> result
+            case RowValue.Signed(val result) -> {
+                if (result < 0L)
+                    throw DecodingException(path, "expected a nonnegative integer")
+                result.toULong()
+            }
+            else -> throw DecodingException(path, "expected an integer")
+        }
+    public override fun readFloat(): Float =
+        when (value) {
+            case RowValue.Float32(val result) -> result
+            else -> throw DecodingException(path, "expected a Float")
+        }
+    public override fun readDouble(): Double =
+        when (value) {
+            case RowValue.Float64(val result) -> result
+            case RowValue.Float32(val result) -> result.toDouble()
+            else -> throw DecodingException(path, "expected a Double")
+        }
+    public override fun readString(): String =
+        when (value) {
+            case RowValue.Text(val result) -> result
+            else -> throw DecodingException(path, "expected a String")
+        }
+    public override fun readBytes(): Array<Byte> =
+        when (value) {
+            case RowValue.Bytes(val result) -> result
+            else -> throw DecodingException(path, "expected binary data")
+        }
+}
+
+internal class RowKeyedDecoder(
+    private val owner: RowDecoder,
+    private val row: Row
+): KeyedDecodingContainer {
+    private val visited: MutableArray<Boolean> =
+        MutableArray<Boolean>(row.schema.columns.size) { false }
+    private val names: Array<String> =
+        Array<String>(row.schema.columns.size) { index -> row.schema.columns[index].name }
+
+    init {
+        for (index in 0L ..< names.size) {
+            for (prior in 0L ..< index) {
+                if (names[index] == names[prior])
+                    throw DecodingException(rowPath(owner.path, names[index]), "ambiguous column")
+            }
+        }
+    }
+    public override val keys: List<String> get() = names
+    public override fun optional(name: String): Decoder? =
+        when (row.schema.indexOf(name)) {
+            case Some(val index) -> {
+                visited[index] = true
+                Some(RowDecoder(row.get(index), rowPath(owner.path, name), owner.options))
+            }
+            case None -> None
+        }
+    public override fun required(name: String): Decoder =
+        when (optional(name)) {
+            case Some(val child) -> child
+            case None -> throw DecodingException(
+                rowPath(owner.path, name),
+                "missing required field"
+            )
+        }
+    public override fun end() {
+        if (owner.options.unknownColumns == UnknownColumnPolicy.Reject) {
+            for (index in 0L ..< names.size) {
+                if (!visited[index])
+                    throw DecodingException(rowPath(owner.path, names[index]), "unknown column")
+            }
+        }
+    }
+}
+
+internal class RowUnkeyedDecoder(
+    private val owner: RowDecoder,
+    private val values: Array<RowValue>
+): UnkeyedDecodingContainer {
+    private var cursor: Long = 0L
+    public override val hasNext: Boolean get() = cursor < values.size
+    public override fun element(): Decoder {
+        val path = rowPath(owner.path, cursor.toString())
+        if (!hasNext)
+            throw DecodingException(path, "missing sequence element")
+        val child = RowDecoder(values[cursor], path, owner.options)
+        cursor = cursor + 1L
+        return child
+    }
+    public override fun end() {
+        if (hasNext)
+            throw DecodingException(owner.path, "extra sequence elements")
+    }
+}

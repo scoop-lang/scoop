@@ -1,0 +1,10 @@
+package scoop.db.row
+
+import scoop.db.ResultStream
+import scoop.db.mapRecords
+
+/** Maps stable rows through the selected codec and takes ownership of the source stream. */
+public fun <T> ResultStream<Row>.decodeRecords(
+    codec: ValueDecoder<T>,
+    options: RowDecodingOptions = RowDecodingOptions()
+): ResultStream<T> = mapRecords { row -> Rows.decodeFromRow(row, codec, options) }

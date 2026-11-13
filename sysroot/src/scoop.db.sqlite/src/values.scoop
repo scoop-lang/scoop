@@ -1,0 +1,199 @@
+package scoop.db.sqlite
+
+import scoop.db.row.*
+import scoop.db.sql.*
+
+internal fun validateBindings(values: Array<SqlParameter>) {
+    for (parameter in values) {
+        if (parameter.nativeTypeName != None)
+            throw IllegalArgumentException(
+                Some("SQLite parameters do not accept native type hints")
+            )
+        when (parameter.value) {
+            case RowValue.Unsigned(val value) -> {
+                if (value > Long.MAX_VALUE.toULong())
+                    throw IllegalArgumentException(
+                        Some("unsigned parameter exceeds SQLite INTEGER")
+                    )
+            }
+            case RowValue.Float32(val value) -> if (value.isNaN())
+                throw IllegalArgumentException(Some("SQLite would convert NaN to NULL"))
+            case RowValue.Float64(val value) -> if (value.isNaN())
+                throw IllegalArgumentException(Some("SQLite would convert NaN to NULL"))
+            case RowValue.Record(_) -> throw IllegalArgumentException(
+                Some("SQLite needs a scalar parameter")
+            )
+            case RowValue.Sequence(_) -> throw IllegalArgumentException(
+                Some("SQLite needs a scalar parameter")
+            )
+            else -> {}
+        }
+    }
+}
+
+internal fun bindValues(
+    connection: SqliteConnection,
+    statement: Ptr<Unit>,
+    values: Array<SqlParameter>
+) {
+    for (index in 0L ..< values.size) {
+        val slot = (index + 1L).toInt()
+        @Unsafe
+        {
+            val code =
+                when (values[index].value) {
+                    case RowValue.Null -> nativeBindNull(statement, slot)
+                    case RowValue.Boolean(val value) -> nativeBindLong(
+                        statement,
+                        slot,
+                        if (value)
+                            1L
+                        else
+                            0L
+                    )
+                    case RowValue.Signed(val value) -> nativeBindLong(statement, slot, value)
+                    case RowValue.Unsigned(val value) -> nativeBindLong(
+                        statement,
+                        slot,
+                        value.toLong()
+                    )
+                    case RowValue.Float32(val value) -> nativeBindDouble(
+                        statement,
+                        slot,
+                        value.toDouble()
+                    )
+                    case RowValue.Float64(val value) -> nativeBindDouble(statement, slot, value)
+                    case RowValue.Text(val value) -> bindBytes(
+                        statement,
+                        slot,
+                        value.toByteArray(),
+                        true
+                    )
+                    case RowValue.Bytes(val value) -> bindBytes(statement, slot, value, false)
+                    else -> throw IllegalArgumentException(Some("SQLite needs a scalar parameter"))
+                }
+            connection.check(code, "bind")
+        }
+    }
+}
+
+private fun bindBytes(statement: Ptr<Unit>, slot: Int, value: Array<Byte>, text: Boolean): Int {
+    @Unsafe
+    {
+        return value.withDataPointer {
+            pointer,
+            size -> @Unsafe
+            {
+                return@withDataPointer nativeBindBytes(
+                    statement,
+                    slot,
+                    pointer,
+                    size,
+                    if (text)
+                        1
+                    else
+                        0
+                )
+            }
+        }
+    }
+}
+
+internal fun parameterMetadata(statement: Ptr<Unit>): Array<SqlParameterInfo> {
+    @Unsafe
+    {
+        val count = nativeParameterCount(statement).toLong()
+        return Array<SqlParameterInfo>(count) {
+            index -> @Unsafe
+            {
+                val name =
+                    when (nativeParameterName(statement, (index + 1L).toInt())) {
+                        case Some(val pointer) -> Some(String.fromCString(pointer))
+                        case None -> None
+                    }
+                return@Array SqlParameterInfo(index, name)
+            }
+        }
+    }
+}
+
+internal fun columnMetadata(statement: Ptr<Unit>): RowSchema {
+    @Unsafe
+    {
+        val count = nativeColumnCount(statement).toLong()
+        val columns =
+            Array<Column>(count) {
+                index -> @Unsafe
+                {
+                    val name =
+                        nativeColumnName(statement, index.toInt()) ?:
+                            throw SqliteException(
+                                "column metadata",
+                                7,
+                                "SQLite could not allocate a column name"
+                            )
+                    val declared =
+                        when (nativeColumnDeclaredType(statement, index.toInt())) {
+                            case Some(val pointer) -> Some(String.fromCString(pointer))
+                            case None -> None
+                        }
+                    return@Array Column(String.fromCString(name), declared)
+                }
+            }
+        return RowSchema.fromColumns(columns)
+    }
+}
+
+internal fun readRow(connection: SqliteConnection, statement: Ptr<Unit>, schema: RowSchema): Row {
+    val values = ArrayList<RowValue>()
+    for (index in 0L ..< schema.columns.size) {
+        val column = index.toInt()
+        @Unsafe
+        {
+            val value =
+                when (nativeColumnType(statement, column)) {
+                    case 1 -> RowValue.Signed(nativeColumnLong(statement, column))
+                    case 2 -> RowValue.Float64(nativeColumnDouble(statement, column))
+                    case 3 -> {
+                        val pointer = nativeColumnText(statement, column)
+                        val size = nativeColumnBytes(statement, column).toLong()
+                        when (pointer) {
+                            case Some(val bytes) -> RowValue.Text(String.fromUtf8(bytes, size))
+                            case None -> throw SqliteException(
+                                "read text",
+                                7,
+                                "SQLite could not allocate text"
+                            )
+                        }
+                    }
+                    case 4 -> {
+                        val pointer = nativeColumnBlob(statement, column)
+                        val size = nativeColumnBytes(statement, column).toLong()
+                        if (size == 0L)
+                            RowValue.Bytes([])
+                        else {
+                            val bytes =
+                                pointer ?:
+                                    throw SqliteException(
+                                        "read blob",
+                                        7,
+                                        "SQLite could not allocate a blob"
+                                    )
+                            RowValue.Bytes(
+                                Array<Byte>(size) {
+                                    offset -> @Unsafe
+                                    {
+                                        return@Array bytes.load(offset)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    case 5 -> RowValue.Null
+                    else -> throw IllegalStateException(Some("invalid SQLite column type"))
+                }
+            values.add(value)
+        }
+    }
+    return Row.fromValues(schema, values)
+}
