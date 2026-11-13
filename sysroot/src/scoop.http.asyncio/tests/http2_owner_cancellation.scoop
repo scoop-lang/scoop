@@ -1,0 +1,50 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class Http2OwnerCancellationTests {
+    @Test
+    fun `owner cancellation retires queued idle tasks before their bodies start`() {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this
+            val(transport, peer) = rawPair(loop, scope)
+            val connection = Http2Slot()
+            transport.writeGate = Some(AsyncGate())
+            var cancelled = false
+            try {
+                try {
+                    coroutineScope<Unit> {
+                        val owned = this
+                        val client = AsyncHttp2Connection.takeOwnershipAsClient(transport, owned)
+                        connection.value = Some(client)
+                        try {
+                            // Queue cancellation before openRequest queues its idle task and suspends.
+                            scope.launch { owned.job.cancel() }
+                            client.openRequest(
+                                request2(),
+                                ioTimeouts =
+                                    HttpIoTimeoutOptions(writeIdle = Some(Duration.seconds(60L)))
+                            )
+                            fail(Some("cancelled request write succeeded"))
+                        } finally {
+                            client.close()
+                        }
+                    }
+                } catch (_: CancellationException) {
+                    cancelled = true
+                }
+                assertTrue(cancelled)
+                assertTrue(connection.value!!.isClosed)
+                assertEquals(1, transport.closes)
+                ensureActive()
+            } finally {
+                peer.close()
+            }
+        }
+    }
+}

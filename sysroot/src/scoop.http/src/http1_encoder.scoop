@@ -144,7 +144,7 @@ public class Http1Encoder public constructor(
         body: Http1BodyFraming = Http1BodyFraming.Empty
     ): Array<Byte> {
         requireBegin(HttpRole.Server)
-        val method = requestMethod.toArray()
+        val method = httpSnapshot(requestMethod)
         when (responseEncoding) {
             case Some(val encoded) -> {
                 if (

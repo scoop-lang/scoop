@@ -44,67 +44,73 @@ internal class H1IdleAlarm(val started: TimeMark, val delay: Duration) {
 }
 
 internal fun beginH1Io(state: H1State, reading: Boolean) {
-    val error: HttpIoTimeoutException? =
-        state.lock.withLock {
-            h1Open(state)
-            val idle =
-                if (reading)
-                    state.readIdle
-                else
-                    state.writeIdle
-            if (!present(idle) || !present(idle!!.limit))
-                return@withLock None
-            val value = idle!!
-            val limit = value.limit!!
-            val now = MonotonicTimeSource.markNow()
-            val start = !present(value.progress)
-            val expired =
-                if (start) {
-                    value.progress = Some(now)
-                    if (limit == Duration.ZERO)
-                        Some(value.timeout(Duration.ZERO))
-                    else
-                        None
-                } else
-                    value.expired(now)
-            if (present(expired))
-                terminateH1(state, expired!!)
-            else
-                if (start)
-                    armH1IdleLocked(state, reading, now, limit)
-            expired
-        }
+    val error = state.lock.withLock { beginH1IoLocked(state, reading) }
     if (present(error)) {
         driveH1Close(state)
         throw error!!
     }
 }
 
-internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean) {
-    val error: HttpIoTimeoutException? =
-        state.lock.withLock {
-            h1Open(state)
-            val idle =
-                if (reading)
-                    state.readIdle
-                else
-                    state.writeIdle
-            if (!present(idle) || !present(idle!!.limit))
-                return@withLock None
-            val clock = idle!!
-            val now = MonotonicTimeSource.markNow()
-            val expired = clock.expired(now)
-            if (present(expired))
-                terminateH1(state, expired!!)
+private fun beginH1IoLocked(state: H1State, reading: Boolean): HttpIoTimeoutException? {
+    h1Open(state)
+    val idle =
+        if (reading)
+            state.readIdle
+        else
+            state.writeIdle
+    if (!present(idle) || !present(idle!!.limit))
+        return None
+    val value = idle!!
+    val limit = value.limit!!
+    val now = MonotonicTimeSource.markNow()
+    val start = !present(value.progress)
+    val expired =
+        if (start) {
+            value.progress = Some(now)
+            if (limit == Duration.ZERO)
+                Some(value.timeout(Duration.ZERO))
             else
-                if (progressed)
-                    clock.progress = Some(now)
-            expired
-        }
+                None
+        } else
+            value.expired(now)
+    if (present(expired))
+        terminateH1(state, expired!!)
+    else
+        if (start)
+            armH1IdleLocked(state, reading, now, limit)
+    return expired
+}
+
+internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean) {
+    val error = state.lock.withLock { progressH1IoLocked(state, reading, progressed) }
     if (present(error)) {
         driveH1Close(state)
         throw error!!
     }
+}
+
+private fun progressH1IoLocked(
+    state: H1State,
+    reading: Boolean,
+    progressed: Boolean
+): HttpIoTimeoutException? {
+    h1Open(state)
+    val idle =
+        if (reading)
+            state.readIdle
+        else
+            state.writeIdle
+    if (!present(idle) || !present(idle!!.limit))
+        return None
+    val clock = idle!!
+    val now = MonotonicTimeSource.markNow()
+    val expired = clock.expired(now)
+    if (present(expired))
+        terminateH1(state, expired!!)
+    else
+        if (progressed)
+            clock.progress = Some(now)
+    return expired
 }
 
 // The state lock serializes replacement, callback selection, and connection cleanup.

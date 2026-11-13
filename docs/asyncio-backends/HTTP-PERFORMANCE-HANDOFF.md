@@ -1,14 +1,35 @@
-# HTTP 性能任务交接（B67，2026-11-13）
+# HTTP 性能任务交接（B68，2026-11-13）
 
-任务已恢复推进。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，完整 HTTP 静态服务的小响应 CPU 仍为 Go 约 1.81～1.83 倍。当前工作分支是 `perf/http-asyncio-optimizations`。每轮先提交，再合并远端 `main`、推送并清理临时文件；每轮重新评估最大瓶颈。用户明确要求：找不到单一大头时，按已知成本从大到小，将主要几项整体优化一轮；**正确性通过、整体有可确认的收益就保留，即使幅度较小，也要考虑其对通用路径的价值。** 详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
+**用户要求完成本轮的验收、提交、合并主线、推送和清理后暂停，其余工作另行安排，不自动开始下一轮。** 长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，完整 HTTP 静态服务的小响应 CPU 仍为 Go 约 **1.79～1.84 倍**。工作分支为 `perf/http-asyncio-optimizations`。每轮重新评估最大瓶颈；找不到单一大头时，按已知主要成本组合优化，正确性通过且有确认收益就保留，小幅收益和代价均按实记录。详细历次结果在 [PROGRESS.md](PROGRESS.md)，历史“下一步”不能覆盖本次暂停要求。
 
-**当前正式底座为 B67：减少任务监听器包装与路径中转数组，继承 B57～B66 的改进。** 正式 SDK 使用 `B67/candidate/sysroot`，配套 CLI 为 `B67/toolchain/bin`（经 B66 等链接 B57）；runtime 合同为 35、metadata 为 12，不能混用旧 B34 CLI／ABI 34 SDK。B67 从 `5c2132f3d` 开始，以同步 main asyncio 后独立重建的 B66 SDK 为 control；候选沿 HTTP 与测试的实际依赖重建 18 个 Cone。双方使用同一 B57 工具链和输入路径。B65 根目录与 revised 候选仍仅供历史诊断，B66 使用其 final SDK 作为前版底座。始终使用 B28 源码构建且带私有补丁的 LLVM 22.1.8，沿用原 C runtime；HTTP 基准源码、默认 GC 和参数保持一致。Git 中两项未跟踪的用户打包脚本仍须保留。
+**当前正式底座为 B68 的 `resolved/candidate/sysroot`。** 配套 CLI 为 `B68/toolchain/bin`（经 B67 等链接 B57），runtime 35／metadata 12，固定 B28 私有补丁版 LLVM 22.1.8。`B68/candidate/sysroot` 仅为修复 OOM 前的性能候选，`B68/final` 仅保存已撤回的 SSE heartbeat 尝试，二者不能作为正式底座。B68 从 `8b3ffce14` 和 B67 正式 SDK 开始，包含 main `222a7d1ad` 的 asyncio 更新；初版重建 http／http.asyncio／server／client，H2 修复后单独重建后三个 Cone。原 C runtime、GC 参数与基准输入保持。两项未跟踪的用户打包脚本须保留。
 
-B55 收尾已合并远端 `main` 的 `6e9baf029`，其中共享完成批次字段的源码更新进入 B57 两套重建产物。B58 收尾合并了 `e6aa6c170`，B59～B65 再次 fetch／merge 时 main 未变化。B66 收尾合并 `222a7d1ad` 的 Windows asyncio 更新；其生产变化限定 Windows，Linux 分支逻辑保持，但共享的 TCP 背压测试发生变化。合并后在独立 SDK 中检查、构建 asyncio，补测该用例 **1／1 通过**，单独计数。B66 固定 SDK 和性能结果保持合并前版本；B67 的两套 SDK 已同步该 asyncio 源码与测试，候选完整 asyncio **195 项**验收通过。B57～B67 HTTP 实验仅在 Linux 实机运行；上游 Windows 验收记录与本机验收分别保留。
+## B68 最新结果：减少分配并修复 H2 取消重入 OOM
 
-B53 的独立 H1 应用执行与 B54～B56 的分层诊断继续保留。B57 重新限制了旧闭包候选的适用范围，并补齐根表与挂起合并的移动 GC、异常及 native callback 验证；它不是直接采纳旧 B35 的成本豁免，也不是把旧候选百分比相加。B50、B55 等已撤回实现不进入新底座。
+按最简 TCP → 分段拼装 → 公开 decoder → 公开 encoder → 完整协议连接继续细分。单／四 worker 中，解码器增加 **0.778／1.050 μs/请求**，编码器 **0.044／0.023 μs**，完整连接协调再增加 **2.252／3.024 μs**，约占手写 TCP 到协议层总增量的七成。中间程序真实使用既有公开 API，没有新增生产框架或公开内部构造器。前四层输出缓冲为 64 KiB，完整连接为默认 16 KiB；细分计时只用 1 KiB 响应，差额不能当作纯函数成本或外推大响应。
 
-## B67 最新结果：保留任务监听器与路径数组组合
+本轮将 beginH1Io／progressH1Io 主体提为普通私有锁内函数，方法快照复用既有不可变 Array，HEAD／CONNECT 比较字节按模块保留。原锁、I/O 进度、取消和关闭语义保持。每请求协议与完整 server 均净少 **336 bytes／9 个对象**，单连接分别减少 **10.42%／3.96%**；64 连接完整小／大响应减少约 **4.02%／4.78%**，两个口径分别报告。
+
+初版 server 验收触发 OOM，串行复测也能在 B67 复现。现场 GC heap 从约 1.2 MB 增至 **408.3 MB**，已经发生 **36 次 minor／4 次 full GC**，不是 GC 未启动。根因是 owner 取消先遍历子任务、后调用自身监听器，未启动的 H2 idle 子任务在取消收尾中同步驱动连接；旧驱动尚未进入关闭，于是反复补建任务。对象仍被父 Job 子列表和执行队列持有，GC 无法回收。给 SSE heartbeat 补取消检查的尝试仍在十次回放中失败七次，已撤回。
+
+最终修复在 `driveH2` 每轮正常工作之前检查 owner Job；取消沿原异常关闭路径处理，已进入关闭的分支继续清理。新普通 Cone 测试固定取消与 idle 启动顺序，旧实现 **5.19 秒超过 2 GiB RSS**、heap 约 **1.88 GB**，期间已有 **141 次 minor／6 次 full GC**；诊断主动终止以免再次耗尽整机。新实现正常返回，关闭一次，外层 scope 仍可用。原 SSE 生命周期十次串行复测全部通过，GC heap 峰值 **1.80～2.03 MB**、RSS **49.67～51.10 MiB**。HTTP asyncio／server 全套 heap 峰值 **6.52／11.30 MB**，结束前回落至 **1.90／4.06 MB**。这些是 100 ms 观察下的堆提交量和 RSS，不是分配流量或瞬时峰值上界。
+
+最终 64 连接、默认 GC、预热 2 秒＋测量 8 秒，正反各一次；CPU 单位 μs/请求：
+
+| 负载 | 单 worker CPU：前 → 后 | 四 worker CPU：前 → 后 | 吞吐变化：单／四 worker |
+| --- | --- | --- | --- |
+| 手写 TCP，1 KiB | 4.195 → 4.048（−3.50%） | 5.552 → 5.494（−1.04%） | +3.70%／+1.09% |
+| 正式协议连接，1 KiB | 7.093 → 6.973（−1.70%） | 9.773 → 9.606（−1.71%） | +1.80%／−0.39% |
+| 完整 server，1 KiB | 13.015 → 12.878（−1.05%） | 16.185 → 16.010（−1.09%） | +1.12%／+0.97% |
+| 完整 server，64 KiB | 25.657 → 25.578（−0.31%） | 28.476 → 28.589（+0.40%） | +0.37%／−5.06% |
+
+完整小响应 P80 **1,062→1,044／354→338 μs**；大响应 **1,937.5→1,940／562.5→640.5 μs**，四 worker 大响应上升 **13.87%**。协议四 worker P80 上升 **5.39%**；该方向吞吐及完整大响应的回退全部保留。手写起点未改源码与分配，CPU 仍明显波动，因此不把小幅差额或两版候选之间的差额当作单项因果证明。按用户要求保留确认的分配及部分负载收益，不宣称全面提速。
+
+最终对照 **40 个样本、76,533,475 个请求**；共享分层后为 **96 个样本、205,071,102 个请求**。全轮两版去重 **136 个样本、281,520,507 个请求**，全部 wrk 错误为零。普通 release **914 项**、定向 moving／minor **36 项**全部通过，另有十次 SSE 生命周期复测共 20 项。正式网络验收 **5,488 个响应**，全轮去重 **6,272 个**；最终分配／恢复计数窗口分别验证 **400／4,000 个**响应。准备失败、无效心跳尝试与旧版确定性失败均保留，功能范围内无遗留失败。验收仅在 Linux 实机完成，没有编译器或 C runtime 变更。
+
+最终 profile 共 **30,160 个**用户态 cycles 样本，server／core／http.asyncio self 为 **21.25%／16.63%／12.50%**（单 worker）及 **20.12%／15.13%／11.97%**（四 worker），最大单项 **3.41%／3.14%**；四个 acquire helper 合计 **5.14%／5.49%**，不能换算成加锁次数变化。Job／Deferred<Unit> 104 bytes、H1State 320 bytes、frame／adapter 保持；小／大响应恢复与 drive **11／3／3、11／4／4**，RECV／SEND **1／1、1／2**。最终 server ELF text 增加 864 bytes。若后续获准恢复，应从新的分层与成本分布重新排序；当前停在 B68，不启动下一轮。
+
+## B67 历史结果：保留任务监听器与路径数组组合
 
 重新完成 36 个分层样本后，协议接入增加 **3.189／3.995 μs/请求**，protocol → fair 增加 **2.204／2.541 μs**，fair → direct 增加 **2.312／2.659 μs**。结合既有分配与采样归因，仍无单一大头。本轮将 Job 子列表延后到第一次 attach 时创建，之后复用；将取消登记和监听器选择提取为普通私有锁内方法；路径解码直接填充最终 Array，省去中转列表。同步、通知、取消、完成发布与编码行为保持，公开 API 和 runtime 合同不变，没有单项 CPU 消融。
 
@@ -561,27 +582,30 @@ HTTP 响应编码和传输编排本来就在 Scoop。B44 没有发现能解释�
 | B51 协议四 worker、小响应 | 四次全部纳入后吞吐 −3.7%、P80 +10.0%，同时 CPU −11.7%；默认 GC 行为变化随样本保留，未修复或证明因果。B52 同轮参照仍有明显波动，没有闭合此回退，不调 GC 掩盖问题。 |
 | 默认 GC 的协议程序慢档 | B42 已观察到四 worker 偶发低吞吐，全部成功样本应保留。不能只挑中位数好看的样本，也不能把暂停／测量窗口比当成 GC CPU 占比。 |
 | 旧编译器测试漂移 | B57 在同源码 control 复现六个 MIR 函数编号快照漂移并更新，另修正现有 192-byte image 的过时测试断言；本轮 ABI／metadata 固定向量已同步。B57 只关闭实际覆盖项，不代替全仓验收，原始失败日志保留。 |
-| B49 验收中的 SSE 生命周期故障 | 并行构建期间，候选和 B45 原版均在同一测试发生内存增长；隔离后两者各 3 次完整 server 验收通过。原始失败保留，未修复根因，不能把一次通过当作故障已解决。 |
+| B49～B68 的 SSE 生命周期内存增长 | B68 通过 managed heap／GC 计数与取消栈定位到 H2 owner 取消重入，已修复。旧实现确定性回归超过 2 GiB，修正版固定回归、十次 SSE 复测及完整组合验收通过；无效的 heartbeat 检查已撤回。不要重新把此问题归为 GC 未启动，也不要将修复前 SDK 作为正式底座。 |
 
-## 接手后优先做什么
+## 暂停状态与后续恢复参考
 
-用户要求**每轮重新评估最大瓶颈，并通过逐步替换同时改善功能正交性和可组合性**。B53 已补入独立应用执行，B54～B56 已细分应用、协议连接与请求作用域；B57～B67 已保留十一轮共享成本的组合优化，小幅收益及代价均按实际结果记录。
+本轮结束后暂停，后续工作由用户另行安排。以下仅供获准恢复时参考，不构成继续执行下一轮的指令。
 
-1. 以 `B67/candidate/sysroot`、B57 配套 CLI 和 `B67/bin/scoop-candidate-<stage>` 的三个程序为正式参照，在新目录重建协议接入与请求执行／分派的相关中间程序，重新排序。B67 已同步 main `222a7d1ad` 的 asyncio 源码与测试；后续仅按实际新增变化更新下一轮 SDK，保留已测 SDK 原样。B67 的 `scoop-<stage>` 是开始时的分层参照，control 为其对应别名；相邻差额只用于选择复测边界，不能当成优化后仍未变化的成本。保留全部正反向样本，每个固定程序只验收一次。
-2. 新 self 中 server 约 19.6%～20.1%、core 约 14.8%～15.4%、HTTP asyncio 约 12.5%～13.4%，最大单项约 3.1%。优先比较剩余协议输入／输出协调和请求执行，再按新分层结果组合主要成本。四个 acquire helper 合计约 5.0%～5.8%，内联会改变采样归属，不能据此换算加锁次数变化。单连接普通对象约 4,871 bytes、闭包 1,200、frame 1,440、adapter 888，22 个 Duration 仍占 704 bytes，分配不能直接换算 CPU。旧同步借用、Mutex 包装、时间运算、字符查找／分隔、空正文收尾和叶任务空列表不再默认优先，也不直接围绕新增的单个 40-byte attach 闭包展开。B67 的 Job／Deferred、H1State、frame、adapter、实际恢复及 I/O 次数保持；完整服务大小响应 CPU 均改善，四 worker 协议吞吐和 P80 的回退需继续保留对照。历史回退根因也未闭合。继续比较 CPU、吞吐与 P80，并区分单连接诊断与 64 连接压测。
-3. 继续从最简 TCP 程序逐步接入既有实现，必要时用同 Cone 诊断拆边界并校准两端。没有单一大头时，从主要几项组合优化着手，以完整原版 server、协议连接、手写起点及 Go 的同轮对照决定保留；整体有确认收益即保留，不因旧单项幅度小而排除。需要单项归因时另做消融，不能相加历史百分比。
-4. 保持 workload、传输形态、默认 GC、绑核和计时一致；保留全部成功样本，计数／profiler 与无仪表压测分开。保留请求 Job、middleware Context、HEAD、未读正文、取消、期限、真实输出进度与清理，并覆盖共享实现对 H2／WebSocket 的影响。真实接入需求才支持继续拆 API，不为实验公开内部构造器或建立平行生产框架。
-
-B57 根登记热点已移除，B58 已减少每请求 35 个闭包，B59 消除了 Job 只读查询的加锁，B60 再减少六个闭包并简化时间运算，B61 合并 HTTP 状态更新并延后正文包装，B62 复用内部驱动权并删除单字符搜索的模式中转，B63 区分同步／持久借用并省去 Mutex 操作包装，B64 分开同步正文失效与资源关闭并直接按字符分隔，B65 复用时钟并分离期限比较与泛型操作的锁内收尾，B66 直接复用字节复制的借用边界并省去 HTTP 锁堆包装，B67 减少任务监听器包装、叶任务空子列表和路径中转数组；不要把旧分布当作默认重点。Job 父子关系在 B56 不是主要增量；B50 解析复用和其他撤回候选保持各自历史结论，不省去必要语义，不启动 GC、P99 或 JSON 支线。
+1. 使用 `B68/resolved/candidate/sysroot`、固定 B57 CLI 和 `B68/resolved/bin/scoop-candidate-<stage>`，另建目录保留已测底座。将 B68 的三个中间程序与原分层按顺序合并，避免重复测量共有端点；重新比较协议协调与请求执行的主要增量，不能直接套用旧差额。
+2. 当前没有单一 CPU 大头。单连接完整 server 剩余普通对象约 4,775 bytes、闭包 960、frame 1,440、adapter 888，22 个 Duration 仍占 704 bytes。若继续优化，按新分层和实际成本组合选择，不继续围绕已经消除的 I/O 闭包；分配和 self 采样不能直接换算 CPU 或加锁次数。
+3. 仍保留最简 TCP、正式协议、完整 server 与同轮 Go 对照，保留全部成功样本及四 worker 协议／大响应回退。需要单项因果时另做消融，不相加历史百分比；功能正交与组合应通过真实公开 API 接入验证，不为实验建立平行框架。
+4. 保持 workload、传输形态、默认 GC、绑核和计时一致，计数／profiler 与无仪表压测分开。保留请求 Job、Context、HEAD、未读正文、取消、期限、真实输出与清理，并覆盖共享实现对 H2／WebSocket 的影响。B68 按用户要求修复实际 OOM，没有调 GC 参数；GC 性能、P99 和 JSON 支线仍不开展。
 
 ## 固定产物和复现入口
 
-以下路径都在当前机器，原始日志不在 Git 中。**不要在这些目录上直接重建覆盖，新的实验另建目录。** B67、B66、B65 及其子目录的 baseline／prior-sdk／predecessor／toolchain／tools 和多轮 bin 含有固定资源或指向这些资源，不能删除其目标。
+以下路径都在当前机器，原始日志不在 Git 中。**不要在这些目录上直接重建覆盖，新的实验另建目录。** B68、B67、B66、B65 及其子目录的 baseline／prior-sdk／predecessor／toolchain／tools 和多轮 bin 含有固定资源或指向这些资源，不能删除其目标。
 
 | 用途 | 路径 |
 | --- | --- |
+| B68 全轮记录与三个中间程序 | `/home/chenxu/benchmarks/http-improvements-20261113-round68`；`inputs/segments`、`inputs/decoder`、`inputs/codec` |
+| 当前正式 SDK／配套 CLI | `B68/resolved/candidate/sysroot`、`B68/toolchain/bin`（经 B67 等链接 B57；runtime 35／metadata 12） |
+| B68 最终 ELF、符号、报告与命令 | `B68/resolved/bin`、`symbols-*`、`round-summary.json`、`validation-report.json`；`build_h2_fix.sh`、`build_server.sh`、`build_dependents.sh`、`validate_server.sh`、`validate_remaining.sh`、`finish_measure.sh`、`diagnose_final.sh` |
+| B68 OOM 与回归证据 | `B68/sse-diagnosis`、`B68/resolved/test-replays`、`B68/resolved/server-cancellation-validation.json`；`resolved/candidate.patch` 保存最终源变更 |
+| B68 非正式候选与失败尝试 | 根目录 `candidate/sysroot` 为最初性能候选；`final` 保存已撤回的 heartbeat 补丁与记录；不得作为新底座 |
 | B67 组合优化、分层、分配／恢复诊断、全部结果 | `/home/chenxu/benchmarks/http-improvements-20261113-round67` |
-| 当前正式 SDK／配套 CLI | `B67/candidate/sysroot`、`B67/toolchain/bin`（经 B66 等链接 B57；runtime 35／metadata 12） |
+| B67 历史正式 SDK／配套 CLI | `B67/candidate/sysroot`、`B67/toolchain/bin`（经 B66 等链接 B57；runtime 35／metadata 12） |
 | B67 同路径 control／candidate ELF 与符号 | `B67/bin/scoop-<variant>-<stage>`、`B67/symbols-<variant>-<stage>`；control 复用本轮分层程序 |
 | B67 前版 SDK | `B67/baseline/sysroot`（已同步 main asyncio 并重建的独立 B66 副本） |
 | B66 组合优化、分层、分配／恢复诊断、全部结果 | `/home/chenxu/benchmarks/http-improvements-20261113-round66` |
@@ -647,7 +671,7 @@ B57 根登记热点已移除，B58 已减少每请求 35 个闭包，B59 消除�
 | B44 分层诊断及结果 | `/home/chenxu/benchmarks/http-improvements-20261112-round44` |
 | 固定 Go net/http | `/home/chenxu/benchmarks/http-20261111/bin/nethttp-server` |
 
-表中 B66／B65／B64／B63／B62／B61／B60／B59／B58／B57／B56／B55／B54／B53／B52／B51／B49 表示各自完整根目录。B63 的 `candidate.patch` 对应 `f323c3530` 上的库、测试与平台规范变更；`check_sources.sh`、`build_candidate.sh`、`validate_candidate.sh`、`finish_measure.sh`、`measure_candidate.py` 保存静态检查、构建、验收和对照命令，`diagnose_candidate.sh` 保存独立分配与 cycles 采样步骤。结果在 `measurement-report.json`、`validation-report.json`、`round-summary.json`、`allocation-summary.json`、`code-size.json`、`profiles/` 和 `diagnostics/`。原 `scoop-<stage>` 链接用于开始时的分层诊断，正式新对照须用带 `control-`／`candidate-` 的程序。B62 的 `candidate.patch`、恢复／协议采样及全部历史报告继续保留。
+表中 B68／B67／B66／B65／B64／B63／B62／B61／B60／B59／B58／B57／B56／B55／B54／B53／B52／B51／B49 表示各自完整根目录。B63 的 `candidate.patch` 对应 `f323c3530` 上的库、测试与平台规范变更；`check_sources.sh`、`build_candidate.sh`、`validate_candidate.sh`、`finish_measure.sh`、`measure_candidate.py` 保存静态检查、构建、验收和对照命令，`diagnose_candidate.sh` 保存独立分配与 cycles 采样步骤。结果在 `measurement-report.json`、`validation-report.json`、`round-summary.json`、`allocation-summary.json`、`code-size.json`、`profiles/` 和 `diagnostics/`。原 `scoop-<stage>` 链接用于开始时的分层诊断，正式新对照须用带 `control-`／`candidate-` 的程序。B62 的 `candidate.patch`、恢复／协议采样及全部历史报告继续保留。
 
 B66 的 `candidate.patch` 对应 `8b693204610` 上的五个库／测试文件；`run_layers.sh` 保存五个中间程序的构建、验收及 36 个分层对照。`check_sources.sh` 保存静态检查，`finish_preflight.sh` 顺序准备独立 SDK、构建双方程序及 11 个相关库、核验六个网络变体并采集分配窗口；`complete_allocations.sh` 补充同一窗口的分配归因。`finish_measure.sh` 只运行 40 个候选对照及汇总，随后 `diagnose_candidate.sh` 独立执行 cycles 与恢复计数，`finish_validation.sh` 顺序完成 release／定向 GC 及报告汇总。基线工具句柄中途失联后，实际进程完成了全部 36 个样本，仅补跑漏掉的汇总，没有重复测量。结果保存在 `measurement-report.json`、`allocation-summary.json`、`binary-sizes.json`、`profiles/`、`diagnostics/`，最终验收另生成 `validation-report.json`、`round-summary.json`。客户端使用 900 秒运行时限；新实验复制脚本并改到新目录，保留固定 SDK、结果和复现输入。
 

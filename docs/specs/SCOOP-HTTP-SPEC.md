@@ -177,7 +177,7 @@ AsyncHttp1Connection.pendingResponseFirstByteAt 返回下一条尚未交付完�
 
 `AsyncHttp1Connection.isReusable` 是已知协议状态的只读快照：连接开放、没有在途读写或未结束的消息／请求关联，且没有已知 EOF、关闭要求或协议切换时为 true。新建的空闲连接也可以为 true；完成所有信息／最终响应和双向正文之前为 false。它复用本连接的编解码状态，不发送探测、不读取 socket，不保证尚未观察到的对端关闭不会使下一次操作失败。池使用这一事实判断复用资格，不能自己重建 HTTP/1 持久连接或切换规则。
 
-H2 连接所有者作为调用者提供的 CoroutineScope 的子任务登记。共享传输读写使用该所有者的 Job；请求／流等待使用请求自己的 Job。请求取消只发出对应 RST_STREAM、丢弃该流剩余 body 并释放其等待，不取消共享 TLS read／write 的 Job。连接所有者取消关闭整条连接并完成所有流收尾。每次 native 步骤不另建 Job。
+H2 连接所有者作为调用者提供的 CoroutineScope 的子任务登记。共享传输读写使用该所有者的 Job；请求／流等待使用请求自己的 Job。请求取消只发出对应 RST_STREAM、丢弃该流剩余 body 并释放其等待，不取消共享 TLS read／write 的 Job。连接所有者取消关闭整条连接并完成所有流收尾。连接驱动每轮在安排正常 I/O 和空闲计时前观察所有者的取消状态；即使子任务的取消收尾先于所有者的取消回调执行，也应进入关闭流程，不再为已取消的所有者补建普通任务。关闭收尾仍可在已取消的 Job 下完成。每次 native 步骤不另建 Job。
 
 AsyncHttp2Connection 的 client／server 所有权工厂接收相同的 HTTP/2 options、limits、settings，以及可选的普通 onEvent 回调。openRequest 返回 AsyncHttp2Stream，acceptRequest 返回请求头与流；客户端流的 receiveResponse 逐条返回信息／最终响应，服务端流用 sendResponse 发送。流实现 AsyncByteStream／AsyncCloseable，readInto 与 writeFrom 允许双向并行，同一方向只能有一个等待；finish 提交结束标记和 trailer，flush 等待该流已接受的输出进入底层传输并完成其 flush，不等待对端确认。close 放弃本流余下数据并提交 CANCEL，不关闭共享连接。
 
