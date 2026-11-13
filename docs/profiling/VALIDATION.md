@@ -9,13 +9,15 @@
 | Darwin AArch64 | 22.1.8 | 通过 |
 | Linux x86-64 GNU | 22.1.2；compiler-rt 源码 22.1.8 | 通过 |
 | Linux x86-64 musl | 22.1.2；compiler-rt 源码 22.1.8 | 通过 |
-| Windows x86-64 MSVC-UCRT | 22.1.8 | 系统库与配套工具已准备，原生 fixture 验收中 |
-| Windows x86-64 MinGW-UCRT | 22.1.8 | 系统库与配套工具已准备，原生 fixture 验收中 |
-| Windows x86-64 MinGW-MSVCRT | 22.1.8 | 系统库与配套工具已准备，原生 fixture 验收中 |
+| Windows x86-64 MSVC-UCRT | 22.1.8 | 通过 |
+| Windows x86-64 MinGW-UCRT | 22.1.8 | 通过 |
+| Windows x86-64 MinGW-MSVCRT | 22.1.8 | 通过 |
 
 确定计数包括两次 main、6 次 choose、8 次 worker、8,004 次 leaf 和未执行递归函数的零记录。测试同时覆盖多线程、中文／空格／百分号路径、正常与非零退出、退出写出失败、合并、外部采集、换 cwd 后参数复用、workspace 默认成员改变、输入更新和缓存命中、覆盖诊断、损坏或缺失数据、失败保留原输出，以及反馈程序无探针。跨 Cone 的 off/default/full 语义组合另在 Darwin、GNU、MinGW-UCRT 验证。
 
 GC 定向程序保留 262,144 节点链表，执行完整收集、三次真实增量推进和完整收集，核对 cycle/slice 身份、重启、时间边界、嵌套阶段和任务／字节／CPU 汇总。另一个进程执行 1,100 次完整收集：固定缓冲保留 8,192 个事件，报告 608 个 dropped，累计 GC 指标仍完整。
+
+Windows 短 GC 任务的 CPU 差值可能因 `GetThreadTimes` 粒度为零；验收严格检查逐片与累计值相等，不要求短任务必然得到正数。Python 探测脚本固定输出 LF 状态行，业务程序仍按原始字节比较标准流与退出码。
 
 **独立组件。** Darwin 组件实际包含两套各 44 个系统 Cone 的 full `.slib`、44 份训练映射和四种 profiling runtime，压缩包 1,220,497,376 字节，安装后 profiling 目录 1,959,654,927 字节。使用真实 host 工具、core/std 基础库与完整 profiling 组件进行本地 HTTP 安装验证：基础安装不下载该组件，缺少组件时训练明确失败；独立安装后 instrument/optimize 成功；卸载后普通 release 构建与已生成程序仍可运行；再次安装复用下载缓存。该检查验证完整 profiling 组件，没有重复构建和打包未改的全部普通系统库。
 

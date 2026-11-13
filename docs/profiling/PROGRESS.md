@@ -1,6 +1,6 @@
 # Profiling / PGO 实施记录
 
-状态：实施中。开始日期：2026-11-13。设计见 [DESIGN.md](DESIGN.md)。
+状态：首版实现及验收完成。开始日期：2026-11-13；完成日期：2026-11-14。设计见 [DESIGN.md](DESIGN.md)，最终范围与性能边界见 [VALIDATION.md](VALIDATION.md)。
 
 实现分支：`codex/profiling-pgo`。每个完整变更在本地完成针对性验证后提交、推送，再合并最新 `origin/main`；跨平台验证按完整大项安排，不逐文件重复全量测试。原始日志和临时训练产物保存在仓库外，完成一轮后清理不再使用的文件。
 
@@ -8,13 +8,15 @@
 
 | 大项 | 当前状态 | 验收依据 |
 | --- | --- | --- |
-| 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | 逻辑位置及 MIR/LIR/LLVM 通道已实现；CLI 与真实训练验收随 profiling 批次接入 | 确定计数、内联映射、多线程、对象选择/裁剪 |
+| 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | 已实现，六个目标的原生采集与反馈闭环通过 | 确定计数、内联映射、多线程、对象选择/裁剪 |
 | off/default/full IR template 导出 | 已实现，三平台代表目标验收完成 | 完整模板、语义必需模板保留、实际 consumer 与 Strong 归属 |
-| profiling profile 与 runtime 采集 | 已接通，本机真实运行验收通过；原生跨平台验收待成组进行 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
-| MIR cost 反馈及 `scoop-pgo` | MIR 消费、位置诊断、build Use 与便利命令均已通过本机闭环；原生跨平台及性能对照待验证 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
+| profiling profile 与 runtime 采集 | 已实现，Darwin、GNU/musl、MSVC-UCRT、MinGW-UCRT/MSVCRT 原生验收通过 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
+| MIR cost 反馈及 `scoop-pgo` | 已实现，六目标闭环与本机性能对照完成；Long hash 回归及归一化边界已记录 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
 | 可选 profiling 系统库组件 | 已实现；本机完整 44 Cone 组件独立安装、训练、优化、移除与下载复用验收通过 | 两套 full 库、自动选库、独立下载安装和移除 |
-| GC phase/slice 事件 | 已实现，本机真实增量周期、重启与截断验收通过；采集开销随性能对照测量 | 时间语义、采集开销和真实进程输出 |
-| 使用材料及发行配套 | 规范、帮助、编程指导、打包、安装器及官网已接通；最终跨平台和性能记录收尾中 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
+| GC phase/slice 事件 | 已实现，六目标的真实增量周期、重启与截断验收通过；整体采集开销已测量 | 时间语义、采集开销和真实进程输出 |
+| 使用材料及发行配套 | 规范、帮助、编程指导、打包、安装器、官网和验收记录已同步 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
+
+以下按提交顺序保留当时的验证范围；各批次提及的后续工作，其最终状态以上表及验收文档为准。
 
 ## 已完成
 
@@ -101,3 +103,9 @@
 
 - Windows 原生程序已经产生正确的调用计数和 GC 事件；定向验收暴露出两个脚本假设：短任务的 `GetThreadTimes` 差值可以为零，Python 文本标准输出默认转换为 CRLF。GC 仍严格核对逐片 CPU 与累计 CPU 相等，不再要求短任务计时必然大于零；四个探测脚本使用固定 LF 状态行。
 - Ruff 格式化与检查通过。本机 GC fixture 4 次外部调用再次通过，Windows MSVC-UCRT 的真实 GC 时间线、增量重启和缓冲截断也通过；完整 PGO 流程及另外两种 Windows CRT 继续使用同一组正式 fixture。
+
+### 最终原生验收与收尾
+
+- Windows 三种 CRT 全部通过完整正式组合，各 2 项、13 次外部进程调用。MSVC-UCRT 的 GC／完整 profiling 用例分别为 7.86／365.61 s，MinGW-UCRT 为 29.19／409.82 s，MinGW-MSVCRT 为 29.04／407.59 s。初期缺少配套 `llvm-profdata`、混用 Clang driver 与 linker 名称属于测试环境准备问题；补齐真实 LLVM 22.1.8 工具并按 CRT 选择后，程序及计数验证通过。测试中的时钟精度和换行问题已按上节修正。
+- 连同 Darwin 和 Linux GNU/musl，设计要求的六个原生目标均完成 instrument → merge → optimize → run，以及正常／非零退出、缓存更新、失败不发布和无探针输出。性能收益与采集开销只在本机测量，未把跨目标正确性结果扩大为跨平台性能结论。
+- 实现、规范、编程材料、独立组件和外部发行配套均已分批提交推送，并逐轮合并 `origin/main`。清理一次性压缩包、安装目录、旧的失败尝试及不再使用的辅助工具；保留可复用的 sysroot／缓存、有效验证目录和仓库外原始记录。

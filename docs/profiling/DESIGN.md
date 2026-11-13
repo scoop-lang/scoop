@@ -1,8 +1,8 @@
 # Profiling、PGO 与 IR template 导出设计
 
-状态：实施中，进度与实际验证范围见 [PROGRESS.md](PROGRESS.md)。日期：2026-11-13。
+状态：首版实现完成，实施记录见 [PROGRESS.md](PROGRESS.md)，原生验证及性能边界见 [VALIDATION.md](VALIDATION.md)。设计日期：2026-11-13；验收日期：2026-11-14。
 
-本文规定运行信息采集、反馈优化、系统库组件和命令入口。文中的 `profiling`、`--export-ir`、`--profile-use`、`scoop pgo` 和安装器的 profiling 组件选项按实施记录分批交付，不能仅凭本设计认定已经可用。
+本文规定运行信息采集、反馈优化、系统库组件和命令入口。`profiling`、`--export-ir`、`--profile-use`、`scoop pgo` 和安装器的 profiling 组件选项已在实现分支交付。首版反馈会改变现有 cost 决策，实际性能仍需对照验证；验收记录保留已观察到的回归及后续改进方向。
 
 依据：[语言规范](../specs/SCOOP-SPEC.md)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范](../specs/SCOOP-IMPL-SPEC.md)、[路线图](../ROADMAP.md)。已有基础见[调用点内联评分](../program-performance/CALL-SITE-INLINING.md)、[CPU 采样归因](../program-performance/CPU-PROFILING.md)与[调试信息实现](../debugging/IMPLEMENTATION.md)。实施各阶段前，先同步对应权威规范；本文不把尚未实现的行为记为现有能力。
 
@@ -25,9 +25,9 @@ PGO 数据只影响优化收益判断。类型、可见性、ABI、异常、GC�
 
 首版不实现自动挑选训练负载、自动调参、分布式训练、跨平台 CPU 采样器或每次调用的完整时间追踪。平台 CPU 采样与已有符号化工具继续用于解释耗时。
 
-## 2. 当前基础与缺口
+## 2. 实施前的基础与缺口
 
-| 当前实现 | 可以复用的部分 | 本次需要补齐的部分 |
+| 实施前的实现 | 可以复用的部分 | 本次补齐的部分 |
 | --- | --- | --- |
 | [BuildProfile](../../compiler/scoop/src/build/request.rs) 只有 Debug/Release；[OptimizationMode](../../compiler/lir/src/optimization.rs) 表达优化模式 | 构建编排、release 优化、独立输出目录 | 增加 Profiling；采集配置独立于优化模式传递 |
 | [调用点热度](../../compiler/mir-lower/src/optimization/inline/policy/heat.rs) 使用静态控制流 | 普通点为 1，冷出口为 1/8，循环热度为 4/16/32；已有评分和增长限制 | 使用匹配的动态频次替代静态估计，保留缺失时的回退 |
@@ -481,7 +481,7 @@ profiling 的 C/native 编译仍选择 release 优化设置；用户 C/C++ 源�
 | `compiler/slib`、`compiler/linker`、`compiler/toolchain` | 必需产物配置、记录选择、目标 profile 资源与最终链接 |
 | `runtime`、`tooling/scoop-pgo`、维护/发行脚本 | 采集生命周期，训练/反馈流程，独立组件生产和安装配套 |
 
-工具定位必须使用 Scoop 配套 LLVM；不能因 PATH 中另一个 `llvm-profdata` 恰好可执行就混用格式。本机 LLVM 22.1 有相关 intrinsic/pass 和 Darwin profile runtime，只证明原型资源存在，不代表 Scoop 已完成接线或其他目标已经验证。
+工具定位必须使用 Scoop 配套 LLVM；不能因 PATH 中另一个 `llvm-profdata` 恰好可执行就混用格式。实际原生目标、LLVM 版本和完整流程验证结果见 [VALIDATION.md](VALIDATION.md)。
 
 ## 11. 实施顺序与验收
 
@@ -521,7 +521,7 @@ PGO 收益至少包括一个同函数不同调用点热度使现有评分改变�
 
 实施前按批次同步实现规范中的 profile、stage 配置、`.slib` 模板、编译/链接、观察、外部命令和发行组件合同；runtime 的指标、写出时机或新增入口同步运行时规范。发行设计/manifest、独立安装器和官网同批更新 profiling 组件选项。语言语义不因导出/PGO 改变，涉及其引用时核对语言规范。
 
-能力可运行后，按[编程材料更新工作流](../scoop-programming/UPDATE-WORKFLOW.md)同步 CLI 帮助、编程 skill 的命令/性能指导、必要可运行示例、scripts/tooling 与发行说明。当前设计阶段不把拟定命令写进已可用的使用手册。
+能力交付时，按[编程材料更新工作流](../scoop-programming/UPDATE-WORKFLOW.md)同步 CLI 帮助、编程 skill 的命令/性能指导、必要可运行示例、scripts/tooling 与发行说明。上述材料已随首版实现同步。
 
 验证记录仅保存范围、结果、失败闭合与限制；原始 profile、训练 binary、报告和计时日志放在仓库外，不提交进设计目录。
 
