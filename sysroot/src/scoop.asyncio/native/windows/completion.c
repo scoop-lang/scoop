@@ -8,6 +8,19 @@ void scoop_io_collector_wake_locked(ScoopIoLoop *loop) {
     }
 }
 
+void scoop_io_packet_locked(ScoopIoRequest *request, DWORD count, DWORD error) {
+    ScoopIoLoop *loop = request->loop;
+    request->count = count;
+    request->error = error;
+    request->packet_next = NULL;
+    if (loop->packets_tail)
+        loop->packets_tail->packet_next = request;
+    else
+        loop->packets_head = request;
+    loop->packets_tail = request;
+    scoop_io_notify_locked(loop);
+}
+
 unsigned __stdcall scoop_io_collect(void *context) {
     ScoopIoLoop *loop = context;
     AcquireSRWLockExclusive(&loop->mutex);
@@ -22,15 +35,7 @@ unsigned __stdcall scoop_io_collect(void *context) {
         AcquireSRWLockExclusive(&loop->mutex);
         if (overlapped) {
             ScoopIoRequest *request = CONTAINING_RECORD(overlapped, ScoopIoRequest, overlapped);
-            request->count = count;
-            request->error = error;
-            request->packet_next = NULL;
-            if (loop->packets_tail)
-                loop->packets_tail->packet_next = request;
-            else
-                loop->packets_head = request;
-            loop->packets_tail = request;
-            scoop_io_notify_locked(loop);
+            scoop_io_packet_locked(request, count, error);
         } else if (error && error != WAIT_TIMEOUT) {
             scoop_io_fail_locked(loop, scoop_io_win32(error));
             break;
@@ -48,6 +53,7 @@ void scoop_io_request_init(ScoopIoRequest *request, ScoopIoLoop *loop, int64_t i
     request->loop = loop;
     request->handle = handle;
     request->finish = finish;
+    request->cancel = NULL;
     request->completion.event.id = id;
     request->next = loop->requests;
     loop->requests = request;
@@ -65,6 +71,10 @@ void scoop_io_request_cancel(ScoopIoLoop *loop, int64_t id) {
         if (request->completion.event.id != id || request->cancelled)
             continue;
         request->cancelled = true;
+        if (request->cancel) {
+            request->cancel(request);
+            return;
+        }
         if (!CancelIoEx(request->handle, &request->overlapped)) {
             DWORD error = GetLastError();
             if (error != ERROR_NOT_FOUND) {

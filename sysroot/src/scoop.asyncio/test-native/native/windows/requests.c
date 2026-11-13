@@ -63,6 +63,8 @@ int scoop_test_iocp_requests(bool prefill) {
     CHECK(event.id == 1 && event.kind == SCOOP_IO_WIN32_ERROR &&
           event.code == ERROR_OPERATION_ABORTED);
     CHECK(!loop->requests);
+    /* Consume the old hint before starting another request whose packet must stay queued. */
+    CHECK(!scoop_io_loop_poll(loop, false).code);
 
     const char data[] = "iocp bytes";
     DWORD written;
@@ -75,15 +77,9 @@ int scoop_test_iocp_requests(bool prefill) {
     if (!prefill)
         CHECK(WriteFile(pipe.output, data, sizeof(data), &written, NULL) &&
               written == sizeof(data));
-    /* Retire an old event hint before waiting for this request's actual native packet. */
+    CHECK(!test_wait(loop));
     AcquireSRWLockExclusive(&loop->mutex);
     bool queued = loop->packets_head != NULL;
-    if (!queued)
-        ResetEvent(loop->notification);
-    ReleaseSRWLockExclusive(&loop->mutex);
-    CHECK(queued || !test_wait(loop));
-    AcquireSRWLockExclusive(&loop->mutex);
-    queued = loop->packets_head != NULL;
     ReleaseSRWLockExclusive(&loop->mutex);
     CHECK(queued && loop->requests && !test_completion_count(loop));
     scoop_io_request_cancel(loop, 2);

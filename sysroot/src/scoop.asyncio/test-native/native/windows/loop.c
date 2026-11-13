@@ -45,6 +45,87 @@ int scoop_test_iocp_notification(void) {
     return 0;
 }
 
+static int publish_completions(ScoopIoLoop *loop, int64_t first, unsigned count) {
+    for (unsigned i = 0; i < count; ++i) {
+        ScoopIoCompletion *completion = calloc(1, sizeof(*completion));
+        CHECK(completion);
+        completion->event.id = first + i;
+        completion->event.kind = SCOOP_IO_DONE;
+        scoop_io_complete(loop, completion, 0);
+    }
+    return 0;
+}
+
+enum { PUBLICATION_ROUNDS = 32, PUBLICATION_COUNT = SCOOP_IO_BATCH_CAPACITY + 1 };
+
+static unsigned __stdcall publish(void *context) {
+    Wake *value = context;
+    for (unsigned round = 0; round < PUBLICATION_ROUNDS; ++round) {
+        CHECK(WaitForSingleObject(value->proceed, 5000) == WAIT_OBJECT_0);
+        CHECK(
+            !publish_completions(value->loop, 1000 + round * PUBLICATION_COUNT, PUBLICATION_COUNT));
+    }
+    return 0;
+}
+
+int scoop_test_iocp_notification_batches(void) {
+    ScoopIoCreated created = scoop_io_loop_create();
+    CHECK(!created.status.code);
+    ScoopIoLoop *loop = created.pointer;
+    HANDLE notification = scoop_io_loop_event(loop);
+    unsigned total = SCOOP_IO_BATCH_CAPACITY * 2 + 3;
+    CHECK(!publish_completions(loop, 1, total));
+    unsigned received = 0;
+    while (received < total) {
+        CHECK(WaitForSingleObject(notification, 0) == WAIT_OBJECT_0);
+        CHECK(!scoop_io_loop_poll(loop, false).code);
+        ScoopIoBatch batch = scoop_io_loop_take_batch(loop);
+        unsigned remaining = total - received;
+        CHECK(batch.count ==
+              (remaining > SCOOP_IO_BATCH_CAPACITY ? SCOOP_IO_BATCH_CAPACITY : remaining));
+        for (int64_t i = 0; i < batch.count; ++i) {
+            CHECK(batch.records[i].id == ++received && batch.records[i].kind == SCOOP_IO_DONE);
+        }
+        scoop_io_loop_rearm(loop, false);
+    }
+    CHECK(WaitForSingleObject(notification, 25) == WAIT_TIMEOUT);
+    CHECK(!test_completion_count(loop));
+
+    Wake value = {loop, CreateEventW(NULL, FALSE, FALSE, NULL)};
+    CHECK(value.proceed);
+    HANDLE thread = (HANDLE)_beginthreadex(NULL, 0, publish, &value, 0, NULL);
+    CHECK(thread);
+    for (unsigned round = 0; round < PUBLICATION_ROUNDS; ++round) {
+        CHECK(SetEvent(value.proceed));
+        received = 0;
+        ULONGLONG deadline = GetTickCount64() + 5000;
+        while (received < PUBLICATION_COUNT) {
+            /* Race queue publication with consuming the previous hint and taking a bounded batch.
+             */
+            CHECK(!scoop_io_loop_poll(loop, false).code);
+            ScoopIoBatch batch = scoop_io_loop_take_batch(loop);
+            for (int64_t i = 0; i < batch.count; ++i) {
+                CHECK(batch.records[i].id == 1000 + round * PUBLICATION_COUNT + received);
+                CHECK(batch.records[i].kind == SCOOP_IO_DONE);
+                received++;
+            }
+            CHECK(received <= PUBLICATION_COUNT);
+            scoop_io_loop_rearm(loop, false);
+            if (received < PUBLICATION_COUNT)
+                CHECK(GetTickCount64() < deadline && !test_wait(loop));
+        }
+    }
+    CHECK(WaitForSingleObject(thread, 5000) == WAIT_OBJECT_0);
+    DWORD result;
+    CHECK(GetExitCodeThread(thread, &result) && result == 0);
+    CHECK(CloseHandle(thread) && CloseHandle(value.proceed));
+    CHECK(!scoop_io_loop_poll(loop, false).code);
+    CHECK(!test_completion_count(loop));
+    CHECK(WaitForSingleObject(notification, 25) == WAIT_TIMEOUT);
+    CHECK(!test_drain(loop));
+    return 0;
+}
+
 int scoop_test_iocp_timers(void) {
     ScoopIoCreated created = scoop_io_loop_create();
     CHECK(!created.status.code);

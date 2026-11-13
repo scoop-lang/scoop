@@ -997,6 +997,18 @@ Scoop 格式、生产 Cone 和 tests 检查、外部 Python 格式／lint 通过
 
 TCP 在 NativeSafe 批次内由 owner 尝试直接读写，未就绪时复用端点方向的 dispatch source；通知 pipe 合并并减少控制动作的空唤醒，关闭仍等待所有 source 退休。64 连接单／四 worker 吞吐 +12.1%／+14.8%，CPU／echo −22.7%／−47.2%，最终吞吐为 Go 的 83.1%／84.2%；独立 eventLoop 的吞吐仅 +2.8%，P50 +4.3%，保留该限制。520 项功能测试、四项定向 GC、48 个正式样本和五个短传输样本全部通过。实现、完整 Go 对照、波动范围与复现位置见 [macOS 优化记录](MACOS-OPTIMIZATION.md)。
 
+## Windows TCP echo 同机对照（2026-11-13）
+
+使用 `~/.scoop` 当前工具链，在 Xeon W-2133／Windows 11 上与 Go 1.27.4 比较同一公开 API 负载。基准补齐 Windows 进程统计、TCP_NODELAY 与 QPC 高精度单调时钟；未修改生产实现。最终 30 项样本与五项短传输检查全部正确。单连接吞吐约为 Go 的 64%，64 连接单／四 worker 为 78.3%／80.7%，CPU／echo 分别为 Go 的 1.67／1.48 倍；Scoop 从一到四 worker 扩展 2.61 倍。完整结果、时钟修正、波动范围和同机施压限制见 [Windows 对照记录](WINDOWS-TCP-ECHO.md)。
+
+## Windows TCP 后端优化 W1（2026-11-13）
+
+TCP 在 NativeSafe 批次内尝试 nonblocking 传输，未就绪读取继续使用 IOCP；未就绪写入改为 FD_WRITE／FD_CLOSE 和一次性 thread-pool wait，保持可精确核验的取消进度。216 项普通 asyncio 测试、六项定向 GC、48 个最终性能样本和五项短传输检查全部通过。64 连接单／四 worker 吞吐 +28.5%／+20.7%，CPU／echo −42.7%／−29.9%；独立 eventLoop 单连接吞吐 −18.1%，保留该回退及全部低样本。实现、背压取消修正、Go 对照和原始记录位置见 [Windows 优化记录](WINDOWS-OPTIMIZATION.md)。
+
+## Windows 通知合并 W2（2026-11-13）
+
+在现有锁内合并未消费的 SetEvent，空 poll 跳过 ResetEvent，保留清除后发布与有限批次 rearm。合入 main 后重建一套 MSVC/UCRT 基础工具链；649 项普通 Cone 测试、八项 GC、六次协程合并验证与五项短传输检查通过。新编译器下的 main／W1／W2／Go 共 66 个样本核验 11,349,748 个响应。64 连接单／四 worker 相对 main 吞吐 +25.5%／+38.6%，CPU −41.0%／−39.9%；W2 相对 W1 的增量集中于单 owner／单 worker，四 worker 基本相当。独立 loop 单连接相对 main 回退 39.4%，继续作为待处理问题记录。完整阶段数据、基础工具链范围和限制见 [Windows 优化记录](WINDOWS-OPTIMIZATION.md#w2合并-windows-通知并在新编译器下重新对照)。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

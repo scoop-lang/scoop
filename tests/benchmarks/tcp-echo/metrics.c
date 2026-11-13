@@ -1,11 +1,19 @@
-#include <arpa/inet.h>
 #include <inttypes.h>
-#include <netinet/tcp.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(_WIN32)
+#include <winsock2.h>
+
+#include <windows.h>
+
+#include <processsnapshot.h>
+#else
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
+#endif
 
 #include "scoop_rt.h"
 
@@ -17,6 +25,35 @@ void echo_configure_shards(int count) { expected_shards = count; }
 /* The public async API has no socket option; this runs only during connection setup. */
 static void configure_tcp_sockets(int port) {
     int found = 0;
+#if defined(_WIN32)
+    /* SOCKET values are handles, not small CRT descriptors. Snapshot only this process. */
+    HANDLE process = GetCurrentProcess();
+    HPSS snapshot;
+    HPSSWALK marker;
+    if (PssCaptureSnapshot(process, PSS_CAPTURE_HANDLES, 0, &snapshot) != ERROR_SUCCESS)
+        abort();
+    if (PssWalkMarkerCreate(NULL, &marker) != ERROR_SUCCESS)
+        abort();
+    PSS_HANDLE_ENTRY entry;
+    DWORD status;
+    while ((status = PssWalkSnapshot(snapshot, PSS_WALK_HANDLES, marker, &entry, sizeof(entry))) ==
+           ERROR_SUCCESS) {
+        SOCKET socket = (SOCKET)entry.Handle;
+        struct sockaddr_in address;
+        int size = sizeof(address);
+        if (getsockname(socket, (struct sockaddr *)&address, &size) == 0 &&
+            address.sin_family == AF_INET && ntohs(address.sin_port) == port) {
+            int enabled = 1;
+            if (setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (const char *)&enabled,
+                           sizeof(enabled)) != 0)
+                abort();
+            found = 1;
+        }
+    }
+    if (status != ERROR_NO_MORE_ITEMS || PssWalkMarkerFree(marker) != ERROR_SUCCESS ||
+        PssFreeSnapshot(process, snapshot) != ERROR_SUCCESS)
+        abort();
+#else
     for (int fd = 0; fd < 1024; fd++) {
         struct sockaddr_in address;
         socklen_t size = sizeof(address);
@@ -28,6 +65,7 @@ static void configure_tcp_sockets(int port) {
             found = 1;
         }
     }
+#endif
     if (!found)
         abort();
 }
@@ -41,8 +79,8 @@ void echo_configure_tcp(int port) {
 }
 
 void echo_configure_accepted_tcp(int port) {
-#if defined(__APPLE__)
-    /* Darwin does not inherit TCP_NODELAY from the listener. */
+#if defined(__APPLE__) || defined(_WIN32)
+    /* Set accepted sockets explicitly where listener inheritance is not assumed. */
     configure_tcp_sockets(port);
 #else
     (void)port;
