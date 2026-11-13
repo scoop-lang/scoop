@@ -45,6 +45,30 @@ private class ServerRoutingTests {
     }
 
     @Test
+    fun `decoded segments survive collection and a later invalid segment rejects the request`() {
+        val app =
+            routing {
+                get(
+                    "/{first}/{second}/{third}",
+                    suspend {
+                        ctx ->
+                        gcCollect()
+                        text(
+                            ctx.pathParams.text("first") +
+                                "|" +
+                                ctx.pathParams.text("second") +
+                                "|" +
+                                ctx.pathParams.text("third")
+                        )
+                    }
+                )
+            }
+        assertEquals("a/b|%2F|c d", exercise(app, "/a%2Fb/%252F/c%20d").text())
+        assertEquals(400U, exercise(app, "/a%2Fb/%252F/%xy").status)
+        assertEquals("one|two|three", exercise(app, "/one/two/three").text())
+    }
+
+    @Test
     fun `same shaped methods retain their own parameter names and builders freeze`() {
         val builders = ArrayList<RouterBuilder>()
         val app =

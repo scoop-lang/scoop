@@ -59,10 +59,12 @@ internal fun requestTarget(target: HttpRequestTarget, method: String): RequestTa
 }
 
 internal fun decodePath(path: String): Array<PathSegment> {
-    val result = ArrayList<PathSegment>()
-    for (part in path.slice(1L, path.charLength).split('/'))
-        result.add(PathSegment(part, PercentEncoding.decode(part)))
-    return result.toArray()
+    val parts = path.slice(1L, path.charLength).split('/')
+    return Array<PathSegment>(parts.size) {
+        index ->
+        val part = parts[index]
+        PathSegment(part, PercentEncoding.decode(part))
+    }
 }
 
 /** Captured route parameters with explicit raw-byte and strict UTF-8 access. */

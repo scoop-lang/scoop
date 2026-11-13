@@ -1,0 +1,38 @@
+package test.core.tests.structured.tasks
+
+import scoop.test.*
+
+@Test
+private class StructuredChildrenTest {
+    @Test
+    fun `a scope retains later children after its earlier children complete`() {
+        val gate = Gate()
+        val completion = Completion<Int>()
+        val state = State()
+        startCoroutine<Int>(
+            suspend {
+                coroutineScope<Int> {
+                    val scope = this
+                    state.scope = Some(scope)
+                    gcCollect()
+                    val first = scope.launch suspend { state.count += 1 }
+                    assertTrue(first.isCompleted)
+                    gcCollect()
+                    state.child = Some(scope.launch suspend { state.count += gate.wait() })
+                    42
+                }
+            },
+            completion
+        )
+        assertEquals(1, state.count)
+        assertFalse(completion.done)
+        assertFalse(state.scope!!.job.isCompleted)
+        assertFalse(state.child!!.isCompleted)
+        gcCollect()
+        gate.open(7)
+        assertEquals(8, state.count)
+        assertTrue(state.child!!.isCompleted)
+        assertTrue(state.scope!!.job.isCompleted)
+        assertEquals(42, completion.get())
+    }
+}
