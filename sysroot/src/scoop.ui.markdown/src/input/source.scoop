@@ -1,0 +1,195 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+private struct MdSourceFragment(val range: MarkdownRange, val input: TextInputState)
+
+private fun mdSourceFragment(
+    editor: MarkdownEditorState,
+    context: Long,
+    revision: Long
+): MdSourceFragment {
+    editor.checkEdit()
+    if (context < 0L || context > 1152921504606846975L)
+        throw IllegalArgumentException(Some("Invalid Markdown input context size"))
+    if (editor.isComposing)
+        throw IllegalStateException(
+            Some("Accept the active Markdown composition before relocating input")
+        )
+    val snapshot = editor.snapshot
+    val selected = editor.selection
+    val range = selected.range
+    val first =
+        if (range.start > context)
+            range.start - context
+        else
+            0L
+    val last =
+        range.end +
+            (
+                if (snapshot.byteLength - range.end > context)
+                    context
+                else
+                    snapshot.byteLength - range.end
+            )
+    val start = mdResetPosition(snapshot, MarkdownPosition(first)).byteOffset
+    val end = mdResetPosition(snapshot, MarkdownPosition(last)).byteOffset
+    val input =
+        TextInputState(
+            snapshot.read(MarkdownRange(start, end)),
+            Utf8Selection(selected.anchor.byteOffset - start, selected.cursor.byteOffset - start),
+            revision = revision
+        )
+    return MdSourceFragment(MarkdownRange(start, end), input)
+}
+
+/** One source-coordinate native fragment; the mounted host owns the actual input connection. */
+public class MarkdownSourceInput public constructor(
+    public val editor: MarkdownEditorState,
+    public val contextBytes: Long = 4096L
+): Closeable {
+    private var fragment = mdSourceFragment(editor, contextBytes, 0L)
+    private var sourceRevision = editor.snapshot.revision
+    private var observedInput = editor.inputRevision
+    private var closed = false
+
+    private fun checkRead() {
+        editor.snapshot
+        if (closed)
+            throw IllegalStateException(Some("Markdown input fragment is closed"))
+    }
+
+    public val sourceRange: MarkdownRange get() {
+        checkRead();
+        return fragment.range
+    }
+    public val documentRevision: Long get() {
+        checkRead();
+        return sourceRevision
+    }
+    public val inputState: TextInputState get() {
+        checkRead();
+        return fragment.input
+    }
+
+    public fun snapshot(caret: LogicalRect): TextInputState {
+        checkRead()
+        val input = fragment.input
+        return TextInputState(
+            input.surroundingText,
+            input.selection,
+            input.markedRange,
+            caret,
+            input.revision
+        )
+    }
+
+    private fun checkOwner() {
+        when (editor.composition) {
+            case Some(val active) -> if (active.owner !== this)
+                throw IllegalStateException(
+                    Some("Another Markdown input fragment owns the composition")
+                )
+            case None -> Unit
+        }
+    }
+
+    private fun shouldRecenter(): Boolean {
+        val selected = editor.selection.range
+        val range = fragment.range
+        val margin = contextBytes / 4L
+        return range.byteLength >
+            selected.byteLength +
+            contextBytes *
+            4L ||
+            selected.start <
+            range.start ||
+            selected.end >
+            range.end ||
+            (range.start > 0L && selected.start - range.start < margin) ||
+            (range.end < editor.snapshot.byteLength && range.end - selected.end < margin)
+    }
+
+    /** True means the native connection must retire before the new source mapping is used. */
+    public fun synchronize(force: Boolean = false): Boolean {
+        checkRead()
+        editor.checkEdit()
+        checkOwner()
+        if (editor.isComposing)
+            return false
+        val relocate = force || shouldRecenter() || editor.snapshot.revision != sourceRevision
+        if (!relocate && observedInput == editor.inputRevision)
+            return false
+        val revision = fragment.input.revision
+        if (revision == 9223372036854775807L)
+            throw IllegalArgumentException(Some("Markdown input revision overflow"))
+        if (relocate)
+            fragment = mdSourceFragment(editor, contextBytes, revision + 1L)
+        else {
+            val selected = editor.selection
+            fragment =
+                MdSourceFragment(
+                    fragment.range,
+                    TextInputState(
+                        fragment.input.surroundingText,
+                        Utf8Selection(
+                            selected.anchor.byteOffset - fragment.range.start,
+                            selected.cursor.byteOffset - fragment.range.start
+                        ),
+                        revision = revision + 1L
+                    )
+                )
+        }
+        sourceRevision = editor.snapshot.revision
+        observedInput = editor.inputRevision
+        return relocate
+    }
+
+    public fun apply(batch: TextInputBatch): Boolean {
+        checkRead()
+        editor.checkEdit()
+        checkOwner()
+        if (sourceRevision != editor.snapshot.revision || observedInput != editor.inputRevision)
+            throw IllegalStateException(Some("Markdown input fragment needs synchronization"))
+        val prepared = mdPrepareSourceInput(this, fragment.input, batch) ?: return false
+        try {
+            return editor.publishInput(prepared)
+        } finally {
+            if (prepared.published) {
+                fragment =
+                    MdSourceFragment(
+                        MarkdownRange(
+                            fragment.range.start,
+                            fragment.range.start + prepared.current.surroundingText.byteLength
+                        ),
+                        prepared.current
+                    )
+                sourceRevision = editor.snapshot.revision
+                observedInput = editor.inputRevision
+            }
+        }
+    }
+
+    internal fun cancelForState(): Boolean =
+        apply(
+            TextInputBatch(
+                Some(fragment.input.revision),
+                [TextInputOperation.Preedit("", None, TextReplacement.CurrentSelection)]
+            )
+        )
+
+    public override fun close() {
+        if (closed)
+            return
+        if (!editor.isClosed) {
+            editor.checkEdit()
+            when (editor.composition) {
+                case Some(val active) -> if (active.owner === this)
+                    editor.acceptComposition()
+                case None -> Unit
+            }
+        }
+        closed = true
+    }
+}

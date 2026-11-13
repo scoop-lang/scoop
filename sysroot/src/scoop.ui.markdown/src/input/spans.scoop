@@ -1,0 +1,145 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+/** Source offsets survive unrelated native operations within an atomic batch. */
+internal struct MdInputSpan(val source: Long, val length: Long)
+
+internal fun mdInitialInputSpans(length: Long): Array<MdInputSpan> =
+    if (length == 0L)
+        []
+    else
+        [MdInputSpan(0L, length)]
+
+private fun mdAppendInputSpan(output: ArrayList<MdInputSpan>, span: MdInputSpan) {
+    if (span.length == 0L)
+        return
+    if (output.size > 0L) {
+        val last = output[output.size - 1L]
+        if (
+            (last.source == -1L && span.source == -1L) ||
+                (last.source >= 0L && last.source + last.length == span.source)
+        ) {
+            output[output.size - 1L] = MdInputSpan(last.source, last.length + span.length)
+            return
+        }
+    }
+    output.add(span)
+}
+
+private fun mdAppendInputSlice(
+    output: ArrayList<MdInputSpan>,
+    spans: Array<MdInputSpan>,
+    start: Long,
+    end: Long
+) {
+    var offset = 0L
+    for (span in spans) {
+        val first =
+            if (start > offset)
+                start
+            else
+                offset
+        val last =
+            if (end < offset + span.length)
+                end
+            else
+                offset + span.length
+        if (last > first)
+            mdAppendInputSpan(
+                output,
+                MdInputSpan(
+                    if (span.source < 0L)
+                        -1L
+                    else
+                        span.source + first - offset,
+                    last - first
+                )
+            )
+        offset += span.length
+        if (offset >= end)
+            return
+    }
+}
+
+internal fun mdSpliceInputSpans(spans: Array<MdInputSpan>, range: Utf8Range, length: Long): Array<
+    MdInputSpan
+> {
+    var total = 0L
+    for (span in spans)
+        total += span.length
+    val result = ArrayList<MdInputSpan>()
+    mdAppendInputSlice(result, spans, 0L, range.start)
+    mdAppendInputSpan(result, MdInputSpan(-1L, length))
+    mdAppendInputSlice(result, spans, range.end, total)
+    return result.toArray()
+}
+
+internal fun mdMapInputSpans(
+    spans: Array<MdInputSpan>,
+    replacements: Array<MarkdownReplacement>
+): Array<MdInputSpan> {
+    var result = spans
+    var delta = 0L
+    for (replacement in replacements) {
+        result =
+            mdSpliceInputSpans(
+                result,
+                Utf8Range(replacement.range.start + delta, replacement.range.end + delta),
+                replacement.text.byteLength
+            )
+        delta += replacement.text.byteLength - replacement.range.byteLength
+    }
+    return result
+}
+
+internal struct MdInputDelta(
+    val replacements: Array<MarkdownReplacement>,
+    val inverse: Array<MarkdownReplacement>
+)
+
+private class MdInputDeltaBuilder(val before: String, val after: String, val offset: Long) {
+    val replacements = ArrayList<MarkdownReplacement>()
+    val inverse = ArrayList<MarkdownReplacement>()
+    var source = 0L
+    var output = 0L
+    var pending = 0L
+    fun retain(span: MdInputSpan) {
+        flush(span.source)
+        source = span.source + span.length
+        output += span.length
+        pending = output
+    }
+    fun flush(end: Long) {
+        if (source != end || pending != output) {
+            val old = before.utf8Slice(Utf8Range(source, end))
+            val text = after.utf8Slice(Utf8Range(pending, output))
+            if (old != text) {
+                replacements.add(
+                    MarkdownReplacement(MarkdownRange(offset + source, offset + end), text)
+                )
+                inverse.add(
+                    MarkdownReplacement(MarkdownRange(offset + pending, offset + output), old)
+                )
+            }
+        }
+    }
+}
+
+internal fun mdInputDelta(
+    before: String,
+    after: String,
+    spans: Array<MdInputSpan>,
+    offset: Long
+): MdInputDelta {
+    val result = MdInputDeltaBuilder(before, after, offset)
+    for (span in spans) {
+        if (span.source < 0L)
+            result.output += span.length
+        else
+            result.retain(span)
+    }
+    result.flush(before.byteLength)
+    return MdInputDelta(result.replacements.toArray(), result.inverse.toArray())
+}

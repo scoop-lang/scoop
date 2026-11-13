@@ -8,7 +8,9 @@ internal struct MdEditorValue(
     val selection: MarkdownSelection,
     val canUndo: Boolean,
     val canRedo: Boolean,
-    val savedRevision: Long
+    val savedRevision: Long,
+    val markedRange: MarkdownRange? = None,
+    val inputRevision: Long = 0L
 )
 
 internal enum MdReplay {
@@ -18,7 +20,8 @@ internal enum MdReplay {
 internal class MdPendingEdit(
     val kind: MarkdownEditKind,
     val after: MarkdownSelection?,
-    val replay: MdReplay = MdReplay.None
+    val replay: MdReplay = MdReplay.None,
+    val input: MdInputPublication? = None
 )
 
 private fun mdEditorInitial(
@@ -35,16 +38,26 @@ public class MarkdownEditorState public constructor(
     public val document: MarkdownDocument,
     selection: MarkdownSelection = MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
 ): Closeable {
-    private val storage = state(mdEditorInitial(document, selection))
-    private val history = MdHistory()
+    internal val storage = state(mdEditorInitial(document, selection))
+    internal val history = MdHistory()
     private var pending: MdPendingEdit? = None
+    internal var composition: MdSourceComposition? = None
     private var closed = false
     private val subscription = document.observe { change -> changed(change) }
 
     public val snapshot: MarkdownSnapshot get() = value().snapshot
     public val selection: MarkdownSelection get() = value().selection
-    public val canUndo: Boolean get() = value().canUndo
-    public val canRedo: Boolean get() = value().canRedo
+    public val canUndo: Boolean get() {
+        val current = value();
+        return current.canUndo || current.markedRange != None
+    }
+    public val canRedo: Boolean get() {
+        val current = value();
+        return current.canRedo || current.markedRange != None
+    }
+    public val markedRange: MarkdownRange? get() = value().markedRange
+    public val isComposing: Boolean get() = markedRange != None
+    internal val inputRevision: Long get() = value().inputRevision
     public val savedRevision: Long get() = value().savedRevision
     public val isDirty: Boolean get() {
         val current = value();
@@ -62,7 +75,7 @@ public class MarkdownEditorState public constructor(
         return value
     }
 
-    private fun checkEdit() {
+    internal fun checkEdit() {
         storage.checkMutation()
         if (closed)
             throw IllegalStateException(Some("Markdown editor state is closed"))
@@ -79,16 +92,10 @@ public class MarkdownEditorState public constructor(
         val previous = storage.value
         mdCheckSelection(previous.snapshot, selection)
         history.breakGroup()
-        if (previous.selection == selection)
+        val accepted = mdEndSourceComposition(this, previous.snapshot, previous.selection)
+        if (previous.selection == selection && !accepted)
             return false
-        storage.value =
-            MdEditorValue(
-                previous.snapshot,
-                selection,
-                history.canUndo,
-                history.canRedo,
-                previous.savedRevision
-            )
+        mdPublishEditorValue(this, previous.snapshot, selection, previous.savedRevision)
         return true
     }
 
@@ -114,16 +121,10 @@ public class MarkdownEditorState public constructor(
             if (!change.changed) {
                 val previous = storage.value
                 val after = mdCaret(range.start + text.byteLength)
-                if (after != previous.selection) {
+                val accepted = mdEndSourceComposition(this, previous.snapshot, previous.selection)
+                if (after != previous.selection || accepted) {
                     history.breakGroup()
-                    storage.value =
-                        MdEditorValue(
-                            previous.snapshot,
-                            after,
-                            history.canUndo,
-                            history.canRedo,
-                            previous.savedRevision
-                        )
+                    mdPublishEditorValue(this, previous.snapshot, after, previous.savedRevision)
                 }
             }
             return change
@@ -157,6 +158,8 @@ public class MarkdownEditorState public constructor(
 
     public fun undo(): Boolean {
         checkEdit()
+        if (isComposing)
+            return cancelComposition()
         if (!history.canUndo)
             return false
         val entry = history.undoEntry()
@@ -172,6 +175,8 @@ public class MarkdownEditorState public constructor(
 
     public fun redo(): Boolean {
         checkEdit()
+        if (isComposing)
+            return cancelComposition()
         if (!history.canRedo)
             return false
         val entry = history.redoEntry()
@@ -198,16 +203,56 @@ public class MarkdownEditorState public constructor(
                 previous.selection,
                 history.canUndo,
                 history.canRedo,
-                revision
+                revision,
+                previous.markedRange,
+                previous.inputRevision
             )
+    }
+
+    public fun acceptComposition(): Boolean {
+        checkEdit()
+        val previous = storage.value
+        if (!mdEndSourceComposition(this, previous.snapshot, previous.selection))
+            return false
+        mdPublishEditorValue(this, previous.snapshot, previous.selection, previous.savedRevision)
+        return true
+    }
+
+    public fun cancelComposition(): Boolean {
+        checkEdit()
+        val active = composition ?: return false
+        return active.owner.cancelForState()
+    }
+
+    internal fun publishInput(prepared: MdInputPublication): Boolean {
+        checkEdit()
+        pending =
+            Some(MdPendingEdit(prepared.kind, Some(prepared.selection), input = Some(prepared)))
+        try {
+            val change =
+                document.apply(MarkdownEdit(document.revision, prepared.source.replacements))
+            if (!change.changed)
+                mdPublishSourceInput(this, change.after, prepared)
+            return true
+        } finally {
+            pending = None
+        }
     }
 
     private fun changed(change: MarkdownChange) {
         storage.checkMutation()
         val previous = storage.value
+        when (pending?.input ?: None) {
+            case Some(val prepared) -> {
+                mdPublishSourceInput(this, change.after, prepared);
+                return
+            }
+            case None -> Unit
+        }
         val selection =
             if (change.kind == MarkdownChangeKind.Reset) {
                 history.clear()
+                composition = None
                 MarkdownSelection(
                     mdResetPosition(change.after, previous.selection.anchor),
                     mdResetPosition(change.after, previous.selection.cursor),
@@ -215,6 +260,7 @@ public class MarkdownEditorState public constructor(
                     previous.selection.cursorBias
                 )
             } else {
+                mdEndSourceComposition(this, change.before, previous.selection)
                 val intent = pending ?: MdPendingEdit(MarkdownEditKind.Separate, None)
                 val after = intent.after ?: previous.selection.map(change)
                 when (intent.replay) {
@@ -229,14 +275,7 @@ public class MarkdownEditorState public constructor(
                 }
                 after
             }
-        storage.value =
-            MdEditorValue(
-                change.after,
-                selection,
-                history.canUndo,
-                history.canRedo,
-                previous.savedRevision
-            )
+        mdPublishEditorValue(this, change.after, selection, previous.savedRevision)
     }
 
     public override fun close() {
@@ -249,6 +288,7 @@ public class MarkdownEditorState public constructor(
             );
             case None -> Unit
         }
+        acceptComposition()
         subscription.close()
         history.clear()
         closed = true

@@ -46,7 +46,8 @@ internal class MdHistoryEntry(
     }
 
     fun merge(
-        change: MarkdownChange,
+        replacements: Array<MarkdownReplacement>,
+        inverseReplacements: Array<MarkdownReplacement>,
         previous: MarkdownSelection,
         next: MarkdownSelection,
         nextKind: MarkdownEditKind
@@ -59,13 +60,13 @@ internal class MdHistoryEntry(
                 after ||
                 !previous.collapsed ||
                 !next.collapsed ||
-                change.replacements.size !=
+                replacements.size !=
                 1L ||
-                change.inverseReplacements.size !=
+                inverseReplacements.size !=
                 1L
         )
             return false
-        val replacement = change.replacements[0L]
+        val replacement = replacements[0L]
         when (kind) {
             case MarkdownEditKind.Typing -> {
                 if (!replacement.range.isEmpty || replacement.range.start != start + length)
@@ -76,7 +77,7 @@ internal class MdHistoryEntry(
             case MarkdownEditKind.Backspace -> {
                 if (replacement.text != "" || replacement.range.end != start)
                     return false
-                val removed = change.inverseReplacements[0L].text
+                val removed = inverseReplacements[0L].text
                 pieces.add(removed)
                 start = replacement.range.start
                 length += removed.byteLength
@@ -84,7 +85,7 @@ internal class MdHistoryEntry(
             case MarkdownEditKind.Delete -> {
                 if (replacement.text != "" || replacement.range.start != start)
                     return false
-                val removed = change.inverseReplacements[0L].text
+                val removed = inverseReplacements[0L].text
                 pieces.add(removed)
                 length += removed.byteLength
             }
@@ -146,18 +147,26 @@ internal class MdHistory {
         before: MarkdownSelection,
         after: MarkdownSelection,
         kind: MarkdownEditKind
+    ) = appendEdits(change.replacements, change.inverseReplacements, before, after, kind)
+
+    fun appendEdits(
+        replacements: Array<MarkdownReplacement>,
+        inverse: Array<MarkdownReplacement>,
+        before: MarkdownSelection,
+        after: MarkdownSelection,
+        kind: MarkdownEditKind
     ) {
+        if (replacements.size == 0L)
+            return
         while (entries.size > position)
             entries.removeAt(entries.size - 1L)
         if (
             !mergeOpen ||
                 position ==
                 0L ||
-                !entries[position - 1L].merge(change, before, after, kind)
+                !entries[position - 1L].merge(replacements, inverse, before, after, kind)
         ) {
-            entries.add(
-                MdHistoryEntry(before, after, kind, change.replacements, change.inverseReplacements)
-            )
+            entries.add(MdHistoryEntry(before, after, kind, replacements, inverse))
             position += 1L
         }
         mergeOpen = kind != MarkdownEditKind.Separate

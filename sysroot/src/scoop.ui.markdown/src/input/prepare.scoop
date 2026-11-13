@@ -1,0 +1,197 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+internal class MdSourceComposition(
+    val owner: MarkdownSourceInput,
+    val start: Long,
+    val baseline: TextInputState,
+    val selection: MarkdownSelection,
+    val current: TextInputState,
+    val spans: Array<MdInputSpan>
+) {
+    val marked: MarkdownRange? get() =
+        when (current.markedRange) {
+            case Some(val range) -> Some(MarkdownRange(start + range.start, start + range.end))
+            case None -> None
+        }
+}
+
+internal class MdInputPublication(
+    val current: TextInputState,
+    val source: MdInputDelta,
+    val history: MdInputDelta,
+    val historyBefore: MarkdownSelection,
+    val historyAfter: MarkdownSelection,
+    val selection: MarkdownSelection,
+    val composition: MdSourceComposition?,
+    val boundary: Boolean,
+    val kind: MarkdownEditKind
+) {
+    var published = false
+}
+
+internal fun mdInputVersion(input: TextInputState, revision: Long): TextInputState =
+    TextInputState(
+        input.surroundingText,
+        input.selection,
+        input.markedRange,
+        input.caretRect,
+        revision
+    )
+
+internal fun mdInputSelection(input: TextInputState, start: Long): MarkdownSelection =
+    MarkdownSelection(
+        MarkdownPosition(start + input.selection.anchor),
+        MarkdownPosition(start + input.selection.cursor)
+    )
+
+private fun mdNativeRange(input: TextInputState, replacement: TextReplacement): Utf8Range =
+    when (replacement) {
+        case CurrentSelection -> input.markedRange ?: input.selection.range
+        case Range(val range) -> range
+    }
+
+private fun mdExplicitInputRange(operation: TextInputOperation): Boolean =
+    when (operation) {
+        case Commit(_, TextReplacement.Range(_)) -> true
+        case Preedit(_, _, TextReplacement.Range(_)) -> true
+        else -> false
+    }
+
+internal fun mdPrepareSourceInput(
+    owner: MarkdownSourceInput,
+    previous: TextInputState,
+    batch: TextInputBatch
+): MdInputPublication? {
+    when (batch.baseRevision) {
+        case Some(val revision) -> if (revision != previous.revision)
+            throw IllegalStateException(Some("Stale Markdown input revision"))
+        case None -> Unit
+    }
+    if (batch.operations.size == 0L)
+        return None
+    if (previous.revision == 9223372036854775807L)
+        throw IllegalArgumentException(Some("Markdown input revision overflow"))
+    val start = owner.sourceRange.start
+    val originalSelection = owner.editor.selection
+    val composition = owner.editor.composition
+    val before = composition?.baseline ?: previous
+    val historyBefore = composition?.selection ?: originalSelection
+    var baseline = composition?.baseline
+    var baselineSelection = historyBefore
+    var current = mdInputVersion(previous, 0L)
+    var selected = originalSelection
+    var publicationSpans = mdInitialInputSpans(previous.surroundingText.byteLength)
+    var historySpans = composition?.spans ?: mdInitialInputSpans(before.surroundingText.byteLength)
+    var baselineSpans = mdInitialInputSpans(before.surroundingText.byteLength)
+    var activeSpans = composition?.spans ?: []
+    var restored = false
+    var boundary = batch.operations.size != 1L || previous.markedRange != None
+    for (operation in batch.operations) {
+        if (restored && mdExplicitInputRange(operation))
+            throw IllegalStateException(
+                Some("Native range predates Markdown composition cancellation")
+            )
+        val prior = current
+        val applied = prior.apply(TextInputBatch(None, [operation]))
+        when (operation) {
+            case Preedit(val text, _, val replacement) -> {
+                boundary = true
+                val range = mdNativeRange(prior, replacement)
+                if (text.byteLength == 0L && baseline != None) {
+                    val saved = baseline!!
+                    val inverse =
+                        mdInputDelta(
+                            saved.surroundingText,
+                            prior.surroundingText,
+                            activeSpans,
+                            0L
+                        ).inverse
+                    publicationSpans = mdMapInputSpans(publicationSpans, inverse)
+                    restored = restored || prior.surroundingText != saved.surroundingText
+                    current = mdInputVersion(saved, applied.revision)
+                    selected = baselineSelection
+                    historySpans = baselineSpans
+                    baseline = None
+                    activeSpans = []
+                } else {
+                    if (text.byteLength > 0L && baseline == None) {
+                        baseline = Some(prior)
+                        baselineSelection = selected
+                        baselineSpans = historySpans
+                        activeSpans = mdInitialInputSpans(prior.surroundingText.byteLength)
+                    }
+                    publicationSpans = mdSpliceInputSpans(publicationSpans, range, text.byteLength)
+                    historySpans = mdSpliceInputSpans(historySpans, range, text.byteLength)
+                    if (baseline != None)
+                        activeSpans = mdSpliceInputSpans(activeSpans, range, text.byteLength)
+                    current = applied
+                    selected = mdInputSelection(current, start)
+                }
+            }
+            case Commit(val text, val replacement) -> {
+                val range = mdNativeRange(prior, replacement)
+                publicationSpans = mdSpliceInputSpans(publicationSpans, range, text.byteLength)
+                historySpans = mdSpliceInputSpans(historySpans, range, text.byteLength)
+                baseline = None
+                activeSpans = []
+                current = applied
+                selected = mdInputSelection(current, start)
+            }
+            case ClearPreedit -> {
+                boundary = true
+                baseline = None
+                activeSpans = []
+                current = applied
+            }
+            case DeleteSurrounding(val left, val right) -> {
+                val range = prior.selection.range
+                val a = Utf8Range(range.end, range.end + right)
+                val b = Utf8Range(range.start - left, range.start)
+                publicationSpans =
+                    mdSpliceInputSpans(mdSpliceInputSpans(publicationSpans, a, 0L), b, 0L)
+                historySpans = mdSpliceInputSpans(mdSpliceInputSpans(historySpans, a, 0L), b, 0L)
+                boundary = true
+                baseline = None
+                activeSpans = []
+                current = applied
+                selected = mdInputSelection(current, start)
+            }
+        }
+    }
+    val committed = baseline ?: current
+    val committedSpans =
+        if (baseline == None)
+            historySpans
+        else
+            baselineSpans
+    val next = mdInputVersion(current, previous.revision + 1L)
+    val active =
+        when (baseline) {
+            case Some(val saved) -> Some(
+                MdSourceComposition(owner, start, saved, baselineSelection, next, activeSpans)
+            )
+            case None -> None
+        }
+    return Some(
+        MdInputPublication(
+            next,
+            mdInputDelta(previous.surroundingText, next.surroundingText, publicationSpans, start),
+            mdInputDelta(before.surroundingText, committed.surroundingText, committedSpans, start),
+            historyBefore,
+            if (baseline == None)
+                selected
+            else
+                baselineSelection,
+            selected,
+            active,
+            boundary,
+            if (boundary)
+                MarkdownEditKind.Separate
+            else
+                MarkdownEditKind.Typing
+        )
+    )
+}

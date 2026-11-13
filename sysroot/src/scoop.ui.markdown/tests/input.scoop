@@ -1,0 +1,281 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.repeat
+import scoop.window.*
+
+private fun inputBatch(input: MarkdownSourceInput, operations: List<TextInputOperation>): Boolean =
+    input.apply(TextInputBatch(Some(input.inputState.revision), operations))
+
+private fun preedit(text: String): TextInputOperation =
+    TextInputOperation.Preedit(text, None, TextReplacement.CurrentSelection)
+
+private fun commit(text: String): TextInputOperation =
+    TextInputOperation.Commit(text, TextReplacement.CurrentSelection)
+
+@Test
+private class MarkdownSourceInputTests {
+    @Test
+    fun `native context stays local in a large document and composes without relocation`() {
+        val source = "word 中文\n".repeat(100000L)
+        val document = MarkdownDocument.fromText(source)
+        val cursor = document.snapshot().positionOfLine(50000L).byteOffset
+        val editor = MarkdownEditorState(document, mdCaret(cursor))
+        val input = MarkdownSourceInput(editor, 128L)
+        assertTrue(input.inputState.surroundingText.byteLength < 264L)
+        val start = input.sourceRange.start
+        inputBatch(input, [preedit("ni")])
+        assertTrue(editor.isComposing)
+        assertEquals(Some(MarkdownRange(cursor, cursor + 2L)), editor.markedRange)
+        assertFalse(input.synchronize(true))
+        inputBatch(input, [preedit("你好😀")])
+        assertEquals(start, input.sourceRange.start)
+        assertEquals(Some(MarkdownRange(cursor, cursor + 10L)), editor.markedRange)
+        inputBatch(input, [commit("你好😀")])
+        assertFalse(editor.isComposing)
+        assertEquals(cursor + 10L, editor.selection.cursor.byteOffset)
+        assertFalse(input.synchronize())
+        assertTrue(editor.undo())
+        assertEquals(source, document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("你好😀", document.snapshot().read(MarkdownRange(cursor, cursor + 10L)))
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `cancel restores replaced source and directional selection without consuming history`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("before 世界 after"))
+        editor.replace(MarkdownRange(0L, 0L), "!")
+        val selected =
+            MarkdownSelection(
+                MarkdownPosition(14L),
+                MarkdownPosition(8L),
+                MarkdownBias.Before,
+                MarkdownBias.After
+            )
+        editor.setSelection(selected)
+        val input = MarkdownSourceInput(editor)
+        inputBatch(input, [preedit("nihao")])
+        assertEquals("!before nihao after", editor.document.toMarkdown())
+        inputBatch(input, [preedit("")])
+        assertEquals("!before 世界 after", editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        assertFalse(editor.isComposing)
+        assertTrue(editor.undo())
+        assertEquals("before 世界 after", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `commit and next preedit in one batch keep distinct history boundaries`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val input = MarkdownSourceInput(editor)
+        inputBatch(input, [preedit("ni")])
+        inputBatch(input, [commit("你"), preedit("hao")])
+        assertEquals("你hao", editor.document.toMarkdown())
+        assertEquals(Some(MarkdownRange(3L, 6L)), editor.markedRange)
+        editor.cancelComposition()
+        assertEquals("你", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("", editor.document.toMarkdown())
+        editor.redo()
+        assertEquals("你", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `atomic native batches preserve unmodified anchors and reject stale or invalid ranges`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("abc 中 def"))
+        val input = MarkdownSourceInput(editor)
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = editor.document.observe { change -> changes.add(change) }
+        inputBatch(
+            input,
+            [
+                TextInputOperation.Commit("A", TextReplacement.Range(Utf8Range(0L, 1L))),
+                TextInputOperation.Commit("F", TextReplacement.Range(Utf8Range(10L, 11L)))
+            ]
+        )
+        assertEquals("Abc 中 deF", editor.document.toMarkdown())
+        assertEquals(1L, changes.size)
+        assertEquals(2L, changes[0L].replacements.size)
+        assertEquals(
+            4L,
+            changes[0L].map(
+                MarkdownAnchor(MarkdownPosition(4L), MarkdownBias.After)
+            ).position.byteOffset
+        )
+        val revision = input.inputState.revision
+        assertFailsWith<IllegalStateException> {
+            input.apply(TextInputBatch(Some(revision - 1L), [commit("x")]))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            inputBatch(
+                input,
+                [
+                    commit("x"),
+                    TextInputOperation.Commit("bad", TextReplacement.Range(Utf8Range(5L, 6L)))
+                ]
+            )
+        }
+        assertEquals(revision, input.inputState.revision)
+        assertEquals("Abc 中 deF", editor.document.toMarkdown())
+        assertEquals(1L, changes.size)
+        assertFailsWith<IllegalArgumentException> {
+            inputBatch(input, [TextInputOperation.DeleteSurrounding(100L, 0L)])
+        }
+        editor.undo()
+        assertEquals("abc 中 def", editor.document.toMarkdown())
+        subscription.close()
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `accept and cancel without source changes still retire old native snapshots`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("雪"))
+        editor.setSelection(MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(3L)))
+        val input = MarkdownSourceInput(editor)
+        inputBatch(input, [preedit("雪")])
+        assertEquals(0L, editor.document.revision)
+        assertTrue(editor.isComposing)
+        assertTrue(editor.acceptComposition())
+        assertFalse(editor.isComposing)
+        assertFalse(editor.canUndo)
+        assertFailsWith<IllegalStateException> { inputBatch(input, [commit("x")]) }
+        assertFalse(input.synchronize())
+        assertEquals(None, input.inputState.markedRange)
+        assertEquals(0L, editor.document.revision)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `native surrounding deletion retains selected source and undo restores all ranges`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("甲乙丙丁"),
+                MarkdownSelection(MarkdownPosition(9L), MarkdownPosition(3L))
+            )
+        val input = MarkdownSourceInput(editor)
+        inputBatch(input, [TextInputOperation.DeleteSurrounding(3L, 3L)])
+        assertEquals("乙丙", editor.document.toMarkdown())
+        assertEquals(
+            MarkdownSelection(MarkdownPosition(6L), MarkdownPosition(0L)),
+            editor.selection
+        )
+        editor.undo()
+        assertEquals("甲乙丙丁", editor.document.toMarkdown())
+        assertEquals(
+            MarkdownSelection(MarkdownPosition(9L), MarkdownPosition(3L)),
+            editor.selection
+        )
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `external edits accept composition and reloads drop it without stale replay`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("tail"))
+        val input = MarkdownSourceInput(editor)
+        inputBatch(input, [preedit("你")])
+        editor.document.replace(MarkdownRange(7L, 7L), "!")
+        assertFalse(editor.isComposing)
+        editor.undo()
+        assertEquals("你tail", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("tail", editor.document.toMarkdown())
+        assertTrue(input.synchronize())
+        inputBatch(input, [preedit("好")])
+        editor.document.reset("reload")
+        assertFalse(editor.isComposing)
+        assertFalse(editor.canUndo)
+        assertTrue(input.synchronize())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `large selections are complete and ordinary typing merges outside compositions`() {
+        val text = "abc 中文\n".repeat(1000L)
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(text),
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(text.byteLength))
+            )
+        val input = MarkdownSourceInput(editor, 16L)
+        assertEquals(text, input.inputState.surroundingText)
+        inputBatch(input, [commit("a")])
+        inputBatch(input, [commit("b")])
+        inputBatch(input, [commit("c")])
+        assertEquals("abc", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("a", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals(text, editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `input cancellation rejects ranges from the canceled projection atomically`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("old"),
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(3L))
+            )
+        val input = MarkdownSourceInput(editor)
+        inputBatch(input, [preedit("temporary")])
+        val revision = editor.document.revision
+        assertFailsWith<IllegalStateException> {
+            inputBatch(
+                input,
+                [
+                    preedit(""),
+                    TextInputOperation.Commit("!", TextReplacement.Range(Utf8Range(0L, 0L)))
+                ]
+            )
+        }
+        assertEquals(revision, editor.document.revision)
+        assertEquals("temporary", editor.document.toMarkdown())
+        assertTrue(editor.isComposing)
+        inputBatch(input, [preedit(""), commit("new")])
+        assertEquals("new", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("old", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `one composition owner survives repeated preedits and updates after observer failure`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val first = MarkdownSourceInput(editor)
+        val second = MarkdownSourceInput(editor)
+        inputBatch(first, [preedit("n")])
+        assertFailsWith<IllegalStateException> { second.synchronize() }
+        val subscription =
+            editor.document.observe { _ -> throw IllegalStateException(Some("observer")) }
+        assertFailsWith<IllegalStateException> { inputBatch(first, [preedit("ni")]) }
+        assertEquals("ni", first.inputState.surroundingText)
+        assertEquals(editor.document.revision, first.documentRevision)
+        subscription.close()
+        inputBatch(first, [commit("你")])
+        assertFalse(editor.isComposing)
+        second.synchronize()
+        inputBatch(second, [preedit("好")])
+        second.close()
+        assertEquals("你好", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("你", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("", editor.document.toMarkdown())
+        first.close()
+        editor.close()
+    }
+}

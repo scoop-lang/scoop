@@ -1,0 +1,73 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdPublishEditorValue(
+    editor: MarkdownEditorState,
+    snapshot: MarkdownSnapshot,
+    selection: MarkdownSelection,
+    savedRevision: Long
+) {
+    val previous = editor.storage.value
+    val marked =
+        when (editor.composition) {
+            case Some(val value) -> value.marked
+            case None -> None
+        }
+    editor.storage.value =
+        MdEditorValue(
+            snapshot,
+            selection,
+            editor.history.canUndo,
+            editor.history.canRedo,
+            savedRevision,
+            marked,
+            previous.inputRevision + 1L
+        )
+}
+
+/** Ends a composition before an ordinary edit is added to the shared history. */
+internal fun mdEndSourceComposition(
+    editor: MarkdownEditorState,
+    snapshot: MarkdownSnapshot,
+    selection: MarkdownSelection
+): Boolean {
+    val active = editor.composition ?: return false
+    val text =
+        snapshot.read(
+            MarkdownRange(active.start, active.start + active.current.surroundingText.byteLength)
+        )
+    val delta = mdInputDelta(active.baseline.surroundingText, text, active.spans, active.start)
+    editor.history.breakGroup()
+    editor.history.appendEdits(
+        delta.replacements,
+        delta.inverse,
+        active.selection,
+        selection,
+        MarkdownEditKind.Separate
+    )
+    editor.history.breakGroup()
+    editor.composition = None
+    return true
+}
+
+internal fun mdPublishSourceInput(
+    editor: MarkdownEditorState,
+    snapshot: MarkdownSnapshot,
+    prepared: MdInputPublication
+) {
+    if (prepared.boundary)
+        editor.history.breakGroup()
+    editor.history.appendEdits(
+        prepared.history.replacements,
+        prepared.history.inverse,
+        prepared.historyBefore,
+        prepared.historyAfter,
+        prepared.kind
+    )
+    if (prepared.boundary)
+        editor.history.breakGroup()
+    editor.composition = prepared.composition
+    prepared.published = true
+    mdPublishEditorValue(editor, snapshot, prepared.selection, editor.storage.value.savedRevision)
+}
