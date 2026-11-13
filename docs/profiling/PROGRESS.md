@@ -90,3 +90,9 @@
 - compiler-rt 构建已在 Darwin ARM64、Linux GNU/musl、Windows MSVC-UCRT、MinGW-UCRT/MSVCRT 使用真实工具链完成。MSVC 在私有 LLVM 构建输入中选择与 Scoop 一致的动态 CRT；musl 使用独立 libc 头文件；输入未变化直接复用。Python 格式化、Ruff 通过，发行布局、manifest、LLVM 工具与许可证定向测试 21 项通过（1 项条件跳过）。
 - 本机完成全部 44 个系统 Cone 的 Profiling/full 和 Release/full 构建，连同 44 份训练映射及四种 runtime 打包成 1,220,497,376 字节的实际组件。使用隔离安装目录、本地 HTTP 发行源、真实 host 工具和 core/std 基础库，验证基础安装不下载 profiling、缺少组件时明确失败、独立安装、训练和反馈程序均输出 55、反馈程序无采集输出、移除后普通构建仍成功，以及再次安装复用下载缓存。首次测试包遗漏 `llvm-profdata` 动态依赖，补用正式依赖打包函数后整个流程通过；没有重新压缩完整库包。
 - 安装器仓库 `scoop-install` 与官网仓库 `scoop-lang.org` 的 `codex/profiling-pgo` 分支已分别提交并推送可选组件支持：安装、移除、更新保留选择，bootstrap/publisher 识别目标组件。实际 HTTP CLI、bootstrap 和 publisher 定向测试通过；原始日志保存在仓库外。
+
+### 性能与模板成本对照
+
+- 新增同一 callee 两个调用点的可运行基准及复现说明。真实采集得到 500 万与零次调用，反馈把热位置从静态 `not-profitable` 改为内联，冷位置保留；额外启用训练中未执行的稀疏位置后结果仍正确。结合既有算术、字符串和 GC 程序完成预热及五对 AB/BA，所有运行标准输出一致。
+- 测量覆盖普通 release、profiling、PGO release，以及相同 release 产物只更换 profiling runtime 的对照；记录内核与进程墙钟、CPU、RSS、代码及计数段大小，计时之外另核对分配／GC。调用点和字符串未显示明确净收益；Long hash 约慢 63%，已定位到嵌套模板的原函数归一化热度降低，导致 helper 停止内联。完整结果和适用边界见 [VALIDATION.md](VALIDATION.md)，不以实际读取或消费反馈代替性能收益。
+- 独立新缓存、单 worker 对照 default/full core/std 生产与同一 consumer 编译，保留产物体积和墙钟／CPU成本；完整组件安装后约 1.96 GB。原始逐次记录在仓库外，未引入自动调参、通用性能预算或额外验收框架。
