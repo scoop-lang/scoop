@@ -95,4 +95,4 @@ assert not release_output.exists()
 content = Path(ordinary).read_bytes()
 for marker in (b"scoop profiling:", b'{"scoop_profile":1', b"__llvm_prf_cnts", b".lprfc"):
     assert marker not in content, marker
-print("profiling runtime passed")
+sys.stdout.buffer.write(b"profiling runtime passed\n")

@@ -96,3 +96,8 @@
 - 新增同一 callee 两个调用点的可运行基准及复现说明。真实采集得到 500 万与零次调用，反馈把热位置从静态 `not-profitable` 改为内联，冷位置保留；额外启用训练中未执行的稀疏位置后结果仍正确。结合既有算术、字符串和 GC 程序完成预热及五对 AB/BA，所有运行标准输出一致。
 - 测量覆盖普通 release、profiling、PGO release，以及相同 release 产物只更换 profiling runtime 的对照；记录内核与进程墙钟、CPU、RSS、代码及计数段大小，计时之外另核对分配／GC。调用点和字符串未显示明确净收益；Long hash 约慢 63%，已定位到嵌套模板的原函数归一化热度降低，导致 helper 停止内联。完整结果和适用边界见 [VALIDATION.md](VALIDATION.md)，不以实际读取或消费反馈代替性能收益。
 - 独立新缓存、单 worker 对照 default/full core/std 生产与同一 consumer 编译，保留产物体积和墙钟／CPU成本；完整组件安装后约 1.96 GB。原始逐次记录在仓库外，未引入自动调参、通用性能预算或额外验收框架。
+
+### Windows 观测脚本适配
+
+- Windows 原生程序已经产生正确的调用计数和 GC 事件；定向验收暴露出两个脚本假设：短任务的 `GetThreadTimes` 差值可以为零，Python 文本标准输出默认转换为 CRLF。GC 仍严格核对逐片 CPU 与累计 CPU 相等，不再要求短任务计时必然大于零；四个探测脚本使用固定 LF 状态行。
+- Ruff 格式化与检查通过。本机 GC fixture 4 次外部调用再次通过，Windows MSVC-UCRT 的真实 GC 时间线、增量重启和缓冲截断也通过；完整 PGO 流程及另外两种 Windows CRT 继续使用同一组正式 fixture。

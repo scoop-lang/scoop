@@ -132,4 +132,4 @@ assert rejected.read_bytes() == b"previous executable"
 failure = build(expected=1, destination=rejected, mode="profiling")
 assert b"--profile-use requires" in failure.stderr, failure
 assert rejected.read_bytes() == b"previous executable"
-print("profiling feedback passed")
+sys.stdout.buffer.write(b"profiling feedback passed\n")

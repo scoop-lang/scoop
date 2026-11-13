@@ -91,7 +91,7 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 普通应用验证使用 release，已有项目的明确 profile 要求优先。选择其他 target 时先确认工具包及 native 环境确实支持它，使用 `--target <triple>`，不从规划文档推断已支持的平台。
 
-采集执行次数使用 `scoop build . --profile profiling`，它采用 release 优化并默认保留行表；普通 debug/release 不采集。程序运行时在 `SCOOP_PROFILE_DIR` 指定目录下为每次运行创建独立子目录，缺省为运行 cwd 下的 `scoop-profile/`。其中 `counts.profraw` 是 LLVM 计数，`runtime.jsonl` 保存启动、GC 总指标与退出信息；业务标准流保留原用途。正常返回和显式 `exit` 都尝试写出，业务非零退出仍可有有效样本，崩溃或强制终止不保证完整数据。
+采集执行次数使用 `scoop build . --profile profiling`，它采用 release 优化并默认保留行表；普通 debug/release 不采集。程序运行时在 `SCOOP_PROFILE_DIR` 指定目录下为每次运行创建独立子目录，缺省为运行 cwd 下的 `scoop-profile/`。其中 `counts.profraw` 是 LLVM 计数，`runtime.jsonl` 保存启动、GC 总指标、cycle/slice/phase 事件与退出信息；业务标准流保留原用途。GC 事件缓冲满后报告 dropped，总指标继续记录；时间以 ns 为单位，实际时钟精度可能使短阶段或任务的差值为零。正常返回和显式 `exit` 都尝试写出，业务非零退出仍可有有效样本，崩溃或强制终止不保证完整数据。
 
 profiling 默认需要所选目标的专用系统库，目录为 `<sysroot>/lib/<target>/profiling/instrumented`；其中所有系统 Cone 都采用 full 模板导出。缺失时按所用版本的组件安装提示准备，维护构建见仓库 `scripts/README.md`，不自动降级为普通系统库。采集计数可用配套 `llvm-profdata merge` 合并；Scoop 位置映射随 `.slib` 以 `.profile.json` 后缀保存，`scoopc profile-summary <profile-index.json> --message-format json` 读取 Scoop 数据索引并报告逻辑次数。次数不代表耗时，性能比较应使用无插桩 release 程序；独立 PGO 流程的交付状态以 `docs/profiling/PROGRESS.md` 为准。
 

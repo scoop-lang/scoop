@@ -80,7 +80,7 @@ assert {event["phase"] for group in phases.values() for event in group} == {
 totals = next(record for record in records if record.get("scoop_gc") == 1)
 for counter in ["root_slots", "mark_tasks", "traced_objects", "copied_bytes"]:
     assert sum(pause[counter] for pause in slices.values()) == totals[counter], (counter, totals)
-assert sum(pause["worker_cpu_ns"] for pause in slices.values()) == sum(totals["worker_cpu_ns"]) > 0
+assert sum(pause["worker_cpu_ns"] for pause in slices.values()) == sum(totals["worker_cpu_ns"])
 
 limited = run("limited", ["fill"], b"1100\n")
 trace = next(record for record in limited if record.get("event") == "gc-trace")
@@ -90,4 +90,4 @@ assert (
 totals = next(record for record in limited if record.get("scoop_gc") == 1)
 assert totals["full_collections"] >= 1100, totals
 assert limited[-1]["event"] == "finish" and limited[-1]["exit_code"] == 0
-print("profiling GC timeline passed")
+sys.stdout.buffer.write(b"profiling GC timeline passed\n")
