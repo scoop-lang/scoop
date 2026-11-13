@@ -4,6 +4,39 @@ use crate::{DiagnosticOriginV1, DiagnosticSeverityV1};
 mod check;
 mod documentation;
 
+#[test]
+fn feedback_summary_and_build_file_observations_round_trip() {
+    let summary = scoop_profile::UseSummary {
+        matched_functions: 2,
+        matched_positions: 9,
+        partial_positions: 1,
+        missing_positions: 3,
+        changed_positions: 4,
+        consumers: [
+            (scoop_profile::FeedbackConsumer::Inline, 2),
+            (scoop_profile::FeedbackConsumer::StringFusion, 1),
+        ]
+        .into(),
+    };
+    let result = success(vec![], vec![])
+        .unwrap()
+        .with_profile_use(Some(summary))
+        .with_compiler_inputs(vec![crate::CompilerInputV1::BuildFile(
+            crate::BuildFileInputV1 {
+                path: HostPathCarrier::from_path(std::path::Path::new(
+                    "training 数据/counts.profdata",
+                ))
+                .unwrap(),
+                length: 123,
+                modified: (false, 55, 42),
+            },
+        )]);
+    let response =
+        ScoopcResponseEnvelopeV1::success(RequestCorrelationId::from_array([12; 16]), result);
+    let frame = crate::encode_response_frame(&response).unwrap();
+    assert_eq!(crate::decode_response_frame(&frame).unwrap(), response);
+}
+
 fn diagnostic(severity: DiagnosticSeverityV1, message: String) -> StructuredDiagnosticV1 {
     StructuredDiagnosticV1::new(
         severity,

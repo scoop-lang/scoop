@@ -7,7 +7,7 @@
 use std::fmt;
 
 mod compiler_inputs;
-pub use compiler_inputs::{CompileTimeInputs, compiler_inputs_current};
+pub use compiler_inputs::{CompileTimeInputs, build_file_input, compiler_inputs_current};
 
 pub const VERSION: &str = env!("SCOOP_BUILD_VERSION");
 include!(concat!(env!("OUT_DIR"), "/deployment.rs"));

@@ -109,6 +109,7 @@ enum DecodedResponseV1 {
         used_generators: Vec<crate::GeneratorToolInputV1>,
         compiler_inputs: Vec<crate::CompilerInputV1>,
         profile_map: Option<DecodedHostPathCarrier>,
+        profile_use: Option<scoop_profile::UseSummary>,
     },
     Failure {
         request_id: Vec<u8>,
@@ -144,6 +145,7 @@ impl DecodedResponseV1 {
                 used_generators,
                 compiler_inputs,
                 profile_map,
+                profile_use,
             } => {
                 let warnings = warnings
                     .into_iter()
@@ -156,6 +158,7 @@ impl DecodedResponseV1 {
                 let result = ScoopcSuccessV1::new(product.validate()?, warnings, dumps)?
                     .with_used_generators(used_generators)
                     .with_compiler_inputs(compiler_inputs)
+                    .with_profile_use(profile_use)
                     .with_profile_map(
                         profile_map
                             .map(DecodedHostPathCarrier::validate)
@@ -214,8 +217,9 @@ impl WireEncode for DecodedResponseV1 {
                 used_generators,
                 compiler_inputs,
                 profile_map,
+                profile_use,
             } => {
-                encoder.map(8)?;
+                encoder.map(9)?;
                 encoder.field(0)?;
                 encoder.unsigned(1)?;
                 encoder.field(1)?;
@@ -244,7 +248,8 @@ impl WireEncode for DecodedResponseV1 {
                 if let Some(path) = profile_map {
                     path.encode(encoder)?;
                 }
-                Ok(())
+                encoder.field(8)?;
+                scoop_profile::UseSummary::encode_optional(profile_use.as_ref(), encoder)
             }
             Self::Failure {
                 request_id,
@@ -278,7 +283,7 @@ impl WireDecode for DecodedResponseV1 {
                 })
             }
             1 => {
-                crate::framing::expect_sum_length(decoder, fields, 8)?;
+                crate::framing::expect_sum_length(decoder, fields, 9)?;
                 let request_id = decoder.field(1, Decoder::owned_bytes)?;
                 let product = decoder.field(2, DecodedProduct::decode)?;
                 let warnings = decoder.field(3, decode_decoded_diagnostics)?;
@@ -301,6 +306,7 @@ impl WireDecode for DecodedResponseV1 {
                         1 => DecodedHostPathCarrier::decode(d).map(Some),
                         tag => Err(crate::framing::unknown_tag(d, tag)),
                     })?,
+                    profile_use: decoder.field(8, scoop_profile::UseSummary::decode_optional)?,
                 })
             }
             2 => {

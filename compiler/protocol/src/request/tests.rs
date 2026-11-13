@@ -42,6 +42,29 @@ fn target() -> TargetSelectionRequestV1 {
 }
 
 #[test]
+fn feedback_input_path_round_trips_without_becoming_a_language_input() {
+    let build = ScoopcBuildRequestV1::new(
+        crate::test_support::manifest("library"),
+        vec![],
+        vec![],
+        TrustedCoreRequestV1::Bootstrap,
+        target(),
+        path("output.slib"),
+        DiagnosticOutputPolicyV1::Structured,
+        StageDumpPolicyV1::None,
+    )
+    .unwrap()
+    .with_optimization(OptimizationMode::Release)
+    .with_profile_use(Some(path("training 数据 %/profile.json")));
+    let request = ScoopcRequestEnvelopeV1::new(RequestCorrelationId::from_array([13; 16]), build);
+    let decoded = decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&encode(&request).unwrap())
+        .unwrap()
+        .validate()
+        .unwrap();
+    assert_eq!(decoded, request);
+}
+
+#[test]
 fn core_manifest_request_round_trips_without_a_default_source_slot() {
     let request = ScoopcRequestEnvelopeV1::new(
         RequestCorrelationId::from_array([72; 16]),
@@ -79,11 +102,7 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
         .unwrap();
     assert_eq!(decoded.build().optimization(), OptimizationMode::Release);
     assert_eq!(decoded.build().target(), request.build().target());
-    let mut unknown = bytes;
-    let optimization = unknown.len() - 15;
-    assert_eq!(unknown[optimization], 2);
-    unknown[optimization] = 3;
-    assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown).is_err());
+    assert!(decode_canonical::<OptimizationMode>(&[3]).is_err());
 
     for mode in [Instrumentation::Off, Instrumentation::Generate] {
         let request = ScoopcRequestEnvelopeV1::new(
@@ -145,16 +164,11 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
             .unwrap(),
         test
     );
-    let mut unknown_purpose = bytes;
-    let purpose = unknown_purpose.len() - 11;
-    assert_eq!(unknown_purpose[purpose], 2);
-    unknown_purpose[purpose] = 3;
-    assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown_purpose).is_err());
+    assert!(decode_canonical::<crate::CompilationPurpose>(&[3]).is_err());
     let mut missing = encode(request.build()).unwrap();
-    let purpose = missing.len() - 10;
-    assert_eq!(&missing[purpose..], &[11, 1, 12, 0x80, 13, 0, 14, 2, 15, 1]);
-    missing.drain(purpose..purpose + 2);
-    missing[0] = 0xae;
+    assert_eq!(&missing[missing.len() - 2..], &[16, 0x80]);
+    missing.truncate(missing.len() - 2);
+    missing[0] = 0xaf;
     assert!(decode_canonical::<super::decode::DecodedScoopcBuildRequestV1>(&missing).is_err());
 }
 

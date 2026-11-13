@@ -163,6 +163,7 @@ fn success_response(
                 .map_err(ChildProtocolError::ConstructResponse)?
                 .with_used_generators(success.used_generators().to_vec())
                 .with_compiler_inputs(success.compiler_inputs().to_vec())
+                .with_profile_use(success.profile_use().cloned())
                 .with_profile_map(
                     success
                         .profile_map()

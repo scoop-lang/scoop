@@ -96,6 +96,12 @@ pub(super) struct BuildOptions {
     /// Optional cross-Cone IR templates: off, default or full.
     #[arg(long, default_value = "default")]
     pub export_ir: scoop_protocol::IrTemplateExport,
+    /// Use a Scoop profile index to guide release optimization.
+    #[arg(long)]
+    pub profile_use: Option<PathBuf>,
+    /// Fail before publication unless an optimization consumes matching feedback.
+    #[arg(long, requires = "profile_use")]
+    pub profile_use_required: bool,
     #[arg(long)]
     pub target_dir: Option<PathBuf>,
     #[arg(long)]

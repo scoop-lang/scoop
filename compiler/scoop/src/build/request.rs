@@ -55,4 +55,5 @@ pub struct BuildRequest {
     pub library_paths: Vec<PathBuf>,
     pub dumps: Option<BuildDumpRequest>,
     pub require_executable: bool,
+    pub profile_use_required: bool,
 }

@@ -18,3 +18,19 @@ pub(super) fn collect(graph: &crate::BuildGraphOutcome) -> BuildResult<Profiling
     }
     Ok(output)
 }
+
+pub(super) fn collect_use(graph: &crate::BuildGraphOutcome) -> ProfileUseBuildOutput {
+    let mut output = ProfileUseBuildOutput::default();
+    for node in graph.artifacts() {
+        let cone = node.artifact().summary().cone().coordinate().to_string();
+        if let Some(summary) = node.profile_use() {
+            output.source_cones.push(ProfileUseCone {
+                cone,
+                summary: summary.clone(),
+            });
+        } else {
+            output.precompiled_cones.push(cone);
+        }
+    }
+    output
+}

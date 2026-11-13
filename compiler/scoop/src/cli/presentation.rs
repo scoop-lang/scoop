@@ -136,6 +136,9 @@ impl Reporter {
                 "uninstrumented_cones": profile.uninstrumented_cones,
             });
         }
+        if let Some(profile_use) = &build.profile_use {
+            record["profile_use"] = json!(profile_use);
+        }
         if matches!(outcome, BuildOutcome::Artifact(_)) {
             record["kind"] = json!("artifact");
         }

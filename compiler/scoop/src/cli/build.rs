@@ -32,6 +32,15 @@ pub(super) fn requests(
     } else {
         BuildProfile::Debug
     });
+    if args.profile_use.is_some() && profile != BuildProfile::Release {
+        return Err(config(
+            "--profile-use requires --profile release (or --release)",
+        ));
+    }
+    let profile_use = args
+        .profile_use
+        .map(|path| absolute(&cwd, path))
+        .transpose()?;
     let debug_info = args.debug_info.unwrap_or(match profile {
         BuildProfile::Debug => scoop_lir::DebugInfoLevel::Full,
         BuildProfile::Release => scoop_lir::DebugInfoLevel::None,
@@ -50,6 +59,7 @@ pub(super) fn requests(
                 &sysroot,
                 selection.target(),
                 profile.instrumentation(),
+                profile_use.is_some(),
             )
         });
     let search = paths(&cwd, args.cone_path)?;
@@ -115,6 +125,7 @@ pub(super) fn requests(
         debug_info,
         export_ir: args.export_ir,
         instrumentation: profile.instrumentation(),
+        profile_use,
         purpose,
         jobs: args.jobs.unwrap_or_else(|| {
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
@@ -150,6 +161,7 @@ pub(super) fn requests(
             library_paths: libraries.clone(),
             dumps: None,
             require_executable,
+            profile_use_required: args.profile_use_required,
         })
         .collect())
 }

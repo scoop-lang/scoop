@@ -12,7 +12,7 @@ use scoop_wire::{Encoder, HashError, WireEncode, domain_separated_cbor_hash};
 mod testing;
 pub use testing::TestCompileConfiguration;
 
-const CACHE_KEY_DOMAIN: &str = "scoop-cone-compile-cache-v12";
+const CACHE_KEY_DOMAIN: &str = "scoop-cone-compile-cache-v13";
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ConeCompileCacheKeyV1([u8; 32]);
@@ -228,6 +228,7 @@ pub struct ConeCompileCacheInputV1 {
     debug_info: scoop_lir::DebugInfoLevel,
     export_ir: scoop_protocol::IrTemplateExport,
     instrumentation: scoop_profile::Instrumentation,
+    profile_use: Option<PathBuf>,
     purpose: CompilationPurpose,
 }
 
@@ -251,6 +252,7 @@ impl ConeCompileCacheInputV1 {
             debug_info: scoop_lir::DebugInfoLevel::None,
             export_ir: scoop_protocol::IrTemplateExport::Default,
             instrumentation: scoop_profile::Instrumentation::Off,
+            profile_use: None,
             purpose: CompilationPurpose::Production,
         }
     }
@@ -262,6 +264,11 @@ impl ConeCompileCacheInputV1 {
 
     pub(crate) fn with_debug_info(mut self, level: scoop_lir::DebugInfoLevel) -> Self {
         self.debug_info = level;
+        self
+    }
+
+    pub(crate) fn with_profile_use(mut self, path: Option<PathBuf>) -> Self {
+        self.profile_use = path;
         self
     }
 
@@ -303,7 +310,7 @@ impl ConeCompileCacheInputV1 {
 
 impl WireEncode for ConeCompileCacheInputV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(12)?;
+        encoder.map(13)?;
         encoder.field(1)?;
         encoder.unsigned(1)?;
         encoder.field(2)?;
@@ -327,7 +334,13 @@ impl WireEncode for ConeCompileCacheInputV1 {
         encoder.field(11)?;
         self.export_ir.encode(encoder)?;
         encoder.field(12)?;
-        self.instrumentation.encode(encoder)
+        self.instrumentation.encode(encoder)?;
+        encoder.field(13)?;
+        encoder.array(u64::from(self.profile_use.is_some()))?;
+        if let Some(path) = &self.profile_use {
+            encoder.bytes(path.as_os_str().as_encoded_bytes())?;
+        }
+        Ok(())
     }
 }
 

@@ -59,6 +59,7 @@ fn prepare(
     } else {
         scoop_toolchain::FinalOutputKind::Executable
     };
+    let uses_profile = request.graph.profile_use().is_some();
     let graph = request.graph;
     if request.require_executable && graph.root_kind() == RequestedConeKind::Library {
         return Err(BuildFailure::tool(
@@ -94,6 +95,16 @@ fn prepare(
         let profiling = (request.profile == BuildProfile::Profiling)
             .then(|| profiling::collect(&graph))
             .transpose()?;
+        let profile_use = uses_profile.then(|| profiling::collect_use(&graph));
+        if request.profile_use_required
+            && !profile_use
+                .as_ref()
+                .is_some_and(ProfileUseBuildOutput::used)
+        {
+            return Err(BuildFailure::tool("SCOOP_PROFILE_UNUSED", BuildFailurePhase::ChildOutput,
+                "profile feedback was not consumed by any optimization; train the current program again")
+                .with_context(graph.warnings(), &sources));
+        }
         let finish = || -> BuildResult<_> {
             if request.emit_slib || matches!(graph, crate::BuildGraphOutcome::Library { .. }) {
                 output
@@ -178,6 +189,7 @@ fn prepare(
             graph,
             sources,
             profiling,
+            profile_use,
         };
         let native_app = build.graph.root().artifact().summary().cone().kind()
             == scoop_slib::ConeKind::NativeApp;

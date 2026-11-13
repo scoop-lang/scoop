@@ -139,6 +139,7 @@ pub struct ScoopcSuccessV1 {
     used_generators: Vec<crate::GeneratorToolInputV1>,
     compiler_inputs: Vec<crate::CompilerInputV1>,
     profile_map: Option<HostPathCarrier>,
+    profile_use: Option<scoop_profile::UseSummary>,
 }
 
 impl ScoopcSuccessV1 {
@@ -159,12 +160,22 @@ impl ScoopcSuccessV1 {
             used_generators: Vec::new(),
             compiler_inputs: Vec::new(),
             profile_map: None,
+            profile_use: None,
         })
     }
 
     pub fn with_used_generators(mut self, inputs: Vec<crate::GeneratorToolInputV1>) -> Self {
         self.used_generators = inputs;
         self
+    }
+
+    pub fn with_profile_use(mut self, summary: Option<scoop_profile::UseSummary>) -> Self {
+        self.profile_use = summary;
+        self
+    }
+
+    pub fn profile_use(&self) -> Option<&scoop_profile::UseSummary> {
+        self.profile_use.as_ref()
     }
 
     pub fn with_profile_map(mut self, path: Option<HostPathCarrier>) -> Self {
@@ -307,7 +318,7 @@ fn encode_success(
     request_id: RequestCorrelationId,
     result: &ScoopcSuccessV1,
 ) -> Result<(), scoop_wire::cbor::EncodeError> {
-    encoder.map(8)?;
+    encoder.map(9)?;
     encoder.field(0)?;
     encoder.unsigned(1)?;
     encoder.field(1)?;
@@ -336,7 +347,8 @@ fn encode_success(
     if let Some(path) = &result.profile_map {
         path.encode(encoder)?;
     }
-    Ok(())
+    encoder.field(8)?;
+    scoop_profile::UseSummary::encode_optional(result.profile_use.as_ref(), encoder)
 }
 
 fn encode_failure(

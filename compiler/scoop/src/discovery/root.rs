@@ -35,6 +35,7 @@ impl BuildGraphRequest {
             debug_info,
             export_ir,
             instrumentation,
+            profile_use,
             purpose,
             jobs,
             generators,
@@ -45,6 +46,7 @@ impl BuildGraphRequest {
                 sysroot.as_path(),
                 target.lir_target(),
                 instrumentation,
+                profile_use.is_some(),
             )
         });
         LoadedBuildRoot::from_input(
@@ -61,6 +63,7 @@ impl BuildGraphRequest {
                 debug_info,
                 export_ir,
                 instrumentation,
+                profile_use,
                 purpose,
                 jobs,
                 generators,

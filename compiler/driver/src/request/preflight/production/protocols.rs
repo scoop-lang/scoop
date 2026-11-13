@@ -12,6 +12,8 @@ impl ValidatedCompilerProtocols {
 pub(super) struct MachineProduct {
     pub artifact: scoop_slib::AssembledCrossConeLayoutArtifactV1,
     pub profile_map: Option<scoop_profile::ProfileMap>,
+    pub profile_use: Option<scoop_profile::UseSummary>,
+    pub compiler_inputs: Vec<scoop_protocol::CompilerInputV1>,
 }
 
 pub(super) fn lower_machine(

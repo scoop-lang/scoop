@@ -1121,13 +1121,17 @@ native 预处理同时取得实际 include 名称及其所在文件，按该次 
 
 build/run/test 与 scoopc 接受 `--profile debug|release|profiling`，默认 debug；`--release` 为 release 简写，与显式 profile 同时出现为参数错误。profiling 使用 Release 优化、Generate 采集和默认 line-tables 调试信息；debug/release 默认关闭采集。显式 debug-info 覆盖默认值。采集配置独立于 OptimizationMode，经编译请求、缓存键及 MIR/LIR 正常数据通道传递；计数位置与反馈合同见 [profiling 设计](../profiling/DESIGN.md)。实际优化合同见 2.19。
 
-`scoopc profile-summary <profile.json> --message-format json` 只读 Scoop 数据索引、位置映射及 LLVM indexed profile，沿同一 reader 返回逻辑正文和位置计数。零、缺失、部分覆盖分别表达，错误输入退出非零；human 输出为可读摘要，JSON 写 stdout，诊断写 stderr。Generate 的 `.slib` 保存机器码带探针这一事实：bootstrap manifest schema 为 7，字段 12 为采集模式（Off=1、Generate=2）；container schema 保持 6。manifest summary 同步携带该字段，供最终链接和更新记录使用；该配置不进入语言实体身份或 ABI。compiler protocol 为 33，build request 字段 15 携带采集模式。Generate 同时产出 `<artifact>.profile.json` 位置映射，作为成功响应中的正常编译结果及缓存要求的输出。映射解释逻辑正文、内联副本与物理计数记录，不从显示名或 symbols 观察重建；缓存命中仅判断输入更新与所需结果存在，不读取映射或 `.slib` 复核内容。
+`scoopc profile-summary <profile.json> --message-format json` 只读 Scoop 数据索引、位置映射及 LLVM indexed profile，沿同一 reader 返回逻辑正文和位置计数。零、缺失、部分覆盖分别表达，错误输入退出非零；human 输出为可读摘要，JSON 写 stdout，诊断写 stderr。Generate 的 `.slib` 保存机器码带探针这一事实：bootstrap manifest schema 为 7，字段 12 为采集模式（Off=1、Generate=2）；container schema 保持 6。manifest summary 同步携带该字段，供最终链接和更新记录使用；该配置不进入语言实体身份或 ABI。compiler protocol 为 34，build request 字段 15 携带采集模式。Generate 同时产出 `<artifact>.profile.json` 位置映射，作为成功响应中的正常编译结果及缓存要求的输出。映射解释逻辑正文、内联副本与物理计数记录，不从显示名或 symbols 观察重建；缓存命中仅判断输入更新与所需结果存在，不读取映射或 `.slib` 复核内容。
 
 full 导出的普通访问器若直接操作 provider 全局存储或初始化门，消费方保留原入口并报告 unsupported-body。模板仍完整保存在产物中；当前外来正文的 HIR 存储模型没有对应实体时，不能把合法程序变成编译错误，也不能把 GlobalRead 改写为对同一访问器的递归展开。
 
 普通模板正文对 provider 全局属性的读写通过原 getter/setter 入口实现，保留初始化和 ThreadLocal 语义；native 全局继续经既有地址/指针读写合同。数组赋值沿 typed array/index 引用还原。导入正文中派生相等性等必要物化使用原定义的源码身份，不将外来源码编号索引到消费方源码表，也不重新按消费方可见性解释已解析的模板引用。
 
 LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的原生辅助数据，由 LLVM 的 section/COMDAT 规则选择和裁剪。产物以 callable 的三个关联对象 atom（ProfileCounters、ProfileData、ProfileNames）保存这些段及原生重定位，使代码 fingerprint 与 ODR 选择涵盖实际计数布局；不解析或重建 LLVM 记录内部格式，不增加 GC roots 或语言 ABI。正文对这些本对象数据的引用按关联 atom 边界解析。该规则不放宽 Scoop callable、runtime record 或 GC metadata 的检查。
+
+`--profile-use <Scoop index>` 只与 release 构建组合，选择配套 Release/full 系统库并在普通机器降低入口一次读取索引、indexed counts 和映射；损坏或目标不符报告输入错误，局部正文不匹配按成本合同回退。`--profile-use-required` 要求提供索引，并在最终输出链接／发布之前要求本次源码构建至少一个优化实际消费反馈；源码依赖与根 Cone 的正常完成记录共同提供判断，不能逐个要求无候选的依赖使用反馈。直接 scoopc 构建的 required 作用于其单个 Cone。
+
+Compiler protocol 34 的 build field 16 保存可选反馈索引路径，success field 8 保存可选 UseSummary。普通编译更新记录保存该摘要及索引、计数、映射文件的路径／长度／修改时间；这些是构建输入，不受语言 include 文件的源码目录规则限制。缓存命中只比较已记录的输入状态，复用原摘要，不重新读取索引或调用 LLVM。反馈索引的选择进入 compile key，文件内容更新通过正常 compiler input 判断；profile 数据和 UseSummary 不写入共享 HIR、`.slib` 语义指纹或 runtime ABI。
 
 维护生产可用 `--system-library-root` 显式选择一套目标系统库目录，沿相同依赖通道传递，不改变 native sysroot。PM protocol 为 8，prepare request 的 `system_library_root` 传递上层已选路径；PM 沿正常依赖规则消费该路径，不决定采集或反馈模式。系统库在依赖解析之前选择：profiling 使用 `<sysroot>/lib/<target>/profiling/instrumented`，Release 反馈构建使用配套的 `profiling/release`，普通构建使用原 target 根。两套库由可选组件 `lib-profiling-<target>` 提供，所有系统 Cone 使用 full 导出。缺失组件时报告所需组件和安装方式，不隐式下载或回退到普通库；显式低层依赖及 core bootstrap 仍能生产该组件。native/GUI 资源沿原组件复用，runtime 选择独立带采集能力的对象索引和目标对应的 compiler-rt profile archive。程序输出目录与 `SCOOP_PROFILE_DIR` 不作为源码编译输入。
 

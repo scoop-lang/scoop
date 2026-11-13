@@ -15,6 +15,7 @@ pub enum CurrentConeProductionFailure {
     Publication(scoop_slib::CrossConeArtifactPublishError),
     Documentation(super::DocumentationProductionError),
     Profiling(std::io::Error),
+    ProfileUse(crate::profiling::ProfileInputError),
 }
 
 impl fmt::Display for CurrentConeProductionFailure {
@@ -34,6 +35,7 @@ impl fmt::Display for CurrentConeProductionFailure {
             Self::Layout(source) => source.fmt(formatter),
             Self::Publication(source) => source.fmt(formatter),
             Self::Documentation(source) => source.fmt(formatter),
+            Self::ProfileUse(source) => source.fmt(formatter),
             Self::Profiling(source) => write!(formatter, "cannot publish profile map: {source}"),
         }
     }
@@ -55,6 +57,7 @@ impl std::error::Error for CurrentConeProductionFailure {
             Self::Publication(source) => source,
             Self::Documentation(source) => source,
             Self::Profiling(source) => source,
+            Self::ProfileUse(source) => source,
         })
     }
 }

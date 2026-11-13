@@ -181,6 +181,7 @@ pub struct BuildGraphRequest {
     debug_info: scoop_lir::DebugInfoLevel,
     export_ir: scoop_protocol::IrTemplateExport,
     instrumentation: scoop_profile::Instrumentation,
+    profile_use: Option<PathBuf>,
     purpose: CompilationPurpose,
     jobs: std::num::NonZeroUsize,
     generators: scoop_toolchain::GeneratorPrograms,
@@ -199,6 +200,7 @@ pub(crate) struct BuildGraphRequestParts {
     pub(crate) debug_info: scoop_lir::DebugInfoLevel,
     pub(crate) export_ir: scoop_protocol::IrTemplateExport,
     pub(crate) instrumentation: scoop_profile::Instrumentation,
+    pub(crate) profile_use: Option<PathBuf>,
     pub(crate) purpose: CompilationPurpose,
     pub(crate) jobs: std::num::NonZeroUsize,
     pub(crate) generators: scoop_toolchain::GeneratorPrograms,
@@ -232,6 +234,7 @@ impl BuildGraphRequest {
             debug_info: scoop_lir::DebugInfoLevel::None,
             export_ir: scoop_protocol::IrTemplateExport::Default,
             instrumentation: scoop_profile::Instrumentation::Off,
+            profile_use: None,
             purpose: CompilationPurpose::Production,
             jobs: std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN),
             generators: Default::default(),
@@ -250,6 +253,11 @@ impl BuildGraphRequest {
 
     pub fn with_system_library_root(mut self, root: PathBuf) -> Self {
         self.system_library_root = Some(root);
+        self
+    }
+
+    pub fn with_profile_use(mut self, path: Option<PathBuf>) -> Self {
+        self.profile_use = path;
         self
     }
 
@@ -326,6 +334,7 @@ impl BuildGraphRequest {
             debug_info: self.debug_info,
             export_ir: self.export_ir,
             instrumentation: self.instrumentation,
+            profile_use: self.profile_use,
             purpose: self.purpose,
             jobs: self.jobs,
             generators: self.generators,

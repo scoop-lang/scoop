@@ -38,6 +38,7 @@ pub struct BuildContext {
     pub debug_info: scoop_lir::DebugInfoLevel,
     pub export_ir: scoop_protocol::IrTemplateExport,
     pub instrumentation: scoop_profile::Instrumentation,
+    pub profile_use: Option<PathBuf>,
     pub purpose: scoop_protocol::CompilationPurpose,
     pub jobs: std::num::NonZeroUsize,
     pub generators: scoop_toolchain::GeneratorPrograms,

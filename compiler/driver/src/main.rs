@@ -67,6 +67,12 @@ struct BuildArgs {
     /// Optional cross-Cone IR templates: off, default or full.
     #[arg(long, default_value = "default")]
     export_ir: scoop_hir::IrTemplateExport,
+    /// Use a Scoop profile index to guide release optimization.
+    #[arg(long)]
+    profile_use: Option<PathBuf>,
+    /// Require at least one optimization to consume matching feedback.
+    #[arg(long, requires = "profile_use")]
+    profile_use_required: bool,
     /// Maximum concurrent compiler workers; defaults to the available parallelism.
     #[arg(short = 'j', long)]
     jobs: Option<std::num::NonZeroUsize>,
@@ -139,6 +145,8 @@ fn main() -> ExitCode {
                 profile,
                 debug_info,
                 export_ir,
+                profile_use,
+                profile_use_required,
                 jobs,
             } = *args;
             build(
@@ -150,6 +158,8 @@ fn main() -> ExitCode {
                 scoopc::DirectBuildOptions {
                     optimization: profile.optimization(),
                     export_ir,
+                    profile_use,
+                    profile_use_required,
                     instrumentation: match profile {
                         Profile::Profiling => scoop_profile::Instrumentation::Generate,
                         Profile::Debug | Profile::Release => scoop_profile::Instrumentation::Off,

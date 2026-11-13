@@ -32,6 +32,29 @@ pub(super) fn assemble(
     let mut report = matches!(request.emit(), StageDumpPolicy::Stages(stages)
         if stages.contains(StageDumpKind::Optimizations))
     .then(mir::optimization_report::OptimizationReport::default);
+    let profile = request
+        .profile_use()
+        .map(|path| {
+            crate::profiling::read_profile(
+                path,
+                Some(
+                    request
+                        .target_selection()
+                        .target()
+                        .contract()
+                        .canonical_triple(),
+                ),
+            )
+        })
+        .transpose()
+        .map_err(CurrentConeProductionFailure::ProfileUse)?;
+    let profiling = match &profile {
+        Some(profile) => scoop_mir_lower::ProfilingInput::Use(&profile.feedback),
+        None if request.instrumentation() == scoop_profile::Instrumentation::Generate => {
+            scoop_mir_lower::ProfilingInput::Generate
+        }
+        None => scoop_mir_lower::ProfilingInput::Off,
+    };
     let mir = hir
         .machine_input()
         .lower_selected_mir(
@@ -41,9 +64,18 @@ pub(super) fn assemble(
                 lir::OptimizationMode::Release => scoop_mir_lower::MirOptimizationOptions::RELEASE,
             },
             report.as_mut(),
-            request.instrumentation(),
+            profiling,
         )
         .map_err(CurrentConeProductionFailure::Mir)?;
+    let profile_use = mir.strong.module().meta.profiling.use_summary();
+    if request.profile_use_required()
+        && !profile_use
+            .as_ref()
+            .is_some_and(scoop_profile::UseSummary::used)
+    {
+        return Err(CurrentConeProductionFailure::ProfileUse(crate::profiling::ProfileInputError(
+            "profile feedback was not consumed by any optimization; train the current program again".into())));
+    }
     dump.extend(capture_stage_dump(
         request.emit(),
         StageDumpKind::Mir,
@@ -342,6 +374,8 @@ pub(super) fn assemble(
             ControlFlow::Continue(protocols::MachineProduct {
                 artifact,
                 profile_map,
+                profile_use,
+                compiler_inputs: profile.map_or_else(Vec::new, |profile| profile.compiler_inputs),
             })
         })
         .map_err(Error::Artifact)

@@ -8,6 +8,21 @@ use scoop_wire::sha256;
 use super::*;
 
 #[test]
+fn feedback_selection_changes_compile_key_without_changing_semantic_identity() {
+    let plain = input(1);
+    let first = plain
+        .clone()
+        .with_profile_use(Some(PathBuf::from("training-a/profile.json")));
+    let second = plain
+        .clone()
+        .with_profile_use(Some(PathBuf::from("training-b/profile.json")));
+    assert_ne!(plain.key().unwrap(), first.key().unwrap());
+    assert_ne!(first.key().unwrap(), second.key().unwrap());
+    assert_eq!(plain.current_semantic(), first.current_semantic());
+    assert_eq!(plain.dependencies(), first.dependencies());
+}
+
+#[test]
 fn optimization_changes_only_the_current_compile_key() {
     let debug = input(1);
     let release = debug

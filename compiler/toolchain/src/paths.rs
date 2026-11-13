@@ -204,9 +204,11 @@ pub fn system_library_root(
     sysroot: &Path,
     target: scoop_lir::LirTargetProfile,
     instrumentation: scoop_protocol::Instrumentation,
+    feedback: bool,
 ) -> PathBuf {
     let root = target_library_root(sysroot, target);
     match instrumentation {
+        scoop_protocol::Instrumentation::Off if feedback => root.join("profiling/release"),
         scoop_protocol::Instrumentation::Off => root,
         scoop_protocol::Instrumentation::Generate => root.join("profiling/instrumented"),
     }

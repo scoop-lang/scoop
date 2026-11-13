@@ -7,6 +7,7 @@ pub struct LoadedProfile {
     pub feedback: scoop_profile::Feedback,
     pub maps: Vec<scoop_profile::ProfileMap>,
     pub input_paths: Vec<PathBuf>,
+    pub compiler_inputs: Vec<scoop_protocol::CompilerInputV1>,
 }
 
 #[derive(Debug)]
@@ -22,7 +23,11 @@ pub fn read_profile(
     index: &Path,
     target: Option<&str>,
 ) -> Result<LoadedProfile, ProfileInputError> {
-    let read = |path: &Path| {
+    let mut compiler_inputs = Vec::new();
+    let mut read = |path: &Path| {
+        compiler_inputs.push(scoop_protocol::CompilerInputV1::BuildFile(
+            scoop_toolchain::build_file_input(path).map_err(ProfileInputError)?,
+        ));
         std::fs::read(path)
             .map_err(|e| ProfileInputError(format!("profile input {}: {e}", path.display())))
     };
@@ -69,5 +74,6 @@ pub fn read_profile(
         feedback,
         maps,
         input_paths,
+        compiler_inputs,
     })
 }

@@ -206,6 +206,7 @@ pub struct SingleConeProductionSuccess {
     compiler_inputs: Vec<scoop_protocol::CompilerInputV1>,
     pub(in crate::request) documentation: Option<PublishedDocumentation>,
     pub(in crate::request) profile_map: Option<std::path::PathBuf>,
+    pub(in crate::request) profile_use: Option<scoop_profile::UseSummary>,
 }
 
 impl SingleConeProductionSuccess {
@@ -224,7 +225,12 @@ impl SingleConeProductionSuccess {
             compiler_inputs,
             documentation: None,
             profile_map: None,
+            profile_use: None,
         }
+    }
+
+    pub fn profile_use(&self) -> Option<&scoop_profile::UseSummary> {
+        self.profile_use.as_ref()
     }
 
     pub fn profile_map(&self) -> Option<&std::path::Path> {

@@ -1,6 +1,6 @@
 schema = 1
 name = "profiling-runtime"
-inputs = ["program.scoop", "probe.py", "../../../language/callback/native.c", "../../../language/callback/threading.h"]
+inputs = ["program.scoop", "probe.py", "probe_use.py", "../../../language/callback/native.c", "../../../language/callback/threading.h"]
 tools = ["scoop", "scoopc", "python", "llvm-profdata", "cc", "ar"]
 tags = ["profiling", "runtime", "compiler-correctness"]
 
@@ -67,4 +67,12 @@ argv = ["${python}", "${fixture}/probe.py", "${scoopc}", "${llvm-profdata}", "${
 timeout = 180
 exit = 0
 stdout = "profiling runtime passed\n"
+stderr = ""
+
+[[steps]]
+name = "feedback"
+argv = ["${python}", "${fixture}/probe_use.py", "${scoop}", "${llvm-profdata}", "${fixture}/program.scoop", "${work}", "${cache}", "${sysroot}", {each = "${link_args}"}]
+timeout = 300
+exit = 0
+stdout = "profiling feedback passed\n"
 stderr = ""
