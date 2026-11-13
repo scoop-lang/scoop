@@ -128,7 +128,7 @@ NativeByteBuffer 新增普通公开 `@Unsafe borrowReadable(count: Long): Native
 
 `@Unsafe complete(count: Long): Unit` 表示 native 已不再使用该地址，提交实际进度后解除借用；readable 推进 reader，writable 推进 writer。writable 的 count 前缀必须已被初始化。取消或其他异常也先按实际已知进度完成借用再向调用方结束等待；complete 本身不取消 native 操作。只有一个 complete 调用能消费本次借用，再次或并发重复调用抛 IllegalStateException。count 不在 `0..length` 时不提交进度、解除借用并抛 IllegalArgumentException；失败后不可重试同一借用。
 
-取得借用后，调用方必须持有它直到 native 收尾完成，并在全部出口恰好消费一次；不能在 complete 后继续使用先前取得的指针。丢弃借用不执行隐式异步清理。分配或登记失败不改变 owner 的借用状态。同步 4.3 入口保持原签名与游标合同；它们通过同一借用机制在 callback 的正常／异常出口完成收尾。
+取得借用后，调用方必须持有它直到 native 收尾完成，并在全部出口恰好消费一次；不能在 complete 后继续使用先前取得的指针。丢弃借用不执行隐式异步清理。分配或登记失败不改变 owner 的借用状态。同步 4.3 入口复用同一 owner 借用状态、范围检查和游标提交；范围可保存为局部值，无需构造供跨挂起消费的 NativeByteBorrow。同步 callback 的正常／异常出口直接解除登记，owner 仍按 4.3 保活。
 
 ## 5. 同步字节流、缓冲与 UTF-8
 

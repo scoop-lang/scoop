@@ -517,12 +517,12 @@ public class NativeByteBuffer private constructor(): Closeable {
      */
     @Unsafe
     public fun <R> withReadableBytes(block: (Ptr<Byte>?, Long) -> R): R {
-        val borrow = beginBorrow(None, false)
+        val(pointer, length) = beginScopedBorrow(false)
         try {
-            return block(borrow.pointer(), borrow.length)
+            return block(pointer, length)
         }
         finally {
-            borrow.complete(0L)
+            finishBorrow(0L, length, false)
         }
     }
 
@@ -532,16 +532,16 @@ public class NativeByteBuffer private constructor(): Closeable {
      */
     @Unsafe
     public fun withWritableBytes(block: (Ptr<Byte>?, Long) -> Long): Long {
-        val borrow = beginBorrow(None, true)
+        val(pointer, length) = beginScopedBorrow(true)
         val count =
             try {
-                block(borrow.pointer(), borrow.length)
+                block(pointer, length)
             }
             catch (error: Throwable) {
-                borrow.complete(0L);
+                finishBorrow(0L, length, true);
                 throw error
             }
-        borrow.complete(count)
+        finishBorrow(count, length, true)
         return count
     }
 
@@ -559,35 +559,53 @@ public class NativeByteBuffer private constructor(): Closeable {
     @Unsafe
     public fun borrowWritable(count: Long): NativeByteBorrow = beginBorrow(Some(count), true)
 
+    // The caller holds stateLock; both borrow forms validate the same range.
+    private fun borrowRange(count: Long?, writable: Boolean): (Ptr<Byte>?, Long) {
+        requireMutable()
+        val available =
+            if (writable)
+                storageCapacity - writer
+            else
+                writer - reader
+        val length = count ?: available
+        requireCount(length)
+        if (length > available)
+            throw IndexOutOfBoundsException()
+        val offset =
+            if (writable)
+                writer
+            else
+                reader
+        @Unsafe
+        {
+            val pointer: Ptr<Byte>? =
+                if (length == 0L)
+                    None
+                else
+                    Some(memory!! + offset)
+            return (pointer, length)
+        }
+    }
+
+    private fun beginScopedBorrow(writable: Boolean): (Ptr<Byte>?, Long) {
+        acquireState()
+        try {
+            val range = borrowRange(None, writable)
+            borrowed = true
+            return range
+        }
+        finally {
+            releaseState()
+        }
+    }
+
     private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow {
         acquireState()
         try {
-            requireMutable()
-            val available =
-                if (writable)
-                    storageCapacity - writer
-                else
-                    writer - reader
-            val length = count ?: available
-            requireCount(length)
-            if (length > available)
-                throw IndexOutOfBoundsException()
-            val offset =
-                if (writable)
-                    writer
-                else
-                    reader
-            @Unsafe
-            {
-                val pointer: Ptr<Byte>? =
-                    if (length == 0L)
-                        None
-                    else
-                        Some(memory!! + offset)
-                val borrow = NativeByteBorrow(this, pointer, length, writable)
-                borrowed = true
-                return borrow
-            }
+            val(pointer, length) = borrowRange(count, writable)
+            val borrow = NativeByteBorrow(this, pointer, length, writable)
+            borrowed = true
+            return borrow
         }
         finally {
             releaseState()
@@ -595,7 +613,8 @@ public class NativeByteBuffer private constructor(): Closeable {
     }
 
     internal fun finishBorrow(count: Long, length: Long, writable: Boolean) {
-        withState {
+        acquireState()
+        try {
             borrowed = false
             if (count < 0L || count > length)
                 throw IllegalArgumentException(Some("invalid borrowed byte count"))
@@ -603,6 +622,9 @@ public class NativeByteBuffer private constructor(): Closeable {
                 writer += count
             else
                 reader += count
+        }
+        finally {
+            releaseState()
         }
     }
 
