@@ -41,6 +41,7 @@
 - Linux GNU x86-64（LLVM 22.1.2）与 Windows MinGW-UCRT x86-64（LLVM 22.1.8）：均使用独立源码目录和正式准备入口构建 runtime、Release/full core；消费 full core 的导出语义用例通过 3 档、15 次进程调用，普通跨 Cone 内联用例通过 4 个组合、16 次进程调用。Linux 另通过 4 项完整 HIR 导出定向单测。尚未用本项单独覆盖 Linux musl、Windows MSVC/MinGW-MSVCRT，不能由上述结果推定所有发行目标已验收。
 - Windows 验收发现深层缓存目录中的优化报告发布失败：`tempfile::persist` 直接调用 Windows API，没有处理超长路径。发布前将已有目录解析为扩展路径后闭合；定向回归在原实现真实失败，修复后通过，随后上述 CLI 组合全部通过。本机格式化、`scoop` 定向 Clippy 和 2 项观察缓存测试通过。修复仅影响显式阶段输出复制，不增加普通缓存命中的内容检查。
 - full 系统库构建暴露出 provider 存储访问器的导入边界：当前消费方不能直接表达外来 backing slot 和初始化门。保留完整模板，在使用时保留 provider 入口并报告 `unsupported-body`；不引入另一套存储 ABI。新增动态初始化及 image 值读写后，三档正式导出 fixture 在本机再次通过。
+- 全量 full 系统库进一步覆盖普通模板中的全局赋值、ThreadLocal 写入、数组写入和导入类型的派生相等性。全局写入沿 provider setter（native 全局沿指针）还原，访问域使用原定义源码身份。定向 HIR 单测通过；正式导出 fixture 扩展上述行为后，三档、15 次进程调用全部通过，full 档确认这些正文实际进入优化评估。格式化与 HIR Clippy 通过（仅既有警告）。
 
 ### Profiling 构建与运行时
 

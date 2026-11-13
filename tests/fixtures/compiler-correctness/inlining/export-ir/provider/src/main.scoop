@@ -49,3 +49,22 @@ public suspend fun delayed(registration: SuspendRegistration<Int>): Int {
 private fun initialValue(): Int = 8
 public var stored: Int = initialValue()
 public val imageValue: Int = 13
+
+@ThreadLocal
+private var threadValue: Int = 0
+
+public fun changeStored(value: Int): Int {
+    stored = value
+    return stored
+}
+
+public fun changeThreadValue(value: Int): Int {
+    @Unsafe {
+        threadValue = value
+        return threadValue
+    }
+}
+
+public fun writeFirst(values: MutableArray<Int>, value: Int) {
+    values[0L] = value
+}

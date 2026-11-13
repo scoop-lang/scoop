@@ -19,7 +19,7 @@ for name in ["Request.<init>", "delayed", "stored", "imageValue"]:
     assert all(item["outcome"] == expected for item in decisions(name)), name
 
 if mode == "full":
-    for name in ["make", "handled", "current"]:
+    for name in ["make", "handled", "current", "changeStored", "changeThreadValue", "writeFirst"]:
         assert any(item["estimate"] is not None for item in decisions(name)), name
 elif mode == "off":
     assert all(item["outcome"] == "no-mir-body" for item in decisions("ordinary"))

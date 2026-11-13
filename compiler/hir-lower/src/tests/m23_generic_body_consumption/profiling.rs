@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn full_template_derived_equality_uses_imported_source_identity() {
+    with_provider_consumer_export_ir(
+        r#"
+        package profile.provider
+        public struct Box<T>(val value: T)
+        public fun same(left: Box<Int>, right: Box<Int>): Boolean = left == right
+        "#,
+        r#"
+        import profile.provider.*
+        public fun answer(): Boolean = same(Box<Int>(1), Box<Int>(1))
+        "#,
+        hir::IrTemplateExport::Full,
+        |output, _, _, _, _| {
+            hir::CanonicalHirFoundation::from_dependency_output(&output).unwrap();
+        },
+    )
+    .unwrap();
+}
+
+#[test]
 fn profiling_matches_provider_and_imported_ordinary_body_keys() {
     let provider = r#"
         package profile.provider

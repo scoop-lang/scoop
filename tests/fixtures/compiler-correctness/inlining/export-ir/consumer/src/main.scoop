@@ -32,6 +32,10 @@ fun main(): Int {
     if (stored != 8 || imageValue != 13) return 8
     stored += 1
     if (stored != 9) return 9
+    if (changeStored(12) != 12 || changeThreadValue(17) != 17) return 10
+    val values: MutableArray<Int> = [0]
+    writeFirst(values, 42)
+    if (values[0L] != 42) return 11
 
     if (generic(defaulted()) != 7 || ordinary(41) != 42)
         return 1

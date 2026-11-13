@@ -1125,6 +1125,8 @@ build/run/test 与 scoopc 接受 `--profile debug|release|profiling`，默认 de
 
 full 导出的普通访问器若直接操作 provider 全局存储或初始化门，消费方保留原入口并报告 unsupported-body。模板仍完整保存在产物中；当前外来正文的 HIR 存储模型没有对应实体时，不能把合法程序变成编译错误，也不能把 GlobalRead 改写为对同一访问器的递归展开。
 
+普通模板正文对 provider 全局属性的读写通过原 getter/setter 入口实现，保留初始化和 ThreadLocal 语义；native 全局继续经既有地址/指针读写合同。数组赋值沿 typed array/index 引用还原。导入正文中派生相等性等必要物化使用原定义的源码身份，不将外来源码编号索引到消费方源码表，也不重新按消费方可见性解释已解析的模板引用。
+
 LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的原生辅助数据，由 LLVM 的 section/COMDAT 规则选择和裁剪。产物以 callable 的三个关联对象 atom（ProfileCounters、ProfileData、ProfileNames）保存这些段及原生重定位，使代码 fingerprint 与 ODR 选择涵盖实际计数布局；不解析或重建 LLVM 记录内部格式，不增加 GC roots 或语言 ABI。正文对这些本对象数据的引用按关联 atom 边界解析。该规则不放宽 Scoop callable、runtime record 或 GC metadata 的检查。
 
 维护生产可用 `--system-library-root` 显式选择一套目标系统库目录，沿相同依赖通道传递，不改变 native sysroot。PM protocol 为 8，prepare request 的 `system_library_root` 传递上层已选路径；PM 沿正常依赖规则消费该路径，不决定采集或反馈模式。系统库在依赖解析之前选择：profiling 使用 `<sysroot>/lib/<target>/profiling/instrumented`，Release 反馈构建使用配套的 `profiling/release`，普通构建使用原 target 根。两套库由可选组件 `lib-profiling-<target>` 提供，所有系统 Cone 使用 full 导出。缺失组件时报告所需组件和安装方式，不隐式下载或回退到普通库；显式低层依赖及 core bootstrap 仍能生产该组件。native/GUI 资源沿原组件复用，runtime 选择独立带采集能力的对象索引和目标对应的 compiler-rt profile archive。程序输出目录与 `SCOOP_PROFILE_DIR` 不作为源码编译输入。
