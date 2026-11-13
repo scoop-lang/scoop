@@ -127,6 +127,15 @@ def collect_bin(root, repository, host):
     collector.finish()
 
 
+def collect_profiling(root, source, target):
+    """The optional target component contains LLVM's profile runtime."""
+    collector = Collector(root, "profiling-" + target)
+    collector.add(
+        "compiler-rt", "Apache-2.0 WITH LLVM-exception", [source / "compiler-rt/LICENSE.TXT"]
+    )
+    collector.finish()
+
+
 def collect_llvm(root, source, host, native, python_license=None):
     """Licenses of the LLVM/LLDB toolchain package, including its Python runtime."""
     collector = Collector(root, "llvm")

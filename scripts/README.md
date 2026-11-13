@@ -124,7 +124,7 @@ python3 scripts/prepare_sysroot.py \
 
 该模式在 `lib/<target>/profiling/instrumented/` 生成 Profiling/full 库，在 `profiling/release/` 生成 Release/full 库；覆盖目标支持的全部系统 Cone，包括 GUI。另在 `profiling/` 下准备四种 runtime 配置及其 `profile.a`。`--runtime-only` 可只准备所选普通或 profiling runtime。native、base、GUI 的第三方资源沿原准备步骤复用，脚本不下载工具或自动生产缺失的 native 依赖。
 
-`scoop build --profile profiling` 自动选择训练系统库和 profiling runtime，启动统计写入独立采集文件；显式 `--enable-startup-stats` 时仍向 stderr 输出原统计。维护生产可以用 `--system-library-root` 显式选择库目录。普通 release 链接拒绝含 Generate 机器码的 `.slib`，完整模板与是否采集是独立配置。独立组件打包、安装与 PGO 命令的实施范围见 [profiling 记录](../docs/profiling/PROGRESS.md)。
+`scoop build --profile profiling` 自动选择训练系统库和 profiling runtime，启动统计写入独立采集文件；显式 `--enable-startup-stats` 时仍向 stderr 输出原统计。维护生产可以用 `--system-library-root` 显式选择库目录。普通 release 链接拒绝含 Generate 机器码的 `.slib`，完整模板与是否采集是独立配置。`build_profile_runtime.py --target ... --source <LLVM 源码> --output <profile.a> --cc <目标 Clang>` 只构建目标 profile archive；musl 另需 `--musl-include`，Microsoft 目标沿 /MD 合同生产。完整打包自动调用该入口及 profiling 准备，再生成 `lib-profiling-<target>` 归档和 manifest 引用；复用 `--prepared-sysroot` 时须已有两套完整库、映射和 runtime。宿主提供 `scoop-llvm-profdata`，目标组件携带 compiler-rt 许可。安装与 PGO 命令的实施范围见 [profiling 记录](../docs/profiling/PROGRESS.md)。
 
 `package_toolchain.py` 是发行组件包的唯一入口：取得固定 LLVM 输入、按 lockfile 构建 VS Code 扩展、构建 LLVM、五个 release 宿主命令与独立的 scoop-example、scoop-bundle、scoop-api，准备该宿主支持的全部 native／runtime 资源，并用本次编译器为各发行目标构建系统库 `.slib`，随包复制内置 Cone 源码、vendor、Scoop 编程 skill 和 post-install 脚本，最后按宿主／目标／全局维度生成下述组件归档。打包不生成 API 文档；文档由安装后的配套工具现场生成。无需事先逐个执行其他准备或扩展打包脚本。默认工作位置为 `tmp/package/<host>`，全部归档集中于以版本命名的 `tmp/dist/scoop-<version>/`；用 `--work-dir`、`--output-dir` 可选择外置盘目录。脚本不自动运行测试。
 

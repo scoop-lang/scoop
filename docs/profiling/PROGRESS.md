@@ -12,9 +12,9 @@
 | off/default/full IR template 导出 | 已实现，三平台代表目标验收完成 | 完整模板、语义必需模板保留、实际 consumer 与 Strong 归属 |
 | profiling profile 与 runtime 采集 | 已接通，本机真实运行验收通过；原生跨平台验收待成组进行 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
 | MIR cost 反馈及 `scoop-pgo` | MIR 消费、位置诊断、build Use 与便利命令均已通过本机闭环；原生跨平台及性能对照待验证 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
-| 可选 profiling 系统库组件 | 准备脚本及训练选库已实现；全量库构建、打包与安装接线进行中 | 两套 full 库、自动选库、独立下载安装和移除 |
+| 可选 profiling 系统库组件 | 已实现；本机完整 44 Cone 组件独立安装、训练、优化、移除与下载复用验收通过 | 两套 full 库、自动选库、独立下载安装和移除 |
 | GC phase/slice 事件 | 已实现，本机真实增量周期、重启与截断验收通过；采集开销随性能对照测量 | 时间语义、采集开销和真实进程输出 |
-| 使用材料及发行配套 | 待实现 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
+| 使用材料及发行配套 | 规范、帮助、编程指导、打包、安装器及官网已接通；最终跨平台和性能记录收尾中 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
 
 ## 已完成
 
@@ -83,3 +83,10 @@
 - Linux 实际 profiling core 构建暴露了 ELF ODR 计数组与正文 COMDAT 分离的问题。LLVM 的通用 lowering 为潜在跨函数内联保留独立计数组；Scoop 按 callable 发射对象，在 LLVM 优化完成后将三个 profile 关联段统一归入该正文的现有 COMDAT，保留正常对象检查和记录格式。
 - 扩展生产对象回归覆盖 Darwin ARM64、GNU、musl、MSVC-UCRT、MinGW-UCRT、MinGW-MSVCRT 各自的 Strong／ODR 组合。修复前真实复现 GNU ODR 错误，修复后十二个组合的计数保留、对象定义及重定位检查通过。格式化及 codegen Clippy 通过（仅既有警告）；继续原生训练验收。
 - Linux 原生链接进一步确认 compiler-rt 引用的 `__ehdr_start` 由最终 ELF linker 生成；将其加入已有 linker-defined 符号处理，不放宽普通未定义符号检查。格式化及 linker Clippy 通过（仅既有警告）。GNU 和 musl 各自使用原生 compiler-rt、四种普通和 profiling runtime，以及两套 full core/std，通过 GC 时间线与完整 profiling/PGO 正式 fixture：每个目标 2 项、13 次外部进程调用，包含多线程确定计数、数据追加与合并、配置复用、缓存更新、反馈优化、错误输入和无探针输出。
+
+### 完整组件与发行配套
+
+- 发布准备流程按目标构建 LLVM compiler-rt profile archive，并生成两套完整 full 系统库及四种 profiling runtime。独立组件只包含这些产物、训练映射和 compiler-rt 许可证，沿用普通 native 资源；配套 host 工具增加 `llvm-profdata` 与正常命令别名。manifest 将 profiling 作为可选目标组件。
+- compiler-rt 构建已在 Darwin ARM64、Linux GNU/musl、Windows MSVC-UCRT、MinGW-UCRT/MSVCRT 使用真实工具链完成。MSVC 在私有 LLVM 构建输入中选择与 Scoop 一致的动态 CRT；musl 使用独立 libc 头文件；输入未变化直接复用。Python 格式化、Ruff 通过，发行布局、manifest、LLVM 工具与许可证定向测试 21 项通过（1 项条件跳过）。
+- 本机完成全部 44 个系统 Cone 的 Profiling/full 和 Release/full 构建，连同 44 份训练映射及四种 runtime 打包成 1,220,497,376 字节的实际组件。使用隔离安装目录、本地 HTTP 发行源、真实 host 工具和 core/std 基础库，验证基础安装不下载 profiling、缺少组件时明确失败、独立安装、训练和反馈程序均输出 55、反馈程序无采集输出、移除后普通构建仍成功，以及再次安装复用下载缓存。首次测试包遗漏 `llvm-profdata` 动态依赖，补用正式依赖打包函数后整个流程通过；没有重新压缩完整库包。
+- 安装器仓库 `scoop-install` 与官网仓库 `scoop-lang.org` 的 `codex/profiling-pgo` 分支已分别提交并推送可选组件支持：安装、移除、更新保留选择，bootstrap/publisher 识别目标组件。实际 HTTP CLI、bootstrap 和 publisher 定向测试通过；原始日志保存在仓库外。
