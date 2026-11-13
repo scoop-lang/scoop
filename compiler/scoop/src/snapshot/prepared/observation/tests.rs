@@ -2,6 +2,23 @@ use super::*;
 use scoop_protocol::{HostPathCarrier, StageDumpKindV1};
 
 #[test]
+fn dump_publication_supports_long_cache_paths() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source.txt");
+    std::fs::write(&source, b"optimization decisions").unwrap();
+    let mut directory = root.path().to_path_buf();
+    for _ in 0..4 {
+        directory.push("a".repeat(70));
+    }
+    std::fs::create_dir_all(&directory).unwrap();
+    copy_dump(&source, &directory, "optimizations.json").unwrap();
+    assert_eq!(
+        std::fs::read(directory.join("optimizations.json")).unwrap(),
+        b"optimization decisions",
+    );
+}
+
+#[test]
 fn stores_requested_dumps_and_finds_only_missing_stages() {
     let root = tempfile::tempdir().unwrap();
     let cache = root.path().join("cache");
