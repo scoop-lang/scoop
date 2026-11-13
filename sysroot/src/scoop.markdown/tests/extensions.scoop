@@ -1,0 +1,248 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.repeat
+
+@Test
+private class MarkdownExtensionTests {
+    @Test
+    fun `math preserves TeX and source mappings through quotes and CRLF`() {
+        val source =
+            "Inline $a_1 & b$ and \\(\\alpha + \\beta\\).\r\n\r\n" +
+                "$$\r\nx &= y\\\\\r\n\r\nz\r\n$$\r\n\r\n> \\[\r\n> x^2\r\n> \\]\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse(MarkdownProfile.Editor)
+        val nodes = mdExtensionNodes(parsed)
+        assertEquals(4L, nodes.size)
+        val first = mdExtensionValue(nodes[0L])
+        assertEquals("a_1 & b", first.body.text)
+        assertEquals(MarkdownExtensionLocation.Inline, first.location)
+        assertEquals("\\alpha + \\beta", mdExtensionValue(nodes[1L]).body.text)
+        assertEquals("x &= y\\\\\n\nz\n", mdExtensionValue(nodes[2L]).body.text)
+        val quoted = mdExtensionValue(nodes[3L])
+        assertEquals("x^2\n", quoted.body.text)
+        assertEquals(MarkdownExtensionLocation.Block, quoted.location)
+        assertEquals(
+            "x^2",
+            parsed.snapshot.read(
+                MarkdownRange(
+                    quoted.body.sourceAt(MarkdownPosition(0L)).byteOffset,
+                    quoted.body.sourceAt(MarkdownPosition(3L)).byteOffset
+                )
+            )
+        )
+        assertEquals(0L, parsed.diagnostics.size)
+        assertEquals(source, document.toMarkdown())
+        mdCheckExtensionRanges(parsed)
+    }
+
+    @Test
+    fun `escapes currency code HTML and disabled math remain ordinary Markdown`() {
+        val tick = 96.toChar().toString()
+        val fence = tick.repeat(3L)
+        val source =
+            "cost $5 and $10\n\n\\$x\\$\n\n$ no$\n\n$bad $\n\nmid $$literal$$ end\n\n" +
+                tick +
+                "$code$" +
+                tick +
+                "\n\n" +
+                fence +
+                "\n$x$\n" +
+                fence +
+                "\n\n<div>\n$x$\n</div>\n\n<span title='$x$'>ok</span>\n\n$unfinished\n"
+        val document = MarkdownDocument.fromText(source)
+        assertEquals(0L, mdExtensionNodes(document.parse(MarkdownProfile.Editor)).size)
+        assertEquals(0L, mdExtensionNodes(MarkdownDocument.fromText("$x$").parse()).size)
+        val generated = markdownDocument { paragraph { text("$literal$ and {{#include file}}") } }
+        assertEquals(0L, mdExtensionNodes(generated.parse(MarkdownProfile.Editor)).size)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `front matter preserves BOM YAML and exact terminators`() {
+        val source = "\u{feff}---\r\ntitle: 雪\r\nnested: '$x$'\r\n...\r\n\r\n# Body\r\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val nodes = mdExtensionNodes(parsed)
+        assertEquals(1L, nodes.size)
+        val value = mdExtensionValue(nodes[0L])
+        assertEquals("front-matter", value.name)
+        assertEquals("title: 雪\nnested: '$x$'\n", value.body.text)
+        assertTrue(value.closed)
+        assertEquals(Some("yaml"), value.attribute("language"))
+        assertEquals(0L, nodes[0L].range.start)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        assertEquals(
+            0L,
+            mdExtensionNodes(
+                MarkdownDocument.fromText("\n---\ntext\n---\n").parse(MarkdownProfile.Editor)
+            ).size
+        )
+        assertEquals(
+            0L,
+            mdExtensionNodes(
+                MarkdownDocument.fromText(" ---\ntext\n---\n").parse(MarkdownProfile.Editor)
+            ).size
+        )
+        mdCheckExtensionRanges(parsed)
+    }
+
+    @Test
+    fun `unclosed blocks stop at real containers and retain recoverable source`() {
+        val source = "> $$\n> x+y\n\noutside\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val nodes = mdExtensionNodes(parsed)
+        assertEquals(1L, nodes.size)
+        assertFalse(mdExtensionValue(nodes[0L]).closed)
+        assertEquals("x+y\n", mdExtensionValue(nodes[0L]).body.text)
+        assertEquals(1L, parsed.diagnostics.size)
+        assertEquals(nodes[0L].range, parsed.diagnostics[0L].range)
+        assertTrue(parsed.root.children.size > 1L)
+        val yaml = MarkdownDocument.fromText("---\nkey: value\n").parse(MarkdownProfile.Editor)
+        assertFalse(mdExtensionValue(mdExtensionNodes(yaml)[0L]).closed)
+        assertEquals(1L, yaml.diagnostics.size)
+        mdCheckExtensionRanges(parsed)
+        mdCheckExtensionRanges(yaml)
+    }
+
+    @Test
+    fun `mdBook directives cross inline syntax but only enter opted in code bodies`() {
+        val tick = 96.toChar().toString()
+        val fence = tick.repeat(3L)
+        val source =
+            "Before {{#include dir/a_b_.rs:2:4}} after.\n\n" +
+                "> {{#include chapter.md}}\n\n" +
+                fence +
+                "rs\n{{#include sample.rs:part}}\n" +
+                fence +
+                "\n\n" +
+                tick +
+                "{{#include hidden}}" +
+                tick +
+                "\n\n\\{{#include escaped}}\n"
+        val document = MarkdownDocument.fromText(source)
+        assertEquals(0L, mdExtensionNodes(document.parse()).size)
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val parsed = document.parse(profile)
+        val nodes = mdExtensionNodes(parsed)
+        assertEquals(3L, nodes.size)
+        assertEquals(Some("dir/a_b_.rs:2:4"), mdExtensionValue(nodes[0L]).attribute("arguments"))
+        assertEquals(MarkdownExtensionLocation.Inline, mdExtensionValue(nodes[0L]).location)
+        assertEquals(MarkdownExtensionLocation.Block, mdExtensionValue(nodes[1L]).location)
+        assertEquals(MarkdownExtensionLocation.Code, mdExtensionValue(nodes[2L]).location)
+        assertEquals(Some("include"), mdExtensionValue(nodes[2L]).attribute("command"))
+        assertEquals(source, document.toMarkdown())
+        mdCheckExtensionRanges(parsed)
+    }
+
+    @Test
+    fun `registered order and actual extension objects determine parse reuse`() {
+        val first = MdTestSyntax("first")
+        val second = MdTestSyntax("second")
+        val document = MarkdownDocument.fromText("@{雪}")
+        val profile = MarkdownProfile(extensions = [first, second])
+        val parsed = document.parse(profile)
+        assertEquals("first", mdExtensionValue(mdExtensionNodes(parsed)[0L]).name)
+        assertSame(parsed, document.parse(MarkdownProfile(extensions = [first, second])))
+        val changed = document.parse(MarkdownProfile(extensions = [second, first]))
+        assertEquals("second", mdExtensionValue(mdExtensionNodes(changed)[0L]).name)
+        assertFalse(parsed === changed)
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownProfile(extensions = [first, MdTestSyntax("first")])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownProfile(math = true, extensions = [MdTestSyntax("math")])
+        }
+        assertEquals("雪", mdExtensionValue(mdExtensionNodes(changed)[0L]).body.text)
+    }
+
+    @Test
+    fun `invalid extension offsets fail without publishing a document edit`() {
+        val document = MarkdownDocument.fromText("@{😀}")
+        val before = document.snapshot()
+        assertFailsWith<IllegalArgumentException> {
+            document.parse(MarkdownProfile(extensions = [MdTestSyntax("broken", true)]))
+        }
+        assertSame(before, document.snapshot())
+        assertEquals(0L, document.revision)
+        assertEquals(0L, mdExtensionNodes(document.parse()).size)
+    }
+
+    @Test
+    fun `unfinished custom directives keep their range and surrounding text`() {
+        val source = "before {{#include missing\nnext line\n"
+        val parsed =
+            MarkdownDocument.fromText(source).parse(
+                MarkdownProfile(extensions = [mdBookDirectives()])
+            )
+        val node = mdExtensionNodes(parsed)[0L]
+        assertFalse(mdExtensionValue(node).closed)
+        assertEquals("{{#include missing", parsed.snapshot.read(node.range))
+        assertEquals(1L, parsed.diagnostics.size)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        mdCheckExtensionRanges(parsed)
+    }
+}
+
+private class MdTestSyntax(
+    public override val name: String,
+    val broken: Boolean = false
+): MarkdownExtension {
+    public override val trigger: String = "@{"
+    public override val locations: MarkdownExtensionLocations = MarkdownExtensionLocations()
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        val end = input.find("}", offset + 2L) ?: return None
+        return Some(
+            MarkdownExtensionMatch(
+                if (broken)
+                    offset + 3L
+                else
+                    end + 1L,
+                MarkdownRange(
+                    offset + 2L,
+                    if (broken)
+                        offset + 3L
+                    else
+                        end
+                )
+            )
+        )
+    }
+}
+
+internal fun mdExtensionNodes(parsed: ParsedMarkdown): Array<MarkdownNode> {
+    val result = ArrayList<MarkdownNode>()
+    for (node in parsed.nodes())
+        when (node.content) {
+            case MarkdownContent.Extension(_) -> result.add(node)
+            else -> Unit
+        }
+    return result.toArray()
+}
+
+internal fun mdExtensionValue(node: MarkdownNode): MarkdownExtensionValue =
+    when (node.content) {
+        case MarkdownContent.Extension(val value) -> value
+        else -> fail(Some("Expected Markdown extension"))
+    }
+
+internal fun mdCheckExtensionRanges(parsed: ParsedMarkdown) {
+    for (node in parsed.nodes()) {
+        parsed.snapshot.read(node.range)
+        for (marker in node.markers) {
+            assertTrue(marker.start >= node.range.start && marker.end <= node.range.end)
+            parsed.snapshot.read(marker)
+        }
+        for (child in node.children)
+            assertTrue(child.range.start >= node.range.start && child.range.end <= node.range.end)
+        when (node.content) {
+            case MarkdownContent.Extension(val value) -> {
+                for (span in value.body.spans)
+                    parsed.snapshot.read(span.sourceRange)
+            }
+            else -> Unit
+        }
+    }
+}

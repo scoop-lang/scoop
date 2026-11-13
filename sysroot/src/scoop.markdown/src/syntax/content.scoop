@@ -1,18 +1,5 @@
 package scoop.markdown
 
-/** Independently selectable GFM additions to CommonMark 0.31.2. */
-public struct MarkdownProfile(
-    val tables: Boolean = true,
-    val taskLists: Boolean = true,
-    val strikethrough: Boolean = true,
-    val autolinks: Boolean = true
-) {
-    public companion object {
-        public val CommonMark: MarkdownProfile = MarkdownProfile(false, false, false, false)
-        public val Gfm: MarkdownProfile = MarkdownProfile()
-    }
-}
-
 public enum MarkdownHeadingStyle {
     Atx, Setext
 }
@@ -76,5 +63,8 @@ public enum MarkdownContent {
     Image(MarkdownLinkTarget),
     HtmlInline(MarkdownText),
     SoftBreak,
-    HardBreak
+    HardBreak,
+    Extension(MarkdownExtensionValue),
+    FootnoteDefinition(String),
+    FootnoteReference(String)
 }

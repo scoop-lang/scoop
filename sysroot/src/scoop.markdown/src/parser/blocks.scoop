@@ -123,6 +123,7 @@ internal class MdBlockParser(
             case MdKind.Document -> child != MdKind.Item
             case MdKind.Quote -> child != MdKind.Item
             case MdKind.Item -> child != MdKind.Item
+            case MdKind.FootnoteDefinition -> child != MdKind.Item
             case MdKind.ListBlock -> child == MdKind.Item
             else -> false
         }
@@ -194,6 +195,20 @@ internal class MdBlockParser(
             else
                 0
             case MdKind.Code -> continueCode(node)
+            case MdKind.Extension -> continueExtensionBlock(node)
+            case MdKind.FootnoteDefinition -> {
+                if (indent >= 4L) {
+                    advance(4L, true);
+                    0
+                }
+                else
+                    if (blank) {
+                        advanceNonspace();
+                        0
+                    }
+                    else
+                        1
+            }
             case MdKind.Table -> continueTable(node)
             else -> 1
         }
@@ -220,7 +235,13 @@ internal class MdBlockParser(
         }
         allClosed = container === oldTip
         lastMatched = container
-        var leaf = container.kind == MdKind.Code || container.kind == MdKind.Html
+        var leaf =
+            container.kind ==
+                MdKind.Code ||
+                container.kind ==
+                MdKind.Html ||
+                container.kind ==
+                MdKind.Extension
         while (!leaf) {
             findNonspace()
             val result = startBlock(container)
@@ -243,6 +264,8 @@ internal class MdBlockParser(
                             MdKind.Code ||
                             container.kind ==
                             MdKind.Html ||
+                            container.kind ==
+                            MdKind.Extension ||
                             container.kind ==
                             MdKind.Paragraph
                     )

@@ -3,7 +3,8 @@ package scoop.markdown
 // Container and delimiter algorithms follow commonmark.js. See licenses/commonmark-js.txt.
 internal enum MdKind {
     Document, Paragraph, Heading, Quote, ListBlock, Item, Rule, Code, Html, Reference,
-    Table, Row, Cell, Text, CodeSpan, Emphasis, Strong, Strike, Link, Image, InlineHtml, SoftBreak, HardBreak
+    Table, Row, Cell, Text, CodeSpan, Emphasis, Strong, Strike, Link, Image, InlineHtml, SoftBreak, HardBreak,
+    Extension, FootnoteDefinition, FootnoteReference
 }
 
 internal class MdList(
@@ -48,6 +49,8 @@ internal class MdBuildNode(
     val markers = ArrayList<MarkdownRange>()
     var ordinal = 0L
     var frozen: MarkdownNode? = None
+    var extensionBlock: MdExtensionBlock? = None
+    var extension: MarkdownExtensionValue? = None
 
     fun input(): MdInput {
         val result = ready ?: source.build(start)
@@ -141,6 +144,9 @@ internal class MdBuildNode(
             case MdKind.InlineHtml -> MarkdownContent.HtmlInline(text)
             case MdKind.SoftBreak -> MarkdownContent.SoftBreak
             case MdKind.HardBreak -> MarkdownContent.HardBreak
+            case MdKind.Extension -> MarkdownContent.Extension(extension!!)
+            case MdKind.FootnoteDefinition -> MarkdownContent.FootnoteDefinition(label)
+            case MdKind.FootnoteReference -> MarkdownContent.FootnoteReference(label)
         }
 }
 
@@ -185,11 +191,24 @@ internal fun mdFreeze(
                 )
             )
     }
+    val diagnostics = ArrayList<MarkdownDiagnostic>()
+    for (node in nodes)
+        when (node.extension) {
+            case Some(val value) -> if (!value.closed)
+                diagnostics.add(
+                    MarkdownDiagnostic(
+                        MarkdownRange(node.start, node.end),
+                        "Unclosed Markdown extension: " + value.name
+                    )
+                )
+            case None -> Unit
+        }
     return ParsedMarkdown(
         snapshot,
         profile,
         root.frozen!!,
         Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! },
-        Array<Long>(nodes.size) { i -> nodes[i].parent?.ordinal ?: -1L }
+        Array<Long>(nodes.size) { i -> nodes[i].parent?.ordinal ?: -1L },
+        diagnostics.toArray()
     )
 }

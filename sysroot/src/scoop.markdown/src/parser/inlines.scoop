@@ -8,8 +8,10 @@ internal class MdInlineParser(
     val input: MdInput,
     val syntax: MdSyntax,
     val profile: MarkdownProfile,
-    val references: HashMap<String, MarkdownLinkTarget>
+    val references: HashMap<String, MarkdownLinkTarget>,
+    val footnotes: HashMap<String, MdBuildNode>
 ) {
+    val extensionInput = MarkdownExtensionInput(input, MarkdownExtensionLocation.Inline)
     var position = 0L
     val delimiters = ArrayList<MdDelimiter>()
     var topDelimiter = -1L
@@ -32,6 +34,26 @@ internal class MdInlineParser(
         while (position < input.size) {
             val start = position
             val code = input.at(position)
+            if (profile.math && mathInline())
+                continue
+            if (profile.math && code == 36 && input.at(position + 1L) == 36) {
+                position += input.run(position, 36)
+                addText(start, position, input.slice(start, position))
+                continue
+            }
+            if (profile.footnotes && code == 91 && footnoteInline())
+                continue
+            if (
+                code !=
+                    92 &&
+                    code !=
+                    96 &&
+                    code !=
+                    60 &&
+                    profile.startsExtension(code) &&
+                    extensionInline()
+            )
+                continue
             if ((code == 104 || code == 119) && bareUri())
                 continue
             when (code) {
@@ -45,7 +67,7 @@ internal class MdInlineParser(
                 else
                     plain()
                 case 91 -> openBracket(false)
-                case 33 -> if (input.at(position + 1L) == 91)
+                case 33 -> if (input.at(position + 1L) == 91 && !isFootnote(position + 1L))
                     openBracket(true)
                 else
                     plain()
@@ -97,6 +119,8 @@ internal class MdInlineParser(
                                 current ==
                                 38 ||
                                 (profile.strikethrough && current == 126) ||
+                                (profile.math && current == 36) ||
+                                profile.startsExtension(current) ||
                                 (profile.autolinks && (current == 104 || current == 119))
                         )
                             break

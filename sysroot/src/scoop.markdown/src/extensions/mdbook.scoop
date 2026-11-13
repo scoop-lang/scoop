@@ -1,0 +1,35 @@
+package scoop.markdown
+
+import scoop.text.trim
+
+/** Recognizes mdBook commands without resolving resources or changing their source. */
+public fun mdBookDirectives(): MarkdownExtension = MdBookDirectives
+
+private object MdBookDirectives: MarkdownExtension {
+    public override val name: String = "mdbook"
+    public override val trigger: String = "{{#"
+    public override val locations: MarkdownExtensionLocations =
+        MarkdownExtensionLocations(blocks = true, codeBlocks = true)
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        val finish = input.find("}}", offset + 3L)
+        val bodyEnd = finish ?: input.lineEnd(offset + 3L)
+        var commandEnd = offset + 3L
+        while (commandEnd < bodyEnd && !mdWhitespace(input.byteAt(commandEnd)))
+            commandEnd += 1L
+        if (commandEnd == offset + 3L)
+            return None
+        val command = input.read(MarkdownRange(offset + 3L, commandEnd))
+        val arguments = input.read(MarkdownRange(commandEnd, bodyEnd)).trim()
+        return Some(
+            MarkdownExtensionMatch(
+                finish?.plus(2L) ?: bodyEnd,
+                MarkdownRange(offset + 3L, bodyEnd),
+                [MarkdownAttribute("command", command), MarkdownAttribute("arguments", arguments)],
+                finish != None
+            )
+        )
+    }
+}

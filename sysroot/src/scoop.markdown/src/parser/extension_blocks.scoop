@@ -1,0 +1,163 @@
+package scoop.markdown
+
+internal class MdExtensionBlock(
+    val name: String,
+    val delimiter: String,
+    val closer: String,
+    val indent: Long
+) {
+    var closed = false
+}
+
+internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean {
+    val start = nextNonspace
+    if (profile.frontMatter && lineIndex == 0L && container === root && offset == 0L) {
+        val marker =
+            if (input.at(0L) == 239 && input.at(1L) == 187 && input.at(2L) == 191)
+                3L
+            else
+                0L
+        if (input.text(marker, line.end) == "---") {
+            closeUnmatched()
+            val node = add(MdKind.Extension, 0L)
+            node.extensionBlock = Some(MdExtensionBlock("front-matter", "---", "---", 0L))
+            node.markers.add(input.range(marker, line.end))
+            node.ready = Some(mdEmptyText(line.next))
+            offset = line.end
+            skipContent = true
+            return true
+        }
+    }
+    if (!profile.math || indent >= 4L)
+        return false
+    val dollar = input.at(start) == 36 && input.at(start + 1L) == 36 && input.at(start + 2L) != 36
+    val bracket = input.at(start) == 92 && input.at(start + 1L) == 91
+    if (!dollar && !bracket)
+        return false
+    val delimiter =
+        if (dollar)
+            "$$"
+        else
+            "\\["
+    val closer =
+        if (dollar)
+            "$$"
+        else
+            "\\]"
+    val bodyStart = start + 2L
+    val closing = mdMathCloser(input, bodyStart, line.end, closer)
+    val alone = input.spaces(bodyStart) == line.end
+    if (!alone && (closing == None || input.spaces(closing!! + 2L) != line.end))
+        return false
+    val indentation = indent
+    closeUnmatched()
+    val node = add(MdKind.Extension, start)
+    val data = MdExtensionBlock("math", delimiter, closer, indentation)
+    node.extensionBlock = Some(data)
+    node.markers.add(input.range(start, bodyStart))
+    when (closing) {
+        case Some(val end) -> {
+            data.closed = true
+            node.ready = Some(input.slice(bodyStart, end))
+            node.markers.add(input.range(end, end + 2L))
+        }
+        case None -> node.ready = Some(mdEmptyText(line.next))
+    }
+    offset = line.end
+    skipContent = true
+    return true
+}
+
+internal fun MdBlockParser.continueExtensionBlock(node: MdBuildNode): Int {
+    val data = node.extensionBlock!!
+    if (data.closed)
+        return 1
+    val text = input.text(nextNonspace, line.end)
+    val closed =
+        if (data.name == "front-matter")
+            indent == 0L && (text == "---" || text == "...")
+        else
+            indent <
+                4L &&
+                input.spaces(nextNonspace + 2L) ==
+                line.end &&
+                mdExtensionStarts(input, data.closer.toByteArray(), nextNonspace)
+    if (closed) {
+        data.closed = true
+        node.markers.add(input.range(nextNonspace, line.end))
+        finalize(node, lineIndex)
+        return 2
+    }
+    var remaining = data.indent
+    while (remaining > 0L && offset < line.end && mdSpace(input.at(offset))) {
+        advance(1L, true)
+        remaining -= 1L
+    }
+    return 0
+}
+
+internal fun MdBlockParser.finishExtensionBlock(node: MdBuildNode) {
+    val data = node.extensionBlock!!
+    node.extension =
+        Some(
+            MarkdownExtensionValue(
+                data.name,
+                MarkdownExtensionLocation.Block,
+                input.slice(node.start, node.end),
+                node.input().value,
+                if (data.name == "front-matter")
+                    [MarkdownAttribute("language", "yaml")]
+                else
+                    [MarkdownAttribute("delimiter", data.delimiter)],
+                data.closed
+            )
+        )
+}
+
+internal fun mdMathCloser(input: MdInput, start: Long, end: Long, closer: String): Long? {
+    val bytes = closer.toByteArray()
+    var at = start
+    while (at + bytes.size <= end) {
+        if (
+            mdExtensionStarts(input, bytes, at) &&
+                (closer != "$$" || (input.at(at + 2L) != 36 && input.at(at - 1L) != 36))
+        )
+            return Some(at)
+        if (input.at(at) == 92 && at + 1L < end)
+            at = input.scalarEnd(at + 1L)
+        else
+            at = input.scalarEnd(at)
+    }
+    return None
+}
+
+internal fun mdCustomBlocks(root: MdBuildNode, profile: MarkdownProfile) {
+    if (profile.registered.size == 0L)
+        return
+    for (node in mdBuildNodes(root)) {
+        if (node.kind == MdKind.Paragraph) {
+            val input = MarkdownExtensionInput(node.input().trim(), MarkdownExtensionLocation.Block)
+            val value = mdMatchExtension(profile, input, 0L) ?: continue
+            val replacement = mdExtensionNode(value)
+            replacement.startLine = node.startLine
+            replacement.endLine = node.endLine
+            node.insertBefore(replacement)
+            node.unlink()
+        } else
+            if (node.kind == MdKind.Code) {
+                val input =
+                    MarkdownExtensionInput(MdInput(node.text), MarkdownExtensionLocation.Code)
+                var at = 0L
+                while (at < input.byteLength) {
+                    when (mdMatchExtension(profile, input, at)) {
+                        case Some(val value) -> {
+                            val child = mdExtensionNode(value)
+                            node.append(child)
+                            at += value.source.byteLength
+                        }
+                        case None -> at = input.input.scalarEnd(at)
+                    }
+                }
+            }
+    }
+}

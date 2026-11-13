@@ -166,6 +166,15 @@ private fun mdTestRender(node: MarkdownNode, output: StringBuilder, tight: Boole
         case MarkdownContent.HtmlInline(val text) -> output.append(text.text)
         case MarkdownContent.SoftBreak -> output.append('\n')
         case MarkdownContent.HardBreak -> output.append("<br />\n")
+        case MarkdownContent.Extension(_) -> throw IllegalArgumentException(
+            Some("Use structured assertions for Markdown extensions")
+        )
+        case MarkdownContent.FootnoteDefinition(_) -> throw IllegalArgumentException(
+            Some("Use structured assertions for Markdown footnotes")
+        )
+        case MarkdownContent.FootnoteReference(_) -> throw IllegalArgumentException(
+            Some("Use structured assertions for Markdown footnotes")
+        )
     }
 }
 

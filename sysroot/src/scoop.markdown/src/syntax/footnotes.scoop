@@ -1,0 +1,86 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+/** A used definition and all references encountered while assigning document-order numbers. */
+public class MarkdownFootnote internal constructor(
+    public val label: String,
+    public val number: Long,
+    public val definition: MarkdownNodeId,
+    public val references: Array<MarkdownNodeId>
+)
+
+internal class MdFootnoteIndex {
+    val definitions = HashMap<String, MarkdownNode>()
+    var entries: Array<MarkdownFootnote> = []
+}
+
+internal class MdUsedFootnote(val label: String, val definition: MarkdownNode) {
+    val references = ArrayList<MarkdownNodeId>()
+}
+
+internal fun mdIndexFootnotes(root: MarkdownNode, enabled: Boolean): MdFootnoteIndex {
+    val result = MdFootnoteIndex()
+    if (!enabled)
+        return result
+    for (node in MdNodes(root))
+        when (node.content) {
+            case MarkdownContent.FootnoteDefinition(val label) -> {
+                if (!result.definitions.containsKey(label))
+                    result.definitions[label] = node
+            }
+            else -> Unit
+        }
+    val used = HashMap<String, MdUsedFootnote>()
+    val ordered = ArrayList<MdUsedFootnote>()
+    mdVisitFootnoteReferences(root, result, used, ordered)
+    var index = 0L
+    while (index < ordered.size) {
+        val current = ordered[index]
+        for (child in current.definition.children)
+            mdVisitFootnoteReferences(child, result, used, ordered)
+        index += 1L
+    }
+    result.entries =
+        Array<MarkdownFootnote>(ordered.size) {
+            at ->
+            val entry = ordered[at]
+            MarkdownFootnote(entry.label, at + 1L, entry.definition.id, entry.references.toArray())
+        }
+    return result
+}
+
+private fun mdVisitFootnoteReferences(
+    root: MarkdownNode,
+    index: MdFootnoteIndex,
+    used: HashMap<String, MdUsedFootnote>,
+    ordered: ArrayList<MdUsedFootnote>
+) {
+    val pending = ArrayList<MarkdownNode>()
+    pending.add(root)
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L)
+        when (node.content) {
+            case MarkdownContent.FootnoteDefinition(_) -> continue
+            case MarkdownContent.FootnoteReference(val label) -> {
+                var entry = used[label]
+                when (entry) {
+                    case None -> {
+                        val next = MdUsedFootnote(label, index.definitions[label]!!)
+                        used[label] = next
+                        ordered.add(next)
+                        entry = Some(next)
+                    }
+                    case Some(_) -> Unit
+                }
+                entry!!.references.add(node.id)
+            }
+            else -> Unit
+        }
+        var child = node.children.size
+        while (child > 0L) {
+            child -= 1L
+            pending.add(node.children[child])
+        }
+    }
+}

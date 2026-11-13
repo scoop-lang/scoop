@@ -1,0 +1,108 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownFootnoteTests {
+    @Test
+    fun `forward definitions have document reference order and complete containers`() {
+        // The container cases are adapted from cmark-gfm's CC-BY-SA 4.0 extensions examples.
+        val source =
+            "Text![^1]. Other text.[^footnote]. Again[^1]. Unknown[^missing].\n\n" +
+                "[^other]:       spaces are stripped\n\n" +
+                "[^code]:\n        indented code\n\n" +
+                "[^1]: Some *emphasized* definition.\n\n" +
+                "[^footnote]:\n    > A quote.\n\n        code\n\n    Another paragraph.\n\n" +
+                "[^unused]: Unused.\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        assertEquals(2L, parsed.footnotes.size)
+        assertEquals("1", parsed.footnotes[0L].label)
+        assertEquals(1L, parsed.footnotes[0L].number)
+        assertEquals(2L, parsed.footnotes[0L].references.size)
+        assertEquals("footnote", parsed.footnotes[1L].label)
+        assertEquals(2L, parsed.footnotes[1L].number)
+        val definition = parsed.footnoteDefinition("footnote")!!
+        assertEquals(3L, definition.children.size)
+        when (definition.children[0L].content) {
+            case MarkdownContent.BlockQuote -> Unit
+            else -> fail(Some("Footnote quote must retain its container"))
+        }
+        when (definition.children[1L].content) {
+            case MarkdownContent.CodeBlock(_, _, val body) -> assertEquals("code\n", body.text)
+            else -> fail(Some("Footnote code must retain its indentation"))
+        }
+        when (parsed.footnoteDefinition("code")!!.children[0L].content) {
+            case MarkdownContent.CodeBlock(_, _, val body) -> assertEquals(
+                "indented code\n",
+                body.text
+            )
+            else -> fail(Some("Expected code after an empty footnote opening"))
+        }
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        when (parsed.footnoteDefinition("missing")) {
+            case None -> Unit
+            case Some(_) -> fail(Some("Missing footnote must remain unresolved"))
+        }
+        mdCheckExtensionRanges(parsed)
+    }
+
+    @Test
+    fun `duplicate Unicode labels share their first definition and keep original bytes`() {
+        val source = "See[^STRASSE].\r\n\r\n[^straße]: first\r\n[^strasse]: second\r\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        assertEquals(1L, parsed.footnotes.size)
+        val definition = parsed.footnoteDefinition(" Straße ")!!
+        assertSame(definition, parsed.node(parsed.footnotes[0L].definition))
+        assertEquals("[^straße]: first\r\n", parsed.snapshot.read(definition.range))
+        var definitions = 0L
+        for (node in parsed.nodes())
+            when (node.content) {
+                case MarkdownContent.FootnoteDefinition(_) -> definitions += 1L
+                else -> Unit
+            }
+        assertEquals(2L, definitions)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        assertEquals(0L, MarkdownDocument.fromText(source).parse().footnotes.size)
+    }
+
+    @Test
+    fun `used footnotes can reference one another without numbering unused definitions`() {
+        val source =
+            "Body[^b] and[^a].\n\n[^unused]: hidden[^c]\n\n" +
+                "[^a]: first[^c]\n\n[^b]: second\n\n[^c]: back[^a]\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        assertEquals(3L, parsed.footnotes.size)
+        assertEquals("b", parsed.footnotes[0L].label)
+        assertEquals("a", parsed.footnotes[1L].label)
+        assertEquals("c", parsed.footnotes[2L].label)
+        assertEquals(2L, parsed.footnotes[1L].references.size)
+        assertEquals(1L, parsed.footnotes[2L].references.size)
+        assertEquals(0L, parsed.diagnostics.size)
+        mdCheckExtensionRanges(parsed)
+    }
+
+    @Test
+    fun `footnote definitions respect quote prefixes and lazy first paragraphs`() {
+        val source =
+            "> [^q]: first\n> lazy continuation\n>\n>     - nested\n>     - items\n\nSee[^q].\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val definition = parsed.footnoteDefinition("q")!!
+        assertEquals(2L, definition.children.size)
+        when (definition.children[0L].content) {
+            case MarkdownContent.Paragraph(val text) -> assertEquals(
+                "first\nlazy continuation",
+                text.text
+            )
+            else -> fail(Some("Expected lazy footnote paragraph"))
+        }
+        when (definition.children[1L].content) {
+            case MarkdownContent.ListBlock(_) -> assertEquals(
+                2L,
+                definition.children[1L].children.size
+            )
+            else -> fail(Some("Expected nested footnote list"))
+        }
+        assertEquals(1L, parsed.footnotes.size)
+        mdCheckExtensionRanges(parsed)
+    }
+}

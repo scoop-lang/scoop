@@ -17,8 +17,13 @@ public class ParsedMarkdown internal constructor(
     public val profile: MarkdownProfile,
     public val root: MarkdownNode,
     private val index: Array<MarkdownNode>,
-    private val parents: Array<Long>
+    private val parents: Array<Long>,
+    public val diagnostics: Array<MarkdownDiagnostic>
 ) {
+    private val footnoteIndex = mdIndexFootnotes(root, profile.footnotes)
+    public val footnotes: Array<MarkdownFootnote> get() = footnoteIndex.entries
+    public fun footnoteDefinition(label: String): MarkdownNode? =
+        footnoteIndex.definitions[mdReferenceLabel(label)]
     public val documentId: MarkdownDocumentId get() = snapshot.documentId
     public val revision: Long get() = snapshot.revision
 
@@ -78,7 +83,7 @@ public class ParsedMarkdown internal constructor(
     }
 }
 
-private class MdNodes(private val root: MarkdownNode): Iterable<MarkdownNode> {
+internal class MdNodes(private val root: MarkdownNode): Iterable<MarkdownNode> {
     public override operator fun iterator(): Iterator<MarkdownNode> = MdNodeIterator(root)
 }
 

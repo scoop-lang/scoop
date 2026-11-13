@@ -90,8 +90,26 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 
 表格以第 0 行为 header。修改已有单元格只替换它的内容；为不齐的行补出缺失单元格时只追加必要分隔符。新 body row 的列数须匹配 header；删除不作用于 header。行修改继承所在引用／列表的续行前缀与本地换行，不把一个引用内的表格行插到引用外。整列操作、列表层级操作和显式格式化仍按设计继续补充。
 
-## 9. 后续编辑与扩展合同
+## 9. 扩展语法
 
-结构修改和扩展处理按设计逐项增补本规范后实现。跨修改的节点身份复用在后续增量解析接口中规定；普通解析结果里的身份不构成跨独立解析的匹配猜测。必要的语法树字段由完整数据结构表达；恢复节点保留源范围和真实文本，不以空处理分支或“尚未支持”占位符代替已声明能力。
+`MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关及有序的 `MarkdownExtension` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注；mdBook 指令由调用方显式注册。配置及扩展的解析行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与注册对象及顺序，不以扩展名称猜测两个不同处理器等价。
 
-保存、修改与解析各自有明确边界，parse 不成为读取快照或源码输入的隐式副作用。公式与 Mermaid 的图像工具不参与 headless 文档的解析／生成合法性。
+`MarkdownExtension` 提供 name、非空 trigger、locations 和 parse。locations 分别选择 Inline、Block 和 Code；Block 只接管已经确定的整个段落输入，不能跨 CommonMark 容器边界，跨容器展开交给后续 processor。Code 明确启用代码块正文中的匹配，不影响 code span 或 HTML。Inline 在代码、普通转义和 HTML 词法之外匹配；相同 trigger 按 profile 注册顺序选择第一个成功结果，固定公式语法优先于自定义匹配。名称重复和保留的内置名称冲突是配置错误。
+
+`MarkdownExtensionInput` 提供带源码映射的 source、当前位置上下文和 UTF-8 范围读取。匹配结果使用该输入内的 Long 字节位置，给出 end、body 范围、字符串属性及 closed；不把它们当作全文偏移。解析器只验证实际匹配范围、前进与标量边界，再构造完整 `MarkdownExtensionValue`。正文、完整 token 和标记均保留原始映射。无匹配返回 None，识别器自身异常照常传播；解析不隐式执行 I/O、展开 include 或生成图片。
+
+内置公式产生 name 为 math 的 Extension 节点，location 区分行内与块级。行内支持单个 `$...$` 与 `\(...\)`；前者正文非空、开头和结尾不为空白，关闭 `$` 后不能紧跟数字，并且不跨物理换行。连续多个 `$` 不被拆成单个开关。块级支持独占行的 `$$`／`\[` 与对应关闭定界符，以及开闭定界符处在同一行的完整公式；正文不解析强调、链接或其他扩展。容器前缀和换行规范化遵守 MarkdownText 映射，TeX 字节在源 snapshot 中不变。
+
+front matter 只在文件起始处（可在 UTF-8 BOM 之后）识别独占行的 `---`，结束标记为独占行的 `---` 或 `...`。它产生 front-matter Extension，body 保存 YAML 源码，不在本层解释 YAML 值。未关闭的块公式或 front matter 持续到所在容器／文件结束，closed 为 false，并带有范围诊断；未闭合的行内公式保留为普通文字。`ParsedMarkdown.diagnostics` 为该快照的派生诊断，不导致源文本丢失或解析失败。
+
+`mdBookDirectives()` 是首个普通自定义注册，识别 `{{#command arguments}}`。它可用于行内、独立段落及明确启用的代码块正文；command 与 arguments 作为属性保存。没有注册时它仍是普通源文本。注册只识别语法，include 内容处理有独立入口；不能因为它位于代码围栏内而隐式解释其他已注册扩展。
+
+## 10. 脚注
+
+footnotes 开关识别 `[^label]:` 定义与 `[^label]` 引用。定义是可包含段落、引用、列表和代码块的容器，后续缩进行消费四列，允许首段的普通 lazy continuation。标签使用与引用定义相同的 Unicode 大小写和空白归一规则；同名定义保留在语法树中，引用选择第一个。没有对应定义的引用保持字面文本，不丢失未完成输入。
+
+`FootnoteDefinition` 和 `FootnoteReference` 保存归一标签，完整范围及标记仍在 MarkdownNode。`ParsedMarkdown.footnoteDefinition(label)` 查询实际定义；`footnotes` 按正文首次引用顺序返回编号、定义身份与引用身份集合，再按已使用脚注中的引用继续展开编号。未使用定义不会单独占用编号，循环引用不会重复加入队列。源文档中的定义位置和拼写不因编号改变。
+
+## 11. 后续结构与处理
+
+结构修改、带来源的内容展开与跨修改的节点身份复用继续按设计增补。普通解析结果里的身份不构成跨独立解析的匹配猜测。保存、修改与解析各自有明确边界，parse 不成为读取快照或源码输入的隐式副作用；公式与 Mermaid 的图像工具不参与 headless 文档的解析／生成合法性。

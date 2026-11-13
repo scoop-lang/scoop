@@ -51,6 +51,7 @@ internal fun MdBlockParser.finalize(node: MdBuildNode, endLine: Long) {
         else
             node.start
     when (node.kind) {
+        case MdKind.Extension -> finishExtensionBlock(node)
         case MdKind.Code -> {
             var content = node.input()
             when (node.fence) {
@@ -89,18 +90,8 @@ internal fun MdBlockParser.finalize(node: MdBuildNode, endLine: Long) {
                         content.size
                 )
         }
-        case MdKind.Item -> {
-            when (node.last) {
-                case Some(val child) -> {
-                    node.end = child.end;
-                    node.endLine = child.endLine
-                }
-                case None -> {
-                    node.end = lines[node.startLine].end;
-                    node.endLine = node.startLine
-                }
-            }
-        }
+        case MdKind.Item -> finishContainerRange(node)
+        case MdKind.FootnoteDefinition -> finishContainerRange(node)
         case MdKind.ListBlock -> {
             val data = node.list!!
             var item = node.first
@@ -130,6 +121,19 @@ internal fun MdBlockParser.finalize(node: MdBuildNode, endLine: Long) {
         else -> Unit
     }
     tip = node.parent ?: root
+}
+
+private fun MdBlockParser.finishContainerRange(node: MdBuildNode) {
+    when (node.last) {
+        case Some(val child) -> {
+            node.end = child.end
+            node.endLine = child.endLine
+        }
+        case None -> {
+            node.end = lines[node.startLine].end
+            node.endLine = node.startLine
+        }
+    }
 }
 
 internal fun MdBlockParser.sourceLine(position: Long): Long {

@@ -1,0 +1,52 @@
+package scoop.markdown
+
+internal fun mdFootnoteLabel(input: MdInput, start: Long): (Long, String)? {
+    if (input.at(start) != 91 || input.at(start + 1L) != 94)
+        return None
+    val end = MdLinkScanner(input, start).labelEnd()
+    if (end <= start + 3L)
+        return None
+    val label = mdReferenceLabel(input.text(start + 2L, end - 1L))
+    if (label == "")
+        return None
+    return Some((end, label))
+}
+
+internal fun MdBlockParser.startFootnote(): Boolean {
+    if (!profile.footnotes || indent >= 4L)
+        return false
+    val start = nextNonspace
+    val label = mdFootnoteLabel(input, start) ?: return false
+    if (label._1 >= line.end || input.at(label._1) != 58)
+        return false
+    closeUnmatched()
+    val node = add(MdKind.FootnoteDefinition, start)
+    node.label = label._2
+    node.markers.add(input.range(start, label._1 + 1L))
+    advanceNonspace()
+    advance(label._1 + 1L - start)
+    findNonspace()
+    advanceNonspace()
+    return true
+}
+
+internal fun MdInlineParser.isFootnote(offset: Long): Boolean {
+    if (!profile.footnotes)
+        return false
+    val label = mdFootnoteLabel(input, offset) ?: return false
+    return footnotes.containsKey(label._2)
+}
+
+internal fun MdInlineParser.footnoteInline(): Boolean {
+    val label = mdFootnoteLabel(input, position) ?: return false
+    if (!footnotes.containsKey(label._2))
+        return false
+    val range = input.range(position, label._1)
+    val node = MdBuildNode(MdKind.FootnoteReference, range.start, range.end)
+    node.label = label._2
+    node.markers.add(input.range(position, position + 2L))
+    node.markers.add(input.range(label._1 - 1L, label._1))
+    block.append(node)
+    position = label._1
+    return true
+}

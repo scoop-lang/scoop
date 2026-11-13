@@ -1,0 +1,49 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownExtensionExampleTests {
+    @Test
+    fun `a headless consumer supplies custom syntax beside formulas and directives`() {
+        val profile =
+            MarkdownProfile(
+                math = true,
+                footnotes = true,
+                extensions = [ConsumerTag(), mdBookDirectives()]
+            )
+        val source = "Use @tag(雪), $x^2$ and {{#include sample.rs:part}}.[^a]\n\n[^a]: Note.\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse(profile)
+        val names = ArrayList<String>()
+        for (node in parsed.nodes())
+            when (node.content) {
+                case MarkdownContent.Extension(val value) -> {
+                    names.add(value.name)
+                    if (value.name == "consumer-tag")
+                        assertEquals("雪", value.body.text)
+                }
+                else -> Unit
+            }
+        assertEquals(3L, names.size)
+        assertEquals("consumer-tag", names[0L])
+        assertEquals("math", names[1L])
+        assertEquals("mdbook", names[2L])
+        assertEquals(1L, parsed.footnotes.size)
+        assertEquals(source, document.toMarkdown())
+    }
+}
+
+private class ConsumerTag: MarkdownExtension {
+    public override val name: String = "consumer-tag"
+    public override val trigger: String = "@tag("
+    public override val locations: MarkdownExtensionLocations = MarkdownExtensionLocations()
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        val end = input.find(")", offset + 5L) ?: return None
+        return Some(MarkdownExtensionMatch(end + 1L, MarkdownRange(offset + 5L, end)))
+    }
+}

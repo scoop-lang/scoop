@@ -1,0 +1,69 @@
+package scoop.markdown
+
+internal fun MdInlineParser.extensionInline(): Boolean {
+    val value = mdMatchExtension(profile, extensionInput, position) ?: return false
+    block.append(mdExtensionNode(value))
+    position += value.source.byteLength
+    return true
+}
+
+internal fun MdInlineParser.mathInline(): Boolean {
+    val start = position
+    val dollar = input.at(start) == 36 && input.at(start + 1L) != 36
+    val paren = input.at(start) == 92 && input.at(start + 1L) == 40
+    if (!dollar && !paren)
+        return false
+    val width =
+        if (dollar)
+            1L
+        else
+            2L
+    val bodyStart = start + width
+    if (dollar && (bodyStart == input.size || mdWhitespace(input.at(bodyStart))))
+        return false
+    var at = bodyStart
+    while (at < input.size && input.at(at) != 10 && input.at(at) != 13) {
+        val closing =
+            if (dollar)
+                input.at(at) ==
+                    36 &&
+                    input.at(at + 1L) !=
+                    36 &&
+                    input.at(at - 1L) !=
+                    36 &&
+                    at >
+                    bodyStart &&
+                    !mdWhitespace(input.at(at - 1L)) &&
+                    !mdDigit(input.at(at + 1L))
+            else
+                input.at(at) == 92 && input.at(at + 1L) == 41
+        if (closing) {
+            val end = at + width
+            val value =
+                MarkdownExtensionValue(
+                    "math",
+                    MarkdownExtensionLocation.Inline,
+                    input.slice(start, end),
+                    input.slice(bodyStart, at),
+                    [
+                        MarkdownAttribute(
+                            "delimiter",
+                            if (dollar)
+                                "$"
+                            else
+                                "\\("
+                        )
+                    ],
+                    true
+                )
+            block.append(mdExtensionNode(value))
+            position = end
+            return true
+        }
+        if (input.at(at) == 92 && at + 1L < input.size)
+            at = input.scalarEnd(at + 1L)
+        else
+            at = input.scalarEnd(at)
+    }
+    return false
+}

@@ -12,10 +12,15 @@ public fun parseMarkdown(
         val source = mdSource(snapshot)
         val root = MdBlockParser(source, syntax, profile).parse()
         val references = HashMap<String, MarkdownLinkTarget>()
+        val footnotes = HashMap<String, MdBuildNode>()
         val blocks = mdBuildNodes(root)
-        for (node in blocks)
+        for (node in blocks) {
             if (node.kind == MdKind.Paragraph)
                 mdCollectReferences(node, references)
+            if (node.kind == MdKind.FootnoteDefinition && !footnotes.containsKey(node.label))
+                footnotes[node.label] = node
+        }
+        mdCustomBlocks(root, profile)
         for (node in mdBuildNodes(root)) {
             if (
                 node.kind ==
@@ -29,7 +34,7 @@ public fun parseMarkdown(
                 if (profile.taskLists && node.kind == MdKind.Paragraph)
                     input = mdTask(node, input)
                 node.ready = Some(input.value)
-                MdInlineParser(node, input, syntax, profile, references).parse()
+                MdInlineParser(node, input, syntax, profile, references, footnotes).parse()
             }
         }
         mdMergeText(root)

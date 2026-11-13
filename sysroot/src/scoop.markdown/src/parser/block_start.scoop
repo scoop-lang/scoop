@@ -98,6 +98,10 @@ internal fun MdBlockParser.startBlock(container: MdBuildNode): Int {
         return 0
     val start = nextNonspace
     val code = input.at(start)
+    if (startExtensionBlock(container))
+        return 2
+    if (startFootnote())
+        return 1
     if (indent < 4L && code == 62) {
         advanceNonspace()
         advance(1L)

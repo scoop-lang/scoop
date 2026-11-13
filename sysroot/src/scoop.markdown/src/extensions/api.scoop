@@ -1,0 +1,163 @@
+package scoop.markdown
+
+public enum MarkdownExtensionLocation {
+    Inline, Block, Code
+}
+
+public struct MarkdownExtensionLocations(
+    val inlineContent: Boolean = true,
+    val blocks: Boolean = false,
+    val codeBlocks: Boolean = false
+)
+
+public struct MarkdownAttribute(val name: String, val value: String)
+
+/** Matches a token in mapped input; no I/O or document mutation occurs during parsing. */
+public interface MarkdownExtension {
+    public val name: String
+    public val trigger: String
+    public val locations: MarkdownExtensionLocations
+    public fun parse(input: MarkdownExtensionInput, offset: Long): MarkdownExtensionMatch?
+}
+
+/** All positions in this object are UTF-8 bytes in source.text, not in the original file. */
+public class MarkdownExtensionInput internal constructor(
+    internal val input: MdInput,
+    public val location: MarkdownExtensionLocation
+) {
+    public val source: MarkdownText get() = input.value
+    public val byteLength: Long get() = input.size
+    /** Returns an unsigned byte or -1 outside the input. */
+    public fun byteAt(offset: Long): Int = input.at(offset)
+    public fun read(range: MarkdownRange): String = slice(range).text
+    public fun slice(range: MarkdownRange): MarkdownText {
+        checkRange(range)
+        return input.slice(range.start, range.end)
+    }
+    public fun startsWith(value: String, offset: Long): Boolean =
+        mdExtensionStarts(input, value.toByteArray(), offset)
+    public fun find(value: String, from: Long = 0L): Long? {
+        checkRange(MarkdownRange(from, from))
+        val needle = value.toByteArray()
+        var at = from
+        while (at + needle.size <= input.size) {
+            if (mdExtensionStarts(input, needle, at))
+                return Some(at)
+            at += 1L
+        }
+        return None
+    }
+    public fun lineEnd(offset: Long): Long {
+        checkRange(MarkdownRange(offset, offset))
+        var end = offset
+        while (end < input.size && input.at(end) != 10 && input.at(end) != 13)
+            end += 1L
+        return end
+    }
+    internal fun checkRange(range: MarkdownRange) {
+        requireMarkdown(
+            range.start >= 0L && range.end >= range.start && range.end <= input.size,
+            "Markdown extension range is outside its input"
+        )
+        source.sourceAt(MarkdownPosition(range.start))
+        source.sourceAt(MarkdownPosition(range.end))
+    }
+}
+
+/** A successful token match and its body range, both in the supplied input's coordinates. */
+public class MarkdownExtensionMatch public constructor(
+    public val end: Long,
+    public val body: MarkdownRange,
+    attributes: List<MarkdownAttribute> = [],
+    public val closed: Boolean = true
+) {
+    public val attributes: Array<MarkdownAttribute> = attributes.toArray()
+}
+
+/** Complete mapped source and semantic payload of a recognized extension. */
+public class MarkdownExtensionValue internal constructor(
+    public val name: String,
+    public val location: MarkdownExtensionLocation,
+    public val source: MarkdownText,
+    public val body: MarkdownText,
+    public val attributes: Array<MarkdownAttribute>,
+    public val closed: Boolean
+) {
+    public fun attribute(name: String): String? {
+        for (entry in attributes)
+            if (entry.name == name)
+                return Some(entry.value)
+        return None
+    }
+}
+
+public enum MarkdownDiagnosticSeverity {
+    Warning, Error
+}
+
+public struct MarkdownDiagnostic(
+    val range: MarkdownRange,
+    val message: String,
+    val severity: MarkdownDiagnosticSeverity = MarkdownDiagnosticSeverity.Warning
+)
+
+internal fun mdExtensionStarts(input: MdInput, needle: Array<Byte>, offset: Long): Boolean {
+    if (offset < 0L || offset > input.size || needle.size > input.size - offset)
+        return false
+    for (index in 0L ..< needle.size)
+        if (input.at(offset + index) != needle[index].toInt().and(255))
+            return false
+    return true
+}
+
+internal fun mdMatchExtension(
+    profile: MarkdownProfile,
+    input: MarkdownExtensionInput,
+    offset: Long
+): MarkdownExtensionValue? {
+    for (entry in profile.registered) {
+        val allowed =
+            when (input.location) {
+                case Inline -> entry.locations.inlineContent
+                case Block -> entry.locations.blocks
+                case Code -> entry.locations.codeBlocks
+            }
+        if (!allowed || !mdExtensionStarts(input.input, entry.trigger, offset))
+            continue
+        val matched = entry.handler.parse(input, offset) ?: continue
+        requireMarkdown(matched.end > offset, "Markdown extension must consume source")
+        input.checkRange(MarkdownRange(offset, matched.end))
+        input.checkRange(matched.body)
+        requireMarkdown(
+            matched.body.start >= offset && matched.body.end <= matched.end,
+            "Markdown extension body is outside its token"
+        )
+        if (input.location == MarkdownExtensionLocation.Block && matched.end != input.byteLength)
+            continue
+        return Some(
+            MarkdownExtensionValue(
+                entry.name,
+                input.location,
+                input.input.slice(offset, matched.end),
+                input.input.slice(matched.body.start, matched.body.end),
+                matched.attributes,
+                matched.closed
+            )
+        )
+    }
+    return None
+}
+
+internal fun mdExtensionNode(value: MarkdownExtensionValue): MdBuildNode {
+    val input = MdInput(value.source)
+    val range = input.range(0L, input.size)
+    val node = MdBuildNode(MdKind.Extension, range.start, range.end)
+    node.extension = Some(value)
+    node.open = false
+    val body = MdInput(value.body).range(0L, value.body.byteLength)
+    if (body.start > range.start)
+        node.markers.add(MarkdownRange(range.start, body.start))
+    if (body.end < range.end)
+        node.markers.add(MarkdownRange(body.end, range.end))
+    return node
+}
