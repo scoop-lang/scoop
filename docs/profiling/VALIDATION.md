@@ -100,3 +100,5 @@ Boolean hash 的回退仍需处理。比较最终 LIR，普通构建包含 `poll
 **实现与警告清理验收。** 格式化及 `cargo clippy --workspace --all-targets -- -D warnings` 通过，未关闭 lint。HIR、identity、MIR-lower 和文档测试合计 1,446 项通过，其中 MIR-lower 223 项；补齐 Mach-O LLD 搜索路径后，linker／toolchain 83 项通过。按普通开发配置重建命令，完整 profiling fixture 再次通过 9 次外部调用，包含 instrument → merge → optimize → run、配置与缓存更新、失败保留输出和无探针验证。macOS debug 编译器的 unwind 表尺寸警告按用户要求保留。
 
 全 workspace 执行记录为 6,446 项通过、53 项失败，不能作为全量通过结论。其中两项是本分支 schema 演进后遗留的 wire golden／未知 tag 期望，十项依赖本机 Mach-O LLD 搜索路径，修正后分别纳入上述复验。其余为 18 项旧 TaskContext 布局快照、22 项 core descriptor 测试辅助逻辑失败，以及一项 Windows statepoint return-PC 检查。主线 `b59f7fc1db` 的 `lowers_hello_world` 与 `actual_core_sources_produce_closed_mir_and_lir_export_tables` 分别复现相同的布局快照和 `CoroutineStartWork` descriptor 缺失；本机 Homebrew LLVM 未包含项目要求的 Windows statepoint 补丁。原生六目标首版验收使用配套工具链的结论保持原有范围，本轮没有为这些失败放宽断言或修改无关实现。
+
+独立 bug fix PR #131 合并后，将主线 `306c818a04` 合入 PGO 分支。本机重新格式化、执行 workspace Clippy（`-D warnings`）并按普通开发配置构建命令；dump 2 项、linker 18 项全部通过，完整 profiling fixture 再次通过 9 次外部调用（115.20 s）。这一轮确认主线修复与 PGO 链接、训练和反馈流程可以组合使用。

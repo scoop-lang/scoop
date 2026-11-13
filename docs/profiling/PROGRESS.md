@@ -117,3 +117,4 @@
 - 按用户要求清理 workspace 既有 Clippy 警告，固定分块使用带长度的数组视图，保留尾部长度、顺序和格式检查；协议解码仅将可选 profile 摘要间接存储，不改变 wire 格式。平台测试辅助模块按真实调用平台编译，不关闭 lint 或删除测试。workspace 测试同时发现旧 runtime 缓存路径断言，改为检查构建实际返回的目录。macOS debug 编译器的 unwind 表尺寸警告按用户要求保留，未调整开发编译配置。
 - 最终 `cargo fmt --all` 与 `cargo clippy --workspace --all-targets -- -D warnings` 通过；HIR、identity、MIR-lower 及文档测试合计 1,446 项通过，linker／toolchain 83 项通过。重新构建正式命令后，完整 profiling fixture 再次通过 9 次外部调用，覆盖训练、合并、反馈构建、运行、缓存更新、失败不发布及无探针输出。
 - 全 workspace 执行曾得到 6,446 项通过、53 项失败；修正本分支 schema 演进后的两处测试期望，并补齐本机 LLD 搜索路径后，相关测试复验通过。剩余失败涉及旧 TaskContext 快照、core descriptor 测试辅助逻辑，以及本机 LLVM 缺少项目要求的 Windows statepoint 补丁；前两类在独立主线 checkout 的代表测试中同样复现。本轮未改这些既有合同和工具链，范围见 [VALIDATION.md](VALIDATION.md)。
+- Windows 长路径发布和 ELF image header 解析已作为独立修复由 PR #131 合入主线。合入 `origin/main` 的 `306c818a04` 后，保留 PGO section 符号处理并复用主线通用回归；格式化及 workspace Clippy 零警告，dump 2 项、linker 18 项和完整 profiling fixture 的 9 次外部调用再次通过。
