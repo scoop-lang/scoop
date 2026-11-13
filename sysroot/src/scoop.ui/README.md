@@ -1,5 +1,7 @@
 # scoop.ui
 
+独立文本控件可用 `scoop.ui.text.drawTextLayout` 在 SceneContext 绘制自己持有的 TextLayout，复用普通 ParagraphHost 的文字记录和缓存路径；布局所有权仍由调用方管理。
+
 普通 Scoop Cone 实现的声明式自绘框架。Component 是保留身份的 class，以成员 State 保存状态，通过 render 返回不可变 View 描述。Element 使用公开的约束、子项测量／放置、Canvas、InputArea 和 Surface 动画绘制自身。框架不提供 Label、Button、默认样式或容器布局策略。
 
 当前提供 macOS aarch64／x86_64 与 Linux GNU x86_64 实现，包含独立自绘闭环及公共文本子包；基础控件由独立的 `scoop.ui.component` 提供。公开合同见 [UI 规范](../../../docs/specs/SCOOP-UI-SPEC.md)，macOS 验证见 [实施记录](../../../docs/ui/PROGRESS.md)，Linux 验证见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

@@ -1,7 +1,30 @@
 package scoop.ui.text
 
 import scoop.graphics.Rect
+import scoop.graphics.Point
+import scoop.graphics.text.TextLayout
+import scoop.graphics.text.drawText
 import scoop.ui.*
+
+/** Paints an owned layout with the same source-over recording path as paragraph controls. */
+public fun SceneContext.drawTextLayout(
+    key: PaintKey,
+    layout: TextLayout,
+    revision: Long,
+    origin: Point = Point(0.0, 0.0)
+) {
+    val bounds = layout.paintBounds
+    drawTextLayer(
+        key,
+        Rect(
+            bounds.x + origin.x - 1.0,
+            bounds.y + origin.y - 1.0,
+            bounds.width + 2.0,
+            bounds.height + 2.0
+        ),
+        revision
+    ) { paint -> paint.canvas.drawText(layout, origin) }
+}
 
 /** Retain source-over text commands without introducing an offscreen compositing layer. */
 internal fun SceneContext.drawTextLayer(
