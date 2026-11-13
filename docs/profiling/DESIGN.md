@@ -164,6 +164,8 @@ GC 事件时间线作为采集能力的下一批：记录单调时间、GC cycle
 
 在必要语义 lowering、具体化和 CFG 构造完成后，首次可选 MIR 优化之前，为有完整正文的 callable 建立采集计划。generation/use 必须使用同一个边界和编号算法。
 
+现有 pipeline 在构造协程 frame 之前已有 `inline_suspend_calls`，采集位置必须早于这一轮内联，不能只在 `run_current` 前编号。原始 callable 的标记随 hidden ABI 与状态机变换移动；变换中新生成的 callable 在其首次具有完整正文时建立自己的计划，保留已经携带的原正文标记。插入标记时同步更新 `pre_coroutine_call_sites` 的实际语句位置；handler 的块入口计数位于必要的 landing pad 指令之后，不破坏 LLVM EH 首指令要求。
+
 位置使用以下信息：
 
 - 既有 typed 声明、callable body、materialization/implementation 身份，保留 exact 类型实参和目标相关条件。

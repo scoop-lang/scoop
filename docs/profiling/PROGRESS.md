@@ -8,7 +8,7 @@
 
 | 大项 | 当前状态 | 验收依据 |
 | --- | --- | --- |
-| 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | 待实现 | 确定计数、内联映射、多线程、对象选择/裁剪 |
+| 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | LLVM 适配已实现；MIR 位置与生产接线待实现 | 确定计数、内联映射、多线程、对象选择/裁剪 |
 | off/default/full IR template 导出 | 本地实现与验收完成；跨平台待验收 | 完整模板、语义必需模板保留、实际 consumer 与 Strong 归属 |
 | profiling profile 与 runtime 采集 | 待实现 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
 | MIR cost 反馈及 `scoop-pgo` | 待实现 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
@@ -21,6 +21,7 @@
 - 将评审设计及路线图入口纳入实现分支，包含按目标安装的 profiling 组件、Profiling/full 训练库和配套 Release/full 无插桩库。
 - 核对本机 LLVM 22.1.8 的 instrumentation profile：`llvm-profdata` 可以合并，但不提供此类数据的 JSON/YAML show 输出，读取将使用同一 LLVM reader 的适配入口。
 - LLVM/Darwin 原型验证：四线程各调用 100,000 次，两个实际执行记录各得到 400,000；重复 weak_odr 对象只计一次，未使用函数和计数记录均被裁剪。只验证 LLVM 接线，尚不代表 Scoop 的 MIR 位置映射完成；原型输入、对象、程序和 profile 已清理。
+- Codegen 已提供 LLVM 22.1 原子计数 lowering 和 indexed profile reader。两个定向测试通过：在 Mach-O/ELF/COFF 的 LLVM IR 中确认 64 位原子更新及 ODR 分组；用真实 indexed 数据确认零计数、全零记录保留及无效输入诊断。已完成本机格式化与定向 Clippy；尚未接入实际 MIR/LIR 和构建入口，不能据此认为 profiling 程序已可构建。
 
 ### IR template 导出
 
