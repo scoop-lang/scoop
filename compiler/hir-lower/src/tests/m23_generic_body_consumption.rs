@@ -37,6 +37,7 @@ mod parents;
 mod pointer_construction;
 mod pointers;
 mod primitive_boxing;
+mod profiling;
 mod qualified_types;
 mod reference_targets;
 mod references;
@@ -199,8 +200,14 @@ fn imported_generic_bodies_infer_and_materialize_provider_templates() {
         .expect("generic applications retain their actual foundation identities");
     let _ = scoop_wire::encode(&foundation).unwrap();
     let dependencies = select_library_callables(&output);
-    scoop_mir_lower::lower_current_cone(&output, dependencies, Default::default(), None)
-        .expect("dependency templates lower through the ordinary MIR body path");
+    scoop_mir_lower::lower_current_cone(
+        &output,
+        dependencies,
+        Default::default(),
+        None,
+        Default::default(),
+    )
+    .expect("dependency templates lower through the ordinary MIR body path");
 }
 
 #[test]

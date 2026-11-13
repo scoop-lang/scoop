@@ -12,6 +12,32 @@ use inkwell::targets::TargetMachine;
 use inkwell::values::{FunctionValue, GlobalValue, IntValue};
 
 use crate::CodegenError;
+pub use scoop_profile::IndexedRecord;
+
+/// One physical record for one emitted LIR callable.
+pub fn record(function: &scoop_lir::Function) -> Option<scoop_profile::Record> {
+    let counters = function
+        .blocks
+        .iter()
+        .flat_map(|(_, block)| block.instructions.iter())
+        .filter_map(|instruction| match instruction {
+            scoop_lir::Instruction::ProfileCounter(counter) => Some(counter.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    (!counters.is_empty()).then(|| scoop_profile::Record::new(function.symbol().into(), counters))
+}
+
+/// Save the same physical layouts used by instruction emission. This is an
+/// ordinary compilation result, independent of debug/symbol observations.
+pub fn profile_map(module: &scoop_lir::Module, target: &str) -> Option<scoop_profile::ProfileMap> {
+    (!module.meta.profile_bodies.is_empty()).then(|| scoop_profile::ProfileMap {
+        schema: scoop_profile::SCHEMA,
+        target: target.into(),
+        bodies: module.meta.profile_bodies.clone(),
+        records: module.callable_bodies().filter_map(record).collect(),
+    })
+}
 
 unsafe extern "C" {
     fn scoop_lower_profile_counters(module: LLVMModuleRef, target: LLVMTargetMachineRef);
@@ -96,17 +122,9 @@ pub fn lower_counters(module: &Module<'_>, machine: &TargetMachine) {
     unsafe { scoop_lower_profile_counters(module.as_mut_ptr(), machine.as_mut_ptr()) };
 }
 
-/// LLVM names are byte strings. Only the Scoop map assigns logical identities.
-#[derive(Debug, Eq, PartialEq)]
-pub struct IndexedProfileRecord {
-    pub name: Vec<u8>,
-    pub hash: u64,
-    pub counts: Vec<u64>,
-}
-
 /// Decode an indexed profile once, preserving all counters including zeros.
-pub fn decode_indexed_profile(bytes: &[u8]) -> Result<Vec<IndexedProfileRecord>, CodegenError> {
-    let mut records = Vec::<IndexedProfileRecord>::new();
+pub fn decode_indexed_profile(bytes: &[u8]) -> Result<Vec<IndexedRecord>, CodegenError> {
+    let mut records = Vec::<IndexedRecord>::new();
     // LLVM borrows bytes and invokes the sink synchronously. The sink copies
     // each record before the LLVM iterator reuses its storage.
     let error = unsafe {
@@ -139,7 +157,7 @@ unsafe extern "C" fn collect_record(
     count_len: usize,
 ) {
     // LLVM owns the callback buffers and guarantees the supplied extents.
-    let records = unsafe { &mut *context.cast::<Vec<IndexedProfileRecord>>() };
+    let records = unsafe { &mut *context.cast::<Vec<IndexedRecord>>() };
     let name = if name_len == 0 {
         Vec::new()
     } else {
@@ -150,7 +168,7 @@ unsafe extern "C" fn collect_record(
     } else {
         unsafe { std::slice::from_raw_parts(counts, count_len) }.to_vec()
     };
-    records.push(IndexedProfileRecord { name, hash, counts });
+    records.push(IndexedRecord { name, hash, counts });
 }
 
 #[cfg(test)]

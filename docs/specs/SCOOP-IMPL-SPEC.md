@@ -563,6 +563,8 @@ LIR metadata 保存完整 value/instance/element layout、Scoop/C ABI、scan、T
 
 **Profiling 的 LLVM 边界。** 运行计数沿 [Profiling / PGO 设计](../profiling/DESIGN.md)分批实现；具体可用范围以[实施记录](../profiling/PROGRESS.md)为准。Codegen 将已确定的逻辑位置发射为 `llvm.instrprof.increment`，每个实际发射的 callable 持有自己的物理记录及计数布局。使用 LLVM 22.1 的 `InstrProfilingLoweringPass`，显式打开 `InstrProfOptions::Atomic`，不使用测试用全局命令行开关，不启用采样或 counter promotion。计数是 64 位原子更新，不创建托管根或 safepoint；记录与正文服从相同的 Strong/ODR 选择及死代码裁剪。布局 hash 只解释对应记录的 counter index，不替代 Scoop 的逻辑位置与正文匹配。反馈读取通过配套 LLVM 的 indexed InstrProf reader 取得 name、hash 和完整计数向量，保留零值；格式错误是输入错误，不解析 `llvm-profdata show` 的人类输出，也不把 Scoop 布局交给 LLVM 的 IR-PGO use pass。LLVM 读取适配仅由已依赖 LLVM 的编译器边界调用，HIR/MIR/LIR 数据 crate 不依赖该 reader。
 
+**Profiling 的位置通道。** `scoop-profile` 保存各阶段共享的采集配置、逻辑位置、物理计数映射和已解码频次，不依赖 stage 实现或 LLVM。逻辑 callable 使用既有 `CallableBodyKey` 派生的正文身份；正文 fingerprint 覆盖优化前规范化 CFG、操作数、常量和 typed 引用，排除 arena 分配顺序、显示名称及源码坐标。位置按 entry、block、call 分类并在同一正文内编号。MIR 以显式无 GC 的计数标记携带位置，内联复制标记并记录来源；它们不计入语言操作成本。首次可选 suspend 内联之前保存并标记原正文，语义变换中新形成的 callable 在进入普通 MIR 优化前补齐自己的计划；编译期临时编号不得直接写入持久映射。未发射或无法维护的位置与已训练零计数分开，不能作为动态零值使用。LIR 接收完整的 typed 位置，Codegen 只决定同一实际机器正文中的物理 counter index，不重建上游逻辑身份。
+
 GC 代码生成模块集中实现分配、完整托管写操作、发布与 poll 的快／慢路径。字段与数组 store、含引用聚合复制、数组构造／拼接、clone 及原子引用写入必须把实际写入和对应屏障放在同一操作中；通用发射器交付实际地址、值、类型／scan、内存序和必要的 safepoint 数据，不单独拼接写后屏障。后续 LLVM 优化可按 2.19 合并完整有界内层中的等价 card store，仍须在下一次可能 GC 或发布前完成。批量构造／复制保留整段范围屏障，失败 CAS 不标脏，GC-free 写入不增加屏障。runtime 执行的 clone／boxing 等完整操作沿既有入口调用，内部写入遵守运行时规范 3.6。
 
 分配、单槽写入与 poll 的既有快路径仍静态内联，不为模块隔离增加外部热路调用或重复 TLS 查询；保持原内存序，地址计算、写入与屏障之间无 safepoint。根活跃度、statepoint relocation、异常控制流与调用 ABI 继续由原有模块负责。纯内部职责重组不改变共享布局、runtime ABI 或产物格式。

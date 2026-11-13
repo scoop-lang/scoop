@@ -17,12 +17,12 @@ fn indexed_reader_preserves_zero_records_and_rejects_invalid_input() {
     assert_eq!(
         records,
         vec![
-            IndexedProfileRecord {
+            IndexedRecord {
                 name: b"cold".to_vec(),
                 hash: 17,
                 counts: vec![0, 0]
             },
-            IndexedProfileRecord {
+            IndexedRecord {
                 name: b"live".to_vec(),
                 hash: 42,
                 counts: vec![7, 0, 11]

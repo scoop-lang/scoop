@@ -149,6 +149,7 @@ pub(super) fn compare_consumers_export_ir(
                 dependencies,
                 Default::default(),
                 None,
+                Default::default(),
             )
             .unwrap_or_else(|errors| panic!("{label}: {errors:?}"));
             (

@@ -27,6 +27,7 @@ pub fn lower_current_cone(
     mut selected_callables: mir::SelectedExternalMirSet,
     optimization: MirOptimizationOptions,
     report: Option<&mut mir::optimization_report::OptimizationReport>,
+    profiling: ProfilingInput<'_>,
 ) -> Result<mir::DependencyMirOutput, CurrentConeMirLoweringError> {
     let hir = output.output().local.module();
     if selected_callables.consumer() != hir.cone {
@@ -109,7 +110,9 @@ pub fn lower_current_cone(
         objects,
         &signature_types.into_iter().collect::<Vec<_>>(),
         optimization.coroutine_elision,
+        profiling.enabled(),
     );
+    profiling.apply(&mut module.meta.profiling);
     optimization::run_current(
         &mut module,
         &selected_callables,

@@ -81,6 +81,9 @@ fn fuse(
     let mut removed = HashSet::new();
     for index in 0..block.statements.len() {
         let statement = &block.statements[index];
+        if matches!(statement.kind, mir::StatementKind::ProfileCounter(_)) {
+            continue;
+        }
         if let mir::StatementKind::Call(mir::CallEffect::Value { destination, call }) =
             &statement.kind
             && matches!(

@@ -65,6 +65,7 @@ fn export_ir_modes_preserve_generic_and_default_execution() {
                 dependencies,
                 scoop_mir_lower::MirOptimizationOptions::RELEASE,
                 None,
+                scoop_mir_lower::ProfilingInput::Off,
             )
             .expect("templates preserve calls and default argument execution");
             let mut indexed = section.clone();
@@ -170,6 +171,7 @@ fn full_keeps_ordinary_closure_bodies_and_consumes_only_called_templates() {
                 dependencies,
                 scoop_mir_lower::MirOptimizationOptions::RELEASE,
                 None,
+                scoop_mir_lower::ProfilingInput::Off,
             )
             .expect("complete imported closures lower without provider Strong definitions");
         },

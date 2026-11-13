@@ -27,6 +27,7 @@ impl CurrentConeMachineHir<'_> {
             selected_callables,
             optimization,
             report,
+            Default::default(),
         )
         .map_err(CurrentConeMirStageError::Lowering)?;
         let foundation = mir.foundation();

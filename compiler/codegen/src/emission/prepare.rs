@@ -98,6 +98,9 @@ pub(super) fn prepare_callable_strong_llvm_module<'ctx, D, C, I>(
             ))
         },
     )?;
+    if !module.meta.profile_bodies.is_empty() {
+        crate::profiling::lower_counters(&llvm, machine);
+    }
     crate::metadata_sections::place_immutable_metadata(&llvm, profile);
     statepoint::optimize(&llvm, machine, expected, profile)?;
     let has_unwind = prune_unused_personalities(&llvm);
@@ -142,6 +145,9 @@ fn optimize_and_lower_module(
     profile: ValidatedBackendProfile,
     expected_safepoints: &statepoint::ExpectedSafepoints,
 ) -> Result<(), CodegenError> {
+    if llvm.get_function("llvm.instrprof.increment").is_some() {
+        crate::profiling::lower_counters(llvm, machine);
+    }
     crate::metadata_sections::place_immutable_metadata(llvm, profile);
     statepoint::optimize(llvm, machine, expected_safepoints, profile)?;
     statepoint::lower(llvm, machine).map(|_| ())

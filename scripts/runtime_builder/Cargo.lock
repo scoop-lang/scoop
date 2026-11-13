@@ -838,6 +838,7 @@ version = "0.0.0"
 dependencies = [
  "la-arena",
  "scoop-identity",
+ "scoop-profile",
  "scoop-source",
  "scoop-wire",
 ]
@@ -862,6 +863,7 @@ version = "0.0.0"
 dependencies = [
  "la-arena",
  "scoop-identity",
+ "scoop-profile",
  "scoop-source",
  "scoop-wire",
 ]
@@ -884,6 +886,15 @@ dependencies = [
  "rustix",
  "signal-hook",
  "windows-sys",
+]
+
+[[package]]
+name = "scoop-profile"
+version = "0.0.0"
+dependencies = [
+ "scoop-identity",
+ "scoop-wire",
+ "serde",
 ]
 
 [[package]]

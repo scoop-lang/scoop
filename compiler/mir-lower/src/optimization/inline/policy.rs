@@ -63,7 +63,11 @@ pub(super) fn protocol_entries(module: &mir::Module) -> Vec<bool> {
 
 pub(super) fn executable(function: &mir::Function) -> bool {
     function.body.blocks.iter().any(|(_, block)| {
-        !block.statements.is_empty() || !matches!(block.terminator, mir::Terminator::Unreachable)
+        block
+            .statements
+            .iter()
+            .any(|statement| !matches!(statement.kind, mir::StatementKind::ProfileCounter(_)))
+            || !matches!(block.terminator, mir::Terminator::Unreachable)
     })
 }
 

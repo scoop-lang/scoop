@@ -1104,10 +1104,12 @@ dependencies = [
  "scoop-identity",
  "scoop-lir",
  "scoop-process",
+ "scoop-profile",
  "scoop-slib",
  "scoop-source",
  "scoop-target-data",
  "scoop-toolchain",
+ "scoop-wire",
  "tempfile",
 ]
 
@@ -1218,6 +1220,7 @@ version = "0.0.0"
 dependencies = [
  "la-arena",
  "scoop-identity",
+ "scoop-profile",
  "scoop-source",
  "scoop-wire",
 ]
@@ -1232,6 +1235,7 @@ dependencies = [
  "scoop-identity",
  "scoop-lir",
  "scoop-mir",
+ "scoop-profile",
  "scoop-target-data",
  "scoop-wire",
 ]
@@ -1283,6 +1287,7 @@ dependencies = [
  "la-arena",
  "scoop-hir",
  "scoop-identity",
+ "scoop-profile",
  "scoop-source",
  "scoop-wire",
 ]
@@ -1296,6 +1301,7 @@ dependencies = [
  "scoop-hir-lower",
  "scoop-identity",
  "scoop-mir",
+ "scoop-profile",
  "scoop-wire",
 ]
 
@@ -1348,6 +1354,16 @@ dependencies = [
  "signal-hook",
  "tempfile",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "scoop-profile"
+version = "0.0.0"
+dependencies = [
+ "scoop-identity",
+ "scoop-wire",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

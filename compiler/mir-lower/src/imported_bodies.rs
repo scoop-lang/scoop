@@ -8,6 +8,7 @@ mod intrinsics;
 #[derive(Default)]
 pub(super) struct ImportedBodies {
     pub functions: HashMap<mir::ExternalCallableUseId, mir::Function>,
+    pub call_sites: HashMap<mir::ExternalCallableUseId, Vec<cfg::CallSite>>,
     pub unsupported: HashSet<mir::ExternalCallableUseId>,
     pub required: HashSet<mir::ExternalCallableUseId>,
     pub dispatch: dispatch::IntrinsicDispatch,
@@ -18,6 +19,7 @@ pub(super) use dispatch::IntrinsicDispatch;
 impl Lowerer {
     pub(super) fn lower_imported_bodies(&mut self, module: &hir::Module) -> ImportedBodies {
         let mut bodies = HashMap::new();
+        let mut call_sites = HashMap::new();
         let mut unsupported = HashSet::new();
         for (_, source) in module.imported_inline_bodies.iter() {
             let Some(ImportedCallableTarget {
@@ -71,7 +73,11 @@ impl Lowerer {
                 statements,
                 coroutine_eh: None,
             };
-            let body = cfg::lower(body, return_ty.clone(), &self.enums.defs, &self.classes).body;
+            let lowered = cfg::lower(body, return_ty.clone(), &self.enums.defs, &self.classes);
+            if self.profiling {
+                call_sites.insert(callable, lowered.call_sites);
+            }
+            let body = lowered.body;
             bodies.insert(
                 callable,
                 mir::Function {
@@ -86,6 +92,7 @@ impl Lowerer {
         }
         let mut bodies = ImportedBodies {
             functions: bodies,
+            call_sites,
             unsupported,
             ..Default::default()
         };
