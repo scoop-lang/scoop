@@ -1247,6 +1247,8 @@ RC 更新记录使用预处理器的实际头文件依赖，以及 LLVM RC 对�
 
 program-link 消费完整 `.slib` Link 闭包、普通 runtime 对象、已有 native 文件、LIR target 与 final-link 配置。它不展开模板、重新编译 Scoop 或编译用户 C/C++；只可用明确选择的 C compiler 生成本次固定启动代码与最终 image tables。
 
+ELF native 对象引用的 `__ehdr_start` 由最终 linker 提供当前 image 的 ELF header 地址，和 `_GLOBAL_OFFSET_TABLE_` 一样交给最终链接解析，不要求普通 native 库提供定义。这不放宽其他未定义符号的解析规则，也不将该 ELF 符号视为 Mach-O 或 COFF 的内置符号。
+
 final-link profile 由完整 target 显式引用，不能从 ELF／Mach-O／COFF 或 `TargetOs` 单独推导。格式／linker-family 层可以复用实际对象顺序、response file、shared/executable 形态、SONAME 与 section/relocation handling；平台环境层必须显式提供 CRT start files、dynamic loader、PIE/static policy、系统库、libc／C++ runtime、unwind provider、SDK 搜索与 rpath 约定。Linux profile 只能把确属 ELF／linker-family 的既有操作交给公共 helper，Linux CRT、loader 与默认库不能冒充通用 ELF 行为。
 
 Darwin 的 executable 与 native-app 共享库直接调用宿主配套的 LLVM LLD，以开头的 `-flavor darwin` 选择 Mach-O 链接；包含 C++ 依赖时也使用同一路径，libc++／ABI 运行库继续由已有 native 依赖闭包及所选 SDK 的显式 stub 提供。`--linker` 可显式选择 LLD executable；省略时依次查找宿主安装根的 `libexec/llvm/bin/lld`、`LLVM_SYS_221_PREFIX/bin/lld` 与 PATH 中的 `lld`，缺失时报告正常工具错误，不回退到 Apple ld。C／C++／Objective-C 编译及 SDK 选择继续使用配套 Apple Clang。最终链接探测复用已读取的目标系统导出生成普通单目标 stub，与 program-link 保持一致，不将其他架构的 SDK stub 条目交给 LLD。

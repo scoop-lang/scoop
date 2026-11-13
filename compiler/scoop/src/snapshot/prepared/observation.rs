@@ -142,6 +142,10 @@ fn store_dumps(
 }
 
 fn copy_dump(source: &Path, directory: &Path, name: &str) -> io::Result<()> {
+    // tempfile's Windows persist path goes directly to MoveFileExW. Resolve
+    // the existing directory to an extended path before creating the file.
+    #[cfg(windows)]
+    let directory = &std::fs::canonicalize(directory)?;
     let mut source = std::fs::File::open(source)?;
     let mut output = tempfile::NamedTempFile::new_in(directory)?;
     io::copy(&mut source, &mut output)?;
