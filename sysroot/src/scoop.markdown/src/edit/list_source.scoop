@@ -1,0 +1,175 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal class MdItemLocation(val item: MarkdownNode, val list: MarkdownNode, val index: Long) {
+    val source: MdItemSource get() = item.itemSource!!
+}
+
+internal fun mdListInfo(node: MarkdownNode): MarkdownListInfo =
+    when (node.content) {
+        case MarkdownContent.ListBlock(val info) -> info
+        else -> throw IllegalArgumentException(Some("The Markdown node is not a list"))
+    }
+
+internal fun mdItemLocation(parsed: ParsedMarkdown, id: MarkdownNodeId): MdItemLocation {
+    val item = parsed.node(id)
+    when (item.content) {
+        case MarkdownContent.ListItem(_) -> Unit
+        else -> throw IllegalArgumentException(Some("The Markdown node is not a list item"))
+    }
+    val list = parsed.parent(id)!!
+    var index = 0L
+    while (list.children[index] !== item)
+        index += 1L
+    return MdItemLocation(item, list, index)
+}
+
+/** Canonical continuation prefixes retain each ancestor's actual list indentation width. */
+internal fun mdListPrefix(
+    parsed: ParsedMarkdown,
+    node: MarkdownNode,
+    include: Boolean = false
+): String {
+    val ancestors = ArrayList<MarkdownNode>()
+    var current =
+        if (include)
+            Some(node)
+        else
+            parsed.parent(node.id)
+    while (true) {
+        val value = current ?: break
+        ancestors.add(value)
+        current = parsed.parent(value.id)
+    }
+    val output = StringBuilder()
+    var index = ancestors.size
+    while (index > 0L) {
+        index -= 1L
+        val ancestor = ancestors[index]
+        when (ancestor.content) {
+            case MarkdownContent.ListItem(_) -> output.append(
+                " ".repeat(ancestor.itemSource!!.width)
+            )
+            case MarkdownContent.BlockQuote -> output.append("> ")
+            case MarkdownContent.FootnoteDefinition(_) -> output.append("    ")
+            else -> Unit
+        }
+    }
+    return output.toString()
+}
+
+internal fun mdItemToken(snapshot: MarkdownSnapshot, item: MarkdownNode): String =
+    mdSourceInput(snapshot, item.markers[0L]).trim().value.text
+
+internal fun mdListSeparated(
+    snapshot: MarkdownSnapshot,
+    previous: MarkdownNode,
+    item: MarkdownNode
+): Boolean {
+    val last = snapshot.lineAt(MarkdownPosition(previous.range.end - 1L))
+    return mdNodeLine(snapshot, item) > last + 1L
+}
+
+internal fun MarkdownTransformBuilder.mdListPrefixEdit(range: MarkdownRange, text: String) {
+    if (snapshot.read(range) != text)
+        replace(range, text)
+}
+
+internal fun mdItemBlankLine(snapshot: MarkdownSnapshot, line: MdItemLine): Boolean {
+    val range = snapshot.lineRange(snapshot.lineAt(MarkdownPosition(line.lineStart)))
+    return line.end == range.end && line.remainder == 0L && snapshot.read(range).isBlank()
+}
+
+internal fun mdListWasParagraph(node: MarkdownNode): Boolean =
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> true
+        case MarkdownContent.ReferenceDefinition(_, _) -> true
+        case MarkdownContent.Extension(_) -> true
+        else -> false
+    }
+
+internal fun mdEmptyListItem(item: MarkdownNode): Boolean {
+    if (item.children.size == 0L)
+        return true
+    if (item.children.size != 1L)
+        return false
+    return when (item.children[0L].content) {
+        case MarkdownContent.Paragraph(val source) -> source.text.isBlank()
+        else -> false
+    }
+}
+
+internal enum MdItemFirst {
+    InPlace, WholeLine, SplitParent
+}
+
+/** A changed marker must not turn the first physical line into a thematic break. */
+internal fun mdItemWouldBeRule(
+    snapshot: MarkdownSnapshot,
+    item: MarkdownNode,
+    token: String
+): Boolean {
+    if (token != "*" && token != "-")
+        return false
+    val first = item.itemSource!!.lines[0L]
+    val end = snapshot.lineRange(snapshot.lineAt(MarkdownPosition(first.lineStart))).end
+    val input = mdSourceInput(snapshot, MarkdownRange(first.end, end))
+    val marker = token.toByteArray()[0L].toInt()
+    var count = 1L
+    for (index in 0L ..< input.size) {
+        val code = input.at(index)
+        if (code == marker)
+            count += 1L
+        else
+            if (!mdSpace(code))
+                return false
+    }
+    return count >= 3L
+}
+
+internal fun MarkdownTransformBuilder.mdRewriteItem(
+    item: MarkdownNode,
+    prefix: String,
+    token: String,
+    offset: Long,
+    padding: Long,
+    first: MdItemFirst,
+    blankBefore: Boolean = false
+) {
+    val source = item.itemSource!!
+    val newline = mdLocalNewline(snapshot, item.range.start)
+    val header = " ".repeat(offset) + token + " ".repeat(padding - token.byteLength)
+    val continuation = prefix + " ".repeat(offset + padding)
+    val breakBody = mdItemWouldBeRule(snapshot, item, token)
+    for (index in 0L ..< source.lines.size) {
+        val line = source.lines[index]
+        if (index > 0L && mdItemBlankLine(snapshot, line))
+            continue
+        var start = line.lineStart
+        val output = StringBuilder()
+        if (index == 0L) {
+            when (first) {
+                case MdItemFirst.InPlace -> {
+                    start = line.entry
+                    output.append(" ".repeat(line.entryCarry))
+                }
+                case MdItemFirst.WholeLine -> {
+                    if (blankBefore)
+                        output.append(prefix).append(newline)
+                    output.append(prefix)
+                }
+                case MdItemFirst.SplitParent -> {
+                    start = line.entry
+                    output.append(" ".repeat(line.entryCarry)).append(newline).append(prefix)
+                }
+            }
+            output.append(header)
+            if (breakBody)
+                output.append(newline).append(continuation)
+        } else
+            output.append(continuation)
+        output.append(" ".repeat(line.remainder))
+        mdListPrefixEdit(MarkdownRange(start, line.end), output.toString())
+    }
+}

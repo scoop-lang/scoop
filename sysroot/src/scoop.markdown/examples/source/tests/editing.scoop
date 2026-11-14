@@ -6,6 +6,23 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun `headless consumers can nest list items and explicitly number the outer list`() {
+        val original = "- First\n- [x] Child\n- Last\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) { indentListItem(parsed.root.children[0L].children[1L].id) }
+        assertEquals("- First\n  - [x] Child\n- Last\n", document.toMarkdown())
+        val nested = document.parse()
+        val numbered =
+            document.transform(nested) { setOrderedList(nested.root.children[0L].id, 9L) }
+        assertEquals("9. First\n   - [x] Child\n10. Last\n", document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, numbered.inverseReplacements))
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
     fun `headless consumers can add formatted table columns and paste rectangular TSV`() {
         val document = MarkdownDocument.fromText("| Name | Score |\n|---|---|\n| A | 100 |\n")
         val parsed = document.parse()

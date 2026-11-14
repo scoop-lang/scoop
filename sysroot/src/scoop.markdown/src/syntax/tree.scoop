@@ -8,7 +8,8 @@ public class MarkdownNode internal constructor(
     public val content: MarkdownContent,
     public val range: MarkdownRange,
     public val markers: Array<MarkdownRange>,
-    public val children: Array<MarkdownNode>
+    public val children: Array<MarkdownNode>,
+    internal val itemSource: MdItemSource? = None
 )
 
 /** A complete immutable tree for exactly one source snapshot and profile. */

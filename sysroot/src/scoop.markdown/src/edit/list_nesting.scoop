@@ -1,0 +1,108 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Nests an item under its previous sibling without rewriting its body or descendants. */
+public fun MarkdownTransformBuilder.indentListItem(id: MarkdownNodeId) {
+    val location = mdItemLocation(parsed, id)
+    requireMarkdown(location.index > 0L, "The first Markdown list item has no previous sibling")
+    val previous = location.list.children[location.index - 1L]
+    val source = location.source
+    var needsBlank = source.ordered && source.start != 1L
+    if (needsBlank && previous.children.size > 0L) {
+        val last = previous.children[previous.children.size - 1L]
+        needsBlank = mdListWasParagraph(last)
+    }
+    if (previous.children.size == 0L || mdListSeparated(snapshot, previous, location.item))
+        needsBlank = false
+    mdRewriteItem(
+        location.item,
+        mdListPrefix(parsed, previous, true),
+        mdItemToken(snapshot, location.item),
+        source.offset,
+        source.padding,
+        MdItemFirst.WholeLine,
+        needsBlank
+    )
+}
+
+/** Promotes a nested item, or unwraps a list item when no immediate parent item exists. */
+public fun MarkdownTransformBuilder.outdentListItem(id: MarkdownNodeId) {
+    val location = mdItemLocation(parsed, id)
+    val parent = parsed.parent(location.list.id)!!
+    when (parent.content) {
+        case MarkdownContent.ListItem(_) -> Unit
+        else -> {
+            unwrapListItem(id)
+            return
+        }
+    }
+    val source = parent.itemSource!!
+    mdRewriteItem(
+        location.item,
+        mdListPrefix(parsed, parent),
+        mdItemToken(snapshot, parent),
+        source.offset,
+        source.padding,
+        if (mdNodeLine(snapshot, parent) == mdNodeLine(snapshot, location.item))
+            MdItemFirst.SplitParent
+        else
+            MdItemFirst.WholeLine
+    )
+}
+
+/** Removes the item's marker and task checkbox, retaining its body in the list's parent. */
+public fun MarkdownTransformBuilder.unwrapListItem(id: MarkdownNodeId) {
+    val location = mdItemLocation(parsed, id)
+    val item = location.item
+    val prefix = mdListPrefix(parsed, item)
+    val newline = mdLocalNewline(snapshot, item.range.start)
+    val empty = mdEmptyListItem(item)
+    val needsBlank =
+        !empty &&
+            location.index >
+            0L &&
+            !mdListSeparated(snapshot, location.list.children[location.index - 1L], item)
+    for (index in 0L ..< location.source.lines.size) {
+        val line = location.source.lines[index]
+        if (index > 0L && mdItemBlankLine(snapshot, line))
+            continue
+        val inPlace = index == 0L && location.index == 0L
+        val output = StringBuilder()
+        if (inPlace)
+            output.append(" ".repeat(line.entryCarry))
+        else {
+            if (index == 0L && needsBlank)
+                output.append(prefix).append(newline)
+            output.append(prefix)
+        }
+        output.append(" ".repeat(line.remainder))
+        mdListPrefixEdit(
+            MarkdownRange(
+                if (inPlace)
+                    line.entry
+                else
+                    line.lineStart,
+                line.end
+            ),
+            output.toString()
+        )
+    }
+    when (item.content) {
+        case MarkdownContent.ListItem(Some(_)) -> {
+            val marker = item.markers[1L]
+            val end = snapshot.lineRange(snapshot.lineAt(MarkdownPosition(marker.start))).end
+            val input = mdSourceInput(snapshot, MarkdownRange(marker.end, end))
+            replace(MarkdownRange(marker.start, marker.end + input.spaces(0L)), "")
+        }
+        else -> Unit
+    }
+    if (!empty && location.index + 1L < location.list.children.size) {
+        val following = location.list.children[location.index + 1L]
+        if (!mdListSeparated(snapshot, item, following)) {
+            val last = snapshot.lineAt(MarkdownPosition(item.range.end - 1L))
+            val at = snapshot.lineRange(last, true).end
+            replace(MarkdownRange(at, at), prefix + newline)
+        }
+    }
+}

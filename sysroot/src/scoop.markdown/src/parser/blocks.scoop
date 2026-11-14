@@ -168,8 +168,12 @@ internal class MdBlockParser(
             }
             case MdKind.Item -> {
                 val data = node.list!!
+                val entry = offset
+                val entryColumn = column
+                val entryPartial = partialTab
                 if (indent >= data.offset + data.padding) {
-                    advance(data.offset + data.padding, true);
+                    advance(data.offset + data.padding, true)
+                    recordItemLine(node, entry, entryColumn, entryPartial)
                     0
                 }
                 else
@@ -180,7 +184,8 @@ internal class MdBlockParser(
                                 case None -> false
                             }
                     ) {
-                        advanceNonspace();
+                        advanceNonspace()
+                        recordItemLine(node, entry, entryColumn, entryPartial)
                         0
                     }
                     else
@@ -253,9 +258,10 @@ internal class MdBlockParser(
             if (result == 2)
                 leaf = true
         }
-        if (!allClosed && !blank && tip.kind == MdKind.Paragraph)
+        if (!allClosed && !blank && tip.kind == MdKind.Paragraph) {
+            recordLazyItems()
             addLine()
-        else {
+        } else {
             closeUnmatched()
             if (
                 !skipContent &&

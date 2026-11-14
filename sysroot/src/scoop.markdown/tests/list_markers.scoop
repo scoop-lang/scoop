@@ -1,0 +1,105 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownListMarkerTests {
+    @Test
+    fun `numbering across a digit boundary reindents descendants and keeps task state`() {
+        val original = "- A\n- [x] B\n  - child\n\n  tail\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) { setOrderedList(parsed.root.children[0L].id, 9L, ')') }
+        assertEquals("9) A\n10) [x] B\n    - child\n\n    tail\n", document.toMarkdown())
+        val list = document.parse().root.children[0L]
+        assertEquals(2L, list.children.size)
+        when (list.children[1L].content) {
+            case MarkdownContent.ListItem(val checked) -> assertEquals(Some(true), checked)
+            else -> fail(Some("Expected a task item"))
+        }
+        assertEquals(3L, list.children[1L].children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `shortening a wide numbered marker does not turn the item into indented code`() {
+        val original = "12345. A\n       continuation\n12346. B\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val change = document.transform(parsed) { setBulletList(parsed.root.children[0L].id, '+') }
+        assertEquals("+    A\n     continuation\n+    B\n", document.toMarkdown())
+        val after = document.parse()
+        assertEquals(
+            "A continuation",
+            after.inlineContent(after.root.children[0L].children[0L].children[0L].id).text.text
+        )
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `changed markers preserve list interpretation next to a paragraph and a thematic pattern`() {
+        val document = MarkdownDocument.fromText("Intro\n+ * *\n+ end\n")
+        val parsed = document.parse()
+        val change = document.transform(parsed) { setBulletList(parsed.root.children[1L].id, '*') }
+        assertEquals("Intro\n\n* \n  * *\n* end\n", document.toMarkdown())
+        val after = document.parse()
+        assertEquals(2L, after.root.children.size)
+        assertEquals(2L, after.root.children[1L].children.size)
+        assertEquals(mdListTestItems(parsed).size, mdListTestItems(after).size)
+        val nested = after.root.children[1L].children[0L].children[0L]
+        assertEquals('*', mdListInfo(nested).marker)
+        assertEquals('*', mdListInfo(nested.children[0L].children[0L]).marker)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals("Intro\n+ * *\n+ end\n", document.toMarkdown())
+
+        val ordered = MarkdownDocument.fromText("Intro\n- A\n- B\n")
+        val initial = ordered.parse()
+        ordered.transform(initial) { setOrderedList(initial.root.children[1L].id, 7L) }
+        assertEquals("Intro\n\n7. A\n8. B\n", ordered.toMarkdown())
+        assertEquals(2L, ordered.parse().root.children.size)
+    }
+
+    @Test
+    fun `conversion retains same-line ancestor markers and quote continuations`() {
+        val original = "> - - A\r\n>   - B\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val list = parsed.root.children[0L].children[0L].children[0L].children[0L]
+        val change = document.transform(parsed) { setOrderedList(list.id, 3L) }
+        assertEquals("> - 3. A\r\n>   4. B\r\n", document.toMarkdown())
+        val after = document.parse()
+        assertEquals(
+            2L,
+            after.root.children[0L].children[0L].children[0L].children[0L].children.size
+        )
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `invalid markers and numbering overflow are atomic`() {
+        val document = MarkdownDocument.fromText("- A\n- B\n")
+        val parsed = document.parse()
+        val list = parsed.root.children[0L]
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setBulletList(list.id, '#') }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setOrderedList(list.id, -1L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setOrderedList(list.id, 999999999L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setOrderedList(list.id, 1L, ':') }
+        }
+        assertEquals("- A\n- B\n", document.toMarkdown())
+        val last = MarkdownDocument.fromText("- A")
+        val model = last.parse()
+        last.transform(model) { setOrderedList(model.root.children[0L].id, 999999999L) }
+        assertEquals("999999999. A", last.toMarkdown())
+    }
+}

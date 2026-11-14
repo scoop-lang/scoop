@@ -1,0 +1,86 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Converts one list while retaining task states, contents and necessary block separators. */
+public fun MarkdownTransformBuilder.setBulletList(id: MarkdownNodeId, marker: Char = '-') {
+    requireMarkdown(
+        marker == '-' || marker == '+' || marker == '*',
+        "Invalid Markdown bullet marker"
+    )
+    val list = parsed.node(id)
+    mdListInfo(list)
+    mdSetListMarkers(list, false, 1L, marker)
+}
+
+/** Explicitly converts and numbers every item; ordinary list movement never renumbers siblings. */
+public fun MarkdownTransformBuilder.setOrderedList(
+    id: MarkdownNodeId,
+    start: Long = 1L,
+    delimiter: Char = '.'
+) {
+    requireMarkdown(delimiter == '.' || delimiter == ')', "Invalid Markdown ordered-list delimiter")
+    val list = parsed.node(id)
+    mdListInfo(list)
+    requireMarkdown(
+        start >= 0L && start <= 999999999L && list.children.size - 1L <= 999999999L - start,
+        "Markdown list numbers must be between 0 and 999999999"
+    )
+    mdSetListMarkers(list, true, start, delimiter)
+}
+
+private fun MarkdownTransformBuilder.mdSetListMarkers(
+    list: MarkdownNode,
+    ordered: Boolean,
+    start: Long,
+    marker: Char
+) {
+    val prefix = mdListPrefix(parsed, list.children[0L])
+    val parent = parsed.parent(list.id)!!
+    var preceding: MarkdownNode? = None
+    for (child in parent.children) {
+        if (child === list)
+            break
+        preceding = Some(child)
+    }
+    var needsBlank = false
+    when (preceding) {
+        case Some(val previous) -> needsBlank =
+            mdListWasParagraph(previous) && !mdListSeparated(snapshot, previous, list.children[0L])
+        case None -> Unit
+    }
+    for (index in 0L ..< list.children.size) {
+        val item = list.children[index]
+        val source = item.itemSource!!
+        val token =
+            (
+                if (ordered)
+                    (start + index).toString()
+                else
+                    ""
+            ) +
+                marker.toString()
+        var spaces = source.padding - token.byteLength
+        if (spaces < 1L)
+            spaces = 1L
+        if (spaces > 4L)
+            spaces = 4L
+        val blank =
+            index ==
+                0L &&
+                needsBlank &&
+                (ordered && start != 1L || mdItemWouldBeRule(snapshot, item, token))
+        mdRewriteItem(
+            item,
+            prefix,
+            token,
+            source.offset,
+            token.byteLength + spaces,
+            if (blank)
+                MdItemFirst.WholeLine
+            else
+                MdItemFirst.InPlace,
+            blank
+        )
+    }
+}

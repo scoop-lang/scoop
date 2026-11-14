@@ -1,0 +1,239 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownListNestingTests {
+    @Test
+    fun `indent and outdent retain other siblings and source anchors`() {
+        val original = "- first\n- **second**\n- third\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val second = parsed.root.children[0L].children[1L]
+        val position = MarkdownPosition("- first\n- **se".byteLength)
+        val change = document.transform(parsed) { indentListItem(second.id) }
+        assertEquals("- first\n  - **second**\n- third\n", document.toMarkdown())
+        assertEquals(
+            position.byteOffset + 2L,
+            change.map(MarkdownAnchor(position)).position.byteOffset
+        )
+        val nested = document.parse()
+        val list = nested.root.children[0L]
+        assertEquals(2L, list.children.size)
+        val child = list.children[0L].children[1L].children[0L]
+        document.transform(nested) { outdentListItem(child.id) }
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `promoting a middle nested item adopts the following siblings and parent tail`() {
+        val original = "- parent\n  - before\n  - current\n  - after\n\n  tail\n- last\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[0L].children[1L].children[1L]
+        val change = document.transform(parsed) { outdentListItem(item.id) }
+        assertEquals(
+            "- parent\n  - before\n- current\n  - after\n\n  tail\n- last\n",
+            document.toMarkdown()
+        )
+        val list = document.parse().root.children[0L]
+        assertEquals(3L, list.children.size)
+        assertEquals(3L, list.children[1L].children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `promoting an item on its parent opening line leaves the empty parent intact`() {
+        val original = "- - **inner**\n  - next\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[0L].children[0L].children[0L]
+        val change = document.transform(parsed) { outdentListItem(item.id) }
+        assertEquals("- \n- **inner**\n  - next\n", document.toMarkdown())
+        val list = document.parse().root.children[0L]
+        assertEquals(2L, list.children.size)
+        assertEquals(0L, list.children[0L].children.size)
+        assertEquals(2L, list.children[1L].children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `unwrapping a task between lists separates its paragraph and removes only the checkbox`() {
+        val original = "- a\n- [x] **b**\n- c\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) { unwrapListItem(parsed.root.children[0L].children[1L].id) }
+        assertEquals("- a\n\n**b**\n\n- c\n", document.toMarkdown())
+        val after = document.parse()
+        assertEquals(3L, after.root.children.size)
+        assertEquals("b", after.inlineContent(after.root.children[1L].id).text.text)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `outdent stays within a quote and an empty item becomes an editable empty line`() {
+        val original = "> - [ ] A\r\n>   B\r\n>\r\n> - C\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[0L].children[0L]
+        val change = document.transform(parsed) { outdentListItem(item.id) }
+        assertEquals("> A\r\n> B\r\n>\r\n> - C\r\n", document.toMarkdown())
+        assertEquals(1L, document.parse().root.children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+        for (source in ["-", "-\n", "> -\r\n"]) {
+            val empty = MarkdownDocument.fromText(source)
+            val model = empty.parse()
+            val selected = mdListTestItems(model)[0L]
+            empty.transform(model) { outdentListItem(selected.id) }
+            assertEquals(source.replace("-", ""), empty.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `tabs and lazy continuation acquire the new containers without changing displayed text`() {
+        val original = "- first\n-\tsecond\nlazy\n\tmore\n- last\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[1L]
+        val before = parsed.inlineContent(item.children[0L].id).text.text
+        val change = document.transform(parsed) { indentListItem(item.id) }
+        assertEquals(
+            "- first\n  -   second\n      lazy\n      more\n- last\n",
+            document.toMarkdown()
+        )
+        val after = document.parse()
+        val nested = after.root.children[0L].children[0L].children[1L].children[0L]
+        assertEquals(before, after.inlineContent(nested.children[0L].id).text.text)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `partially consumed tabs keep indented code and content tabs intact`() {
+        val original = "- first\n-\t  const x\n\t  keep\tTab\n- last\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[1L]
+        val before = mdListTestCode(item.children[0L])
+        val change = document.transform(parsed) { indentListItem(item.id) }
+        val after = document.parse()
+        val nested = after.root.children[0L].children[0L].children[1L].children[0L]
+        assertEquals(before, mdListTestCode(nested.children[0L]))
+        assertTrue(document.toMarkdown().contains("keep\tTab"))
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `quotes fences extensions and footnotes keep their actual containing list`() {
+        val source = "- first\n- > **bold**\n  >\n  > ```mermaid\n  > graph LR\n  > ```\n- last\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[1L]
+        val change = document.transform(parsed) { indentListItem(item.id) }
+        assertEquals(
+            "- first\n  - > **bold**\n    >\n    > ```mermaid\n    > graph LR\n    > ```\n- last\n",
+            document.toMarkdown()
+        )
+        val after = document.parse()
+        val quote = after.root.children[0L].children[0L].children[1L].children[0L].children[0L]
+        assertEquals("graph LR\n", mdListTestCode(quote.children[1L]))
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+
+        val footnotes = MarkdownDocument.fromText("[^note]:\n    - A\n    - B\n\nx [^note]\n")
+        val model = footnotes.parse(MarkdownProfile.Editor)
+        val list = model.root.children[0L].children[0L]
+        footnotes.transform(model) { indentListItem(list.children[1L].id) }
+        assertEquals("[^note]:\n    - A\n      - B\n\nx [^note]\n", footnotes.toMarkdown())
+        assertEquals(1L, footnotes.parse(MarkdownProfile.Editor).footnotes.size)
+    }
+
+    @Test
+    fun `ordered nesting adds a separator only when a noninitial number would interrupt a paragraph`() {
+        val original = "9. First\n10. Second\n11. Last\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) { indentListItem(parsed.root.children[0L].children[1L].id) }
+        assertEquals("9. First\n   \n   10. Second\n11. Last\n", document.toMarkdown())
+        val after = document.parse()
+        assertEquals(2L, after.root.children[0L].children[0L].children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `invalid nesting and overlapping prefix edits do not publish any partial change`() {
+        val document = MarkdownDocument.fromText("- A\n- B\n")
+        val parsed = document.parse()
+        val list = parsed.root.children[0L]
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                replaceSource(MarkdownRange(2L, 3L), "changed")
+                indentListItem(list.children[0L].id)
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { indentListItem(list.id) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                indentListItem(list.children[1L].id)
+                unwrapListItem(list.children[1L].id)
+            }
+        }
+        assertEquals("- A\n- B\n", document.toMarkdown())
+    }
+
+    @Test
+    fun `removing an empty middle item keeps one blank line and reference definitions permit nested numbers`() {
+        for (source in ["- A\n-\n- B\n", "- A\n- [ ]\n- B\n"]) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val change =
+                document.transform(parsed) {
+                    unwrapListItem(parsed.root.children[0L].children[1L].id)
+                }
+            assertEquals("- A\n\n- B\n", document.toMarkdown())
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+        val references = MarkdownDocument.fromText("1. [link]: /target\n2. child [link]\n")
+        val parsed = references.parse()
+        references.transform(parsed) { indentListItem(parsed.root.children[0L].children[1L].id) }
+        val after = references.parse()
+        val parent = after.root.children[0L].children[0L]
+        assertEquals(2L, parent.children.size)
+        assertEquals(1L, parent.children[1L].children.size)
+        assertEquals(
+            "child link",
+            after.inlineContent(parent.children[1L].children[0L].children[0L].id).text.text
+        )
+    }
+}
+
+internal fun mdListTestItems(parsed: ParsedMarkdown): Array<MarkdownNode> {
+    val output = ArrayList<MarkdownNode>()
+    for (node in parsed.nodes())
+        when (node.content) {
+            case MarkdownContent.ListItem(_) -> output.add(node)
+            else -> Unit
+        }
+    return output.toArray()
+}
+
+internal fun mdListTestCode(node: MarkdownNode): String =
+    when (node.content) {
+        case MarkdownContent.CodeBlock(_, _, val body) -> body.text
+        else -> {
+            fail(Some("Expected a code block"))
+            ""
+        }
+    }

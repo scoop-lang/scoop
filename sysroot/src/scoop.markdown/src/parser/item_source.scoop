@@ -1,0 +1,55 @@
+package scoop.markdown
+
+internal fun MdBlockParser.recordItemLine(
+    node: MdBuildNode,
+    entry: Long,
+    entryColumn: Long,
+    entryPartial: Boolean
+) {
+    node.itemLines!!.add(
+        MdItemLine(
+            input.range(line.start, line.start).start,
+            input.range(entry, entry).start,
+            if (entryPartial)
+                entryColumn % 4L
+            else
+                0L,
+            input.range(
+                offset,
+                offset +
+                    if (partialTab)
+                        1L
+                    else
+                        0L
+            ).end,
+            if (partialTab)
+                4L - column % 4L
+            else
+                0L
+        )
+    )
+}
+
+/** Lazy paragraph lines did not consume the unmatched containers' physical prefixes. */
+internal fun MdBlockParser.recordLazyItems() {
+    var ancestor = tip.parent
+    while (true) {
+        val node = ancestor ?: return
+        if (node === lastMatched)
+            return
+        if (node.kind == MdKind.Item)
+            recordItemLine(node, offset, column, partialTab)
+        ancestor = node.parent
+    }
+}
+
+internal fun mdFreezeItemSource(node: MdBuildNode): MdItemSource? {
+    if (node.kind != MdKind.Item)
+        return None
+    val data = node.list!!
+    val lines = ArrayList<MdItemLine>()
+    for (line in node.itemLines!!)
+        if (line.lineStart < node.end)
+            lines.add(line)
+    return Some(MdItemSource(data.offset, data.padding, data.ordered, data.start, lines.toArray()))
+}

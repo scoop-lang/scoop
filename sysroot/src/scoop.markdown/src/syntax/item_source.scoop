@@ -1,0 +1,20 @@
+package scoop.markdown
+
+/** Prefix positions come from the block parser, including partially consumed tabs. */
+internal struct MdItemLine(
+    val lineStart: Long,
+    val entry: Long,
+    val entryCarry: Long,
+    val end: Long,
+    val remainder: Long
+)
+
+internal class MdItemSource(
+    val offset: Long,
+    val padding: Long,
+    val ordered: Boolean,
+    val start: Long,
+    val lines: Array<MdItemLine>
+) {
+    val width: Long get() = offset + padding
+}

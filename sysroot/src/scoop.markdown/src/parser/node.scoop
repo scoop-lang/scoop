@@ -39,6 +39,7 @@ internal class MdBuildNode(
     var setext = false
     var list: MdList? = None
     var task: Boolean? = None
+    var itemLines: ArrayList<MdItemLine>? = None
     var fence: MarkdownFence? = None
     var htmlType = 0
     var target: MarkdownLinkTarget? = None
@@ -212,7 +213,8 @@ internal fun mdFreezeNodes(root: MdBuildNode): Array<MdBuildNode> {
                     node.content(),
                     MarkdownRange(node.start, node.end),
                     node.markers.toArray(),
-                    children.toArray()
+                    children.toArray(),
+                    mdFreezeItemSource(node)
                 )
             )
     }

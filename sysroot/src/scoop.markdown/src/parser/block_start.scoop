@@ -194,6 +194,9 @@ internal fun MdBlockParser.startBlock(container: MdBuildNode): Int {
             return 2
         }
     }
+    val itemEntry = offset
+    val itemColumn = column
+    val itemPartial = partialTab
     when (val marker = listMarker(container.kind == MdKind.Paragraph, true)) {
         case Some(val data) -> {
             closeUnmatched()
@@ -206,7 +209,9 @@ internal fun MdBlockParser.startBlock(container: MdBuildNode): Int {
                 add(MdKind.ListBlock, start).list = Some(data)
             val node = add(MdKind.Item, start)
             node.list = Some(data)
+            node.itemLines = Some(ArrayList<MdItemLine>())
             node.markers.add(input.range(start, offset))
+            recordItemLine(node, itemEntry, itemColumn, itemPartial)
             return 1
         }
         case None -> Unit
