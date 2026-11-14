@@ -23,6 +23,7 @@ public class MarkdownInlineContent internal constructor(
 ) {
     public val text: MarkdownText get() = model.text
     public val sourceRange: MarkdownRange get() = placement.scope
+    public val nodes: Array<MarkdownNode> get() = node.children
 
     public fun edit(configure: MarkdownInlineEditBuilder.() -> Unit): MarkdownInlineEdit {
         val builder = MarkdownInlineEditBuilder(this)
@@ -45,6 +46,19 @@ public class MarkdownInlineContent internal constructor(
 
 public fun ParsedMarkdown.inlineContent(id: MarkdownNodeId): MarkdownInlineContent {
     val node = node(id)
+    if (node === root && snapshot.byteLength == 0L) {
+        val source = MarkdownText("", [], 0L)
+        val range = MarkdownRange(0L, 0L)
+        val fragment =
+            MarkdownNode(MarkdownNodeId(0L), MarkdownContent.Paragraph(source), range, [], [])
+        return MarkdownInlineContent(
+            snapshot,
+            profile,
+            fragment,
+            MdInlinePlacement(root.id, range, "\n", "", false),
+            MdInlineModel(source, [])
+        )
+    }
     val source = mdInlineSource(node)
     return MarkdownInlineContent(
         snapshot,

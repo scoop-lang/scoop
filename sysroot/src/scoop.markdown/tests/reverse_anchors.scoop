@@ -1,0 +1,28 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownReverseAnchorTests {
+    @Test
+    fun `inverse anchors use after scalar boundaries and preserve unchanged suffix positions`() {
+        val document = MarkdownDocument.fromText("a中bc")
+        val change = document.replace(MarkdownRange(1L, 4L), "😀")
+        assertEquals(
+            MarkdownPosition(1L),
+            change.mapBack(MarkdownAnchor(MarkdownPosition(1L), MarkdownBias.Before)).position
+        )
+        assertEquals(
+            MarkdownPosition(4L),
+            change.mapBack(MarkdownAnchor(MarkdownPosition(1L), MarkdownBias.After)).position
+        )
+        assertEquals(
+            MarkdownPosition(5L),
+            change.mapBack(MarkdownAnchor(MarkdownPosition(6L))).position
+        )
+        assertFailsWith<IllegalArgumentException> {
+            change.mapBack(MarkdownAnchor(MarkdownPosition(2L)))
+        }
+        assertEquals("a😀bc", document.toMarkdown())
+    }
+}

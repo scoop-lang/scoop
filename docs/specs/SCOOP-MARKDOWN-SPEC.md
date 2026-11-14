@@ -34,7 +34,7 @@
 
 `replace(range, text)` 使用当前 revision 创建单次事务。对相同范围替换相同文字的操作被省略；没有有效修改时返回未变化的 change，不推进 revision、不通知。真正发布一次修改只推进一次 revision。
 
-`MarkdownChange` 保存 before／after 快照、实际 replacements、inverseReplacements 和 kind（Edit／Reset），提供 `changed` 及 `map(anchor)`。inverseReplacements 引用 after 的坐标，可在当前 after revision 上组成反向事务；不重复执行过滤或结构命令。仅保存实际变化所需的数据和共享快照，不为键入复制全文历史。
+`MarkdownChange` 保存 before／after 快照、实际 replacements、inverseReplacements 和 kind（Edit／Reset），提供 `changed`、`map(anchor)` 及 `mapBack(anchor)`。mapBack 使用反向差量把 after 锚点映射到 before，插入／删除边界沿同一 Before／After 规则处理；删除内部信息不会因此恢复。inverseReplacements 引用 after 的坐标，可在当前 after revision 上组成反向事务；不重复执行过滤或结构命令。仅保存实际变化所需的数据和共享快照，不为键入复制全文历史。
 
 `reset(source)` 表示外部整体重载，保持文档身份、推进 revision 并发布 Reset，即使字节相同也通知重载。上层可据此清空旧历史；普通 replace 不暗含这种行为。
 
@@ -92,7 +92,9 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 
 ### 8.1 行内显示内容的编辑
 
-`parsed.inlineContent(id)` 为一个 Paragraph、Heading 或 TableCell 提供 `MarkdownInlineContent`。`text` 是带源码映射的显示文字：软换行是空格，硬换行是换行，图片、扩展、原始 HTML 与脚注引用是 UTF-8 三字节的 U+FFFC 原子对象。格式和链接定界符不出现在显示文字中。它属于一份不可变源快照并保留局部行内结构，不拥有另一份可保存文档。
+`parsed.inlineContent(id)` 为一个 Paragraph、Heading 或 TableCell 提供 `MarkdownInlineContent`。`text` 是带源码映射的显示文字：软换行是空格，硬换行是换行，图片、扩展、原始 HTML 与脚注引用是 UTF-8 三字节的 U+FFFC 原子对象。格式和链接定界符不出现在显示文字中。它属于一份不可变源快照并保留局部行内结构，不拥有另一份可保存文档。nodes 提供当前局部树的顶层行内节点，供无 UI 处理与显示投影读取格式、链接及对象；它们使用 snapshot 的源码坐标，节点身份不属于其他完整 ParsedMarkdown，不能交给另一棵解析树的结构命令。
+
+零字节文档的 root.id 也可传给 inlineContent，得到源码位置 0 的空行内区域；只准备区域不增加段落、不修改原文或完整解析树。首次输入按普通段落文字转义，后续操作、取消和逆向事务沿同一套局部编辑规则进行。非空文档的 Document 根不能当作行内区域。
 
 `replaceText(range, text, bias)` 的 range 使用这份显示文字的 UTF-8 坐标；可跨普通文字、行内格式和链接，但不跨所属段落／标题／单元格。插入继承所选边界处的格式与链接；Before 选择左侧，After 选择右侧，边缘使用存在的一侧。替换非空选区继承被替换的第一个内容单元。对象只能按完整标量处理，原始 HTML、扩展的内部修改继续使用源码事务。代码 span 的新内容按既有生成规则规范化换行与围栏；普通文字按字面值写入，不把输入中的 Markdown 标记直接执行为格式。
 

@@ -1,0 +1,42 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownEmptyInlineTests {
+    @Test
+    fun `empty documents prepare literal paragraph text and restore without changing their parse`() {
+        val document = MarkdownDocument.fromText("")
+        val parsed = document.parse()
+        val before = parsed.inlineContent(parsed.root.id)
+        assertEquals("", document.toMarkdown())
+        assertEquals(0L, parsed.root.children.size)
+        assertEquals(0L, before.nodes.size)
+        assertEquals(MarkdownRange(0L, 0L), before.sourceRange)
+        val edit = before.replaceText(MarkdownRange(0L, 0L), "# 中文 *text*")
+        edit.applyTo(document)
+        assertEquals("# 中文 *text*", edit.after.text.text)
+        assertEquals("\\# 中文 \\*text\\*", document.toMarkdown())
+        val current = document.parse()
+        assertTrue(
+            when (current.root.children[0L].content) {
+                case MarkdownContent.Paragraph(_) -> true;
+                else -> false
+            }
+        )
+        val restore = edit.after.edit { restore(before) }
+        restore.applyTo(document)
+        assertEquals("", document.toMarkdown())
+        assertEquals("", restore.after.text.text)
+        assertEquals(0L, parsed.root.children.size)
+        val again = restore.after.replaceText(MarkdownRange(0L, 0L), "Again")
+        again.applyTo(document)
+        assertEquals("Again", document.toMarkdown())
+    }
+
+    @Test
+    fun `a nonempty document root remains an invalid inline target`() {
+        val parsed = MarkdownDocument.fromText("Text").parse()
+        assertFailsWith<IllegalArgumentException> { parsed.inlineContent(parsed.root.id) }
+    }
+}

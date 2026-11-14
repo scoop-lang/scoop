@@ -15,7 +15,7 @@ public enum MarkdownChangeKind {
     Edit, Reset
 }
 
-/** A published source difference and its inverse, retaining shared immutable snapshots. */
+/** A source difference and its inverse, retaining prepared or published immutable snapshots. */
 public class MarkdownChange internal constructor(
     public val before: MarkdownSnapshot,
     public val after: MarkdownSnapshot,
@@ -28,28 +28,38 @@ public class MarkdownChange internal constructor(
     public val afterRevision: Long get() = after.revision
 
     /** Maps a validated baseline anchor without depending on layout or parsed structure. */
-    public fun map(anchor: MarkdownAnchor): MarkdownAnchor {
-        val position = anchor.position.byteOffset
-        before.checkPosition(position)
-        var delta = 0L
-        for (replacement in replacements) {
-            val range = replacement.range
-            if (position < range.start)
-                break
-            if (position == range.start && anchor.bias == MarkdownBias.Before)
-                return MarkdownAnchor(MarkdownPosition(range.start + delta), anchor.bias)
-            if (position < range.end) {
-                val offset =
-                    range.start +
-                        delta +
-                        if (anchor.bias == MarkdownBias.After)
-                            replacement.text.byteLength
-                        else
-                            0L
-                return MarkdownAnchor(MarkdownPosition(offset), anchor.bias)
-            }
-            delta += replacement.text.byteLength - range.byteLength
+    public fun map(anchor: MarkdownAnchor): MarkdownAnchor =
+        mdMapChangeAnchor(before, replacements, anchor)
+
+    public fun mapBack(anchor: MarkdownAnchor): MarkdownAnchor =
+        mdMapChangeAnchor(after, inverseReplacements, anchor)
+}
+
+private fun mdMapChangeAnchor(
+    before: MarkdownSnapshot,
+    replacements: Array<MarkdownReplacement>,
+    anchor: MarkdownAnchor
+): MarkdownAnchor {
+    val position = anchor.position.byteOffset
+    before.checkPosition(position)
+    var delta = 0L
+    for (replacement in replacements) {
+        val range = replacement.range
+        if (position < range.start)
+            break
+        if (position == range.start && anchor.bias == MarkdownBias.Before)
+            return MarkdownAnchor(MarkdownPosition(range.start + delta), anchor.bias)
+        if (position < range.end) {
+            val offset =
+                range.start +
+                    delta +
+                    if (anchor.bias == MarkdownBias.After)
+                        replacement.text.byteLength
+                    else
+                        0L
+            return MarkdownAnchor(MarkdownPosition(offset), anchor.bias)
         }
-        return MarkdownAnchor(MarkdownPosition(position + delta), anchor.bias)
+        delta += replacement.text.byteLength - range.byteLength
     }
+    return MarkdownAnchor(MarkdownPosition(position + delta), anchor.bias)
 }

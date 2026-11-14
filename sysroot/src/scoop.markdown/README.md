@@ -13,7 +13,7 @@ val change = document.replace(MarkdownRange(2L, 7L), "Updated")
 document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 ```
 
-`snapshot()` 不复制全文；`read(range)` 和 `toMarkdown()` 显式生成字符串。`writeTo(TextWriter)` 顺序输出分块。回调接收差量，不能重入修改；不编辑时输出保留所有源码字节。
+`snapshot()` 不复制全文；`read(range)` 和 `toMarkdown()` 显式生成字符串。`writeTo(TextWriter)` 顺序输出分块。回调接收差量，不能重入修改；不编辑时输出保留所有源码字节。`change.map(anchor)` 将 before 锚点移到 after；`change.mapBack(anchor)` 用同样的偏向规则反向映射，删除内部的位置不能被反向恢复。
 
 解析层以 CommonMark 0.31.2 为基础，默认启用 GFM 表格、任务列表、删除线和自动链接。独立程序直接取得绑定快照的完整语法树：
 
@@ -97,6 +97,8 @@ document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 
 普通文字也可以按显示内容的 UTF-8 范围编辑。`inlineContent` 接收段落、标题或表格单元格的节点身份，返回带源码映射的 `text`；隐藏标记不计入显示范围，图片／扩展等按 U+FFFC 原子对象计入：
 
+零字节文档可用 `parsed.inlineContent(parsed.root.id)` 取得位置 0 的空编辑区域。创建该区域不修改原文或完整解析树；首次输入按普通段落的文字写回。
+
 ```scoop
 val parsed = document.parse()
 val inline = parsed.inlineContent(parsed.root.children[0L].id)
@@ -107,7 +109,7 @@ val caret = prepared.selection.end
 
 `replaceText` 将输入作为普通字面文字，处理实体、Unicode、格式边界、链接与代码 span；`setStyle(range, MarkdownInlineStyle.Strong, true)` 对非空显示范围设置格式，false 则移除相应样式。两者只准备 `MarkdownInlineEdit`，不修改文档；其中的 change 是包含正反差量的准备结果，edit 是普通源码事务，selection 是修改后的源码选区。after 是更新后的可编辑内容，after.text 提供局部显示映射；可直接继续准备后续输入。`applyTo` 要求文档仍处于准备所用的同一快照，发布后 document.snapshot() 与 after.snapshot 相同。
 
-单个文字叶片内的修改保留外围标记；会改变定界匹配的边界或跨行内结构的操作，重建当前行内块需要的结构。代码按既有围栏与换行规则写入，隐式引用链接改名保留原目标；不齐表格会补齐编辑位置所需的单元格。局部解析不会执行 include 或重新解析整篇文档。`inline.edit { replaceText(...); setStyle(...); select(...) }` 按当前显示坐标顺序准备操作，最终只发布一次源码事务。builder.content 提供中间内容，restore(savedContent) 恢复同一行内区域的确切源码，可用于组合取消。sourceRange 保留必要容器上下文，表格包括整行，确保补缺单元格也能恢复。外部修改后须从新解析重新取得内容。此接口范围是一个段落、标题或单元格；跨块命令、整列和列表层级操作及显式格式化继续按设计实施。Mermaid 仍保留普通代码围栏，图像生成由 UI／应用适配承担。
+单个文字叶片内的修改保留外围标记；会改变定界匹配的边界或跨行内结构的操作，重建当前行内块需要的结构。代码按既有围栏与换行规则写入，隐式引用链接改名保留原目标；不齐表格会补齐编辑位置所需的单元格。局部解析不会执行 include 或重新解析整篇文档。`inline.edit { replaceText(...); setStyle(...); select(...) }` 按当前显示坐标顺序准备操作，最终只发布一次源码事务。builder.content 提供中间内容，restore(savedContent) 恢复同一行内区域的确切源码，可用于组合取消。nodes 提供当前局部树的顶层行内节点，范围属于本内容的 snapshot；它们的 id 不能交给另一份完整解析。sourceRange 保留必要容器上下文，表格包括整行，确保补缺单元格也能恢复。外部修改后须从新解析重新取得内容。此接口范围是一个段落、标题或单元格；跨块命令、整列和列表层级操作及显式格式化继续按设计实施。Mermaid 仍保留普通代码围栏，图像生成由 UI／应用适配承担。
 
 完整的独立消费示例见 [examples/source](examples/source/src/main.scoop)，其 Cone 通过 path 依赖当前源码库，不要求先重新打包 sysroot。未安装本库时，应用在 `Cone.toml` 中为 `scoop:scoop.markdown` 指定实际源码目录。
 
