@@ -1,0 +1,275 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.markdown.*
+
+private class MdPendingMarker(val parent: MdPendingMarker?, val value: MdDisplayMarker) {
+    var used = false
+}
+
+private class MdDisplayContext(
+    val indent: Long = 0L,
+    val quotes: MdDisplayQuote? = None,
+    val marker: MdPendingMarker? = None
+)
+
+private class MdBlockFrame(val node: MarkdownNode, val context: MdDisplayContext)
+
+internal fun mdProjectMarkdown(
+    parsed: ParsedMarkdown,
+    previous: MdDisplayDocument? = None
+): MdDisplayDocument = MdBlockProjection(parsed).build(previous)
+
+private class MdBlockProjection(val parsed: ParsedMarkdown) {
+    val rows = ArrayList<MdDisplayRow>()
+    val pending = ArrayList<MdBlockFrame>()
+    val footnotes = HashMap<String, (Long, MarkdownRange)>()
+
+    fun build(previous: MdDisplayDocument?): MdDisplayDocument {
+        for (entry in parsed.footnotes)
+            footnotes[entry.label] = (entry.number, parsed.node(entry.definition).range)
+        pending.add(MdBlockFrame(parsed.root, MdDisplayContext()))
+        drain()
+        for (entry in parsed.footnotes) {
+            val definition = parsed.node(entry.definition)
+            val marker =
+                MdDisplayMarker(
+                    0L,
+                    "[" + entry.number.toString() + "]",
+                    None,
+                    definition.id,
+                    definition.range
+                )
+            val context = MdDisplayContext(1L, marker = Some(MdPendingMarker(None, marker)))
+            children(definition, context)
+            if (definition.children.size == 0L)
+                add(
+                    definition,
+                    definition.range,
+                    MdDisplayKind.Paragraph,
+                    context,
+                    [MdDisplayTextBuilder(definition.range).finish()]
+                )
+            drain()
+        }
+        if (rows.size == 0L)
+            add(
+                parsed.root,
+                parsed.root.range,
+                MdDisplayKind.Paragraph,
+                MdDisplayContext(),
+                [MdDisplayTextBuilder(parsed.root.range).finish()]
+            )
+        return mdDisplayReconcile(parsed, rows.toArray(), previous)
+    }
+
+    private fun children(node: MarkdownNode, context: MdDisplayContext) {
+        var index = node.children.size
+        while (index > 0L) {
+            index -= 1L
+            pending.add(MdBlockFrame(node.children[index], context))
+        }
+    }
+
+    private fun add(
+        node: MarkdownNode,
+        range: MarkdownRange,
+        kind: MdDisplayKind,
+        context: MdDisplayContext,
+        cells: Array<MdDisplayText>
+    ) {
+        val markers = ArrayList<MdDisplayMarker>()
+        var marker = context.marker
+        while (true) {
+            val current = marker ?: break
+            if (!current.used) {
+                current.used = true
+                markers.add(current.value)
+            }
+            marker = current.parent
+        }
+        rows.add(
+            MdDisplayRow(
+                node.id,
+                range,
+                kind,
+                context.indent,
+                context.quotes,
+                markers.toArray(),
+                cells,
+                MdDisplayKey(rows.size)
+            )
+        )
+    }
+
+    private fun drain() {
+        while (pending.size > 0L) {
+            val entry = pending.removeAt(pending.size - 1L)
+            val node = entry.node
+            val context = entry.context
+            when (node.content) {
+                case MarkdownContent.Paragraph(_) ->
+                add(
+                    node,
+                    node.range,
+                    MdDisplayKind.Paragraph,
+                    context,
+                    [mdDisplayInlines(node, footnotes)]
+                )
+                case MarkdownContent.Heading(val level, _, _) ->
+                add(
+                    node,
+                    node.range,
+                    MdDisplayKind.Heading(level),
+                    context,
+                    [mdDisplayInlines(node, footnotes)]
+                )
+                case MarkdownContent.BlockQuote ->
+                children(
+                    node,
+                    MdDisplayContext(
+                        context.indent + 1L,
+                        Some(MdDisplayQuote(context.quotes, context.indent)),
+                        context.marker
+                    )
+                )
+                case MarkdownContent.ListBlock(val info) -> {
+                    var index = node.children.size
+                    while (index > 0L) {
+                        index -= 1L
+                        val child = node.children[index]
+                        val task =
+                            when (child.content) {
+                                case MarkdownContent.ListItem(val value) -> value
+                                else -> None
+                            }
+                        val label =
+                            if (info.ordered)
+                                (info.start + index).toString() + "."
+                            else
+                                "•"
+                        val marker =
+                            MdDisplayMarker(context.indent, label, task, child.id, child.range)
+                        pending.add(
+                            MdBlockFrame(
+                                child,
+                                MdDisplayContext(
+                                    context.indent + 1L,
+                                    context.quotes,
+                                    Some(MdPendingMarker(context.marker, marker))
+                                )
+                            )
+                        )
+                    }
+                }
+                case MarkdownContent.ListItem(_) -> {
+                    if (node.children.size == 0L)
+                        add(
+                            node,
+                            node.range,
+                            MdDisplayKind.Paragraph,
+                            context,
+                            [MdDisplayTextBuilder(node.range).finish()]
+                        )
+                    else
+                        children(node, context)
+                }
+                case MarkdownContent.ThematicBreak ->
+                add(node, node.range, MdDisplayKind.Rule, context, [])
+                case MarkdownContent.CodeBlock(_, val info, val body) ->
+                lines(node, body, context, info.text, false)
+                case MarkdownContent.HtmlBlock(val source) ->
+                lines(node, source, context, "HTML", true)
+                case MarkdownContent.Extension(val value) ->
+                lines(node, value.source, context, value.name, true)
+                case MarkdownContent.Table(val alignments) ->
+                table(node, alignments, context)
+                case MarkdownContent.FootnoteDefinition(_) -> Unit
+                case MarkdownContent.ReferenceDefinition(_, _) -> Unit
+                else -> children(node, context)
+            }
+        }
+    }
+
+    private fun lines(
+        node: MarkdownNode,
+        value: MarkdownText,
+        context: MdDisplayContext,
+        label: String,
+        raw: Boolean
+    ) {
+        val bytes = value.text.toByteArray()
+        var start = 0L
+        var first = true
+        while (true) {
+            var end = start
+            while (end < bytes.size && bytes[end] != 10.toByte() && bytes[end] != 13.toByte())
+                end += 1L
+            var next = end
+            if (next < bytes.size) {
+                next += 1L
+                if (bytes[end] == 13.toByte() && next < bytes.size && bytes[next] == 10.toByte())
+                    next += 1L
+            }
+            val last = next == bytes.size
+            val range =
+                MarkdownRange(
+                    if (first)
+                        node.range.start
+                    else
+                        value.sourceAt(MarkdownPosition(start), MarkdownBias.Before).byteOffset,
+                    if (last)
+                        node.range.end
+                    else
+                        value.sourceAt(MarkdownPosition(next), MarkdownBias.Before).byteOffset
+                )
+            val builder = MdDisplayTextBuilder(range)
+            builder.mapped(value, MdDisplayFlags(code = true), start = start, end = end)
+            add(
+                node,
+                range,
+                if (raw)
+                    MdDisplayKind.Source(label, first, last)
+                else
+                    MdDisplayKind.Code(label, first, last),
+                context,
+                [builder.finish()]
+            )
+            if (last)
+                break
+            start = next
+            first = false
+        }
+    }
+
+    private fun table(
+        node: MarkdownNode,
+        alignments: Array<MarkdownAlignment>,
+        context: MdDisplayContext
+    ) {
+        for (index in 0L ..< node.children.size) {
+            val row = node.children[index]
+            val header =
+                when (row.content) {
+                    case MarkdownContent.TableRow(val value) -> value
+                    else -> false
+                }
+            val range =
+                MarkdownRange(
+                    row.range.start,
+                    if (index + 1L < node.children.size)
+                        node.children[index + 1L].range.start
+                    else
+                        node.range.end
+                )
+            val cells =
+                Array<MdDisplayText>(alignments.size) {
+                    at -> if (at < row.children.size)
+                        mdDisplayInlines(row.children[at], footnotes)
+                    else
+                        MdDisplayTextBuilder(MarkdownRange(row.range.end, row.range.end)).finish()
+                }
+            add(row, range, MdDisplayKind.Table(alignments, header), context, cells)
+        }
+    }
+}

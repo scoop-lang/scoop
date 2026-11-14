@@ -1,0 +1,42 @@
+package scoop.examples.markdown.preview
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.fs.*
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+private class PreviewWindow(
+    editor: MarkdownEditorState,
+    workers: CoroutineExecutor,
+    scope: ComponentScope
+): Component(scope) {
+    private val parser =
+        scope.resource { MarkdownParseController(editor, workers, scope.application.proxy()) }
+    public override fun render(): View =
+        markdownPreview(parser, onOpenLink = { destination -> println(destination) })
+}
+
+fun main(args: Array<String>) {
+    if (args.size != 1L) {
+        println("Usage: markdown-preview <markdown-file>")
+        return
+    }
+    val editor =
+        MarkdownEditorState(MarkdownDocument.fromText(Path.fromString(args[0L]).readText()))
+    val workers =
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }
+    try {
+        runUiApplication(
+            "Markdown preview — " + args[0L],
+            { scope -> PreviewWindow(editor, workers, scope) }
+        )
+    } finally {
+        workers.close()
+        editor.close()
+    }
+}

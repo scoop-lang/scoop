@@ -1,0 +1,229 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal struct MdDisplayFlags(
+    val strong: Boolean = false,
+    val emphasis: Boolean = false,
+    val strike: Boolean = false,
+    val code: Boolean = false,
+    val link: Boolean = false
+)
+
+internal enum MdDisplayAction {
+    Link(String), Source(MarkdownRange)
+}
+
+internal enum MdDisplayObject {
+    Image(MarkdownLinkTarget, String), Extension(MarkdownExtensionValue)
+}
+
+internal class MdDisplayRun(
+    val range: MarkdownRange,
+    val flags: MdDisplayFlags,
+    val action: MdDisplayAction?,
+    val objectValue: MdDisplayObject?
+)
+
+internal struct MdDisplaySpan(
+    val text: MarkdownRange,
+    val source: MarkdownRange,
+    val literal: Boolean
+)
+
+/** Display and source offsets are UTF-8 bytes; zero-width spans retain hidden markup. */
+internal class MdDisplayText(
+    val text: String,
+    val sourceRange: MarkdownRange,
+    val spans: Array<MdDisplaySpan>,
+    val runs: Array<MdDisplayRun>
+) {
+    fun sourceAt(offset: Long, bias: MarkdownBias = MarkdownBias.After): MarkdownPosition {
+        mdDisplayCheckOffset(text, offset)
+        var low = 0L
+        var high = spans.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            val range = spans[middle].text
+            if (range.end < offset || (range.end == offset && bias == MarkdownBias.After))
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (low == spans.size)
+            return MarkdownPosition(sourceRange.end)
+        val span = spans[low]
+        if (span.literal)
+            return MarkdownPosition(span.source.start + offset - span.text.start)
+        if (offset <= span.text.start)
+            return MarkdownPosition(span.source.start)
+        if (offset >= span.text.end)
+            return MarkdownPosition(span.source.end)
+        return MarkdownPosition(
+            if (bias == MarkdownBias.Before)
+                span.source.start
+            else
+                span.source.end
+        )
+    }
+
+    fun textAt(offset: Long, bias: MarkdownBias = MarkdownBias.After): Long {
+        if (offset <= sourceRange.start)
+            return 0L
+        if (offset >= sourceRange.end)
+            return text.byteLength
+        var low = 0L
+        var high = spans.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            val range = spans[middle].source
+            if (range.end < offset || (range.end == offset && bias == MarkdownBias.After))
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (low == spans.size)
+            return text.byteLength
+        val span = spans[low]
+        if (span.literal) {
+            val result = span.text.start + offset - span.source.start
+            mdDisplayCheckOffset(text, result)
+            return result
+        }
+        if (offset <= span.source.start)
+            return span.text.start
+        if (offset >= span.source.end)
+            return span.text.end
+        return if (bias == MarkdownBias.Before)
+            span.text.start
+        else
+            span.text.end
+    }
+
+    fun actionAt(offset: Long): MdDisplayAction? {
+        for (run in runs)
+            if (offset >= run.range.start && offset < run.range.end)
+                return run.action
+        return None
+    }
+}
+
+internal class MdDisplayTextBuilder(val source: MarkdownRange) {
+    private val output = StringBuilder()
+    private val spans = ArrayList<MdDisplaySpan>()
+    private val runs = ArrayList<MdDisplayRun>()
+    private var length = 0L
+    private var sourceEnd = source.start
+
+    private fun hidden(end: Long) {
+        if (end > sourceEnd) {
+            spans.add(
+                MdDisplaySpan(MarkdownRange(length, length), MarkdownRange(sourceEnd, end), false)
+            )
+            sourceEnd = end
+        }
+    }
+
+    fun append(
+        text: String,
+        range: MarkdownRange,
+        literal: Boolean,
+        flags: MdDisplayFlags = MdDisplayFlags(),
+        action: MdDisplayAction? = None,
+        objectValue: MdDisplayObject? = None
+    ) {
+        hidden(range.start)
+        val next = length + text.byteLength
+        spans.add(MdDisplaySpan(MarkdownRange(length, next), range, literal))
+        if (next > length) {
+            output.append(text)
+            runs.add(MdDisplayRun(MarkdownRange(length, next), flags, action, objectValue))
+        }
+        length = next
+        sourceEnd = range.end
+    }
+
+    fun mapped(
+        value: MarkdownText,
+        flags: MdDisplayFlags = MdDisplayFlags(),
+        action: MdDisplayAction? = None,
+        start: Long = 0L,
+        end: Long = value.byteLength
+    ) {
+        var low = 0L
+        var high = value.spans.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (value.spans[middle].textRange.end <= start)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        while (low < value.spans.size) {
+            val span = value.spans[low]
+            if (span.textRange.start >= end)
+                break
+            val a =
+                if (start > span.textRange.start)
+                    start
+                else
+                    span.textRange.start
+            val b =
+                if (end < span.textRange.end)
+                    end
+                else
+                    span.textRange.end
+            val literal = span.mapping == MarkdownTextMapping.Literal
+            val range =
+                if (literal)
+                    MarkdownRange(
+                        span.sourceRange.start + a - span.textRange.start,
+                        span.sourceRange.start + b - span.textRange.start
+                    )
+                else
+                    span.sourceRange
+            append(mdDisplaySlice(value.text, a, b), range, literal, flags, action)
+            low += 1L
+        }
+    }
+
+    fun finish(): MdDisplayText {
+        hidden(source.end)
+        return MdDisplayText(output.toString(), source, spans.toArray(), runs.toArray())
+    }
+}
+
+internal fun mdDisplayCheckOffset(text: String, offset: Long) {
+    if (offset < 0L || offset > text.byteLength)
+        throw IllegalArgumentException(Some("Markdown display position is outside text"))
+    @Unsafe
+    {
+        text.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                if (offset < length && bytes.load(offset).toInt().and(192) == 128)
+                    throw IllegalArgumentException(
+                        Some("Markdown display position splits a UTF-8 scalar")
+                    )
+            }
+        }
+    }
+}
+
+internal fun mdDisplaySlice(text: String, start: Long, end: Long): String {
+    if (start == end)
+        return ""
+    if (start == 0L && end == text.byteLength)
+        return text
+    @Unsafe
+    {
+        return text.withUtf8Bytes {
+            bytes,
+            _ -> @Unsafe
+            {
+                return@withUtf8Bytes String.fromUtf8(bytes + start, end - start)
+            }
+        }
+    }
+}

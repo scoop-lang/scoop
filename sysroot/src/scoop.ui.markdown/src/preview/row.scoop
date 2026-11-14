@@ -1,0 +1,256 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.ui.*
+
+internal class MdPreviewCellResource(val text: MdPreviewText, val origin: Point, val width: Double)
+
+internal class MdPreviewLabelResource(val layout: TextLayout, val origin: Point, val key: PaintKey)
+
+internal class MdPreviewRowResource(
+    val height: Double,
+    val width: Double,
+    val top: Double,
+    val bottom: Double,
+    val cells: Array<MdPreviewCellResource>,
+    val labels: Array<MdPreviewLabelResource>
+) {
+    private var owners = 1L
+    fun retain(): MdPreviewRowResource {
+        owners += 1L;
+        return this
+    }
+    fun release() {
+        owners -= 1L
+        if (owners == 0L) {
+            for (cell in cells)
+                cell.text.close()
+            for (label in labels)
+                label.layout.close()
+        }
+    }
+}
+
+internal class MdPreviewMeasuredRow(
+    val index: Long,
+    val row: MdDisplayRow,
+    val resource: MdPreviewRowResource
+)
+
+internal class MdPreviewRowCache: Closeable {
+    private var resource: MdPreviewRowResource? = None
+    private var fonts: FontCollection? = None
+    private var fontRevision = -1L
+    private var style: MarkdownPreviewStyle? = None
+    private var options: MarkdownPreviewOptions? = None
+    private var width = -1.0
+    private var direction = TextDirection.Ltr
+    var reused = false
+
+    fun measure(
+        host: MarkdownPreviewHost,
+        context: MeasureContext,
+        row: MdDisplayRow,
+        width: Double
+    ): MdPreviewRowResource {
+        val nextFonts = host.fonts
+        val nextDirection =
+            if (context.layoutDirection == LayoutDirection.Rtl)
+                TextDirection.Rtl
+            else
+                TextDirection.Ltr
+        val sameFonts =
+            when (fonts) {
+                case Some(val old) -> old === nextFonts;
+                case None -> false
+            }
+        val sameStyle =
+            when (style) {
+                case Some(val old) -> old === host.style;
+                case None -> false
+            }
+        val hasResource =
+            when (resource) {
+                case Some(_) -> true;
+                case None -> false
+            }
+        if (
+            hasResource &&
+                sameFonts &&
+                fontRevision ==
+                nextFonts.revision &&
+                sameStyle &&
+                options ==
+                Some(host.options) &&
+                this.width ==
+                width &&
+                direction ==
+                nextDirection
+        ) {
+            reused = true
+            return resource!!.retain()
+        }
+        reused = false
+        val next = mdPreviewBuildRow(host, row, width, nextDirection)
+        resource?.release()
+        resource = Some(next)
+        fonts = Some(nextFonts)
+        fontRevision = nextFonts.revision
+        style = Some(host.style)
+        options = Some(host.options)
+        this.width = width
+        direction = nextDirection
+        return next.retain()
+    }
+
+    public override fun close() {
+        resource?.release()
+        resource = None
+    }
+}
+
+private fun mdPreviewBuildRow(
+    host: MarkdownPreviewHost,
+    row: MdDisplayRow,
+    width: Double,
+    direction: TextDirection
+): MdPreviewRowResource {
+    val options = host.options
+    val style = host.style
+    val base = mdPreviewBase(style, row.kind)
+    val left = row.indent.toDouble() * options.indent
+    val available = max(40.0, width - left)
+    val cells = ArrayList<MdPreviewCellResource>()
+    val labels = ArrayList<MdPreviewLabelResource>()
+    val code =
+        when (row.kind) {
+            case MdDisplayKind.Code(_, _, _) -> true
+            case MdDisplayKind.Source(_, _, _) -> true
+            else -> false
+        }
+    val table =
+        when (row.kind) {
+            case MdDisplayKind.Table(_, _) -> true;
+            else -> false
+        }
+    val top =
+        when (row.kind) {
+            case MdDisplayKind.Code(_, val first, _) -> if (first)
+                8.0
+            else
+                0.0
+            case MdDisplayKind.Source(_, val first, _) -> if (first)
+                8.0
+            else
+                0.0
+            case MdDisplayKind.Heading(_) -> options.paragraphSpacing
+            case MdDisplayKind.Table(_, _) -> 6.0
+            else -> 0.0
+        }
+    val bottom =
+        when (row.kind) {
+            case MdDisplayKind.Code(_, _, val last) -> if (last)
+                8.0 + options.paragraphSpacing
+            else
+                0.0
+            case MdDisplayKind.Source(_, _, val last) -> if (last)
+                8.0 + options.paragraphSpacing
+            else
+                0.0
+            case MdDisplayKind.Table(_, _) -> 6.0
+            else -> options.paragraphSpacing
+        }
+    val columnWidth =
+        if (table)
+            max(options.minimumColumnWidth, available / row.cells.size.toDouble())
+        else
+            available
+    var height = base.fontSize * (base.lineHeight ?: 1.4)
+    var measuredWidth = left + available
+    try {
+        for (index in 0L ..< row.cells.size) {
+            val settings =
+                paragraphStyle {
+                    this.direction = direction
+                    when (row.kind) {
+                        case MdDisplayKind.Table(val alignments, _) ->
+                        alignment =
+                            when (alignments[index]) {
+                                case MarkdownAlignment.Right -> TextAlignment.Right
+                                case MarkdownAlignment.Center -> TextAlignment.Center
+                                case MarkdownAlignment.Left -> TextAlignment.Left
+                                case MarkdownAlignment.None -> TextAlignment.Start
+                            }
+                        else -> Unit
+                    }
+                }
+            val inset =
+                if (code || table)
+                    6.0
+                else
+                    0.0
+            val text =
+                mdPreviewText(
+                    host.fonts,
+                    row.cells[index],
+                    style,
+                    base,
+                    settings,
+                    if (code)
+                        None
+                    else
+                        Some(max(1.0, columnWidth - inset * 2.0)),
+                    options.tabSize
+                )
+            val origin = Point(left + index.toDouble() * columnWidth + inset, top)
+            cells.add(MdPreviewCellResource(text, origin, columnWidth))
+            height = max(height, text.layout.size.height)
+            measuredWidth = max(measuredWidth, origin.x + text.layout.size.width + inset)
+        }
+        for (marker in row.markers) {
+            val value =
+                when (marker.task) {
+                    case Some(val checked) -> if (checked)
+                        "☑"
+                    else
+                        "☐"
+                    case None -> marker.text
+                }
+            val layout = mdPreviewLabel(host.fonts, value, style.text)
+            val baseline =
+                if (cells.size > 0L)
+                    cells[0L].text.layout.alphabeticBaseline
+                else
+                    layout.alphabeticBaseline
+            labels.add(
+                MdPreviewLabelResource(
+                    layout,
+                    Point(
+                        (marker.level + 1L).toDouble() * options.indent - layout.size.width - 6.0,
+                        top + baseline - layout.alphabeticBaseline
+                    ),
+                    PaintKey()
+                )
+            )
+        }
+        if (table)
+            measuredWidth = max(measuredWidth, left + columnWidth * row.cells.size.toDouble())
+        return MdPreviewRowResource(
+            height + top + bottom,
+            measuredWidth,
+            top,
+            bottom,
+            cells.toArray(),
+            labels.toArray()
+        )
+    } catch (failure: Throwable) {
+        for (cell in cells)
+            cell.text.close()
+        for (label in labels)
+            label.layout.close()
+        throw failure
+    }
+}

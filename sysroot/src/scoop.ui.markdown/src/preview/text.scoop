@@ -1,0 +1,152 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.Utf8Range
+
+internal class MdPreviewObjectText(
+    val key: InlineKey,
+    val layout: TextLayout,
+    val paintKey: PaintKey
+)
+
+/** Owned only by one retained row resource; native text never crosses a worker boundary. */
+internal class MdPreviewText(
+    val layout: TextLayout,
+    val display: TextDisplay,
+    val paintKey: PaintKey,
+    val objects: Array<MdPreviewObjectText>
+): Closeable {
+    public override fun close() {
+        layout.close()
+        for (objectText in objects)
+            objectText.layout.close()
+    }
+}
+
+internal fun mdPreviewText(
+    fonts: FontCollection,
+    text: MdDisplayText,
+    style: MarkdownPreviewStyle,
+    base: TextStyle,
+    settings: ParagraphStyle,
+    width: Double?,
+    tabSize: Int
+): MdPreviewText {
+    val display = mdSourceDisplay(text.text, tabSize)
+    val objects = ArrayList<MdPreviewObjectText>()
+    val metrics = ArrayList<InlineMetrics>()
+    try {
+        val content =
+            styledText {
+                this.style = base
+                for (index in 0L ..< text.runs.size) {
+                    val run = text.runs[index]
+                    val bounds = display.displayRange(Utf8Range(run.range.start, run.range.end))
+                    val overrides =
+                        spanStyle {
+                            if (run.flags.strong)
+                                weight = Some(700)
+                            if (run.flags.emphasis)
+                                slant = Some(FontSlant.Italic)
+                            if (run.flags.link)
+                                color = Some(style.link)
+                            if (run.flags.code) {
+                                families = Some(style.code.families)
+                                fontSize = Some(style.code.fontSize)
+                            }
+                        }
+                    when (run.objectValue) {
+                        case None -> span {
+                            this.style = overrides
+                            this.text(mdDisplaySlice(display.text, bounds.start, bounds.end))
+                        }
+                        case Some(val value) -> {
+                            val key = InlineKey.Number(index)
+                            val label =
+                                mdPreviewLabel(
+                                    fonts,
+                                    mdDisplayObjectText(value),
+                                    style.code,
+                                    Some(max(1.0, (width ?: 640.0) - 8.0))
+                                )
+                            objects.add(MdPreviewObjectText(key, label, PaintKey()))
+                            metrics.add(
+                                InlineMetrics(
+                                    key,
+                                    Size(label.size.width + 8.0, label.size.height + 4.0),
+                                    InlineAlignment.Baseline(
+                                        TextBaseline.Alphabetic,
+                                        label.alphabeticBaseline + 2.0
+                                    )
+                                )
+                            )
+                            inlineObject(key, mdDisplayObjectText(value))
+                        }
+                    }
+                }
+            }
+        val layout =
+            Paragraph(fonts, content, settings).use {
+                paragraph -> when (width) {
+                    case Some(val value) -> paragraph.layout(value, metrics.toArray())
+                    case None -> paragraph.layoutUnwrapped(metrics.toArray())
+                }
+            }
+        return MdPreviewText(layout, display, PaintKey(), objects.toArray())
+    } catch (failure: Throwable) {
+        for (item in objects)
+            item.layout.close()
+        throw failure
+    }
+}
+
+internal fun mdPreviewLabel(
+    fonts: FontCollection,
+    text: String,
+    style: TextStyle,
+    width: Double? = None
+): TextLayout =
+    Paragraph(fonts, text, style).use {
+        paragraph ->
+        val natural = paragraph.layoutUnwrapped()
+        val limit = width
+        when (limit) {
+            case Some(val value) -> if (natural.size.width > value) {
+                natural.close()
+                return@use paragraph.layout(value)
+            }
+            case None -> Unit
+        }
+        natural
+    }
+
+internal fun mdPreviewBase(style: MarkdownPreviewStyle, kind: MdDisplayKind): TextStyle =
+    when (kind) {
+        case MdDisplayKind.Heading(val level) -> {
+            val scale =
+                when (level) {
+                    case 1 -> 2.0
+                    case 2 -> 1.6
+                    case 3 -> 1.35
+                    case 4 -> 1.15
+                    else -> 1.0
+                }
+            style.text.copy {
+                fontSize = style.text.fontSize * scale;
+                weight = 700
+            }
+        }
+        case MdDisplayKind.Code(_, _, _) -> style.code
+        case MdDisplayKind.Source(_, _, _) -> style.code
+        case MdDisplayKind.Table(_, val header) ->
+        if (header)
+            style.text.copy { weight = 700 }
+        else
+            style.text
+        else -> style.text
+    }

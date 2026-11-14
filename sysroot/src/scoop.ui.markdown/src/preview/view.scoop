@@ -1,0 +1,83 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.markdown.MarkdownRange
+import scoop.ui.*
+
+private class MdPreviewProps(
+    val controller: MarkdownParseController,
+    val style: MarkdownPreviewStyle?,
+    val options: MarkdownPreviewOptions,
+    val fonts: FontCollection?,
+    val focus: FocusOptions,
+    val openLink: (String) -> Unit,
+    val source: (MarkdownRange) -> Unit
+)
+
+public fun markdownPreview(
+    controller: MarkdownParseController,
+    style: MarkdownPreviewStyle? = None,
+    options: MarkdownPreviewOptions = MarkdownPreviewOptions(),
+    fonts: FontCollection? = None,
+    focus: FocusOptions = FocusOptions(),
+    onOpenLink: (String) -> Unit = { _ -> Unit },
+    onSource: (MarkdownRange) -> Unit = { _ -> Unit }
+): View =
+    component(
+        MdPreviewProps(controller, style, options, fonts, focus, onOpenLink, onSource),
+        { props, scope -> MdPreviewComponent(props, scope) }
+    )
+
+private class MdPreviewComponent(
+    val props: Props<MdPreviewProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        props.value.controller.status
+        props.value.controller.editor.selection
+        return element(props.value, { input, mount -> MdPreviewElement(input, mount) })
+    }
+}
+
+private class MdPreviewElement(val props: Props<MdPreviewProps>, scope: ComponentScope): Element<
+    MarkdownPreviewMeasurement
+>(scope) {
+    private val defaults = MarkdownPreviewStyle()
+    private val host =
+        scope.resource {
+            MarkdownPreviewHost(
+                scope,
+                props.value.controller,
+                props.value.style ?: defaults,
+                props.value.options,
+                props.value.fonts
+            )
+        }
+    public override fun onMount() {
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        host.update(
+            input.controller,
+            input.style ?: defaults,
+            input.options,
+            input.focus,
+            input.fonts,
+            input.openLink,
+            input.source
+        )
+        if (!input.controller.isClosed)
+            input.controller.start()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        val result = host.measure(context, constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownPreviewMeasurement) {
+        host.scene(context, layout)
+    }
+}

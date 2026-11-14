@@ -1,0 +1,175 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.markdown.*
+
+private class MdInlineFrame(
+    val node: MarkdownNode,
+    val flags: MdDisplayFlags,
+    val action: MdDisplayAction?
+)
+
+internal fun mdDisplayFlags(
+    value: MdDisplayFlags,
+    strong: Boolean = value.strong,
+    emphasis: Boolean = value.emphasis,
+    strike: Boolean = value.strike,
+    code: Boolean = value.code,
+    link: Boolean = value.link
+): MdDisplayFlags = MdDisplayFlags(strong, emphasis, strike, code, link)
+
+internal fun mdDisplayInlines(
+    node: MarkdownNode,
+    footnotes: HashMap<String, (Long, MarkdownRange)>,
+    range: MarkdownRange = node.range
+): MdDisplayText {
+    val builder = MdDisplayTextBuilder(range)
+    val pending = ArrayList<MdInlineFrame>()
+    mdInlineChildren(pending, node, MdDisplayFlags(), None)
+    while (pending.size > 0L) {
+        val item = pending.removeAt(pending.size - 1L)
+        val current = item.node
+        when (current.content) {
+            case MarkdownContent.Text(val text) -> builder.mapped(text, item.flags, item.action)
+            case MarkdownContent.CodeSpan(val text) ->
+            builder.mapped(text, mdDisplayFlags(item.flags, code = true), item.action)
+            case MarkdownContent.Emphasis ->
+            mdInlineChildren(
+                pending,
+                current,
+                mdDisplayFlags(item.flags, emphasis = true),
+                item.action
+            )
+            case MarkdownContent.Strong ->
+            mdInlineChildren(
+                pending,
+                current,
+                mdDisplayFlags(item.flags, strong = true),
+                item.action
+            )
+            case MarkdownContent.Strikethrough ->
+            mdInlineChildren(
+                pending,
+                current,
+                mdDisplayFlags(item.flags, strike = true),
+                item.action
+            )
+            case MarkdownContent.Link(val target) ->
+            mdInlineChildren(
+                pending,
+                current,
+                mdDisplayFlags(item.flags, link = true),
+                Some(MdDisplayAction.Link(target.destination.text))
+            )
+            case MarkdownContent.Image(val target) ->
+            builder.append(
+                "\u{fffc}",
+                current.range,
+                false,
+                item.flags,
+                item.action,
+                Some(MdDisplayObject.Image(target, mdDisplayAlternate(current)))
+            )
+            case MarkdownContent.Extension(val value) ->
+            builder.append(
+                "\u{fffc}",
+                current.range,
+                false,
+                item.flags,
+                Some(MdDisplayAction.Source(current.range)),
+                Some(MdDisplayObject.Extension(value))
+            )
+            case MarkdownContent.FootnoteReference(val label) -> {
+                val entry =
+                    footnotes[label] ?:
+                        throw IllegalStateException(
+                            Some("Resolved Markdown footnote has no display entry")
+                        )
+                builder.append(
+                    "[" + entry._1.toString() + "]",
+                    current.range,
+                    false,
+                    mdDisplayFlags(item.flags, link = true),
+                    Some(MdDisplayAction.Source(entry._2))
+                )
+            }
+            case MarkdownContent.SoftBreak ->
+            builder.append(" ", current.range, false, item.flags, item.action)
+            case MarkdownContent.HardBreak ->
+            builder.append("\n", current.range, false, item.flags, item.action)
+            case MarkdownContent.HtmlInline(val source) -> {
+                if (
+                    source.text ==
+                        "<br>" ||
+                        source.text ==
+                        "<br/>" ||
+                        source.text ==
+                        "<br />" ||
+                        source.text ==
+                        "<BR>" ||
+                        source.text ==
+                        "<BR/>" ||
+                        source.text ==
+                        "<BR />"
+                )
+                    builder.append("\n", current.range, false, item.flags, item.action)
+                else
+                    builder.mapped(
+                        source,
+                        mdDisplayFlags(item.flags, code = true),
+                        Some(MdDisplayAction.Source(current.range))
+                    )
+            }
+            else -> mdInlineChildren(pending, current, item.flags, item.action)
+        }
+    }
+    return builder.finish()
+}
+
+private fun mdInlineChildren(
+    pending: ArrayList<MdInlineFrame>,
+    node: MarkdownNode,
+    flags: MdDisplayFlags,
+    action: MdDisplayAction?
+) {
+    var index = node.children.size
+    while (index > 0L) {
+        index -= 1L
+        pending.add(MdInlineFrame(node.children[index], flags, action))
+    }
+}
+
+internal fun mdDisplayAlternate(node: MarkdownNode): String {
+    val result = StringBuilder()
+    val pending = ArrayList<MarkdownNode>()
+    pending.add(node)
+    while (pending.size > 0L) {
+        val current = pending.removeAt(pending.size - 1L)
+        when (current.content) {
+            case MarkdownContent.Text(val value) -> result.append(value.text)
+            case MarkdownContent.CodeSpan(val value) -> result.append(value.text)
+            case MarkdownContent.HtmlInline(val value) -> result.append(value.text)
+            case MarkdownContent.Extension(val value) -> result.append(value.source.text)
+            case MarkdownContent.SoftBreak -> result.append(' ')
+            case MarkdownContent.HardBreak -> result.append('\n')
+            else -> {
+                var index = current.children.size
+                while (index > 0L) {
+                    index -= 1L
+                    pending.add(current.children[index])
+                }
+            }
+        }
+    }
+    return result.toString()
+}
+
+internal fun mdDisplayObjectText(value: MdDisplayObject): String =
+    when (value) {
+        case MdDisplayObject.Image(val target, val alternate) ->
+        if (alternate == "")
+            target.destination.text
+        else
+            alternate
+        case MdDisplayObject.Extension(val extension) -> extension.source.text
+    }

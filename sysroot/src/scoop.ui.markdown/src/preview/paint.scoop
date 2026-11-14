@@ -1,0 +1,333 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.text.drawTextLayout
+import scoop.window.Utf8Range
+
+internal fun mdScenePreview(
+    host: MarkdownPreviewHost,
+    context: SceneContext,
+    measured: MarkdownPreviewMeasurement
+) {
+    val frame = measured.retain()
+    try {
+        val controller = host.controller
+        val style = host.style
+        val options = host.options
+        val size = context.size
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, size.width, size.height),
+                Paint(style.background)
+            )
+        }
+        host.viewport.present(
+            context,
+            frame.scroll,
+            Some {
+                content ->
+                val viewport = frame.scrollSnapshot
+                content.place(
+                    host.area,
+                    Rect(
+                        viewport.offset.x,
+                        viewport.offset.y,
+                        viewport.viewport.width,
+                        viewport.viewport.height
+                    )
+                )
+                val selected =
+                    when ((frame.document, frame.selection)) {
+                        case(Some(val document), Some(val selection)) -> if (selection.collapsed)
+                            None
+                        else
+                            Some(
+                                MarkdownRange(
+                                    mdPreviewExpanded(
+                                        document,
+                                        MarkdownPosition(selection.range.start),
+                                        MarkdownBias.Before
+                                    ).byteOffset,
+                                    mdPreviewExpanded(
+                                        document,
+                                        MarkdownPosition(selection.range.end),
+                                        MarkdownBias.After
+                                    ).byteOffset
+                                )
+                            )
+                        else -> None
+                    }
+                for (row in frame.rows) {
+                    val top = frame.padding + frame.heights.prefix(row.index)
+                    if (
+                        top +
+                            row.resource.height <
+                            viewport.offset.y ||
+                            top >
+                            viewport.offset.y +
+                            viewport.viewport.height
+                    )
+                        continue
+                    content.withState {
+                        block ->
+                        block.translate(frame.padding, top)
+                        mdPaintPreviewRow(block, row, selected, style, options)
+                    }
+                }
+            }
+        )
+        context.onFrameComplete {
+            completion ->
+            if (
+                host.closed ||
+                    host.controller !==
+                    controller ||
+                    completion.submission ==
+                    FrameSubmission.Discarded
+            ) {
+                frame.close()
+                return@onFrameComplete
+            }
+            val old = host.accepted
+            host.accepted = Some(frame)
+            old?.close()
+            val model = frame.document ?: return@onFrameComplete
+            if (model.snapshot.revision != host.editor.snapshot.revision)
+                return@onFrameComplete
+            val hit = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y))
+            when (hit) {
+                case Some(val value) -> {
+                    val caret = frame.hitCaret(value)
+                    when (caret) {
+                        case Some(val rect) -> host.anchor =
+                            Some(
+                                MdPreviewAnchor(
+                                    MarkdownAnchor(value.position, MarkdownBias.Before),
+                                    value.blockKey,
+                                    value.cellIndex,
+                                    value.textPosition,
+                                    frame.scrollSnapshot.offset.y - rect.y,
+                                    frame.requestRevision
+                                )
+                            )
+                        case None -> Unit
+                    }
+                }
+                case None -> Unit
+            }
+            when (host.revealTarget) {
+                case Some(val position) -> when (frame.caret(position)) {
+                    case Some(val rect) -> {
+                        host.revealTarget = None
+                        host.focus.reveal(rect)
+                    }
+                    case None -> Unit
+                }
+                case None -> Unit
+            }
+        }
+    } catch (failure: Throwable) {
+        frame.close()
+        throw failure
+    }
+}
+
+private fun mdPaintPreviewRow(
+    context: SceneContext,
+    measured: MdPreviewMeasuredRow,
+    selected: MarkdownRange?,
+    style: MarkdownPreviewStyle,
+    options: MarkdownPreviewOptions
+) {
+    val row = measured.row
+    val resource = measured.resource
+    val left = row.indent.toDouble() * options.indent
+    context.draw {
+        paint ->
+        when (row.kind) {
+            case MdDisplayKind.Code(_, _, val last) -> paint.canvas.drawRect(
+                Rect(
+                    left,
+                    0.0,
+                    resource.width - left,
+                    resource.height -
+                        if (last)
+                            options.paragraphSpacing
+                        else
+                            0.0
+                ),
+                Paint(style.codeBackground)
+            )
+            case MdDisplayKind.Source(_, _, val last) -> paint.canvas.drawRect(
+                Rect(
+                    left,
+                    0.0,
+                    resource.width - left,
+                    resource.height -
+                        if (last)
+                            options.paragraphSpacing
+                        else
+                            0.0
+                ),
+                Paint(style.codeBackground)
+            )
+            case MdDisplayKind.Table(_, val header) -> {
+                if (header)
+                    paint.canvas.drawRect(
+                        Rect(left, 0.0, resource.width - left, resource.height),
+                        Paint(style.tableHeader)
+                    )
+                mdPreviewBorder(
+                    paint.canvas,
+                    Rect(left, 0.0, resource.width - left, resource.height),
+                    style.border
+                )
+                for (cell in resource.cells)
+                    paint.canvas.drawRect(
+                        Rect(cell.origin.x - 6.0, 0.0, 1.0, resource.height),
+                        Paint(style.border)
+                    )
+            }
+            case MdDisplayKind.Rule -> paint.canvas.drawRect(
+                Rect(left, resource.height * 0.5, resource.width - left, 1.0),
+                Paint(style.border)
+            )
+            else -> Unit
+        }
+        var quote = row.quotes
+        while (true) {
+            val current = quote ?: break
+            paint.canvas.drawRect(
+                Rect(current.level.toDouble() * options.indent + 3.0, 0.0, 3.0, resource.height),
+                Paint(style.border)
+            )
+            quote = current.parent
+        }
+    }
+    for (index in 0L ..< resource.cells.size) {
+        val cell = resource.cells[index]
+        val text = row.cells[index]
+        context.withState {
+            content ->
+            content.translate(cell.origin.x, cell.origin.y)
+            val selectedBounds =
+                when (selected) {
+                    case Some(val selection) -> {
+                        val a = max(selection.start, text.sourceRange.start)
+                        val b = min(selection.end, text.sourceRange.end)
+                        if (a < b) {
+                            val bounds =
+                                cell.text.display.displayRange(
+                                    Utf8Range(
+                                        text.textAt(a, MarkdownBias.Before),
+                                        text.textAt(b, MarkdownBias.After)
+                                    )
+                                )
+                            Some(bounds)
+                        } else
+                            None
+                    }
+                    case None -> None
+                }
+            for (run in text.runs) {
+                if (!run.flags.code)
+                    continue
+                val boxes =
+                    cell.text.layout.selection(
+                        cell.text.display.displayRange(Utf8Range(run.range.start, run.range.end))
+                    )
+                content.draw {
+                    paint -> for (box in boxes)
+                        paint.canvas.drawRect(box.rect, Paint(style.codeBackground))
+                }
+            }
+            when (selectedBounds) {
+                case Some(val bounds) -> {
+                    val boxes = cell.text.layout.selection(bounds)
+                    content.draw {
+                        paint -> for (box in boxes)
+                            paint.canvas.drawRect(box.rect, Paint(style.selection))
+                    }
+                }
+                case None -> Unit
+            }
+            content.drawTextLayout(cell.text.paintKey, cell.text.layout, 0L)
+            for (run in text.runs) {
+                if (!run.flags.strike && !run.flags.link)
+                    continue
+                val boxes =
+                    cell.text.layout.selection(
+                        cell.text.display.displayRange(Utf8Range(run.range.start, run.range.end))
+                    )
+                content.draw {
+                    paint -> for (box in boxes) {
+                        if (run.flags.strike)
+                            paint.canvas.drawRect(
+                                Rect(
+                                    box.rect.x,
+                                    box.rect.y + box.rect.height * 0.52,
+                                    box.rect.width,
+                                    1.0
+                                ),
+                                Paint(style.text.color)
+                            )
+                        if (run.flags.link)
+                            paint.canvas.drawRect(
+                                Rect(
+                                    box.rect.x,
+                                    box.rect.y + box.rect.height - 1.0,
+                                    box.rect.width,
+                                    1.0
+                                ),
+                                Paint(style.link)
+                            )
+                    }
+                }
+            }
+            for (placement in cell.text.layout.inlineObjects) {
+                val box = placement.box ?: continue
+                for (objectText in cell.text.objects) {
+                    if (objectText.key != placement.key)
+                        continue
+                    content.draw {
+                        paint ->
+                        paint.canvas.drawRect(box.rect, Paint(style.codeBackground))
+                        when (selectedBounds) {
+                            case Some(val bounds) -> if (
+                                bounds.start <
+                                    placement.range.end &&
+                                    bounds.end >
+                                    placement.range.start
+                            )
+                                paint.canvas.drawRect(box.rect, Paint(style.selection))
+                            case None -> Unit
+                        }
+                        mdPreviewBorder(paint.canvas, box.rect, style.border)
+                    }
+                    content.drawTextLayout(
+                        objectText.paintKey,
+                        objectText.layout,
+                        0L,
+                        Point(box.rect.x + 4.0, box.rect.y + 2.0)
+                    )
+                }
+            }
+        }
+    }
+    for (label in resource.labels)
+        context.drawTextLayout(label.key, label.layout, 0L, label.origin)
+}
+
+private fun mdPreviewBorder(canvas: Canvas, rect: Rect, color: Color) {
+    val paint = Paint(color)
+    canvas.drawRect(Rect(rect.x, rect.y, rect.width, 1.0), paint)
+    canvas.drawRect(Rect(rect.x, rect.y + rect.height - 1.0, rect.width, 1.0), paint)
+    canvas.drawRect(Rect(rect.x, rect.y, 1.0, rect.height), paint)
+    canvas.drawRect(Rect(rect.x + rect.width - 1.0, rect.y, 1.0, rect.height), paint)
+}

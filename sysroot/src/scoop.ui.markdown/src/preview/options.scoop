@@ -1,0 +1,64 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+
+public class MarkdownPreviewStyle public constructor(
+    public val text: TextStyle =
+        textStyle {
+            fontSize = 16.0;
+            lineHeight = Some(1.5)
+        },
+    public val code: TextStyle =
+        textStyle {
+            families = ["monospace"];
+            fontSize = 14.0;
+            lineHeight = Some(1.5)
+        },
+    public val background: Color = Color.White,
+    public val codeBackground: Color = Color(0.95, 0.96, 0.97),
+    public val tableHeader: Color = Color(0.94, 0.95, 0.97),
+    public val border: Color = Color(0.76, 0.78, 0.81),
+    public val link: Color = Color(0.10, 0.34, 0.75),
+    public val selection: Color = Color(0.25, 0.48, 0.95, 0.25)
+)
+
+public struct MarkdownPreviewOptions(
+    val enabled: Boolean = true,
+    val padding: Double = 20.0,
+    val overscan: Double = 100.0,
+    val paragraphSpacing: Double = 10.0,
+    val indent: Double = 26.0,
+    val minimumColumnWidth: Double = 100.0,
+    val tabSize: Int = 4
+) {
+    internal fun check() {
+        if (
+            !padding.isFinite() ||
+                padding <
+                0.0 ||
+                !overscan.isFinite() ||
+                overscan <
+                0.0 ||
+                !paragraphSpacing.isFinite() ||
+                paragraphSpacing <
+                0.0 ||
+                !indent.isFinite() ||
+                indent <=
+                0.0 ||
+                !minimumColumnWidth.isFinite() ||
+                minimumColumnWidth <=
+                12.0 ||
+                tabSize <
+                1 ||
+                tabSize >
+                32
+        )
+            throw IllegalArgumentException(Some("Invalid Markdown preview options"))
+    }
+}
+
+internal fun mdPreviewEstimate(
+    style: MarkdownPreviewStyle,
+    options: MarkdownPreviewOptions
+): Double = style.text.fontSize * (style.text.lineHeight ?: 1.5) + options.paragraphSpacing

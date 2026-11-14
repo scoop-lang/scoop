@@ -1,0 +1,167 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun mdPreviewEvent(
+    host: MarkdownPreviewHost,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (host.closed || !host.scope.isMounted)
+        return
+    if (context.phase == RoutedPhase.Notification) {
+        when (event) {
+            case FocusChanged(val active) -> {
+                host.drag = None
+                host.pressed = None
+                if (active) {
+                    host.editor.acceptComposition()
+                    host.editor.breakUndoGroup()
+                }
+            }
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.drag = None
+                host.pressed = None
+            }
+            else -> Unit
+        }
+        return
+    }
+    if (context.phase != RoutedPhase.Default || !host.options.enabled)
+        return
+    when (event) {
+        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, _)) -> {
+            if (state == ElementState.Pressed) {
+                val point = context.localPosition ?: return
+                val hit = host.hitTest(point) ?: return
+                host.area.requestFocus(FocusOrigin.Pointer)
+                val anchor =
+                    if (pointer.state.modifiers.shift)
+                        host.editor.selection.anchor
+                    else
+                        hit.position
+                host.editor.setSelection(MarkdownSelection(anchor, hit.position))
+                host.drag = Some(anchor)
+                host.pressed = Some(hit)
+                host.moved = pointer.state.modifiers.shift
+                host.scope.requestLayout()
+            } else {
+                val hit = host.pressed
+                host.drag = None
+                host.pressed = None
+                when (hit) {
+                    case Some(val value) -> if (!host.moved)
+                        host.activate(value)
+                    case None -> Unit
+                }
+            }
+            context.consume()
+        }
+        case Pointer(InputPointerEvent.Moved(_)) -> {
+            val anchor = host.drag ?: return
+            val point = context.localPosition ?: return
+            val hit = host.hitTest(point) ?: return
+            host.moved = true
+            host.editor.setSelection(MarkdownSelection(anchor, hit.position))
+            host.scope.requestLayout()
+            context.consume()
+        }
+        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+            host.anchor = None
+            host.revealTarget = None
+            context.consumeScroll(host.style.text.fontSize) {
+                amount ->
+                val moved = host.scroll.scrollBy(Point(-amount.x, -amount.y), ScrollOrigin.User)
+                Point(-moved.x, -moved.y)
+            }
+        }
+        case TextCommand(val command) -> if (host.execute(command))
+            context.consume()
+        case Keyboard(val key) -> {
+            if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
+                return
+            for (command in key.textCommands)
+                if (host.execute(command))
+                    context.consume()
+        }
+        else -> Unit
+    }
+}
+
+internal fun mdPreviewCommand(host: MarkdownPreviewHost, command: TextEditCommand): Boolean =
+    when (command) {
+        case TextEditCommand.SelectAll -> {
+            host.editor.setSelection(
+                MarkdownSelection(
+                    MarkdownPosition(0L),
+                    MarkdownPosition(host.editor.snapshot.byteLength)
+                )
+            )
+            host.scope.requestLayout()
+            true
+        }
+        case TextEditCommand.Copy -> {
+            val model = host.controller.current
+            if (!host.editor.selection.collapsed)
+                when (model) {
+                    case Some(val document) -> host.scope.application.clipboard.writeText(
+                        mdPreviewSelectedText(document, host.editor.selection.range)
+                    )
+                    case None -> Unit
+                }
+            true
+        }
+        else -> false
+    }
+
+internal fun mdPreviewSelectedText(
+    model: MarkdownParsedDocument,
+    selection: MarkdownRange
+): String {
+    val start =
+        mdPreviewExpanded(model, MarkdownPosition(selection.start), MarkdownBias.Before).byteOffset
+    val end =
+        mdPreviewExpanded(model, MarkdownPosition(selection.end), MarkdownBias.After).byteOffset
+    val output = StringBuilder()
+    var wroteRow = false
+    for (row in model.display.rows) {
+        if (row.range.start >= end || row.range.end <= start)
+            continue
+        if (wroteRow)
+            output.append('\n')
+        wroteRow = true
+        var wroteCell = false
+        for (cell in row.cells) {
+            if (cell.sourceRange.start >= end || cell.sourceRange.end <= start)
+                continue
+            if (wroteCell)
+                output.append('\t')
+            wroteCell = true
+            val a = cell.textAt(start, MarkdownBias.Before)
+            val b = cell.textAt(end, MarkdownBias.After)
+            for (run in cell.runs) {
+                val from =
+                    if (run.range.start < a)
+                        a
+                    else
+                        run.range.start
+                val to =
+                    if (run.range.end > b)
+                        b
+                    else
+                        run.range.end
+                if (from >= to)
+                    continue
+                when (run.objectValue) {
+                    case Some(val value) -> output.append(mdDisplayObjectText(value))
+                    case None -> output.append(mdDisplaySlice(cell.text, from, to))
+                }
+            }
+        }
+    }
+    return output.toString()
+}

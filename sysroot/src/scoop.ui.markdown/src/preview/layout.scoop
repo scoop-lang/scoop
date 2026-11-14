@@ -1,0 +1,238 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.graphics.*
+import scoop.graphics.text.TextPosition
+import scoop.markdown.*
+import scoop.math.max
+import scoop.ui.*
+
+private class MdPreviewMeasurePass(
+    val host: MarkdownPreviewHost,
+    val context: MeasureContext,
+    val model: MarkdownParsedDocument,
+    val width: Double
+) {
+    val measured = HashMap<Long, MdPreviewMeasuredRow>()
+    val keys = HashSet<MdDisplayKey>()
+    var reused = 0L
+    fun row(index: Long): MdPreviewMeasuredRow {
+        when (measured[index]) {
+            case Some(val value) -> return value;
+            case None -> Unit
+        }
+        val row = model.display.rows[index]
+        val cache = host.caches[row.key] ?: MdPreviewRowCache()
+        host.caches[row.key] = cache
+        val resource = cache.measure(host, context, row, width)
+        val value = MdPreviewMeasuredRow(index, row, resource)
+        measured[index] = value
+        keys.add(row.key)
+        host.heights = host.heights.record(index, resource.height)
+        host.maximumWidth = max(host.maximumWidth, resource.width)
+        if (cache.reused)
+            reused += 1L
+        return value
+    }
+
+    fun adjustment(): ScrollAdjustment? {
+        val anchor = host.anchor ?: return None
+        if (
+            anchor.request !=
+                host.scroll.requestRevision ||
+                model.snapshot.revision !=
+                host.editor.snapshot.revision
+        )
+            return None
+        val kept = model.display.rowForKey(anchor.key)
+        val index =
+            kept ?:
+                model.display.rowAt(
+                    mdPreviewExpanded(model, anchor.source.position, anchor.source.bias),
+                    anchor.source.bias
+                )
+        val measured = row(index)
+        val local =
+            when (kept) {
+                case Some(_) -> {
+                    if (anchor.cell < measured.resource.cells.size) {
+                        val cell = measured.resource.cells[anchor.cell]
+                        val position = cell.text.display.toDisplay(anchor.text)
+                        val caret = cell.text.layout.caret(position)
+                        cell.origin.y + (caret?.y ?: 0.0)
+                    } else
+                        0.0
+                }
+                case None -> {
+                    val expanded =
+                        mdPreviewExpanded(model, anchor.source.position, anchor.source.bias)
+                    var cellIndex = 0L
+                    while (
+                        cellIndex +
+                            1L <
+                            measured.row.cells.size &&
+                            measured.row.cells[cellIndex].sourceRange.end <
+                            expanded.byteOffset
+                    )
+                        cellIndex += 1L
+                    if (cellIndex < measured.resource.cells.size) {
+                        val cell = measured.resource.cells[cellIndex]
+                        val text = measured.row.cells[cellIndex]
+                        val position =
+                            cell.text.display.toDisplay(
+                                TextPosition(text.textAt(expanded.byteOffset, anchor.source.bias))
+                            )
+                        cell.origin.y + (cell.text.layout.caret(position)?.y ?: 0.0)
+                    } else
+                        0.0
+                }
+            }
+        return Some(
+            ScrollAdjustment(
+                anchor.request,
+                Point(
+                    host.scroll.offset.x,
+                    max(
+                        0.0,
+                        host.options.padding + host.heights.prefix(index) + local + anchor.delta
+                    )
+                )
+            )
+        )
+    }
+
+    fun close() {
+        for (entry in measured)
+            entry.value.resource.release()
+    }
+}
+
+internal fun mdMeasurePreview(
+    host: MarkdownPreviewHost,
+    context: MeasureContext,
+    constraints: Constraints
+): MarkdownPreviewMeasurement {
+    val size =
+        constraints.constrain(Size(constraints.maxWidth ?: 640.0, constraints.maxHeight ?: 480.0))
+    val padding = host.options.padding
+    val width = max(0.0, size.width - padding * 2.0)
+    val model = host.controller.latest
+    val estimate = mdPreviewEstimate(host.style, host.options)
+    val same =
+        when ((host.document, model)) {
+            case(Some(val old), Some(val next)) -> old === next
+            case(None, None) -> true
+            else -> false
+        }
+    if (!same) {
+        val reuse = model?.display?.reuse ?: None
+        val old = host.document
+        when ((old, reuse)) {
+            case(Some(val old), Some(val reuse)) -> {
+                if (old.display.identity === reuse.previous && host.heights.count == reuse.oldCount)
+                    host.heights =
+                        host.heights.replace(
+                            reuse.prefix,
+                            reuse.oldCount - reuse.suffix,
+                            model!!.display.rows.size - reuse.prefix - reuse.suffix,
+                            estimate
+                        )
+                else
+                    host.heights = mdHeightRun(model!!.display.rows.size, estimate)
+            }
+            else -> host.heights = mdHeightRun(model?.display?.rows?.size ?: 0L, estimate)
+        }
+        host.document = model
+    }
+    if (host.layoutWidth != width || host.fontRevision != host.fonts.revision) {
+        host.layoutWidth = width
+        host.fontRevision = host.fonts.revision
+        host.heights = mdHeightRun(model?.display?.rows?.size ?: 0L, estimate)
+        host.maximumWidth = 0.0
+    }
+    val active =
+        model ?:
+            return MarkdownPreviewMeasurement(
+                LayoutMetrics(size),
+                None,
+                None,
+                host.heights,
+                [],
+                host.viewport.layout(size, size),
+                host.scroll.requestRevision,
+                padding,
+                0L
+            )
+    val pass = MdPreviewMeasurePass(host, context, active, width)
+    try {
+        when (host.revealTarget) {
+            case Some(val position) -> if (
+                active.snapshot.revision == host.editor.snapshot.revision
+            )
+                pass.row(active.display.rowAt(mdPreviewExpanded(active, position)))
+            case None -> Unit
+        }
+        var adjustment = pass.adjustment()
+        var scroll =
+            host.viewport.layout(
+                size,
+                Size(
+                    max(size.width, host.maximumWidth + padding * 2.0),
+                    max(size.height, host.heights.total + padding * 2.0)
+                ),
+                adjustment
+            )
+        while (true) {
+            val before = pass.measured.size
+            val offset = scroll.snapshot.offset
+            var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
+            val bottom = offset.y + size.height + host.options.overscan
+            while (
+                index < active.display.rows.size && host.heights.prefix(index) + padding < bottom
+            ) {
+                pass.row(index)
+                index += 1L
+            }
+            adjustment = pass.adjustment()
+            scroll =
+                host.viewport.layout(
+                    size,
+                    Size(
+                        max(size.width, host.maximumWidth + padding * 2.0),
+                        max(size.height, host.heights.total + padding * 2.0)
+                    ),
+                    adjustment
+                )
+            if (pass.measured.size == before)
+                break
+        }
+        val rows = ArrayList<MdPreviewMeasuredRow>()
+        for (entry in pass.measured)
+            rows.add(entry.value)
+        val retired = ArrayList<MdDisplayKey>()
+        for (entry in host.caches)
+            if (!pass.keys.contains(entry.key))
+                retired.add(entry.key)
+        for (key in retired) {
+            host.caches[key]!!.close()
+            host.caches.remove(key)
+        }
+        return MarkdownPreviewMeasurement(
+            LayoutMetrics(size),
+            model,
+            if (active.snapshot.revision == host.editor.snapshot.revision)
+                Some(host.editor.selection)
+            else
+                None,
+            host.heights,
+            rows.toArray(),
+            scroll,
+            host.scroll.requestRevision,
+            padding,
+            pass.reused
+        )
+    } catch (failure: Throwable) {
+        pass.close()
+        throw failure
+    }
+}

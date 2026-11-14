@@ -1,0 +1,462 @@
+package scoop.tests.markdown.preview
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.tests.surface.*
+import scoop.tests.textfonts.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownPreviewWindowTests {
+    @Test
+    fun nativePreviewVirtualizesAndRetainsMatchingGeometryAcrossEditsAndRebinding() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = PreviewProbe(workers, app.proxy())
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> app.run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.painted)
+            assertTrue(probe.discarded)
+            assertTrue(probe.field!!.isClosed)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+            assertFalse(probe.fonts.isClosed)
+        } catch (error: Throwable) {
+            println("Preview test step " + probe.step.value.toString())
+            reportPreviewFailure(error)
+            throw error
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+internal class PreviewProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original =
+        "# Title\n\nA **bold** paragraph with [link](one).\n\n" +
+            "Paragraph 中文 content with **emphasis** and mixed English words.\n\n".repeat(25000L)
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val other = MarkdownEditorState(MarkdownDocument.fromText("# Other\n\nOther document"))
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val second = MarkdownParseController(other, workers, proxy)
+    val displayed = state(parser)
+    val fonts = FontCollection()
+    val style =
+        MarkdownPreviewStyle(
+            text =
+                textStyle {
+                    families = ["Preview Latin", "Preview CJK"];
+                    fontSize = 16.0;
+                    lineHeight = Some(1.5)
+                },
+            code =
+                textStyle {
+                    families = ["Preview Latin", "Preview CJK"];
+                    fontSize = 14.0;
+                    lineHeight = Some(1.5)
+                }
+        )
+    val options = MarkdownPreviewOptions(padding = 16.0)
+    val step = state(0)
+    val publicFocus = FocusHandle()
+    var field: MarkdownPreviewHost? = None
+    var scope: ComponentScope? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var accepted = -1
+    var waiting = false
+    var painted = false
+    var trial = false
+    var discardNext = false
+    var discarded = false
+    var finished = false
+    var target = MarkdownPosition(0L)
+    var beforeY = 0.0
+    var opened = ""
+    var sourceRange: MarkdownRange? = None
+    var previousPresentations = 0L
+    init {
+        fonts.register(testSansBytes, "Preview Latin")
+        fonts.register(testCjkBytes, "Preview CJK")
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown preview verification";
+                            size = LogicalSize(560.0, 360.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { owner -> PreviewRoot(this, owner) })
+                native.createDeadline {
+                    fail(Some("Preview test timeout at " + step.value.toString()))
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case AboutToWait -> {
+                if (
+                    step.value >=
+                        10 &&
+                        publicFocus.isAttached &&
+                        !publicFocus.hasFocus &&
+                        !publicFocus.isPending
+                )
+                    publicFocus.requestFocus()
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        if (window!!.isOccluded || !window!!.isFocused || frames!!.snapshot().required)
+            return false
+        if (step.value >= 10) {
+            val current = displayed.value.current
+            return when (current) {
+                case Some(_) -> publicFocus.isFocusActive &&
+                    frames!!.snapshot().presentations >
+                    previousPresentations
+                case None -> false
+            }
+        }
+        if (accepted != step.value || !field!!.area.isFocusActive)
+            return false
+        return when ((field!!.measurement?.parsed ?: None, parser.current)) {
+            case(Some(val shown), Some(val current)) -> shown === current
+            else -> false
+        }
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        previousPresentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+        scope!!.requestLayout()
+    }
+
+    private fun advance(active: ActiveApplication) {
+        val field = field!!
+        when (step.value) {
+            case 0 -> {
+                assertTrue(editor.snapshot.byteLength > 1048576L)
+                assertTrue(field.measurement!!.blockCount > 25000L)
+                assertTrue(field.measurement!!.measuredBlockCount < 100L)
+                val rect = field.caret(MarkdownPosition(3L))!!
+                val hit = field.hitTest(Point(rect.x, rect.y + rect.height * 0.5))!!
+                assertTrue(hit.position.byteOffset >= 2L && hit.position.byteOffset <= 7L)
+                next {
+                    editor.replace(MarkdownRange(2L, 7L), "Title expanded")
+                    assertTrue(
+                        when (field.hitTest(Point(30.0, 30.0))) {
+                            case None -> true;
+                            else -> false
+                        }
+                    )
+                }
+            }
+            case 1 -> {
+                assertTrue(field.measurement!!.reusedLayoutCount > 0L)
+                target = editor.snapshot.positionOfLine(40000L)
+                next { field.reveal(target) }
+            }
+            case 2 -> {
+                assertTrue(field.scroll.offset.y > 10000.0)
+                assertTrue(field.measurement!!.measuredBlockCount < 100L)
+                val rect = field.caret(target)!!
+                beforeY = rect.y - field.scroll.offset.y
+                assertTrue(beforeY >= 0.0 && beforeY < 360.0)
+                trial = true
+                discardNext = true
+                next { window!!.requestSize(LogicalSize(620.0, 360.0)) }
+            }
+            case 3 -> {
+                assertTrue(discarded)
+                beforeY = field.caret(target)!!.y - field.scroll.offset.y
+                next {
+                    editor.replace(MarkdownRange(0L, 0L), "# Added\n\n")
+                    target = MarkdownPosition(target.byteOffset + 9L)
+                }
+            }
+            case 4 -> {
+                val afterY = field.caret(target)!!.y - field.scroll.offset.y
+                assertTrue(afterY >= beforeY - 2.0 && afterY <= beforeY + 2.0)
+                assertTrue(field.measurement!!.reusedLayoutCount > 0L)
+                next {
+                    editor.document.reset(
+                        "# Preview\n\nA **bold** *italic* ~~strike~~ [link](destination).\n\n" +
+                            "> - [x] checked\n> - item\n\n| left | center | right |\n| :--- | :---: | ---: |\n| A | 中文 | C |\n\n" +
+                            "Image ![logo](image.png) and $x+1$.\n"
+                    )
+                    field.scroll.scrollTo(Point(0.0, 0.0))
+                }
+            }
+            case 5 -> {
+                val text = editor.document.toMarkdown()
+                val at = bytePosition(text, "link")
+                val rect = field.caret(MarkdownPosition(at + 1L))!!
+                val hit = field.hitTest(Point(rect.x, rect.y + rect.height * 0.5))!!
+                field.activate(hit)
+                assertEquals("destination", opened)
+                assertFalse(field.execute(TextEditCommand.Undo))
+                assertEquals(text, editor.document.toMarkdown())
+                next {
+                    target = MarkdownPosition(bytePosition(text, "$x+1$"))
+                    field.reveal(target)
+                }
+            }
+            case 6 -> {
+                val rect = field.caret(target, MarkdownBias.Before)!!
+                val hit = field.hitTest(Point(rect.x + 2.0, rect.y + rect.height * 0.5))!!
+                field.activate(hit)
+                assertEquals(Some(target.byteOffset), sourceRange?.start)
+                next {
+                    parser.configure(
+                        MarkdownParseOptions(
+                            MarkdownProfile(extensions = [mdBookDirectives()]),
+                            Some(
+                                MarkdownExpansionOptions(
+                                    "/book/root.md",
+                                    PreviewResolver(),
+                                    [mdBookProcessor()]
+                                )
+                            )
+                        )
+                    )
+                    editor.document.reset("Before\n\n{{#include fragment.md}}\n\nAfter")
+                    field.scroll.scrollTo(Point(0.0, 0.0))
+                }
+            }
+            case 7 -> {
+                var found = false
+                for (y in 45 ..< 170) {
+                    val hit = field.hitTest(Point(40.0, y.toDouble()))
+                    when (hit) {
+                        case Some(val value) -> if (value.generated) {
+                            found = true
+                            assertTrue(
+                                value.position.byteOffset >= 8L && value.position.byteOffset <= 32L
+                            )
+                        }
+                        case None -> Unit
+                    }
+                }
+                assertTrue(found)
+                assertEquals(
+                    "Before\n\n{{#include fragment.md}}\n\nAfter",
+                    editor.document.toMarkdown()
+                )
+                field.execute(TextEditCommand.SelectAll)
+                field.execute(TextEditCommand.Copy)
+                val copied = window!!.clipboard.readText()!!
+                assertTrue(copied.contains("Generated") && !copied.contains("{{#include"))
+                next {
+                    parser.configure(MarkdownParseOptions())
+                    editor.document.reset("```text\n" + "中文\tcode\n".repeat(100000L) + "```\n")
+                    field.scroll.scrollTo(Point(0.0, 0.0))
+                }
+            }
+            case 8 -> {
+                assertEquals(100000L, field.measurement!!.blockCount)
+                assertTrue(field.measurement!!.measuredBlockCount < 100L)
+                target = editor.snapshot.positionOfLine(50000L)
+                next { field.reveal(target) }
+            }
+            case 9 -> {
+                assertTrue(field.scroll.offset.y > 10000.0)
+                assertTrue(field.measurement!!.measuredBlockCount < 100L)
+                assertTrue(field.caret(target)!!.y >= field.scroll.offset.y)
+                next()
+            }
+            case 10 -> {
+                assertTrue(field.isClosed)
+                next { displayed.value = second }
+            }
+            case 11 -> {
+                assertEquals(
+                    "Other",
+                    when (second.current!!.source.root.children[0L].content) {
+                        case MarkdownContent.Heading(_, _, val value) -> value.text
+                        else -> fail(Some("Expected other heading"))
+                    }
+                )
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected preview test step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        parser.close()
+        second.close()
+        editor.close()
+        other.close()
+        fonts.close()
+    }
+}
+
+private class PreviewResolver: MarkdownResourceResolver {
+    public override fun resolve(baseUri: String, reference: String): String = "/book/" + reference
+    public override fun version(uri: String): String? = Some("1")
+    public override fun read(uri: String): MarkdownResourceData =
+        MarkdownResourceData("# Generated\n\nGenerated **text** from the resource.\n", "1")
+}
+
+private class PreviewRoot(val probe: PreviewProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.scope = Some(scope)
+    }
+    public override fun render(): View {
+        if (probe.step.value >= 10)
+            return markdownPreview(
+                probe.displayed.value,
+                Some(probe.style),
+                probe.options,
+                Some(probe.fonts),
+                FocusOptions(handle = Some(probe.publicFocus))
+            )
+        probe.parser.status
+        probe.editor.selection
+        return cachedScene(
+            element(probe.step.value, { props, owner -> PreviewField(probe, props, owner) })
+        )
+    }
+}
+
+private class PreviewField(val probe: PreviewProbe, val step: Props<Int>, scope: ComponentScope):
+Element<MarkdownPreviewMeasurement>(scope) {
+    val host =
+        scope.resource {
+            MarkdownPreviewHost(scope, probe.parser, probe.style, probe.options, Some(probe.fonts))
+        }
+    public override fun onMount() {
+        probe.field = Some(host)
+        update()
+        probe.parser.start()
+        host.focus.handle.requestFocus()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(
+            probe.parser,
+            probe.style,
+            probe.options,
+            fonts = Some(probe.fonts),
+            onOpenLink = { value -> probe.opened = value },
+            onSource = { range -> probe.sourceRange = Some(range) }
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        if (probe.trial) {
+            probe.trial = false
+            val before = host.caret(probe.target)
+            val trial = host.measure(context, Constraints.tight(Size(120.0, 200.0)))
+            assertEquals(before, host.caret(probe.target))
+            trial.close()
+        }
+        val measured = host.measure(context, constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: MarkdownPreviewMeasurement) {
+        val old = host.measurement
+        host.scene(context, measured)
+        if (!probe.painted && measured.measuredBlockCount > 0L)
+            context.draw {
+                paint -> for (x in 18 ..< 150)
+                    for (y in 18 ..< 70)
+                        if (previewPixel(paint.canvas, x.toDouble(), y.toDouble()) % 256L < 230L)
+                            probe.painted = true
+            }
+        val ticket = step.value
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(600.0, 360.0))
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+            else
+                if (discard) {
+                    probe.discarded = true
+                    assertSame(old!!, host.measurement!!)
+                    scope.requestFrame()
+                }
+        }
+    }
+}
+
+private fun bytePosition(text: String, value: String): Long {
+    val index = text.indexOf(value)
+    assertTrue(index >= 0L)
+    return text.substring(0L, index).byteLength
+}
+
+private fun previewPixel(canvas: Canvas, x: Double, y: Double): Long {
+    @Unsafe
+    {
+        return canvas.withSkiaCanvas {
+            pointer -> @Unsafe
+            {
+                return@withSkiaCanvas readNativePixel(pointer, x, y)
+            }
+        }
+    }
+}
+
+private fun reportPreviewFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportPreviewFailure(error.primaryFailure)
+        reportPreviewFailure(error.cleanupFailure)
+    } else {
+        if (error is AssertionFailure)
+            println(
+                error.location.file +
+                    ":" +
+                    error.location.line.toString() +
+                    ": " +
+                    (error.message ?: "assertion")
+            )
+        else
+            if (error is Exception)
+                println(error.message ?: "failure")
+        error.printStackTrace()
+    }
+}

@@ -1,0 +1,274 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.ui.*
+
+public class MarkdownPreviewHit internal constructor(
+    public val position: MarkdownPosition,
+    public val previewPosition: MarkdownPosition,
+    public val sourceRange: MarkdownRange,
+    public val generated: Boolean,
+    public val node: MarkdownNodeId,
+    public val affinity: TextAffinity,
+    internal val action: MdDisplayAction?,
+    internal val blockKey: MdDisplayKey,
+    internal val cellIndex: Long,
+    internal val textPosition: TextPosition,
+    internal val document: MarkdownParsedDocument
+)
+
+internal class MdPreviewRows(val rows: Array<MdPreviewMeasuredRow>) {
+    var owners = 1L
+    fun retain(): MdPreviewRows {
+        owners += 1L;
+        return this
+    }
+    fun release() {
+        owners -= 1L
+        if (owners == 0L)
+            for (row in rows)
+                row.resource.release()
+    }
+}
+
+/** A retained frame owns its layouts independently of later measurements or parse publication. */
+public class MarkdownPreviewMeasurement internal constructor(
+    public val metrics: LayoutMetrics,
+    internal val document: MarkdownParsedDocument?,
+    internal val selection: MarkdownSelection?,
+    internal val heights: MdHeights,
+    internal val rows: Array<MdPreviewMeasuredRow>,
+    internal val scroll: ScrollLayout,
+    internal val requestRevision: ULong,
+    internal val padding: Double,
+    public val reusedLayoutCount: Long,
+    ownership: MdPreviewRows? = None
+): Closeable {
+    private val owner = ownership ?: MdPreviewRows(rows)
+    private var closed = false
+    public val sourceRevision: Long? get() = document?.snapshot?.revision
+    public val parsed: MarkdownParsedDocument? get() = document
+    public val measuredBlockCount: Long get() = rows.size
+    public val blockCount: Long get() = heights.count
+    public val scrollSnapshot: ScrollSnapshot get() = scroll.snapshot
+    public val blockIndices: Array<Long> get() = Array<Long>(rows.size) { at -> rows[at].index }
+
+    internal fun retain(): MarkdownPreviewMeasurement {
+        if (closed)
+            throw IllegalStateException(Some("Markdown preview measurement is closed"))
+        return MarkdownPreviewMeasurement(
+            metrics,
+            document,
+            selection,
+            heights,
+            rows,
+            scroll,
+            requestRevision,
+            padding,
+            reusedLayoutCount,
+            Some(owner.retain())
+        )
+    }
+
+    internal fun row(index: Long): MdPreviewMeasuredRow? {
+        for (item in rows)
+            if (item.index == index)
+                return Some(item)
+        return None
+    }
+
+    internal fun hit(point: Point): MarkdownPreviewHit? {
+        val model = document ?: return None
+        if (heights.count == 0L)
+            return None
+        var index = heights.indexAt(point.y - padding)
+        if (index == heights.count)
+            index -= 1L
+        val measured = row(index) ?: return None
+        var source = MarkdownPosition(measured.row.range.start)
+        var affinity = TextAffinity.Downstream
+        var action: MdDisplayAction? = None
+        var selectedCell = 0L
+        var textPosition = TextPosition(0L)
+        if (measured.resource.cells.size > 0L) {
+            var cellIndex = 0L
+            while (
+                cellIndex +
+                    1L <
+                    measured.resource.cells.size &&
+                    point.x -
+                    padding >=
+                    measured.resource.cells[cellIndex + 1L].origin.x -
+                    6.0
+            )
+                cellIndex += 1L
+            val cell = measured.resource.cells[cellIndex]
+            val text = measured.row.cells[cellIndex]
+            val hit =
+                cell.text.layout.hitTest(
+                    Point(
+                        point.x - padding - cell.origin.x,
+                        point.y - padding - heights.prefix(index) - cell.origin.y
+                    )
+                )
+            val displayed = cell.text.display.toDocument(hit)
+            selectedCell = cellIndex
+            textPosition = displayed
+            affinity = hit.affinity
+            source =
+                text.sourceAt(
+                    displayed.byteOffset,
+                    if (hit.affinity == TextAffinity.Upstream)
+                        MarkdownBias.Before
+                    else
+                        MarkdownBias.After
+                )
+            action =
+                text.actionAt(
+                    if (hit.affinity == TextAffinity.Upstream && displayed.byteOffset > 0L)
+                        displayed.byteOffset - 1L
+                    else
+                        displayed.byteOffset
+                )
+        }
+        var generated = false
+        when (model.processed) {
+            case Some(val processed) -> {
+                for (
+                    entry in processed.sourceMap.origins(
+                        MarkdownRange(source.byteOffset, source.byteOffset)
+                    )
+                )
+                    when (entry.origin) {
+                        case MarkdownSourceOrigin.Generated(_, _, _) -> generated = true
+                        else -> Unit
+                    }
+            }
+            case None -> Unit
+        }
+        return Some(
+            MarkdownPreviewHit(
+                mdPreviewOriginal(model, source),
+                source,
+                mdPreviewOriginalRange(model, measured.row.range),
+                generated,
+                measured.row.node,
+                affinity,
+                action,
+                measured.row.key,
+                selectedCell,
+                textPosition,
+                model
+            )
+        )
+    }
+
+    internal fun caret(position: MarkdownPosition, bias: MarkdownBias = MarkdownBias.After): Rect? {
+        val model = document ?: return None
+        val expanded = mdPreviewExpanded(model, position, bias)
+        val index = model.display.rowAt(expanded, bias)
+        val measured = row(index) ?: return None
+        if (measured.resource.cells.size == 0L)
+            return Some(
+                Rect(padding, padding + heights.prefix(index), 1.0, measured.resource.height)
+            )
+        var cellIndex = 0L
+        while (
+            cellIndex +
+                1L <
+                measured.row.cells.size &&
+                measured.row.cells[cellIndex].sourceRange.end <
+                expanded.byteOffset
+        )
+            cellIndex += 1L
+        val cell = measured.resource.cells[cellIndex]
+        val text = measured.row.cells[cellIndex]
+        val raw =
+            TextPosition(
+                text.textAt(expanded.byteOffset, bias),
+                if (bias == MarkdownBias.Before)
+                    TextAffinity.Upstream
+                else
+                    TextAffinity.Downstream
+            )
+        var displayed = cell.text.display.toDisplay(raw)
+        val boundaries = cell.text.layout.graphemeBoundaries
+        val boundary = mdSourceBoundaryIndex(boundaries, displayed.byteOffset)
+        if (boundary < boundaries.size && boundaries[boundary] != displayed.byteOffset)
+            displayed =
+                TextPosition(
+                    if (bias == MarkdownBias.Before && boundary > 0L)
+                        boundaries[boundary - 1L]
+                    else
+                        boundaries[boundary],
+                    displayed.affinity
+                )
+        val rect = cell.text.layout.caret(displayed) ?: return None
+        return Some(
+            Rect(
+                padding + cell.origin.x + rect.x,
+                padding + heights.prefix(index) + cell.origin.y + rect.y,
+                rect.width,
+                rect.height
+            )
+        )
+    }
+
+    internal fun hitCaret(hit: MarkdownPreviewHit): Rect? {
+        val model = document ?: return None
+        val index = model.display.rowForKey(hit.blockKey) ?: return None
+        val measured = row(index) ?: return None
+        if (hit.cellIndex >= measured.resource.cells.size)
+            return Some(
+                Rect(padding, padding + heights.prefix(index), 1.0, measured.resource.height)
+            )
+        val cell = measured.resource.cells[hit.cellIndex]
+        val rect =
+            cell.text.layout.caret(cell.text.display.toDisplay(hit.textPosition)) ?: return None
+        return Some(
+            Rect(
+                padding + cell.origin.x + rect.x,
+                padding + heights.prefix(index) + cell.origin.y + rect.y,
+                rect.width,
+                rect.height
+            )
+        )
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        owner.release()
+    }
+}
+
+internal fun mdPreviewExpanded(
+    model: MarkdownParsedDocument,
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownPosition =
+    when (model.processed) {
+        case Some(val processed) -> processed.sourceMap.expandedAt(position, bias)
+        case None -> position
+    }
+
+internal fun mdPreviewOriginal(
+    model: MarkdownParsedDocument,
+    position: MarkdownPosition
+): MarkdownPosition =
+    when (model.processed) {
+        case Some(val processed) -> processed.sourceMap.sourceAt(position)
+        case None -> position
+    }
+
+internal fun mdPreviewOriginalRange(
+    model: MarkdownParsedDocument,
+    range: MarkdownRange
+): MarkdownRange =
+    when (model.processed) {
+        case Some(val processed) -> processed.sourceMap.sourceRange(range)
+        case None -> range
+    }

@@ -24,8 +24,10 @@ public class MarkdownParseOptions public constructor(
 public class MarkdownParsedDocument internal constructor(
     public val source: ParsedMarkdown,
     public val processed: ProcessedMarkdown?,
-    public val options: MarkdownParseOptions
+    public val options: MarkdownParseOptions,
+    previousDisplay: MdDisplayDocument? = None
 ) {
+    internal val display = mdProjectMarkdown(preview, previousDisplay)
     public val preview: ParsedMarkdown get() =
         when (processed) {
             case Some(val result) -> result.expanded
@@ -86,7 +88,24 @@ internal class MdParseEngine {
                             expansion.baseUri,
                             request.options.profile
                         )
-                    MarkdownParsedDocument(result.sourceParsed, Some(result), request.options)
+                    when (previous) {
+                        case Some(val value) -> {
+                            val sameProcessed =
+                                when (value.processed) {
+                                    case Some(val old) -> old === result
+                                    case None -> false
+                                }
+                            if (value.options === request.options && sameProcessed)
+                                return value
+                        }
+                        case None -> Unit
+                    }
+                    MarkdownParsedDocument(
+                        result.sourceParsed,
+                        Some(result),
+                        request.options,
+                        previous?.display
+                    )
                 }
                 case None -> {
                     when (previous) {
@@ -106,7 +125,8 @@ internal class MdParseEngine {
                     MarkdownParsedDocument(
                         parseMarkdown(request.snapshot, request.options.profile),
                         None,
-                        request.options
+                        request.options,
+                        previous?.display
                     )
                 }
             }

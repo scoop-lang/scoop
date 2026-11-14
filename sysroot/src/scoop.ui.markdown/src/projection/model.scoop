@@ -1,0 +1,250 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.comparisons.comparatorOf
+import scoop.markdown.*
+
+internal class MdDisplayIdentity
+
+/** Identity compares occurrences, even when adjacent paragraphs have identical text. */
+internal class MdDisplayKey(private val ordinal: Long): Equals<MdDisplayKey>, Hash {
+    public override operator fun equals(other: MdDisplayKey): Boolean = this === other
+    public override fun hash(): Long = ordinal.hash()
+}
+
+internal enum MdDisplayKind {
+    Paragraph, Heading(Int), Code(String, Boolean, Boolean), Table(
+        Array<MarkdownAlignment>,
+        Boolean
+    ),
+    Rule, Source(String, Boolean, Boolean)
+}
+
+internal class MdDisplayQuote(val parent: MdDisplayQuote?, val level: Long)
+
+internal class MdDisplayMarker(
+    val level: Long,
+    val text: String,
+    val task: Boolean?,
+    val node: MarkdownNodeId,
+    val range: MarkdownRange
+)
+
+internal class MdDisplayRow(
+    val node: MarkdownNodeId,
+    val range: MarkdownRange,
+    val kind: MdDisplayKind,
+    val indent: Long,
+    val quotes: MdDisplayQuote?,
+    val markers: Array<MdDisplayMarker>,
+    val cells: Array<MdDisplayText>,
+    val key: MdDisplayKey
+)
+
+internal class MdDisplayReuse(
+    val previous: MdDisplayIdentity,
+    val oldCount: Long,
+    val prefix: Long,
+    val suffix: Long
+)
+
+internal class MdDisplayDocument(
+    val parsed: ParsedMarkdown,
+    val rows: Array<MdDisplayRow>,
+    val reuse: MdDisplayReuse?
+) {
+    val identity = MdDisplayIdentity()
+    private val sourceOrder: Array<Long> = mdDisplaySourceOrder(rows)
+    private val byKey = HashMap<MdDisplayKey, Long>()
+    init {
+        for (index in 0L ..< rows.size)
+            byKey[rows[index].key] = index
+    }
+
+    fun rowForKey(key: MdDisplayKey): Long? = byKey[key]
+
+    fun rowAt(position: MarkdownPosition, bias: MarkdownBias = MarkdownBias.After): Long {
+        parsed.snapshot.read(MarkdownRange(position.byteOffset, position.byteOffset))
+        var low = 0L
+        var high = sourceOrder.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            val range = rows[sourceOrder[middle]].range
+            if (
+                range.end <
+                    position.byteOffset ||
+                    (range.end == position.byteOffset && bias == MarkdownBias.After)
+            )
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (low == sourceOrder.size)
+            return sourceOrder[low - 1L]
+        if (
+            rows[sourceOrder[low]].range.start >
+                position.byteOffset &&
+                low >
+                0L &&
+                bias ==
+                MarkdownBias.Before
+        )
+            return sourceOrder[low - 1L]
+        return sourceOrder[low]
+    }
+}
+
+private fun mdDisplaySourceOrder(rows: Array<MdDisplayRow>): Array<Long> {
+    val result = ArrayList<Long>()
+    for (index in 0L ..< rows.size)
+        result.add(index)
+    result.sortWith(
+        comparatorOf<Long> { a, b -> rows[a].range.start.compareTo(rows[b].range.start) }
+    )
+    return result.toArray()
+}
+
+internal fun mdDisplaySame(a: MdDisplayRow, b: MdDisplayRow): Boolean {
+    if (a.indent != b.indent || a.cells.size != b.cells.size || a.markers.size != b.markers.size)
+        return false
+    val kind =
+        when ((a.kind, b.kind)) {
+            case(MdDisplayKind.Paragraph, MdDisplayKind.Paragraph) -> true
+            case(MdDisplayKind.Heading(val x), MdDisplayKind.Heading(val y)) -> x == y
+            case(
+                MdDisplayKind.Code(val x, val xf, val xl),
+                MdDisplayKind.Code(val y, val yf, val yl)
+            ) ->
+            x == y && xf == yf && xl == yl
+            case(
+                MdDisplayKind.Source(val x, val xf, val xl),
+                MdDisplayKind.Source(val y, val yf, val yl)
+            ) ->
+            x == y && xf == yf && xl == yl
+            case(MdDisplayKind.Table(val x, val xh), MdDisplayKind.Table(val y, val yh)) -> {
+                if (xh != yh || x.size != y.size)
+                    return false
+                for (index in 0L ..< x.size)
+                    if (x[index] != y[index])
+                        return false
+                true
+            }
+            case(MdDisplayKind.Rule, MdDisplayKind.Rule) -> true
+            else -> false
+        }
+    if (!kind)
+        return false
+    var x = a.quotes
+    var y = b.quotes
+    while (true) {
+        when ((x, y)) {
+            case(Some(val left), Some(val right)) -> {
+                if (left.level != right.level)
+                    return false
+                x = left.parent
+                y = right.parent
+            }
+            case(None, None) -> break
+            else -> return false
+        }
+    }
+    for (index in 0L ..< a.markers.size) {
+        val left = a.markers[index]
+        val right = b.markers[index]
+        if (left.level != right.level || left.text != right.text || left.task != right.task)
+            return false
+    }
+    for (index in 0L ..< a.cells.size) {
+        val left = a.cells[index]
+        val right = b.cells[index]
+        if (left.text != right.text || left.runs.size != right.runs.size)
+            return false
+        for (at in 0L ..< left.runs.size) {
+            val lr = left.runs[at]
+            val rr = right.runs[at]
+            if (
+                lr.range !=
+                    rr.range ||
+                    lr.flags !=
+                    rr.flags ||
+                    !mdDisplaySameObject(lr.objectValue, rr.objectValue)
+            )
+                return false
+        }
+    }
+    return true
+}
+
+private fun mdDisplaySameObject(a: MdDisplayObject?, b: MdDisplayObject?): Boolean =
+    when ((a, b)) {
+        case(None, None) -> true
+        case(
+            Some(MdDisplayObject.Image(val x, val xa)),
+            Some(MdDisplayObject.Image(val y, val ya))
+        ) ->
+        xa == ya && x.destination.text == y.destination.text
+        case(Some(MdDisplayObject.Extension(val x)), Some(MdDisplayObject.Extension(val y))) ->
+        x.name == y.name && x.source.text == y.source.text
+        else -> false
+    }
+
+internal fun mdDisplayReconcile(
+    parsed: ParsedMarkdown,
+    rows: Array<MdDisplayRow>,
+    previous: MdDisplayDocument?
+): MdDisplayDocument {
+    val before = previous ?: return MdDisplayDocument(parsed, rows, None)
+    var prefix = 0L
+    while (
+        prefix <
+            rows.size &&
+            prefix <
+            before.rows.size &&
+            mdDisplaySame(rows[prefix], before.rows[prefix])
+    )
+        prefix += 1L
+    var suffix = 0L
+    while (
+        suffix <
+            rows.size -
+            prefix &&
+            suffix <
+            before.rows.size -
+            prefix &&
+            mdDisplaySame(
+                rows[rows.size - suffix - 1L],
+                before.rows[before.rows.size - suffix - 1L]
+            )
+    )
+        suffix += 1L
+    val unchangedPrefix = prefix
+    val unchangedSuffix = suffix
+    val result =
+        Array<MdDisplayRow>(rows.size) {
+            index ->
+            val row = rows[index]
+            val key =
+                if (index < unchangedPrefix)
+                    before.rows[index].key
+                else
+                    if (index >= rows.size - unchangedSuffix)
+                        before.rows[before.rows.size - rows.size + index].key
+                    else
+                        row.key
+            MdDisplayRow(
+                row.node,
+                row.range,
+                row.kind,
+                row.indent,
+                row.quotes,
+                row.markers,
+                row.cells,
+                key
+            )
+        }
+    return MdDisplayDocument(
+        parsed,
+        result,
+        Some(MdDisplayReuse(before.identity, before.rows.size, prefix, suffix))
+    )
+}

@@ -1,0 +1,213 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.repeat
+
+@Test
+private class MarkdownProjectionTests {
+    @Test
+    fun decodedTextKeepsHiddenDelimitersEntitiesBreaksAndAtomicObjects() {
+        val input = "**A &amp; B** and `x  y`  \r\nnext ![中](image.png) $x+1$"
+        val parsed =
+            parseMarkdown(MarkdownDocument.fromText(input).snapshot(), MarkdownProfile.Editor)
+        val projection = mdProjectMarkdown(parsed)
+        assertEquals(1L, projection.rows.size)
+        val text = projection.rows[0L].cells[0L]
+        assertEquals("A & B and x  y\nnext \u{fffc} \u{fffc}", text.text)
+        assertEquals(MarkdownPosition(0L), text.sourceAt(0L, MarkdownBias.Before))
+        assertEquals(MarkdownPosition(2L), text.sourceAt(0L))
+        assertEquals(MarkdownPosition(4L), text.sourceAt(2L))
+        assertEquals(MarkdownPosition(9L), text.sourceAt(3L, MarkdownBias.Before))
+        assertEquals(2L, text.textAt(6L, MarkdownBias.Before))
+        assertEquals(3L, text.textAt(6L))
+        assertEquals(11L, text.sourceAt(5L, MarkdownBias.Before).byteOffset)
+        assertEquals(13L, text.sourceAt(5L).byteOffset)
+        var objects = 0L
+        var bold = false
+        var code = false
+        for (run in text.runs) {
+            bold = bold || run.flags.strong
+            code = code || run.flags.code
+            when (run.objectValue) {
+                case Some(_) -> {
+                    objects += 1L
+                    assertEquals(3L, run.range.byteLength)
+                    val start = text.sourceAt(run.range.start)
+                    val end = text.sourceAt(run.range.end, MarkdownBias.Before)
+                    assertTrue(end.byteOffset > start.byteOffset)
+                    assertFailsWith<IllegalArgumentException> {
+                        text.sourceAt(run.range.start + 1L)
+                    }
+                }
+                case None -> Unit
+            }
+        }
+        assertEquals(2L, objects)
+        assertTrue(bold && code)
+        assertEquals(input, parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun blocksPreserveListContextsTableAlignmentsAndFootnoteSourceOrder() {
+        val input =
+            "[^later]: footnote **body**\n\n# Heading\n\n> 3. [x] task\n>    continued\n>\n>    next\n\n" +
+                "| Left | Center | Right |\n| :--- | :---: | ---: |\n| one | two | three |\n\nText[^later]\n"
+        val parsed =
+            parseMarkdown(MarkdownDocument.fromText(input).snapshot(), MarkdownProfile.Editor)
+        val result = mdProjectMarkdown(parsed)
+        assertEquals(7L, result.rows.size)
+        assertEquals("Heading", result.rows[0L].cells[0L].text)
+        val task = result.rows[1L]
+        assertEquals(2L, task.indent)
+        assertEquals(0L, task.quotes!!.level)
+        assertEquals(1L, task.markers.size)
+        assertEquals("3.", task.markers[0L].text)
+        assertEquals(Some(true), task.markers[0L].task)
+        assertEquals("task continued", task.cells[0L].text)
+        assertEquals(0L, result.rows[2L].markers.size)
+        when (result.rows[3L].kind) {
+            case MdDisplayKind.Table(val alignments, val header) -> {
+                assertTrue(header)
+                assertEquals(3L, alignments.size)
+                assertEquals(MarkdownAlignment.Left, alignments[0L])
+                assertEquals(MarkdownAlignment.Center, alignments[1L])
+                assertEquals(MarkdownAlignment.Right, alignments[2L])
+            }
+            else -> fail(Some("Expected table header"))
+        }
+        assertEquals("Text[1]", result.rows[5L].cells[0L].text)
+        assertEquals("footnote body", result.rows[6L].cells[0L].text)
+        assertEquals("[1]", result.rows[6L].markers[0L].text)
+        val definition = parsed.node(parsed.footnotes[0L].definition)
+        assertEquals(6L, result.rowAt(MarkdownPosition(definition.range.start)))
+        assertEquals(0L, result.rowAt(MarkdownPosition(result.rows[0L].range.start)))
+        val link = result.rows[5L].cells[0L].actionAt(4L)
+        when (link) {
+            case Some(MdDisplayAction.Source(val range)) -> assertEquals(definition.range, range)
+            else -> fail(Some("Expected footnote navigation"))
+        }
+    }
+
+    @Test
+    fun codeLinesKeepCrLfTabAndFenceSourcePositionsWithoutPhantomFinalRows() {
+        val input = "~~~lang\r\n\t中文\r\n\r\nlast\r\n~~~\r\n\n---\n\n<div>source</div>"
+        val parsed = parseMarkdown(MarkdownDocument.fromText(input).snapshot())
+        val result = mdProjectMarkdown(parsed)
+        assertEquals(5L, result.rows.size)
+        assertEquals("\t中文", result.rows[0L].cells[0L].text)
+        assertEquals("", result.rows[1L].cells[0L].text)
+        assertEquals("last", result.rows[2L].cells[0L].text)
+        assertEquals(MarkdownPosition(9L), result.rows[0L].cells[0L].sourceAt(0L))
+        assertEquals(0L, result.rowAt(MarkdownPosition(0L)))
+        assertEquals(2L, result.rowAt(MarkdownPosition(25L)))
+        assertEquals("<div>source</div>", result.rows[4L].cells[0L].text)
+        val empty =
+            mdProjectMarkdown(parseMarkdown(MarkdownDocument.fromText("```\n```").snapshot()))
+        assertEquals(1L, empty.rows.size)
+        assertEquals("", empty.rows[0L].cells[0L].text)
+    }
+
+    @Test
+    fun repeatedParagraphsReuseTheirOwnLayoutsWhileMappingsAndLinkTargetsAdvance() {
+        val doc = MarkdownDocument.fromText("same\n\n[link](one)\n\nsame\n\nlast")
+        val first = mdProjectMarkdown(parseMarkdown(doc.snapshot()))
+        assertFalse(first.rows[0L].key === first.rows[2L].key)
+        doc.apply(
+            MarkdownEdit(
+                doc.revision,
+                [MarkdownReplacement(MarkdownRange(6L, 17L), "[link](different)")]
+            )
+        )
+        val second = mdProjectMarkdown(parseMarkdown(doc.snapshot()), Some(first))
+        assertEquals(4L, second.reuse!!.prefix)
+        for (index in 0L ..< first.rows.size) {
+            assertSame(first.rows[index].key, second.rows[index].key)
+            assertFalse(first.rows[index].node === second.rows[index].node)
+        }
+        when (second.rows[1L].cells[0L].actionAt(0L)) {
+            case Some(MdDisplayAction.Link(val destination)) -> assertEquals(
+                "different",
+                destination
+            )
+            else -> fail(Some("Expected current link target"))
+        }
+        assertTrue(second.rows[2L].range.start > first.rows[2L].range.start)
+        doc.apply(
+            MarkdownEdit(
+                doc.revision,
+                [
+                    MarkdownReplacement(
+                        MarkdownRange(
+                            second.rows[1L].range.start,
+                            second.rows[1L].range.start + "[link](different)".byteLength
+                        ),
+                        "changed"
+                    )
+                ]
+            )
+        )
+        val third = mdProjectMarkdown(parseMarkdown(doc.snapshot()), Some(second))
+        assertEquals(1L, third.reuse!!.prefix)
+        assertEquals(2L, third.reuse!!.suffix)
+        assertFalse(second.rows[1L].key === third.rows[1L].key)
+        assertSame(second.rows[3L].key, third.rows[3L].key)
+    }
+
+    @Test
+    fun longCodeAndDeepContainersRemainCompleteWithoutRecursiveProjection() {
+        val code = "```text\n" + "中文\tline\n".repeat(100000L) + "```\n"
+        val document = MarkdownDocument.fromText(code)
+        val projected = mdProjectMarkdown(parseMarkdown(document.snapshot()))
+        assertEquals(100000L, projected.rows.size)
+        assertEquals("中文\tline", projected.rows[99999L].cells[0L].text)
+        assertEquals(99999L, projected.rowAt(MarkdownPosition(code.byteLength)))
+        assertEquals(code, document.toMarkdown())
+        val deep = parseMarkdown(MarkdownDocument.fromText("> ".repeat(3000L) + "deep").snapshot())
+        val first = mdProjectMarkdown(deep)
+        val second = mdProjectMarkdown(deep, Some(first))
+        assertEquals(1L, first.rows.size)
+        assertEquals(3000L, first.rows[0L].indent)
+        assertEquals("deep", first.rows[0L].cells[0L].text)
+        assertSame(first.rows[0L].key, second.rows[0L].key)
+    }
+
+    @Test
+    fun unchangedExpansionRefreshKeepsProjectionAndResourceUpdatesPreserveOriginalSyntax() {
+        val source = MarkdownDocument.fromText("{{#include content.md}}")
+        val resolver = ProjectionResolver()
+        val options =
+            MarkdownParseOptions(
+                MarkdownProfile(extensions = [mdBookDirectives()]),
+                Some(MarkdownExpansionOptions("/book/root.md", resolver, [mdBookProcessor()]))
+            )
+        val engine = MdParseEngine()
+        val first = engine.parse(MdParseRequest(source.snapshot(), options))
+        val second = engine.parse(MdParseRequest(source.snapshot(), options))
+        assertSame(first, second)
+        assertSame(first.display, second.display)
+        assertEquals(1, resolver.reads)
+        resolver.current = "2"
+        val changed = engine.parse(MdParseRequest(source.snapshot(), options))
+        assertFalse(first === changed)
+        assertSame(first.source, changed.source)
+        assertEquals("Resource 2", changed.display.rows[0L].cells[0L].text)
+        assertEquals(
+            "Resource 2",
+            mdPreviewSelectedText(changed, MarkdownRange(0L, source.snapshot().byteLength))
+        )
+        assertEquals("{{#include content.md}}", source.toMarkdown())
+        engine.clear()
+    }
+}
+
+private class ProjectionResolver: MarkdownResourceResolver {
+    var current = "1"
+    var reads = 0
+    public override fun resolve(baseUri: String, reference: String): String = "/book/" + reference
+    public override fun version(uri: String): String? = Some(current)
+    public override fun read(uri: String): MarkdownResourceData {
+        reads += 1
+        return MarkdownResourceData("Resource **" + current + "**", current)
+    }
+}
