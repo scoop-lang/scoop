@@ -93,13 +93,13 @@ private fun mdFragmentIntoInline(
     val blocks = input.blocks
     val paragraph = MarkdownContent.Paragraph(MarkdownText("", [], 0L))
     if (blocks.size == 0L) {
-        body.inline(mdFragmentConcat(left, right), content.node.content, offset)
+        body.inline(mdInlineUnitsConcat(left, right), content.node.content, offset)
     } else {
         var first = 0L
         if (mdFragmentParagraph(blocks[0L])) {
             val added = mdFragmentNodeUnits(input, blocks[0L])
             body.inline(
-                mdFragmentConcat(
+                mdInlineUnitsConcat(
                     left,
                     added,
                     if (blocks.size == 1L)
@@ -119,7 +119,11 @@ private fun mdFragmentIntoInline(
             val node = blocks[index]
             if (index + 1L == blocks.size && mdFragmentParagraph(node)) {
                 val added = mdFragmentNodeUnits(input, node)
-                body.inline(mdFragmentConcat(added, right), paragraph, mdFragmentUnitsLength(added))
+                body.inline(
+                    mdInlineUnitsConcat(added, right),
+                    paragraph,
+                    mdFragmentUnitsLength(added)
+                )
             } else {
                 val start = body.add(mdFragmentNodeSource(input, node))
                 body.displayOffset = None

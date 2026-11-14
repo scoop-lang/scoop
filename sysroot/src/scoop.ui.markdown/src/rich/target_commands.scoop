@@ -1,0 +1,54 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdRichBeginTarget(
+    host: MarkdownRichHost,
+    kind: MarkdownTargetKind
+): MarkdownTargetDraft? {
+    if (!host.canEditTarget)
+        return None
+    val composing = host.editor.isComposing
+    host.perform {
+        host.editor.acceptComposition()
+        val relocated = host.input?.synchronize() ?: false
+        if (composing || relocated)
+            host.retire()
+    }
+    val input = host.input ?: return None
+    val content = input.content.inlineContent ?: return None
+    return mdTargetDraft(host.editor, content, kind)
+}
+
+internal fun mdRichApplyTarget(
+    host: MarkdownRichHost,
+    draft: MarkdownTargetDraft,
+    label: String,
+    destination: String,
+    title: String,
+    remove: Boolean
+): Boolean {
+    if (!host.canEditTarget || !draft.isCurrent(host.editor) || (remove && !draft.canRemove))
+        return false
+    val edit =
+        if (remove)
+            draft.remove()
+        else
+            draft.prepare(label, destination, title)
+    val active = host.input ?: return false
+    host.perform {
+        try {
+            host.editor.apply(
+                edit.change,
+                edit.selection,
+                draft.original.anchor.byteOffset > draft.original.cursor.byteOffset
+            )
+        } finally {
+            if (host.editor.snapshot === edit.after.snapshot)
+                active.synchronize(edit.after)
+            host.retire()
+        }
+    }
+    host.preview.reveal(host.editor.selection.cursor)
+    return true
+}

@@ -75,18 +75,3 @@ internal fun mdFragmentUnitsLength(units: Array<MdInlineUnit>): Long {
         size += unit.text.byteLength
     return size
 }
-
-internal fun mdFragmentConcat(
-    a: Array<MdInlineUnit>,
-    b: Array<MdInlineUnit>,
-    c: Array<MdInlineUnit> = []
-): Array<MdInlineUnit> =
-    Array<MdInlineUnit>(a.size + b.size + c.size) {
-        index -> if (index < a.size)
-            a[index]
-        else
-            if (index < a.size + b.size)
-                b[index - a.size]
-            else
-                c[index - a.size - b.size]
-    }

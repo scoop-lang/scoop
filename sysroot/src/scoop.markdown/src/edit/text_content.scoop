@@ -45,12 +45,13 @@ public class MarkdownTextContent internal constructor(
     public fun replaceText(
         range: MarkdownRange,
         text: String,
-        bias: MarkdownBias = MarkdownBias.After
+        bias: MarkdownBias = MarkdownBias.After,
+        code: Boolean? = None
     ): MarkdownTextEdit {
         mdTextCheckRange(this, range)
         return when (context) {
             case Inline(val value) -> {
-                val edit = value.replaceText(range, text, bias)
+                val edit = value.replaceText(range, text, bias, code)
                 val after = MarkdownTextContent(MdTextContext.Inline(edit.after), origin)
                 val length = after.text.byteLength - this.text.byteLength + range.byteLength
                 MarkdownTextEdit(
@@ -60,7 +61,7 @@ public class MarkdownTextContent internal constructor(
                     after
                 )
             }
-            case Blocks(val value) -> mdTextReplaceBlocks(this, value, range, text, bias)
+            case Blocks(val value) -> mdTextReplaceBlocks(this, value, range, text, bias, code)
         }
     }
 

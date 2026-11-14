@@ -12,9 +12,10 @@ public class MarkdownTextEditBuilder internal constructor(private val base: Mark
     public fun replaceText(
         range: MarkdownRange,
         text: String,
-        bias: MarkdownBias = MarkdownBias.After
+        bias: MarkdownBias = MarkdownBias.After,
+        code: Boolean? = None
     ) {
-        val edit = current.replaceText(range, text, bias)
+        val edit = current.replaceText(range, text, bias, code)
         current = edit.after
         inserted = edit.insertedRange
         selected = MarkdownRange(inserted.end, inserted.end)
@@ -27,6 +28,12 @@ public class MarkdownTextEditBuilder internal constructor(private val base: Mark
 
     public fun setStyle(range: MarkdownRange, style: MarkdownInlineStyle, enabled: Boolean) {
         val edit = current.setStyle(range, style, enabled)
+        current = edit.after
+        selected = range
+    }
+
+    public fun setCode(range: MarkdownRange, enabled: Boolean) {
+        val edit = current.setCode(range, enabled)
         current = edit.after
         selected = range
     }

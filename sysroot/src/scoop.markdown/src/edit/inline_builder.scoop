@@ -12,13 +12,32 @@ public class MarkdownInlineEditBuilder internal constructor(
     public fun replaceText(
         range: MarkdownRange,
         text: String,
-        bias: MarkdownBias = MarkdownBias.After
+        bias: MarkdownBias = MarkdownBias.After,
+        code: Boolean? = None
     ) {
-        accept(current.replaceText(range, text, bias))
+        accept(current.replaceText(range, text, bias, code))
     }
 
     public fun setStyle(range: MarkdownRange, style: MarkdownInlineStyle, enabled: Boolean) {
         accept(current.setStyle(range, style, enabled))
+    }
+
+    public fun setCode(range: MarkdownRange, enabled: Boolean) {
+        accept(current.setCode(range, enabled))
+    }
+    public fun setLink(range: MarkdownRange, destination: String, title: String = "") {
+        accept(current.setLink(range, destination, title))
+    }
+    public fun removeLink(range: MarkdownRange) {
+        accept(current.removeLink(range))
+    }
+    public fun replaceImage(
+        range: MarkdownRange,
+        alternate: String,
+        destination: String,
+        title: String = ""
+    ) {
+        accept(current.replaceImage(range, alternate, destination, title))
     }
 
     public fun select(range: MarkdownRange) {

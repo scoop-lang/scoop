@@ -89,9 +89,20 @@ internal fun mdTextStyleCount(
     style: MarkdownInlineStyle,
     bias: MarkdownBias
 ): MdStyleCount {
+    return mdTextFormatCount(content, range) {
+        inline,
+        selected -> mdInlineStyleCount(inline, selected, style, bias)
+    }
+}
+
+internal fun mdTextFormatCount(
+    content: MarkdownTextContent,
+    range: MarkdownRange,
+    count: (MarkdownInlineContent, MarkdownRange) -> MdStyleCount
+): MdStyleCount {
     mdTextCheckRange(content, range)
     return when (content.context) {
-        case Inline(val value) -> mdInlineStyleCount(value, range, style, bias)
+        case Inline(val value) -> count(value, range)
         case Blocks(val value) -> {
             val result = MdStyleCount()
             if (range.isEmpty) {
@@ -101,14 +112,7 @@ internal fun mdTextStyleCount(
                     when (block.inline) {
                         case Some(val inline) -> {
                             val offset = mdTextBlockOffset(block, range.start)
-                            result.add(
-                                mdInlineStyleCount(
-                                    inline,
-                                    MarkdownRange(offset, offset),
-                                    style,
-                                    bias
-                                )
-                            )
+                            result.add(count(inline, MarkdownRange(offset, offset)))
                         }
                         case None -> Unit
                     }
@@ -121,14 +125,12 @@ internal fun mdTextStyleCount(
                         continue
                     val inline = block.inline ?: continue
                     result.add(
-                        mdInlineStyleCount(
+                        count(
                             inline,
                             MarkdownRange(
                                 mdTextBlockOffset(block, range.start),
                                 mdTextBlockOffset(block, range.end)
-                            ),
-                            style,
-                            bias
+                            )
                         )
                     )
                 }

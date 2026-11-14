@@ -125,6 +125,7 @@ markdownDocument(configure): MarkdownDocument
 - 修改引用式链接的显示文字保持原目标；可直接保留原有写法时复用源码。跨节点语义重建或块拆分需要独立链接时生成 inline target；共享定义仅由明确命令修改。
 - 跨行内节点的格式化可以拆分／合并当前范围的标记；跨段落操作按块分别处理，不能生成跨块的错误强调结构。
 - `MarkdownTextContent.setStyle` 对非空显示范围准备跨块粗体、斜体和删除线修改，保留代码／扩展原子与容器网格；`styleState` 汇总 Off／On／Mixed／Unavailable。同批新文字的格式修改保留 insertedRange，取消或反向事务恢复确切源码。折叠光标的后续输入样式属于编辑会话，不向文档提前写入空标记。
+- `setCode`／`codeState` 独立处理代码 span，跨块时保留换行、容器与原子对象；replaceText 的可选 code 控制新文字模式，在规范化前生效。行内 setLink／removeLink 修改显示选区的链接归属，replaceImage 插入或替换一个映射对象，生成直接目标并保留共享定义。所有操作准备普通源码事务，独立文档 Cone 不读取图像资源。
 - 用户输入使语法变为暂时不完整时仍保存输入；结构化命令只能作用于当前能可靠识别的部分。
 
 ## 5. 从结构生成 Markdown

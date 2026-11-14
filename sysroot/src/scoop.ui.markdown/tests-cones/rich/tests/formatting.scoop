@@ -63,6 +63,7 @@ private class FormattingProbe(workers: CoroutineExecutor, proxy: ApplicationProx
     var frames: FrameProbe? = None
     var inputReady = false
     var source = false
+    var toolbar = false
     var waiting = false
     var presentations = 0L
     var both = ""
@@ -128,6 +129,8 @@ private class FormattingProbe(workers: CoroutineExecutor, proxy: ApplicationProx
         )
             return false
         if (!mounted.value)
+            return true
+        if (toolbar)
             return true
         return (
             if (source)
@@ -322,9 +325,112 @@ private class FormattingProbe(workers: CoroutineExecutor, proxy: ApplicationProx
                     view.setMode(MarkdownEditorMode.Wysiwyg)
                 }
             }
-            case 33 -> next { mounted.value = false }
+            case 33 -> next {
+                editor.document.reset("ab\n\ncd")
+                editor.setSelection(MarkdownSelection(MarkdownPosition(6L), MarkdownPosition(0L)))
+            }
             case 34 -> {
+                assertEquals(MarkdownStyleState.Off, view.codeState())
+                next { key(14, "e", 8) }
+            }
+            case 35 -> {
+                assertEquals(MarkdownStyleState.On, view.codeState())
+                assertTrue(editor.selection.anchor.byteOffset > editor.selection.cursor.byteOffset)
+                text("ab\ncd")
+                next { key(6, "z", 8) }
+            }
+            case 36 -> {
+                assertEquals("ab\n\ncd", editor.document.toMarkdown())
+                next { editor.document.reset("") }
+            }
+            case 37 -> next { key(14, "e", 8) }
+            case 38 -> next { key(11, "b", 8) }
+            case 39 -> next { assertEquals(0, mdNativeText(window!!, "ni", 1, 2L)) }
+            case 40 -> {
+                assertTrue(editor.isComposing)
+                next { key(53, "\u{1b}") }
+            }
+            case 41 -> {
+                assertEquals("", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                assertEquals(MarkdownStyleState.On, view.codeState())
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                next { assertEquals(0, mdNativeText(window!!, "中文")) }
+            }
+            case 42 -> {
+                text("中文")
+                assertEquals(MarkdownStyleState.On, view.codeState())
+                next { key(14, "e", 8) }
+            }
+            case 43 -> {
+                assertEquals(MarkdownStyleState.Off, view.codeState())
+                next { assertEquals(0, mdNativeText(window!!, "\n尾")) }
+            }
+            case 44 -> {
+                text("中文\n尾")
+                assertEquals(MarkdownStyleState.Off, view.codeState())
+                next { key(6, "z", 8) }
+            }
+            case 45 -> {
+                text("中文")
+                next { key(6, "z", 8) }
+            }
+            case 46 -> {
+                assertEquals("", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next {
+                    toolbar = true;
+                    key(48, "\t", 1)
+                }
+            }
+            case 47 -> next { key(48, "\t", 1) }
+            case 48 -> next { key(48, "\t", 1) }
+            case 49 -> next {
+                key(49, " ");
+                toolbar = false
+            }
+            case 50 -> {
+                assertEquals(MarkdownStyleState.On, view.codeState())
+                assertEquals("", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next {
+                    source = true;
+                    view.setMode(MarkdownEditorMode.Source)
+                }
+            }
+            case 51 -> {
+                assertEquals(MarkdownStyleState.Unavailable, view.codeState())
+                assertFalse(view.toggleCode())
+                assertFalse(view.canEditTarget)
+                next {
+                    source = false;
+                    view.setMode(MarkdownEditorMode.Wysiwyg)
+                }
+            }
+            case 52 -> next { editor.document.reset("| h |\n|---|\n| &#92;&#124; |") }
+            case 53 -> next {
+                val syntax = editor.document.parse()
+                val cell =
+                    syntax.inlineContent(syntax.root.children[0L].children[1L].children[0L].id)
+                editor.setSelection(
+                    MarkdownSelection(
+                        cell.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After),
+                        cell.text.sourceAt(MarkdownPosition(2L), MarkdownBias.Before)
+                    )
+                )
+            }
+            case 54 -> {
+                val before = editor.snapshot
+                assertEquals(MarkdownStyleState.Off, view.codeState())
+                assertFalse(view.setCode(true))
+                assertTrue(editor.snapshot === before)
+                assertFalse(editor.canUndo)
+                next { mounted.value = false }
+            }
+            case 55 -> {
                 style(MarkdownInlineStyle.Strong, MarkdownStyleState.Unavailable)
+                assertEquals(MarkdownStyleState.Unavailable, view.codeState())
+                assertFalse(view.canEditTarget)
                 finished = true
                 active.requestExit()
             }

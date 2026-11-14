@@ -81,7 +81,8 @@ internal fun mdInlineReplace(
     content: MarkdownInlineContent,
     range: MarkdownRange,
     text: String,
-    bias: MarkdownBias
+    bias: MarkdownBias,
+    code: Boolean? = None
 ): MarkdownInlineEdit {
     mdInlineCheckRange(content, range)
     val index =
@@ -98,16 +99,10 @@ internal fun mdInlineReplace(
             Some(content.model.units[index])
         else
             None
-    val code = unit?.kind == Some(MdInlineUnitKind.Code)
-    val inserted =
-        (
-            if (code)
-                mdWriteNewlines(text).replace("\n", " ")
-            else
-                text
-        ).replace("\u{0}", "\u{fffd}")
+    val asCode = code ?: (unit?.kind == Some(MdInlineUnitKind.Code))
+    val inserted = mdCodeInput(text, asCode)
     val caret = range.start + inserted.byteLength
-    if (mdBytesText(content.text.bytes, range.start, range.end) == inserted)
+    if (code == None && mdBytesText(content.text.bytes, range.start, range.end) == inserted)
         return mdInlineNoChange(
             content,
             MarkdownRange(caret, caret),
@@ -116,7 +111,12 @@ internal fun mdInlineReplace(
             else
                 MarkdownBias.Before
         )
-    when (mdInlineLeafEdit(content, range, inserted, index, caret)) {
+    when (
+        if (code == None || asCode == (unit?.kind == Some(MdInlineUnitKind.Code)))
+            mdInlineLeafEdit(content, range, inserted, index, caret)
+        else
+            None
+    ) {
         case Some(val edit) -> return edit
         case None -> Unit
     }
@@ -126,7 +126,7 @@ internal fun mdInlineReplace(
     if (inserted != "")
         units.add(
             MdInlineUnit(
-                if (code)
+                if (asCode)
                     MdInlineUnitKind.Code
                 else
                     MdInlineUnitKind.Text,

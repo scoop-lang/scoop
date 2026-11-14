@@ -34,8 +34,9 @@ public class MarkdownInlineContent internal constructor(
     public fun replaceText(
         range: MarkdownRange,
         text: String,
-        bias: MarkdownBias = MarkdownBias.After
-    ): MarkdownInlineEdit = mdInlineReplace(this, range, text, bias)
+        bias: MarkdownBias = MarkdownBias.After,
+        code: Boolean? = None
+    ): MarkdownInlineEdit = mdInlineReplace(this, range, text, bias, code)
 
     public fun setStyle(
         range: MarkdownRange,

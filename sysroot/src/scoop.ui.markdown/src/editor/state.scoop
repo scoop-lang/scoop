@@ -36,7 +36,7 @@ public class MarkdownEditorViewState public constructor(
         )
     internal val sizes = state(mdEditorSizes(sourceFraction))
     internal var mounted: MdEditorMount? = None
-    private val formattingHost = state<MarkdownRichHost?>(None)
+    internal val formattingHost = state<MarkdownRichHost?>(None)
     internal var pendingFocus: MarkdownEditorPane? = None
     public val sourceScroll = ScrollState()
     public val richScroll = ScrollState()
@@ -149,6 +149,38 @@ public class MarkdownEditorViewState public constructor(
             return false
         val host = formattingHost.value ?: return false
         if (!host.toggleStyle(style))
+            return false
+        requestFocus(MarkdownEditorPane.Rich)
+        return true
+    }
+
+    public fun codeState(): MarkdownStyleState {
+        if (
+            mode ==
+                MarkdownEditorMode.Source ||
+                (mode == MarkdownEditorMode.SideBySide && rightReadOnly)
+        )
+            return MarkdownStyleState.Unavailable
+        return formattingHost.value?.codeState() ?: MarkdownStyleState.Unavailable
+    }
+
+    public fun setCode(enabled: Boolean): Boolean {
+        checkMutation()
+        if (codeState() == MarkdownStyleState.Unavailable)
+            return false
+        val host = formattingHost.value ?: return false
+        if (!host.setCode(enabled))
+            return false
+        requestFocus(MarkdownEditorPane.Rich)
+        return true
+    }
+
+    public fun toggleCode(): Boolean {
+        checkMutation()
+        if (codeState() == MarkdownStyleState.Unavailable)
+            return false
+        val host = formattingHost.value ?: return false
+        if (!host.toggleCode())
             return false
         requestFocus(MarkdownEditorPane.Rich)
         return true

@@ -35,7 +35,8 @@ internal fun mdTextJoin(
     start: Long,
     end: Long,
     text: String,
-    bias: MarkdownBias
+    bias: MarkdownBias,
+    code: Boolean? = None
 ): MarkdownTextEdit {
     val syntax = blocks.syntax
     val left = first.inline!!
@@ -48,7 +49,8 @@ internal fun mdTextJoin(
             if (start == left.text.byteLength)
                 bias
             else
-                MarkdownBias.After
+                MarkdownBias.After,
+            code
         )
     val combined = ArrayList<MdInlineUnit>()
     for (unit in mdInlineUnitsSlice(left.model.units, 0L, start))

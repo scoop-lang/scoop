@@ -312,3 +312,17 @@ UI 默认复制／剪切同时提供所见 text/plain 与语义 text/markdown，
 最终富文本原生窗口 61 步通过，约 3.23 秒；三模式窗口 35 步通过，约 3.55 秒。使用 scoop test 生成程序、scoop bundle 与 Launch Services，核对 begin／end／complete 和空 failures。覆盖实际剪贴板多表示、纯文本／Markdown／TSV、空格式、只读、模式路由、一次撤销、输入连接退休及既有大文档／IME 场景；两个测试保存恢复原系统剪贴板。首次富文本运行在撤销后尚未接受新上下文时执行下一命令，拆为两个已就绪帧后通过；三模式发现的标记边界缺陷已修复并用最终代码复验。
 
 API 严格生成与 exportMarkdown／replaceMarkdown／MarkdownFragmentEdit／executeClipboard 查询通过；规范、设计、README、无 UI 示例、原生复现说明和编程导航（含安装副本）同步。本批没有编译器、runtime 或系统库变更。原始日志、临时应用包及 API 站点核对后清理，正常缓存保留。HTML 导入、行内代码转换、代码语言选择／高亮、链接和图片操作、查找替换及最终大文档性能验收继续实施。
+
+## C：行内代码与链接／图片编辑
+
+文档 Cone 新增 setCode／codeState；单段和跨块转换保留显示文字、换行边界、其他样式、链接及原子对象。replaceText 的可选 code 在插入规范化前生效，显式退出代码后保留换行，两种 builder 保留实际 insertedRange。行内 setLink／removeLink／replaceImage 以显示范围准备一次源码事务，保留两侧、共享引用定义与精确逆向；图片结果为一个映射的 U+FFFC 对象，URI 转义沿用生成器规则。
+
+RichInput、RichHost 和 viewState 提供行内代码状态、命令和后续输入模式，Primary-E 与 Code 按钮使用同一选区和历史。代码可与粗体等样式组合；组合取消、换行规范化及反向跨块选区保持一致。表格中无法表示为代码 span 的转换在发布前拒绝，高层命令返回 false；已经发布后的观察者错误仍正常传递。
+
+可选格式工具栏增加 Link／Image 模态面板，编辑显示文字／替代文字、URI 和标题，支持取消与移除，关闭后释放草稿并恢复富文本焦点。RichHost 与 viewState 的 canEditTarget、beginTarget、applyTarget、removeTarget 可供自建面板使用。MarkdownTargetDraft 保存实际快照与选择；文档、选区或输入状态已变时不应用旧范围。修改引用只作用于当前使用点；未改动的文字样式和行内对象保留，文件读写由宿主负责。入口限于一个行内块，自动链接不提供移除按钮。
+
+使用 ~/.scoop 完成 fmt、受影响 Cone 的 check --tests --release：文档库 219 项、UI 库 107 项和独立无 UI consumer 17 项全量通过。新增测试覆盖代码／粗体／链接组合、反引号、中文、换行与组合区、不可表示的表格内容、引用使用点、图片外层链接、URI／标题转义、光标偏向和草稿失效。最初几处测试误锁定 URI 空格及等价 Markdown 拼写，改为规范化 URI 与实际解析语义后通过。
+
+最终原生格式窗口 56 步通过，约 2.60 秒；链接／图片窗口 35 步通过，约 1.94 秒；既有富文本 61 步回归通过，约 3.01 秒；局部源码 35 步回归通过，约 0.99 秒。全部通过 scoop test 构建、scoop bundle 与 Launch Services 启动独立进程，核对 begin／end／complete 和空 failures。覆盖真实快捷键和工具栏键盘导航、面板原生字段、一次撤销、取消、恢复焦点、草稿失效、只读，以及接受原生组合后退休连接并继续编辑；宿主最终拒绝路径和面板收尾也在这些窗口中验证。
+
+公开 API 生成及 setCode、MarkdownTargetDraft、canEditTarget、applyTarget、replaceImage 查询通过。规范、设计、库 README、编辑器示例、原生复现说明及编程导航（含本机工具链副本）同步。本批无编译器、runtime 或系统库修改；原始日志、临时应用包与 API 站点核对后清理，正常构建缓存保留。代码语言选择／高亮、其他块操作入口、查找替换和最终 1／5 MiB 综合性能验收继续实施。

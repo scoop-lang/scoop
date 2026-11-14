@@ -1,0 +1,155 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+/** One ordinary form; the draft retains the source selection while its fields receive focus. */
+internal class MdTargetDialog {
+    private val visible = state(false)
+    private val draft = state<MarkdownTargetDraft?>(None)
+    private val error = state("")
+    private val label = TextEditorState()
+    private val destination = TextEditorState()
+    private val title = TextEditorState()
+    private val destinationFocus = FocusHandle()
+
+    fun open(editor: MarkdownEditorViewState, kind: MarkdownTargetKind) {
+        val current = editor.beginTarget(kind) ?: return
+        draft.value = Some(current)
+        label.replaceAll(current.label)
+        destination.replaceAll(current.destination)
+        title.replaceAll(current.title)
+        error.value = ""
+        visible.value = true
+    }
+
+    private fun apply(editor: MarkdownEditorViewState, remove: Boolean = false) {
+        val current = draft.value ?: return
+        if (!remove && destination.text.isBlank()) {
+            error.value = "Enter a URI."
+            return
+        }
+        try {
+            val applied =
+                if (remove)
+                    editor.removeTarget(current)
+                else
+                    editor.applyTarget(current, label.text, destination.text, title.text)
+            if (applied)
+                visible.value = false
+            else
+                error.value = "The document or selection changed. Close this panel and reopen it."
+        } catch (failure: IllegalArgumentException) {
+            error.value = failure.message ?: "The Markdown target could not be updated."
+        }
+    }
+
+    fun view(editor: MarkdownEditorViewState, fonts: FontCollection?): View {
+        val current = draft.value
+        val form = this
+        val image = current?.kind == Some(MarkdownTargetKind.Image)
+        val active = current?.isCurrent(editor.editor) == Some(true) && editor.canEditTarget
+        val message =
+            if (!visible.value)
+                ""
+            else
+                if (current?.isCurrent(editor.editor) == Some(false))
+                    "The document or selection changed. Close this panel and reopen it."
+                else
+                    error.value
+        val content =
+            column {
+                alignment = CrossAlignment.Stretch
+                spacing = 8.0
+                if (current?.labelEditable != Some(false)) {
+                    label(
+                        if (image)
+                            "Alternative text"
+                        else
+                            "Text"
+                    ) { this.fonts = fonts }
+                    input(this @MdTargetDialog.label) {
+                        this.fonts = fonts
+                        readOnly = !active
+                        placeholder =
+                            if (image)
+                                "Describe the image"
+                            else
+                                "Use the URI when empty"
+                        onSubmit = { _ -> form.apply(editor) }
+                    }
+                } else
+                    label("Keep the selected text and images.") { this.fonts = fonts }
+                label("URI") { this.fonts = fonts }
+                input(this @MdTargetDialog.destination) {
+                    this.fonts = fonts
+                    readOnly = !active
+                    placeholder =
+                        if (image)
+                            "Image file or URI"
+                        else
+                            "Link destination"
+                    focus = FocusOptions(Some(form.destinationFocus))
+                    onSubmit = { _ -> form.apply(editor) }
+                }
+                label("Title (optional)") { this.fonts = fonts }
+                input(this @MdTargetDialog.title) {
+                    this.fonts = fonts
+                    readOnly = !active
+                    onSubmit = { _ -> form.apply(editor) }
+                }
+                if (message.byteLength > 0L)
+                    label(message) { this.fonts = fonts }
+            }
+        return dialog(visible.binding(), content) {
+            title(
+                if (image)
+                    "Edit image"
+                else
+                    "Edit link"
+            )
+            this.fonts = fonts
+            width = 440.0
+            focus { initialFocus = Some(form.destinationFocus) }
+            footer(
+                row {
+                    spacing = 8.0
+                    if (current?.canRemove == Some(true))
+                        button(
+                            if (image)
+                                "Remove image"
+                            else
+                                "Remove link",
+                            { form.apply(editor, true) }
+                        ) {
+                            enabled = active
+                            this.fonts = fonts
+                            variant = ButtonVariant.Outline
+                        }
+                    button("Cancel", { form.visible.value = false }) {
+                        this.fonts = fonts
+                        variant = ButtonVariant.Ghost
+                    }
+                    button("Apply", { form.apply(editor) }) {
+                        enabled = active && !form.destination.text.isBlank()
+                        this.fonts = fonts
+                    }
+                }
+            )
+            onClosed =
+                {
+                    _ ->
+                    form.draft.value = None
+                    form.label.replaceAll("")
+                    form.destination.replaceAll("")
+                    form.title.replaceAll("")
+                    form.error.value = ""
+                    if (!editor.editor.isClosed)
+                        editor.requestFocus(MarkdownEditorPane.Rich)
+                }
+        }
+    }
+}

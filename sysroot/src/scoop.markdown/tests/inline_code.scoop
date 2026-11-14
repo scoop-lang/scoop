@@ -1,0 +1,124 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownInlineCodeTests {
+    @Test
+    fun `code conversion preserves text styles links and exact undo`() {
+        val source = "[__a ` 中文__][r]\n\n[r]: /target\n\nTail &amp; end\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val range = MarkdownRange(0L, inline.text.byteLength)
+        val edit = inline.setCode(range, true)
+        assertEquals(source, document.toMarkdown())
+        edit.applyTo(document)
+        assertEquals(inline.text.text, edit.after.text.text)
+        assertEquals(MarkdownStyleState.On, edit.after.codeState(range))
+        assertEquals(
+            MarkdownStyleState.On,
+            edit.after.styleState(range, MarkdownInlineStyle.Strong)
+        )
+        val after = document.parse()
+        when (after.root.children[0L].children[0L].content) {
+            case MarkdownContent.Link(val target) -> assertEquals(
+                "/target",
+                target.destination.text
+            )
+            else -> fail(Some("Expected retained link"))
+        }
+        assertTrue(document.toMarkdown().endsWith("Tail &amp; end\n"))
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `line breaks and atomic objects remain outside code spans`() {
+        val document = MarkdownDocument.fromText("a\nb  \nc&#10;d ![alt](/x) $x$\n")
+        val parsed = document.parse(MarkdownProfile.Editor)
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val range = MarkdownRange(0L, inline.text.byteLength)
+        val edit = inline.setCode(range, true)
+        edit.applyTo(document)
+        assertEquals(inline.text.text, edit.after.text.text)
+        assertEquals(MarkdownStyleState.On, edit.after.codeState(range))
+        assertTrue(document.toMarkdown().contains("![alt](/x)"))
+        assertTrue(document.toMarkdown().contains("$x$"))
+        val plain = edit.after.setCode(range, false)
+        plain.applyTo(document)
+        assertEquals(inline.text.text, plain.after.text.text)
+        assertEquals(MarkdownStyleState.Off, plain.after.codeState(range))
+    }
+
+    @Test
+    fun `partial code removal splits spans and keeps Unicode and literal markup`() {
+        val document = MarkdownDocument.fromText("`a*中文*b`")
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val range = MarkdownRange(1L, 9L)
+        val edit = inline.setCode(range, false)
+        edit.applyTo(document)
+        assertEquals("a*中文*b", edit.after.text.text)
+        assertEquals(MarkdownStyleState.Off, edit.after.codeState(range))
+        assertEquals(MarkdownStyleState.Mixed, edit.after.codeState(MarkdownRange(0L, 10L)))
+        assertEquals(
+            MarkdownStyleState.Off,
+            edit.after.styleState(range, MarkdownInlineStyle.Emphasis)
+        )
+        assertFailsWith<IllegalArgumentException> { inline.setCode(MarkdownRange(3L, 4L), true) }
+    }
+
+    @Test
+    fun `typing code overrides precede normalization and preserve the insertion range`() {
+        val document = MarkdownDocument.fromText("`ab`")
+        val parsed = document.parse()
+        val content = parsed.inlineContent(parsed.root.children[0L].id).editableText()
+        val edit =
+            content.edit {
+                replaceText(MarkdownRange(1L, 1L), "\nx", code = Some(false))
+                setStyle(insertedRange, MarkdownInlineStyle.Strong, true)
+            }
+        edit.applyTo(document)
+        assertEquals("a\nxb", edit.after.text.text)
+        assertEquals(MarkdownRange(1L, 3L), edit.insertedRange)
+        assertEquals(MarkdownStyleState.Off, edit.after.codeState(edit.insertedRange))
+        val enabled = edit.after.replaceText(MarkdownRange(1L, 3L), "中\r\n文", code = Some(true))
+        enabled.applyTo(document)
+        assertEquals("a中 文b", enabled.after.text.text)
+        assertEquals(MarkdownRange(1L, 8L), enabled.insertedRange)
+        assertEquals(MarkdownStyleState.On, enabled.after.codeState(enabled.insertedRange))
+    }
+
+    @Test
+    fun `cross block code formatting keeps tables containers and builder ranges`() {
+        val source = "> ab\r\n>\r\n> cd\r\n\r\n| x | y |\r\n|---|---|\r\n| z | q |\r\n\r\nend"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val content = parsed.textContent(MarkdownRange(2L, source.byteLength - 5L))
+        val range = MarkdownRange(0L, content.text.byteLength - 4L)
+        val edit = content.setCode(range, true)
+        edit.applyTo(document)
+        assertEquals(content.text.text, edit.after.text.text)
+        assertEquals(MarkdownStyleState.On, edit.after.codeState(range))
+        assertTrue(document.toMarkdown().endsWith("\r\n\r\nend"))
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `unrepresentable GFM code and invalid ranges fail before publication`() {
+        val document = MarkdownDocument.fromText("| h |\n|---|\n| &#92;&#124; |")
+        val parsed = document.parse()
+        val cell = parsed.inlineContent(parsed.root.children[0L].children[1L].children[0L].id)
+        assertEquals("\\|", cell.text.text)
+        assertFailsWith<IllegalArgumentException> { cell.setCode(MarkdownRange(0L, 2L), true) }
+        assertFailsWith<IllegalArgumentException> { cell.setCode(MarkdownRange(0L, 0L), true) }
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+        val atomic = MarkdownDocument.fromText("![x](/x)").parse()
+        val image = atomic.inlineContent(atomic.root.children[0L].id)
+        assertEquals(MarkdownStyleState.Unavailable, image.codeState(MarkdownRange(0L, 3L)))
+        assertFalse(image.setCode(MarkdownRange(0L, 3L), true).change.changed)
+    }
+}

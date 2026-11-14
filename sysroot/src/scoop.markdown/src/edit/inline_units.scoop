@@ -170,3 +170,18 @@ internal fun mdInlineUnitsWrite(incoming: Array<MdInlineUnit>, table: Boolean): 
     }
     return mdWriteInlines(result.toArray(), false, table)
 }
+
+internal fun mdInlineUnitsConcat(
+    a: Array<MdInlineUnit>,
+    b: Array<MdInlineUnit>,
+    c: Array<MdInlineUnit> = []
+): Array<MdInlineUnit> =
+    Array<MdInlineUnit>(a.size + b.size + c.size) {
+        index -> if (index < a.size)
+            a[index]
+        else
+            if (index < a.size + b.size)
+                b[index - a.size]
+            else
+                c[index - a.size - b.size]
+    }

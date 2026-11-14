@@ -1,0 +1,126 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Changes only textual units, retaining line breaks and atomic Markdown objects. */
+public fun MarkdownInlineContent.setCode(
+    range: MarkdownRange,
+    enabled: Boolean
+): MarkdownInlineEdit {
+    mdInlineCheckRange(this, range)
+    requireMarkdown(!range.isEmpty, "Code formatting needs a nonempty text range")
+    val selected = ArrayList<MdInlineUnit>()
+    var changed = false
+    for (unit in mdInlineUnitsSlice(model.units, range.start, range.end)) {
+        if (unit.kind != MdInlineUnitKind.Text && unit.kind != MdInlineUnitKind.Code) {
+            selected.add(unit)
+            continue
+        }
+        if (!enabled) {
+            changed = changed || unit.kind == MdInlineUnitKind.Code
+            selected.add(MdInlineUnit(MdInlineUnitKind.Text, unit.text, unit.flags, unit.link))
+            continue
+        }
+        if (unit.kind == MdInlineUnitKind.Code) {
+            selected.add(unit)
+            continue
+        }
+        val bytes = unit.text.toByteArray()
+        var start = 0L
+        for (index in 0L ..< bytes.size) {
+            if (bytes[index].toInt() != 10 && bytes[index].toInt() != 13)
+                continue
+            if (index > start) {
+                selected.add(
+                    MdInlineUnit(
+                        MdInlineUnitKind.Code,
+                        mdBytesText(bytes, start, index),
+                        unit.flags,
+                        unit.link
+                    )
+                )
+                changed = true
+            }
+            selected.add(
+                MdInlineUnit(
+                    MdInlineUnitKind.Text,
+                    mdBytesText(bytes, index, index + 1L),
+                    unit.flags,
+                    unit.link
+                )
+            )
+            start = index + 1L
+        }
+        if (start < bytes.size) {
+            selected.add(
+                MdInlineUnit(
+                    MdInlineUnitKind.Code,
+                    mdBytesText(bytes, start, bytes.size),
+                    unit.flags,
+                    unit.link
+                )
+            )
+            changed = true
+        }
+    }
+    if (!changed)
+        return mdInlineNoChange(this, range)
+    val units =
+        mdInlineUnitsConcat(
+            mdInlineUnitsSlice(model.units, 0L, range.start),
+            selected.toArray(),
+            mdInlineUnitsSlice(model.units, range.end, text.byteLength)
+        )
+    return mdInlinePrepared(
+        this,
+        mdInlineBlockSource(this, mdInlineUnitsWrite(units, placement.table)),
+        range
+    )
+}
+
+public fun MarkdownInlineContent.codeState(
+    range: MarkdownRange,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownStyleState {
+    mdInlineCheckRange(this, range)
+    return mdInlineCodeCount(this, range, bias).state
+}
+
+internal fun mdInlineCodeCount(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    bias: MarkdownBias
+): MdStyleCount {
+    val result = MdStyleCount()
+    if (range.isEmpty) {
+        val index = mdInlineUnitAt(content, range.start, bias)
+        result.add(index >= 0L && content.model.units[index].kind == MdInlineUnitKind.Code)
+    } else
+        for (unit in mdInlineUnitsSlice(content.model.units, range.start, range.end))
+            if (
+                (unit.kind == MdInlineUnitKind.Text || unit.kind == MdInlineUnitKind.Code) &&
+                    !unit.text.isBlank()
+            )
+                result.add(unit.kind == MdInlineUnitKind.Code)
+    return result
+}
+
+public fun MarkdownTextContent.setCode(range: MarkdownRange, enabled: Boolean): MarkdownTextEdit =
+    mdTextFormat(this, range) { inline, selected -> inline.setCode(selected, enabled) }
+
+public fun MarkdownTextContent.codeState(
+    range: MarkdownRange,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownStyleState =
+    mdTextFormatCount(this, range) {
+        inline,
+        selected -> mdInlineCodeCount(inline, selected, bias)
+    }.state
+
+internal fun mdCodeInput(text: String, code: Boolean): String =
+    (
+        if (code)
+            mdWriteNewlines(text).replace("\n", " ")
+        else
+            text
+    ).replace("\u{0}", "\u{fffd}")

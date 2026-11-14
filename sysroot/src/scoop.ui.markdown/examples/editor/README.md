@@ -2,7 +2,7 @@
 
 本示例打开已有文件，提供源码、所见即所得和双栏模式，支持右侧只读、源码锚点滚动同步、可调栏宽、共享撤销／重做，以及保存按钮／Cmd-S。保存接受当前组合后写出同一份源码快照；纯模式切换和预览不重排 Markdown。Cmd-Q 退出示例，未保存的编辑不写回文件。
 
-模式栏下方使用公开的 `markdownFormattingToolbar`，提供粗体、斜体与删除线；对应快捷键为 Cmd-B、Cmd-I、Cmd-Shift-X。格式操作支持跨块选区；无选区时控制后续键入，不产生空标记。按钮显示混合状态，纯源码模式或右侧只读时禁用。
+模式栏下方使用公开的 `markdownFormattingToolbar`，提供粗体、斜体、删除线与行内代码；对应快捷键为 Cmd-B、Cmd-I、Cmd-Shift-X、Cmd-E。格式操作支持跨块选区；无选区时控制后续键入，不产生空标记。按钮显示混合状态，纯源码模式或右侧只读时禁用。Link／Image 打开文字／替代文字、URI 和标题面板，可插入、修改或移除当前目标；Cancel 不改变文档。图片 URI 相对当前文件解析，编辑器沿用本地图片适配展示，文件保存／上传由宿主应用提供。
 
 ```sh
 ~/.scoop/bin/scoop --sysroot ~/.scoop run sysroot/src/scoop.ui.markdown/examples/editor --release -- /absolute/path/document.md

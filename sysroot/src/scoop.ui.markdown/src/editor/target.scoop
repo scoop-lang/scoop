@@ -1,0 +1,38 @@
+package scoop.ui.markdown
+
+public val MarkdownEditorViewState.canEditTarget: Boolean get() =
+    mode !=
+        MarkdownEditorMode.Source &&
+        !(mode == MarkdownEditorMode.SideBySide && rightReadOnly) &&
+        (formattingHost.value?.canEditTarget ?: false)
+
+public fun MarkdownEditorViewState.beginTarget(kind: MarkdownTargetKind): MarkdownTargetDraft? {
+    checkMutation()
+    if (!canEditTarget)
+        return None
+    return formattingHost.value?.beginTarget(kind) ?: None
+}
+
+public fun MarkdownEditorViewState.applyTarget(
+    draft: MarkdownTargetDraft,
+    label: String,
+    destination: String,
+    title: String = ""
+): Boolean {
+    checkMutation()
+    if (
+        !canEditTarget ||
+            !(formattingHost.value?.applyTarget(draft, label, destination, title) ?: false)
+    )
+        return false
+    requestFocus(MarkdownEditorPane.Rich)
+    return true
+}
+
+public fun MarkdownEditorViewState.removeTarget(draft: MarkdownTargetDraft): Boolean {
+    checkMutation()
+    if (!canEditTarget || !(formattingHost.value?.removeTarget(draft) ?: false))
+        return false
+    requestFocus(MarkdownEditorPane.Rich)
+    return true
+}

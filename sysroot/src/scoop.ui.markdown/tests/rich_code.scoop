@@ -1,0 +1,137 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.window.*
+
+private fun codeContent(editor: MarkdownEditorState): MarkdownTextContent =
+    editor.document.parse(MarkdownProfile.Editor).textContent(editor.selection.range)
+
+private fun codeCommit(input: MarkdownRichInput, text: String) {
+    input.apply(
+        TextInputBatch(
+            Some(input.inputState.revision),
+            [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)]
+        )
+    )
+}
+
+@Test
+private class MarkdownRichCodeTests {
+    @Test
+    fun codeAndStrongTypingKeepUnicodeAndOneUndoGroup() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val input = MarkdownRichInput(editor, codeContent(editor))
+        assertFalse(input.setCode(true))
+        assertFalse(input.setStyle(MarkdownInlineStyle.Strong, true))
+        assertFalse(editor.canUndo)
+        assertEquals("", editor.document.toMarkdown())
+        codeCommit(input, "中")
+        codeCommit(input, "`文😀")
+        assertEquals("中`文😀", input.inputState.surroundingText)
+        assertEquals(MarkdownStyleState.On, input.codeState())
+        assertEquals(MarkdownStyleState.On, input.styleState(MarkdownInlineStyle.Strong))
+        val changed = editor.document.toMarkdown()
+        assertTrue(editor.undo())
+        assertEquals("", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        input.synchronize(codeContent(editor))
+        assertEquals(MarkdownStyleState.Off, input.codeState())
+        assertTrue(editor.redo())
+        assertEquals(changed, editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun leavingCodeKeepsNewlinesAndCompositionCancellationRestoresExactSource() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("`ab`"), mdCaret(2L))
+        val input = MarkdownRichInput(editor, codeContent(editor))
+        assertEquals(MarkdownStyleState.On, input.codeState())
+        input.setCode(false)
+        input.apply(
+            TextInputBatch(
+                Some(input.inputState.revision),
+                [TextInputOperation.Preedit("\n中", None, TextReplacement.CurrentSelection)]
+            )
+        )
+        assertEquals("a\n中b", input.inputState.surroundingText)
+        assertEquals(Some(Utf8Range(1L, 5L)), input.inputState.markedRange)
+        assertTrue(editor.cancelComposition())
+        assertEquals("`ab`", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertEquals(MarkdownStyleState.Off, input.codeState())
+        codeCommit(input, "\n文")
+        assertEquals("a\n文b", input.inputState.surroundingText)
+        assertEquals(MarkdownStyleState.Off, input.content.codeState(MarkdownRange(1L, 5L)))
+        assertTrue(editor.undo())
+        assertEquals("`ab`", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun codePreeditMapsNormalizedNewlinesAndAcceptsBeforeToggling() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val input = MarkdownRichInput(editor, codeContent(editor))
+        input.setCode(true)
+        input.apply(
+            TextInputBatch(
+                Some(input.inputState.revision),
+                [
+                    TextInputOperation.Preedit(
+                        "中\r\n文",
+                        Some(Utf8Selection(3L, 5L)),
+                        TextReplacement.CurrentSelection
+                    )
+                ]
+            )
+        )
+        assertEquals("中 文", input.inputState.surroundingText)
+        assertEquals(Some(Utf8Range(0L, 7L)), input.inputState.markedRange)
+        assertEquals(Utf8Selection(3L, 4L), input.inputState.selection)
+        assertTrue(input.setCode(false))
+        assertFalse(editor.isComposing)
+        assertEquals(None, input.inputState.markedRange)
+        assertEquals("中 文", input.inputState.surroundingText)
+        assertTrue(editor.undo())
+        assertEquals(
+            "中 文",
+            editor.document.parse().inlineContentAt(MarkdownPosition(1L))!!.text.text
+        )
+        assertTrue(editor.undo())
+        assertEquals("", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun reversedCrossBlockCodeFormattingPreservesSelectionAndStyles() {
+        val original = "__a__\n\n`b`\n\nTail"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+        val content = editor.document.parse().textContent(MarkdownRange(0L, original.byteLength))
+        val selected =
+            MarkdownSelection(
+                content.text.sourceAt(MarkdownPosition(3L), MarkdownBias.Before),
+                content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After),
+                MarkdownBias.Before,
+                MarkdownBias.After
+            )
+        editor.setSelection(selected)
+        val input = MarkdownRichInput(editor, content)
+        assertEquals(MarkdownStyleState.Mixed, input.codeState())
+        assertTrue(input.setCode(true))
+        assertEquals(Utf8Selection(3L, 0L), input.inputState.selection)
+        assertEquals("a\nb\nTail", input.inputState.surroundingText)
+        assertEquals(MarkdownStyleState.On, input.codeState())
+        assertEquals(
+            MarkdownStyleState.On,
+            input.content.styleState(MarkdownRange(0L, 1L), MarkdownInlineStyle.Strong)
+        )
+        assertTrue(editor.undo())
+        assertEquals(original, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        input.close()
+        editor.close()
+    }
+}

@@ -7,7 +7,8 @@ internal fun mdTextReplaceBlocks(
     blocks: MdBlockText,
     range: MarkdownRange,
     text: String,
-    bias: MarkdownBias
+    bias: MarkdownBias,
+    code: Boolean? = None
 ): MarkdownTextEdit {
     val snapshot = content.snapshot
     if (
@@ -18,7 +19,7 @@ internal fun mdTextReplaceBlocks(
             content.sourceRange ==
             MarkdownRange(0L, snapshot.byteLength)
     )
-        return mdTextReplaceDocument(content, blocks.syntax, text)
+        return mdTextReplaceDocument(content, blocks.syntax, text, code)
     requireMarkdown(blocks.blocks.size > 0L, "Markdown text context has no insertion block")
     val first = blocks.at(range.start)
     val last = blocks.at(range.end)
@@ -30,7 +31,7 @@ internal fun mdTextReplaceBlocks(
         when (left.inline) {
             case Some(val inline) -> {
                 val selected = MarkdownRange(start, end)
-                val edit = inline.replaceText(selected, text, bias)
+                val edit = inline.replaceText(selected, text, bias, code)
                 return mdTextChanged(
                     content,
                     blocks.syntax,
@@ -42,8 +43,8 @@ internal fun mdTextReplaceBlocks(
         }
     } else
         if (mdTextCanJoin(blocks.syntax, left.node, right.node))
-            return mdTextJoin(content, blocks, left, right, start, end, text, bias)
-    return mdTextReplaceSeparated(content, blocks, first, last, start, end, text, bias)
+            return mdTextJoin(content, blocks, left, right, start, end, text, bias, code)
+    return mdTextReplaceSeparated(content, blocks, first, last, start, end, text, bias, code)
 }
 
 internal fun mdTextBlockOffset(block: MdTextBlock, position: Long): Long =
@@ -67,13 +68,24 @@ internal fun mdTextInlineInsertion(
 private fun mdTextReplaceDocument(
     content: MarkdownTextContent,
     syntax: ParsedMarkdownRegion,
-    text: String
+    text: String,
+    code: Boolean?
 ): MarkdownTextEdit {
     val units =
         if (text == "")
             []
         else
-            [MdInlineUnit(MdInlineUnitKind.Text, text.replace("\u{0}", "\u{fffd}"), 0, None)]
+            [
+                MdInlineUnit(
+                    if (code == Some(true))
+                        MdInlineUnitKind.Code
+                    else
+                        MdInlineUnitKind.Text,
+                    mdCodeInput(text, code == Some(true)),
+                    0,
+                    None
+                )
+            ]
     val source = mdInlineUnitsWrite(units, false)
     val change =
         content.snapshot.prepare(
@@ -98,7 +110,8 @@ internal fun mdTextInsertionUnit(
     content: MarkdownInlineContent,
     offset: Long,
     text: String,
-    bias: MarkdownBias
+    bias: MarkdownBias,
+    code: Boolean? = None
 ): MdInlineUnit {
     val index = mdInlineUnitAt(content, offset, bias)
     val previous =
@@ -106,17 +119,10 @@ internal fun mdTextInsertionUnit(
             Some(content.model.units[index])
         else
             None
-    val code = previous?.kind == Some(MdInlineUnitKind.Code)
-    val normalized =
-        (
-            if (code)
-                mdWriteNewlines(text).replace("\n", " ")
-            else
-                text
-        )
-        .replace("\u{0}", "\u{fffd}")
+    val asCode = code ?: (previous?.kind == Some(MdInlineUnitKind.Code))
+    val normalized = mdCodeInput(text, asCode)
     return MdInlineUnit(
-        if (code)
+        if (asCode)
             MdInlineUnitKind.Code
         else
             MdInlineUnitKind.Text,

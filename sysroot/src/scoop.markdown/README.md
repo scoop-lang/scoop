@@ -125,6 +125,10 @@ val caret = prepared.selection.end
 
 `styleState(range, style, bias)` 查询粗体、斜体或删除线，返回 `MarkdownStyleState.Off`、`On`、`Mixed` 或 `Unavailable`。非空范围忽略纯空白、换行与结构分隔；无可格式化内容时为 Unavailable。折叠位置按 bias 查询相邻内容，空行内区域为 Off。`profile` 提供内容的解析配置，删除线修改要求该配置启用 strikethrough。
 
+`setCode(range, enabled)` 与 `codeState(range, bias)` 用于行内代码，可用于单段或 `MarkdownTextContent` 的跨块范围。转换保留显示文字、换行边界、其他样式和链接，跳过图片与扩展原子。`replaceText(..., code = Some(true))` 明确以代码模式插入，`Some(false)` 以普通文字插入，默认 `None` 继承边界；代码的换行规范化发生在插入前，返回的 insertedRange 使用实际显示字节。两种 edit builder 同样提供 setCode，并保留之前插入文字的 insertedRange。
+
+`MarkdownInlineContent` 与其 builder 的 `setLink(range, destination, title)`／`removeLink(range)` 修改非空显示范围的链接，保留文字、样式与行内对象；`replaceImage(range, alternate, destination, title)` 在空范围插入或替换选择，结果为一个三字节 U+FFFC 对象。链接与图片生成直接目标，URI 按生成器规则转义，不修改共享引用定义；解除显式链接不屏蔽 profile 的自动链接。它们只准备事务，不读取或保存图片文件。
+
 单个文字叶片内的修改保留外围标记；会改变定界匹配的边界或跨行内结构的操作，重建当前行内块需要的结构。代码按既有围栏与换行规则写入，隐式引用链接改名保留原目标；不齐表格会补齐编辑位置所需的单元格。局部解析不会执行 include 或重新解析整篇文档。`inline.edit { replaceText(...); setStyle(...); select(...) }` 按当前显示坐标顺序准备操作，最终只发布一次源码事务。builder.content 提供中间内容，restore(savedContent) 恢复同一区域的确切源码，可用于组合取消。nodes 提供当前局部树的顶层行内节点，范围属于本内容的 snapshot；它们的 id 不能交给另一份完整解析。sourceRange 保留必要容器上下文，表格包括整行，确保补缺单元格也能恢复。外部修改后须从新解析重新取得内容。此接口范围是一个段落、标题或单元格。Mermaid 仍保留普通代码围栏，图像生成由 UI／应用适配承担。
 
 跨块选择使用 `syntax.textContent(sourceRange)` 取得 `MarkdownTextContent`。它按源码顺序连接当前区域的显示文字，块间为换行，同一表格行的单元格之间为 Tab；格式标记不进入文字，代码与扩展块作为 U+FFFC 原子，内部仍从源码编辑。普通单段选区自动复用行内快速路径。返回的 `MarkdownTextEdit` 包含准备好的 change、结果源码 selection、实际插入文字的显示 insertedRange，以及可继续编辑的 after：

@@ -60,6 +60,33 @@ public class MarkdownRichInput public constructor(
     public fun styleState(style: MarkdownInlineStyle): MarkdownStyleState =
         mdRichInputStyle(this, style)
 
+    public fun codeState(): MarkdownStyleState = mdRichInputCode(this)
+
+    /** Changes selected code spans, or the code mode of subsequent native input. */
+    public fun setCode(enabled: Boolean): Boolean {
+        checkRead()
+        editor.checkEdit()
+        checkOwner()
+        val composing = editor.isComposing
+        editor.acceptComposition()
+        val relocated = synchronize()
+        editor.breakUndoGroup()
+        val selected = input.selection.range
+        if (selected.start == selected.end) {
+            typingStyles = typingStyles.withCode(enabled)
+            return composing || relocated
+        }
+        val edit = current.setCode(MarkdownRange(selected.start, selected.end), enabled)
+        val reversed = input.selection.anchor > input.selection.cursor
+        try {
+            editor.apply(edit.change, edit.selection, reversed)
+        } finally {
+            if (editor.snapshot === edit.after.snapshot)
+                synchronize(edit.after)
+        }
+        return true
+    }
+
     /** True means the host must retire its native connection before publishing the new mapping. */
     public fun setStyle(style: MarkdownInlineStyle, enabled: Boolean): Boolean {
         checkRead()

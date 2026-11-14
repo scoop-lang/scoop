@@ -1,0 +1,188 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.text.*
+import scoop.window.*
+
+public enum MarkdownTargetKind {
+    Link, Image
+}
+
+/** A link or image draft tied to the actual source snapshot and selection that opened it. */
+public class MarkdownTargetDraft internal constructor(
+    internal val owner: MarkdownEditorState,
+    internal val content: MarkdownInlineContent,
+    internal val original: MarkdownSelection,
+    internal val range: MarkdownRange,
+    public val kind: MarkdownTargetKind,
+    public val label: String,
+    public val destination: String,
+    public val title: String,
+    public val canRemove: Boolean,
+    public val labelEditable: Boolean
+) {
+    public fun isCurrent(editor: MarkdownEditorState): Boolean =
+        !editor.isClosed &&
+            owner ===
+            editor &&
+            content.snapshot ===
+            editor.snapshot &&
+            original ==
+            editor.selection &&
+            !editor.isComposing
+
+    internal fun prepare(label: String, destination: String, title: String): MarkdownInlineEdit {
+        if (kind == MarkdownTargetKind.Image)
+            return content.replaceImage(range, label, destination, title)
+        return content.edit {
+            var selected = this @MarkdownTargetDraft.range
+            if (
+                (
+                    this @MarkdownTargetDraft.labelEditable &&
+                        label !=
+                        this @MarkdownTargetDraft.label
+                ) ||
+                    selected.isEmpty
+            ) {
+                val text =
+                    if (label.byteLength == 0L)
+                        destination
+                    else
+                        label
+                val previousLength = this.content.text.byteLength
+                replaceText(selected, text, code = Some(false))
+                selected =
+                    MarkdownRange(
+                        selected.start,
+                        selected.end + this.content.text.byteLength - previousLength
+                    )
+            }
+            if (selected.isEmpty)
+                throw IllegalArgumentException(Some("A link needs display text or a destination"))
+            setLink(selected, destination, title)
+        }
+    }
+
+    internal fun remove(): MarkdownInlineEdit =
+        if (kind == MarkdownTargetKind.Image)
+            content.replaceText(range, "")
+        else
+            content.removeLink(range)
+}
+
+internal fun mdTargetDraft(
+    editor: MarkdownEditorState,
+    content: MarkdownInlineContent,
+    kind: MarkdownTargetKind
+): MarkdownTargetDraft? {
+    if (content.snapshot !== editor.snapshot || !mdRichContains(content, editor.selection))
+        return None
+    val selection = editor.selection
+    var range =
+        MarkdownRange(
+            content.text.textAt(
+                MarkdownPosition(selection.range.start),
+                MarkdownBias.Before
+            ).byteOffset,
+            content.text.textAt(
+                MarkdownPosition(selection.range.end),
+                MarkdownBias.After
+            ).byteOffset
+        )
+    val node = mdTargetNode(content, range, selection, kind)
+    when (node) {
+        case Some(val value) -> if (range.isEmpty || kind == MarkdownTargetKind.Image)
+            range = mdTargetRange(content, value)
+        case None -> Unit
+    }
+    val target =
+        when (node?.content) {
+            case Some(MarkdownContent.Link(val value)) -> Some(value)
+            case Some(MarkdownContent.Image(val value)) -> Some(value)
+            else -> None
+        }
+    val text = content.text.text.utf8Slice(Utf8Range(range.start, range.end))
+    val label =
+        when (node) {
+            case Some(val value) -> if (kind == MarkdownTargetKind.Image)
+                mdDisplayAlternate(value)
+            else
+                text
+            case None -> text
+        }
+    return Some(
+        MarkdownTargetDraft(
+            editor,
+            content,
+            selection,
+            range,
+            kind,
+            label,
+            target?.destination?.text ?: "",
+            target?.title?.text ?: "",
+            when (target) {
+                case Some(val value) -> value.style != MarkdownLinkStyle.Autolink
+                case None -> false
+            },
+            kind == MarkdownTargetKind.Image || !text.contains("\u{fffc}")
+        )
+    )
+}
+
+private fun mdTargetRange(content: MarkdownInlineContent, node: MarkdownNode): MarkdownRange =
+    MarkdownRange(
+        content.text.textAt(MarkdownPosition(node.range.start), MarkdownBias.Before).byteOffset,
+        content.text.textAt(MarkdownPosition(node.range.end), MarkdownBias.After).byteOffset
+    )
+
+private fun mdTargetNode(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    selection: MarkdownSelection,
+    kind: MarkdownTargetKind
+): MarkdownNode? {
+    val pending = ArrayList<MarkdownNode>()
+    for (node in content.nodes)
+        pending.add(node)
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L)
+        if (selection.range.start < node.range.start || selection.range.end > node.range.end)
+            continue
+        val selected = mdTargetRange(content, node)
+        if (range.start < selected.start || range.end > selected.end)
+            continue
+        if (
+            range.isEmpty &&
+                (
+                    (
+                        range.start ==
+                            selected.start &&
+                            selection.cursorBias ==
+                            MarkdownBias.Before &&
+                            range.start !=
+                            0L
+                    ) ||
+                        (
+                            range.end ==
+                                selected.end &&
+                                selection.cursorBias ==
+                                MarkdownBias.After &&
+                                range.end !=
+                                content.text.byteLength
+                        )
+                )
+        )
+            continue
+        val matches =
+            when (node.content) {
+                case MarkdownContent.Link(_) -> kind == MarkdownTargetKind.Link
+                case MarkdownContent.Image(_) -> kind == MarkdownTargetKind.Image
+                else -> false
+            }
+        if (matches)
+            return Some(node)
+        for (child in node.children)
+            pending.add(child)
+    }
+    return None
+}

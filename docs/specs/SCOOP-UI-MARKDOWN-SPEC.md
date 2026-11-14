@@ -149,6 +149,12 @@ Mermaid 适配只向配置好的 mmdc 传递单个 fence body，经 argv 和临�
 
 MarkdownRichHost.setStyle／toggleStyle 支持单段、跨块和折叠选区；styleState 提供可观察的当前格式状态，不在 render 中修改输入。Primary+B、Primary+I、Primary+Shift+X 分别切换粗体、斜体和删除线；On 时移除，Off 或 Mixed 时应用，重复按键不反复切换。只读、禁用或无可编辑内容时命令不修改文档。MarkdownEditorViewState 提供相同的命令入口，并在工具栏操作后恢复富文本焦点；源码模式不执行这些富文本命令。markdownFormattingToolbar 是可选的普通 View，复用 UI 组件按钮与宿主 ThemeSource，显示当前、混合及不可用状态；它不拥有第二份选区或历史。
 
+`setCode`／`toggleCode`／`codeState` 沿同一输入与历史提供行内代码；Primary+E 切换。非空选区转换遵守文档 Cone 的换行与原子对象边界，折叠选区只设置后续输入模式，不先插入空代码标记。后续输入在文档插入之前确定代码模式，因此退出代码后输入的换行不被代码规范化吞掉。代码模式与粗体、斜体、删除线可组合，连续输入、组合取消和撤销仍使用同一事务规则。表格中无法由代码 span 表示的文字由文档层在发布前拒绝，RichHost／ViewState 的命令返回 false 并保留原文；已经发布后的应用观察者异常仍正常向上传递。
+
+RichHost 与 EditorViewState 的 `canEditTarget` 可观察当前单行内块入口是否可用；`beginTarget(MarkdownTargetKind)` 接受当前组合并返回 `MarkdownTargetDraft`，字段包括 kind、label、destination、title、labelEditable 和 canRemove。`applyTarget(draft, label, destination, title)`／`removeTarget(draft)` 返回是否执行；`draft.isCurrent(editor)` 比较实际 editor、源快照及选区。含行内对象的链接 labelEditable 为 false，设置目标时保留对象；自动链接不提供移除按钮。
+
+工具栏的 Link／Image 打开普通模态编辑面板，编辑显示文字／替代文字、URI 和可选标题；Apply 作为一次源事务，Cancel 不改正文。折叠光标位于已有链接或图片时编辑该对象；非空选区设置链接时保留未改动的文字样式；没有显示文字的新链接使用 URI 作为文字。引用链接和图片改为当前使用点的直接目标，不修改共享定义。面板保存打开时的快照和选区，文档或选区已变时拒绝将草稿写入过期范围，并提示重新打开；源码模式、只读和禁用状态不发布修改。链接移除保留文字与样式，遵守 GFM 自动链接的固有识别规则。图片插入／替换只消费宿主提供的 URI，由已有图像控制器展示。链接与图片编辑范围为一个可编辑行内块，跨块选区不创建跨结构链接；文件选择、保存或上传属于宿主应用。
+
 MarkdownPreviewMeasurement.sourceRevision 表示实际显示／命中使用的源版本；parsed 可仍是后台的基线解析。测量持有自己的局部投影、已布局行和图像，试测与丢弃帧不替换已接受几何。选区、marked 与 native revision 一起固定；当前内容或输入 revision 不匹配时清除候选窗几何，不发布旧布局。活动行即使滚到视口之外仍保留原生输入所需排版。
 
 原生连接的 enabled／disabled、origin、过期批次及错误恢复沿源码视图合同处理。连续行内输入不重建连接，切换映射区域时先结束组合并退休旧连接。Unicode／双向文字导航使用同一已排版文字的 grapheme、单词和视觉 caret；复制所见文字与源码字节位置保持对应。原生富文本宿主与三模式组件通过同一状态继续接入文档级块操作。

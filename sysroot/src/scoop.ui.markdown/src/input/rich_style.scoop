@@ -5,7 +5,8 @@ import scoop.markdown.*
 internal struct MdTypingStyles(
     val emphasis: Boolean? = None,
     val strong: Boolean? = None,
-    val strike: Boolean? = None
+    val strike: Boolean? = None,
+    val code: Boolean? = None
 ) {
     fun value(style: MarkdownInlineStyle): Boolean? =
         when (style) {
@@ -16,10 +17,13 @@ internal struct MdTypingStyles(
 
     fun withStyle(style: MarkdownInlineStyle, enabled: Boolean): MdTypingStyles =
         when (style) {
-            case Emphasis -> MdTypingStyles(Some(enabled), strong, strike)
-            case Strong -> MdTypingStyles(emphasis, Some(enabled), strike)
-            case Strikethrough -> MdTypingStyles(emphasis, strong, Some(enabled))
+            case Emphasis -> MdTypingStyles(Some(enabled), strong, strike, code)
+            case Strong -> MdTypingStyles(emphasis, Some(enabled), strike, code)
+            case Strikethrough -> MdTypingStyles(emphasis, strong, Some(enabled), code)
         }
+
+    fun withCode(enabled: Boolean): MdTypingStyles =
+        MdTypingStyles(emphasis, strong, strike, Some(enabled))
 
     fun apply(builder: MarkdownTextEditBuilder) {
         val range = builder.insertedRange
@@ -55,6 +59,22 @@ internal fun mdRichInputStyle(
     return input.content.styleState(
         MarkdownRange(range.start, range.end),
         style,
+        input.editor.selection.cursorBias
+    )
+}
+
+internal fun mdRichInputCode(input: MarkdownRichInput): MarkdownStyleState {
+    val range = input.inputState.selection.range
+    if (range.start == range.end)
+        when (input.typingStyles.code) {
+            case Some(val enabled) -> return if (enabled)
+                MarkdownStyleState.On
+            else
+                MarkdownStyleState.Off
+            case None -> Unit
+        }
+    return input.content.codeState(
+        MarkdownRange(range.start, range.end),
         input.editor.selection.cursorBias
     )
 }

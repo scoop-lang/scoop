@@ -6,15 +6,26 @@ internal fun mdTextSetStyle(
     style: MarkdownInlineStyle,
     enabled: Boolean
 ): MarkdownTextEdit {
-    mdTextCheckRange(content, range)
-    requireMarkdown(!range.isEmpty, "Text styling needs a nonempty text range")
     requireMarkdown(
         style != MarkdownInlineStyle.Strikethrough || content.profile.strikethrough,
         "Strikethrough requires a profile with strikethrough enabled"
     )
+    return mdTextFormat(content, range) {
+        inline,
+        selected -> inline.setStyle(selected, style, enabled)
+    }
+}
+
+internal fun mdTextFormat(
+    content: MarkdownTextContent,
+    range: MarkdownRange,
+    format: (MarkdownInlineContent, MarkdownRange) -> MarkdownInlineEdit
+): MarkdownTextEdit {
+    mdTextCheckRange(content, range)
+    requireMarkdown(!range.isEmpty, "Text formatting needs a nonempty text range")
     return when (content.context) {
         case Inline(val value) -> {
-            val edit = value.setStyle(range, style, enabled)
+            val edit = format(value, range)
             MarkdownTextEdit(
                 edit.change,
                 edit.selection,
@@ -35,7 +46,7 @@ internal fun mdTextSetStyle(
                         mdTextBlockOffset(block, range.start),
                         mdTextBlockOffset(block, range.end)
                     )
-                val edit = inline.setStyle(selected, style, enabled)
+                val edit = format(inline, selected)
                 for (replacement in edit.change.replacements)
                     replacements.add(replacement)
             }

@@ -1,0 +1,173 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+private fun targetDraft(
+    editor: MarkdownEditorState,
+    kind: MarkdownTargetKind
+): MarkdownTargetDraft =
+    mdTargetDraft(
+        editor,
+        editor.document.parse().inlineContentAt(
+            editor.selection.cursor,
+            editor.selection.cursorBias
+        )!!,
+        kind
+    )!!
+
+private fun applyTargetEdit(editor: MarkdownEditorState, edit: MarkdownInlineEdit) {
+    editor.apply(edit.change, edit.selection)
+}
+
+@Test
+private class MarkdownTargetEditTests {
+    @Test
+    fun caretEditsOneReferenceAndPreservesItsFormattedLabelAndOtherUses() {
+        val original = "[**one**][r] and [two][r]\n\n[r]: /old \"shared\"\n"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(original), mdCaret(4L))
+        val draft = targetDraft(editor, MarkdownTargetKind.Link)
+        assertEquals("one", draft.label)
+        assertEquals("/old", draft.destination)
+        assertEquals("shared", draft.title)
+        assertTrue(draft.canRemove)
+        assertTrue(draft.isCurrent(editor))
+        val edit = draft.prepare(draft.label, "/new page", "new title")
+        applyTargetEdit(editor, edit)
+        assertFalse(draft.isCurrent(editor))
+        assertEquals("one and two", edit.after.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            edit.after.styleState(MarkdownRange(0L, 3L), MarkdownInlineStyle.Strong)
+        )
+        assertTrue(editor.document.toMarkdown().endsWith("[r]: /old \"shared\"\n"))
+        var links = 0L
+        for (node in editor.document.parse().nodes())
+            when (node.content) {
+                case MarkdownContent.Link(val target) -> {
+                    assertEquals(
+                        if (links == 0L)
+                            "/new%20page"
+                        else
+                            "/old",
+                        target.destination.text
+                    )
+                    links += 1L
+                }
+                else -> Unit
+            }
+        assertEquals(2L, links)
+        assertTrue(editor.undo())
+        assertEquals(original, editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        editor.close()
+    }
+
+    @Test
+    fun newLinksUseTheUriWhenEmptyAndChangedLabelsAreLiteralText() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val initial = targetDraft(editor, MarkdownTargetKind.Link)
+        assertFalse(initial.canRemove)
+        val inserted = initial.prepare("", "/next", "")
+        applyTargetEdit(editor, inserted)
+        assertEquals("/next", inserted.after.text.text)
+        editor.setSelection(mdCaret(3L))
+        val draft = targetDraft(editor, MarkdownTargetKind.Link)
+        val changed = draft.prepare("*中文*", "/updated", "title")
+        applyTargetEdit(editor, changed)
+        assertEquals("*中文*", changed.after.text.text)
+        assertEquals(
+            MarkdownStyleState.Off,
+            changed.after.styleState(MarkdownRange(0L, 8L), MarkdownInlineStyle.Emphasis)
+        )
+        val remove = targetDraft(editor, MarkdownTargetKind.Link)
+        val removed = remove.remove()
+        applyTargetEdit(editor, removed)
+        assertEquals("*中文*", removed.after.text.text)
+        for (node in editor.document.parse().nodes())
+            when (node.content) {
+                case MarkdownContent.Link(_) -> fail(Some("Expected removed explicit link"))
+                else -> Unit
+            }
+        editor.close()
+    }
+
+    @Test
+    fun linkedImagesRetainTheirOuterLinkAndCanBeRemovedAsOneObject() {
+        val original = "[![**old**](/old.png)](/page) tail"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(original), mdCaret(2L))
+        val draft = targetDraft(editor, MarkdownTargetKind.Image)
+        assertEquals("old", draft.label)
+        assertEquals("/old.png", draft.destination)
+        assertTrue(draft.canRemove)
+        val changed = draft.prepare("new 中文", "images/new picture.png", "caption")
+        applyTargetEdit(editor, changed)
+        assertEquals("\u{fffc} tail", changed.after.text.text)
+        var images = 0L
+        for (node in editor.document.parse().nodes())
+            when (node.content) {
+                case MarkdownContent.Image(val target) -> {
+                    images += 1L
+                    assertEquals("images/new%20picture.png", target.destination.text)
+                    assertEquals("caption", target.title.text)
+                }
+                case MarkdownContent.Link(val target) -> assertEquals(
+                    "/page",
+                    target.destination.text
+                )
+                else -> Unit
+            }
+        assertEquals(1L, images)
+        val link = targetDraft(editor, MarkdownTargetKind.Link)
+        assertFalse(link.labelEditable)
+        val linked = link.prepare("Do not replace the object", "/other", "")
+        applyTargetEdit(editor, linked)
+        assertEquals("\u{fffc} tail", linked.after.text.text)
+        val remove = targetDraft(editor, MarkdownTargetKind.Image)
+        assertEquals("new 中文", remove.label)
+        applyTargetEdit(editor, remove.remove())
+        assertEquals(
+            " tail",
+            editor.document.parse().inlineContentAt(MarkdownPosition(0L))!!.text.text
+        )
+        assertTrue(editor.undo())
+        assertTrue(editor.undo())
+        assertTrue(editor.undo())
+        assertEquals(original, editor.document.toMarkdown())
+        editor.close()
+    }
+
+    @Test
+    fun adjacentTargetsUseCaretBiasAndAutolinkRemovalIsUnavailable() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("[a](/a)[b](/b)"))
+        val content = editor.document.parse().inlineContentAt(MarkdownPosition(1L))!!
+        val left = content.text.sourceAt(MarkdownPosition(1L), MarkdownBias.Before)
+        val right = content.text.sourceAt(MarkdownPosition(1L), MarkdownBias.After)
+        editor.setSelection(MarkdownSelection(left, left, MarkdownBias.Before, MarkdownBias.Before))
+        assertEquals("/a", targetDraft(editor, MarkdownTargetKind.Link).destination)
+        editor.setSelection(MarkdownSelection(right, right, MarkdownBias.After, MarkdownBias.After))
+        assertEquals("/b", targetDraft(editor, MarkdownTargetKind.Link).destination)
+        editor.document.reset("https://example.com")
+        editor.setSelection(mdCaret(4L))
+        assertFalse(targetDraft(editor, MarkdownTargetKind.Link).canRemove)
+        editor.close()
+    }
+
+    @Test
+    fun draftsBecomeStaleWhenSelectionOrDocumentChanges() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("ab"), mdCaret(1L))
+        val first = targetDraft(editor, MarkdownTargetKind.Link)
+        assertTrue(first.isCurrent(editor))
+        editor.setSelection(mdCaret(2L))
+        assertFalse(first.isCurrent(editor))
+        val second = targetDraft(editor, MarkdownTargetKind.Image)
+        editor.replaceSelection("c")
+        assertFalse(second.isCurrent(editor))
+        val other = MarkdownEditorState(editor.document)
+        assertFalse(second.isCurrent(other))
+        other.close()
+        editor.close()
+        assertFalse(second.isCurrent(editor))
+    }
+}

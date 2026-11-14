@@ -182,6 +182,16 @@ MarkdownTextContent 及其 edit builder 也支持 setStyle；styleState 使用�
 
 实现只解析输入片段及目标局部区域，复用现有行内生成、容器前缀、表格写入和源码差量。`after` 与 change.after 是同一份最终不可变快照；UI 可直接接管已准备的解析结果，不在发布边界重复解析。失败不修改文档或历史。
 
+### 8.7 行内代码、链接与图片编辑
+
+MarkdownInlineContent 与 MarkdownTextContent 提供 `setCode(range, enabled)`、`codeState(range, bias)`，范围为显示 UTF-8 字节。转换保留可见文字、原有粗斜体及链接；软／硬换行和文字中的 CR／LF 是代码样式边界，不跨这些边界合并代码 span。图片、HTML、公式、脚注引用及自定义扩展等原子对象保持原样。跨块操作按相交行内块执行并保持容器与表格；反引号长度和 padding 使用现有生成器，无法由 GFM 代码单元格保留的反斜杠加竖线组合照常失败。状态使用 MarkdownStyleState，纯原子对象选区为 Unavailable；折叠位置允许为后续输入查询状态。两个 edit builder 同样提供 setCode，不改变已有 insertedRange。
+
+replaceText 及对应 builder 的可选 `code: Boolean? = None` 指定新文字是否为行内代码；None 沿原有位置样式继承，Some(false) 强制字面文字，Some(true) 按现有代码 span 规则规范化换行后插入。它只控制新文字，不改变未选部分；这使退出代码后的输入不先丢失换行再转换回来。所有修改仍只准备一次普通事务。
+
+MarkdownInlineContent 与其 builder 提供 `setLink(range, destination, title = "")`、`removeLink(range)` 和 `replaceImage(range, alternate, destination, title = "")`。setLink／removeLink 需要非空显示选区，保留选中的样式与原子内容；跨已有链接边界时分开两侧链接，选中部分使用一个直接目标，不产生嵌套链接。解除链接保留显示内容，GFM 自动链接仍遵守 profile，不为屏蔽它插入隐藏字符或任意 HTML。修改引用式链接只改当前使用点，不改共用定义；显式修改定义仍用 setReferenceDefinition。
+
+replaceImage 支持折叠插入和非空替换，alternate、URI 和 title 按图片语法生成；结果选中完整的 U+FFFC 图片对象，源码 selection 指向新图片，after 可继续编辑。更新已有图片保留其外层格式和链接。URI 字符串由宿主提供，文档 Cone 不保存、上传、读取或检查图片资源。非法范围、参数或失败不发布文档。
+
 ## 9. 扩展语法
 
 `MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关及有序的 `MarkdownExtension` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注；mdBook 指令由调用方显式注册。配置及扩展的解析行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与注册对象及顺序，不以扩展名称猜测两个不同处理器等价。

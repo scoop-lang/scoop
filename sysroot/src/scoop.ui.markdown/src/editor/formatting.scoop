@@ -16,6 +16,8 @@ public fun markdownFormattingToolbar(
 private class MdFormatting(val props: Props<MdFormattingProps>, scope: ComponentScope): Component(
     scope
 ) {
+    private val target = MdTargetDialog()
+
     public override fun render(): View {
         val input = props.value
         return row {
@@ -38,14 +40,37 @@ private class MdFormatting(val props: Props<MdFormattingProps>, scope: Component
                     enabled = status != MarkdownStyleState.Unavailable
                     fonts = input.fonts
                     size = ButtonSize.Sm
-                    variant =
-                        when (status) {
-                            case On -> ButtonVariant.Secondary
-                            case Mixed -> ButtonVariant.Outline
-                            else -> ButtonVariant.Ghost
-                        }
+                    variant = mdFormatVariant(status)
                 }
             }
+            val code = input.editor.codeState()
+            button("Code", { input.editor.toggleCode() }) {
+                enabled = code != MarkdownStyleState.Unavailable
+                fonts = input.fonts
+                size = ButtonSize.Sm
+                variant = mdFormatVariant(code)
+            }
+            for (kind in [MarkdownTargetKind.Link, MarkdownTargetKind.Image])
+                button(
+                    if (kind == MarkdownTargetKind.Link)
+                        "Link"
+                    else
+                        "Image",
+                    { this @MdFormatting.target.open(input.editor, kind) }
+                ) {
+                    enabled = input.editor.canEditTarget
+                    fonts = input.fonts
+                    size = ButtonSize.Sm
+                    variant = ButtonVariant.Ghost
+                }
+            item(this @MdFormatting.target.view(input.editor, input.fonts))
         }
     }
 }
+
+private fun mdFormatVariant(status: MarkdownStyleState): ButtonVariant =
+    when (status) {
+        case On -> ButtonVariant.Secondary
+        case Mixed -> ButtonVariant.Outline
+        else -> ButtonVariant.Ghost
+    }

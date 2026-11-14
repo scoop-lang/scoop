@@ -1,6 +1,6 @@
 # scoop.ui.markdown
 
-Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像、行内与跨块输入以及代码／扩展的局部源码编辑。完整功能继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
+Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像、行内与跨块输入、链接／图片编辑以及代码／扩展的局部源码编辑。完整功能继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
 
 组合控件使用标准 `scoop.ui.component` 的可调分栏，应用在实际 run／mount 入口绑定 `ThemeSource`，与按钮等组件相同。示例使用 `context(ThemeSource(shadcnTheme())) { runUiApplication(...) }`。单独的源码／预览／富文本视图继续使用其显式样式，不要求分栏的主题上下文。
 
@@ -43,6 +43,8 @@ editor.close()
 
 `input.setStyle(style, enabled)` 对非空显示选区执行一次跨块格式事务，并保留选择方向；折叠光标只改变后续输入样式，不立即生成标记或历史。它先接受当前组合；后续预编辑可取消，连续提交仍按普通键入分组。外部文档修改、实际移动选区或重新创建输入片段清除显式样式覆盖。`input.styleState(style)` 包含此覆盖；setStyle 返回 true 时，自绘宿主须退休旧原生连接后使用新映射。
 
+`input.setCode(enabled)`／`codeState()` 对行内代码提供相同的选区与后续输入规则。代码模式先于文字插入生效；退出代码后的换行保留为普通文字，进入代码后的换行按代码 span 规则规范化，输入法选区随之换算。代码可与粗体等样式组合。
+
 源码和富文本共享唯一组合与历史，跨块取消可恢复原始定界符、实体、已删除的块及定向选区。剪切、粘贴、删除及整篇选择后的键入使用相同路径。跨块替换结束原来的键入分组；组合结束并收敛到单段后，宿主退休旧连接并切回单段输入。外部修改后通过 `synchronize(newContent)` 提供新解析的区域；返回 true 时退休旧原生连接。字体、图片与窗口仍由视图管理。
 
 `isComposing`／`markedRange` 反映即时预编辑；重复 Preedit 不逐条入历史，Commit／ClearPreedit／`acceptComposition()` 接受为一个历史项。空 Preedit 或 `cancelComposition()` 恢复组合前正文与选区。选择、格式命令和外部 Edit 接受组合；Reset 放弃它。undo／redo 遇到活动组合先取消，下一次再操作历史。保存前调用 `acceptComposition()` 再固定文档 snapshot。
@@ -77,7 +79,11 @@ editor.close()
 
 `MarkdownEditorViewState(editor, mode = MarkdownEditorMode.Wysiwyg)` 配合 `markdownEditor(viewState, controller)` 提供三模式组件。`setMode` 切换视图并保留正文／历史；`setRightReadOnly` 可将双栏右侧设为只读；`setSynchronizeScroll` 控制按源码锚点的双向滚动，`setSourceFraction` 调整分栏比例。两侧的 ScrollState 和 FocusHandle 独立稳定，模式和纯布局设置不重复序列化文档；整次修改只触发一次组合控件的 `onChanged`。
 
-`markdownFormattingToolbar(viewState)` 是可选的普通 View，提供粗体、斜体与删除线按钮，沿用应用的 `ThemeSource`。viewState 的 `styleState`、`setStyle` 和 `toggleStyle` 也可供应用自建工具栏；操作成功后返回富文本焦点。纯源码模式、只读或未挂载富文本时为 Unavailable，命令不修改文档；混合格式以 Mixed 展示。独立富文本编辑组件本身仍只依赖显式样式，不要求主题上下文。
+`markdownFormattingToolbar(viewState)` 是可选的普通 View，提供粗体、斜体、删除线、行内代码以及链接／图片按钮，沿用应用的 `ThemeSource`。viewState 的 `styleState`、`setStyle` 和 `toggleStyle` 也可供应用自建工具栏；操作成功后返回富文本焦点。纯源码模式、只读或未挂载富文本时为 Unavailable，命令不修改文档；混合格式以 Mixed 展示。独立富文本编辑组件本身仍只依赖显式样式，不要求主题上下文。
+
+RichHost 和 viewState 提供 `setCode`／`toggleCode`／`codeState`，Primary-E 切换代码；表格中无法表示为代码 span 的内容返回 false 并保持原文。`canEditTarget` 表示当前是否支持单个行内块的链接或图片操作；`beginTarget(MarkdownTargetKind.Link)`／`Image` 返回 `MarkdownTargetDraft`，保存当前选区并提供 label、destination、title、labelEditable、canRemove。宿主面板用 `applyTarget(draft, label, destination, title)` 或 `removeTarget(draft)` 发布一次事务；文档或选区改变后草稿失效，方法返回 false。`draft.isCurrent(editor)` 可用于面板状态。未修改的链接文字保留样式，含图片等对象时 labelEditable 为 false；图片替代文字可单独编辑。
+
+工具栏自带 Link／Image 面板，可修改文字／替代文字、URI 与可选标题，支持 Apply、Cancel 和移除。打开已有引用目标只修改当前使用点，共享定义不变。新链接没有文字时使用 URI；自定义文件选择器或上传流程应先获得 URI，再调用相同接口。内置面板不执行文件读写，展示沿用 MarkdownImageController。链接／图片编辑限于一个行内块；跨块文字格式化继续使用上述样式命令。
 
 默认不抢焦点；显式 `requestFocus(MarkdownEditorPane.Source)` 可在挂载前请求可见栏。显式 `showSource(range)` 把当前范围起点定位到源码栏，必要时从 Wysiwyg 转双栏；默认扩展点击使用上述局部源码面并保留当前模式。`MarkdownEditorOptions` 统一配置整体只读、两栏最小宽度及各自布局参数。一个 viewState 只能绑定一个控件；多个 viewState 可以共享同一 editor。所有 Host 的可选 `initialScroll` 允许自绘宿主保留滚动状态，viewport 与原生资源仍随 Host 关闭。
 

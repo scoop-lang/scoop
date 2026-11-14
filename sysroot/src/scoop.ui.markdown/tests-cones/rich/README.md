@@ -4,7 +4,9 @@
 
 `MarkdownLocalSourceWindowTests` 通过公开 `markdownEditor` 点击代码、Mermaid、块／行内公式及 mdBook 指令，验证局部源码的全选、中文组合取消、修改与撤销重做、未闭合指令修复、Done／Escape 返回、Reset 关闭面板及只读。所有编辑共用原文档与历史，并保留区间外源码。
 
-`MarkdownFormattingWindowTests` 验证公开格式工具栏的真实按钮点击、粗体／斜体／删除线快捷键、跨块反向选区和混合状态、折叠光标后续中文／emoji 输入、组合取消与接受、统一撤销重做、模式切换、只读以及卸载后的格式命令状态。
+`MarkdownFormattingWindowTests` 验证公开格式工具栏的真实按钮点击、粗体／斜体／删除线／代码快捷键、跨块反向选区和混合状态、折叠光标后续中文／emoji 输入、组合取消与接受、退出代码后的换行、不可表示的表格代码转换拒绝、键盘操作工具栏、统一撤销重做、模式切换、只读以及卸载后的格式命令状态。
+
+`MarkdownTargetWindowTests` 通过真实 Tab／Space 打开 Link／Image 面板，在原生输入字段中修改 URI、标题与图片替代文字，验证单次撤销、取消、焦点恢复、文档变化后的草稿拒绝、只读状态和原生组合结束后的目标编辑。
 
 富文本用例同时验证真实系统剪贴板的 text/plain／text/markdown、独立多块粘贴、一次撤销、显式纯文本／Markdown／TSV、存在但为空的格式和只读命令。测试保存并恢复原剪贴板的全部项目与格式。
 
@@ -32,6 +34,6 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-局部源码或格式用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests` 或 `MarkdownFormattingWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。三个窗口用例串行运行，避免争用原生焦点。
+局部源码、格式或链接／图片用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests` 或 `MarkdownTargetWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。窗口用例按独立进程串行运行，避免争用原生焦点。
 
 示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现所选用例的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在相同事件目录的 stdout／stderr 文件。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。

@@ -6,7 +6,9 @@ import scoop.window.*
 internal struct MdRichStyles(
     val emphasis: MarkdownStyleState = MarkdownStyleState.Unavailable,
     val strong: MarkdownStyleState = MarkdownStyleState.Unavailable,
-    val strike: MarkdownStyleState = MarkdownStyleState.Unavailable
+    val strike: MarkdownStyleState = MarkdownStyleState.Unavailable,
+    val code: MarkdownStyleState = MarkdownStyleState.Unavailable,
+    val target: Boolean = false
 ) {
     fun value(style: MarkdownInlineStyle): MarkdownStyleState =
         when (style) {
@@ -28,7 +30,12 @@ internal fun mdRichStyleValues(host: MarkdownRichHost): MdRichStyles {
         if (input.content.profile.strikethrough)
             input.styleState(MarkdownInlineStyle.Strikethrough)
         else
-            MarkdownStyleState.Unavailable
+            MarkdownStyleState.Unavailable,
+        input.codeState(),
+        when (input.content.inlineContent) {
+            case Some(_) -> true
+            case None -> false
+        }
     )
 }
 
@@ -44,7 +51,12 @@ private val mdStrikeKey =
         ShortcutModifiers(primary = true, shift = true)
     )
 
+private val mdCodeKey =
+    ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("e")), ShortcutModifiers(primary = true))
+
 internal fun mdRichFormatKey(host: MarkdownRichHost, key: KeyEvent): Boolean {
+    if (mdCodeKey.matches(key))
+        return key.isRepeat || host.toggleCode()
     val style =
         if (mdStrongKey.matches(key))
             MarkdownInlineStyle.Strong

@@ -182,6 +182,72 @@ public class MarkdownRichHost public constructor(
         return applyStyle(style, enabled)
     }
 
+    public fun codeState(): MarkdownStyleState {
+        checkOpen()
+        return styles.value.code
+    }
+
+    public val canEditTarget: Boolean get() {
+        checkOpen()
+        return styles.value.target
+    }
+
+    public fun beginTarget(kind: MarkdownTargetKind): MarkdownTargetDraft? {
+        checkOpen()
+        editor.checkEdit()
+        refresh()
+        return mdRichBeginTarget(this, kind)
+    }
+
+    public fun applyTarget(
+        draft: MarkdownTargetDraft,
+        label: String,
+        destination: String,
+        title: String = ""
+    ): Boolean {
+        checkOpen()
+        editor.checkEdit()
+        refresh()
+        return mdRichApplyTarget(this, draft, label, destination, title, false)
+    }
+
+    public fun removeTarget(draft: MarkdownTargetDraft): Boolean {
+        checkOpen()
+        editor.checkEdit()
+        refresh()
+        return mdRichApplyTarget(this, draft, "", "", "", true)
+    }
+
+    public fun setCode(enabled: Boolean): Boolean {
+        checkOpen()
+        refresh()
+        return applyCode(enabled)
+    }
+
+    public fun toggleCode(): Boolean {
+        checkOpen()
+        refresh()
+        return applyCode(styles.value.code != MarkdownStyleState.On)
+    }
+
+    private fun applyCode(enabled: Boolean): Boolean {
+        if (styles.value.code == MarkdownStyleState.Unavailable)
+            return false
+        val active = input ?: return false
+        val before = editor.snapshot
+        try {
+            perform {
+                if (active.setCode(enabled))
+                    retire()
+            }
+        } catch (failure: IllegalArgumentException) {
+            if (editor.snapshot !== before)
+                throw failure
+            return false
+        }
+        return true
+    }
+
     public fun executeClipboard(command: MarkdownClipboardCommand): Boolean {
         checkOpen()
         editor.checkEdit()

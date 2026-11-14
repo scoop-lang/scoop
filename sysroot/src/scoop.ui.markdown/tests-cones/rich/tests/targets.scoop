@@ -1,0 +1,335 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownTargetWindowTests {
+    @Test
+    fun linkAndImageFormsUseNativeFocusAndKeepOneSourceHistory() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = TargetProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+        } catch (error: Throwable) {
+            println("Target window step " + probe.step.value.toString())
+            throw error
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class TargetProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "**Label** and ![old](old.png)\n\nTail\n"
+    val editor =
+        MarkdownEditorState(
+            MarkdownDocument.fromText(original),
+            MarkdownSelection(MarkdownPosition(2L), MarkdownPosition(7L))
+        )
+    val view = MarkdownEditorViewState(editor)
+    val parser =
+        MarkdownParseController(
+            editor,
+            workers,
+            proxy,
+            MarkdownParseOptions(MarkdownProfile.Editor)
+        )
+    val step = state(0)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var inputReady = false
+    var away = false
+    var waiting = false
+    var presentations = 0L
+    var finished = false
+    var stale: MarkdownTargetDraft? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown link and image verification"
+                            size = LogicalSize(680.0, 520.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> TargetRoot(this, scope) })
+                native.createDeadline {
+                    fail(
+                        Some(
+                            "Target timeout at " +
+                                step.value.toString() +
+                                ", richFocus=" +
+                                view.richFocus.isFocusActive.toString() +
+                                ", input=" +
+                                inputReady.toString()
+                        )
+                    )
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val input)) -> when (input) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        return native.isFocused &&
+            !native.isOccluded &&
+            !frame.required &&
+            frame.presentations >
+            presentations &&
+            (away || (view.richFocus.isFocusActive && (inputReady || view.rightReadOnly)))
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+
+    private fun key(code: Int, text: String, flags: Int = 0) {
+        mdNativeKey(window!!, code, text, flags)
+    }
+
+    private fun type(text: String) {
+        assertEquals(0, mdNativeText(window!!, text))
+    }
+
+    private fun selectImage() {
+        for (node in editor.document.parse().nodes())
+            when (node.content) {
+                case MarkdownContent.Image(_) -> {
+                    editor.setSelection(
+                        MarkdownSelection(
+                            MarkdownPosition(node.range.start),
+                            MarkdownPosition(node.range.end)
+                        )
+                    )
+                    return
+                }
+                else -> Unit
+            }
+        fail(Some("Expected image"))
+    }
+
+    private fun assertImage(destination: String, alternate: String) {
+        var count = 0L
+        for (node in editor.document.parse().nodes())
+            when (node.content) {
+                case MarkdownContent.Image(val target) -> {
+                    count += 1L
+                    assertEquals(destination, target.destination.text)
+                    assertEquals(1L, node.children.size)
+                    when (node.children[0L].content) {
+                        case MarkdownContent.Text(val text) -> assertEquals(alternate, text.text)
+                        else -> fail(Some("Expected literal alternative text"))
+                    }
+                }
+                else -> Unit
+            }
+        assertEquals(1L, count)
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> {
+                assertTrue(view.canEditTarget)
+                next {
+                    away = true;
+                    key(48, "\t", 1)
+                }
+            }
+            case 1 -> next { key(48, "\t", 1) }
+            case 2 -> next { key(49, " ") }
+            case 3 -> {
+                assertFalse(view.richFocus.isFocusActive)
+                assertTrue(inputReady)
+                assertEquals(original, editor.document.toMarkdown())
+                next { type("/linked page") }
+            }
+            case 4 -> next { key(48, "\t") }
+            case 5 -> next { type("A title") }
+            case 6 -> next {
+                key(36, "\r");
+                away = false
+            }
+            case 7 -> {
+                val draft = view.beginTarget(MarkdownTargetKind.Link)!!
+                assertEquals("Label", draft.label)
+                assertEquals("/linked%20page", draft.destination)
+                assertEquals("A title", draft.title)
+                assertEquals(MarkdownStyleState.On, view.styleState(MarkdownInlineStyle.Strong))
+                assertImage("old.png", "old")
+                next { key(6, "z", 8) }
+            }
+            case 8 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next { selectImage() }
+            }
+            case 9 -> next {
+                away = true;
+                key(48, "\t", 1)
+            }
+            case 10 -> next { key(49, " ") }
+            case 11 -> next { key(0, "a", 8) }
+            case 12 -> next { type("new.png") }
+            case 13 -> next { key(48, "\t", 1) }
+            case 14 -> next { key(0, "a", 8) }
+            case 15 -> next { type("new 中文") }
+            case 16 -> next {
+                key(36, "\r");
+                away = false
+            }
+            case 17 -> {
+                assertImage("new.png", "new 中文")
+                next { key(6, "z", 8) }
+            }
+            case 18 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next {
+                    away = true;
+                    key(48, "\t", 1)
+                }
+            }
+            case 19 -> next { key(49, " ") }
+            case 20 -> next { type("-pending") }
+            case 21 -> next {
+                key(53, "\u{1b}");
+                away = false
+            }
+            case 22 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                stale = view.beginTarget(MarkdownTargetKind.Image)
+                next {
+                    away = true;
+                    key(48, "\t", 1)
+                }
+            }
+            case 23 -> next { key(49, " ") }
+            case 24 -> next { editor.document.reset("Changed externally") }
+            case 25 -> next { key(36, "\r") }
+            case 26 -> next {
+                key(53, "\u{1b}");
+                away = false
+            }
+            case 27 -> {
+                assertEquals("Changed externally", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                assertFalse(stale!!.isCurrent(editor))
+                assertFalse(view.applyTarget(stale!!, "old", "discard.png"))
+                next {
+                    view.setMode(MarkdownEditorMode.SideBySide);
+                    view.setRightReadOnly(true)
+                }
+            }
+            case 28 -> {
+                assertFalse(view.canEditTarget)
+                assertFalse(view.removeTarget(stale!!))
+                next {
+                    view.setRightReadOnly(false)
+                    view.setMode(MarkdownEditorMode.Wysiwyg)
+                    editor.document.reset("Text")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(4L), MarkdownPosition(4L))
+                    )
+                }
+            }
+            case 29 -> next { assertEquals(0, mdNativeText(window!!, "ni", 1, 2L)) }
+            case 30 -> {
+                assertTrue(editor.isComposing)
+                next {
+                    stale = view.beginTarget(MarkdownTargetKind.Link)
+                    assertFalse(editor.isComposing)
+                }
+            }
+            case 31 -> next { assertTrue(view.applyTarget(stale!!, "site", "/site")) }
+            case 32 -> {
+                assertEquals("site", view.beginTarget(MarkdownTargetKind.Link)!!.label)
+                next { key(6, "z", 8) }
+            }
+            case 33 -> {
+                assertEquals("Textni", editor.document.toMarkdown())
+                next { key(6, "z", 8) }
+            }
+            case 34 -> {
+                assertEquals("Text", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected target step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class TargetRoot(val probe: TargetProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Rich)
+    }
+
+    public override fun render(): View {
+        val current = probe
+        current.step.value
+        return column {
+            alignment = CrossAlignment.Stretch
+            item(markdownFormattingToolbar(current.view))
+            item(markdownEditor(current.view, current.parser)) {
+                grow = 1.0
+                basis = FlexBasis.Fixed(0.0)
+            }
+        }
+    }
+}

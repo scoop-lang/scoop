@@ -1,0 +1,109 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownInlineLinkTests {
+    @Test
+    fun `selection link changes split surrounding links and preserve formatting`() {
+        val document = MarkdownDocument.fromText("**ab** and [cd](/old)\n\nTail\n")
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val edit = inline.setLink(MarkdownRange(1L, 8L), "next page", "a \"title\"")
+        edit.applyTo(document)
+        assertEquals("ab and cd", edit.after.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            edit.after.styleState(MarkdownRange(0L, 2L), MarkdownInlineStyle.Strong)
+        )
+        val after = document.parse()
+        val targets = ArrayList<String>()
+        for (node in after.nodes())
+            when (node.content) {
+                case MarkdownContent.Link(val target) -> targets.add(target.destination.text)
+                else -> Unit
+            }
+        assertEquals(2L, targets.size)
+        assertEquals("next%20page", targets[0L])
+        assertEquals("/old", targets[1L])
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun `editing and removing one reference link leaves the shared definition and other uses`() {
+        val source = "[one][r] and [two][r]\n\n[r]: /old \"shared\"\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val edit =
+            inline.edit {
+                setLink(MarkdownRange(0L, 3L), "/new", "new title")
+                removeLink(MarkdownRange(0L, 3L))
+            }
+        edit.applyTo(document)
+        assertEquals("one and two", edit.after.text.text)
+        assertTrue(document.toMarkdown().endsWith("[r]: /old \"shared\"\n"))
+        val targets = ArrayList<String>()
+        for (node in document.parse().nodes())
+            when (node.content) {
+                case MarkdownContent.Link(val target) -> targets.add(target.destination.text)
+                else -> Unit
+            }
+        assertEquals(1L, targets.size)
+        assertEquals("/old", targets[0L])
+    }
+
+    @Test
+    fun `images replace selections with one mapped object and keep their enclosing link`() {
+        val document = MarkdownDocument.fromText("[**before after**](/link)")
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val edit =
+            inline.replaceImage(MarkdownRange(7L, 12L), "a ] 中文", "/image with space.png", "title")
+        edit.applyTo(document)
+        assertEquals("before \u{fffc}", edit.after.text.text)
+        val after = document.parse()
+        var images = 0L
+        for (node in after.nodes())
+            when (node.content) {
+                case MarkdownContent.Image(val target) -> {
+                    images += 1L
+                    assertEquals("/image%20with%20space.png", target.destination.text)
+                    assertEquals("title", target.title.text)
+                    assertEquals(edit.selection, node.range)
+                }
+                case MarkdownContent.Link(val target) -> assertEquals(
+                    "/link",
+                    target.destination.text
+                )
+                else -> Unit
+            }
+        assertEquals(1L, images)
+        assertEquals(
+            MarkdownStyleState.On,
+            edit.after.styleState(MarkdownRange(7L, 10L), MarkdownInlineStyle.Strong)
+        )
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun `table image and link commands escape pipes without changing the grid`() {
+        val document = MarkdownDocument.fromText("| h |\n|---|\n| x |")
+        val parsed = document.parse()
+        val cell = parsed.inlineContent(parsed.root.children[0L].children[1L].children[0L].id)
+        val edit =
+            cell.edit {
+                replaceImage(MarkdownRange(0L, 1L), "a|b", "asset|name.png", "t|t")
+                setLink(MarkdownRange(0L, 3L), "/link|path")
+            }
+        edit.applyTo(document)
+        val table = document.parse().root.children[0L]
+        assertEquals(2L, table.children.size)
+        assertEquals(1L, table.children[1L].children.size)
+        assertEquals("\u{fffc}", edit.after.text.text)
+        assertFailsWith<IllegalArgumentException> { cell.setLink(MarkdownRange(0L, 0L), "/x") }
+    }
+}

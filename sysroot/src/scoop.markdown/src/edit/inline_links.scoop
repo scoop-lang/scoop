@@ -1,0 +1,81 @@
+package scoop.markdown
+
+/** Replaces selected link membership while preserving text, styles and inline objects. */
+public fun MarkdownInlineContent.setLink(
+    range: MarkdownRange,
+    destination: String,
+    title: String = ""
+): MarkdownInlineEdit {
+    val target =
+        MarkdownLinkTarget(
+            MarkdownText(destination, [], 0L),
+            MarkdownText(title, [], 0L),
+            MarkdownLinkStyle.Inline,
+            "",
+            None,
+            None
+        )
+    return mdInlineLinkEdit(this, range, Some(MdInlineLink(MarkdownNodeId(0L), target)))
+}
+
+/** Removes explicit link membership; profile autolinking still applies to the resulting text. */
+public fun MarkdownInlineContent.removeLink(range: MarkdownRange): MarkdownInlineEdit =
+    mdInlineLinkEdit(this, range, None)
+
+private fun mdInlineLinkEdit(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    link: MdInlineLink?
+): MarkdownInlineEdit {
+    mdInlineCheckRange(content, range)
+    requireMarkdown(!range.isEmpty, "Link editing needs a nonempty text range")
+    val units = ArrayList<MdInlineUnit>()
+    for (unit in mdInlineUnitsSlice(content.model.units, 0L, range.start))
+        units.add(unit)
+    for (unit in mdInlineUnitsSlice(content.model.units, range.start, range.end))
+        units.add(MdInlineUnit(unit.kind, unit.text, unit.flags, link, unit.node, unit.raw))
+    for (unit in mdInlineUnitsSlice(content.model.units, range.end, content.text.byteLength))
+        units.add(unit)
+    return mdInlinePrepared(
+        content,
+        mdInlineBlockSource(content, mdInlineUnitsWrite(units.toArray(), content.placement.table)),
+        range
+    )
+}
+
+/** Inserts or replaces one image; resource I/O remains with the caller. */
+public fun MarkdownInlineContent.replaceImage(
+    range: MarkdownRange,
+    alternate: String,
+    destination: String,
+    title: String = ""
+): MarkdownInlineEdit {
+    mdInlineCheckRange(this, range)
+    val at = mdInlineUnitAt(this, range.start, MarkdownBias.After)
+    val previous =
+        if (at >= 0L)
+            Some(model.units[at])
+        else
+            None
+    val source =
+        mdWriteInlines([MdWriteInline.Image(alternate, destination, title)], false, placement.table)
+    val image =
+        MdInlineUnit(
+            MdInlineUnitKind.Object,
+            "\u{fffc}",
+            previous?.flags ?: 0,
+            previous?.link ?: None,
+            raw = source
+        )
+    val units =
+        mdInlineUnitsConcat(
+            mdInlineUnitsSlice(model.units, 0L, range.start),
+            [image],
+            mdInlineUnitsSlice(model.units, range.end, text.byteLength)
+        )
+    return mdInlinePrepared(
+        this,
+        mdInlineBlockSource(this, mdInlineUnitsWrite(units, placement.table)),
+        MarkdownRange(range.start, range.start + 3L)
+    )
+}

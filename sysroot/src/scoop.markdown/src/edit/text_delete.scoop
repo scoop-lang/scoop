@@ -9,7 +9,8 @@ internal fun mdTextReplaceSeparated(
     start: Long,
     end: Long,
     text: String,
-    bias: MarkdownBias
+    bias: MarkdownBias,
+    code: Boolean? = None
 ): MarkdownTextEdit {
     val syntax = blocks.syntax
     val left = blocks.blocks[first]
@@ -26,7 +27,7 @@ internal fun mdTextReplaceSeparated(
                         else
                             inline.text.byteLength
                     )
-                val edit = inline.replaceText(range, text, bias)
+                val edit = inline.replaceText(range, text, bias, code)
                 for (entry in edit.change.replacements)
                     builder.replace(entry.range, entry.text)
                 mdTextInlineInsertion(inline, range, edit)
@@ -39,7 +40,8 @@ internal fun mdTextReplaceSeparated(
                     end
                 else
                     left.text.byteLength,
-                text
+                text,
+                code
             )
         }
     if (first != last) {
@@ -63,12 +65,27 @@ private fun mdTextReplaceObject(
     node: MarkdownNode,
     start: Long,
     end: Long,
-    text: String
+    text: String,
+    code: Boolean?
 ): MarkdownRange {
     val snapshot = builder.snapshot
     val prefix = mdListPrefix(builder.parsed, node)
     val newline = mdLocalNewline(snapshot, node.range.start)
-    val source = mdInlineUnitsWrite([MdInlineUnit(MdInlineUnitKind.Text, text, 0, None)], false)
+    val source =
+        mdInlineUnitsWrite(
+            [
+                MdInlineUnit(
+                    if (code == Some(true))
+                        MdInlineUnitKind.Code
+                    else
+                        MdInlineUnitKind.Text,
+                    mdCodeInput(text, code == Some(true)),
+                    0,
+                    None
+                )
+            ],
+            false
+        )
     val before = start == end && start == 0L
     val after = start == end && start > 0L
     val position =

@@ -82,7 +82,7 @@ internal fun mdFragmentIntoTable(
                     mdInlineBlockSource(
                         content,
                         mdInlineUnitsWrite(
-                            mdFragmentConcat(
+                            mdInlineUnitsConcat(
                                 mdInlineUnitsSlice(content.model.units, 0L, offset),
                                 units,
                                 mdInlineUnitsSlice(
