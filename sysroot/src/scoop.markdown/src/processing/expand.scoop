@@ -1,0 +1,256 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+internal class MdProcessedToken(
+    val range: MarkdownRange,
+    val name: String,
+    val location: MarkdownExtensionLocation,
+    val text: String,
+    val diagnostic: MarkdownDiagnostic?
+) {
+    fun matches(node: MarkdownNode, value: MarkdownExtensionValue): Boolean =
+        range ==
+            node.range &&
+            name ==
+            value.name &&
+            location ==
+            value.location &&
+            text ==
+            value.source.text
+}
+
+internal fun mdProcess(
+    source: MarkdownSnapshot,
+    baseUri: String,
+    profile: MarkdownProfile,
+    processors: HashMap<String, MarkdownProcessor>,
+    resources: MdProcessingResources
+): ProcessedMarkdown {
+    val range = MarkdownRange(0L, source.byteLength)
+    val context = MdExpansionContext(baseUri, [MdResourceSelection(baseUri, [range])])
+    var buffer =
+        MdExpansionBuffer(
+            source,
+            MarkdownSnapshot(MarkdownDocumentId(), 0L, source.root),
+            [MdExpansionPiece(source.root, MarkdownSourceOrigin.Original(range), context)]
+        )
+    var handled: Array<MdProcessedToken> = []
+    while (true) {
+        val parsed = parseMarkdown(buffer.snapshot, profile)
+        val edits = ArrayList<MdExpansionEdit>()
+        val records = ArrayList<MdProcessedToken>()
+        val diagnostics = ArrayList<MarkdownDiagnostic>()
+        for (diagnostic in parsed.diagnostics)
+            diagnostics.add(diagnostic)
+        var handledIndex = 0L
+        for (node in parsed.nodes()) {
+            val value =
+                when (node.content) {
+                    case MarkdownContent.Extension(val extension) -> extension
+                    else -> continue
+                }
+            val processor = processors[value.name] ?: continue
+            if (!value.closed)
+                continue
+            var previous: MdProcessedToken? = None
+            while (
+                handledIndex < handled.size && handled[handledIndex].range.start < node.range.start
+            )
+                handledIndex += 1L
+            if (handledIndex < handled.size && handled[handledIndex].matches(node, value))
+                previous = Some(handled[handledIndex])
+            when (previous) {
+                case Some(val record) -> {
+                    records.add(record)
+                    when (record.diagnostic) {
+                        case Some(val diagnostic) -> diagnostics.add(diagnostic)
+                        case None -> Unit
+                    }
+                    continue
+                }
+                case None -> Unit
+            }
+            val owner = buffer.context(node.range)
+            var diagnostic: MarkdownDiagnostic? = None
+            when (owner) {
+                case None -> diagnostic =
+                    Some(
+                        MarkdownDiagnostic(
+                            node.range,
+                            "Directive spans independently generated sources",
+                            MarkdownDiagnosticSeverity.Warning
+                        )
+                    )
+                case Some(val current) -> {
+                    if (!current.eligible)
+                        continue
+                    try {
+                        val input =
+                            MarkdownProcessingInput(node, value, parsed, current.baseUri, resources)
+                        when (val result = processor.process(input)) {
+                            case MarkdownProcessingResult.Keep -> Unit
+                            case MarkdownProcessingResult.Diagnostic(val message, val severity) ->
+                            diagnostic = Some(MarkdownDiagnostic(node.range, message, severity))
+                            case MarkdownProcessingResult.Replace(val fragment) -> {
+                                val parts =
+                                    mdExpandFragment(
+                                        fragment,
+                                        current,
+                                        buffer.map.sourceRange(node.range),
+                                        resources
+                                    )
+                                edits.add(
+                                    MdExpansionEdit(
+                                        node.range,
+                                        mdPrefixExpansion(parts, mdProcessingPrefix(parsed, node))
+                                    )
+                                )
+                            }
+                        }
+                    } catch (failure: MarkdownResourceException) {
+                        diagnostic =
+                            Some(
+                                MarkdownDiagnostic(
+                                    node.range,
+                                    failure.message ?: "Markdown resource processing failed",
+                                    MarkdownDiagnosticSeverity.Error
+                                )
+                            )
+                    }
+                }
+            }
+            records.add(
+                MdProcessedToken(
+                    node.range,
+                    value.name,
+                    value.location,
+                    value.source.text,
+                    diagnostic
+                )
+            )
+            when (diagnostic) {
+                case Some(val issue) -> diagnostics.add(issue)
+                case None -> Unit
+            }
+            // A replacement can change the lexical context of every following directive.
+            if (edits.size > 0L)
+                break
+        }
+        if (edits.size == 0L)
+            return ProcessedMarkdown(
+                source,
+                baseUri,
+                parsed,
+                buffer.map,
+                resources.dependencies(),
+                diagnostics.toArray(),
+                resources.cacheable
+            )
+        val changes = edits.toArray()
+        handled = mdShiftProcessed(records.toArray(), changes)
+        buffer = buffer.apply(changes)
+    }
+}
+
+private fun mdShiftProcessed(
+    records: Array<MdProcessedToken>,
+    edits: Array<MdExpansionEdit>
+): Array<MdProcessedToken> {
+    val result = ArrayList<MdProcessedToken>()
+    var editIndex = 0L
+    var shift = 0L
+    for (record in records) {
+        while (editIndex < edits.size && edits[editIndex].range.end <= record.range.start) {
+            shift += edits[editIndex].byteLength - edits[editIndex].range.byteLength
+            editIndex += 1L
+        }
+        if (editIndex < edits.size && edits[editIndex].range.start < record.range.end)
+            continue
+        val range = MarkdownRange(record.range.start + shift, record.range.end + shift)
+        val diagnostic =
+            when (record.diagnostic) {
+                case Some(val value) -> Some(
+                    MarkdownDiagnostic(range, value.message, value.severity)
+                )
+                case None -> None
+            }
+        result.add(MdProcessedToken(range, record.name, record.location, record.text, diagnostic))
+    }
+    return result.toArray()
+}
+
+private fun mdExpandFragment(
+    fragment: MarkdownFragment,
+    parent: MdExpansionContext,
+    directive: MarkdownRange,
+    resources: MdProcessingResources
+): Array<MdExpansionPiece> {
+    val selections = HashMap<String, ArrayList<MarkdownRange>>()
+    for (part in fragment.parts)
+        when (part) {
+            case MarkdownFragmentPart.Resource(val resource, val range) -> {
+                resources.use(resource)
+                resource.snapshot.checkRange(range)
+                val ranges =
+                    when (selections[resource.uri]) {
+                        case Some(val previous) -> previous
+                        case None -> {
+                            val created = ArrayList<MarkdownRange>()
+                            selections[resource.uri] = created
+                            created
+                        }
+                    }
+                if (ranges.size > 0L && ranges[ranges.size - 1L].end == range.start)
+                    ranges[ranges.size - 1L] =
+                        MarkdownRange(ranges[ranges.size - 1L].start, range.end)
+                else
+                    ranges.add(range)
+            }
+            case MarkdownFragmentPart.Text(_, _) -> Unit
+        }
+    val contexts = HashMap<String, MdExpansionContext>()
+    for (entry in selections) {
+        val selection = MdResourceSelection(entry.key, entry.value.toArray())
+        for (ancestor in parent.ancestors)
+            if (ancestor.same(selection))
+                throw MarkdownResourceException(
+                    selection.uri,
+                    "Cyclic Markdown include: " + selection.uri
+                )
+        val ancestors = ArrayList<MdResourceSelection>()
+        for (ancestor in parent.ancestors)
+            ancestors.add(ancestor)
+        ancestors.add(selection)
+        contexts[selection.uri] = MdExpansionContext(selection.uri, ancestors.toArray())
+    }
+    val result = ArrayList<MdExpansionPiece>()
+    for (part in fragment.parts)
+        when (part) {
+            case MarkdownFragmentPart.Text(val text, val uri) ->
+            result.add(
+                MdExpansionPiece(
+                    markdownRopeFromText(text),
+                    MarkdownSourceOrigin.Generated(directive, uri, None),
+                    MdExpansionContext(uri ?: parent.baseUri, parent.ancestors, false)
+                )
+            )
+            case MarkdownFragmentPart.Resource(val resource, val range) ->
+            result.add(
+                MdExpansionPiece(
+                    mdRopeSlice(resource.snapshot.root, range.start, range.end),
+                    MarkdownSourceOrigin.Generated(directive, Some(resource.uri), Some(range)),
+                    contexts[resource.uri]!!
+                )
+            )
+        }
+    if (result.size == 0L)
+        result.add(
+            MdExpansionPiece(
+                markdownEmptyRope,
+                MarkdownSourceOrigin.Generated(directive, None, None),
+                MdExpansionContext(parent.baseUri, parent.ancestors, false)
+            )
+        )
+    return result.toArray()
+}

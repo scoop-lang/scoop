@@ -1,0 +1,133 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownProcessingCacheTests {
+    @Test
+    fun unchangedInputsReturnTheSameResultWithoutReadOrProcessorCalls() {
+        val resources = MdMemoryResources()
+        resources.put("book/chapter", "## Section\n\n{{#include word}}\n")
+        resources.put("book/word", "before\n")
+        val processor = MdCountingProcessor(mdBookProcessor())
+        val session = MarkdownProcessingSession(resources, [processor])
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val document = MarkdownDocument.fromText("{{#include chapter}}\n\n{{#include word}}\n")
+        val first = session.process(document.snapshot(), "book/root.md", profile)
+        assertEquals(2L, resources.reads)
+        assertEquals(3L, processor.calls)
+        val previousResolutions = resources.resolutions
+        val previousVersions = resources.versions
+        assertSame(first, session.process(document.snapshot(), "book/root.md", profile))
+        assertEquals(2L, resources.reads)
+        assertEquals(3L, processor.calls)
+        assertEquals(previousResolutions, resources.resolutions)
+        assertEquals(previousVersions + 2L, resources.versions)
+        resources.put("book/word", "after\n")
+        val updated = session.process(document.snapshot(), "book/root.md", profile)
+        assertFalse(first === updated)
+        assertEquals("## Section\n\nafter\n\nafter\n", updated.expanded.snapshot.toMarkdown())
+        assertEquals(3L, resources.reads)
+        assertEquals(6L, processor.calls)
+        assertEquals("## Section\n\nbefore\n\nbefore\n", first.expanded.snapshot.toMarkdown())
+        assertSame(updated, session.process(document.snapshot(), "book/root.md", profile))
+        document.replace(MarkdownRange(document.byteLength, document.byteLength), "\nnew")
+        val edited = session.process(document.snapshot(), "book/root.md", profile)
+        assertEquals(3L, resources.reads)
+        assertFalse(updated === edited)
+        session.clearCache()
+        session.process(document.snapshot(), "book/root.md", profile)
+        assertEquals(5L, resources.reads)
+    }
+
+    @Test
+    fun missingDependenciesReprocessWhenTheyAppearAndIoFailuresCanRetry() {
+        val resources = MdMemoryResources()
+        val session = MarkdownProcessingSession(resources, [mdBookProcessor()])
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val source = MarkdownDocument.fromText("{{#include later}}").snapshot()
+        val missing = session.process(source, "book/root.md", profile)
+        assertEquals(1L, missing.diagnostics.size)
+        assertEquals(None, missing.dependencies[0L].version)
+        assertEquals(0L, resources.reads)
+        assertSame(missing, session.process(source, "book/root.md", profile))
+        resources.put("book/later", "appeared")
+        val found = session.process(source, "book/root.md", profile)
+        assertEquals("appeared", found.expanded.snapshot.toMarkdown())
+        assertEquals(0L, found.diagnostics.size)
+        resources.put("book/later", "changed")
+        resources.failReads = true
+        val failed = session.process(source, "book/root.md", profile)
+        assertEquals("{{#include later}}", failed.expanded.snapshot.toMarkdown())
+        assertEquals(1L, failed.diagnostics.size)
+        resources.failReads = false
+        assertEquals(
+            "changed",
+            session.process(source, "book/root.md", profile).expanded.snapshot.toMarkdown()
+        )
+        resources.failVersions = true
+        assertEquals(1L, session.process(source, "book/root.md", profile).diagnostics.size)
+        resources.failVersions = false
+        assertEquals(
+            "changed",
+            session.process(source, "book/root.md", profile).expanded.snapshot.toMarkdown()
+        )
+    }
+
+    @Test
+    fun aReadSuppliesItsActualVersionAndRepeatedFailuresReadOnlyOnce() {
+        val resources = MdMemoryResources()
+        resources.put("book/file", "old")
+        resources.changeDuringRead = true
+        val session = MarkdownProcessingSession(resources, [mdBookProcessor()])
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val source = MarkdownDocument.fromText("{{#include file}} {{#include file}}").snapshot()
+        val result = session.process(source, "book/root.md", profile)
+        assertEquals("new read snapshot new read snapshot", result.expanded.snapshot.toMarkdown())
+        assertEquals(
+            Some(resources.contents["book/file"]!!.version),
+            result.dependencies[0L].version
+        )
+        assertEquals(1L, resources.reads)
+        assertSame(result, session.process(source, "book/root.md", profile))
+        resources.put("book/file", "new")
+        resources.failReads = true
+        val failed = session.process(source, "book/root.md", profile)
+        assertEquals(2L, failed.diagnostics.size)
+        assertEquals(2L, resources.reads)
+        assertEquals(1L, failed.dependencies.size)
+    }
+
+    @Test
+    fun unusedResourcesAreRetiredAndConfigurationChangesRecompute() {
+        val resources = MdMemoryResources()
+        resources.put("book/a", "A")
+        resources.put("book/b", "B")
+        val processor = MdCountingProcessor(mdBookProcessor())
+        val session = MarkdownProcessingSession(resources, [processor])
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val document = MarkdownDocument.fromText("{{#include a}}")
+        session.process(document.snapshot(), "book/root.md", profile)
+        document.reset("{{#include b}}")
+        session.process(document.snapshot(), "book/root.md", profile)
+        document.reset("{{#include a}}")
+        session.process(document.snapshot(), "book/root.md", profile)
+        assertEquals(3L, resources.reads)
+        val plain = session.process(document.snapshot(), "book/root.md")
+        assertEquals("{{#include a}}", plain.expanded.snapshot.toMarkdown())
+        assertEquals(0L, plain.dependencies.size)
+        assertEquals(3L, processor.calls)
+        resources.put("other/a", "other")
+        assertEquals(
+            "other",
+            session.process(
+                document.snapshot(),
+                "other/root.md",
+                profile
+            ).expanded.snapshot.toMarkdown()
+        )
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownProcessingSession(resources, [mdBookProcessor(), mdBookProcessor()])
+        }
+    }
+}

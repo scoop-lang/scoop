@@ -1,0 +1,79 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.platform.fs.*
+import scoop.test.*
+
+@Test
+private class MarkdownProcessingExampleTests {
+    @Test
+    fun headlessFilesExpandAndSaveWithoutChangingTheOriginal() {
+        val directory = createTempDirectory(prefix = "scoop-markdown-files-")
+        try {
+            val root = directory.resolve(Path.fromString("root.md"))
+            val part = directory.resolve(Path.fromString("part.md"))
+            val output = directory.resolve(Path.fromString("expanded.md"))
+            val source = "# Root\r\n\r\n{{#include part.md}}\r\n"
+            root.writeText(source)
+            part.writeText("## 雪\n")
+            val result = processMarkdownFile(root)
+            assertEquals(0L, result.diagnostics.size)
+            assertEquals(source, root.readText())
+            writeExpandedMarkdown(result, output)
+            assertEquals("# Root\r\n\r\n## 雪\r\n", output.readText())
+            val resolver = FileMarkdownResolver()
+            val session = MarkdownProcessingSession(resolver, [mdBookProcessor()])
+            val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+            val first = session.process(result.source, root.decodeUtf8(), profile)
+            assertSame(first, session.process(result.source, root.decodeUtf8(), profile))
+            part.writeText("Changed and longer")
+            val changed = session.process(result.source, root.decodeUtf8(), profile)
+            assertFalse(first === changed)
+            assertEquals(
+                "# Root\r\n\r\nChanged and longer\r\n",
+                changed.expanded.snapshot.toMarkdown()
+            )
+            assertEquals(source, root.readText())
+            assertEquals(
+                None,
+                resolver.version(directory.resolve(Path.fromString("absent")).decodeUtf8())
+            )
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aConsumerSuppliesItsOwnContentProcessorAndReceivesSourceOrigins() {
+        val source = MarkdownDocument.fromText("Use {{#topic intro}}.")
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val result =
+            MarkdownProcessingSession(FileMarkdownResolver(), [TopicProcessor()]).process(
+                source.snapshot(),
+                "topics/root.md",
+                profile
+            )
+        assertEquals("Use [Introduction](intro.md).", result.expanded.snapshot.toMarkdown())
+        assertEquals(0L, result.dependencies.size)
+        val spans = result.sourceMap.origins(MarkdownRange(4L, 27L))
+        assertEquals(1L, spans.size)
+        when (spans[0L].origin) {
+            case MarkdownSourceOrigin.Generated(val directive, _, val resourceRange) -> {
+                assertEquals("{{#topic intro}}", result.source.read(directive))
+                assertEquals(None, resourceRange)
+            }
+            else -> fail(Some("The generated link must locate its source directive"))
+        }
+    }
+}
+
+private class TopicProcessor: MarkdownProcessor {
+    public override val name: String = "mdbook"
+    public override fun process(input: MarkdownProcessingInput): MarkdownProcessingResult {
+        if (input.value.attribute("command") != Some("topic"))
+            return MarkdownProcessingResult.Keep
+        return MarkdownProcessingResult.Replace(
+            MarkdownFragment.fromText("[Introduction](intro.md)")
+        )
+    }
+}

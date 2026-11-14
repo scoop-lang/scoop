@@ -1,6 +1,7 @@
 package scoop.examples.markdown
 
 import scoop.markdown.*
+import scoop.platform.fs.Path
 
 /** Edits a heading while retaining an independently readable previous revision. */
 public fun updateNotes(): String {
@@ -14,6 +15,22 @@ public fun updateNotes(): String {
     return output.toString()
 }
 
-fun main() {
-    println(updateNotes())
+fun main(args: Array<String>) {
+    if (args.size == 0L) {
+        println(updateNotes())
+        return
+    }
+    if (args.size != 2L) {
+        println("Usage: markdown-source <input.md> <expanded-output.md>")
+        return
+    }
+    val result = processMarkdownFile(Path.fromString(args[0L]))
+    for (diagnostic in result.diagnostics) {
+        val source = result.sourceMap.sourceRange(diagnostic.range)
+        val line = result.source.lineAt(MarkdownPosition(source.start)) + 1L
+        println(args[0L] + ":" + line.toString() + ": " + diagnostic.message)
+        if (diagnostic.severity == MarkdownDiagnosticSeverity.Error)
+            throw IllegalStateException(Some("Markdown expansion failed"))
+    }
+    writeExpandedMarkdown(result, Path.fromString(args[1L]))
 }

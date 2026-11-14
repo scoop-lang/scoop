@@ -1,0 +1,149 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownProcessingMappingTests {
+    @Test
+    fun sourceAndExpandedPositionsRespectGeneratedBoundariesAndDeletedDirectives() {
+        val resources = MdMemoryResources()
+        resources.put("book/name", "雪🙂")
+        resources.put("book/empty", "")
+        val token = "{{#include name}}"
+        val result = mdProcessed("A " + token + " Z", resources)
+        val map = result.sourceMap
+        val directive = MarkdownRange(2L, 2L + token.byteLength)
+        assertEquals(MarkdownPosition(1L), map.sourceAt(MarkdownPosition(1L)))
+        assertEquals(
+            MarkdownPosition(directive.start),
+            map.sourceAt(MarkdownPosition(5L), MarkdownBias.Before)
+        )
+        assertEquals(
+            MarkdownPosition(directive.end),
+            map.sourceAt(MarkdownPosition(5L), MarkdownBias.After)
+        )
+        assertEquals(
+            MarkdownPosition(2L),
+            map.expandedAt(MarkdownPosition(5L), MarkdownBias.Before)
+        )
+        assertEquals(MarkdownPosition(9L), map.expandedAt(MarkdownPosition(5L), MarkdownBias.After))
+        assertEquals(
+            MarkdownPosition(9L),
+            map.expandedAt(MarkdownPosition(directive.end), MarkdownBias.Before)
+        )
+        assertEquals(directive, map.sourceRange(MarkdownRange(2L, 5L)))
+        assertEquals(MarkdownPosition(10L), map.expandedAt(MarkdownPosition(directive.end + 1L)))
+        assertFailsWith<IllegalArgumentException> { map.sourceAt(MarkdownPosition(3L)) }
+        assertFailsWith<IllegalArgumentException> { map.origins(MarkdownRange(2L, 4L)) }
+        val removed = mdProcessed("A{{#include empty}}B", resources)
+        assertEquals("AB", removed.expanded.snapshot.toMarkdown())
+        assertEquals(
+            MarkdownPosition(1L),
+            removed.sourceMap.sourceAt(MarkdownPosition(1L), MarkdownBias.Before)
+        )
+        assertEquals(
+            MarkdownPosition("A{{#include empty}}".byteLength),
+            removed.sourceMap.sourceAt(MarkdownPosition(1L), MarkdownBias.After)
+        )
+        assertEquals(MarkdownPosition(1L), removed.sourceMap.expandedAt(MarkdownPosition(4L)))
+        val empty = mdProcessed("{{#include empty}}", resources)
+        assertEquals(
+            MarkdownPosition(0L),
+            empty.sourceMap.sourceAt(MarkdownPosition(0L), MarkdownBias.Before)
+        )
+        assertEquals(
+            MarkdownPosition(empty.source.byteLength),
+            empty.sourceMap.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+        )
+        mdCheckProcessedSources(removed, resources)
+        mdCheckProcessedSources(empty, resources)
+    }
+
+    @Test
+    fun generatedTextIsProcessedOnceAndDoesNotClaimPreciseResourceOffsets() {
+        val resources = MdMemoryResources()
+        val tag =
+            MdTagProcessor {
+                _ -> MarkdownProcessingResult.Replace(
+                    MarkdownFragment.fromText("@{again}", Some("generated/template"))
+                )
+            }
+        val profile = MarkdownProfile(extensions = [MdProcessingTag()])
+        val session = MarkdownProcessingSession(resources, [tag])
+        val result =
+            session.process(
+                MarkdownDocument.fromText("Before @{first} after").snapshot(),
+                "book/root.md",
+                profile
+            )
+        assertEquals("Before @{again} after", result.expanded.snapshot.toMarkdown())
+        assertEquals(1L, tag.calls)
+        assertEquals(0L, result.diagnostics.size)
+        val origin = result.sourceMap.origins(MarkdownRange(7L, 15L))[0L].origin
+        when (origin) {
+            case MarkdownSourceOrigin.Generated(val directive, val uri, val range) -> {
+                assertEquals(MarkdownRange(7L, 15L), directive)
+                assertEquals(Some("generated/template"), uri)
+                assertEquals(None, range)
+            }
+            else -> fail(Some("Synthetic text needs an explicit generated origin"))
+        }
+    }
+
+    @Test
+    fun mixedOriginsRetainTheirTextAndInvalidProcessorsDoNotPublishPartialResults() {
+        val resources = MdMemoryResources()
+        resources.put("book/open", "@{")
+        resources.put("book/unicode", "雪")
+        val tag =
+            MdTagProcessor {
+                _ -> MarkdownProcessingResult.Replace(MarkdownFragment.fromText("wrong"))
+            }
+        val profile = MarkdownProfile(extensions = [mdBookDirectives(), MdProcessingTag()])
+        val session = MarkdownProcessingSession(resources, [mdBookProcessor(), tag])
+        val result =
+            session.process(
+                MarkdownDocument.fromText("{{#include open}}x}").snapshot(),
+                "book/root.md",
+                profile
+            )
+        assertEquals("@{x}", result.expanded.snapshot.toMarkdown())
+        assertEquals(0L, tag.calls)
+        assertEquals(1L, result.diagnostics.size)
+        val bad =
+            MdTagProcessor {
+                input -> MarkdownProcessingResult.Replace(
+                    MarkdownFragment.fromResource(input.read("unicode"), MarkdownRange(0L, 1L))
+                )
+            }
+        val document = MarkdownDocument.fromText("@{bad}")
+        val before = document.snapshot()
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownProcessingSession(resources, [bad]).process(before, "book/root.md", profile)
+        }
+        assertSame(before, document.snapshot())
+        assertEquals("@{bad}", document.toMarkdown())
+        val throws = MdTagProcessor { _ -> throw IllegalStateException(Some("processor bug")) }
+        assertFailsWith<IllegalStateException> {
+            MarkdownProcessingSession(resources, [throws]).process(before, "book/root.md", profile)
+        }
+    }
+
+    @Test
+    fun unknownAndUnclosedCommandsKeepDiagnosticsAtTheCurrentExpandedPosition() {
+        val resources = MdMemoryResources()
+        resources.put("book/text", "longer content")
+        val source = "{{#include text}}\n\n{{#rustdoc_include file}}\n\n{{#include unfinished"
+        val result = mdProcessed(source, resources)
+        assertEquals(2L, result.diagnostics.size)
+        for (diagnostic in result.diagnostics) {
+            val original = result.sourceMap.sourceRange(diagnostic.range)
+            assertEquals(
+                result.source.read(original),
+                result.expanded.snapshot.read(diagnostic.range)
+            )
+        }
+        assertEquals(1L, resources.reads)
+    }
+}

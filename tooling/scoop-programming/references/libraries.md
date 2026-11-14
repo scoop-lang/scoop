@@ -25,7 +25,7 @@
 | 文件、目录、进程、环境变量、线程                  | `scoop.platform`；`io/files`、`io/resources`、`io/processes`、`io/environment`；整合输入与计算见 `apps/file-report` |
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
-| Markdown 源文档、解析、事务与生成 | `scoop.markdown` 的 README 与 `examples/source`；`parseMarkdown`／`MarkdownDocument.parse` 显式解析；`MarkdownProfile.Editor` 开启公式、front matter 和脚注，`MarkdownExtension`／`mdBookDirectives()` 注册自定义语法；`nodes()`／`parent(id)` 查询，`transform(parsed)` 修改结构，`markdownDocument`／`markdownText` 使用 receiver DSL 生成。未安装的新库使用 path 依赖；解析不隐式读 include 或生成图片 |
+| Markdown 源文档、解析、事务与生成 | `scoop.markdown` 的 README 与 `examples/source`；`parseMarkdown`／`MarkdownDocument.parse` 显式解析；`MarkdownProfile.Editor` 开启公式、front matter 和脚注，`MarkdownExtension`／`mdBookDirectives()` 注册自定义语法；`nodes()`／`parent(id)` 查询，`transform(parsed)` 修改结构，`markdownDocument`／`markdownText` 使用 receiver DSL 生成。`MarkdownProcessingSession`／`MarkdownProcessor` 配合应用 resolver 显式展开内容，`mdBookProcessor()` 支持 include，结果带来源映射与版本依赖。未安装的新库使用 path 依赖；解析不隐式读 include 或生成图片 |
 | Markdown 编辑状态与源码视图 | `scoop.ui.markdown` 的 README 与 `examples/source-editor`；`markdownSourceEditor` 返回普通 View，`MarkdownSourceHost` 支持自绘组合；`MarkdownEditorState` 共享选区、事务、撤销和组合，`MarkdownSourceInput` 提供局部 native 快照。富文本与双栏的进度以实施记录为准 |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get`、`http/existing-connection` 及各库 README |
 | HTTP 协议与异步传输适配                           | `scoop.http`、`scoop.http.asyncio`；仅在需要协议层时使用                                       |

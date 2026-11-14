@@ -1,0 +1,129 @@
+package scoop.markdown
+
+internal class MdResourceSelection(val uri: String, val ranges: Array<MarkdownRange>) {
+    fun same(other: MdResourceSelection): Boolean {
+        if (uri != other.uri || ranges.size != other.ranges.size)
+            return false
+        for (index in 0L ..< ranges.size)
+            if (ranges[index] != other.ranges[index])
+                return false
+        return true
+    }
+}
+
+internal class MdExpansionContext(
+    val baseUri: String,
+    val ancestors: Array<MdResourceSelection>,
+    val eligible: Boolean = true
+)
+
+internal class MdExpansionPiece(
+    val rope: MarkdownRope,
+    val origin: MarkdownSourceOrigin,
+    val context: MdExpansionContext
+) {
+    fun slice(start: Long, end: Long): MdExpansionPiece =
+        MdExpansionPiece(mdRopeSlice(rope, start, end), mdClipOrigin(origin, start, end), context)
+}
+
+internal fun mdRopeSlice(rope: MarkdownRope, start: Long, end: Long): MarkdownRope {
+    if (start == 0L && end == rope.byteLength)
+        return rope
+    return markdownRopeSplit(markdownRopeSplit(rope, start)._2, end - start)._1
+}
+
+internal class MdExpansionEdit(val range: MarkdownRange, val pieces: Array<MdExpansionPiece>) {
+    val byteLength: Long = mdPiecesLength(pieces)
+}
+
+private fun mdPiecesLength(pieces: Array<MdExpansionPiece>): Long {
+    var length = 0L
+    for (piece in pieces)
+        length = markdownAdd(length, piece.rope.byteLength)
+    return length
+}
+
+internal class MdExpansionBuffer(
+    val source: MarkdownSnapshot,
+    val snapshot: MarkdownSnapshot,
+    val pieces: Array<MdExpansionPiece>
+) {
+    val map = MarkdownSourceMap(source, snapshot, mdPieceSpans(pieces))
+
+    /** A directive is processed only when its source belongs to one expansion context. */
+    fun context(range: MarkdownRange): MdExpansionContext? {
+        var index = mdSourceSpanIndex(map.spans, range.start, MarkdownBias.After)
+        var result: MdExpansionContext? = None
+        while (index < pieces.size && map.spans[index].expandedRange.start < range.end) {
+            if (pieces[index].rope.byteLength > 0L) {
+                val context = pieces[index].context
+                when (result) {
+                    case Some(val previous) -> if (previous !== context)
+                        return None
+                    case None -> result = Some(context)
+                }
+            }
+            index += 1L
+        }
+        return result
+    }
+
+    fun apply(edits: Array<MdExpansionEdit>): MdExpansionBuffer {
+        val result = ArrayList<MdExpansionPiece>()
+        var consumed = 0L
+        for (edit in edits) {
+            appendSlice(result, consumed, edit.range.start)
+            for (piece in edit.pieces)
+                result.add(piece)
+            consumed = edit.range.end
+        }
+        appendSlice(result, consumed, snapshot.byteLength)
+        val output = result.toArray()
+        var root = markdownEmptyRope
+        for (piece in output)
+            root = markdownRopeJoin(root, piece.rope)
+        return MdExpansionBuffer(
+            source,
+            MarkdownSnapshot(snapshot.documentId, markdownAdd(snapshot.revision, 1L), root),
+            output
+        )
+    }
+
+    private fun appendSlice(result: ArrayList<MdExpansionPiece>, start: Long, end: Long) {
+        var index = mdSourceSpanIndex(map.spans, start, MarkdownBias.Before)
+        while (index < pieces.size) {
+            val span = map.spans[index].expandedRange
+            if (span.start > end)
+                break
+            if (span.isEmpty) {
+                if (span.start >= start && span.start <= end)
+                    result.add(pieces[index])
+            } else {
+                val a =
+                    if (span.start > start)
+                        span.start
+                    else
+                        start
+                val b =
+                    if (span.end < end)
+                        span.end
+                    else
+                        end
+                if (a < b)
+                    result.add(pieces[index].slice(a - span.start, b - span.start))
+            }
+            index += 1L
+        }
+    }
+}
+
+private fun mdPieceSpans(pieces: Array<MdExpansionPiece>): Array<MarkdownSourceSpan> {
+    val result = ArrayList<MarkdownSourceSpan>()
+    var start = 0L
+    for (piece in pieces) {
+        val end = markdownAdd(start, piece.rope.byteLength)
+        result.add(MarkdownSourceSpan(MarkdownRange(start, end), piece.origin))
+        start = end
+    }
+    return result.toArray()
+}

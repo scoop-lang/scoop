@@ -1,0 +1,140 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+import scoop.test.*
+import scoop.text.*
+
+internal class MdMemoryResources: MarkdownResourceResolver {
+    val contents = HashMap<String, MarkdownResourceData>()
+    var reads = 0L
+    var versions = 0L
+    var resolutions = 0L
+    var failReads = false
+    var failVersions = false
+    var changeDuringRead = false
+    private var nextVersion = 0L
+
+    fun put(uri: String, text: String) {
+        nextVersion += 1L
+        contents[uri] = MarkdownResourceData(text, nextVersion.toString())
+    }
+    public override fun resolve(baseUri: String, reference: String): String {
+        resolutions += 1L
+        val slash = baseUri.lastIndexOf("/")
+        val joined =
+            if (reference.startsWith("/"))
+                reference
+            else
+                baseUri.substring(0L, slash + 1L) + reference
+        val path = ArrayList<String>()
+        for (part in joined.split("/")) {
+            if (part == "" || part == ".")
+                continue
+            if (part == "..") {
+                if (path.size > 0L)
+                    path.removeAt(path.size - 1L)
+            } else
+                path.add(part)
+        }
+        val result = StringBuilder()
+        for (index in 0L ..< path.size) {
+            if (index > 0L)
+                result.append("/")
+            result.append(path[index])
+        }
+        return result.toString()
+    }
+    public override fun version(uri: String): String? {
+        versions += 1L
+        if (failVersions)
+            throw Exception(Some("version failed"))
+        return contents[uri]?.version
+    }
+    public override fun read(uri: String): MarkdownResourceData {
+        reads += 1L
+        if (failReads)
+            throw Exception(Some("read failed"))
+        if (changeDuringRead) {
+            changeDuringRead = false
+            put(uri, "new read snapshot")
+        }
+        return contents[uri] ?: throw Exception(Some("missing resource"))
+    }
+}
+
+internal class MdCountingProcessor(private val delegate: MarkdownProcessor): MarkdownProcessor {
+    var calls = 0L
+    public override val name: String get() = delegate.name
+    public override fun process(input: MarkdownProcessingInput): MarkdownProcessingResult {
+        calls += 1L
+        return delegate.process(input)
+    }
+}
+
+internal class MdProcessingTag: MarkdownExtension {
+    public override val name: String = "tag"
+    public override val trigger: String = "@{"
+    public override val locations: MarkdownExtensionLocations =
+        MarkdownExtensionLocations(blocks = true)
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        val end = input.find("}", offset + 2L) ?: return None
+        return Some(MarkdownExtensionMatch(end + 1L, MarkdownRange(offset + 2L, end)))
+    }
+}
+
+internal class MdTagProcessor(
+    private val action: (MarkdownProcessingInput) -> MarkdownProcessingResult
+): MarkdownProcessor {
+    var calls = 0L
+    public override val name: String = "tag"
+    public override fun process(input: MarkdownProcessingInput): MarkdownProcessingResult {
+        calls += 1L
+        return action(input)
+    }
+}
+
+internal fun mdProcessed(
+    source: String,
+    resources: MdMemoryResources,
+    profile: MarkdownProfile = MarkdownProfile(extensions = [mdBookDirectives()])
+): ProcessedMarkdown =
+    MarkdownProcessingSession(resources, [mdBookProcessor()]).process(
+        MarkdownDocument.fromText(source).snapshot(),
+        "book/root.md",
+        profile
+    )
+
+internal fun mdProcessingOffset(text: String, needle: String): Long {
+    val index = text.indexOf(needle)
+    assertTrue(index >= 0L)
+    return text.substring(0L, index).byteLength
+}
+
+internal fun mdCheckProcessedSources(result: ProcessedMarkdown, resources: MdMemoryResources) {
+    var end = 0L
+    for (span in result.sourceMap.spans) {
+        assertEquals(end, span.expandedRange.start)
+        val rendered = result.expanded.snapshot.read(span.expandedRange)
+        when (span.origin) {
+            case MarkdownSourceOrigin.Original(val range) ->
+            assertEquals(result.source.read(range), rendered)
+            case MarkdownSourceOrigin.Generated(val directive, val uri, val range) -> {
+                result.source.read(directive)
+                when (range) {
+                    case Some(val exact) -> assertEquals(
+                        MarkdownDocument.fromText(resources.contents[uri!!]!!.text).snapshot().read(
+                            exact
+                        ),
+                        rendered
+                    )
+                    case None -> Unit
+                }
+            }
+        }
+        end = span.expandedRange.end
+    }
+    assertEquals(result.expanded.snapshot.byteLength, end)
+}

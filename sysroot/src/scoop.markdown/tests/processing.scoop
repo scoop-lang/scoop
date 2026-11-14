@@ -1,0 +1,245 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownProcessingTests {
+    @Test
+    fun nestedRelativeResourcesPreserveBothSourcesAndDeepOrigins() {
+        val resources = MdMemoryResources()
+        resources.put("book/parts/chapter.md", "## Included\r\n\r\n{{#include ../sample.rs:2}}\r\n")
+        resources.put("book/sample.rs", "skip\r\n雪🙂\r\nlast\r\n")
+        val source = "# Root\r\n\r\n{{#include parts/chapter.md}}\r\n\r\nTail.\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val before = document.snapshot()
+        val notifications = ArrayList<MarkdownChange>()
+        val subscription = document.observe { change -> notifications.add(change) }
+        val result =
+            MarkdownProcessingSession(resources, [mdBookProcessor()]).process(
+                before,
+                "book/root.md",
+                MarkdownProfile(extensions = [mdBookDirectives()])
+            )
+        assertSame(before, result.source)
+        assertSame(before, document.snapshot())
+        assertEquals(0L, notifications.size)
+        assertEquals(source, document.toMarkdown())
+        assertEquals(
+            "# Root\r\n\r\n## Included\r\n\r\n雪🙂\r\n\r\nTail.\r\n",
+            result.expanded.snapshot.toMarkdown()
+        )
+        assertEquals(0L, result.diagnostics.size)
+        assertEquals(2L, resources.reads)
+        assertEquals(2L, result.dependencies.size)
+        val at = mdProcessingOffset(result.expanded.snapshot.toMarkdown(), "雪🙂")
+        val origin = result.sourceMap.origins(MarkdownRange(at, at + "雪🙂".byteLength))[0L].origin
+        when (origin) {
+            case MarkdownSourceOrigin.Generated(val directive, val uri, val range) -> {
+                assertEquals("{{#include parts/chapter.md}}", before.read(directive))
+                assertEquals(Some("book/sample.rs"), uri)
+                assertEquals(
+                    Some(MarkdownRange("skip\r\n".byteLength, "skip\r\n雪🙂".byteLength)),
+                    range
+                )
+            }
+            else -> fail(Some("Included bytes need a generated resource origin"))
+        }
+        mdCheckProcessedSources(result, resources)
+        subscription.close()
+    }
+
+    @Test
+    fun partialLinesUseOneBasedClosedRangesAndKeepActualLineEndings() {
+        val resources = MdMemoryResources()
+        resources.put("book/file", "one\r\n雪\rthree\nfour\r\n")
+        val suffixes = ["", ":2", "::2", ":2:", ":2:3", "::"]
+        val expected =
+            [
+                "one\r\n雪\rthree\nfour",
+                "雪",
+                "one\r\n雪",
+                "雪\rthree\nfour",
+                "雪\rthree",
+                "one\r\n雪\rthree\nfour"
+            ]
+        for (index in 0L ..< suffixes.size) {
+            val result = mdProcessed("{{#include file" + suffixes[index] + "}}\n", resources)
+            assertEquals(expected[index] + "\n", result.expanded.snapshot.toMarkdown())
+            assertEquals(0L, result.diagnostics.size)
+            mdCheckProcessedSources(result, resources)
+        }
+        for (
+            suffix in [":0", ":-2", ":+2", ":3:2", ":5", "::5", ":999999999999999999999999", ":"]
+        ) {
+            val source = "{{#include file" + suffix + "}}\n"
+            val result = mdProcessed(source, resources)
+            assertEquals(source, result.expanded.snapshot.toMarkdown())
+            assertEquals(1L, result.diagnostics.size)
+            assertEquals(MarkdownDiagnosticSeverity.Error, result.diagnostics[0L].severity)
+        }
+        resources.put("book/empty", "")
+        val empty = mdProcessed("{{#include empty}}", resources)
+        assertEquals("", empty.expanded.snapshot.toMarkdown())
+        assertEquals(0L, empty.diagnostics.size)
+        assertEquals(1L, mdProcessed("{{#include empty:1}}", resources).diagnostics.size)
+    }
+
+    @Test
+    fun anchorsSelectNestedAndRepeatedRegionsWithoutMarkerLines() {
+        val resources = MdMemoryResources()
+        resources.put(
+            "book/sample",
+            "outside\n// ANCHOR: all\nA\r\n// ANCHOR: inner\n雪\n" +
+                "// ANCHOR_END: inner\nB\n// ANCHOR_END: all\nskip\n// ANCHOR: all\nC\n// ANCHOR_END: all\n"
+        )
+        val result = mdProcessed("{{#include sample:all}}\n", resources)
+        assertEquals("A\r\n雪\nB\nC\n", result.expanded.snapshot.toMarkdown())
+        assertEquals(0L, result.diagnostics.size)
+        mdCheckProcessedSources(result, resources)
+        assertEquals(
+            "雪",
+            mdProcessed("{{#include sample:inner}}", resources).expanded.snapshot.toMarkdown()
+        )
+        assertEquals(1L, mdProcessed("{{#include sample:absent}}", resources).diagnostics.size)
+        resources.put("book/sample", "// ANCHOR: empty\n// ANCHOR_END: empty\n")
+        assertEquals(
+            "",
+            mdProcessed("{{#include sample:empty}}", resources).expanded.snapshot.toMarkdown()
+        )
+        for (
+            source in [
+                "// ANCHOR: part\nx\n",
+                "// ANCHOR_END: part\n",
+                "// ANCHOR: part\n// ANCHOR: other\n// ANCHOR_END: part\n"
+            ]
+        ) {
+            resources.put("book/sample", source)
+            val failed = mdProcessed("{{#include sample:part}}", resources)
+            assertEquals("{{#include sample:part}}", failed.expanded.snapshot.toMarkdown())
+            assertEquals(1L, failed.diagnostics.size)
+        }
+    }
+
+    @Test
+    fun expansionUsesRealListQuoteTableAndCodeContexts() {
+        val resources = MdMemoryResources()
+        resources.put("book/lines", "one\r\ntwo\r\n")
+        val quoted = mdProcessed("> - Before {{#include lines}} after.\r\n", resources)
+        assertEquals("> - Before one\r\n>   two after.\r\n", quoted.expanded.snapshot.toMarkdown())
+        assertEquals(
+            "<blockquote>\n<ul>\n<li>Before one\ntwo after.</li>\n</ul>\n</blockquote>\n",
+            mdTestHtml(quoted.expanded)
+        )
+        mdCheckProcessedSources(quoted, resources)
+        resources.put("book/rows", "| 1 | **x** |\n| 2 | y |\n")
+        val table = mdProcessed("> | A | B |\n> | --- | --- |\n> {{#include rows}}\n", resources)
+        assertEquals(
+            "> | A | B |\n> | --- | --- |\n> | 1 | **x** |\n> | 2 | y |\n",
+            table.expanded.snapshot.toMarkdown()
+        )
+        assertTrue(mdTestHtml(table.expanded).contains("<td><strong>x</strong></td>"))
+        mdCheckProcessedSources(table, resources)
+        val fence = 96.toChar().toString().repeat(3L)
+        val code =
+            mdProcessed(
+                "> " + fence + "rs\n> let x = {{#include lines}};\n> " + fence + "\n",
+                resources
+            )
+        assertTrue(mdTestHtml(code.expanded).contains("let x = one\ntwo;"))
+        mdCheckProcessedSources(code, resources)
+        val indented = mdProcessed("    {{#include lines}}\n", resources)
+        assertEquals("    one\r\n    two\n", indented.expanded.snapshot.toMarkdown())
+        assertTrue(mdTestHtml(indented.expanded).contains("<code>one\ntwo\n</code>"))
+    }
+
+    @Test
+    fun footnotesUseFourColumnContinuationInsteadOfTheirLabelWidth() {
+        val resources = MdMemoryResources()
+        resources.put("book/body", "first\n\n- nested\n- item\n")
+        val result =
+            mdProcessed(
+                "Use[^a-long-label].\n\n[^a-long-label]: {{#include body}}\n",
+                resources,
+                MarkdownProfile(footnotes = true, extensions = [mdBookDirectives()])
+            )
+        assertEquals(
+            "Use[^a-long-label].\n\n[^a-long-label]: first\n    \n    - nested\n    - item\n",
+            result.expanded.snapshot.toMarkdown()
+        )
+        val definition = result.expanded.footnoteDefinition("a-long-label")!!
+        assertEquals(2L, definition.children.size)
+        assertEquals(0L, result.diagnostics.size)
+        mdCheckProcessedSources(result, resources)
+    }
+
+    @Test
+    fun precedingIncludesCanOpenAndCloseLaterExtensionContexts() {
+        val resources = MdMemoryResources()
+        val fence = 96.toChar().toString().repeat(3L)
+        resources.put("book/open", fence + "text\n")
+        resources.put("book/close", fence + "\n")
+        val tag =
+            MdTagProcessor {
+                input -> MarkdownProcessingResult.Replace(
+                    MarkdownFragment.fromText("processed " + input.value.body.text)
+                )
+            }
+        val profile = MarkdownProfile(extensions = [mdBookDirectives(), MdProcessingTag()])
+        val session = MarkdownProcessingSession(resources, [mdBookProcessor(), tag])
+        val opened =
+            session.process(
+                MarkdownDocument.fromText(
+                    "{{#include open}}\n@{inside code}\n" + fence + "\n"
+                ).snapshot(),
+                "book/root.md",
+                profile
+            )
+        assertEquals(0L, tag.calls)
+        assertTrue(mdTestHtml(opened.expanded).contains("@{inside code}"))
+        val closed =
+            session.process(
+                MarkdownDocument.fromText(
+                    fence + "\n{{#include close}}\n@{outside code}\n"
+                ).snapshot(),
+                "book/root.md",
+                profile
+            )
+        assertEquals(1L, tag.calls)
+        assertTrue(mdTestHtml(closed.expanded).contains("<p>processed outside code</p>"))
+    }
+
+    @Test
+    fun cyclesRetainTheFailingDirectiveAndPartialSelfIncludesRemainUsable() {
+        val resources = MdMemoryResources()
+        resources.put("book/a", "A\n\n{{#include b}}\n")
+        resources.put("book/b", "B\n\n{{#include a}}\n")
+        val result = mdProcessed("{{#include a}}\n", resources)
+        assertEquals(1L, result.diagnostics.size)
+        assertTrue(result.diagnostics[0L].message.contains("Cyclic"))
+        assertEquals("{{#include a}}", result.expanded.snapshot.read(result.diagnostics[0L].range))
+        assertEquals(
+            MarkdownRange(0L, "{{#include a}}".byteLength),
+            result.sourceMap.sourceRange(result.diagnostics[0L].range)
+        )
+        resources.put(
+            "book/root.md",
+            "{{#include root.md:part}}\n\n// ANCHOR: part\nsafe\n// ANCHOR_END: part\n"
+        )
+        val self = mdProcessed(resources.contents["book/root.md"]!!.text, resources)
+        assertEquals(0L, self.diagnostics.size)
+        assertTrue(self.expanded.snapshot.toMarkdown().startsWith("safe\n"))
+        for (index in 0L ..< 30L)
+            resources.put(
+                "book/n" + index.toString(),
+                if (index == 29L)
+                    "deep"
+                else
+                    "{{#include n" + (index + 1L).toString() + "}}"
+            )
+        assertEquals(
+            "deep",
+            mdProcessed("{{#include n0}}", resources).expanded.snapshot.toMarkdown()
+        )
+    }
+}

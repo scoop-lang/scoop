@@ -1,0 +1,70 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+/** Serial, explicit processing; this object never observes or edits the live source document. */
+public class MarkdownProcessingSession public constructor(
+    private val resolver: MarkdownResourceResolver,
+    processors: List<MarkdownProcessor>
+) {
+    private val registered = HashMap<String, MarkdownProcessor>()
+    private val resources = HashMap<String, MarkdownResource>()
+    private var previous: ProcessedMarkdown? = None
+    private var processing = false
+
+    init {
+        for (processor in processors) {
+            val name = processor.name
+            requireMarkdown(
+                name != "" && !registered.containsKey(name),
+                "Markdown processor names must be nonempty and unique"
+            )
+            registered[name] = processor
+        }
+    }
+
+    public fun process(
+        snapshot: MarkdownSnapshot,
+        baseUri: String,
+        profile: MarkdownProfile = MarkdownProfile.Gfm
+    ): ProcessedMarkdown {
+        if (processing)
+            throw IllegalStateException(Some("Markdown content processing cannot reenter"))
+        requireMarkdown(baseUri != "", "Markdown processing requires a base URI")
+        processing = true
+        try {
+            val access = MdProcessingResources(resolver, resources)
+            when (previous) {
+                case Some(val result) -> {
+                    if (
+                        result.cacheable &&
+                            result.source.documentId ===
+                            snapshot.documentId &&
+                            result.source.revision ==
+                            snapshot.revision &&
+                            result.baseUri ==
+                            baseUri &&
+                            result.expanded.profile ==
+                            profile &&
+                            access.unchanged(result.dependencies)
+                    )
+                        return result
+                }
+                case None -> Unit
+            }
+            val result = mdProcess(snapshot, baseUri, profile, registered, access)
+            access.retireUnused()
+            previous = Some(result)
+            return result
+        } finally {
+            processing = false
+        }
+    }
+
+    public fun clearCache() {
+        if (processing)
+            throw IllegalStateException(Some("Cannot clear a running Markdown processing session"))
+        previous = None
+        resources.clear()
+    }
+}

@@ -110,6 +110,28 @@ footnotes 开关识别 `[^label]:` 定义与 `[^label]` 引用。定义是可包
 
 `FootnoteDefinition` 和 `FootnoteReference` 保存归一标签，完整范围及标记仍在 MarkdownNode。`ParsedMarkdown.footnoteDefinition(label)` 查询实际定义；`footnotes` 按正文首次引用顺序返回编号、定义身份与引用身份集合，再按已使用脚注中的引用继续展开编号。未使用定义不会单独占用编号，循环引用不会重复加入队列。源文档中的定义位置和拼写不因编号改变。
 
-## 11. 后续结构与处理
+## 11. 无 UI 内容处理与资源
 
-结构修改、带来源的内容展开与跨修改的节点身份复用继续按设计增补。普通解析结果里的身份不构成跨独立解析的匹配猜测。保存、修改与解析各自有明确边界，parse 不成为读取快照或源码输入的隐式副作用；公式与 Mermaid 的图像工具不参与 headless 文档的解析／生成合法性。
+`MarkdownProcessingSession(resolver, processors)` 对不可变 snapshot 显式执行 `process(snapshot, baseUri, profile)`，返回 `ProcessedMarkdown`。它包含原始快照、派生解析、分段来源映射、实际资源依赖和诊断；原文、revision 与订阅不改变。默认输出仍写原始 snapshot；需要展开后的 Markdown 时显式写 `result.expanded.snapshot`。session 由调用方串行使用，处理器与 resolver 的配置在其生命周期内保持不变；配置改变时建立新 session。
+
+`MarkdownResourceResolver` 提供 resolve(baseUri, reference)、version(uri) 和 read(uri)。URI 是调用方定义的稳定逻辑地址，resolve 负责普通相对路径解析；version 返回不读取正文的可选版本，None 表示资源不存在。read 返回同一个资源快照的 UTF-8 文本与版本；读期间发生修改时，以实际返回的版本为准。解析器仍不调用 resolver。平台文件、网络与内存适配在应用侧实现，不增加文档库的平台依赖。
+
+session 先比较输入文档身份、revision、base URI、profile 和已用资源版本，命中直接返回既有结果，不重新读取正文或重放处理。单次处理对同一 URI 使用同一资源快照；版本改变才读新正文。缺失资源也记录依赖，因此资源出现后可重处理；普通读取或版本查询异常形成当前指令诊断，下次显式 process 可以重试。缓存只保留当前结果及相关资源，clearCache 明确释放引用。缓存不读取内容以复核摘要，不检查文件系统来源。
+
+`MarkdownProcessor` 以扩展 name 注册，接收节点、当前派生解析、base URI 和本次资源读取入口，返回 Keep、Replace(fragment) 或诊断。重复 name 是配置错误。资源 I/O 错误转为诊断；处理器自身的编程错误照常传播，不发布部分结果。未注册的处理器不影响语法解析或原文保存。
+
+片段由 `MarkdownFragmentPart.Text(text, resourceUri?)` 和 `Resource(resource, range)` 组成。Text 是处理器已经生成的 Markdown，映射到整个原指令；可以给出资源地址，但没有精确范围时不伪造字节对应。Resource 是本次读取的不可变资源范围，保留逐字节来源和自己的 base URI，可继续处理其中的扩展。Text 不再次执行内容处理器，避免对已经生成的结果反复替换；它仍正常参与 Markdown 解析和展示。Resource 范围在消费时检查编码边界，嵌套处理中重复相同资源选区的祖先链报告循环，不按任意深度或通用预算截断文档。
+
+每次替换后重新解析实际上下文，再处理后面的指令；前一个展开可能打开或关闭代码围栏，因此不能按旧解析批量执行后续处理器，也不把分别解析的 include AST 拼接在一起。所属列表、引用及缩进代码的续行前缀应用到新增实际行，首行沿用所在位置。代码块内插入的是原始代码正文，不转义成普通 Markdown；随后仍按真实围栏语法解析，包含的关闭围栏会产生相应结构变化。来自不同生成上下文拼接而成的一个指令不继续隐式展开，并带有诊断；它的字面内容和解析结构仍保留。
+
+`MarkdownSourceMap` 的 spans 使用派生快照中的范围。Original 精确映射至原始 snapshot；Generated 保存最外层原指令范围、可选资源 URI 和可选资源范围。资源原样片段保留精确范围；补出的容器前缀只映射至指令和资源地址。sourceAt／expandedAt 以 Before／After 处理隐藏、替换和删除边界，生成内容对应整个指令；origins(range) 返回裁切后的来源片段，不能据此把生成正文当成可写源文本。ProcessedMarkdown 的所有诊断范围属于其 expanded.snapshot，可通过 sourceMap 返回原指令或实际资源位置。
+
+## 12. mdBook include
+
+`mdBookProcessor()` 与 `mdBookDirectives()` 配套，处理 include，其他命令保留源码并给出诊断。支持完整文件、`:N` 单行、`:N:M` 包含式末行、`::M`、`:N:` 与 anchor。行号为一基，越界、零、反向和非法数字均诊断；物理文件末尾换行不额外产生可选择的末尾空行。所选行之间保持资源的实际换行，最后一行的终止符不进入替换，以复用指令所在行的终止符。空文件得到空片段。
+
+anchor 用 `ANCHOR: name`／`ANCHOR_END: name` 成对标记，允许注释中的标记和嵌套；anchor 选中的正文忽略所有 anchor 标记行，整文件和行号选择仍按原样范围处理。重复同名的完整区段按文件顺序连接；缺失、未配对或错误关闭报告诊断。路径相对包含指令的文件解析，嵌套 include 保留自己的 URI。普通 Markdown、表格与围栏上下文均使用 §11 的派生重解析和来源合同；不以简单别名宣称兼容 rustdoc_include 的隐藏行行为。
+
+## 13. 后续结构与处理
+
+后续结构修改与跨修改的节点身份复用继续按设计增补。普通解析结果里的身份不构成跨独立解析的匹配猜测。保存、修改与解析各自有明确边界，parse 不成为读取快照或源码输入的隐式副作用；公式与 Mermaid 的图像工具不参与 headless 文档的解析／生成合法性。

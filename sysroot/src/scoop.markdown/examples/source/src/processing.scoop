@@ -1,0 +1,79 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.platform.env.currentDirectory
+import scoop.platform.fs.*
+import scoop.platform.io.*
+import scoop.platform.system.*
+
+/** A headless application adapter using ordinary file metadata for version detection. */
+public class FileMarkdownResolver: MarkdownResourceResolver {
+    public override fun resolve(baseUri: String, reference: String): String {
+        val parent = Path.fromString(baseUri).parent ?: currentDirectory()
+        return parent.resolve(Path.fromString(reference)).normalizeLexically().decodeUtf8()
+    }
+
+    public override fun version(uri: String): String? {
+        try {
+            return Some(fileVersion(Path.fromString(uri).metadata()))
+        } catch (error: PlatformException) {
+            if (
+                error.kind ==
+                    PlatformErrorKind.NotFound ||
+                    error.kind ==
+                    PlatformErrorKind.NotDirectory
+            )
+                return None
+            throw error
+        }
+    }
+
+    public override fun read(uri: String): MarkdownResourceData =
+        File.open(Path.fromString(uri)).use {
+            file ->
+            val before = fileVersion(file.metadata())
+            val text = file.readText()
+            val after = fileVersion(file.metadata())
+            if (before != after)
+                throw IllegalStateException(
+                    Some("Markdown resource changed while being read: " + uri)
+                )
+            MarkdownResourceData(text, after)
+        }
+}
+
+private fun fileVersion(metadata: FileMetadata): String =
+    metadata.modifiedAt.epochSeconds.toString() +
+        ":" +
+        metadata.modifiedAt.nanosecondsOfSecond.toString() +
+        ":" +
+        metadata.changedAt.epochSeconds.toString() +
+        ":" +
+        metadata.changedAt.nanosecondsOfSecond.toString() +
+        ":" +
+        metadata.size.toString()
+
+public fun processMarkdownFile(path: Path): ProcessedMarkdown {
+    val absolute = currentDirectory().resolve(path).normalizeLexically()
+    val source = MarkdownDocument.fromText(absolute.readText()).snapshot()
+    val profile =
+        MarkdownProfile(
+            math = true,
+            frontMatter = true,
+            footnotes = true,
+            extensions = [mdBookDirectives()]
+        )
+    return MarkdownProcessingSession(FileMarkdownResolver(), [mdBookProcessor()]).process(
+        source,
+        absolute.decodeUtf8(),
+        profile
+    )
+}
+
+/** Writing expanded output is an explicit application action, separate from source processing. */
+public fun writeExpandedMarkdown(result: ProcessedMarkdown, destination: Path) {
+    File.open(
+        destination,
+        OpenOptions(read = false, write = true, create = true, truncate = true)
+    ).use { file -> result.expanded.snapshot.writeTo(Utf8Writer(file)) }
+}

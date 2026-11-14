@@ -1,0 +1,126 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+import scoop.collections.toList
+
+internal class MdResourceStatus(val version: String?, val failure: String? = None)
+
+/** One coherent resource read per URI in this invocation, shared by all directives. */
+internal class MdProcessingResources(
+    private val resolver: MarkdownResourceResolver,
+    private val cache: HashMap<String, MarkdownResource>
+) {
+    private val observed = HashMap<String, MdResourceStatus>()
+    private val used = HashMap<String, Boolean>()
+    private val order = ArrayList<String>()
+    var cacheable = true
+
+    fun status(uri: String): MdResourceStatus {
+        when (val previous = observed[uri]) {
+            case Some(val value) -> return value
+            case None -> Unit
+        }
+        val result =
+            try {
+                MdResourceStatus(resolver.version(uri))
+            } catch (failure: Exception) {
+                cacheable = false
+                MdResourceStatus(None, Some(failure.message ?: "Resource version query failed"))
+            }
+        observed[uri] = result
+        return result
+    }
+
+    fun unchanged(dependencies: Array<MarkdownResourceDependency>): Boolean {
+        var unchanged = true
+        for (dependency in dependencies) {
+            val current = status(dependency.uri)
+            if (current.failure != None || current.version != dependency.version)
+                unchanged = false
+        }
+        return unchanged
+    }
+
+    fun read(baseUri: String, reference: String): MarkdownResource {
+        val uri =
+            try {
+                resolver.resolve(baseUri, reference)
+            } catch (failure: Exception) {
+                cacheable = false
+                throw MarkdownResourceException(
+                    baseUri,
+                    failure.message ?: "Resource resolution failed"
+                )
+            }
+        if (uri == "") {
+            cacheable = false
+            throw MarkdownResourceException(baseUri, "Resource resolution returned an empty URI")
+        }
+        return readUri(uri)
+    }
+
+    private fun markUsed(uri: String) {
+        if (!used.containsKey(uri)) {
+            used[uri] = true
+            order.add(uri)
+        }
+    }
+
+    private fun readUri(uri: String): MarkdownResource {
+        val current = status(uri)
+        markUsed(uri)
+        when (current.failure) {
+            case Some(val detail) -> throw MarkdownResourceException(uri, detail)
+            case None -> Unit
+        }
+        val version =
+            current.version ?:
+                throw MarkdownResourceException(uri, "Markdown resource does not exist: " + uri)
+        when (cache[uri]) {
+            case Some(val previous) -> if (previous.version == version)
+                return previous
+            case None -> Unit
+        }
+        val data =
+            try {
+                resolver.read(uri)
+            } catch (failure: Exception) {
+                cacheable = false
+                val detail = failure.message ?: "Resource read failed"
+                observed[uri] = MdResourceStatus(current.version, Some(detail))
+                throw MarkdownResourceException(uri, detail)
+            }
+        val result =
+            MarkdownResource(uri, data.version, MarkdownDocument.fromText(data.text).snapshot())
+        observed[uri] = MdResourceStatus(Some(data.version))
+        cache[uri] = result
+        return result
+    }
+
+    /** Retained fragments must still describe the resource version used by this invocation. */
+    fun use(resource: MarkdownResource) {
+        val current = status(resource.uri)
+        markUsed(resource.uri)
+        when (current.failure) {
+            case Some(val detail) -> throw MarkdownResourceException(resource.uri, detail)
+            case None -> Unit
+        }
+        if (current.version != Some(resource.version))
+            throw IllegalStateException(Some("A resource fragment has an obsolete version"))
+        cache[resource.uri] = resource
+    }
+
+    fun dependencies(): Array<MarkdownResourceDependency> =
+        Array<MarkdownResourceDependency>(order.size) {
+            index ->
+            val uri = order[index]
+            MarkdownResourceDependency(uri, observed[uri]!!.version)
+        }
+
+    fun retireUnused() {
+        val keys = cache.keys.toList().toArray()
+        for (uri in keys)
+            if (!used.containsKey(uri))
+                cache.remove(uri)
+    }
+}

@@ -1,0 +1,133 @@
+package scoop.markdown
+
+/** Uses the owning block, never preceding words or table cells, as the continuation context. */
+internal fun mdProcessingPrefix(parsed: ParsedMarkdown, node: MarkdownNode): String {
+    var current: MarkdownNode? = Some(node)
+    var block: MarkdownNode? = None
+    while (true) {
+        val value = current ?: break
+        val selected =
+            when (value.content) {
+                case MarkdownContent.Paragraph(_) -> true
+                case MarkdownContent.Heading(_, _, _) -> true
+                case MarkdownContent.CodeBlock(_, _, _) -> true
+                case MarkdownContent.Table(_) -> true
+                case MarkdownContent.Extension(val extension) ->
+                extension.location == MarkdownExtensionLocation.Block
+                else -> false
+            }
+        if (selected) {
+            block = Some(value)
+            break
+        }
+        current = parsed.parent(value.id)
+    }
+    val owner = block ?: return ""
+    val snapshot = parsed.snapshot
+    val start = snapshot.positionOfLine(mdNodeLine(snapshot, owner)).byteOffset
+    val footnotes = ArrayList<MarkdownRange>()
+    current = parsed.parent(owner.id)
+    while (true) {
+        val value = current ?: break
+        when (value.content) {
+            case MarkdownContent.FootnoteDefinition(_) -> {
+                val marker = value.markers[0L]
+                if (marker.start >= start && marker.end <= owner.range.start) {
+                    var end = marker.end
+                    while (
+                        end <
+                            owner.range.start &&
+                            mdSpace(markdownRopeByte(snapshot.root, end).toInt().and(255))
+                    )
+                        end += 1L
+                    footnotes.add(MarkdownRange(marker.start, end))
+                }
+            }
+            else -> Unit
+        }
+        current = parsed.parent(value.id)
+    }
+    if (footnotes.size == 0L)
+        return mdContinuationPrefix(snapshot, owner)
+    val result = StringBuilder()
+    var at = start
+    var index = footnotes.size
+    while (index > 0L) {
+        index -= 1L
+        val marker = footnotes[index]
+        mdAppendContinuation(result, snapshot.read(MarkdownRange(at, marker.start)))
+        result.append("    ")
+        at = marker.end
+    }
+    mdAppendContinuation(result, snapshot.read(MarkdownRange(at, owner.range.start)))
+    return result.toString()
+}
+
+private fun mdAppendContinuation(output: StringBuilder, text: String) {
+    for (character in text.toCharArray())
+        output.append(
+            if (character == '>' || character == ' ' || character == '\t')
+                character
+            else
+                ' '
+        )
+}
+
+/** Inserts only container prefixes; CRLF remains one physical newline across piece boundaries. */
+internal fun mdPrefixExpansion(pieces: Array<MdExpansionPiece>, prefix: String): Array<
+    MdExpansionPiece
+> {
+    if (prefix == "")
+        return pieces
+    val result = ArrayList<MdExpansionPiece>()
+    val prefixRope = markdownRopeFromText(prefix)
+    for (index in 0L ..< pieces.size) {
+        val piece = pieces[index]
+        if (piece.rope.byteLength == 0L) {
+            result.add(piece)
+            continue
+        }
+        val bytes =
+            MarkdownSnapshot(MarkdownDocumentId(), 0L, piece.rope).toMarkdown().toByteArray()
+        var start = 0L
+        var at = 0L
+        while (at < bytes.size) {
+            val code = bytes[at].toInt().and(255)
+            val next =
+                if (at + 1L < bytes.size)
+                    bytes[at + 1L].toInt().and(255)
+                else
+                    mdNextExpansionByte(pieces, index + 1L)
+            at += 1L
+            if (code != 10 && (code != 13 || next == 10))
+                continue
+            result.add(piece.slice(start, at))
+            val uri =
+                when (piece.origin) {
+                    case MarkdownSourceOrigin.Generated(_, val sourceUri, _) -> sourceUri
+                    case MarkdownSourceOrigin.Original(_) -> None
+                }
+            result.add(
+                MdExpansionPiece(
+                    prefixRope,
+                    MarkdownSourceOrigin.Generated(mdOriginalRange(piece.origin), uri, None),
+                    piece.context
+                )
+            )
+            start = at
+        }
+        if (start < bytes.size)
+            result.add(piece.slice(start, bytes.size))
+    }
+    return result.toArray()
+}
+
+private fun mdNextExpansionByte(pieces: Array<MdExpansionPiece>, from: Long): Int {
+    var index = from
+    while (index < pieces.size) {
+        if (pieces[index].rope.byteLength > 0L)
+            return markdownRopeByte(pieces[index].rope, 0L).toInt().and(255)
+        index += 1L
+    }
+    return -1
+}

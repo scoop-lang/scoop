@@ -1,0 +1,227 @@
+package scoop.markdown
+
+public enum MarkdownSourceOrigin {
+    Original(MarkdownRange),
+    Generated(MarkdownRange, String?, MarkdownRange?)
+}
+
+public struct MarkdownSourceSpan(val expandedRange: MarkdownRange, val origin: MarkdownSourceOrigin)
+
+/** Origins refer to source, while span coordinates refer to expanded. Generated text is read-only. */
+public class MarkdownSourceMap internal constructor(
+    public val source: MarkdownSnapshot,
+    public val expanded: MarkdownSnapshot,
+    public val spans: Array<MarkdownSourceSpan>
+) {
+    private val projection = mdRootProjection(spans)
+
+    public fun sourceAt(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownPosition {
+        expanded.checkPosition(position.byteOffset)
+        val index = mdProjectionIndex(projection, position.byteOffset, false, bias)
+        if (index == projection.size)
+            return MarkdownPosition(source.byteLength)
+        val span = projection[index]
+        return MarkdownPosition(
+            mdProject(position.byteOffset, span.expandedRange, span.sourceRange, span.literal, bias)
+        )
+    }
+
+    public fun expandedAt(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownPosition {
+        source.checkPosition(position.byteOffset)
+        val index = mdProjectionIndex(projection, position.byteOffset, true, bias)
+        if (index == projection.size)
+            return MarkdownPosition(expanded.byteLength)
+        val span = projection[index]
+        return MarkdownPosition(
+            mdProject(position.byteOffset, span.sourceRange, span.expandedRange, span.literal, bias)
+        )
+    }
+
+    /** Clips exact mappings, retaining whole directive ranges for generated content. */
+    public fun origins(range: MarkdownRange): Array<MarkdownSourceSpan> {
+        expanded.checkRange(range)
+        val result = ArrayList<MarkdownSourceSpan>()
+        var index = mdSourceSpanIndex(spans, range.start, MarkdownBias.After)
+        if (index == spans.size)
+            index -= 1L
+        while (index >= 0L && index < spans.size) {
+            val span = spans[index]
+            if (span.expandedRange.start >= range.end && !range.isEmpty)
+                break
+            val start =
+                if (range.start > span.expandedRange.start)
+                    range.start
+                else
+                    span.expandedRange.start
+            val end =
+                if (range.end < span.expandedRange.end)
+                    range.end
+                else
+                    span.expandedRange.end
+            if (start < end || (range.isEmpty && start == end)) {
+                result.add(
+                    MarkdownSourceSpan(
+                        MarkdownRange(start, end),
+                        mdClipOrigin(
+                            span.origin,
+                            start - span.expandedRange.start,
+                            end - span.expandedRange.start
+                        )
+                    )
+                )
+                if (range.isEmpty)
+                    break
+            }
+            index += 1L
+        }
+        return result.toArray()
+    }
+
+    /** The smallest original range containing every selected origin, including directives. */
+    public fun sourceRange(range: MarkdownRange): MarkdownRange {
+        val selected = origins(range)
+        if (selected.size == 0L) {
+            val at = sourceAt(MarkdownPosition(range.start)).byteOffset
+            return MarkdownRange(at, at)
+        }
+        return MarkdownRange(
+            mdOriginalRange(selected[0L].origin).start,
+            mdOriginalRange(selected[selected.size - 1L].origin).end
+        )
+    }
+}
+
+internal fun mdOriginalRange(origin: MarkdownSourceOrigin): MarkdownRange =
+    when (origin) {
+        case MarkdownSourceOrigin.Original(val range) -> range
+        case MarkdownSourceOrigin.Generated(val range, _, _) -> range
+    }
+
+internal fun mdClipOrigin(
+    origin: MarkdownSourceOrigin,
+    start: Long,
+    end: Long
+): MarkdownSourceOrigin =
+    when (origin) {
+        case MarkdownSourceOrigin.Original(val range) ->
+        MarkdownSourceOrigin.Original(MarkdownRange(range.start + start, range.start + end))
+        case MarkdownSourceOrigin.Generated(val directive, val uri, val range) ->
+        MarkdownSourceOrigin.Generated(
+            directive,
+            uri,
+            when (range) {
+                case Some(val exact) ->
+                Some(MarkdownRange(exact.start + start, exact.start + end))
+                case None -> None
+            }
+        )
+    }
+
+internal fun mdSourceSpanIndex(
+    spans: Array<MarkdownSourceSpan>,
+    offset: Long,
+    bias: MarkdownBias
+): Long {
+    var low = 0L
+    var high = spans.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        val end = spans[middle].expandedRange.end
+        if (end < offset || (end == offset && bias == MarkdownBias.After))
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return low
+}
+
+internal struct MdRootProjection(
+    val expandedRange: MarkdownRange,
+    val sourceRange: MarkdownRange,
+    val literal: Boolean
+)
+
+private fun mdRootProjection(spans: Array<MarkdownSourceSpan>): Array<MdRootProjection> {
+    val result = ArrayList<MdRootProjection>()
+    for (span in spans) {
+        val literal =
+            when (span.origin) {
+                case MarkdownSourceOrigin.Original(_) -> true
+                else -> false
+            }
+        val source = mdOriginalRange(span.origin)
+        if (!literal && result.size > 0L) {
+            val previous = result[result.size - 1L]
+            if (
+                !previous.literal &&
+                    previous.sourceRange ==
+                    source &&
+                    previous.expandedRange.end ==
+                    span.expandedRange.start
+            ) {
+                result[result.size - 1L] =
+                    MdRootProjection(
+                        MarkdownRange(previous.expandedRange.start, span.expandedRange.end),
+                        source,
+                        false
+                    )
+                continue
+            }
+        }
+        result.add(MdRootProjection(span.expandedRange, source, literal))
+    }
+    return result.toArray()
+}
+
+private fun mdProjectionIndex(
+    spans: Array<MdRootProjection>,
+    offset: Long,
+    bySource: Boolean,
+    bias: MarkdownBias
+): Long {
+    var low = 0L
+    var high = spans.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        val end =
+            if (bySource)
+                spans[middle].sourceRange.end
+            else
+                spans[middle].expandedRange.end
+        if (end < offset || (end == offset && bias == MarkdownBias.After))
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return low
+}
+
+private fun mdProject(
+    offset: Long,
+    from: MarkdownRange,
+    to: MarkdownRange,
+    literal: Boolean,
+    bias: MarkdownBias
+): Long {
+    if (literal)
+        return to.start + offset - from.start
+    if (from.isEmpty)
+        return if (bias == MarkdownBias.Before)
+            to.start
+        else
+            to.end
+    if (offset <= from.start)
+        return to.start
+    if (offset >= from.end)
+        return to.end
+    return if (bias == MarkdownBias.Before)
+        to.start
+    else
+        to.end
+}

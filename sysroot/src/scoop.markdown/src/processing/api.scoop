@@ -1,0 +1,77 @@
+package scoop.markdown
+
+/** Application I/O adapter. Versions change whenever the UTF-8 resource contents change. */
+public interface MarkdownResourceResolver {
+    public fun resolve(baseUri: String, reference: String): String
+    public fun version(uri: String): String?
+    public fun read(uri: String): MarkdownResourceData
+}
+
+/** Contents and version from the same completed read. */
+public struct MarkdownResourceData(val text: String, val version: String)
+
+public class MarkdownResource internal constructor(
+    public val uri: String,
+    public val version: String,
+    public val snapshot: MarkdownSnapshot
+)
+
+/** A missing resource has version None and still participates in update detection. */
+public struct MarkdownResourceDependency(val uri: String, val version: String?)
+
+public class MarkdownResourceException internal constructor(
+    public val uri: String,
+    detail: String
+): Exception(Some(detail))
+
+/** Text is already processed; resource ranges can contain further source directives. */
+public enum MarkdownFragmentPart {
+    Text(String, String?),
+    Resource(MarkdownResource, MarkdownRange)
+}
+
+public class MarkdownFragment public constructor(parts: List<MarkdownFragmentPart>) {
+    public val parts: Array<MarkdownFragmentPart> = parts.toArray()
+    public companion object {
+        public fun fromText(text: String, resourceUri: String? = None): MarkdownFragment =
+            MarkdownFragment([MarkdownFragmentPart.Text(text, resourceUri)])
+        public fun fromResource(
+            resource: MarkdownResource,
+            range: MarkdownRange
+        ): MarkdownFragment = MarkdownFragment([MarkdownFragmentPart.Resource(resource, range)])
+    }
+}
+
+public enum MarkdownProcessingResult {
+    Keep,
+    Replace(MarkdownFragment),
+    Diagnostic(String, MarkdownDiagnosticSeverity)
+}
+
+/** A statically registered, synchronous content processor for one extension name. */
+public interface MarkdownProcessor {
+    public val name: String
+    public fun process(input: MarkdownProcessingInput): MarkdownProcessingResult
+}
+
+public class MarkdownProcessingInput internal constructor(
+    public val node: MarkdownNode,
+    public val value: MarkdownExtensionValue,
+    public val parsed: ParsedMarkdown,
+    public val baseUri: String,
+    private val resources: MdProcessingResources
+) {
+    /** Resolves against the file containing this directive, including nested resources. */
+    public fun read(reference: String): MarkdownResource = resources.read(baseUri, reference)
+}
+
+/** Derived content; all diagnostic ranges belong to expanded.snapshot. */
+public class ProcessedMarkdown internal constructor(
+    public val source: MarkdownSnapshot,
+    public val baseUri: String,
+    public val expanded: ParsedMarkdown,
+    public val sourceMap: MarkdownSourceMap,
+    public val dependencies: Array<MarkdownResourceDependency>,
+    public val diagnostics: Array<MarkdownDiagnostic>,
+    internal val cacheable: Boolean
+)

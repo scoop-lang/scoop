@@ -50,6 +50,20 @@ val parsed = document.parse(profile)
 
 `mdBookDirectives()` 只识别 `{{#command arguments}}`，同时支持行内、独立段落和代码块正文。解析不会读取 include 文件或启动渲染工具。自定义实现提供 name、trigger、locations 和 parse，输入及返回范围均采用该映射片段中的 UTF-8 字节坐标；完整用法见[无 UI 扩展示例](examples/source/tests/extensions.scoop)。Block 注册只能接管一个完整段落，不能跨 CommonMark 容器；代码块正文必须单独启用，code span 和 HTML 保持自己的词法。未注册的内容仍按普通 Markdown 解析，配置变化应使用新的 profile／扩展实例。
 
+内容展开使用独立的 `MarkdownProcessingSession`。应用实现 `MarkdownResourceResolver` 的路径解析、版本查询和读取后，可以显式处理同一个不可变 snapshot：
+
+```scoop
+val session = MarkdownProcessingSession(resolver, [mdBookProcessor()])
+val result = session.process(document.snapshot(), sourceUri, profile)
+val expanded = result.expanded.snapshot
+```
+
+`document` 与 `result.source` 保持原始 Markdown；写 `expanded` 才输出展开内容。`mdBookProcessor()` 支持整文件、单行、一基闭区间、开放起止行号和成对 anchor，嵌套路径相对各自文件解析。每次替换后在实际上下文重新解析，因此包括表格续行、引用／列表和代码围栏的变化。缺失、越界、未配对 anchor 和循环包含保留指令并给出诊断；未知命令同样保留，未实现的 rustdoc_include 不被当作普通 include。
+
+`MarkdownProcessor` 也可以由另一个 Cone 实现，返回 Keep、Replace 或诊断。片段的 Text 是已经合成的 Markdown；Resource 引用本次读取资源的原样范围，并允许继续处理其嵌套指令。`sourceMap.origins(range)` 给出派生范围的来源：Original 精确对应原文，Generated 定位到原指令，能确定资源字节时额外保留 URI 和范围。补出的容器前缀与合成文字不声称精确资源偏移；`sourceAt`／`expandedAt` 用偏向处理替换和删除边界。所有结果诊断范围属于 `expanded` 快照。
+
+session 先查询版本，输入未变时直接复用已有结果，不再次读正文或运行处理器；缺失资源也参与更新检测。配置在 session 生命周期内保持不变，`clearCache()` 释放缓存引用。完整的跨 Cone 自定义处理器和真实文件展开、输出、更新验证见[无 UI 文件示例](examples/source/README.md)。纯解析和生成仍不需要 resolver 或渲染工具。
+
 生成新的 Markdown 使用 block／inline receiver DSL：
 
 ```scoop
@@ -81,7 +95,7 @@ document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 
 `transform` 要求当前文档、当前 revision 的解析结果。同一批命令基于同一份原始坐标，按源码顺序准备后一次发布；冲突或错误参数不留下部分修改。除了标题／段落转换，还可以 replaceText、setInlineContent、wrapInline／unwrapInline、setLinkTarget、setReferenceDefinition、setTask、setTableCell、insertTableRow 和 removeTableRow。节点未涉及的源片段继续保留原始写法，引用和列表的续行沿用本地前缀及换行。修改一个引用链接的 target 会生成独立 inline link；修改共享定义使用明确的 setReferenceDefinition。完整消费示例见 [editing.scoop](examples/source/tests/editing.scoop)，边界见[结构事务规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#8-结构事务)。
 
-整列和列表层级操作、显式格式化、跨 revision 复用、include 内容展开及 UI 展示继续按设计实施。Mermaid 仍为普通代码围栏，图像生成由 UI／应用适配承担。
+整列和列表层级操作、显式格式化、跨 revision 复用及 UI 展示继续按设计实施。Mermaid 仍为普通代码围栏，图像生成由 UI／应用适配承担。
 
 完整的独立消费示例见 [examples/source](examples/source/src/main.scoop)，其 Cone 通过 path 依赖当前源码库，不要求先重新打包 sysroot。未安装本库时，应用在 `Cone.toml` 中为 `scoop:scoop.markdown` 指定实际源码目录。
 

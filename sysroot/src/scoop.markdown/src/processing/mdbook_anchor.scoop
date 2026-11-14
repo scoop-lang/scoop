@@ -1,0 +1,62 @@
+package scoop.markdown
+
+import scoop.regex.Regex
+import scoop.text.startsWith
+
+/** Anchor syntax follows the documented mdBook ANCHOR / ANCHOR_END convention. */
+internal fun mdBookAnchor(snapshot: MarkdownSnapshot, lineCount: Long, anchor: String): Array<
+    MarkdownRange
+> {
+    val markers = Regex("ANCHOR(_END)?:\\s*([\\w_-]+)")
+    try {
+        val stack = ArrayList<String>()
+        val ranges = ArrayList<MarkdownRange>()
+        var active = 0L
+        var found = false
+        var emptyPosition = 0L
+        for (line in 0L ..< lineCount) {
+            val body = snapshot.lineRange(line)
+            val full = snapshot.lineRange(line, true)
+            var marked = false
+            for (match in markers.findAll(snapshot.read(body))) {
+                marked = true
+                val name = match.groups[2L]!!.value
+                val closing = match.value.startsWith("ANCHOR_END:")
+                if (closing) {
+                    if (stack.size == 0L || stack[stack.size - 1L] != name)
+                        throw MdIncludeError("Unpaired include anchor end: " + name)
+                    stack.removeAt(stack.size - 1L)
+                    if (name == anchor)
+                        active -= 1L
+                } else {
+                    stack.add(name)
+                    if (name == anchor) {
+                        active += 1L
+                        if (!found)
+                            emptyPosition = full.end
+                        found = true
+                    }
+                }
+            }
+            if (!marked && active > 0L) {
+                if (ranges.size > 0L && ranges[ranges.size - 1L].end == full.start)
+                    ranges[ranges.size - 1L] =
+                        MarkdownRange(ranges[ranges.size - 1L].start, full.end)
+                else
+                    ranges.add(full)
+            }
+        }
+        if (stack.size > 0L)
+            throw MdIncludeError("Unclosed include anchor: " + stack[stack.size - 1L])
+        if (!found)
+            throw MdIncludeError("Include anchor does not exist: " + anchor)
+        if (ranges.size == 0L)
+            return [MarkdownRange(emptyPosition, emptyPosition)]
+        val last = ranges[ranges.size - 1L]
+        val lastLine = snapshot.lineAt(MarkdownPosition(last.end - 1L))
+        ranges[ranges.size - 1L] = MarkdownRange(last.start, snapshot.lineRange(lastLine).end)
+        return ranges.toArray()
+    } finally {
+        markers.close()
+    }
+}

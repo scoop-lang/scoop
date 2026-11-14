@@ -1,0 +1,147 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Expands include directives while keeping the original document and directive ranges intact. */
+public fun mdBookProcessor(): MarkdownProcessor = MdBookProcessor
+
+private object MdBookProcessor: MarkdownProcessor {
+    public override val name: String = "mdbook"
+    public override fun process(input: MarkdownProcessingInput): MarkdownProcessingResult {
+        val command = input.value.attribute("command") ?: ""
+        if (command != "include")
+            return MarkdownProcessingResult.Diagnostic(
+                "No mdBook processor for command: " + command,
+                MarkdownDiagnosticSeverity.Warning
+            )
+        try {
+            val argument = mdBookArgument(input.value.attribute("arguments") ?: "")
+            val resource = input.read(argument.reference)
+            val ranges = mdBookRanges(resource.snapshot, argument.selection)
+            val parts =
+                Array<MarkdownFragmentPart>(ranges.size) {
+                    index -> MarkdownFragmentPart.Resource(resource, ranges[index])
+                }
+            return MarkdownProcessingResult.Replace(MarkdownFragment(parts))
+        } catch (failure: MdIncludeError) {
+            return MarkdownProcessingResult.Diagnostic(
+                failure.message ?: "Invalid Markdown include",
+                MarkdownDiagnosticSeverity.Error
+            )
+        }
+    }
+}
+
+internal class MdIncludeError(detail: String): Exception(Some(detail))
+
+internal enum MdBookSelection {
+    All,
+    Lines(Long?, Long?),
+    Anchor(String)
+}
+
+internal struct MdBookArgument(val reference: String, val selection: MdBookSelection)
+
+internal fun mdBookArgument(argument: String): MdBookArgument {
+    if (argument == "")
+        throw MdIncludeError("Markdown include requires a resource path")
+    val parts = argument.split(":")
+    if (parts.size == 1L)
+        return MdBookArgument(argument, MdBookSelection.All)
+    val last = parts[parts.size - 1L]
+    if (last.contains("/") || last.contains("\\"))
+        return MdBookArgument(argument, MdBookSelection.All)
+    var retained = parts.size - 1L
+    val selection =
+        if (mdBookLineToken(last)) {
+            if (parts.size >= 3L && mdBookLineToken(parts[parts.size - 2L])) {
+                val start = mdBookLineNumber(parts[parts.size - 2L])
+                val end = mdBookLineNumber(last)
+                retained -= 1L
+                MdBookSelection.Lines(start, end)
+            } else {
+                val line =
+                    mdBookLineNumber(last) ?:
+                        throw MdIncludeError("An include line selector cannot be empty")
+                MdBookSelection.Lines(Some(line), Some(line))
+            }
+        } else {
+            MdBookSelection.Anchor(last)
+        }
+    val path = StringBuilder()
+    for (index in 0L ..< retained) {
+        if (index > 0L)
+            path.append(":")
+        path.append(parts[index])
+    }
+    val reference = path.toString()
+    if (reference == "")
+        throw MdIncludeError("Markdown include requires a resource path")
+    return MdBookArgument(reference, selection)
+}
+
+private fun mdBookLineToken(text: String): Boolean {
+    if (text == "")
+        return true
+    val bytes = text.toByteArray()
+    var at =
+        if (bytes[0L].toInt() == 43 || bytes[0L].toInt() == 45)
+            1L
+        else
+            0L
+    if (at == bytes.size)
+        return false
+    while (at < bytes.size) {
+        if (!mdDigit(bytes[at].toInt()))
+            return false
+        at += 1L
+    }
+    return true
+}
+
+private fun mdBookLineNumber(text: String): Long? {
+    if (text == "")
+        return None
+    val number = text.toLongOrNone()
+    if (number == None || number!! <= 0L || text.startsWith("+") || text.startsWith("-"))
+        throw MdIncludeError("Include line numbers must be positive one-based integers")
+    return number
+}
+
+internal fun mdBookRanges(snapshot: MarkdownSnapshot, selection: MdBookSelection): Array<
+    MarkdownRange
+> {
+    val count =
+        if (snapshot.byteLength == 0L)
+            0L
+        else
+            if (snapshot.positionOfLine(snapshot.lineCount - 1L).byteOffset == snapshot.byteLength)
+                snapshot.lineCount - 1L
+            else
+                snapshot.lineCount
+    return when (selection) {
+        case MdBookSelection.All ->
+        [
+            MarkdownRange(
+                0L,
+                if (count == 0L)
+                    0L
+                else
+                    snapshot.lineRange(count - 1L).end
+            )
+        ]
+        case MdBookSelection.Lines(val first, val last) -> {
+            val start = first ?: 1L
+            val end = last ?: count
+            if (start <= 0L || end < start || start > count || end > count)
+                throw MdIncludeError("Include line range is outside the resource")
+            [
+                MarkdownRange(
+                    snapshot.positionOfLine(start - 1L).byteOffset,
+                    snapshot.lineRange(end - 1L).end
+                )
+            ]
+        }
+        case MdBookSelection.Anchor(val anchor) -> mdBookAnchor(snapshot, count, anchor)
+    }
+}
