@@ -1,0 +1,43 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Color
+
+/** Markdown colors are independent of the code language theme and do not change geometry. */
+public class MarkdownSourceTheme public constructor(
+    public val marker: Color = Color(0.46, 0.49, 0.53),
+    public val heading: Color = Color(0.12, 0.30, 0.68),
+    public val emphasis: Color = Color(0.50, 0.24, 0.59),
+    public val strong: Color = Color(0.50, 0.18, 0.43),
+    public val strikethrough: Color = Color(0.46, 0.49, 0.53),
+    public val link: Color = Color(0.04, 0.42, 0.55),
+    public val code: Color = Color(0.04, 0.39, 0.23),
+    public val raw: Color = Color(0.52, 0.32, 0.12)
+) {
+    public fun color(kind: MarkdownSourceKind, codeTheme: MarkdownCodeTheme): Color =
+        when (kind) {
+            case Marker -> marker
+            case Heading -> heading
+            case Emphasis -> emphasis
+            case Strong -> strong
+            case Strikethrough -> strikethrough
+            case Link -> link
+            case Code -> code
+            case Raw -> raw
+            case CodeToken(val token) -> codeTheme.color(token)
+        }
+
+    public companion object {
+        public val Light: MarkdownSourceTheme = MarkdownSourceTheme()
+        public val Dark: MarkdownSourceTheme =
+            MarkdownSourceTheme(
+                marker = Color(0.57, 0.64, 0.69),
+                heading = Color(0.49, 0.72, 0.97),
+                emphasis = Color(0.82, 0.60, 0.89),
+                strong = Color(0.93, 0.62, 0.81),
+                strikethrough = Color(0.57, 0.64, 0.69),
+                link = Color(0.43, 0.80, 0.81),
+                code = Color(0.61, 0.81, 0.56),
+                raw = Color(0.92, 0.69, 0.46)
+            )
+    }
+}

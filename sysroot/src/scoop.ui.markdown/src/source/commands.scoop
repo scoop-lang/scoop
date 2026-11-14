@@ -72,6 +72,23 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
         case Delete(val deletion) -> {
             if (host.options.readOnly)
                 return true
+            val pair =
+                if (
+                    host.options.autoPairs &&
+                        !state.isComposing &&
+                        deletion ==
+                        TextDeletion.Backward
+                )
+                    host.assistance.deletion(state.selection, host.sourceRange)
+                else
+                    None
+            when (pair) {
+                case Some(val range) -> {
+                    host.perform({ state.replace(range, "") })
+                    return true
+                }
+                case None -> Unit
+            }
             val range = mdSourceDelete(host, deletion)
             val folding = host.folding
             if (
@@ -113,18 +130,18 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
         case Redo -> if (!host.options.readOnly)
             host.perform({ state.redo() })
         case InsertNewline -> if (!host.options.readOnly) {
-            val snapshot = state.snapshot
-            var line = snapshot.lineAt(state.selection.cursor)
-            if (line + 1L == snapshot.lineCount && line > 0L)
-                line -= 1L
-            val body = snapshot.lineRange(line)
-            val full = snapshot.lineRange(line, true)
-            val ending =
-                if (full.end > body.end)
-                    snapshot.read(MarkdownRange(body.end, full.end))
-                else
-                    "\n"
-            host.perform({ state.replaceSelection(ending) })
+            val insertion =
+                mdSourceNewline(
+                    state.snapshot,
+                    state.selection,
+                    host.sourceRange,
+                    host.options,
+                    if (state.isComposing)
+                        None
+                    else
+                        host.syntax
+                )
+            host.perform({ state.apply(insertion.change, insertion.caret) })
         }
         case InsertTab -> if (!host.options.readOnly) {
             if (

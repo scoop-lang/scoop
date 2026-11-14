@@ -54,7 +54,13 @@ internal fun mdPaintSourceFold(
     color: Color
 ) {
     val region = mdSourceFold(frame, index) ?: return
-    mdPaintFoldArrow(context, frame.padding, top, frame.folds!!.isCollapsed(region), color)
+    mdPaintFoldArrow(
+        context,
+        frame.padding + frame.lineNumberWidth,
+        top,
+        frame.folds!!.isCollapsed(region),
+        color
+    )
 }
 
 internal fun mdPaintPreviewFold(
@@ -76,7 +82,8 @@ internal fun mdSourceFoldPress(host: MarkdownSourceHost, point: Point): Boolean 
             frame.sourceRevision !=
             host.current.snapshot.revision ||
             point.x <
-            frame.padding ||
+            frame.padding +
+            frame.lineNumberWidth ||
             point.x >=
             frame.contentX
     )

@@ -1,0 +1,118 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.text.*
+
+internal class MdSourceNumber(
+    val measurement: ParagraphMeasurement,
+    val key: PaintKey,
+    val generation: Long
+): Closeable {
+    public override fun close() {
+        measurement.close()
+    }
+}
+
+/** The same monospaced digit style measures the gutter and each visible physical line. */
+internal class MdSourceNumberHost: Closeable {
+    private val paragraph = ParagraphHost()
+    private val key = PaintKey()
+    private var number = -1L
+    private var size = -1.0
+    private var height: Double? = None
+    private var color = Color.Transparent
+    private var fonts: FontCollection? = None
+    private var fontRevision = -1L
+    private var content: StyledText? = None
+    private var generation = 0L
+
+    fun measure(context: MeasureContext, host: MarkdownSourceHost, value: Long): MdSourceNumber {
+        val style = host.style
+        val sameFonts =
+            when (fonts) {
+                case Some(val previous) -> previous === host.fonts
+                case None -> false
+            }
+        if (
+            number !=
+                value ||
+                size !=
+                style.text.fontSize ||
+                height !=
+                style.text.lineHeight ||
+                color !=
+                style.lineNumber ||
+                !sameFonts ||
+                fontRevision !=
+                host.fonts.revision
+        ) {
+            number = value
+            size = style.text.fontSize
+            height = style.text.lineHeight
+            color = style.lineNumber
+            fonts = Some(host.fonts)
+            fontRevision = host.fonts.revision
+            content =
+                Some(
+                    styledText {
+                        this.style =
+                            textStyle {
+                                families = ["monospace"]
+                                fontSize = style.text.fontSize
+                                lineHeight = style.text.lineHeight
+                                color = style.lineNumber
+                            }
+                        text(value.toString())
+                    }
+                )
+            generation += 1L
+        }
+        val measured =
+            paragraph.measure(
+                context,
+                Constraints(),
+                host.fonts,
+                content!!,
+                Some(paragraphStyle { direction = TextDirection.Ltr })
+            )
+        return MdSourceNumber(measured, key, generation)
+    }
+
+    public override fun close() {
+        paragraph.close()
+    }
+}
+
+internal fun mdSourceNumberWidth(host: MarkdownSourceHost, context: MeasureContext): Double {
+    if (!host.options.lineNumbers)
+        return 0.0
+    return host.numberWidth.measure(context, host, host.current.snapshot.lineCount).use {
+        it.measurement.layout.maxIntrinsicWidth + 12.0
+    }
+}
+
+internal fun mdSourceGutter(host: MarkdownSourceHost): Double =
+    mdFoldGutter(mdActiveFolds(host.folding)) +
+        if (host.options.lineNumbers)
+            host.numberGutter
+        else
+            0.0
+
+internal fun mdPaintSourceNumber(
+    context: SceneContext,
+    frame: MarkdownSourceMeasurement,
+    row: MdSourceLine,
+    top: Double
+) {
+    val number = row.number ?: return
+    context.withState {
+        line ->
+        line.translate(
+            frame.padding + frame.lineNumberWidth - 8.0 - number.measurement.layout.size.width,
+            top
+        )
+        line.drawTextLayout(number.key, number.measurement.layout, number.generation)
+    }
+}

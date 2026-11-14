@@ -117,6 +117,10 @@ private class EditorWindow(
                             markdownEditor(
                                 owner.view,
                                 owner.parser,
+                                options =
+                                    MarkdownEditorOptions(
+                                        source = MarkdownSourceOptions(lineNumbers = true)
+                                    ),
                                 images = Some(owner.images),
                                 documentUri = owner.documentUri,
                                 search = Some(owner.search),

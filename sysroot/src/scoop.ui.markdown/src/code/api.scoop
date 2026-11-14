@@ -17,12 +17,13 @@ public interface MarkdownCodeHighlighter {
 
 /** Immutable source decorations for exactly one snapshot, including code inside containers. */
 public class MarkdownCodeHighlights internal constructor(
-    public val snapshot: MarkdownSnapshot,
+    internal val parsed: ParsedMarkdown,
     public val spans: Array<MarkdownCodeSpan>,
     public val diagnostics: Array<MarkdownDiagnostic>,
     internal val blocks: Array<MdCodeBlock>,
     internal val highlighter: MarkdownCodeHighlighter?
 ) {
+    public val snapshot: MarkdownSnapshot get() = parsed.snapshot
     /** Returns intersecting spans in absolute source coordinates, excluding out-of-range bytes. */
     public fun intersect(range: MarkdownRange): Array<MarkdownCodeSpan> {
         snapshot.chunks(range)

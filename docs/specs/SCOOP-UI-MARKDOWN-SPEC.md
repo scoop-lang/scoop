@@ -78,6 +78,16 @@ apply 依次校验原生批次并准备行内语义操作，最终只发布一�
 
 局部面直接编辑包含围栏、语言标记、公式定界符或模板指令的原始源码，未闭合和临时无法解析的内容仍可继续编辑。解析和图像控制器照常消费同一文档的新快照，错误沿已有展示及重试路径报告；完成编辑不额外序列化或改写原文。
 
+### 5.2 源码标记、行号与输入辅助
+
+`MarkdownParsedDocument.sourceSyntax` 在后台从已有原始语法和代码高亮生成 `MarkdownSourceHighlights`，包含 parsed、snapshot 和有序不重叠的 MarkdownSourceSpan。范围使用原始 UTF-8 坐标；标题、强调、删除线、链接、代码、原始扩展和语法标记按 MarkdownSourceKind 着色，代码正文复用 MarkdownCodeKind。嵌套内容优先于外层颜色，标记及代码 token 覆盖所在内容的颜色。它不重新解析 Markdown；未变化的语法与代码高亮复用结果。`intersect(range)` 只查询相交范围，独立源码 View／Host 可通过 syntax 参数借用；旧快照的颜色不套用到新正文。MarkdownSourceTheme 提供 Light／Dark 和自定义颜色，不改变字符、字体度量或历史。
+
+`MarkdownSourceOptions.lineNumbers` 默认关闭，开启后显示一基物理行号；折行只在首个视觉行显示一次，局部源码使用全文行号，折叠行不生成号码布局。行号宽度随总行数与字号变化，使用等宽数字并与折叠按钮共存；测量、命中和 caret 共用相同的正文起点。未显示的行不创建原生文字布局。
+
+源码 View／Host 的 autoIndent、autoPairs、autoFences 默认开启，可分别关闭；底层 MarkdownSourceInput.apply 仍是原样输入接口。换行保留当前行光标之前的空格／Tab 缩进和本地换行形式，不在源码面执行富文本块转换。当前语法确认光标位于尚无正文且未闭合的代码围栏首行末尾时，Enter 插入正文空行与同长度结束围栏，并将光标放在正文中；已有结束围栏或正文、过期语法、不完整局部范围不执行围栏补全。该动作只消费已有语法，不能为 Enter 同步全文解析或等待后台任务。
+
+括号辅助只处理无组合的一次单字符 CurrentSelection 原生提交，支持 `()`、`[]`、`{}`；反斜杠转义不配对，普通光标只在行尾、空白或右分隔符之前补右括号。非空选区包裹后保留原选择方向，键入本会话自动补出的右括号时越过它；空配对中的 Backspace 一次删除两侧。配对位置跟随本视图修改，标记被修改、撤销、Reset 或离开配对范围后退休，不把用户文件中已有的右括号当作自动补全。粘贴、多项原生批次、显式 Range 替换和 IME preedit／commit 不触发配对。自动辅助与原键入／换行通过一次源码事务和一项可撤销历史发布，不先插入后修正文档。
+
 ## 6. 共享后台解析
 
 `MarkdownParseController(editor, executor, proxy, options)` 借用同一个编辑状态、现有 `CoroutineExecutor` 和 `ApplicationProxy`。构造不启动后台任务，start／refresh 在正常 owner 回调中请求处理；start 幂等，refresh 还用于文件通知后的资源版本检查。options 包含固定 Markdown profile 和可选的资源展开配置；configure 使用新配置后请求新结果。调用方在应用层管理 executor 的 shutdown／join，不在组件卸载时等待全文解析结束。
@@ -108,7 +118,7 @@ close 幂等地取消订阅、清空排队请求及交付引用，结束自己�
 
 `MarkdownParseOptions.codeHighlighter` 可选择默认的纯 Scoop 词法高亮器、宿主提供的 `MarkdownCodeHighlighter`，或 None 关闭高亮。接口接收语言名与完整代码文字，返回以该文字 UTF-8 字节计量、有序且不重叠的 `MarkdownCodeSpan`。配置与提供器须不可变或自行同步；调用只发生在串行后台解析阶段。内置规则基于 Prism 的词法规则，复用 scoop.regex，不执行代码。未知语言显示完整原文。它不是语言类型检查器，字符串插值等细分样式可以由自定义提供器补充。
 
-高亮结果按实际语言、正文和提供器身份复用未变化代码块；源位置移动时重新映射，不重新执行高亮器。展开文档与原始文档分别保持映射，无展开时共用结果。必要的范围与 UTF-8 边界检查在接收提供器结果时完成；失败仅使对应块恢复普通文字，并记录高亮诊断，不使正文解析或编辑失败。
+高亮结果按实际语言、正文和提供器身份复用未变化代码块；源位置移动时重新映射，不重新执行高亮器。展开文档与原始文档分别保持映射，无展开时共用结果。必要的范围与 UTF-8 边界检查在接收提供器结果时完成；失败仅使对应块恢复普通文字，并记录高亮诊断，不使正文解析或编辑失败。失败结果不作为成功缓存复用，后续解析或刷新可重试。
 
 `MarkdownParsedDocument.sourceHighlights` 提供绑定原始 snapshot 的不可变高亮范围，供独立源码视图借用。预览代码行和三模式／局部源码编辑器使用同一批高亮，源码映射分段排除容器前缀，Tab 展开沿既有 TextDisplay 映射。只为可见行和必要定位行生成样式；过期快照的高亮不套用到新源码。`MarkdownCodeTheme` 只提供颜色，不改变字符、字体度量、选区、输入 revision 或历史。owner 线程上的局部结构投影不执行高亮器，当前后台结果到达后恢复颜色。
 

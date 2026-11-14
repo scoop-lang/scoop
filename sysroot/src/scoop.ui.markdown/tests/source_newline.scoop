@@ -1,0 +1,189 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+private fun mdNewlineModel(document: MarkdownDocument): MarkdownSourceHighlights =
+    MarkdownParsedDocument(
+        document.parse(MarkdownProfile.Editor),
+        None,
+        MarkdownParseOptions()
+    ).sourceSyntax
+
+@Test
+private class MarkdownSourceNewlineTests {
+    @Test
+    fun indentationKeepsTabsCrLfAndTheSelectionBeforeAReversedReplacement() {
+        val source = "first\r\n\t  中文 tail"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source))
+        val selected = MarkdownSelection(MarkdownPosition(source.byteLength), MarkdownPosition(16L))
+        editor.setSelection(selected)
+        val insertion =
+            mdSourceNewline(
+                editor.snapshot,
+                selected,
+                MarkdownRange(0L, source.byteLength),
+                MarkdownSourceOptions(),
+                None
+            )
+        assertEquals(1L, insertion.change.replacements.size)
+        editor.apply(insertion.change, insertion.caret)
+        assertEquals("first\r\n\t  中文\r\n\t  ", editor.document.toMarkdown())
+        assertEquals(editor.snapshot.byteLength, editor.selection.cursor.byteOffset)
+        assertTrue(editor.undo())
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        editor.close()
+    }
+
+    @Test
+    fun indentationStopsAtTheCaretAndAtLocalSourceBoundaries() {
+        val document = MarkdownDocument.fromText("    text\rTail")
+        val snapshot = document.snapshot()
+        val normal =
+            mdSourceNewline(
+                snapshot,
+                mdCaret(2L),
+                MarkdownRange(0L, snapshot.byteLength),
+                MarkdownSourceOptions(),
+                None
+            )
+        assertEquals("  \r    text\rTail", normal.change.after.toMarkdown())
+        val local =
+            mdSourceNewline(
+                snapshot,
+                mdCaret(4L),
+                MarkdownRange(3L, 8L),
+                MarkdownSourceOptions(),
+                None
+            )
+        assertEquals("    \r text\rTail", local.change.after.toMarkdown())
+        val plain =
+            mdSourceNewline(
+                snapshot,
+                mdCaret(4L),
+                MarkdownRange(0L, snapshot.byteLength),
+                MarkdownSourceOptions(autoIndent = false),
+                None
+            )
+        assertEquals("    \rtext\rTail", plain.change.after.toMarkdown())
+    }
+
+    @Test
+    fun anEmptyOpenFenceCompletesItsMatchingDelimiterAndLeavesTheCaretInTheBody() {
+        for (
+            (source, expected, caret) in [
+                ("```scoop", "```scoop\n\n```", 9L),
+                ("~~~~text\r\n", "~~~~text\r\n\r\n~~~~\r\n", 10L),
+                ("> ```scoop", "> ```scoop\n> \n> ```", 13L),
+                ("- ~~~", "- ~~~\n  \n  ~~~", 8L)
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val syntax = mdNewlineModel(document)
+            val editor =
+                MarkdownEditorState(document, mdCaret(document.snapshot().lineRange(0L).end))
+            val insertion =
+                mdSourceNewline(
+                    editor.snapshot,
+                    editor.selection,
+                    MarkdownRange(0L, editor.snapshot.byteLength),
+                    MarkdownSourceOptions(),
+                    Some(syntax)
+                )
+            editor.apply(insertion.change, insertion.caret)
+            assertEquals(expected, document.toMarkdown())
+            assertEquals(caret, editor.selection.cursor.byteOffset)
+            var closed = false
+            for (node in document.parse().nodes())
+                when (node.content) {
+                    case CodeBlock(Some(val fence), _, _) -> closed = fence.closed
+                    else -> Unit
+                }
+            assertTrue(closed)
+            assertTrue(editor.undo());
+            assertEquals(source, document.toMarkdown())
+            assertFalse(editor.canUndo)
+            editor.close()
+        }
+    }
+
+    @Test
+    fun closedFencesExistingBodiesStaleSyntaxAndPartialRegionsDoNotComplete() {
+        for (source in ["```scoop\n```", "```scoop\nbody", "```\n~~~\n```", "    ```"]) {
+            val document = MarkdownDocument.fromText(source)
+            val syntax = mdNewlineModel(document)
+            val at = document.snapshot().lineRange(0L).end
+            val insertion =
+                mdSourceNewline(
+                    document.snapshot(),
+                    mdCaret(at),
+                    MarkdownRange(0L, source.byteLength),
+                    MarkdownSourceOptions(),
+                    Some(syntax)
+                )
+            assertEquals(
+                if (source == "    ```")
+                    "\n    "
+                else
+                    "\n",
+                insertion.change.replacements[0L].text
+            )
+        }
+        val document = MarkdownDocument.fromText("```scoop")
+        val syntax = mdNewlineModel(document)
+        val local =
+            mdSourceNewline(
+                document.snapshot(),
+                mdCaret(8L),
+                MarkdownRange(3L, 8L),
+                MarkdownSourceOptions(),
+                Some(syntax)
+            )
+        assertEquals("```scoop\n", local.change.after.toMarkdown())
+        val disabled =
+            mdSourceNewline(
+                document.snapshot(),
+                mdCaret(8L),
+                MarkdownRange(0L, 8L),
+                MarkdownSourceOptions(autoFences = false),
+                Some(syntax)
+            )
+        assertEquals("```scoop\n", disabled.change.after.toMarkdown())
+        document.replace(MarkdownRange(8L, 8L), "x")
+        val stale =
+            mdSourceNewline(
+                document.snapshot(),
+                mdCaret(9L),
+                MarkdownRange(0L, 9L),
+                MarkdownSourceOptions(),
+                Some(syntax)
+            )
+        assertEquals("```scoopx\n", stale.change.after.toMarkdown())
+    }
+
+    @Test
+    fun aFenceAtTheEndOfALargeDocumentChangesOnlyTheInsertionPoint() {
+        val prefix = "Paragraph 中文.\n\n".repeat(70000L)
+        val document = MarkdownDocument.fromText(prefix + "```scoop")
+        val syntax = mdNewlineModel(document)
+        val snapshot = document.snapshot()
+        assertTrue(snapshot.byteLength > 1024L * 1024L)
+        val insertion =
+            mdSourceNewline(
+                snapshot,
+                mdCaret(snapshot.byteLength),
+                MarkdownRange(0L, snapshot.byteLength),
+                MarkdownSourceOptions(),
+                Some(syntax)
+            )
+        assertEquals(1L, insertion.change.replacements.size)
+        assertEquals(
+            MarkdownRange(snapshot.byteLength, snapshot.byteLength),
+            insertion.change.replacements[0L].range
+        )
+        assertEquals("\n\n```", insertion.change.replacements[0L].text)
+        assertEquals(prefix, insertion.change.after.read(MarkdownRange(0L, prefix.byteLength)))
+    }
+}

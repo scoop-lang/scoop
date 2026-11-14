@@ -53,6 +53,12 @@ editor.close()
 
 视图用物理行的高度索引定位可见区，只排版视口附近及光标行。一个很长的物理行仍完整 shaping；不把它切成会改变双向文字和连字的任意片段。支持方向选择、系统编辑命令、复制／剪切／粘贴、自动折行或横向滚动、Tab 缩进、拖选滚动、中文组合以及共享撤销。光标闪烁只请求绘制；字体、宽度和对应行内容变化才使文字排版失效。
 
+源码栏支持 Markdown 标记和正文样式高亮。三模式与局部源码面自动使用 `parser.current?.sourceSyntax`；独立 `markdownSourceEditor`／`MarkdownSourceHost.update` 可传 `syntax = parser.current?.sourceSyntax`。`MarkdownSourceHighlights` 提供 parsed、snapshot、spans 与 `intersect(range)`，后台从已有语法和代码高亮派生，不额外解析。颜色范围使用源码 UTF-8 坐标，过期快照不用于新正文。`MarkdownSourceStyle.syntaxTheme` 使用 `MarkdownSourceTheme.Light`／`Dark` 或自定义颜色，代码 token 继续使用 codeTheme；颜色不改变文本、字体度量或历史。
+
+通过 `MarkdownSourceOptions(lineNumbers = true)` 打开一基物理行号。折行只显示一次，局部源码沿用全文行号，隐藏行不生成数字布局；可用 style.lineNumber 设置颜色。行号与折叠按钮共存，`measurement.lineNumberWidth` 和 `measuredLineNumberCount` 提供本帧的宽度与测量数量。编辑器示例已开启行号。
+
+`autoIndent`、`autoPairs`、`autoFences` 默认开启，可分别关闭。Enter 保留光标前的空格／Tab 缩进和本地换行；后台语法确认当前行是尚无正文的未闭合代码围栏时，自动补结束围栏并定位到正文。语法待更新、代码已有正文或结束围栏时仅执行普通换行，不等待解析。括号辅助支持 `()`、`[]`、`{}`：包裹选区并保留方向，在行尾／空白／右括号前配对，越过本视图补出的右括号，空配对中的 Backspace 一次删除两侧。转义、IME、粘贴、多项批次和显式范围替换按原文处理；底层 `MarkdownSourceInput.apply` 始终保持原样输入。一次补全与原输入共用一次事务，撤销恢复原文和选区。
+
 `MarkdownSourceRegion(editor, range)` 限定一个随文档差量移动的源码区域。把它作为 `region = Some(region)` 传给 `MarkdownSourceInput` 或 `markdownSourceEditor`，自绘宿主用 `MarkdownSourceHost(..., initialRegion = Some(region))` 并在 update 中继续传入 region。排版、原生周边文字、全选、删除和缩进均限于此范围，首尾可以位于物理行中间。它借用同一 editor，不另建文档、选区或历史；公开 range 在 Reset 或 close 后为 None，调用方在不用时关闭区域。源码测量的 sourceRange 属于该帧，旧测量保持有效。
 
 [源码文件编辑示例](examples/source-editor/README.md) 可打开已有 Markdown，并通过 Cmd-S 保存。库不自行写文件；`onChanged` 只传递源码差量。

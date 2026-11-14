@@ -18,7 +18,8 @@ internal class MdSourceProps(
     val localSource: MdRichSourceSession? = None,
     val highlights: MarkdownCodeHighlights? = None,
     val searchResult: MarkdownSearchResult? = None,
-    val folding: MarkdownFoldingController? = None
+    val folding: MarkdownFoldingController? = None,
+    val syntax: MarkdownSourceHighlights? = None
 )
 
 /** Source view for a shared Markdown editor state; its mount owns native and layout resources. */
@@ -33,7 +34,8 @@ public fun markdownSourceEditor(
     onExit: (() -> Unit)? = None,
     highlights: MarkdownCodeHighlights? = None,
     searchResult: MarkdownSearchResult? = None,
-    folding: MarkdownFoldingController? = None
+    folding: MarkdownFoldingController? = None,
+    syntax: MarkdownSourceHighlights? = None
 ): View =
     mdSourceEditor(
         MdSourceProps(
@@ -47,7 +49,8 @@ public fun markdownSourceEditor(
             exitSource = onExit,
             highlights = highlights,
             searchResult = searchResult,
-            folding = folding
+            folding = folding,
+            syntax = syntax
         )
     )
 
@@ -99,7 +102,8 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
             input.exitSource,
             input.highlights,
             input.searchResult,
-            input.folding
+            input.folding,
+            input.syntax
         )
         input.mount?.attach(host)
         input.localSource?.attach(host)

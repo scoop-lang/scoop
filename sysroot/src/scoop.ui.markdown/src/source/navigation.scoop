@@ -107,7 +107,7 @@ internal fun <T> mdWithSourceLine(
                         (host.accepted?.metrics?.size?.width ?: 640.0) -
                             host.options.padding *
                             2.0 -
-                            mdFoldGutter(mdActiveFolds(host.folding))
+                            mdSourceGutter(host)
                     )
                 )
             else

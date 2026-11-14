@@ -44,6 +44,8 @@ public class MarkdownParsedDocument internal constructor(
             mdNavigationIndex(preview, previous?.previewNavigation)
     public val sourceHighlights: MarkdownCodeHighlights =
         mdHighlightCode(source, options.codeHighlighter, previous?.sourceHighlights)
+    public val sourceSyntax: MarkdownSourceHighlights =
+        mdSourceSyntax(source, sourceHighlights, previous?.sourceSyntax)
     public val previewHighlights: MarkdownCodeHighlights =
         if (preview === source)
             sourceHighlights

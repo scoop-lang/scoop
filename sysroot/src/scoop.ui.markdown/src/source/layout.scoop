@@ -38,7 +38,7 @@ private class MdSourceMeasurePass(
     }
     fun close() {
         for (entry in measured)
-            entry.value.measurement.close()
+            entry.value.close()
     }
 
     fun adjustment(): ScrollAdjustment? {
@@ -91,7 +91,8 @@ internal fun mdMeasureSource(
     val size =
         constraints.constrain(Size(constraints.maxWidth ?: 640.0, constraints.maxHeight ?: 480.0))
     val padding = host.options.padding
-    val gutter = mdFoldGutter(mdActiveFolds(host.folding))
+    host.numberGutter = mdSourceNumberWidth(host, context)
+    val gutter = mdSourceGutter(host)
     val width =
         if (host.options.wrap)
             Some(max(0.0, size.width - padding * 2.0 - gutter))
@@ -177,7 +178,8 @@ internal fun mdMeasureSource(
             host.cursorAffinity,
             searchResult = mdCurrentSearch(host.searchResult, snapshot),
             folds = host.folded,
-            gutter = gutter
+            gutter = gutter,
+            lineNumberWidth = host.numberGutter
         )
     } catch (error: Throwable) {
         pass.close();
@@ -322,6 +324,7 @@ internal fun mdSceneSource(
                         }
                         Unit
                     }
+                    mdPaintSourceNumber(content, frame, row, top)
                     mdPaintSourceFold(content, frame, row.index, top, style.caret)
                 }
                 if (host.area.isFocusActive && host.caretVisible && frame.selection.collapsed)

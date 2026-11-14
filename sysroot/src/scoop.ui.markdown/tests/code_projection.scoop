@@ -29,12 +29,20 @@ private class MarkdownCodeProjectionTests {
         val raw = document.snapshot().read(document.snapshot().lineRange(2L))
         val projected = mdSourceDisplay(raw, 4)
         val colors =
-            mdCodeSourceLine(
+            mdSourceColors(
+                Some(model.sourceSyntax),
                 Some(highlights),
                 document.snapshot(),
                 document.snapshot().lineRange(2L)
             )
-        val styled = mdCodeStyledText(projected, textStyle(), MarkdownCodeTheme.Dark, colors)
+        val styled =
+            mdSourceStyledText(
+                projected,
+                textStyle(),
+                MarkdownSourceTheme.Dark,
+                MarkdownCodeTheme.Dark,
+                colors
+            )
         assertEquals(projected.text, styled.text)
         assertTrue(styled.spans.size > 1L)
         document.replace(MarkdownRange(0L, 0L), "Header\n\n")

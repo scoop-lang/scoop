@@ -1,0 +1,121 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.comparisons.comparatorOf
+import scoop.markdown.*
+
+private class MdSourcePaint(
+    val range: MarkdownRange,
+    val kind: MarkdownSourceKind,
+    val layer: Int,
+    val order: Long
+)
+
+private struct MdSourcePaintEvent(val position: Long, val paint: MdSourcePaint, val start: Boolean)
+
+internal fun mdSourceSyntax(
+    parsed: ParsedMarkdown,
+    code: MarkdownCodeHighlights,
+    previous: MarkdownSourceHighlights?
+): MarkdownSourceHighlights {
+    when (previous) {
+        case Some(val value) -> if (value.parsed === parsed && value.code === code)
+            return value
+        case None -> Unit
+    }
+    val paints = ArrayList<MdSourcePaint>()
+    for (node in parsed.nodes()) {
+        val kind =
+            when (node.content) {
+                case Heading(_, _, _) -> Some(MarkdownSourceKind.Heading)
+                case Emphasis -> Some(MarkdownSourceKind.Emphasis)
+                case Strong -> Some(MarkdownSourceKind.Strong)
+                case Strikethrough -> Some(MarkdownSourceKind.Strikethrough)
+                case Link(_) -> Some(MarkdownSourceKind.Link)
+                case Image(_) -> Some(MarkdownSourceKind.Link)
+                case ReferenceDefinition(_, _) -> Some(MarkdownSourceKind.Link)
+                case FootnoteReference(_) -> Some(MarkdownSourceKind.Link)
+                case CodeSpan(_) -> Some(MarkdownSourceKind.Code)
+                case CodeBlock(_, _, _) -> Some(MarkdownSourceKind.Code)
+                case HtmlInline(_) -> Some(MarkdownSourceKind.Raw)
+                case HtmlBlock(_) -> Some(MarkdownSourceKind.Raw)
+                case Extension(_) -> Some(MarkdownSourceKind.Raw)
+                else -> None
+            }
+        when (kind) {
+            case Some(val value) -> mdAddSourcePaint(paints, node.range, value, 0)
+            case None -> Unit
+        }
+        for (marker in node.markers)
+            mdAddSourcePaint(paints, marker, MarkdownSourceKind.Marker, 1)
+    }
+    for (span in code.spans)
+        mdAddSourcePaint(paints, span.range, MarkdownSourceKind.CodeToken(span.kind), 2)
+    return MarkdownSourceHighlights(parsed, mdFlattenSourcePaint(paints), code)
+}
+
+private fun mdAddSourcePaint(
+    paints: ArrayList<MdSourcePaint>,
+    range: MarkdownRange,
+    kind: MarkdownSourceKind,
+    layer: Int
+) {
+    if (!range.isEmpty)
+        paints.add(MdSourcePaint(range, kind, layer, paints.size))
+}
+
+/** Sweep interval boundaries once; nested nodes and token layers take precedence. */
+private fun mdFlattenSourcePaint(paints: ArrayList<MdSourcePaint>): Array<MarkdownSourceSpan> {
+    val events = ArrayList<MdSourcePaintEvent>()
+    for (paint in paints) {
+        events.add(MdSourcePaintEvent(paint.range.start, paint, true))
+        events.add(MdSourcePaintEvent(paint.range.end, paint, false))
+    }
+    events.sortWith(comparatorOf<MdSourcePaintEvent> { a, b -> a.position.compareTo(b.position) })
+    val active = HashSet<Long>()
+    val pending =
+        PriorityQueue<MdSourcePaint>(
+            comparatorOf<MdSourcePaint> {
+                a,
+                b -> if (a.layer == b.layer)
+                    b.order.compareTo(a.order)
+                else
+                    b.layer.compareTo(a.layer)
+            }
+        )
+    val result = ArrayList<MarkdownSourceSpan>()
+    var cursor = 0L
+    var index = 0L
+    while (index < events.size) {
+        val position = events[index].position
+        while (pending.size > 0L && !active.contains(pending.peek().order))
+            pending.removeFirst()
+        if (cursor < position && pending.size > 0L) {
+            val kind = pending.peek().kind
+            if (
+                result.size >
+                    0L &&
+                    result[result.size - 1L].range.end ==
+                    cursor &&
+                    result[result.size - 1L].kind ==
+                    kind
+            ) {
+                val last = result[result.size - 1L]
+                result[result.size - 1L] =
+                    MarkdownSourceSpan(MarkdownRange(last.range.start, position), kind)
+            } else
+                result.add(MarkdownSourceSpan(MarkdownRange(cursor, position), kind))
+        }
+        while (index < events.size && events[index].position == position) {
+            val event = events[index]
+            if (event.start) {
+                active.add(event.paint.order)
+                pending.add(event.paint)
+            } else
+                active.remove(event.paint.order)
+            index += 1L
+        }
+        cursor = position
+    }
+    return result.toArray()
+}

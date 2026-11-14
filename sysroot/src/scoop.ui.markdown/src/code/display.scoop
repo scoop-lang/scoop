@@ -61,35 +61,3 @@ internal fun mdCodeSourceLine(
         )
     }
 }
-
-internal fun mdCodeSameSpans(a: Array<MarkdownCodeSpan>, b: Array<MarkdownCodeSpan>): Boolean {
-    if (a.size != b.size)
-        return false
-    for (index in 0L ..< a.size)
-        if (a[index] != b[index])
-            return false
-    return true
-}
-
-internal fun mdCodeStyledText(
-    display: TextDisplay,
-    base: TextStyle,
-    theme: MarkdownCodeTheme,
-    spans: Array<MarkdownCodeSpan>
-): StyledText =
-    styledText {
-        this.style = base
-        var cursor = 0L
-        for (item in spans) {
-            val range = display.displayRange(Utf8Range(item.range.start, item.range.end))
-            if (cursor < range.start)
-                text(mdDisplaySlice(display.text, cursor, range.start))
-            span {
-                style = spanStyle { color = Some(theme.color(item.kind)) }
-                text(mdDisplaySlice(display.text, range.start, range.end))
-            }
-            cursor = range.end
-        }
-        if (cursor < display.text.byteLength)
-            text(mdDisplaySlice(display.text, cursor, display.text.byteLength))
-    }

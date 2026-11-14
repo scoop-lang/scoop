@@ -1,0 +1,265 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+internal struct MdSourcePair(val open: Long, val close: Long, val delimiter: String)
+
+internal class MdAssistedSourceInput(
+    val publication: MdInputPublication,
+    val pair: MdSourcePair? = None
+)
+
+/** Only delimiters inserted by this source view can be skipped or removed as a pair. */
+internal class MdSourceAssistance {
+    private var pairs = ArrayList<MdSourcePair>()
+
+    fun clear() {
+        pairs.clear()
+    }
+
+    fun retain(selection: MarkdownSelection) {
+        val range = selection.range
+        val kept = ArrayList<MdSourcePair>()
+        for (pair in pairs)
+            if (pair.open < range.start && range.end <= pair.close)
+                kept.add(pair)
+        pairs = kept
+    }
+
+    fun changed(change: MarkdownChange) {
+        if (change.kind == MarkdownChangeKind.Reset) {
+            clear();
+            return
+        }
+        val kept = ArrayList<MdSourcePair>()
+        for (pair in pairs) {
+            var touched = false
+            for (item in change.replacements)
+                if (
+                    (item.range.start <= pair.open && item.range.end > pair.open) ||
+                        (item.range.start <= pair.close && item.range.end > pair.close)
+                )
+                    touched = true
+            if (!touched)
+                kept.add(
+                    MdSourcePair(
+                        change.map(
+                            MarkdownAnchor(MarkdownPosition(pair.open), MarkdownBias.After)
+                        ).position.byteOffset,
+                        change.map(
+                            MarkdownAnchor(MarkdownPosition(pair.close), MarkdownBias.After)
+                        ).position.byteOffset,
+                        pair.delimiter
+                    )
+                )
+        }
+        pairs = kept
+    }
+
+    fun prepare(
+        input: MarkdownSourceInput,
+        batch: TextInputBatch,
+        enabled: Boolean
+    ): MdAssistedSourceInput? {
+        if (!enabled)
+            clear()
+        val editor = input.editor
+        val limit = mdSourceLimit(editor, input.region)
+        val selected = mdSourceSelection(limit, editor.selection)
+        retain(selected)
+        val text =
+            if (enabled && !editor.isComposing && batch.operations.size == 1L)
+                when (batch.operations[0L]) {
+                    case Commit(val value, TextReplacement.CurrentSelection) -> value
+                    else -> ""
+                }
+            else
+                ""
+        if (text.byteLength == 1L) {
+            val range = selected.range
+            val closing =
+                when (text) {
+                    case "(" -> ")"
+                    case "[" -> "]"
+                    case "{" -> "}"
+                    else -> ""
+                }
+            val native = input.inputState
+            val local = native.selection.range
+            val escaped = mdSourcePairEscaped(editor.snapshot, range.start, limit.start)
+            if (
+                !escaped &&
+                    closing !=
+                    "" &&
+                    (
+                        !selected.collapsed ||
+                            mdSourcePairBoundary(editor.snapshot, range.end, limit.end)
+                    )
+            ) {
+                val body = editor.snapshot.read(range)
+                val adapted =
+                    TextInputBatch(
+                        batch.baseRevision,
+                        [
+                            TextInputOperation.Commit(
+                                text + body + closing,
+                                TextReplacement.CurrentSelection
+                            )
+                        ],
+                        batch.origin
+                    )
+                val prepared = input.prepare(adapted) ?: return None
+                val after =
+                    MarkdownSelection(
+                        MarkdownPosition(selected.anchor.byteOffset + 1L),
+                        MarkdownPosition(selected.cursor.byteOffset + 1L),
+                        selected.anchorBias,
+                        selected.cursorBias
+                    )
+                return Some(
+                    MdAssistedSourceInput(
+                        mdSourceAssistedSelection(input, prepared, after),
+                        Some(MdSourcePair(range.start, range.end + 1L, closing))
+                    )
+                )
+            }
+            if (!escaped && selected.collapsed)
+                for (pair in pairs)
+                    if (pair.close == range.start && pair.delimiter == text) {
+                        val adapted =
+                            TextInputBatch(
+                                batch.baseRevision,
+                                [TextInputOperation.Commit("", TextReplacement.CurrentSelection)],
+                                batch.origin
+                            )
+                        val prepared = input.prepare(adapted) ?: return None
+                        return Some(
+                            MdAssistedSourceInput(
+                                mdSourceAssistedSelection(
+                                    input,
+                                    prepared,
+                                    mdCaret(range.start + 1L),
+                                    if (local.end == native.surroundingText.byteLength)
+                                        text
+                                    else
+                                        ""
+                                )
+                            )
+                        )
+                    }
+        }
+        val prepared = input.prepare(batch) ?: return None
+        return Some(MdAssistedSourceInput(prepared))
+    }
+
+    fun published(input: MarkdownSourceInput, result: MdAssistedSourceInput) {
+        if (!result.publication.published)
+            return
+        when (result.pair) {
+            case Some(val pair) -> pairs.add(pair)
+            case None -> Unit
+        }
+        retain(input.editor.selection)
+    }
+
+    fun deletion(selection: MarkdownSelection, limit: MarkdownRange): MarkdownRange? {
+        retain(selection)
+        if (!selection.collapsed)
+            return None
+        val cursor = selection.cursor.byteOffset
+        for (pair in pairs)
+            if (
+                pair.open +
+                    1L ==
+                    cursor &&
+                    pair.close ==
+                    cursor &&
+                    pair.open >=
+                    limit.start &&
+                    pair.close <
+                    limit.end
+            )
+                return Some(MarkdownRange(pair.open, pair.close + 1L))
+        return None
+    }
+}
+
+private fun mdSourcePairBoundary(snapshot: MarkdownSnapshot, position: Long, end: Long): Boolean {
+    for (chunk in snapshot.chunks(MarkdownRange(position, end)))
+        for (character in chunk)
+            return character ==
+                ' ' ||
+                character ==
+                '\t' ||
+                character ==
+                '\n' ||
+                character ==
+                '\r' ||
+                character ==
+                ')' ||
+                character ==
+                ']' ||
+                character ==
+                '}'
+    return true
+}
+
+/** Read only the adjacent backslash run, independent of the native fragment's size. */
+private fun mdSourcePairEscaped(
+    snapshot: MarkdownSnapshot,
+    position: Long,
+    minimum: Long
+): Boolean {
+    var end = position
+    var escaped = false
+    while (end > minimum) {
+        val start =
+            mdResetPosition(
+                snapshot,
+                MarkdownPosition(
+                    if (end - minimum > 128L)
+                        end - 128L
+                    else
+                        minimum
+                )
+            ).byteOffset
+        val bytes = snapshot.read(MarkdownRange(start, end)).toByteArray()
+        var index = bytes.size
+        while (index > 0L) {
+            index -= 1L
+            if (bytes[index].toInt() != 92)
+                return escaped
+            escaped = !escaped
+        }
+        end = start
+    }
+    return escaped
+}
+
+private fun mdSourceAssistedSelection(
+    input: MarkdownSourceInput,
+    prepared: MdInputPublication,
+    selection: MarkdownSelection,
+    trailing: String = ""
+): MdInputPublication {
+    val current = prepared.current
+    val start = input.sourceRange.start
+    return MdInputPublication(
+        TextInputState(
+            current.surroundingText + trailing,
+            Utf8Selection(selection.anchor.byteOffset - start, selection.cursor.byteOffset - start),
+            current.markedRange,
+            current.caretRect,
+            current.revision
+        ),
+        prepared.change,
+        prepared.history,
+        prepared.historyBefore,
+        selection,
+        selection,
+        prepared.composition,
+        true,
+        MarkdownEditKind.Separate
+    )
+}

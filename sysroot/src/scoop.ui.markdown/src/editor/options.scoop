@@ -37,6 +37,10 @@ public struct MarkdownEditorOptions(
             source.padding,
             source.overscan,
             source.tabSize,
-            source.inputContextBytes
+            source.inputContextBytes,
+            source.lineNumbers,
+            source.autoIndent,
+            source.autoPairs,
+            source.autoFences
         )
 }

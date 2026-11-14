@@ -389,3 +389,15 @@ UI 在后台建立 MarkdownFoldIndex，MarkdownFoldingController 管理每个视
 使用 ~/.scoop 完成相关 fmt、check --tests --release 与编辑器示例 check。UI 库全量 138 项通过。原生窗口共 450 步通过：新增折叠 44 步、富文本 61 步、格式 56 步、链接／图片 35 步、局部源码 54 步、块操作 42 步、查找 41 步、导航 30 步、源码 52 步、三模式 35 步；另有导航状态和后台查询各 1 项通过。全部由 scoop test 构建，scoop bundle／Launch Services 串行启动，begin／end／complete 完整且 failures 为空。新增折叠用例约 1.47 秒。验收修复逻辑字符移动在同一字节位置因 affinity 改变而提前停止、导致富文本退格合并隐藏正文的问题，并固定测试搜索栏的容器以保持编辑器焦点。
 
 严格 API 文档生成及 MarkdownFoldIndex、MarkdownFoldingController、sourceFolds、markdownFoldingToolbar 查询通过；规范、设计、README、示例、原生复现说明与编程导航（含安装副本）同步。本批没有编译器、runtime 或其他系统库修改。原始日志、临时应用包和 API 站点核对后清理，正常构建缓存保留。源码辅助、HTML 导入、其余 Typora 扩展和最终 1／5 MiB 综合性能验收继续实施。
+
+## C／D：源码高亮、行号与输入辅助（2026-11-15）
+
+MarkdownParsedDocument.sourceSyntax 在后台从已有语法与代码 token 派生源码颜色，MarkdownSourceHighlights 提供原始 UTF-8 范围和相交查询；嵌套样式、标记、代码颜色保持优先次序，过期结果不用于新正文。源码 View／Host、三模式和局部源码面共用结果，MarkdownSourceTheme 支持浅色、深色及自定义颜色。可选物理行号只为可见行生成布局，折行只显示一次，局部面保持全文行号；测量、命中、caret 和折叠按钮共用正文起点。编辑器示例已开启行号。
+
+autoIndent／autoPairs／autoFences 分别控制保留缩进、括号配对和空围栏补全。括号支持包裹反向 Unicode 选区、跳过本视图补出的右括号和空配对退格；边界判断读取光标附近原文，不依赖原生片段大小。代码围栏仅在当前后台语法确认尚无正文且未闭合时补齐，不同步解析或等待后台。辅助与原输入一次发布、统一撤销，粘贴、显式范围、多项批次、IME 和底层 MarkdownSourceInput.apply 保持原样输入。配对状态随位置映射，离开范围、标记修改、撤销、Reset、失焦或禁用后退休。
+
+使用 ~/.scoop 完成 fmt、相关 check --tests --release、编辑器示例检查和 UI 库全量 155 项测试。新增 17 项覆盖缓存与颜色映射、原生片段为零／一个字节、长转义串、Unicode、反向选区、撤销、局部范围、CRLF／Tab 和围栏边界；大于 5 MiB 的文档验证配对仍使用局部片段，大于 1 MiB 的文档验证末尾围栏单点修改。验收修复同一语法快照上的失败高亮被误复用、导致刷新不重试的问题；只读原生输入的测试预期校正为拒绝。
+
+原生窗口共 488 步通过：新增源码辅助 38 步，以及既有源码、三模式、富文本、局部源码、格式、链接／图片、块操作、查找、导航和折叠 450 步；另有导航状态与后台查询各 1 项通过。新增窗口覆盖真实输入和中文组合、一次撤销、各辅助开关、字面粘贴、行号像素、折叠命中、末尾导航、试测释放、卸载与借用资源。大于 1 MiB、36,000 段的样本只测量少于 100 个源码行，收起后不超过 6 行；这些是功能验证，不替代最终交互性能基线。程序均由 scoop test 构建，通过 scoop bundle／Launch Services 串行运行，begin／end／complete 完整且 failures 为空。
+
+严格 API 文档生成及 MarkdownSourceHighlights、MarkdownSourceTheme、MarkdownSourceOptions、sourceSyntax 查询通过；规范、设计、README、示例和编程导航（含安装副本）同步。本批没有编译器、runtime 或其他系统库修改。原始日志、临时应用包和 API 站点核对后清理，正常构建缓存保留。HTML 导入、其余 Typora 扩展和最终 1／5 MiB 综合性能验收继续实施。

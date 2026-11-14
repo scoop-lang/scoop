@@ -1,0 +1,496 @@
+package scoop.tests.markdown.source
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.surface.addEventHandler
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.tests.surface.*
+import scoop.tests.window.*
+import scoop.text.repeat
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownSourceAssistWindowTests {
+    @Test
+    fun nativeSourceAssistanceKeepsHistoryCompositionNumbersAndFoldingConsistent() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard() ?: fail(Some("Cannot save the native clipboard"))
+            try {
+                val app = Application()
+                val workers =
+                    multiThreadExecutor {
+                        workers = 1;
+                        blocking { threads = 1 }
+                    }
+                val probe = MdAssistWindowProbe(workers, app.proxy())
+                try {
+                    UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                        host -> app.run(host)
+                    }
+                    assertTrue(probe.finished)
+                    assertTrue(probe.numbersPainted)
+                } catch (failure: Throwable) {
+                    println("Source assistance step " + probe.step.value.toString())
+                    println("cursor=" + probe.editor.selection.cursor.byteOffset.toString())
+                    throw failure
+                } finally {
+                    probe.close();
+                    workers.close()
+                }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+}
+
+private class MdAssistWindowProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val editor = MarkdownEditorState(MarkdownDocument.fromText("# Heading **bold**\n\nText 中文\n"))
+    val view = MarkdownEditorViewState(editor, MarkdownEditorMode.Source)
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val folding = MarkdownFoldingController(view, parser)
+    val step = state(0)
+    val mounted = state(true)
+    var region: MarkdownSourceRegion? = None
+    var field: MarkdownSourceHost? = None
+    var frames: FrameProbe? = None
+    var window: Window? = None
+    var accepted = -1
+    var inputReady = false
+    var waiting = false
+    var beforeFrame = 0L
+    var numbersPainted = false
+    var finished = false
+    var trial = false
+    var autoIndent = true
+    var autoFences = true
+    var readOnly = false
+    var lineNumbers = true
+    var numberWidth = 0.0
+    var caretX = 0.0
+    val options: MarkdownSourceOptions get() =
+        MarkdownSourceOptions(
+            readOnly = readOnly,
+            inputContextBytes = 128L,
+            lineNumbers = lineNumbers,
+            autoIndent = autoIndent,
+            autoFences = autoFences
+        )
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown source assistance verification"
+                            size = LogicalSize(650.0, 400.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> MdAssistWindowRoot(this, scope) })
+                parser.start()
+                native.createDeadline {
+                    fail(Some("Source assistance timeout at " + step.value.toString()))
+                }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                beforeFrame
+        )
+            return false
+        if (!mounted.value)
+            return true
+        val host = field ?: return false
+        val measured = host.measurement ?: return false
+        val parsed = parser.current ?: return false
+        return accepted ==
+            step.value &&
+            host.area.isFocusActive &&
+            (readOnly || inputReady) &&
+            measured.sourceRevision ==
+            editor.snapshot.revision &&
+            parsed.snapshot ===
+            editor.snapshot
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        beforeFrame = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+    private fun reset(text: String, cursor: Long = 0L) {
+        editor.document.reset(text)
+        editor.setSelection(MarkdownSelection(MarkdownPosition(cursor), MarkdownPosition(cursor)))
+    }
+    private fun text(value: String, kind: Int = 0, selection: Long = 0L) {
+        assertEquals(0, mdNativeText(window!!, value, kind, selection))
+    }
+    private fun key(code: Int, value: String = "", flags: Int = 0) {
+        mdSourceAssistKey(window!!, code, value, flags)
+    }
+    private fun source(expected: String) {
+        assertEquals(expected, editor.document.toMarkdown())
+        assertTrue(mdNativeDocument(window!!, field!!))
+    }
+
+    private fun advance(active: ActiveApplication) {
+        val host = field!!
+        when (step.value) {
+            case 0 -> {
+                assertTrue(host.measurement!!.lineNumberWidth > 0.0)
+                assertEquals(
+                    host.measurement!!.measuredLineCount,
+                    host.measurement!!.measuredLineNumberCount
+                )
+                assertTrue(
+                    host.caret(MarkdownPosition(0L))!!.x > host.measurement!!.lineNumberWidth
+                )
+                next { reset("") }
+            }
+            case 1 -> next { text("(") }
+            case 2 -> {
+                source("()");
+                assertEquals(1L, editor.selection.cursor.byteOffset);
+                next { key(51, "\u{7f}") }
+            }
+            case 3 -> {
+                source("");
+                next { key(6, "z", 8) }
+            }
+            case 4 -> {
+                source("()");
+                assertEquals(1L, editor.selection.cursor.byteOffset);
+                next { reset("") }
+            }
+            case 5 -> next { text("[") }
+            case 6 -> {
+                source("[]");
+                next { text("{") }
+            }
+            case 7 -> {
+                source("[{}]");
+                next { text("中", 1, 1L) }
+            }
+            case 8 -> {
+                source("[{中}]");
+                assertTrue(editor.isComposing);
+                next { text("中文") }
+            }
+            case 9 -> {
+                source("[{中文}]");
+                assertFalse(editor.isComposing);
+                next { text("}") }
+            }
+            case 10 -> {
+                source("[{中文}]");
+                assertEquals(9L, editor.selection.cursor.byteOffset);
+                next { text("]") }
+            }
+            case 11 -> {
+                source("[{中文}]");
+                assertEquals(10L, editor.selection.cursor.byteOffset);
+                next { key(6, "z", 8) }
+            }
+            case 12 -> {
+                source("[{}]");
+                next { reset("\tcode", 5L) }
+            }
+            case 13 -> next { key(36, "\r") }
+            case 14 -> {
+                source("\tcode\n\t");
+                next {
+                    autoIndent = false;
+                    reset("\tcode", 5L)
+                }
+            }
+            case 15 -> next { key(36, "\r") }
+            case 16 -> {
+                source("\tcode\n");
+                next {
+                    autoIndent = true;
+                    reset("```scoop", 8L)
+                }
+            }
+            case 17 -> next { key(36, "\r") }
+            case 18 -> {
+                source("```scoop\n\n```");
+                assertEquals(9L, editor.selection.cursor.byteOffset);
+                next { key(6, "z", 8) }
+            }
+            case 19 -> {
+                source("```scoop");
+                assertFalse(editor.canUndo);
+                next { autoFences = false }
+            }
+            case 20 -> next { key(36, "\r") }
+            case 21 -> {
+                source("```scoop\n")
+                next {
+                    reset("Before 中文 After")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(13L), MarkdownPosition(7L))
+                    )
+                }
+            }
+            case 22 -> next { text("(") }
+            case 23 -> {
+                source("Before (中文) After")
+                assertEquals(MarkdownRange(8L, 14L), editor.selection.range)
+                assertEquals(8L, editor.selection.cursor.byteOffset)
+                next { key(6, "z", 8) }
+            }
+            case 24 -> {
+                source("Before 中文 After");
+                assertEquals(7L, editor.selection.cursor.byteOffset);
+                next { reset("") }
+            }
+            case 25 -> next {
+                window!!.clipboard.writeText("(")
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.PasteText))
+            }
+            case 26 -> {
+                source("(");
+                next { readOnly = true }
+            }
+            case 27 -> next { assertEquals(1, mdNativeText(window!!, "[")) }
+            case 28 -> {
+                assertEquals("(", editor.document.toMarkdown())
+                next {
+                    readOnly = false
+                    autoFences = true
+                    reset(
+                        "# Huge\n\n" +
+                            "Paragraph 中文 content **bold**.\n\n".repeat(36000L) +
+                            "# End\n\nFinal\n"
+                    )
+                }
+            }
+            case 29 -> {
+                assertTrue(editor.snapshot.byteLength > 1024L * 1024L)
+                assertTrue(host.measurement!!.measuredLineCount < 100L)
+                assertEquals(
+                    host.measurement!!.measuredLineCount,
+                    host.measurement!!.measuredLineNumberCount
+                )
+                numberWidth = host.measurement!!.lineNumberWidth
+                next { assertTrue(folding.setCollapsed(folding.current!!.regions[0L], true)) }
+            }
+            case 30 -> {
+                assertTrue(host.measurement!!.measuredLineCount <= 6L)
+                assertEquals(
+                    host.measurement!!.measuredLineCount,
+                    host.measurement!!.measuredLineNumberCount
+                )
+                assertEquals(0.0, host.measurement!!.scrollSnapshot.maximum.y)
+                next {
+                    mdNativeView(window!!) {
+                        view -> @Unsafe
+                        {
+                            assertEquals(
+                                0,
+                                nativeEditorPointer(view, numberWidth + 20.0, 22.0, true, 1, false)
+                            )
+                            assertEquals(
+                                0,
+                                nativeEditorPointer(view, numberWidth + 20.0, 22.0, false, 1, false)
+                            )
+                        }
+                    }
+                }
+            }
+            case 31 -> {
+                assertFalse(folding.isCollapsed(folding.current!!.regions[0L]))
+                assertTrue(numbersPainted)
+                next { key(125, "", 8) }
+            }
+            case 32 -> {
+                assertEquals(editor.snapshot.byteLength, editor.selection.cursor.byteOffset)
+                assertTrue(host.measurement!!.scrollSnapshot.offset.y > 0.0)
+                assertTrue(host.measurement!!.measuredLineCount < 100L)
+                caretX = host.caret(editor.selection.cursor)!!.x
+                next {
+                    trial = true;
+                    lineNumbers = false
+                }
+            }
+            case 33 -> {
+                assertEquals(0.0, host.measurement!!.lineNumberWidth)
+                assertEquals(0L, host.measurement!!.measuredLineNumberCount)
+                assertEquals(caretX - numberWidth, host.caret(editor.selection.cursor)!!.x)
+                next {
+                    reset("Before {x} After")
+                    region = Some(MarkdownSourceRegion(editor, MarkdownRange(7L, 10L)))
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(8L), MarkdownPosition(9L))
+                    )
+                    lineNumbers = true
+                }
+            }
+            case 34 -> next { text("(") }
+            case 35 -> {
+                source("Before {(x)} After");
+                next { key(36, "\r") }
+            }
+            case 36 -> {
+                source("Before {(\n)} After");
+                next { mounted.value = false }
+            }
+            case 37 -> {
+                assertTrue(host.isClosed)
+                assertFalse(editor.isClosed);
+                assertFalse(parser.isClosed)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected source assistance step"))
+        }
+    }
+    public override fun close() {
+        frames?.close();
+        region?.close();
+        folding.close();
+        parser.close();
+        editor.close()
+    }
+}
+
+private class MdAssistWindowRoot(val probe: MdAssistWindowProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val current = probe
+        current.editor.snapshot
+        current.editor.selection
+        current.parser.status
+        val folds = current.folding.current
+        val ticket = current.step.value
+        return column {
+            alignment = CrossAlignment.Stretch
+            if (current.mounted.value)
+                item(
+                    element(ticket, { step, scope -> MdAssistWindowField(current, step, scope) })
+                ) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+        }
+    }
+}
+
+private class MdAssistWindowField(
+    val probe: MdAssistWindowProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+):
+Element<MarkdownSourceMeasurement>(scope) {
+    private val style = MarkdownSourceStyle()
+    private val host = scope.resource { MarkdownSourceHost(scope, probe.editor, style) }
+    public override fun onMount() {
+        probe.field = Some(host)
+        scope.resource {
+            host.area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case TextInput(TextInputEvent.Enabled(_)) -> probe.inputReady = true
+                    case TextInput(TextInputEvent.Disabled(_)) -> probe.inputReady = false
+                    else -> Unit
+                }
+            }
+        }
+        update()
+        host.focus.handle.requestFocus()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(
+            probe.editor,
+            style,
+            probe.options,
+            region = probe.region,
+            folding = Some(probe.folding),
+            syntax = probe.parser.current?.sourceSyntax
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownSourceMeasurement
+    > {
+        if (probe.trial) {
+            probe.trial = false
+            val old = host.measurement!!
+            val trial = host.measure(context, Constraints.tight(Size(120.0, 200.0)))
+            assertSame(old, host.measurement!!)
+            trial.close()
+        }
+        val measured = host.measure(context, constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownSourceMeasurement) {
+        host.scene(context, layout)
+        if (!probe.numbersPainted && layout.lineNumberWidth > 0.0)
+            context.draw {
+                paint ->
+                var x = 12.0
+                while (x < 12.0 + layout.lineNumberWidth - 8.0) {
+                    for (y in 12 ..< 38) {
+                        val value = mdSourceNumberPixel(paint.canvas, x, y.toDouble())
+                        if (value >= 0L && value % 256L < 240L)
+                            probe.numbersPainted = true
+                    }
+                    x += 1.0
+                }
+            }
+        val ticket = step.value
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+        }
+    }
+}
+
+private fun mdSourceNumberPixel(canvas: Canvas, x: Double, y: Double): Long {
+    @Unsafe
+    {
+        return canvas.withSkiaCanvas {
+            pointer -> @Unsafe
+            {
+                return@withSkiaCanvas readNativePixel(pointer, x, y)
+            }
+        }
+    }
+}

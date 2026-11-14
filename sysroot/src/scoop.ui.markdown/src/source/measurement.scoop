@@ -17,9 +17,14 @@ internal class MdSourceLine(
     val measurement: ParagraphMeasurement,
     val display: TextDisplay,
     val paintKey: PaintKey,
-    val generation: Long
+    val generation: Long,
+    val number: MdSourceNumber? = None
 ) {
     val layout: TextLayout get() = measurement.layout
+    fun close() {
+        measurement.close()
+        number?.close()
+    }
     fun position(
         source: Long,
         bias: MarkdownBias = MarkdownBias.After,
@@ -75,7 +80,7 @@ internal class MdSourceRows(val rows: Array<MdSourceLine>) {
         owners -= 1L;
         if (owners == 0L)
             for (row in rows)
-                row.measurement.close()
+                row.close()
     }
 }
 
@@ -96,12 +101,18 @@ public class MarkdownSourceMeasurement internal constructor(
     ownership: MdSourceRows? = None,
     internal val searchResult: MarkdownSearchResult? = None,
     internal val folds: MdFoldProjection? = None,
-    internal val gutter: Double = 0.0
+    internal val gutter: Double = 0.0,
+    public val lineNumberWidth: Double = 0.0
 ): Closeable {
     private val owner = ownership ?: MdSourceRows(rows)
     private var closed = false
     public val sourceRevision: Long get() = snapshot.revision
     public val measuredLineCount: Long get() = rows.size
+    public val measuredLineNumberCount: Long get() =
+        if (lineNumberWidth > 0.0)
+            rows.size
+        else
+            0L
     public val scrollSnapshot: ScrollSnapshot get() = scroll.snapshot
     internal val contentX: Double get() = padding + gutter
     public val lineIndices: Array<Long> get() =
@@ -127,7 +138,8 @@ public class MarkdownSourceMeasurement internal constructor(
             Some(owner.retain()),
             searchResult,
             folds,
-            gutter
+            gutter,
+            lineNumberWidth
         )
     }
     internal fun line(index: Long): MdSourceLine? {
@@ -170,13 +182,15 @@ public class MarkdownSourceMeasurement internal constructor(
 
 internal class MdSourceRow: Closeable {
     val paragraph = ParagraphHost()
+    private val number = MdSourceNumberHost()
     val key = PaintKey()
     private var raw: String? = None
     private var tabs = 0
     private var width: Double? = None
     private var style: TextStyle? = None
     private var codeTheme: MarkdownCodeTheme? = None
-    private var codeSpans: Array<MarkdownCodeSpan> = []
+    private var syntaxTheme: MarkdownSourceTheme? = None
+    private var codeSpans: Array<MarkdownSourceSpan> = []
     private var fonts: FontCollection? = None
     private var fontRevision = -1L
     private var content: StyledText? = None
@@ -193,13 +207,18 @@ internal class MdSourceRow: Closeable {
         val range = host.lineRange(index)
         val text = snapshot.read(range)
         val nextStyle = host.style.text
-        val nextSpans = mdCodeSourceLine(host.highlights, snapshot, range)
+        val nextSpans = mdSourceColors(host.syntax, host.highlights, snapshot, range)
         val sameTheme =
             when (codeTheme) {
                 case Some(val value) -> value === host.style.codeTheme
                 case None -> false
             }
         val nextFonts = host.fonts
+        val sameSyntaxTheme =
+            when (syntaxTheme) {
+                case Some(val value) -> value === host.style.syntaxTheme
+                case None -> false
+            }
         val sameStyle =
             when (style) {
                 case Some(val previous) -> previous === nextStyle;
@@ -225,11 +244,22 @@ internal class MdSourceRow: Closeable {
             ) ||
                 !sameStyle ||
                 !sameTheme ||
-                !mdCodeSameSpans(codeSpans, nextSpans)
+                !sameSyntaxTheme ||
+                !mdSourceSameColors(codeSpans, nextSpans)
         ) {
-            content = Some(mdCodeStyledText(display!!, nextStyle, host.style.codeTheme, nextSpans))
+            content =
+                Some(
+                    mdSourceStyledText(
+                        display!!,
+                        nextStyle,
+                        host.style.syntaxTheme,
+                        host.style.codeTheme,
+                        nextSpans
+                    )
+                )
             codeSpans = nextSpans
             codeTheme = Some(host.style.codeTheme)
+            syntaxTheme = Some(host.style.syntaxTheme)
             generation += 1L
         }
         if (this.width != width || !sameFonts || fontRevision != nextFonts.revision)
@@ -246,6 +276,16 @@ internal class MdSourceRow: Closeable {
                 content!!,
                 Some(paragraphStyle { direction = host.scope.layoutDirection.textDirection() })
             )
+        val label =
+            try {
+                if (host.options.lineNumbers)
+                    Some(number.measure(context, host, index + 1L))
+                else
+                    None
+            } catch (failure: Throwable) {
+                measured.close()
+                throw failure
+            }
         return MdSourceLine(
             index,
             range,
@@ -253,10 +293,12 @@ internal class MdSourceRow: Closeable {
             measured,
             display!!,
             key,
-            generation
+            generation,
+            label
         )
     }
     public override fun close() {
         paragraph.close()
+        number.close()
     }
 }

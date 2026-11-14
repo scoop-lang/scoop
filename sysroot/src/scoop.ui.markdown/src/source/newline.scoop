@@ -1,0 +1,128 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.text.repeat
+
+internal class MdSourceInsertion(val change: MarkdownChange, val caret: MarkdownRange)
+
+internal fun mdSourceNewline(
+    snapshot: MarkdownSnapshot,
+    selection: MarkdownSelection,
+    limit: MarkdownRange,
+    options: MarkdownSourceOptions,
+    syntax: MarkdownSourceHighlights?
+): MdSourceInsertion {
+    val selected = mdSourceSelection(limit, selection).range
+    val line = snapshot.lineAt(MarkdownPosition(selected.start))
+    val ending = mdSourceLineEnding(snapshot, line)
+    val physical = snapshot.lineRange(line)
+    val range =
+        MarkdownRange(
+            if (limit.start > physical.start)
+                limit.start
+            else
+                physical.start,
+            selected.start
+        )
+    val indent =
+        if (options.autoIndent)
+            mdSourceIndent(snapshot, range)
+        else
+            ""
+    var inserted = ending + indent
+    var caret = selected.start + inserted.byteLength
+    val fence =
+        if (options.autoFences && selected.isEmpty && selected.start == physical.end)
+            mdSourceOpenFence(snapshot, syntax, line, limit)
+        else
+            None
+    when (fence) {
+        case Some(val value) -> {
+            val prefix = StringBuilder()
+            for (chunk in snapshot.chunks(MarkdownRange(physical.start, value._1)))
+                for (character in chunk)
+                    prefix.append(
+                        if (character == '>' || character == ' ' || character == '\t')
+                            character
+                        else
+                            ' '
+                    )
+            val continuation = prefix.toString()
+            inserted =
+                ending +
+                    continuation +
+                    ending +
+                    continuation +
+                    value._2.marker.toString().repeat(value._2.length)
+            caret = selected.start + ending.byteLength + continuation.byteLength
+        }
+        case None -> Unit
+    }
+    return MdSourceInsertion(
+        snapshot.prepare(
+            MarkdownEdit(snapshot.revision, [MarkdownReplacement(selected, inserted)])
+        ),
+        MarkdownRange(caret, caret)
+    )
+}
+
+private fun mdSourceIndent(snapshot: MarkdownSnapshot, range: MarkdownRange): String {
+    val result = StringBuilder()
+    for (chunk in snapshot.chunks(range))
+        for (character in chunk) {
+            if (character != ' ' && character != '\t')
+                return result.toString()
+            result.append(character)
+        }
+    return result.toString()
+}
+
+private fun mdSourceLineEnding(snapshot: MarkdownSnapshot, line: Long): String {
+    var at = line
+    var body = snapshot.lineRange(at)
+    var full = snapshot.lineRange(at, true)
+    if (body.end == full.end && at > 0L) {
+        at -= 1L
+        body = snapshot.lineRange(at)
+        full = snapshot.lineRange(at, true)
+    }
+    return if (body.end < full.end)
+        snapshot.read(MarkdownRange(body.end, full.end))
+    else
+        "\n"
+}
+
+/** Existing syntax distinguishes an opening fence from a closing fence or literal code text. */
+private fun mdSourceOpenFence(
+    snapshot: MarkdownSnapshot,
+    syntax: MarkdownSourceHighlights?,
+    line: Long,
+    limit: MarkdownRange
+): (Long, MarkdownFence)? {
+    val parsed = syntax?.parsed ?: return None
+    if (parsed.snapshot !== snapshot)
+        return None
+    val physical = snapshot.lineRange(line)
+    val node = parsed.nodeAt(MarkdownPosition(physical.end), MarkdownBias.Before)
+    return when (node.content) {
+        case CodeBlock(Some(val fence), _, val body) -> {
+            if (
+                fence.closed ||
+                    body.byteLength >
+                    0L ||
+                    node.markers.size ==
+                    0L ||
+                    physical.start <
+                    limit.start ||
+                    node.range.end >
+                    limit.end ||
+                    snapshot.lineAt(MarkdownPosition(node.range.start)) !=
+                    line
+            )
+                None
+            else
+                Some((node.markers[0L].start, fence))
+        }
+        else -> None
+    }
+}

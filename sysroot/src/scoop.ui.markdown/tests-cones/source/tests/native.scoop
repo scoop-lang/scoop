@@ -91,3 +91,18 @@ internal fun mdImeKey(window: Window, code: Int) {
         }
     )
 }
+
+internal fun mdSourceAssistKey(window: Window, code: Int, text: String = "", flags: Int = 0) {
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    assertEquals(0, nativeEditorKey(view, code, bytes, length, flags))
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,280 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+import scoop.window.*
+
+private class MdAssistSession(text: String = "", context: Long = 4096L): Closeable {
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(text))
+    val input = MarkdownSourceInput(editor, context)
+    val assistance = MdSourceAssistance()
+    var notifications = 0L
+    private val changed =
+        editor.document.observe {
+            change ->
+            notifications += 1L
+            assistance.changed(change)
+        }
+    fun select(selection: MarkdownSelection) {
+        editor.setSelection(selection)
+        assistance.retain(selection)
+        input.synchronize()
+    }
+    fun commit(text: String, enabled: Boolean = true) {
+        apply([TextInputOperation.Commit(text, TextReplacement.CurrentSelection)], enabled)
+    }
+    fun apply(operations: List<TextInputOperation>, enabled: Boolean = true) {
+        input.synchronize()
+        val prepared =
+            assistance.prepare(
+                input,
+                TextInputBatch(Some(input.inputState.revision), operations),
+                enabled
+            )!!
+        try {
+            input.publish(prepared.publication)
+        }
+        finally {
+            assistance.published(input, prepared)
+        }
+        input.inputState.validate()
+        input.synchronize()
+    }
+    val text: String get() = editor.document.toMarkdown()
+    public override fun close() {
+        changed.close()
+        input.close()
+        editor.close()
+    }
+}
+
+@Test
+private class MarkdownSourceAssistanceTests {
+    @Test
+    fun nestedPairsSkipOnlyTheirOwnClosersAndKeepOneHistoryItemPerInsertion() {
+        MdAssistSession().use {
+            session ->
+            session.commit("(");
+            session.commit("[");
+            session.commit("{")
+            assertEquals("([{}])", session.text)
+            assertEquals(3L, session.editor.selection.cursor.byteOffset)
+            session.commit("中")
+            assertEquals("([{中}])", session.text)
+            val before = session.notifications
+            session.commit("}");
+            session.commit("]");
+            session.commit(")")
+            assertEquals("([{中}])", session.text)
+            assertEquals(
+                session.editor.snapshot.byteLength,
+                session.editor.selection.cursor.byteOffset
+            )
+            assertEquals(before, session.notifications)
+            assertTrue(session.editor.undo())
+            assertEquals("([{}])", session.text)
+            assertTrue(session.editor.undo());
+            assertEquals("([])", session.text)
+            assertTrue(session.editor.undo());
+            assertEquals("()", session.text)
+            assertTrue(session.editor.undo());
+            assertEquals("", session.text)
+            assertFalse(session.editor.canUndo)
+        }
+    }
+
+    @Test
+    fun wrappingUnicodePreservesDirectionalSelectionAndRestoresItExactly() {
+        MdAssistSession("a 中文😀 z").use {
+            session ->
+            val selected =
+                MarkdownSelection(
+                    MarkdownPosition(12L),
+                    MarkdownPosition(2L),
+                    MarkdownBias.Before,
+                    MarkdownBias.After
+                )
+            session.select(selected)
+            session.commit("[")
+            assertEquals("a [中文😀] z", session.text)
+            assertEquals(MarkdownRange(3L, 13L), session.editor.selection.range)
+            assertEquals(3L, session.editor.selection.cursor.byteOffset)
+            assertEquals(1L, session.notifications)
+            assertTrue(session.editor.undo())
+            assertEquals("a 中文😀 z", session.text)
+            assertEquals(selected, session.editor.selection)
+        }
+    }
+
+    @Test
+    fun literalClosersEscapesAndWordBoundariesDoNotBecomeTrackedPairs() {
+        MdAssistSession("[]").use {
+            session ->
+            session.select(mdCaret(1L));
+            session.commit("]")
+            assertEquals("[]]", session.text)
+        }
+        MdAssistSession("word").use {
+            session ->
+            session.commit("(");
+            assertEquals("(word", session.text)
+        }
+        MdAssistSession("\\").use {
+            session ->
+            session.select(mdCaret(1L));
+            session.commit("[")
+            assertEquals("\\[", session.text)
+        }
+        MdAssistSession("\\\\").use {
+            session ->
+            session.select(mdCaret(2L));
+            session.commit("[")
+            assertEquals("\\\\[]", session.text)
+        }
+        MdAssistSession().use {
+            session ->
+            session.commit("{", false);
+            assertEquals("{", session.text)
+            session.commit("(" + "x");
+            assertEquals("{(x", session.text)
+        }
+    }
+
+    @Test
+    fun shortNativeContextsRetainRealWordAndEscapeBoundaries() {
+        val odd = "中" + "\\".repeat(257L)
+        val even = odd + "\\"
+        for (context in [0L, 1L])
+            for (
+                sample in [
+                    ("word", 0L, "(word"),
+                    ("中文", 0L, "(中文"),
+                    ("😀 tail", 4L, "😀() tail"),
+                    ("\\", 1L, "\\("),
+                    ("\\\\", 2L, "\\\\()"),
+                    (odd, odd.byteLength, odd + "("),
+                    (even, even.byteLength, even + "()")
+                ]
+            )
+                MdAssistSession(sample._1, context).use {
+                    session ->
+                    session.select(mdCaret(sample._2))
+                    session.commit("(")
+                    assertEquals(sample._3, session.text)
+                    assertTrue(session.editor.undo())
+                    assertEquals(sample._1, session.text)
+                }
+    }
+
+    @Test
+    fun compositionExplicitReplacementAndMultiOperationBatchesRemainLiteral() {
+        MdAssistSession().use {
+            session ->
+            session.apply([TextInputOperation.Preedit("(", None, TextReplacement.CurrentSelection)])
+            assertEquals("(", session.text)
+            assertTrue(session.editor.isComposing)
+            session.commit("(")
+            assertEquals("(", session.text)
+            assertFalse(session.editor.isComposing)
+            assertTrue(session.editor.undo());
+            assertEquals("", session.text)
+            session.apply(
+                [TextInputOperation.Commit("[", TextReplacement.Range(Utf8Range(0L, 0L)))]
+            )
+            assertEquals("[", session.text)
+            session.apply(
+                [
+                    TextInputOperation.Commit("{", TextReplacement.CurrentSelection),
+                    TextInputOperation.Commit("}", TextReplacement.CurrentSelection)
+                ]
+            )
+            assertEquals("[{}", session.text)
+        }
+    }
+
+    @Test
+    fun emptyPairDeletionIsAtomicAndUndoDoesNotRecreateTracking() {
+        MdAssistSession().use {
+            session ->
+            session.commit("(")
+            val range =
+                session.assistance.deletion(
+                    session.editor.selection,
+                    MarkdownRange(0L, session.editor.snapshot.byteLength)
+                )!!
+            session.editor.replace(range, "")
+            assertEquals("", session.text)
+            assertTrue(session.editor.undo());
+            assertEquals("()", session.text)
+            assertEquals(1L, session.editor.selection.cursor.byteOffset)
+            session.commit(")")
+            assertEquals("())", session.text)
+        }
+        MdAssistSession("()").use {
+            session ->
+            session.select(mdCaret(1L))
+            assertEquals(
+                None,
+                session.assistance.deletion(session.editor.selection, MarkdownRange(0L, 2L))
+            )
+        }
+    }
+
+    @Test
+    fun navigationMarkerChangesAndResetRetireTrackedClosers() {
+        MdAssistSession().use {
+            session ->
+            session.commit("[")
+            session.select(mdCaret(2L));
+            session.select(mdCaret(1L))
+            session.commit("]");
+            assertEquals("[]]", session.text)
+            session.editor.document.reset("")
+            session.select(mdCaret(0L));
+            session.commit("(")
+            session.editor.document.replace(MarkdownRange(0L, 1L), "[")
+            session.commit(")");
+            assertEquals("[))", session.text)
+            session.editor.document.reset("[]")
+            session.select(mdCaret(1L));
+            session.commit("]")
+            assertEquals("[]]", session.text)
+        }
+    }
+
+    @Test
+    fun zeroContextCanSkipACloserOutsideThePreviousNativeFragment() {
+        MdAssistSession(context = 0L).use {
+            session ->
+            session.commit("(")
+            assertEquals("", session.input.inputState.surroundingText)
+            session.commit("a")
+            assertEquals("(a)", session.text)
+            assertEquals("", session.input.inputState.surroundingText)
+            session.commit(")")
+            assertEquals("(a)", session.text)
+            assertEquals(3L, session.editor.selection.cursor.byteOffset)
+            session.input.inputState.validate()
+        }
+    }
+
+    @Test
+    fun pairingInAMultiMegabyteDocumentKeepsNativeContextAndChangesLocal() {
+        val source = "Paragraph 中文 content.\n".repeat(260000L)
+        MdAssistSession(source, 128L).use {
+            session ->
+            assertTrue(session.editor.snapshot.byteLength > 5L * 1024L * 1024L)
+            val at = session.editor.snapshot.lineRange(130000L).end
+            session.select(mdCaret(at));
+            session.commit("{")
+            assertEquals(1L, session.notifications)
+            assertTrue(session.input.inputState.surroundingText.byteLength < 270L)
+            assertEquals("{}", session.editor.snapshot.read(MarkdownRange(at, at + 2L)))
+            session.commit("}")
+            assertEquals(at + 2L, session.editor.selection.cursor.byteOffset)
+            assertTrue(session.editor.undo())
+            assertEquals(source, session.text)
+        }
+    }
+}

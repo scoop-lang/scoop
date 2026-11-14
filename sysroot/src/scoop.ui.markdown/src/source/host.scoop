@@ -21,7 +21,8 @@ public class MarkdownSourceHost public constructor(
     private var suppliedFonts: FontCollection? = None,
     initialScroll: ScrollState? = None,
     initialRegion: MarkdownSourceRegion? = None,
-    initialHighlights: MarkdownCodeHighlights? = None
+    initialHighlights: MarkdownCodeHighlights? = None,
+    initialSyntax: MarkdownSourceHighlights? = None
 ): Closeable {
     internal var current = initialState
     internal var style = initialStyle
@@ -29,9 +30,11 @@ public class MarkdownSourceHost public constructor(
     internal var closed = false
     internal var region = initialRegion
     internal var highlights = initialHighlights
+    internal var syntax = initialSyntax
     internal var searchResult: MarkdownSearchResult? = None
     internal var input =
         MarkdownSourceInput(initialState, initialOptions.inputContextBytes, initialRegion)
+    internal val assistance = MdSourceAssistance()
     internal val fonts: FontCollection get() = suppliedFonts ?: scope.defaultFonts
     internal val window: Window get() = scope.nativeWindow
     internal var heights =
@@ -43,6 +46,8 @@ public class MarkdownSourceHost public constructor(
     internal val rows = HashMap<Long, MdSourceRow>()
     internal var layoutWidth: Double? = None
     internal var maximumWidth = 0.0
+    internal val numberWidth = MdSourceNumberHost()
+    internal var numberGutter = 0.0
     internal var accepted: MarkdownSourceMeasurement? = None
     internal var anchor: MdSourceAnchor? = None
     internal var alignment: MdScrollAlignment? = None
@@ -147,7 +152,8 @@ public class MarkdownSourceHost public constructor(
         onExit: (() -> Unit)? = None,
         highlights: MarkdownCodeHighlights? = None,
         searchResult: MarkdownSearchResult? = None,
-        folding: MarkdownFoldingController? = None
+        folding: MarkdownFoldingController? = None,
+        syntax: MarkdownSourceHighlights? = None
     ) {
         checkOpen()
         state.checkEdit()
@@ -183,6 +189,7 @@ public class MarkdownSourceHost public constructor(
                 options.inputContextBytes !=
                 this.options.inputContextBytes
         if (restart) {
+            assistance.clear()
             retire()
             input.close()
             if (rebound) {
@@ -219,10 +226,14 @@ public class MarkdownSourceHost public constructor(
         suppliedFonts = fonts
         this.style = style
         this.options = options
+        if (!options.autoPairs)
+            assistance.clear()
+        assistance.retain(state.selection)
         this.focus.options = focus
         changed = onChanged
         exitSource = onExit
         this.highlights = highlights
+        this.syntax = syntax
         this.searchResult = searchResult
         this.folding =
             when (region) {
@@ -362,6 +373,7 @@ public class MarkdownSourceHost public constructor(
             action()
         } finally {
             performing = false
+            assistance.retain(current.selection)
             if (!closed && !ownsOtherComposition()) {
                 if (area.isFocusActive)
                     selectRegion()
@@ -397,6 +409,7 @@ public class MarkdownSourceHost public constructor(
         failure = mdCleanup(failure) { focus.close() }
         failure = mdCleanup(failure) { area.close() }
         failure = mdCleanup(failure) { viewport.close() }
+        failure = mdCleanup(failure) { numberWidth.close() }
         failure = mdCleanup(failure) { accepted?.close() }
         accepted = None
         for (entry in rows)
@@ -426,6 +439,7 @@ internal fun mdThrow(failure: Throwable?) {
 internal fun mdSourceChanged(host: MarkdownSourceHost, change: MarkdownChange) {
     if (host.closed)
         return
+    host.assistance.changed(change)
     host.region?.advance(change)
     val estimate = mdSourceEstimate(host.style)
     if (change.kind == MarkdownChangeKind.Reset) {

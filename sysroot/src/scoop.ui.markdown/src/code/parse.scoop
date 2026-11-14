@@ -16,7 +16,20 @@ internal fun mdHighlightCode(
     provider: MarkdownCodeHighlighter?,
     previous: MarkdownCodeHighlights?
 ): MarkdownCodeHighlights {
-    val highlighter = provider ?: return MarkdownCodeHighlights(parsed.snapshot, [], [], [], None)
+    when (previous) {
+        case Some(val value) -> if (value.parsed === parsed) {
+            val same =
+                when ((value.highlighter, provider)) {
+                    case(Some(val a), Some(val b)) -> a === b
+                    case(None, None) -> true
+                    else -> false
+                }
+            if (same && value.diagnostics.size == 0L)
+                return value
+        }
+        case None -> Unit
+    }
+    val highlighter = provider ?: return MarkdownCodeHighlights(parsed, [], [], [], None)
     val inputs = ArrayList<MdCodeBlock>()
     for (node in parsed.nodes())
         when (node.content) {
@@ -99,7 +112,7 @@ internal fun mdHighlightCode(
         mdCodeMapSource(block, source)
     }
     return MarkdownCodeHighlights(
-        parsed.snapshot,
+        parsed,
         source.toArray(),
         diagnostics.toArray(),
         blocks.toArray(),

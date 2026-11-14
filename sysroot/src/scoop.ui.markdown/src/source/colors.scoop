@@ -1,0 +1,71 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun mdSourceColors(
+    syntax: MarkdownSourceHighlights?,
+    code: MarkdownCodeHighlights?,
+    snapshot: MarkdownSnapshot,
+    range: MarkdownRange
+): Array<MarkdownSourceSpan> {
+    when (syntax) {
+        case Some(val value) -> if (value.snapshot === snapshot) {
+            val spans = value.intersect(range)
+            return Array<MarkdownSourceSpan>(spans.size) {
+                index ->
+                val span = spans[index]
+                MarkdownSourceSpan(
+                    MarkdownRange(span.range.start - range.start, span.range.end - range.start),
+                    span.kind
+                )
+            }
+        }
+        case None -> Unit
+    }
+    val spans = mdCodeSourceLine(code, snapshot, range)
+    return Array<MarkdownSourceSpan>(spans.size) {
+        index -> MarkdownSourceSpan(
+            spans[index].range,
+            MarkdownSourceKind.CodeToken(spans[index].kind)
+        )
+    }
+}
+
+internal fun mdSourceSameColors(
+    a: Array<MarkdownSourceSpan>,
+    b: Array<MarkdownSourceSpan>
+): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}
+
+internal fun mdSourceStyledText(
+    display: TextDisplay,
+    base: TextStyle,
+    theme: MarkdownSourceTheme,
+    codeTheme: MarkdownCodeTheme,
+    spans: Array<MarkdownSourceSpan>
+): StyledText =
+    styledText {
+        this.style = base
+        var cursor = 0L
+        for (item in spans) {
+            val range = display.displayRange(Utf8Range(item.range.start, item.range.end))
+            if (cursor < range.start)
+                text(mdDisplaySlice(display.text, cursor, range.start))
+            span {
+                style = spanStyle { color = Some(theme.color(item.kind, codeTheme)) }
+                text(mdDisplaySlice(display.text, range.start, range.end))
+            }
+            cursor = range.end
+        }
+        if (cursor < display.text.byteLength)
+            text(mdDisplaySlice(display.text, cursor, display.text.byteLength))
+    }

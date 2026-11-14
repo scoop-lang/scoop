@@ -26,6 +26,7 @@ internal fun mdSourceEvent(
                     host.invalidate()
                     host.publishNative()
                 } else {
+                    host.assistance.clear()
                     if (!host.ownsOtherComposition())
                         host.perform({ host.current.acceptComposition() }, false)
                     host.retire()
@@ -135,7 +136,7 @@ private fun mdSourceNative(host: MarkdownSourceHost, event: TextInputEvent) {
             var invalid = false
             val prepared =
                 try {
-                    host.input.prepare(batch)
+                    host.assistance.prepare(host.input, batch, host.options.autoPairs)
                 }
                 catch (error: IllegalArgumentException) {
                     invalid = true;
@@ -155,8 +156,9 @@ private fun mdSourceNative(host: MarkdownSourceHost, event: TextInputEvent) {
                 case Some(val value) -> {
                     host.performing = true
                     try {
-                        host.input.publish(value)
+                        host.input.publish(value.publication)
                     } finally {
+                        host.assistance.published(host.input, value)
                         host.performing = false
                     }
                     host.cursorAffinity = TextAffinity.Downstream

@@ -1,0 +1,63 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Source decorations preserve every Markdown byte and change foreground colors only. */
+public enum MarkdownSourceKind {
+    Marker, Heading, Emphasis, Strong, Strikethrough, Link, Code, Raw, CodeToken(MarkdownCodeKind)
+}
+
+public struct MarkdownSourceSpan(val range: MarkdownRange, val kind: MarkdownSourceKind)
+
+/** Original syntax and its flattened source colors, prepared together on the parse worker. */
+public class MarkdownSourceHighlights internal constructor(
+    public val parsed: ParsedMarkdown,
+    public val spans: Array<MarkdownSourceSpan>,
+    internal val code: MarkdownCodeHighlights
+) {
+    public val snapshot: MarkdownSnapshot get() = parsed.snapshot
+
+    /** Returns clipped, ordered, nonoverlapping source ranges for this snapshot. */
+    public fun intersect(range: MarkdownRange): Array<MarkdownSourceSpan> {
+        snapshot.chunks(range)
+        if (range.isEmpty)
+            return []
+        var index = mdSourceSpanAt(spans, range.start)
+        val result = ArrayList<MarkdownSourceSpan>()
+        while (index < spans.size) {
+            val span = spans[index]
+            if (span.range.start >= range.end)
+                break
+            result.add(
+                MarkdownSourceSpan(
+                    MarkdownRange(
+                        if (span.range.start < range.start)
+                            range.start
+                        else
+                            span.range.start,
+                        if (span.range.end > range.end)
+                            range.end
+                        else
+                            span.range.end
+                    ),
+                    span.kind
+                )
+            )
+            index += 1L
+        }
+        return result.toArray()
+    }
+}
+
+internal fun mdSourceSpanAt(spans: Array<MarkdownSourceSpan>, offset: Long): Long {
+    var low = 0L
+    var high = spans.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (spans[middle].range.end <= offset)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return low
+}

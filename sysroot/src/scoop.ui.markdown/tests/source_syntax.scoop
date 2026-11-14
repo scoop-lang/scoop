@@ -1,0 +1,129 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownSourceSyntaxTests {
+    @Test
+    fun nestedMarkupAndCodeTokensProduceOrderedUnicodeSafeSourceColors() {
+        val source =
+            "# Heading **strong _em_**\r\n\r\n中文 [label](page.md) ~~gone~~ `code`\r\n\r\n```scoop\r\nval 雪 = 42L\r\n```\r\n\r\n$$\r\nx^2\r\n$$\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val model =
+            MarkdownParsedDocument(
+                document.parse(MarkdownProfile.Editor),
+                None,
+                MarkdownParseOptions()
+            )
+        val kinds = ArrayList<MarkdownSourceKind>()
+        var end = 0L
+        var foundNested = false
+        var foundKeyword = false
+        for (span in model.sourceSyntax.spans) {
+            assertTrue(span.range.start >= end)
+            assertTrue(span.range.end > span.range.start)
+            val text = model.snapshot.read(span.range)
+            if (text == "em") {
+                assertEquals(MarkdownSourceKind.Emphasis, span.kind)
+                foundNested = true
+            }
+            if (text == "val") {
+                assertEquals(MarkdownSourceKind.CodeToken(MarkdownCodeKind.Keyword), span.kind)
+                foundKeyword = true
+            }
+            kinds.add(span.kind)
+            end = span.range.end
+        }
+        for (
+            kind in [
+                MarkdownSourceKind.Marker,
+                MarkdownSourceKind.Heading,
+                MarkdownSourceKind.Strong,
+                MarkdownSourceKind.Emphasis,
+                MarkdownSourceKind.Strikethrough,
+                MarkdownSourceKind.Link,
+                MarkdownSourceKind.Code,
+                MarkdownSourceKind.Raw
+            ]
+        ) {
+            var found = false
+            for (actual in kinds)
+                if (actual == kind)
+                    found = true
+            assertTrue(found)
+        }
+        assertTrue(foundNested);
+        assertTrue(foundKeyword)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun colorsPreserveTabsEmojiAndAllSourceBytesAndIgnoreStaleSnapshots() {
+        val source = "prefix\t**中文 👩‍💻** and [link](page.md)"
+        val document = MarkdownDocument.fromText(source)
+        val model = MarkdownParsedDocument(document.parse(), None, MarkdownParseOptions())
+        val range = MarkdownRange(0L, source.byteLength)
+        val spans =
+            mdSourceColors(
+                Some(model.sourceSyntax),
+                Some(model.sourceHighlights),
+                model.snapshot,
+                range
+            )
+        val display = mdSourceDisplay(source, 4)
+        val styled =
+            mdSourceStyledText(
+                display,
+                textStyle(),
+                MarkdownSourceTheme.Dark,
+                MarkdownCodeTheme.Dark,
+                spans
+            )
+        assertEquals(display.text, styled.text)
+        assertTrue(styled.spans.size > 1L)
+        document.replace(MarkdownRange(0L, 0L), "changed ")
+        assertEquals(
+            0L,
+            mdSourceColors(
+                Some(model.sourceSyntax),
+                Some(model.sourceHighlights),
+                document.snapshot(),
+                range
+            ).size
+        )
+        assertEquals(0L, model.sourceSyntax.intersect(MarkdownRange(1L, 1L)).size)
+        assertFailsWith<IllegalArgumentException> {
+            model.sourceSyntax.intersect(MarkdownRange(-1L, 2L))
+        }
+    }
+
+    @Test
+    fun unchangedOriginalSyntaxReusesItsColorsWhenResourcesAreRefreshed() {
+        val document = MarkdownDocument.fromText("# Title\n\n```scoop\nval x = 42\n```\n")
+        val options = MarkdownParseOptions()
+        val first = MarkdownParsedDocument(document.parse(), None, options)
+        val second = MarkdownParsedDocument(first.source, None, options, Some(first))
+        assertSame(first.sourceHighlights, second.sourceHighlights)
+        assertSame(first.sourceSyntax, second.sourceSyntax)
+        val plain =
+            MarkdownParsedDocument(
+                first.source,
+                None,
+                MarkdownParseOptions(codeHighlighter = None),
+                Some(second)
+            )
+        assertTrue(plain.sourceSyntax !== first.sourceSyntax)
+        assertTrue(plain.sourceSyntax.spans.size > 0L)
+        for (span in plain.sourceSyntax.spans)
+            when (span.kind) {
+                case CodeToken(_) -> fail(
+                    Some("Disabled language highlighting must not preserve old tokens")
+                )
+                else -> Unit
+            }
+    }
+}
