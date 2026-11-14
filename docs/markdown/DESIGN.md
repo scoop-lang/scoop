@@ -12,9 +12,9 @@
 | `scoop.ui.markdown` | 源码、所见即所得、双栏编辑；选区、撤销、IME、布局、主题、扩展展示 | markdown、ui、graphics.text 及实际使用的控件／样式 |
 | 应用提供的适配 | 文件读写、资源定位、外部图像渲染、打开链接／被包含文件 | 由应用选择 platform、asyncio 或第三方库 |
 
-首期不因每一种语法增加一个 Cone。数学公式、Mermaid fence 的识别，以及 mdBook 风格指令的公共基础，都可以在无 UI 程序里使用。具体外部工具和图像解码不进入文档层的必需依赖。
+本轮只交付文档核心与扩展框架，范围以[编辑器设计 §1.1](../ui/markdown/DESIGN.md#11-本轮交付边界)为准。具体扩展按需后续增加，不因本文列出某种语法就要求本轮实现；已有公式、Mermaid 与 mdBook 能力保留并可作为接口验证参考。具体外部工具和图像解码不进入文档层的必需依赖，也不因每一种语法新增一个 Cone。
 
-扩展分为 Inline 与 Block 两种形态。文档层通过统一识别入口提供带源码范围的扩展片段，保存语法、语义数据和上下文；UI Cone 据此选择展示并管理原位源码编辑。同一内容可有行内和块展示方式，已有 CodeBlock／Image 保持标准节点。除已请求的适配外，不要求逐个内置 Typora 的额外语法；应用注册所需的识别规则、内容处理与展示适配。
+扩展分为 Inline 与 Block 两种形态。文档层通过统一识别入口提供带源码范围的扩展片段，保存语法、语义数据和上下文；UI Cone 据此选择展示并管理原位源码编辑。同一内容可有行内和块展示方式，已有 CodeBlock／Image 保持标准节点。框架提供足够的接入抽象，应用注册所需的识别规则、内容处理与展示适配；本轮不逐个补齐 Typora 扩展或第三方兼容。
 
 ```mermaid
 flowchart LR
@@ -104,7 +104,7 @@ markdownDocument(configure): MarkdownDocument
 
 ### 3.3 节点覆盖
 
-首期包含 document、paragraph、heading、blockquote、list／list item、task item、thematic break、fenced／indented code、table／row／cell、reference definition、footnote definition，以及 text、emphasis、strong、strike、code span、link、image、break、footnote reference 等行内节点。
+核心节点包含 document、paragraph、heading、blockquote、list／list item、task item、thematic break、fenced／indented code、table／row／cell、reference definition，以及 text、emphasis、strong、strike、code span、link、image、break 等行内节点；CommonMark 的 HTML 保留为原始内容。已有 footnote definition／reference 等节点继续可用，不因列入模型就扩充相关语法。
 
 数学内容、front matter、HTML 和自定义指令可以保存为明确的扩展／原始内容节点。Mermaid 的源码仍是带 `mermaid` info string 的 fenced code；注册展示扩展不改变其 Markdown 存储形态。
 
@@ -182,6 +182,8 @@ doc.writeTo(writer)
 
 ### 5.1 HTML 导入
 
+本节记录已经完成的辅助能力。本轮保留现状，不继续增加 HTML／CSS 转换范围，也不将 HTML 导入作为核心或扩展框架的新增交付项。
+
 独立 `importMarkdownHtml` 接受 HTML 字符串与 `MarkdownHtmlImportOptions`，返回新 Markdown、原 HTML 片段范围和诊断；不依赖窗口或图形库。常见段落、格式、列表、代码及普通矩形表格复用现有 Markdown 生成器。无法表示的结构与未知元素保留原始 HTML，样式只转换明确支持的文字语义，不构造浏览器布局或执行脚本。完整转换范围、HTML 实体／空白规则和恢复边界以 [文档规范 §7.1](../specs/SCOOP-MARKDOWN-SPEC.md#71-html-导入) 为准。
 
 导入只转换调用方提供的片段，生成结果可直接保存，或交给已有 `replaceMarkdown` 准备一次语义事务。UI 剪贴板使用同一入口并遵守当前 profile；原始文档的其余内容、保存与撤销规则保持不变。
@@ -255,7 +257,7 @@ doc.writeTo(writer)
 
 ### 6.3 mdBook 风格扩展
 
-首个自定义扩展示例至少实现：
+本节以已经实现的 mdBook include 说明语法识别、资源处理与来源映射如何组合；它是框架的实际使用参考，不是本轮新增命令或兼容完整 mdBook 的任务。已有示例包括：
 
 ```text
 {{#include chapter.md}}
@@ -269,7 +271,7 @@ doc.writeTo(writer)
 
 未注册的指令保留源码并可报告缺少处理器；注册后处理失败保留源码与错误。`rustdoc_include` 等隐藏行规则需要各自明确处理，不把普通 include 改名后就声称兼容。
 
-已有 mdBook preprocessor 的完整兼容是应用适配：它可按官方 `[context, book]` JSON 协议运行已有程序，把返回内容作为派生文档。协议本身没有提供可靠的逐字来源映射，返回内容也可能依赖其他章节，因此无映射时使用文档／章节级预览与定位。`scoop.markdown` 不假设任意 mdBook 插件都等价于局部模板替换。
+将来若需兼容 mdBook preprocessor，由应用适配按官方 `[context, book]` JSON 协议运行相应程序，把返回内容作为派生文档；本轮不实现这套兼容层。协议本身没有提供可靠的逐字来源映射，返回内容也可能依赖其他章节，因此无映射时使用文档／章节级预览与定位。`scoop.markdown` 不假设任意 mdBook 插件都等价于局部模板替换。
 
 ## 7. 实现选择与性能边界
 
@@ -277,7 +279,7 @@ doc.writeTo(writer)
 
 按实现阶段的用户要求，文档库全部使用 Scoop，不新增 Rust／C 后端，不链接 Ropey 或 pulldown-cmark。原始调研中的两个库只作为算法和行为参考。源文本采用不可变、平衡的分块文本树，修改只复制相关路径与有界叶片；快照共享原有子树，节点保存字节长度和换行汇总。
 
-解析器以 CommonMark 0.31.2 为语义基础，使用块容器与行内 delimiter stack 的常见算法，并补齐 GFM 及本文列出的扩展。实现参考成熟的 [commonmark.js](https://github.com/commonmark/commonmark.js) 和规范用例；实际移植代码时保留来源与许可，不能通过调用外部 Markdown 进程满足文档库 API。Scoop 自己的系统库缺少必要能力时先修复系统库并重建工具链，不在本库旁置一套替代运行时。
+解析器以 CommonMark 0.31.2 为语义基础，使用块容器与行内 delimiter stack 的常见算法，覆盖本轮常用 GFM 能力并提供 §6.1 的扩展接入点。文中的具体扩展示例不扩大 parser 的内置语法清单。实现参考成熟的 [commonmark.js](https://github.com/commonmark/commonmark.js) 和规范用例；实际移植代码时保留来源与许可，不能通过调用外部 Markdown 进程满足文档库 API。Scoop 自己的系统库缺少必要能力时先修复系统库并重建工具链，不在本库旁置一套替代运行时。
 
 解析器保存编辑需要的完整范围、正文范围和分隔符／显示映射，尤其处理转义、实体、code span、容器前缀与换行。字节保存不依赖语义节点反向生成；源码解析与新文档生成共享语法规则，避免不一致的两套 Markdown 语义。
 
@@ -299,7 +301,7 @@ doc.writeTo(writer)
 
 ## 8. 无 UI 使用与验证
 
-首个可运行示例必须只依赖 `scoop.markdown` 和实际需要的 std／platform：读取 Markdown，查询标题，修改一个标题或链接，附加一段生成内容，再写回文件。公式、Mermaid 和未知指令在没有图形环境时仍可解析、保留、生成。
+核心可运行示例只依赖 `scoop.markdown` 和实际需要的 std／platform：读取 Markdown，查询标题，修改一个标题或链接，附加一段生成内容，再写回文件。注册的扩展在没有图形环境时仍可识别与处理；未注册语法按普通 Markdown 保留，不要求为保存原文安装 renderer 或实现所有扩展。
 
 普通行为使用所属 Cone 的 `scoop.test`：
 
@@ -308,11 +310,13 @@ doc.writeTo(writer)
 - 修改局部后未编辑片段保持原样，结构化命令生成合法目标结构；
 - builder 的转义与定界符选择；生成后重新解析的语义对照放在测试中；
 - 事务原子性、过期节点、位置映射和逆向修改；
-- include 的相对路径、行／anchor 范围、嵌套、错误和源映射；
-- 标准图片及引用式图片的扩展路由与多段来源；Mermaid 优先于通用代码回退，缺少展示适配不影响解析；
+- 内容处理的资源依赖、错误和来源映射，复用已有 include 作为代表用例；
+- 标准图片及引用式图片的扩展路由与多段来源；具体围栏规则优先于通用代码回退，可复用已有 Mermaid 规则，缺少展示适配不影响解析；
 - 新语法的转义、code span／代码正文、列表／引用上下文、多行含空行块、未闭合恢复、规则冲突与嵌套；
 - 扩展索引的位置／相交查询、差量后的有效范围和引用依赖变化；大文档查询不退化为每次全文扫描；
 - 无 renderer 时扩展仍可读写；source 输出与 expanded 输出的区别。
+
+扩展验收验证通用合同和两种接入方式，不逐项补充公式、图表或模板命令的兼容测试。已有适配在接口调整影响到它时做必要回归；新增具体扩展随其独立交付验证。
 
 库依赖和 native 链接由一个真实 headless 程序验证；不通过移走 UI 源码、隐藏工具或删除产物来模拟无 UI。性能样本保留原文件和版本信息，原始测量记录放仓库外。
 
