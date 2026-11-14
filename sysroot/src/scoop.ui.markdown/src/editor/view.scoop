@@ -5,6 +5,7 @@ import scoop.graphics.text.FontCollection
 import scoop.markdown.*
 import scoop.surface.FocusVisibility
 import scoop.surface.ShortcutScope
+import scoop.surface.ShortcutBinding
 import scoop.ui.*
 import scoop.ui.component.resizable
 
@@ -20,7 +21,8 @@ internal class MdEditorProps(
     val source: ((MarkdownRange) -> Unit)?,
     val images: MarkdownImageController?,
     val documentUri: String,
-    val search: MarkdownSearchController? = None
+    val search: MarkdownSearchController? = None,
+    val navigation: MarkdownNavigationController? = None
 )
 
 /** Three native editing modes over one borrowed document, selection and undo history. */
@@ -36,7 +38,8 @@ public fun markdownEditor(
     onSource: ((MarkdownRange) -> Unit)? = None,
     images: MarkdownImageController? = None,
     documentUri: String = "",
-    search: MarkdownSearchController? = None
+    search: MarkdownSearchController? = None,
+    navigation: MarkdownNavigationController? = None
 ): View {
     options.check()
     if (state.editor !== controller.editor)
@@ -44,6 +47,13 @@ public fun markdownEditor(
     when (search) {
         case Some(val value) -> if (value.view !== state)
             throw IllegalArgumentException(Some("Markdown search must belong to this view state"))
+        case None -> Unit
+    }
+    when (navigation) {
+        case Some(val value) -> if (value.view !== state || value.parser !== controller)
+            throw IllegalArgumentException(
+                Some("Markdown navigation must belong to this view and parser")
+            )
         case None -> Unit
     }
     return component(
@@ -59,7 +69,8 @@ public fun markdownEditor(
             onSource,
             images,
             documentUri,
-            search
+            search,
+            navigation
         ),
         { props, scope -> MdEditorComponent(props, scope) }
     )
@@ -171,7 +182,12 @@ private class MdEditorShell(val props: Props<MdEditorShellProps>, scope: Compone
     }
     public override fun update(): UiInvalidation {
         props.value.mount.update(props.value.input)
-        shortcuts.bindings = mdSearchBindings(props.value.input.search, false)
+        val bindings = ArrayList<ShortcutBinding>()
+        for (binding in mdSearchBindings(props.value.input.search, false))
+            bindings.add(binding)
+        for (binding in mdNavigationBindings(props.value.input.navigation, false))
+            bindings.add(binding)
+        shortcuts.bindings = bindings.toArray()
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

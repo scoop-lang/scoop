@@ -73,7 +73,12 @@ public class MarkdownProfile public constructor(
         public val CommonMark: MarkdownProfile = MarkdownProfile(false, false, false, false)
         public val Gfm: MarkdownProfile = MarkdownProfile()
         public val Editor: MarkdownProfile =
-            MarkdownProfile(math = true, frontMatter = true, footnotes = true)
+            MarkdownProfile(
+                math = true,
+                frontMatter = true,
+                footnotes = true,
+                extensions = [tableOfContentsDirective()]
+            )
     }
 }
 

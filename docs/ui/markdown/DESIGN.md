@@ -147,6 +147,10 @@ document 的内容 revision 与 native 输入快照的 revision 分开：选择�
 
 大纲与折叠以同一文档索引工作。跳转到折叠或未挂载位置时先展开／实现所需范围，再进行布局和定位。
 
+`MarkdownParsedDocument` 在工作线程建立 sourceNavigation／previewNavigation。`MarkdownNavigationController(viewState, parser)` 提供标题、内部锚点、行列跳转和最多 128 个位置的后退／前进；普通编辑映射已有历史，Reset 清空。选区方向和正文撤销保持独立，不为导航切换模式。`markdownOutline` 使用 VirtualList 显示原文标题，`markdownNavigationBar` 使用原生 line:column 字段及 Primary-L／Enter／Escape，调用方将同一 controller 传给 markdownEditor 的 navigation 参数。
+
+[TOC] 按最终预览语法中的标题派生为只读目录行，包括扩展生成的标题；内部链接与脚注跳转沿同一来源映射返回原文。目录点击记录导航历史，源码入口保留原指令；后台解析待完成时不使用旧标题范围跳转。索引的 section 范围也供后续折叠实现使用。
+
 全文查找由独立文档 Cone 的 `snapshot.search(query)` 执行，结果保存实际 snapshot 身份与源码 UTF-8 范围。UI 的 `MarkdownSearchController(viewState, executor, proxy)` 合并后台请求，仅发布仍匹配查询与文档的结果；选择、颜色与保存状态不重新扫描全文，隐藏后正文键入只废弃结果。`markdownSearchBar` 复用普通原生 Input，`markdownEditor(..., search)` 绑定 Primary-F／Alt-F／G 和可见范围高亮。查询、替换字段保持独立输入历史，结果定位保持字段焦点，经源码锚点滚动到目标，不隐式切换编辑模式。
 
 搜索原始源码，包括标记、链接目标、代码及扩展指令；include 派生内容不进入原文搜索结果。大小写、整词和正则规则由文档 Cone 统一提供，正则替换支持捕获模板。可见行／单元格对匹配集合做二分查询，显示映射负责隐藏标记和原子内容的位置，零宽匹配画细线。替换先准备当前有效范围，再通过 editor 发布一次事务；全部替换只有一个撤销项，旧搜索范围不应用到变化后的正文。整体只读、活动栏只读或禁用时禁止替换，资源由实际宿主管理。

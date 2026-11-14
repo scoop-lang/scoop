@@ -12,7 +12,7 @@ internal struct MdDisplayFlags(
 )
 
 internal enum MdDisplayAction {
-    Link(String), Source(MarkdownRange)
+    Link(String), Source(MarkdownRange), Navigate(MarkdownRange)
 }
 
 internal enum MdDisplayObject {

@@ -50,6 +50,19 @@ internal fun mdPreviewReadEvent(
                 val point = context.localPosition ?: return
                 val hit = host.hitTest(point) ?: return
                 host.area.requestFocus(FocusOrigin.Pointer)
+                val link =
+                    when (hit.action) {
+                        case Some(MdDisplayAction.Link(_)) -> true
+                        case Some(MdDisplayAction.Navigate(_)) -> true
+                        else -> false
+                    }
+                if (link && !pointer.state.modifiers.shift) {
+                    host.drag = Some(hit.position)
+                    host.pressed = Some(hit)
+                    host.moved = false
+                    context.consume()
+                    return
+                }
                 val anchor =
                     if (pointer.state.modifiers.shift)
                         host.editor.selection.anchor

@@ -165,7 +165,7 @@ public class MarkdownSearchController public constructor(
             MarkdownSelection(MarkdownPosition(range.start), MarkdownPosition(range.end))
         )
         picked.value = Some(index)
-        mdSearchReveal(view, MarkdownPosition(range.start))
+        mdRevealEditorPosition(view, MarkdownPosition(range.start))
     }
 
     internal fun afterReplace(position: MarkdownPosition) {

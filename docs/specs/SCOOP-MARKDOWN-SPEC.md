@@ -256,6 +256,18 @@ prepareReplace(index, text, template) 和 prepareReplaceAll(text, template) 返�
 
 搜索是显式全文操作，可在调用方工作线程上运行；正则成本取决于表达式，源码字节坐标换算随扫描位置单调推进。它不改变普通编辑、解析和保存路径，也不成为逐键全文复制的前置步骤。
 
-## 14. 后续结构与处理
+## 14. 文档导航与目录
+
+`snapshot.positionAt(line, column)` 和 `lineColumn(position)` 使用从零开始的物理行及 Unicode 标量列，字节位置仍沿用 MarkdownPosition。行号和负列非法；超过行尾的列停在正文末尾，CR／LF／CRLF 定界符不计入列数。查找一行不复制全文，列换算只扫描该行需要的片段。
+
+`ParsedMarkdown.navigation()` 显式建立不可变 MarkdownNavigation，绑定该解析与 snapshot。headings 按源码顺序列出正文中的 ATX／Setext 标题，包括引用和列表内的标题；代码、原始 HTML、扩展正文及脚注定义内部不形成文档章节。MarkdownHeading 保存 node、level、解码后的 title、anchor、原始 range、section 和父标题索引。section 延续到下一个同级或更高标题之前，最后一节到文档末尾；父关系按实际出现的标题层级处理，跳级不生成虚构标题。headingAt(position) 二分定位当前位置之前最近的标题。
+
+标题文字使用文字／代码的解码内容及图片替代文字，忽略 HTML 标签和脚注引用，扩展使用其原始 body，不执行处理器或图像工具。标题空白合为普通空格。anchor 使用 Unicode 小写，保留字母、组合标记、数字、下划线与连字符，空白合为连字符，删除其他标点／符号；空结果用 section。按出现次序补 -1、-2 等后缀，避开已使用的名称及脚注锚点，不隐式规范化 Unicode。
+
+`resolveLink(destination)` 仅处理本文件的 #fragment，以 scoop.url 解码百分号转义；空 fragment 指向文档开头，缺失或非法 fragment 返回 None。已使用脚注的定义与引用分别提供 fn-label、fnref-label、fnref-label-2 等锚点，label 使用解析后的规范标签。目标是本 snapshot 的源码范围，普通外部 URI 不触发 I/O。
+
+`navigation.tableOfContents(minLevel, maxLevel)` 显式生成链接列表 Markdown，使用同一组标题及锚点，层级跳过不在范围内的标题；空标题显示 Untitled。`tableOfContentsDirective()` 注册独占一行的 [TOC]／[toc]（字母不区分大小写），不匹配围栏内或转义文字；Editor profile 默认包含它。语法节点保留原指令，解析不写入生成的目录。无 UI 程序可从 navigation 生成目录；UI 在最终预览语法上派生目录，使处理器展开的标题也参与展示。
+
+## 15. 后续结构与处理
 
 后续结构修改与跨修改的节点身份复用继续按设计增补。普通解析结果里的身份不构成跨独立解析的匹配猜测。保存、修改与解析各自有明确边界，parse 不成为读取快照或源码输入的隐式副作用；公式与 Mermaid 的图像工具不参与 headless 文档的解析／生成合法性。

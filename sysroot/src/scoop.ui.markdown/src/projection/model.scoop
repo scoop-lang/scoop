@@ -39,7 +39,8 @@ internal class MdDisplayRow(
     val markers: Array<MdDisplayMarker>,
     val cells: Array<MdDisplayText>,
     val key: MdDisplayKey,
-    val sourceAction: MarkdownRange?
+    val sourceAction: MarkdownRange?,
+    val generated: Boolean = false
 )
 
 internal class MdDisplayReuse(
@@ -135,7 +136,16 @@ private fun mdDisplaySourceOrder(rows: Array<MdDisplayRow>): Array<Long> {
 }
 
 internal fun mdDisplaySame(a: MdDisplayRow, b: MdDisplayRow): Boolean {
-    if (a.indent != b.indent || a.cells.size != b.cells.size || a.markers.size != b.markers.size)
+    if (
+        a.indent !=
+            b.indent ||
+            a.cells.size !=
+            b.cells.size ||
+            a.markers.size !=
+            b.markers.size ||
+            a.generated !=
+            b.generated
+    )
         return false
     val kind =
         when ((a.kind, b.kind)) {
@@ -277,7 +287,8 @@ internal fun mdDisplayReconcile(
                 row.markers,
                 row.cells,
                 key,
-                row.sourceAction
+                row.sourceAction,
+                row.generated
             )
         }
     return MdDisplayDocument(

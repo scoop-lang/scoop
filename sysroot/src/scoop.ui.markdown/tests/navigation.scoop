@@ -1,0 +1,99 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownNavigationProjectionTests {
+    @Test
+    fun tocRowsNavigateHeadingsAndKeepDirectiveSourceForEditing() {
+        val source = "[TOC]\r\n\r\n# Root\r\n\r\n### 子 **标题**\r\n\r\n## Last\r\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions())
+        assertSame(model.sourceNavigation, model.previewNavigation)
+        assertEquals(3L, model.previewNavigation.headings.size)
+        val display = model.display
+        assertEquals(6L, display.rows.size)
+        for (index in 0L ..< 3L) {
+            val row = display.rows[index]
+            val heading = model.previewNavigation.headings[index]
+            assertEquals(heading.title, row.cells[0L].text)
+            assertTrue(row.generated)
+            assertEquals(parsed.root.children[0L].range, row.range)
+            assertEquals(Some(row.range), row.sourceAction)
+            assertEquals(row.range.start, row.cells[0L].sourceAt(0L).byteOffset)
+            when (row.cells[0L].actionAt(0L)) {
+                case Some(MdDisplayAction.Navigate(val target)) -> assertEquals(
+                    heading.range,
+                    target
+                )
+                else -> fail(Some("Expected a table of contents destination"))
+            }
+        }
+        assertEquals(0L, display.rows[0L].indent)
+        assertEquals(1L, display.rows[1L].indent)
+        assertEquals(1L, display.rows[2L].indent)
+        assertEquals(3L, display.rowsInSourceRange(parsed.root.children[0L].range).size)
+        assertFalse(display.rows[3L].generated)
+        assertEquals(source, model.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun emptyTocKeepsSourceActionAndContainerIndent() {
+        val parsed = MarkdownDocument.fromText("> [toc]\n\nText\n").parse(MarkdownProfile.Editor)
+        val display = mdProjectMarkdown(parsed)
+        val toc = display.rows[0L]
+        assertEquals("Table of contents", toc.cells[0L].text)
+        assertEquals(1L, toc.indent)
+        assertTrue(toc.generated)
+        assertTrue(
+            when (toc.cells[0L].actionAt(0L)) {
+                case Some(MdDisplayAction.Source(val range)) -> range == toc.range
+                else -> false
+            }
+        )
+    }
+
+    @Test
+    fun tocUsesFinalExpandedHeadingsAndMapsGeneratedTargetsToTheirDirective() {
+        val document = MarkdownDocument.fromText("[TOC]\n\n# Local\n\n{{#include part.md}}\n")
+        val profile = MarkdownProfile(extensions = [tableOfContentsDirective(), mdBookDirectives()])
+        val resolver = MdNavigationResolver()
+        val session = MarkdownProcessingSession(resolver, [mdBookProcessor()])
+        val first = session.process(document.snapshot(), "book/root.md", profile)
+        val model =
+            MarkdownParsedDocument(first.sourceParsed, Some(first), MarkdownParseOptions(profile))
+        assertEquals(1L, model.sourceNavigation.headings.size)
+        assertEquals(3L, model.previewNavigation.headings.size)
+        assertEquals("Included", model.display.rows[1L].cells[0L].text)
+        assertEquals("Nested", model.display.rows[2L].cells[0L].text)
+        val included = model.previewNavigation.resolveLink("#included")!!
+        val origin = mdPreviewOriginalRange(model, included)
+        assertEquals("{{#include part.md}}", model.snapshot.read(origin))
+        assertEquals(model.snapshot.toMarkdown(), document.toMarkdown())
+        resolver.text = "## Changed\n"
+        resolver.version += 1L
+        val second = session.process(document.snapshot(), "book/root.md", profile)
+        val updated =
+            MarkdownParsedDocument(
+                second.sourceParsed,
+                Some(second),
+                MarkdownParseOptions(profile),
+                Some(model)
+            )
+        assertEquals(2L, updated.previewNavigation.headings.size)
+        assertSame(model.sourceNavigation, updated.sourceNavigation)
+        assertEquals("Changed", updated.display.rows[1L].cells[0L].text)
+        assertEquals(None, updated.previewNavigation.resolveLink("#included"))
+        assertEquals("Included", model.display.rows[1L].cells[0L].text)
+    }
+}
+
+private class MdNavigationResolver: MarkdownResourceResolver {
+    var text = "## Included\n\n### Nested\n"
+    var version = 0L
+    public override fun resolve(baseUri: String, reference: String): String = "book/" + reference
+    public override fun version(uri: String): String? = Some(version.toString())
+    public override fun read(uri: String): MarkdownResourceData =
+        MarkdownResourceData(text, version.toString())
+}

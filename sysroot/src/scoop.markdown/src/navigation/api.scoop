@@ -1,0 +1,90 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+import scoop.text.*
+import scoop.url.PercentEncoding
+import scoop.url.UrlParseException
+
+/** One original heading and the section extending to the next heading of its level or higher. */
+public class MarkdownHeading internal constructor(
+    public val node: MarkdownNodeId,
+    public val level: Int,
+    public val title: String,
+    public val anchor: String,
+    public val range: MarkdownRange,
+    public val section: MarkdownRange,
+    public val parent: Long?
+)
+
+/** Immutable source navigation, independent of layout, editing state and resource access. */
+public class MarkdownNavigation internal constructor(
+    public val parsed: ParsedMarkdown,
+    public val headings: Array<MarkdownHeading>,
+    private val targets: HashMap<String, MarkdownRange>
+) {
+    public val snapshot: MarkdownSnapshot get() = parsed.snapshot
+
+    /** Finds the nearest heading at or before a valid source position. */
+    public fun headingAt(position: MarkdownPosition): Long? {
+        snapshot.checkPosition(position.byteOffset)
+        var low = 0L
+        var high = headings.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (headings[middle].range.start <= position.byteOffset)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return if (low == 0L)
+            None
+        else
+            Some(low - 1L)
+    }
+
+    /** Resolves a percent-encoded local fragment; external and malformed links return None. */
+    public fun resolveLink(destination: String): MarkdownRange? {
+        if (!destination.startsWith("#"))
+            return None
+        val fragment =
+            try {
+                PercentEncoding.decodeUtf8(destination.substring(1L))
+            } catch (failure: UrlParseException) {
+                return None
+            }
+        return if (fragment == "")
+            Some(MarkdownRange(0L, 0L))
+        else
+            targets[fragment]
+    }
+
+    /** Generates a standalone Markdown list without changing or expanding this document. */
+    public fun tableOfContents(minLevel: Int = 1, maxLevel: Int = 6): String {
+        requireMarkdown(
+            minLevel >= 1 && maxLevel <= 6 && minLevel <= maxLevel,
+            "Markdown TOC levels must be an ordered range within 1 through 6"
+        )
+        val output = StringBuilder()
+        val levels = ArrayList<Int>()
+        for (heading in headings) {
+            if (heading.level < minLevel || heading.level > maxLevel)
+                continue
+            while (levels.size > 0L && levels[levels.size - 1L] >= heading.level)
+                levels.removeAt(levels.size - 1L)
+            output.append("  ".repeat(levels.size))
+            output.append("- ")
+            val label =
+                if (heading.title == "")
+                    "Untitled"
+                else
+                    heading.title
+            val destination = "#" + PercentEncoding.encode(heading.anchor)
+            output.append(
+                markdownText { paragraph { link(destination) { text(label) } } }.trimEnd()
+            )
+            output.append('\n')
+            levels.add(heading.level)
+        }
+        return output.toString()
+    }
+}

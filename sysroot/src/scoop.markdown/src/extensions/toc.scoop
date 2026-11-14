@@ -1,0 +1,33 @@
+package scoop.markdown
+
+/** Recognizes a standalone `[TOC]` token; rendering/generation uses the parsed heading index. */
+public fun tableOfContentsDirective(): MarkdownExtension = MdTocDirective
+
+private object MdTocDirective: MarkdownExtension {
+    public override val name: String = "toc"
+    public override val trigger: String = "["
+    public override val locations: MarkdownExtensionLocations =
+        MarkdownExtensionLocations(inlineContent = false, blocks = true)
+
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        if (input.byteAt(offset) != 91 || input.byteAt(offset + 4L) != 93)
+            return None
+        for (index in 0L ..< 3L) {
+            val byte = input.byteAt(offset + index + 1L)
+            val expected = [116, 111, 99][index]
+            if (byte != expected && byte != expected - 32)
+                return None
+        }
+        for (index in offset + 5L ..< input.byteLength) {
+            val byte = input.byteAt(index)
+            if (byte != 32 && byte != 9 && byte != 10 && byte != 13)
+                return None
+        }
+        return Some(
+            MarkdownExtensionMatch(input.byteLength, MarkdownRange(offset + 1L, offset + 4L))
+        )
+    }
+}

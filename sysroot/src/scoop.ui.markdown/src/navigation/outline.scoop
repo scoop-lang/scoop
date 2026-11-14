@@ -1,0 +1,101 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.text.repeat
+import scoop.ui.*
+import scoop.ui.component.*
+
+private class MdOutlineProps(
+    val controller: MarkdownNavigationController,
+    val fonts: FontCollection?
+)
+
+/** Virtualized source headings; obsolete titles remain visible but cannot navigate while parsing. */
+public fun markdownOutline(
+    controller: MarkdownNavigationController,
+    fonts: FontCollection? = None
+): View = component(MdOutlineProps(controller, fonts), { props, scope -> MdOutline(props, scope) })
+
+private class MdOutline(val props: Props<MdOutlineProps>, scope: ComponentScope): Component(scope) {
+    private val scroll = ScrollState()
+    public override fun render(): View {
+        val input = props.value
+        val index = input.controller.latest
+        val headings = index?.headings ?: []
+        val source = MdOutlineItems(input.controller, index, headings, input.fonts)
+        val position = scroll
+        return virtualList(source, ItemExtent.Fixed(32.0)) {
+            state = Some(position)
+            overscan = 96.0
+            navigation = ItemNavigation.Roving()
+        }
+    }
+}
+
+private class MdOutlineItems(
+    val controller: MarkdownNavigationController,
+    val navigation: MarkdownNavigation?,
+    val headings: Array<MarkdownHeading>,
+    val fonts: FontCollection?
+): ItemSource {
+    public override val count: Long get() = headings.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case ViewKey.Number(val index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        val heading = headings[index]
+        val ready =
+            when ((navigation, controller.current)) {
+                case(Some(val expected), Some(val current)) -> expected === current
+                else -> false
+            }
+        var depth = 0L
+        var parent = heading.parent
+        while (parent != None) {
+            depth += 1L
+            parent = headings[parent!!].parent
+        }
+        val text =
+            "  ".repeat(depth) +
+                if (heading.title == "")
+                    "Untitled"
+                else
+                    heading.title
+        val owner = controller
+        val items = this
+        val fontSet = fonts
+        val content =
+            label(text) {
+                fonts = fontSet
+                settings {
+                    maxLines = Some(1L);
+                    ellipsis = "…"
+                }
+            }
+        return button(content, { items.navigate(index) }) {
+            enabled = ready
+            variant =
+                if (owner.activeHeading == Some(index))
+                    ButtonVariant.Secondary
+                else
+                    ButtonVariant.Ghost
+            size = ButtonSize.Sm
+        }
+    }
+    private fun navigate(index: Long) {
+        when ((navigation, controller.current)) {
+            case(Some(val expected), Some(val current)) -> {
+                if (expected === current)
+                    controller.goToHeading(index)
+            }
+            else -> Unit
+        }
+    }
+}

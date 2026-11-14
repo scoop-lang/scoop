@@ -70,26 +70,8 @@ internal fun mdReplaceSearchAll(
         selection.range,
         selection.anchor.byteOffset > selection.cursor.byteOffset
     )
-    mdSearchReveal(search.view, selection.cursor)
+    mdRevealEditorPosition(search.view, selection.cursor)
     return true
-}
-
-internal fun mdSearchReveal(view: MarkdownEditorViewState, position: MarkdownPosition) {
-    val mount = view.mounted ?: return
-    val anchor = MdScrollAnchor(MarkdownAnchor(position, MarkdownBias.Before), 0.0)
-    if (
-        view.mode ==
-            MarkdownEditorMode.Source ||
-            (
-                view.mode ==
-                    MarkdownEditorMode.SideBySide &&
-                    view.activePane ==
-                    MarkdownEditorPane.Source
-            )
-    )
-        mount.source?.alignViewport(anchor)
-    else
-        mount.rich?.alignViewport(anchor)
 }
 
 internal fun mdSearchBindings(search: MarkdownSearchController?, field: Boolean): Array<

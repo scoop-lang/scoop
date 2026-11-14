@@ -1,0 +1,40 @@
+package scoop.markdown
+
+/** Zero-based physical line and Unicode scalar column; line terminators have the end column. */
+public struct MarkdownLineColumn(val line: Long, val column: Long)
+
+/** Resolves a source line/column, clamping columns beyond the line's text to its end. */
+public fun MarkdownSnapshot.positionAt(line: Long, column: Long = 0L): MarkdownPosition {
+    requireMarkdown(column >= 0L, "Markdown column cannot be negative")
+    val range = lineRange(line)
+    var remaining = column
+    var offset = range.start
+    for (chunk in chunks(range)) {
+        for (byte in chunk.toByteArray()) {
+            if (!markdownContinuation(byte)) {
+                if (remaining == 0L)
+                    return MarkdownPosition(offset)
+                remaining -= 1L
+            }
+            offset += 1L
+        }
+    }
+    return MarkdownPosition(range.end)
+}
+
+/** Counts only the current line's prefix and never materializes the complete source. */
+public fun MarkdownSnapshot.lineColumn(position: MarkdownPosition): MarkdownLineColumn {
+    val line = lineAt(position)
+    val range = lineRange(line)
+    val end =
+        if (position.byteOffset < range.end)
+            position.byteOffset
+        else
+            range.end
+    var column = 0L
+    for (chunk in chunks(MarkdownRange(range.start, end)))
+        for (byte in chunk.toByteArray())
+            if (!markdownContinuation(byte))
+                column += 1L
+    return MarkdownLineColumn(line, column)
+}

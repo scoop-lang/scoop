@@ -123,7 +123,7 @@ private fun mdDisplayInlineNodes(
                     current.range,
                     false,
                     mdDisplayFlags(item.flags, link = true),
-                    Some(MdDisplayAction.Source(entry._2))
+                    Some(MdDisplayAction.Navigate(entry._2))
                 )
             }
             case MarkdownContent.SoftBreak ->

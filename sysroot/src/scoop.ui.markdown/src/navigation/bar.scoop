@@ -1,0 +1,152 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Point
+import scoop.graphics.text.FontCollection
+import scoop.surface.*
+import scoop.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.input as locationInput
+import scoop.window.*
+
+private class MdNavigationBarProps(
+    val controller: MarkdownNavigationController,
+    val fonts: FontCollection?
+)
+
+/** Back/forward and a native one-based line:column field. */
+public fun markdownNavigationBar(
+    controller: MarkdownNavigationController,
+    fonts: FontCollection? = None
+): View =
+    component(
+        MdNavigationBarProps(controller, fonts),
+        { props, scope -> MdNavigationBar(props, scope) }
+    )
+
+internal fun mdSubmitLocation(controller: MarkdownNavigationController): Boolean {
+    controller.checkOpen()
+    val parts = controller.locationInput.text.trim().split(":")
+    if (parts.size < 1L || parts.size > 2L) {
+        controller.message.value = "Enter a line or line:column."
+        return false
+    }
+    val line = parts[0L].trim().toLongOrNone() ?: 0L
+    val column =
+        if (parts.size == 1L)
+            1L
+        else
+            parts[1L].trim().toLongOrNone() ?: 0L
+    if (line < 1L || line > controller.editor.snapshot.lineCount || column < 1L) {
+        controller.message.value = "Line and column must be positive; the line must exist."
+        return false
+    }
+    controller.message.value = ""
+    controller.goToLine(line - 1L, column - 1L)
+    return true
+}
+
+internal fun mdNavigationBindings(controller: MarkdownNavigationController?, field: Boolean): Array<
+    ShortcutBinding
+> {
+    val value = controller ?: return []
+    val result = ArrayList<ShortcutBinding>()
+    result.add(
+        shortcutBinding(
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character("l")),
+                ShortcutModifiers(primary = true)
+            ),
+            { value.focusLocation() }
+        ) { canExecute = { !value.isClosed } }
+    )
+    if (field)
+        result.add(
+            shortcutBinding(
+                ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Escape))),
+                {
+                    value.focusRequested = false;
+                    value.view.requestFocus(value.view.activePane)
+                }
+            ) { canExecute = { !value.isClosed && !value.locationInput.isComposing } }
+        )
+    return result.toArray()
+}
+
+private class MdNavigationBar(
+    val props: Props<MdNavigationBarProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        val navigation = input.controller
+        val content =
+            column {
+                alignment = CrossAlignment.Stretch
+                row {
+                    spacing = 4.0
+                    alignment = CrossAlignment.Center
+                    button("Back", { navigation.goBack() }) {
+                        enabled = navigation.canGoBack;
+                        size = ButtonSize.Sm;
+                        fonts = input.fonts
+                    }
+                    button("Forward", { navigation.goForward() }) {
+                        enabled = navigation.canGoForward;
+                        size = ButtonSize.Sm;
+                        fonts = input.fonts
+                    }
+                    item(
+                        locationInput(navigation.locationInput) {
+                            placeholder = "Line:column"
+                            fonts = input.fonts
+                            enabled = !navigation.isClosed
+                            invalid = navigation.message.value != ""
+                            focus = FocusOptions(Some(navigation.locationFocus))
+                            onEdited = { _ -> navigation.message.value = "" }
+                            onSubmit = { _ -> mdSubmitLocation(navigation) }
+                        }
+                    ) {
+                        grow = 1.0;
+                        basis = FlexBasis.Fixed(0.0)
+                    }
+                    button("Go", { mdSubmitLocation(navigation) }) {
+                        enabled = !navigation.isClosed;
+                        size = ButtonSize.Sm;
+                        fonts = input.fonts
+                    }
+                }
+                if (navigation.message.value != "")
+                    label(navigation.message.value) { fonts = input.fonts }
+            }
+        return element(input, { props, scope -> MdNavigationBarShell(props, scope) }, [content])
+    }
+}
+
+private class MdNavigationBarShell(
+    val props: Props<MdNavigationBarProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val shortcuts = scope.resource { ShortcutScope(scope.input) }
+    public override fun onMount() {
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        shortcuts.bindings = mdNavigationBindings(Some(props.value.controller), true)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val metrics = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(metrics, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        context.onFrameComplete {
+            completion -> if (scope.isMounted && completion.submission != FrameSubmission.Discarded)
+                props.value.controller.requestFieldFocus()
+        }
+    }
+}

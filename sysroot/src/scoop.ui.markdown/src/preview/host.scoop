@@ -274,7 +274,16 @@ public class MarkdownPreviewHost public constructor(
         if (hit.document !== model || !mdSamePresentation(hit.presentation, frame.presentation))
             return
         when (hit.action) {
-            case Some(MdDisplayAction.Link(val destination)) -> openLink(destination)
+            case Some(MdDisplayAction.Link(val destination)) -> {
+                when (model.previewNavigation.resolveLink(destination)) {
+                    case Some(val range) -> navigate(
+                        mdFrameOriginalRange(model, frame.presentation, range)
+                    )
+                    case None -> openLink(destination)
+                }
+            }
+            case Some(MdDisplayAction.Navigate(val range)) ->
+            navigate(mdFrameOriginalRange(model, frame.presentation, range))
             case Some(MdDisplayAction.Source(val range)) -> openSource(
                 when (frame.presentation) {
                     case Some(val local) -> {
@@ -285,6 +294,26 @@ public class MarkdownPreviewHost public constructor(
                 }
             )
             case None -> Unit
+        }
+    }
+    private fun navigate(range: MarkdownRange) {
+        val position = MarkdownPosition(range.start)
+        val mount = editorMount
+        when (mount?.props?.navigation ?: None) {
+            case Some(val navigation) -> navigation.goTo(position)
+            case None -> {
+                editor.setSelection(MarkdownSelection(position, position))
+                when (mount) {
+                    case Some(val owner) -> {
+                        owner.state.requestFocus(owner.state.activePane)
+                        mdRevealEditorPosition(owner.state, position)
+                    }
+                    case None -> {
+                        area.requestFocus()
+                        reveal(position)
+                    }
+                }
+            }
         }
     }
     public fun execute(command: TextEditCommand): Boolean {

@@ -114,3 +114,15 @@ RichHost 和 viewState 提供 `setCode`／`toggleCode`／`codeState`，Primary-E
 默认复制／剪切同时写入所见 `text/plain` 和语义 `text/markdown`；源码面两者均为原选区。默认粘贴优先读取存在的 Markdown 格式，富文本面按文档 Cone 的 replaceMarkdown 插入，源码面原样插入；缺失时将普通文本按字面文字插入。一次粘贴独立撤销，先接受当前组合，剪切先成功写剪贴板再删除。生成内容的 Markdown 表示保留原指令。HTML 导入尚未接入。
 
 `MarkdownRichHost.executeClipboard`、`MarkdownSourceHost.executeClipboard` 和 `MarkdownEditorViewState.executeClipboard` 接受 `MarkdownClipboardCommand.CopyText / CopyMarkdown / PasteText / PasteMarkdown / PasteTableTsv`，可直接由菜单或工具栏调用。CopyMarkdown 同时将源码作为纯文本提供；PasteText 忽略 Markdown 格式；PasteMarkdown 可显式解析纯文本；PasteTableTsv 只在富文本表格中执行矩形操作，默认粘贴不猜测 Tab 内容。只读保留复制，禁用修改；禁用组件或未挂载的 ViewState 返回 false。ViewState 按活动栏路由，成功后恢复该栏焦点。
+
+## 大纲和位置导航
+
+创建 `MarkdownNavigationController(viewState, parser)`，分别传给 `markdownOutline`、`markdownNavigationBar` 和 `markdownEditor(..., navigation = Some(controller))`。调用方管理 controller 生命周期；大纲和导航栏都可独立组合，示例使用 `scope.resource`。
+
+`current`／`latest` 提供当前和上次标题索引，`activeHeading` 跟随源码选区；大纲用 VirtualList 仅挂载可见标题，解析待完成时保留旧标题但禁止跳转。`goTo(position)`、`goToLine(line, column)`、`goToHeading(index)`、`goToLink(destination)` 以共享源码选区定位当前活动栏，保持编辑模式。行列 API 从零计数，原生字段显示从一计数的 line:column；Primary-L 聚焦字段，Enter 跳转，无组合时 Escape 返回编辑栏。
+
+`goBack`／`goForward` 与 `canGoBack`／`canGoForward` 管理最近 128 个显式跳转位置。普通修改映射已有位置，外部 Reset 清空历史，后退恢复反向选区；导航不会添加正文撤销项，只读仍可导航。TOC 和内部链接通过同一 controller 记录跳转；未配置 controller 的预览仍能定位本文件锚点。
+
+Editor profile 的 [TOC] 按最终预览标题派生只读目录，包括 include 生成的标题。生成标题通过 sourceMap 返回所属指令；原文件保存时保留 [TOC]。预览脚注编号跳转到定义，活动编辑片段中的脚注原子仍提供源码编辑。缺失锚点和外部 URI 交给 onOpenLink。标题／front matter 折叠仍在后续实现范围。
+
+活动富文本栏的折叠光标遵守可编辑文字边界：跳转到标题／列表隐藏标记时定位到同一块的文字起点；源码和只读预览保留请求的源码位置。内部链接点击先保留跳转前的选区，再记录导航，后退不会退到链接点击造成的临时选区。

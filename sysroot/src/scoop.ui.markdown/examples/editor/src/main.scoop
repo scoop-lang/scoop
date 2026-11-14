@@ -10,6 +10,7 @@ import scoop.platform.process.*
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.component.*
+import scoop.ui.component.row as editorRow
 import scoop.ui.style.Insets
 import scoop.ui.style.ThemeSource
 import scoop.ui.style.shadcn.shadcnTheme
@@ -32,6 +33,8 @@ private class EditorWindow(
     private val view = MarkdownEditorViewState(editor, MarkdownEditorMode.SideBySide)
     private val search =
         scope.resource { MarkdownSearchController(view, workers, scope.application.proxy()) }
+    private val navigation = scope.resource { MarkdownNavigationController(view, parser) }
+    private val outline = state(true)
     private val message = state("")
 
     public override fun onMount() {
@@ -78,6 +81,7 @@ private class EditorWindow(
                 row {
                     padding = Insets.all(8.0)
                     spacing = 8.0
+                    button("大纲", { owner.outline.value = !owner.outline.value })
                     button("源码", { owner.view.setMode(MarkdownEditorMode.Source) })
                     button("所见即所得", { owner.view.setMode(MarkdownEditorMode.Wysiwyg) })
                     button("双栏", { owner.view.setMode(MarkdownEditorMode.SideBySide) })
@@ -99,15 +103,29 @@ private class EditorWindow(
                 item(markdownFormattingToolbar(owner.view))
                 item(markdownBlockToolbar(owner.view))
                 item(markdownSearchBar(owner.search))
+                item(markdownNavigationBar(owner.navigation))
                 item(
-                    markdownEditor(
-                        owner.view,
-                        owner.parser,
-                        images = Some(owner.images),
-                        documentUri = owner.documentUri,
-                        search = Some(owner.search),
-                        onOpenLink = { destination -> owner.message.value = destination }
-                    )
+                    editorRow {
+                        alignment = CrossAlignment.Stretch
+                        if (owner.outline.value)
+                            item(markdownOutline(owner.navigation)) {
+                                basis = FlexBasis.Fixed(220.0)
+                            }
+                        item(
+                            markdownEditor(
+                                owner.view,
+                                owner.parser,
+                                images = Some(owner.images),
+                                documentUri = owner.documentUri,
+                                search = Some(owner.search),
+                                navigation = Some(owner.navigation),
+                                onOpenLink = { destination -> owner.message.value = destination }
+                            )
+                        ) {
+                            grow = 1.0;
+                            basis = FlexBasis.Fixed(0.0)
+                        }
+                    }
                 ) {
                     grow = 1.0;
                     basis = FlexBasis.Fixed(0.0)

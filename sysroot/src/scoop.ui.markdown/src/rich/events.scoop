@@ -60,6 +60,18 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                 val point = context.localPosition ?: return
                 val hit = host.hitTest(point) ?: return
                 host.area.requestFocus(FocusOrigin.Pointer)
+                if (!pointer.state.modifiers.shift) {
+                    when (hit.action) {
+                        case Some(MdDisplayAction.Navigate(_)) -> {
+                            host.preview.drag = Some(hit.position)
+                            host.preview.pressed = Some(hit)
+                            host.preview.moved = false
+                            context.consume()
+                            return
+                        }
+                        else -> Unit
+                    }
+                }
                 val anchor =
                     if (pointer.state.modifiers.shift)
                         host.editor.selection.anchor
@@ -89,13 +101,20 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                 host.preview.pressed = None
                 when (hit) {
                     case Some(val value) -> if (!host.preview.moved) {
-                        if (value.generated)
-                            host.preview.openSource(value.sourceRange)
-                        else
-                            when (value.action) {
-                                case Some(MdDisplayAction.Source(_)) -> host.preview.activate(value)
-                                else -> Unit
+                        when (value.action) {
+                            case Some(MdDisplayAction.Navigate(_)) -> host.preview.activate(value)
+                            else -> {
+                                if (value.generated)
+                                    host.preview.openSource(value.sourceRange)
+                                else
+                                    when (value.action) {
+                                        case Some(
+                                            MdDisplayAction.Source(_)
+                                        ) -> host.preview.activate(value)
+                                        else -> Unit
+                                    }
                             }
+                        }
                     }
                     case None -> Unit
                 }

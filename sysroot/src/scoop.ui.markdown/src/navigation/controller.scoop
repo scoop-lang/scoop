@@ -1,0 +1,180 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.window.Utf8Selection
+
+private fun mdNavigationEditor(
+    view: MarkdownEditorViewState,
+    parser: MarkdownParseController
+): MarkdownEditorState {
+    if (view.editor !== parser.editor)
+        throw IllegalArgumentException(
+            Some("Markdown navigation and parser must share the same editor")
+        )
+    return view.editor
+}
+
+/** Source navigation and a bounded jump history, independent of document undo and view mode. */
+public class MarkdownNavigationController public constructor(
+    public val view: MarkdownEditorViewState,
+    public val parser: MarkdownParseController
+): Closeable {
+    public val editor: MarkdownEditorState = mdNavigationEditor(view, parser)
+    private val revision = state(0L)
+    private val previous = ArrayList<MarkdownSelection>()
+    private val following = ArrayList<MarkdownSelection>()
+    private var closed = false
+    private val subscription = editor.document.observe { change -> changed(change) }
+    internal val locationInput = TextEditorState()
+    internal val locationFocus = FocusHandle()
+    internal var focusRequested = false
+    internal val message = state("")
+
+    public val current: MarkdownNavigation? get() =
+        if (isClosed || editor.isClosed)
+            None
+        else
+            parser.current?.sourceNavigation
+    public val latest: MarkdownNavigation? get() =
+        if (isClosed)
+            None
+        else
+            parser.latest?.sourceNavigation
+    public val activeHeading: Long? get() = current?.headingAt(editor.selection.cursor) ?: None
+    public val canGoBack: Boolean get() {
+        revision.value;
+        return !closed && previous.size > 0L
+    }
+    public val canGoForward: Boolean get() {
+        revision.value;
+        return !closed && following.size > 0L
+    }
+    public val isClosed: Boolean get() {
+        revision.value;
+        return closed
+    }
+
+    public fun goTo(position: MarkdownPosition): Boolean {
+        checkOpen()
+        val selection = MarkdownSelection(position, position)
+        mdCheckSelection(editor.snapshot, selection)
+        editor.acceptComposition()
+        val before = editor.selection
+        if (before != selection) {
+            push(previous, before)
+            following.clear()
+            revision.value += 1L
+        }
+        select(selection)
+        return before != selection
+    }
+
+    /** Zero-based lines and Unicode scalar columns; a column beyond the text clamps to line end. */
+    public fun goToLine(line: Long, column: Long = 0L): Boolean {
+        checkOpen()
+        return goTo(editor.snapshot.positionAt(line, column))
+    }
+
+    /** Returns false while parsing is pending, rather than applying an obsolete heading range. */
+    public fun goToHeading(index: Long): Boolean {
+        checkOpen()
+        val navigation = current ?: return false
+        if (index < 0L || index >= navigation.headings.size)
+            throw IllegalArgumentException(Some("Markdown heading index is out of range"))
+        goTo(MarkdownPosition(navigation.headings[index].range.start))
+        return true
+    }
+
+    /** Resolves against the displayed document and maps included/generated content to its source. */
+    public fun goToLink(destination: String): Boolean {
+        checkOpen()
+        val model = parser.current ?: return false
+        val range = model.previewNavigation.resolveLink(destination) ?: return false
+        goTo(MarkdownPosition(mdPreviewOriginalRange(model, range).start))
+        return true
+    }
+
+    public fun goBack(): Boolean = replay(previous, following)
+    public fun goForward(): Boolean = replay(following, previous)
+
+    /** Selects the native line:column field, before or after the bar is mounted. */
+    public fun focusLocation() {
+        checkOpen()
+        editor.acceptComposition()
+        val location = editor.snapshot.lineColumn(editor.selection.cursor)
+        locationInput.replaceAll(
+            (location.line + 1L).toString() + ":" + (location.column + 1L).toString()
+        )
+        locationInput.setSelection(Utf8Selection(0L, locationInput.text.byteLength))
+        message.value = ""
+        focusRequested = true
+        requestFieldFocus()
+    }
+
+    private fun replay(
+        from: ArrayList<MarkdownSelection>,
+        to: ArrayList<MarkdownSelection>
+    ): Boolean {
+        checkOpen()
+        if (from.size == 0L)
+            return false
+        editor.acceptComposition()
+        val selection = from.removeAt(from.size - 1L)
+        push(to, editor.selection)
+        revision.value += 1L
+        select(selection)
+        return true
+    }
+
+    private fun select(selection: MarkdownSelection) {
+        editor.setSelection(selection)
+        view.requestFocus(view.activePane)
+        mdRevealEditorPosition(view, selection.cursor)
+    }
+
+    private fun push(stack: ArrayList<MarkdownSelection>, selection: MarkdownSelection) {
+        if (stack.size == 128L)
+            stack.removeAt(0L)
+        stack.add(selection)
+    }
+
+    private fun changed(change: MarkdownChange) {
+        revision.checkMutation()
+        if (change.kind == MarkdownChangeKind.Reset) {
+            previous.clear()
+            following.clear()
+        } else {
+            for (index in 0L ..< previous.size)
+                previous[index] = previous[index].map(change)
+            for (index in 0L ..< following.size)
+                following[index] = following[index].map(change)
+        }
+        revision.value += 1L
+    }
+
+    internal fun requestFieldFocus() {
+        if (focusRequested && locationFocus.isAttached && locationFocus.requestFocus())
+            focusRequested = false
+    }
+
+    internal fun checkOpen() {
+        revision.checkMutation()
+        if (closed)
+            throw IllegalStateException(Some("Markdown navigation controller is closed"))
+        editor.checkEdit()
+    }
+
+    public override fun close() {
+        revision.checkMutation()
+        if (closed)
+            return
+        closed = true
+        subscription.close()
+        previous.clear()
+        following.clear()
+        focusRequested = false
+        revision.value += 1L
+    }
+}

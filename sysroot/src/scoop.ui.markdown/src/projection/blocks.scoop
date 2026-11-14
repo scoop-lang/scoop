@@ -23,7 +23,8 @@ internal fun mdProjectMarkdown(
     previous: MdDisplayDocument? = None,
     imageCodeLanguages: List<String> = ["mermaid"],
     imageExtensions: List<String> = ["math"],
-    highlights: MarkdownCodeHighlights? = None
+    highlights: MarkdownCodeHighlights? = None,
+    navigation: MarkdownNavigation? = None
 ): MdDisplayDocument {
     val notes =
         Array<MdProjectionFootnote>(parsed.footnotes.size) {
@@ -37,7 +38,8 @@ internal fun mdProjectMarkdown(
         imageExtensions,
         notes,
         HashMap(),
-        highlights
+        highlights,
+        Some(navigation ?: parsed.navigation())
     ).build(previous)
 }
 
@@ -74,7 +76,8 @@ private class MdBlockProjection(
     imageExtensions: List<String>,
     val notes: Array<MdProjectionFootnote>,
     val footnotes: HashMap<String, (Long, MarkdownRange)>,
-    val highlights: MarkdownCodeHighlights? = None
+    val highlights: MarkdownCodeHighlights? = None,
+    val navigation: MarkdownNavigation? = None
 ) {
     val rows = ArrayList<MdDisplayRow>()
     val pending = ArrayList<MdBlockFrame>()
@@ -138,7 +141,8 @@ private class MdBlockProjection(
         range: MarkdownRange,
         kind: MdDisplayKind,
         context: MdDisplayContext,
-        cells: Array<MdDisplayText>
+        cells: Array<MdDisplayText>,
+        generated: Boolean = false
     ) {
         val markers = ArrayList<MdDisplayMarker>()
         var marker = context.marker
@@ -160,11 +164,15 @@ private class MdBlockProjection(
                 markers.toArray(),
                 cells,
                 MdDisplayKey(rows.size),
-                when (kind) {
-                    case MdDisplayKind.Code(_, _, _) -> Some(node.range)
-                    case MdDisplayKind.Source(_, _, _) -> Some(node.range)
-                    else -> None
-                }
+                if (generated)
+                    Some(node.range)
+                else
+                    when (kind) {
+                        case MdDisplayKind.Code(_, _, _) -> Some(node.range)
+                        case MdDisplayKind.Source(_, _, _) -> Some(node.range)
+                        else -> None
+                    },
+                generated
             )
         )
     }
@@ -257,6 +265,15 @@ private class MdBlockProjection(
                 case MarkdownContent.HtmlBlock(val source) ->
                 lines(node, source, context, "HTML", true)
                 case MarkdownContent.Extension(val value) -> {
+                    if (value.name == "toc") {
+                        when (navigation) {
+                            case Some(val index) -> {
+                                toc(node, context, index);
+                                continue
+                            }
+                            case None -> Unit
+                        }
+                    }
                     if (imageExtension.contains(value.name))
                         image(node, context, MdDisplayObject.Extension(value))
                     else
@@ -268,6 +285,47 @@ private class MdBlockProjection(
                 case MarkdownContent.ReferenceDefinition(_, _) -> Unit
                 else -> children(node, context)
             }
+        }
+    }
+
+    private fun toc(node: MarkdownNode, context: MdDisplayContext, navigation: MarkdownNavigation) {
+        if (navigation.headings.size == 0L) {
+            val text = MdDisplayTextBuilder(node.range)
+            text.append(
+                "Table of contents",
+                node.range,
+                false,
+                action = Some(MdDisplayAction.Source(node.range))
+            )
+            add(node, node.range, MdDisplayKind.Paragraph, context, [text.finish()], true)
+            return
+        }
+        for (heading in navigation.headings) {
+            var depth = 0L
+            var parent = heading.parent
+            while (parent != None) {
+                depth += 1L
+                parent = navigation.headings[parent!!].parent
+            }
+            val text = MdDisplayTextBuilder(node.range)
+            text.append(
+                if (heading.title == "")
+                    "Untitled"
+                else
+                    heading.title,
+                node.range,
+                false,
+                MdDisplayFlags(link = true),
+                Some(MdDisplayAction.Navigate(heading.range))
+            )
+            add(
+                node,
+                node.range,
+                MdDisplayKind.Paragraph,
+                MdDisplayContext(context.indent + depth, context.quotes, context.marker),
+                [text.finish()],
+                true
+            )
         }
     }
 

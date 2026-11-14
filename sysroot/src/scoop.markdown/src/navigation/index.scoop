@@ -1,0 +1,116 @@
+package scoop.markdown
+
+import scoop.charset.unicodeLowercase
+import scoop.collections.*
+import scoop.regex.*
+import scoop.text.*
+
+private class MdHeadingDraft(
+    val node: MarkdownNode,
+    val level: Int,
+    val title: String,
+    val anchor: String,
+    val parent: Long?,
+    var end: Long
+)
+
+/** Explicitly indexes headings and used footnotes from this complete immutable parse. */
+public fun ParsedMarkdown.navigation(): MarkdownNavigation {
+    val targets = HashMap<String, MarkdownRange>()
+    for (note in footnotes) {
+        targets["fn-" + note.label] = node(note.definition).range
+        for (index in 0L ..< note.references.size)
+            targets[
+                "fnref-" +
+                    note.label +
+                    if (index == 0L)
+                        ""
+                    else
+                        "-" + (index + 1L).toString()
+            ] = node(note.references[index]).range
+    }
+    val nextSuffix = HashMap<String, Long>()
+    val found = ArrayList<MdHeadingDraft>()
+    val parents = ArrayList<Long>()
+    val pending = ArrayList<MarkdownNode>()
+    pending.add(root)
+    Regex("[^\\p{L}\\p{M}\\p{N}_\\-\\s]").use {
+        punctuation -> Regex("\\s+").use {
+            spaces -> while (pending.size > 0L) {
+                val node = pending.removeAt(pending.size - 1L)
+                when (node.content) {
+                    case MarkdownContent.FootnoteDefinition(_) -> continue
+                    case MarkdownContent.Heading(val level, _, _) -> {
+                        val title = spaces.replace(mdHeadingText(node), " ").trim()
+                        val plain =
+                            spaces.replace(punctuation.replace(unicodeLowercase(title), ""), "-")
+                        val base =
+                            if (plain == "")
+                                "section"
+                            else
+                                plain
+                        var anchor = base
+                        var suffix = nextSuffix[base] ?: 1L
+                        while (targets.containsKey(anchor)) {
+                            anchor = base + "-" + suffix.toString()
+                            suffix += 1L
+                        }
+                        nextSuffix[base] = suffix
+                        targets[anchor] = node.range
+                        while (
+                            parents.size > 0L && found[parents[parents.size - 1L]].level >= level
+                        ) {
+                            found[parents.removeAt(parents.size - 1L)].end = node.range.start
+                        }
+                        val parent =
+                            if (parents.size == 0L)
+                                None
+                            else
+                                Some(parents[parents.size - 1L])
+                        found.add(
+                            MdHeadingDraft(node, level, title, anchor, parent, snapshot.byteLength)
+                        )
+                        parents.add(found.size - 1L)
+                    }
+                    else -> Unit
+                }
+                var index = node.children.size
+                while (index > 0L) {
+                    index -= 1L
+                    pending.add(node.children[index])
+                }
+            }
+        }
+    }
+    return MarkdownNavigation(
+        this,
+        Array<MarkdownHeading>(found.size) {
+            index ->
+            val heading = found[index]
+            MarkdownHeading(
+                heading.node.id,
+                heading.level,
+                heading.title,
+                heading.anchor,
+                heading.node.range,
+                MarkdownRange(heading.node.range.start, heading.end),
+                heading.parent
+            )
+        },
+        targets
+    )
+}
+
+private fun mdHeadingText(heading: MarkdownNode): String {
+    val output = StringBuilder()
+    for (node in MdNodes(heading))
+        when (node.content) {
+            case MarkdownContent.Text(val text) -> output.append(text.text)
+            case MarkdownContent.CodeSpan(val text) -> output.append(text.text)
+            case MarkdownContent.SoftBreak -> output.append(' ')
+            case MarkdownContent.HardBreak -> output.append(' ')
+            case MarkdownContent.Extension(val value) -> output.append(value.body.text)
+            else -> Unit
+        }
+    return output.toString()
+}

@@ -36,7 +36,7 @@ Paragraph、Heading、TableCell 的最后一个内容字段是去掉容器前缀
 
 已通过 652 个 CommonMark 官方样例、26 个 GFM 扩展样例、源码映射与深层嵌套测试，并验证仓库中 547／641 KB 的两份规范。解析算法与语料来源见 [许可说明](licenses/README.md)。这里不提供公共 HTML renderer；HTML 只是标准样例的测试投影。
 
-`MarkdownProfile.Editor` 另外开启公式、YAML front matter 和脚注；CommonMark／Gfm 的默认含义保持。公式支持 `$...$`、`\(...\)`、块级 `$$` 和 `\[...\]`，返回带有 TeX 和源码映射的 Extension。front matter 同样保留原始 YAML；缺少关闭定界符的块在 `diagnostics` 中报告范围，原文仍完整可保存。脚注定义和引用是独立节点，`footnotes` 给出使用顺序、编号及节点身份，`footnoteDefinition(label)` 查询定义。
+`MarkdownProfile.Editor` 另外开启公式、YAML front matter、脚注和 [TOC] 指令；CommonMark／Gfm 的默认含义保持。公式支持 `$...$`、`\(...\)`、块级 `$$` 和 `\[...\]`，返回带有 TeX 和源码映射的 Extension。front matter 同样保留原始 YAML；缺少关闭定界符的块在 `diagnostics` 中报告范围，原文仍完整可保存。脚注定义和引用是独立节点，`footnotes` 给出使用顺序、编号及节点身份，`footnoteDefinition(label)` 查询定义。
 
 自定义语法通过有序的 `MarkdownExtension` 列表加入 profile：
 
@@ -184,3 +184,19 @@ document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 ```
 
 `template = true` 只用于正则查询，支持 `$0`、`$1`…、`${name}` 和 `$$`；未参与匹配的有效捕获组为空串，无效引用在发布前抛错，反斜杠按字面保留。普通替换不解释模板。搜索是显式的全文操作，可在线程上使用不可变 snapshot；它不进入普通源码修改路径。完整跨 Cone 用法见 [examples/source/tests/search.scoop](examples/source/tests/search.scoop)。
+
+## 标题、目录和源码位置
+
+`parsed.navigation()` 显式建立绑定快照的 `MarkdownNavigation`；无 UI 程序可以读取标题、生成目录和解析本文件锚点：
+
+```scoop
+val navigation = document.parse(MarkdownProfile.Editor).navigation()
+val toc = navigation.tableOfContents()
+val target = navigation.resolveLink("#introduction")
+val position = navigation.snapshot.positionAt(10L, 3L)
+val location = navigation.snapshot.lineColumn(position)
+```
+
+`headings` 保存按源码顺序排列的标题、层级、父索引、唯一 anchor、原始范围和 section 章节范围。包含引用／列表中的标题，排除代码和脚注定义内的标题。锚点按 Unicode 小写和去标点规则产生，重复名称追加数字后缀；本文件 fragment 支持百分号编码，已使用脚注另有 `fn-label`／`fnref-label` 锚点。`headingAt(position)` 二分定位之前最近的标题。
+
+行列参数从零计数；列按 Unicode 标量计算，超过正文末尾时停在行尾，不包含 CR／LF／CRLF。目录生成使用同一组锚点及现有 Markdown 转义，不修改文档。[TOC] 由 `tableOfContentsDirective()` 识别并保留为源码扩展，Editor 默认启用；UI 可以在处理器展开完成后派生目录。完整无界面调用见 [navigation.scoop](examples/source/tests/navigation.scoop)。

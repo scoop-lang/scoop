@@ -1,0 +1,315 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.row as navigationRow
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownNavigationWindowTests {
+    @Test
+    fun nativeLocationFieldOutlineAndTocNavigateCurrentSourceInEveryMode() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = NavigationWindowProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+            assertFalse(probe.navigation.isClosed)
+        } catch (failure: Throwable) {
+            println("Navigation window step " + probe.step.value.toString())
+            println("selection=" + probe.editor.selection.cursor.byteOffset.toString())
+            throw failure
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class NavigationWindowProbe(
+    workers: CoroutineExecutor,
+    proxy: ApplicationProxy
+): Closeable {
+    val original = "[TOC]\r\n\r\n# Root\r\n\r\n## 中文\r\n\r\nText\r\n\r\n## Last\r\n"
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val view = MarkdownEditorViewState(editor)
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val navigation = MarkdownNavigationController(view, parser)
+    val step = state(0)
+    val mounted = state(true)
+    val locked = state(false)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var waiting = false
+    var presentations = 0L
+    var finished = false
+    var last = MarkdownPosition(0L)
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown navigation verification"
+                            size = LogicalSize(800.0, 520.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> NavigationWindowRoot(this, scope) })
+                native.createDeadline {
+                    fail(Some("Navigation timeout at " + step.value.toString()))
+                }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                presentations
+        )
+            return false
+        if (!mounted.value)
+            return true
+        val parsed = parser.current ?: return false
+        return parsed.snapshot === editor.snapshot
+    }
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+    private fun key(code: Int, text: String = "", flags: Int = 0) {
+        mdNativeKey(window!!, code, text, flags)
+    }
+    private fun text(value: String) {
+        assertEquals(0, mdNativeText(window!!, value))
+    }
+    private fun position(): MarkdownPosition = editor.selection.cursor
+    private fun heading(index: Long): MarkdownPosition =
+        MarkdownPosition(navigation.current!!.headings[index].range.start)
+    private fun editableHeading(index: Long): MarkdownPosition =
+        parser.current!!.source.inlineContent(
+            navigation.current!!.headings[index].node
+        ).text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> {
+                assertEquals(3L, navigation.current!!.headings.size)
+                assertFalse(editor.canUndo)
+                next { key(37, "l", 8) }
+            }
+            case 1 -> next { text("5:4") }
+            case 2 -> next { key(36, "\r") }
+            case 3 -> {
+                assertEquals(editor.snapshot.positionAt(4L, 3L), position())
+                assertTrue(view.richFocus.isFocusActive)
+                assertTrue(navigation.canGoBack)
+                assertEquals(original, editor.document.toMarkdown())
+                next { key(37, "l", 8) }
+            }
+            case 4 -> next {
+                text("99999:1");
+                key(36, "\r")
+            }
+            case 5 -> {
+                assertEquals(editor.snapshot.positionAt(4L, 3L), position())
+                assertFalse(view.richFocus.isFocusActive)
+                next {
+                    key(0, "a", 8);
+                    assertEquals(0, mdNativeText(window!!, "zh", 1, 2L))
+                }
+            }
+            case 6 -> next { key(53, "\u{1b}") }
+            case 7 -> {
+                assertFalse(view.richFocus.isFocusActive)
+                next { key(53, "\u{1b}") }
+            }
+            case 8 -> {
+                assertTrue(view.richFocus.isFocusActive)
+                next { mdNativeClick(window!!, 80.0, 112.0) }
+            }
+            case 9 -> {
+                // The third fixed-height outline row follows the native navigation bar.
+                assertEquals(editableHeading(2L), position())
+                assertTrue(view.richFocus.isFocusActive)
+                assertEquals(Some(2L), navigation.activeHeading)
+                next { mdNativeClick(window!!, 25.0, 16.0) }
+            }
+            case 10 -> {
+                assertEquals(editor.snapshot.positionAt(4L, 3L), position())
+                next { mdNativeClick(window!!, 92.0, 16.0) }
+            }
+            case 11 -> {
+                assertEquals(editableHeading(2L), position())
+                next { navigation.goTo(MarkdownPosition(0L)) }
+            }
+            case 12 -> next { mdNativeClick(window!!, 236.0, 58.0) }
+            case 13 -> {
+                // A TOC entry navigates without opening its local-source editor.
+                assertEquals(editableHeading(0L), position())
+                assertTrue(view.richFocus.isFocusActive)
+                assertEquals(MarkdownEditorMode.Wysiwyg, view.mode)
+                assertFalse(editor.canUndo)
+                next { view.setMode(MarkdownEditorMode.Source) }
+            }
+            case 14 -> next { navigation.goToHeading(1L) }
+            case 15 -> {
+                assertEquals(heading(1L), position())
+                assertTrue(view.sourceFocus.isFocusActive)
+                next {
+                    view.setMode(MarkdownEditorMode.SideBySide);
+                    locked.value = true
+                }
+            }
+            case 16 -> next { view.requestFocus(MarkdownEditorPane.Rich) }
+            case 17 -> next { navigation.goToHeading(1L) }
+            case 18 -> next { mdNativeClick(window!!, 536.0, 58.0) }
+            case 19 -> {
+                assertEquals(heading(0L), position())
+                assertTrue(view.richFocus.isFocusActive)
+                next { navigation.goBack() }
+            }
+            case 20 -> {
+                assertEquals(heading(1L), position())
+                next { navigation.goToLink("#last") }
+            }
+            case 21 -> {
+                assertEquals(heading(2L), position())
+                assertEquals(original, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next {
+                    editor.document.replace(MarkdownRange(0L, 0L), "# New\n\n")
+                    assertFalse(navigation.goToHeading(0L))
+                    assertEquals(3L, navigation.latest!!.headings.size)
+                }
+            }
+            case 22 -> {
+                assertEquals(4L, navigation.current!!.headings.size)
+                next { assertTrue(navigation.goToLink("#new")) }
+            }
+            case 23 -> {
+                assertEquals(MarkdownPosition(0L), position())
+                next {
+                    val content = "# Start\n\n" + "Paragraph 中文.\n\n".repeat(60000L) + "# End\n"
+                    editor.document.reset(content)
+                    view.setMode(MarkdownEditorMode.Source)
+                }
+            }
+            case 24 -> {
+                assertTrue(editor.snapshot.byteLength > 1024L * 1024L)
+                assertFalse(navigation.canGoBack)
+                last = heading(1L)
+                next { navigation.goToHeading(1L) }
+            }
+            case 25 -> {
+                assertEquals(last, position())
+                assertTrue(view.sourceScroll.offset.y > 10000.0)
+                next { view.setMode(MarkdownEditorMode.Wysiwyg) }
+            }
+            case 26 -> next { navigation.goToHeading(0L) }
+            case 27 -> next { navigation.goToHeading(1L) }
+            case 28 -> {
+                assertEquals(last, position())
+                assertTrue(view.richScroll.offset.y > 10000.0)
+                assertFalse(editor.canUndo)
+                next { mounted.value = false }
+            }
+            case 29 -> {
+                assertFalse(editor.isClosed)
+                assertFalse(parser.isClosed)
+                assertFalse(navigation.isClosed)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected navigation step"))
+        }
+    }
+    public override fun close() {
+        frames?.close()
+        navigation.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class NavigationWindowRoot(
+    val probe: NavigationWindowProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Rich)
+    }
+    public override fun render(): View {
+        val current = probe
+        current.step.value
+        return column {
+            alignment = CrossAlignment.Stretch
+            if (current.mounted.value) {
+                item(markdownNavigationBar(current.navigation))
+                item(
+                    navigationRow {
+                        alignment = CrossAlignment.Stretch
+                        item(markdownOutline(current.navigation)) { basis = FlexBasis.Fixed(200.0) }
+                        item(
+                            markdownEditor(
+                                current.view,
+                                current.parser,
+                                options = MarkdownEditorOptions(readOnly = current.locked.value),
+                                navigation = Some(current.navigation)
+                            )
+                        ) {
+                            grow = 1.0;
+                            basis = FlexBasis.Fixed(0.0)
+                        }
+                    }
+                ) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+            }
+        }
+    }
+}

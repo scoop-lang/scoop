@@ -1,0 +1,22 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownNavigationExampleTests {
+    @Test
+    fun headlessProgramsCreateTocAndResolveSourcePositionsWithoutUi() {
+        val document = MarkdownDocument.fromText("# 文档\n\n### Part\n\nText\n")
+        val navigation = document.parse().navigation()
+        assertEquals(2L, navigation.headings.size)
+        assertEquals(Some(navigation.headings[1L].range), navigation.resolveLink("#part"))
+        assertEquals(
+            "- [文档](<#%E6%96%87%E6%A1%A3>)\n  - [Part](<#part>)\n",
+            navigation.tableOfContents()
+        )
+        val position = document.snapshot().positionAt(4L, 2L)
+        assertEquals(MarkdownLineColumn(4L, 2L), document.snapshot().lineColumn(position))
+        assertEquals("# 文档\n\n### Part\n\nText\n", document.toMarkdown())
+    }
+}

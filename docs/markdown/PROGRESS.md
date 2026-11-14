@@ -1,6 +1,6 @@
 # Markdown 文档与编辑器实施记录
 
-日期：2026-11-14。目标仍为[独立文档 Cone](DESIGN.md)与[三模式编辑器](../ui/markdown/DESIGN.md)的完整设计。
+日期：2026-11-15。目标仍为[独立文档 Cone](DESIGN.md)与[三模式编辑器](../ui/markdown/DESIGN.md)的完整设计。
 
 ## 实施约束
 
@@ -367,3 +367,15 @@ MarkdownSearchController 借用 viewState／executor／proxy，合并后台查�
 最终原生窗口串行通过：查找替换 41 步约 1.65 秒，富文本 61 步约 3.01 秒，格式 56 步约 2.44 秒，链接／图片 35 步约 1.93 秒，局部源码 54 步约 1.39 秒，块操作 42 步约 1.60 秒。查找用例覆盖真实中文组合取消、逐字输入、正反导航、替换字段与按钮、统一撤销重做、模板错误、三模式只读及超过 1 MiB 文档末尾在两侧的实际滚动。程序由 scoop test 构建，经 scoop bundle 与 Launch Services 启动；各项 begin／end／complete 完整且 failures 为空。
 
 API 严格生成及 search、prepareReplaceAll、MarkdownSearchController、markdownSearchBar 查询通过；规范、设计、README、消费示例、原生复现说明与编程导航同步。本批没有编译器、runtime 或系统库修改。原始日志、临时应用包及 API 站点核对后清理，正常构建缓存保留。文档导航、源码辅助、HTML 导入与最终 1／5 MiB 综合性能验收继续实施。
+
+## C／D：标题索引、大纲、目录和原生位置导航（2026-11-15）
+
+文档 Cone 提供 MarkdownNavigation／MarkdownHeading、Unicode 标题锚点与章节范围、脚注 fragment、独立目录生成，以及零基物理行／标量列转换。Editor 默认识别 [TOC]，保存保留原指令。UI 在后台建立原文与最终预览索引，未展开时共享，资源更新复用未变的原文索引；目录包含扩展生成标题，跳转沿来源映射回所属指令。
+
+MarkdownNavigationController 管理标题、行列、内部链接及 128 项导航历史，普通修改映射已有选区，Reset 清空；后退恢复方向，与正文撤销独立。markdownOutline 使用 VirtualList，markdownNavigationBar 使用原生字段和 Primary-L；目录与脚注接入内部跳转。旧大纲在解析待完成时禁用，三模式及只读共用源码定位。链接点击保留跳转前选区；活动富文本标题遵守既有可编辑文字边界，源码与只读保留原始目标。
+
+使用 ~/.scoop 完成相关 fmt、check --tests --release 和示例 check。文档库全量 245 项、UI 库全量 130 项、无 UI consumer 全量 20 项通过。超过 5 MiB、6,000 个标题的解析／索引／行列往返／目录生成用例约 238 毫秒，仅作功能测试记录，不替代最终交互基线。验收校正 include 来源范围不包含终止换行，以及富文本隐藏标记归一到文字边界的测试预期。
+
+最终原生窗口 319 步通过：导航 30 步约 1.85 秒、富文本 61 步约 3.11 秒、格式 56 步约 1.60 秒、链接／图片 35 步约 1.92 秒、局部源码 54 步约 1.39 秒、块操作 42 步约 1.75 秒、查找 41 步约 1.63 秒。另有导航历史／生命周期及后台查询各 1 项通过。程序由 scoop test 构建，使用 scoop bundle／Launch Services 按独立进程串行启动；各项 begin／end／complete 完整且 failures 为空。新增覆盖原生行列输入、错误与组合取消、大纲／目录点击、只读后退起点、旧索引拒绝，以及超过 1 MiB 文档在两侧的末尾滚动。
+
+规范、设计、README、示例、原生复现说明及编程导航同步；严格 API 文档生成和 MarkdownNavigation、MarkdownNavigationController、markdownOutline、tableOfContentsDirective 查询通过。编程导航安装副本已同步。本批没有编译器或 runtime 修改。原始日志、临时应用包及 API 站点核对后清理，保留正常构建缓存。标题／front matter 折叠、源码辅助、HTML 导入和其余 Typora 扩展、最终 1／5 MiB 综合性能验收继续实施。

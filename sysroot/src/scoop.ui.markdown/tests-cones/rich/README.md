@@ -14,6 +14,8 @@
 
 `MarkdownSearchBackgroundTests` 使用独立 Application 进程，不创建窗口。通过实际 worker 队列阻塞检查连续查询的合并、旧结果退休、当前文档身份、失败后的恢复、隐藏后的废弃，以及后台工作尚未结束时关闭 controller。它与其他原生用例分别启动，遵守一进程一次 Application 的合同。
 
+`MarkdownNavigationWindowTests` 验证原生行列字段的提交、非法输入与 IME 取消，大纲、TOC 与后退／前进按钮，三模式／只读导航，旧解析范围拒绝，以及超过 1 MiB 文档在两侧的末尾滚动。富文本标题定位到可编辑文字边界，源码和只读保留原始目标；只读目录点击验证后退仍回到点击前的位置。`MarkdownNavigationStateTests` 在独立进程检查反向选区、编辑／撤销／重做的位置映射、128 项历史、Reset 和借用资源生命周期。
+
 富文本用例同时验证真实系统剪贴板的 text/plain／text/markdown、独立多块粘贴、一次撤销、显式纯文本／Markdown／TSV、存在但为空的格式和只读命令。测试保存并恢复原剪贴板的全部项目与格式。
 
 从仓库根运行：
@@ -40,6 +42,6 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-局部源码、格式、链接／图片、块操作及查找用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 或 `MarkdownSearchBackgroundTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
+局部源码、格式、链接／图片、块操作及查找用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 、`MarkdownSearchBackgroundTests`、`MarkdownNavigationWindowTests` 或 `MarkdownNavigationStateTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
 
 示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现所选用例的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在相同事件目录的 stdout／stderr 文件。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。

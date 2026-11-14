@@ -155,7 +155,7 @@ public class MarkdownPreviewMeasurement internal constructor(
             case Some(_) -> Unit
         }
         val local = presentation?.isLocal(index, selectedCell) ?: false
-        var generated = false
+        var generated = measured.row.generated
         when (
             if (local)
                 None

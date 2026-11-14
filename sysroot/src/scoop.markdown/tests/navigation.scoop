@@ -1,0 +1,181 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownNavigationTests {
+    @Test
+    fun headingsKeepSemanticTitlesHierarchyAndExactSectionRanges() {
+        val source =
+            "Intro\r\n\r\n# Hello, **世界** `Code` ![Alt](a.png) $x^2$[^n]\r\n\r\n" +
+                "### Deep\r\nText\r\n\r\n## Middle\r\nText\r\n\r\n" +
+                "Last\r\n====\r\n\r\n[^n]: # Hidden heading\r\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val navigation = parsed.navigation()
+        assertSame(parsed, navigation.parsed)
+        assertEquals(4L, navigation.headings.size)
+        val first = navigation.headings[0L]
+        assertEquals("Hello, 世界 Code Alt x^2", first.title)
+        assertEquals("hello-世界-code-alt-x2", first.anchor)
+        assertEquals(None, first.parent)
+        assertEquals(Some(0L), navigation.headings[1L].parent)
+        assertEquals(Some(0L), navigation.headings[2L].parent)
+        assertEquals(None, navigation.headings[3L].parent)
+        assertEquals(navigation.headings[3L].range.start, first.section.end)
+        assertEquals(navigation.headings[2L].range.start, navigation.headings[1L].section.end)
+        assertEquals(parsed.snapshot.byteLength, navigation.headings[3L].section.end)
+        assertEquals(None, navigation.headingAt(MarkdownPosition(0L)))
+        assertEquals(
+            Some(1L),
+            navigation.headingAt(MarkdownPosition(navigation.headings[1L].range.start))
+        )
+        assertEquals(Some(3L), navigation.headingAt(MarkdownPosition(parsed.snapshot.byteLength)))
+        assertEquals(source, parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun duplicateAndEmptyTitlesAvoidExistingAndFootnoteAnchorNames() {
+        val parsed =
+            MarkdownDocument.fromText(
+                "# A\n# A-1\n# A\n# !!!\n# ???\n# FN-x\n\n" + "Note[^x] again[^x]\n\n[^x]: body\n"
+            ).parse(MarkdownProfile.Editor)
+        val navigation = parsed.navigation()
+        val expected = ["a", "a-1", "a-2", "section", "section-1", "fn-x-1"]
+        for (index in 0L ..< expected.size)
+            assertEquals(expected[index], navigation.headings[index].anchor)
+        val footnote = parsed.footnotes[0L]
+        assertEquals(Some(parsed.node(footnote.definition).range), navigation.resolveLink("#fn-x"))
+        assertEquals(
+            Some(parsed.node(footnote.references[0L]).range),
+            navigation.resolveLink("#fnref-x")
+        )
+        assertEquals(
+            Some(parsed.node(footnote.references[1L]).range),
+            navigation.resolveLink("#fnref-x-2")
+        )
+        assertEquals(None, navigation.resolveLink("#fnref-x-3"))
+    }
+
+    @Test
+    fun localFragmentsDecodeUnicodeAndRetainTheirOriginalSnapshot() {
+        val document = MarkdownDocument.fromText("# 标题\n\n## é\n\n## é\n")
+        val navigation = document.parse().navigation()
+        val first = navigation.headings[0L].range
+        assertEquals(Some(first), navigation.resolveLink("#%E6%A0%87%E9%A2%98"))
+        assertEquals(Some(first), navigation.resolveLink("#标题"))
+        assertEquals(Some(MarkdownRange(0L, 0L)), navigation.resolveLink("#"))
+        assertEquals("é", navigation.headings[1L].anchor)
+        assertEquals("é", navigation.headings[2L].anchor)
+        for (link in ["https://example.org/#标题", "other.md#标题", "#%FF", "#%", "#missing"])
+            assertEquals(None, navigation.resolveLink(link))
+        document.replace(MarkdownRange(0L, 0L), "Before\n\n")
+        assertEquals("# 标题\n\n## é\n\n## é\n", navigation.snapshot.toMarkdown())
+        assertEquals(Some(first), navigation.resolveLink("#标题"))
+    }
+
+    @Test
+    fun lineColumnsCountScalarsAndCanonicalizeLineTerminators() {
+        val snapshot = MarkdownDocument.fromText("a中👩‍💻\r\n雪é\n\rTail").snapshot()
+        assertEquals(4L, snapshot.lineCount)
+        assertEquals(MarkdownPosition(11L), snapshot.positionAt(0L, 4L))
+        assertEquals(MarkdownPosition(15L), snapshot.positionAt(0L, 99L))
+        assertEquals(MarkdownLineColumn(0L, 5L), snapshot.lineColumn(MarkdownPosition(16L)))
+        assertEquals(MarkdownLineColumn(1L, 3L), snapshot.lineColumn(snapshot.positionAt(1L, 3L)))
+        assertEquals(snapshot.positionOfLine(2L), snapshot.positionAt(2L, 42L))
+        assertEquals(
+            MarkdownLineColumn(3L, 4L),
+            snapshot.lineColumn(MarkdownPosition(snapshot.byteLength))
+        )
+        assertFailsWith<IllegalArgumentException> { snapshot.positionAt(0L, -1L) }
+        assertFailsWith<IllegalArgumentException> { snapshot.positionAt(4L) }
+        assertFailsWith<IllegalArgumentException> { snapshot.lineColumn(MarkdownPosition(2L)) }
+    }
+
+    @Test
+    fun tocGenerationUsesTheSameAnchorsAndCompressesMissingLevels() {
+        val navigation =
+            MarkdownDocument.fromText(
+                "#\n\n### Child\n\n## Other [label](link)\n\n# 标题\n"
+            ).parse().navigation()
+        val toc = navigation.tableOfContents()
+        assertTrue(
+            toc.startsWith("- [Untitled](<#section>)\n  - [Child](<#child>)\n  - [Other label]")
+        )
+        assertTrue(toc.endsWith("- [标题](<#%E6%A0%87%E9%A2%98>)\n"))
+        val generated = MarkdownDocument.fromText(toc).parse()
+        var count = 0L
+        for (node in generated.nodes())
+            when (node.content) {
+                case MarkdownContent.Link(val target) -> {
+                    assertEquals(
+                        Some(navigation.headings[count].range),
+                        navigation.resolveLink(target.destination.text)
+                    )
+                    count += 1L
+                }
+                else -> Unit
+            }
+        assertEquals(4L, count)
+        assertEquals(
+            "- [Child](<#child>)\n- [Other label](<#other-label>)\n",
+            navigation.tableOfContents(2, 3)
+        )
+        assertFailsWith<IllegalArgumentException> { navigation.tableOfContents(4, 2) }
+        assertEquals("", MarkdownDocument.fromText("Text").parse().navigation().tableOfContents())
+    }
+
+    @Test
+    fun tocAndContainerHeadingsKeepSourceAndExcludeLiteralOrDefinitionContent() {
+        val source =
+            "[tOc]\r\n\r\n# Root\r\n\r\n> ## Quote\r\n\r\n- ### Item\r\n\r\n" +
+                "```md\r\n[TOC]\r\n# Code\r\n```\r\n\r\n\\[TOC]\r\n\r\ntext [TOC]\r\n\r\n" +
+                "[TOC] trailing\r\n\r\n[^n]: # Note\r\n\r\nUsed[^n]\r\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        var directives = 0L
+        for (node in parsed.nodes())
+            when (node.content) {
+                case MarkdownContent.Extension(val value) -> {
+                    if (value.name == "toc") {
+                        directives += 1L
+                        assertEquals("tOc", value.body.text)
+                    }
+                }
+                else -> Unit
+            }
+        assertEquals(1L, directives)
+        assertEquals(3L, parsed.navigation().headings.size)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        val plain = MarkdownDocument.fromText("[TOC]\n").parse(MarkdownProfile.CommonMark)
+        assertTrue(
+            when (plain.root.children[0L].content) {
+                case MarkdownContent.Paragraph(_) -> true
+                else -> false
+            }
+        )
+    }
+
+    @Test
+    fun fiveMiBHeadingIndexAndLineJumpsAvoidPerHeadingWholeSourceCopies() {
+        val text = StringBuilder()
+        val body = "Body 中文 ".repeat(90L)
+        for (index in 0L ..< 6000L) {
+            text.append("## Section " + index.toString() + "\n\n")
+            text.append(body)
+            text.append("\n\n")
+        }
+        val parsed = MarkdownDocument.fromText(text.toString()).parse()
+        assertTrue(parsed.snapshot.byteLength > 5L * 1024L * 1024L)
+        val navigation = parsed.navigation()
+        assertEquals(6000L, navigation.headings.size)
+        val last = navigation.headings[5999L]
+        assertEquals("section-5999", last.anchor)
+        assertEquals(Some(5999L), navigation.headingAt(MarkdownPosition(last.range.end)))
+        val location = parsed.snapshot.lineColumn(MarkdownPosition(last.range.start))
+        assertEquals(
+            MarkdownPosition(last.range.start),
+            parsed.snapshot.positionAt(location.line, location.column)
+        )
+        assertTrue(navigation.tableOfContents().endsWith("- [Section 5999](<#section-5999>)\n"))
+    }
+}

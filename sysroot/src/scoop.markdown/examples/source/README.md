@@ -23,3 +23,5 @@
 ```sh
 ~/.scoop/bin/scoop --sysroot ~/.scoop test sysroot/src/scoop.markdown/examples/source --release
 ```
+
+[navigation 测试](tests/navigation.scoop) 使用独立标题索引生成目录、解析 Unicode fragment，并转换物理行／标量列与源码位置；不依赖任何 UI Cone，不修改原始文件。

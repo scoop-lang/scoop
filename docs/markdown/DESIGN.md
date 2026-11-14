@@ -134,6 +134,12 @@ markdownDocument(configure): MarkdownDocument
 
 `MarkdownSearchResult` 保留被搜索的不可变 snapshot；`prepareReplace`／`prepareReplaceAll` 将原匹配集合变成普通 MarkdownChange，沿现有检查和发布边界应用，提供精确 inverse。正则捕获模板在准备阶段展开，普通替换按字面处理。搜索作为显式全文工作可由调用方放到后台，UI 接入复用这份结果和文档事务，不另设内容副本或历史。
 
+### 4.4 标题索引与导航
+
+`ParsedMarkdown.navigation()` 显式生成绑定快照的 `MarkdownNavigation`。正文 ATX／Setext 标题按源码顺序保存解码标题、稳定规则产生的唯一锚点、父标题及章节范围；排除代码、HTML、扩展正文和脚注定义内部的标题。脚注定义／引用锚点与标题使用同一命名表。索引不触发 I/O 或修改正文，`resolveLink` 只解析本文件 fragment，`tableOfContents` 使用现有生成 DSL 输出独立 Markdown 列表。
+
+`positionAt(line, column)` 与 `lineColumn(position)` 提供物理行／Unicode 标量列和 UTF-8 字节坐标的转换；参数从零计数，列越过行正文时停在行尾。独立程序可复用它们做批处理定位。Editor profile 的 `tableOfContentsDirective()` 识别独占一行的 [TOC]，保留源码；目录只在调用方明确生成或 UI 最终预览投影中派生。
+
 ## 5. 从结构生成 Markdown
 
 生成器提供 document／block／inline builder，使用普通 Scoop receiver DSL。生成器是无 UI API，不复用 `StyledText` 或组件描述。

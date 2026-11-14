@@ -1,0 +1,87 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.repeat
+import scoop.ui.markdown.*
+import scoop.window.Application
+
+@Test
+private class MarkdownNavigationStateTests {
+    @Test
+    fun jumpHistoryMapsEditsPreservesDirectionAndClosesWithoutOwningBorrowedObjects() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("a中\r\nText\n"))
+        val other = MarkdownEditorState(MarkdownDocument.fromText("Other"))
+        val view = MarkdownEditorViewState(editor)
+        val parser = MarkdownParseController(editor, workers, app.proxy())
+        val navigation = MarkdownNavigationController(view, parser)
+        try {
+            assertFailsWith<IllegalArgumentException> {
+                MarkdownNavigationController(MarkdownEditorViewState(other), parser)
+            }
+            assertEquals(None, navigation.current?.headings?.size)
+            assertFalse(navigation.goToHeading(0L))
+            assertFalse(navigation.goToLink("#absent"))
+            val reverse = MarkdownSelection(MarkdownPosition(10L), MarkdownPosition(6L))
+            editor.setSelection(reverse)
+            assertTrue(navigation.goToLine(0L, 1L))
+            assertFalse(editor.canUndo)
+            assertEquals(MarkdownPosition(1L), editor.selection.cursor)
+            assertTrue(navigation.goBack())
+            assertEquals(reverse, editor.selection)
+            assertTrue(navigation.goForward())
+            assertEquals(MarkdownPosition(1L), editor.selection.cursor)
+            assertFalse(navigation.goTo(MarkdownPosition(1L)))
+            assertTrue(navigation.canGoBack)
+            assertFailsWith<IllegalArgumentException> { navigation.goTo(MarkdownPosition(2L)) }
+            assertFailsWith<IllegalArgumentException> { navigation.goToLine(-1L) }
+            editor.replace(MarkdownRange(0L, 0L), "Intro\n")
+            assertTrue(navigation.goBack())
+            assertEquals(
+                MarkdownSelection(MarkdownPosition(16L), MarkdownPosition(12L)),
+                editor.selection
+            )
+            assertTrue(editor.canUndo)
+            assertTrue(navigation.goForward())
+            assertEquals(MarkdownPosition(6L), editor.selection.cursor)
+            assertTrue(editor.undo())
+            assertTrue(navigation.goBack())
+            assertEquals(reverse, editor.selection)
+            assertTrue(editor.redo())
+            assertTrue(navigation.goForward())
+            assertEquals(MarkdownPosition(7L), editor.selection.cursor)
+            editor.document.reset("x".repeat(140L))
+            assertFalse(navigation.canGoBack)
+            assertFalse(navigation.canGoForward)
+            editor.setSelection(MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L)))
+            for (position in 1L ..< 131L)
+                assertTrue(navigation.goTo(MarkdownPosition(position)))
+            for (index in 0L ..< 128L)
+                assertTrue(navigation.goBack())
+            assertEquals(MarkdownPosition(2L), editor.selection.cursor)
+            assertFalse(navigation.goBack())
+            assertFalse(editor.canUndo)
+            navigation.close()
+            navigation.close()
+            assertFalse(navigation.canGoBack)
+            assertFalse(navigation.canGoForward)
+            assertFailsWith<IllegalStateException> { navigation.goToLine(0L) }
+            assertFalse(parser.isClosed)
+            assertFalse(editor.isClosed)
+            editor.replaceSelection("still open")
+        } finally {
+            navigation.close()
+            parser.close()
+            editor.close()
+            other.close()
+            workers.close()
+        }
+    }
+}

@@ -149,7 +149,7 @@ private class MarkdownProjectionTests {
         assertEquals(0L, result.rowAt(MarkdownPosition(result.rows[0L].range.start)))
         val link = result.rows[5L].cells[0L].actionAt(4L)
         when (link) {
-            case Some(MdDisplayAction.Source(val range)) -> assertEquals(definition.range, range)
+            case Some(MdDisplayAction.Navigate(val range)) -> assertEquals(definition.range, range)
             else -> fail(Some("Expected footnote navigation"))
         }
     }
