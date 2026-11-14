@@ -1,0 +1,40 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownInputObserverTests {
+    @Test
+    fun `published edits and history synchronize both fragments without allowing reentrant edits`() {
+        val document = MarkdownDocument.fromText("word")
+        val editor = MarkdownEditorState(document)
+        val source = MarkdownSourceInput(editor)
+        val initial = document.parse(MarkdownProfile.Editor)
+        val rich = MarkdownRichInput(editor, initial.inlineContent(initial.root.children[0L].id))
+        val revisions = ArrayList<Long>()
+        val subscription =
+            document.observe {
+                change ->
+                assertTrue(source.synchronize())
+                val parsed = document.parse(MarkdownProfile.Editor)
+                assertTrue(rich.synchronize(parsed.inlineContent(parsed.root.children[0L].id)))
+                assertEquals(change.after.toMarkdown(), source.inputState.surroundingText)
+                assertEquals(source.inputState.surroundingText, rich.inputState.surroundingText)
+                assertFailsWith<IllegalStateException> { editor.replaceSelection("reentrant") }
+                assertFailsWith<IllegalStateException> { editor.close() }
+                revisions.add(change.after.revision)
+            }
+        editor.replaceSelection("new ")
+        assertEquals("new word", source.inputState.surroundingText)
+        assertTrue(editor.undo())
+        assertEquals("word", rich.inputState.surroundingText)
+        assertTrue(editor.redo())
+        assertEquals("new word", rich.inputState.surroundingText)
+        assertEquals(3L, revisions.size)
+        subscription.close()
+        source.close()
+        rich.close()
+        editor.close()
+    }
+}

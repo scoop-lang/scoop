@@ -1,0 +1,10 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal struct MdScrollAnchor(val source: MarkdownAnchor, val fraction: Double)
+
+internal struct MdScrollAlignment(val anchor: MdScrollAnchor, val request: ULong) {
+    fun map(change: MarkdownChange): MdScrollAlignment =
+        MdScrollAlignment(MdScrollAnchor(change.map(anchor.source), anchor.fraction), request)
+}

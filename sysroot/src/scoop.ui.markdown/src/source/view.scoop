@@ -4,13 +4,14 @@ import scoop.graphics.text.FontCollection
 import scoop.markdown.MarkdownChange
 import scoop.ui.*
 
-private class MdSourceProps(
+internal class MdSourceProps(
     val state: MarkdownEditorState,
     val style: MarkdownSourceStyle?,
     val options: MarkdownSourceOptions,
     val fonts: FontCollection?,
     val focus: FocusOptions,
-    val changed: (MarkdownChange) -> Unit
+    val changed: (MarkdownChange) -> Unit,
+    val mount: MdEditorMount? = None
 )
 
 /** Source view for a shared Markdown editor state; its mount owns native and layout resources. */
@@ -21,11 +22,10 @@ public fun markdownSourceEditor(
     fonts: FontCollection? = None,
     focus: FocusOptions = FocusOptions(),
     onChanged: (MarkdownChange) -> Unit = { _ -> Unit }
-): View =
-    component(
-        MdSourceProps(state, style, options, fonts, focus, onChanged),
-        { props, scope -> MdSourceComponent(props, scope) }
-    )
+): View = mdSourceEditor(MdSourceProps(state, style, options, fonts, focus, onChanged))
+
+internal fun mdSourceEditor(props: MdSourceProps): View =
+    component(props, { props, scope -> MdSourceComponent(props, scope) })
 
 private class MdSourceComponent(val props: Props<MdSourceProps>, scope: ComponentScope): Component(
     scope
@@ -49,7 +49,8 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
                 props.value.state,
                 props.value.style ?: defaults,
                 props.value.options,
-                props.value.fonts
+                props.value.fonts,
+                props.value.mount?.state?.sourceScroll
             )
         }
     public override fun onMount() {
@@ -65,7 +66,11 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
             input.changed,
             input.fonts
         )
+        input.mount?.attach(host)
         return UiInvalidation.Layout
+    }
+    public override fun onUnmount() {
+        props.value.mount?.detach(host)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         MarkdownSourceMeasurement

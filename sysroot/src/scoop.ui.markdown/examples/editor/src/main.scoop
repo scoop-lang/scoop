@@ -1,0 +1,189 @@
+package scoop.examples.markdown.editor
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.Color
+import scoop.graphics.Paint
+import scoop.markdown.*
+import scoop.platform.fs.*
+import scoop.platform.env.currentDirectory
+import scoop.platform.process.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.Insets
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.markdown.*
+import scoop.window.*
+import scoop.url.*
+
+private class EditorWindow(
+    val editor: MarkdownEditorState,
+    val file: Path,
+    val documentUri: String,
+    workers: CoroutineExecutor,
+    renderers: List<MarkdownImageRenderer>,
+    scope: ComponentScope
+): Component(scope) {
+    private val parser =
+        scope.resource { MarkdownParseController(editor, workers, scope.application.proxy()) }
+    private val images =
+        scope.resource { MarkdownImageController(workers, scope.application.proxy(), renderers) }
+    private val view = MarkdownEditorViewState(editor, MarkdownEditorMode.SideBySide)
+    private val message = state("")
+
+    public override fun onMount() {
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    shortcutBinding(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutModifiers(primary = true)
+                        ),
+                        { save() }
+                    ),
+                    shortcutBinding(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("q")),
+                            ShortcutModifiers(primary = true)
+                        ),
+                        { scope.application.requestExit() }
+                    )
+                ]
+            )
+        }
+    }
+
+    private fun save() {
+        try {
+            editor.acceptComposition()
+            val saved = editor.snapshot
+            file.writeText(saved.toMarkdown())
+            editor.markSaved(saved.revision)
+            message.value = "已保存"
+        } catch (error: Exception) {
+            message.value = error.message ?: "保存失败"
+        }
+    }
+
+    public override fun render(): View {
+        val owner = this
+        return frame(
+            column {
+                alignment = CrossAlignment.Stretch
+                row {
+                    padding = Insets.all(8.0)
+                    spacing = 8.0
+                    button("源码", { owner.view.setMode(MarkdownEditorMode.Source) })
+                    button("所见即所得", { owner.view.setMode(MarkdownEditorMode.Wysiwyg) })
+                    button("双栏", { owner.view.setMode(MarkdownEditorMode.SideBySide) })
+                    button(
+                        if (owner.view.rightReadOnly)
+                            "右侧只读"
+                        else
+                            "右侧可编辑",
+                        { owner.view.setRightReadOnly(!owner.view.rightReadOnly) }
+                    )
+                    button(
+                        if (owner.view.synchronizeScroll)
+                            "同步滚动：开"
+                        else
+                            "同步滚动：关",
+                        { owner.view.setSynchronizeScroll(!owner.view.synchronizeScroll) }
+                    )
+                }
+                item(
+                    markdownEditor(
+                        owner.view,
+                        owner.parser,
+                        images = Some(owner.images),
+                        documentUri = owner.documentUri,
+                        onOpenLink = { destination -> owner.message.value = destination }
+                    )
+                ) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+                row {
+                    padding = Insets.all(8.0)
+                    spacing = 8.0
+                    button("撤销", { owner.editor.undo() }) { enabled = owner.editor.canUndo }
+                    button("重做", { owner.editor.redo() }) { enabled = owner.editor.canRedo }
+                    button("保存", { owner.save() })
+                    label(
+                        (
+                            if (owner.editor.isDirty)
+                                "未保存 · "
+                            else
+                                ""
+                        ) +
+                            owner.editor.snapshot.byteLength.toString() +
+                            " 字节 · " +
+                            owner.message.value
+                    )
+                }
+            }
+        ) { style { background(Some(Paint(Color.White))) } }
+    }
+}
+
+fun main(args: Array<String>) {
+    if (args.size < 2L) {
+        println(
+            "Usage: markdown-editor <markdown-file> [--mermaid <mmdc>] [--mathjax <node> <@mathjax/src> <rsvg-convert>]"
+        )
+        return
+    }
+    val file = currentDirectory().resolve(Path.fromString(args[1L])).normalizeLexically()
+    val documentUri =
+        url {
+            scheme = Some("file");
+            host("");
+            path(file.toOsString().decodeUtf8())
+        }.toString()
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(file.readText()))
+    val renderers = ArrayList<MarkdownImageRenderer>()
+    renderers.add(MarkdownFileImageRenderer())
+    val workers =
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }
+    try {
+        var index = 2L
+        while (index < args.size) {
+            if (args[index] == "--mermaid" && index + 1L < args.size) {
+                renderers.add(
+                    MarkdownMermaidImageRenderer(
+                        command(Path.fromString(args[index + 1L])),
+                        "configured-mmdc"
+                    )
+                )
+                index += 2L
+            } else
+                if (args[index] == "--mathjax" && index + 3L < args.size) {
+                    renderers.add(
+                        MarkdownMathJaxImageRenderer(
+                            command(Path.fromString(args[index + 1L])),
+                            Path.fromString(args[index + 2L]),
+                            command(Path.fromString(args[index + 3L])),
+                            "configured-mathjax-rsvg"
+                        )
+                    )
+                    index += 4L
+                } else
+                    throw IllegalArgumentException(Some("Invalid editor arguments"))
+        }
+        context(ThemeSource(shadcnTheme())) {
+            runUiApplication(
+                "Scoop Markdown — " + args[1L],
+                { scope -> EditorWindow(editor, file, documentUri, workers, renderers, scope) }
+            )
+        }
+    } finally {
+        workers.close();
+        editor.close()
+    }
+}

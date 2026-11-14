@@ -122,6 +122,12 @@ internal fun mdScenePreview(
                 case None -> Unit
             }
             host.rich?.acceptedFrame(frame)
+            when (host.alignment) {
+                case Some(val value) -> if (value.request == frame.requestRevision)
+                    host.alignment = None
+                case None -> Unit
+            }
+            host.editorMount?.richAccepted(host, frame)
         }
     } catch (failure: Throwable) {
         frame.close()

@@ -1,0 +1,9 @@
+[bundle]
+schema = 1
+name = "markdown-editor"
+version = "0.1.0"
+identifier = "org.scoop.examples.markdown-editor"
+display-name = "Scoop Markdown Editor"
+
+[bundle.macos]
+formats = ["app"]

@@ -36,6 +36,8 @@ undo／redo 各通过一次源码事务恢复整个历史项，并恢复相应�
 
 同一编辑状态同时只允许一个输入片段拥有组合。片段内连续输入和预编辑沿用原映射；`synchronize()` 在组合之外跟随外部修改／导航，必要时重选上下文，并返回是否需要重建原生连接。宿主收到 true 必须先退休原连接再发布新映射，不能继续解释旧连接的范围。片段内选择变化只增加 native revision；caret 几何更新不增加文本 revision。批次与文档修改、选区变化均使旧 native 快照失效，原生宿主不得使用旧布局提供候选窗坐标。
 
+输入片段的 synchronize 只更新派生快照，允许在文档变化通知中消费编辑状态已发布的 snapshot／selection；不再次编辑正文。它仍检查 owner、修改时机、片段归属和当前内容身份。正文编辑、组合提交及关闭仍禁止重入，不能将同步派生数据与第二次文档事务混为一谈。富文本 synchronize(content) 遵循相同规则。
+
 ### 4.1 富文本输入片段
 
 `MarkdownRichInput(editor, content)` 借用同一编辑状态和当前快照上的 MarkdownInlineContent，将一个段落、标题或表格单元格的显示文字接入 TextInputState。格式定界符不进入原生 surroundingText，图片与扩展保留 U+FFFC 原子；sourceRange 仍是文档 Cone 提供的局部源码上下文范围。初始源码选区须位于该行内文字的映射范围，跨块选择由视图的文档级命令处理。它不拥有窗口、排版或另一份文档。
@@ -56,7 +58,7 @@ apply 依次校验原生批次并准备行内语义操作，最终只发布一�
 
 `hitTest` 返回 `MarkdownSourceHit`，保留源码位置和视觉 affinity；`caret` 可接受该 affinity。源码偏向决定文本事务中的位置归属，视觉 affinity 决定折行／双向边界的排版侧，不能互相代替。翻页按视口距离定位，包含同一个长物理行内的多个排版行；标量位置落在 grapheme 内部时，绘制使用边界几何，普通前后删除消费完整 grapheme。
 
-`onChanged` 只传递文档差量。宿主销毁时退休输入连接，结束自己持有的组合，释放订阅、输入区域、滚动和布局；不销毁借用文档。卸载后的输入通知不再更新窗口或请求布局。当前视图先实现源码输入，富文本与双栏继续按完整设计接入同一个编辑状态。
+`onChanged` 只传递文档差量。宿主销毁时退休输入连接，结束自己持有的组合，释放订阅、输入区域、滚动和布局；不销毁借用文档。卸载后的输入通知不再更新窗口或请求布局。各模式按第 9 节接入同一个编辑状态。
 
 ## 6. 共享后台解析
 
@@ -102,6 +104,22 @@ close 幂等地取消订阅、清空排队请求及交付引用，结束自己�
 
 Mermaid 适配只向配置好的 mmdc 传递单个 fence body，经 argv 和临时文件得到 PNG。公式适配配置 Node、已安装的 @mathjax/src 目录与 rsvg-convert，使用随 Cone 嵌入的 MathJax 进程入口，带回 SVG 和实际排版度量，再光栅化为 PNG。固定工具配置以调用方提供的 toolVersion 标识；替换工具配置时创建相应新版本的适配。普通使用不自动安装或下载外部工具；缺少工具沿图像失败状态显示，文档的编辑和保存继续可用。
 
+
+## 9. 三模式组合与视图状态
+
+组合视图复用 `scoop.ui.component` 的标准分栏及应用的 `ThemeSource` 上下文；应用在实际 run／mount 入口提供主题。两栏文字与背景仍由各自 Markdown 样式配置。
+
+`markdownEditor(viewState, controller, ...)` 组合原生源码与富文本视图，二者必须借用同一个 `MarkdownEditorState`。`MarkdownEditorViewState` 持有 `Source`／`Wysiwyg`／`SideBySide` 模式、活动栏、两个独立的 `ScrollState`／`FocusHandle`、源码栏比例、右侧只读与同步滚动开关。它不拥有文档或原生资源；同一 viewState 同时只能挂载一次，不同 viewState 可共享一个 editor。设置遵守 UI owner 与正常修改时机。
+
+实际模式切换先接受当前组合一次并结束连续输入合并，保留源字节、选区与历史；设置相同模式不产生这些副作用。视图复用现有 resizable 的稳定栏 key，仍显示的栏保留挂载，隐藏栏释放自己的原生资源；各自滚动状态保留，重新显示后绑定新 viewport。`rightReadOnly` 只影响双栏右侧；`MarkdownEditorOptions.readOnly` 作用于所有模式，源码还遵守 `source.readOnly`。切换右栏只读不结束左栏的组合。
+
+默认不抢焦点。`requestFocus(pane)` 对当前可见栏记录请求，必要时等待挂载；隐藏栏返回 false。`showSource(range)` 先验证当前源码两端的 UTF-8 标量边界，再将共享选区折叠到起点；当前为 Wysiwyg 时切为 SideBySide，随后聚焦源码。无效范围不改变模式、选区或历史。宿主可以提供自己的 `onSource` 显示局部源码；未提供时使用上述行为。
+
+组合控件仅订阅一次 `onChanged`，同一源事务不因左右两栏而重复通知。解析完成、选区与纯视图设置不产生正文差量。控件卸载关闭自己的订阅及两侧宿主，不关闭借用的 editor、controller、字体或图像控制器。
+
+滚动同步由当前主动请求栏驱动，等待该请求的已接受帧，读取顶部命中的源码位置和相对于该行高度的偏移比例，再按另一栏的实际排版定位。图片或原子对象使用其对应行／对象几何。同步不按总滚动百分比换算，不因镜像请求或 LayoutCorrection 反向触发。进入双栏／打开同步时以活动栏对齐一次；关同步后两侧独立。待定位锚点沿文档差量映射，Reset 清除；目标解析未到当前 revision 时保留请求等待。过期请求、试测与丢弃帧不完成同步，不覆盖已接受的几何。
+
+`MarkdownSourceHost`、`MarkdownPreviewHost`、`MarkdownRichHost` 可接收可选的 `initialScroll`，由调用方保留 ScrollState，由宿主拥有 viewport 绑定。一个 ScrollState 仍只能绑定一个活动 viewport；关闭宿主后可重新挂载。
 
 ## 10. 原生富文本输入与活动区域显示
 

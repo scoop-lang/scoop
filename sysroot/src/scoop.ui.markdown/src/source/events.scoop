@@ -32,6 +32,7 @@ internal fun mdSourceEvent(
                     host.revealNeeded = false
                     host.scope.requestFrame()
                 }
+                host.editorMount?.focused(MarkdownEditorPane.Source, active)
             }
             case TextInput(val input) -> mdSourceNative(host, input)
             case Pointer(InputPointerEvent.Cancelled(_, _)) -> mdSourceStopDrag(host)

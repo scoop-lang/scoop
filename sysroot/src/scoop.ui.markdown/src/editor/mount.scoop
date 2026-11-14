@@ -1,0 +1,255 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Point
+import scoop.markdown.*
+import scoop.ui.*
+
+internal struct MdPendingScroll(val pane: MarkdownEditorPane, val request: ULong)
+
+/** Coordinates only mounted views; subscriptions and frame callbacks never own the editor. */
+internal class MdEditorMount(var props: MdEditorProps): Closeable {
+    val state = props.state
+    var source: MarkdownSourceHost? = None
+    var rich: MarkdownPreviewHost? = None
+    private var sourceIntent: Closeable? = None
+    private var richIntent: Closeable? = None
+    private var changed: Closeable? = None
+    private var pending: MdPendingScroll? = None
+    private var syncing = false
+    private var aligning = false
+    private var closed = false
+
+    fun update(input: MdEditorProps) {
+        state.bind(this)
+        props = input
+        when (changed) {
+            case None -> changed =
+                Some(state.editor.document.observe { change -> props.changed(change) })
+            case Some(_) -> Unit
+        }
+        val next = state.mode == MarkdownEditorMode.SideBySide && state.synchronizeScroll
+        if (next && !syncing && pending == None) {
+            val pane = state.activePane
+            val scroll =
+                if (pane == MarkdownEditorPane.Source)
+                    state.sourceScroll
+                else
+                    state.richScroll
+            pending = Some(MdPendingScroll(pane, scroll.requestRevision))
+        } else
+            if (!next)
+                pending = None
+        syncing = next
+        requestFocus()
+    }
+
+    fun attach(host: MarkdownSourceHost) {
+        when (source) {
+            case Some(val current) -> if (current === host) {
+                requestFocus();
+                return
+            }
+            case None -> Unit
+        }
+        state.bind(this)
+        sourceIntent?.close()
+        source = Some(host)
+        host.editorMount = Some(this)
+        sourceIntent =
+            Some(
+                host.scroll.observeIntent {
+                    intent -> scrollIntent(MarkdownEditorPane.Source, intent)
+                }
+            )
+        requestFocus()
+    }
+
+    fun attach(host: MarkdownPreviewHost) {
+        when (rich) {
+            case Some(val current) -> if (current === host) {
+                requestFocus();
+                return
+            }
+            case None -> Unit
+        }
+        state.bind(this)
+        richIntent?.close()
+        rich = Some(host)
+        host.editorMount = Some(this)
+        richIntent =
+            Some(
+                host.scroll.observeIntent {
+                    intent -> scrollIntent(MarkdownEditorPane.Rich, intent)
+                }
+            )
+        requestFocus()
+    }
+
+    fun detach(host: MarkdownSourceHost) {
+        when (source) {
+            case Some(val current) -> if (current === host) {
+                sourceIntent?.close();
+                sourceIntent = None;
+                source = None
+                host.editorMount = None
+            }
+            case None -> Unit
+        }
+    }
+
+    fun detach(host: MarkdownPreviewHost) {
+        when (rich) {
+            case Some(val current) -> if (current === host) {
+                richIntent?.close();
+                richIntent = None;
+                rich = None
+                host.editorMount = None
+            }
+            case None -> Unit
+        }
+    }
+
+    fun focused(pane: MarkdownEditorPane, active: Boolean) {
+        if (!closed && active)
+            state.focused(pane)
+    }
+
+    fun requestFocus() {
+        if (closed)
+            return
+        val pane = state.pendingFocus ?: return
+        if (!state.visible(pane))
+            return
+        val handle =
+            if (pane == MarkdownEditorPane.Source)
+                state.sourceFocus
+            else
+                state.richFocus
+        if (!handle.isAttached)
+            return
+        if (handle.requestFocus()) {
+            state.pendingFocus = None
+            when (pane) {
+                case Source -> when (source) {
+                    case Some(val host) -> {
+                        host.revealNeeded = true;
+                        host.scope.requestLayout()
+                    }
+                    case None -> Unit
+                }
+                case Rich -> rich?.reveal(state.editor.selection.cursor)
+            }
+        }
+    }
+
+    fun openSource(range: MarkdownRange) {
+        when (props.source) {
+            case Some(val handler) -> handler(range)
+            case None -> state.showSource(range)
+        }
+    }
+
+    private fun scrollIntent(pane: MarkdownEditorPane, intent: ScrollIntent) {
+        if (
+            closed ||
+                aligning ||
+                state.mode !=
+                MarkdownEditorMode.SideBySide ||
+                !state.synchronizeScroll
+        )
+            return
+        when (intent) {
+            case LayoutCorrection(_) -> Unit
+            else -> pending = Some(MdPendingScroll(pane, intent.requestRevision))
+        }
+    }
+
+    fun sourceAccepted(host: MarkdownSourceHost, frame: MarkdownSourceMeasurement) {
+        if (
+            !ready(MarkdownEditorPane.Source, frame.requestRevision) ||
+                frame.sourceRevision !=
+                state.editor.snapshot.revision
+        )
+            return
+        val target = rich ?: return
+        val hit = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y)) ?: return
+        val caret = frame.caret(hit.position, affinity = Some(hit.affinity)) ?: return
+        val anchor =
+            MdScrollAnchor(
+                MarkdownAnchor(hit.position, MarkdownBias.Before),
+                (frame.scrollSnapshot.offset.y - caret.y) / caret.height
+            )
+        pending = None
+        aligning = true
+        try {
+            target.alignViewport(anchor)
+        } finally {
+            aligning = false
+        }
+    }
+
+    fun richAccepted(host: MarkdownPreviewHost, frame: MarkdownPreviewMeasurement) {
+        if (
+            !ready(MarkdownEditorPane.Rich, frame.requestRevision) ||
+                frame.sourceRevision !=
+                Some(state.editor.snapshot.revision)
+        )
+            return
+        val target = source ?: return
+        val hit = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y)) ?: return
+        val caret = frame.hitCaret(hit) ?: return
+        val anchor =
+            MdScrollAnchor(
+                MarkdownAnchor(hit.position, MarkdownBias.Before),
+                (frame.scrollSnapshot.offset.y - caret.y) / caret.height
+            )
+        pending = None
+        aligning = true
+        try {
+            target.alignViewport(anchor)
+        } finally {
+            aligning = false
+        }
+    }
+
+    private fun ready(pane: MarkdownEditorPane, request: ULong): Boolean {
+        if (closed || state.mode != MarkdownEditorMode.SideBySide || !state.synchronizeScroll)
+            return false
+        val requested = pending ?: return false
+        val scroll =
+            if (pane == MarkdownEditorPane.Source)
+                state.sourceScroll
+            else
+                state.richScroll
+        return requested.pane ==
+            pane &&
+            requested.request ==
+            request &&
+            request ==
+            scroll.requestRevision
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        sourceIntent?.close();
+        sourceIntent = None
+        richIntent?.close();
+        richIntent = None
+        changed?.close();
+        changed = None
+        when (source) {
+            case Some(val host) -> host.editorMount = None
+            case None -> Unit
+        }
+        when (rich) {
+            case Some(val host) -> host.editorMount = None
+            case None -> Unit
+        }
+        source = None;
+        rich = None;
+        pending = None
+        state.unbind(this)
+    }
+}

@@ -25,7 +25,8 @@ public class MarkdownPreviewHost public constructor(
     initialOptions: MarkdownPreviewOptions = MarkdownPreviewOptions(),
     private var suppliedFonts: FontCollection? = None,
     initialImages: MarkdownImageController? = None,
-    initialDocumentUri: String = ""
+    initialDocumentUri: String = "",
+    initialScroll: ScrollState? = None
 ): Closeable {
     internal var controller = initialController
     internal val editor: MarkdownEditorState get() = controller.editor
@@ -46,6 +47,8 @@ public class MarkdownPreviewHost public constructor(
     internal var fontRevision = -1L
     internal var accepted: MarkdownPreviewMeasurement? = None
     internal var anchor: MdPreviewAnchor? = None
+    internal var alignment: MdScrollAlignment? = None
+    internal var editorMount: MdEditorMount? = None
     internal var revealTarget: MarkdownPosition? = None
     internal var drag: MarkdownPosition? = None
     internal var pressed: MarkdownPreviewHit? = None
@@ -53,7 +56,7 @@ public class MarkdownPreviewHost public constructor(
     internal var openLink: (String) -> Unit = { _ -> Unit }
     internal var openSource: (MarkdownRange) -> Unit = { _ -> Unit }
     private var subscription = editor.document.observe { change -> sourceChanged(change) }
-    public val scroll = ScrollState()
+    public val scroll = initialScroll ?: ScrollState()
     internal val viewport = scope.scrollViewport(scroll)
     public val area =
         scope.createArea(focusable = true) {
@@ -81,6 +84,13 @@ public class MarkdownPreviewHost public constructor(
     }
 
     private fun sourceChanged(change: MarkdownChange) {
+        if (change.kind == MarkdownChangeKind.Reset)
+            alignment = None
+        else
+            when (alignment) {
+                case Some(val value) -> alignment = Some(value.map(change))
+                case None -> Unit
+            }
         when (anchor) {
             case Some(val value) -> anchor =
                 Some(
@@ -152,6 +162,7 @@ public class MarkdownPreviewHost public constructor(
             subscription = editor.document.observe { change -> sourceChanged(change) }
             document = None
             anchor = None
+            alignment = None
             revealTarget = None
         }
         this.style = style
@@ -179,6 +190,15 @@ public class MarkdownPreviewHost public constructor(
                 }
             case None -> Unit
         }
+    }
+
+    internal fun alignViewport(target: MdScrollAnchor) {
+        checkOpen()
+        val request = scroll.beginLayoutRequest()
+        alignment = Some(MdScrollAlignment(target, request))
+        anchor = None
+        revealTarget = None
+        scope.requestLayout()
     }
 
     internal fun visibleImages(frame: MarkdownPreviewMeasurement, lease: MarkdownImageLease?) {

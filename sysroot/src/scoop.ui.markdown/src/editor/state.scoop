@@ -1,0 +1,150 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.component.ResizableSize
+
+internal val mdSourcePaneKey = ViewKey.Text("markdown-source")
+
+internal val mdRichPaneKey = ViewKey.Text("markdown-rich")
+
+private fun mdEditorSizes(fraction: Double): Array<ResizableSize> {
+    if (!fraction.isFinite() || fraction < 0.0 || fraction > 1.0)
+        throw IllegalArgumentException(
+            Some("Markdown source fraction must be between zero and one")
+        )
+    return [ResizableSize(mdSourcePaneKey, fraction), ResizableSize(mdRichPaneKey, 1.0 - fraction)]
+}
+
+/** Per-view modes, focus and scroll positions; document selection and history remain shared. */
+public class MarkdownEditorViewState public constructor(
+    public val editor: MarkdownEditorState,
+    mode: MarkdownEditorMode = MarkdownEditorMode.Wysiwyg,
+    rightReadOnly: Boolean = false,
+    synchronizeScroll: Boolean = true,
+    sourceFraction: Double = 0.5
+) {
+    private val currentMode = state(mode)
+    private val rightLocked = state(rightReadOnly)
+    private val scrollLinked = state(synchronizeScroll)
+    private val active =
+        state(
+            if (mode == MarkdownEditorMode.Source)
+                MarkdownEditorPane.Source
+            else
+                MarkdownEditorPane.Rich
+        )
+    internal val sizes = state(mdEditorSizes(sourceFraction))
+    internal var mounted: MdEditorMount? = None
+    internal var pendingFocus: MarkdownEditorPane? = None
+    public val sourceScroll = ScrollState()
+    public val richScroll = ScrollState()
+    public val sourceFocus = FocusHandle()
+    public val richFocus = FocusHandle()
+
+    public val mode: MarkdownEditorMode get() = currentMode.value
+    public val rightReadOnly: Boolean get() = rightLocked.value
+    public val synchronizeScroll: Boolean get() = scrollLinked.value
+    public val activePane: MarkdownEditorPane get() = active.value
+    public val sourceFraction: Double get() = sizes.value[0L].fraction
+
+    internal fun checkMutation() {
+        currentMode.checkMutation()
+        editor.checkEdit()
+    }
+
+    internal fun visible(pane: MarkdownEditorPane): Boolean =
+        mode ==
+            MarkdownEditorMode.SideBySide ||
+            (mode == MarkdownEditorMode.Source && pane == MarkdownEditorPane.Source) ||
+            (mode == MarkdownEditorMode.Wysiwyg && pane == MarkdownEditorPane.Rich)
+
+    public fun setMode(value: MarkdownEditorMode) {
+        checkMutation()
+        if (value == mode)
+            return
+        editor.acceptComposition()
+        editor.breakUndoGroup()
+        currentMode.value = value
+        pendingFocus =
+            Some(
+                when (value) {
+                    case Source -> MarkdownEditorPane.Source
+                    case Wysiwyg -> MarkdownEditorPane.Rich
+                    case SideBySide -> activePane
+                }
+            )
+        mounted?.requestFocus()
+    }
+
+    public fun setRightReadOnly(value: Boolean) {
+        checkMutation()
+        if (value == rightReadOnly)
+            return
+        if (value && mode == MarkdownEditorMode.SideBySide && activePane == MarkdownEditorPane.Rich)
+            editor.acceptComposition()
+        rightLocked.value = value
+    }
+
+    public fun setSynchronizeScroll(value: Boolean) {
+        checkMutation()
+        if (value != synchronizeScroll)
+            scrollLinked.value = value
+    }
+
+    public fun setSourceFraction(value: Double) {
+        checkMutation()
+        val next = mdEditorSizes(value)
+        if (value != sourceFraction)
+            sizes.value = next
+    }
+
+    /** Requests focus now, or when the visible pane is mounted. Hidden panes are not requested. */
+    public fun requestFocus(pane: MarkdownEditorPane): Boolean {
+        checkMutation()
+        if (!visible(pane))
+            return false
+        pendingFocus = Some(pane)
+        mounted?.requestFocus()
+        return true
+    }
+
+    public fun showSource(range: MarkdownRange) {
+        checkMutation()
+        mdCheckSelection(
+            editor.snapshot,
+            MarkdownSelection(MarkdownPosition(range.start), MarkdownPosition(range.end))
+        )
+        editor.setSelection(mdCaret(range.start))
+        if (mode == MarkdownEditorMode.Wysiwyg)
+            setMode(MarkdownEditorMode.SideBySide)
+        requestFocus(MarkdownEditorPane.Source)
+    }
+
+    internal fun focused(pane: MarkdownEditorPane) {
+        if (active.value != pane)
+            active.value = pane
+        when (pendingFocus) {
+            case Some(val requested) -> if (requested == pane)
+                pendingFocus = None
+            case None -> Unit
+        }
+    }
+
+    internal fun bind(mount: MdEditorMount) {
+        checkMutation()
+        when (mounted) {
+            case Some(val current) -> if (current !== mount)
+                throw IllegalStateException(Some("Markdown editor view state is already mounted"))
+            case None -> mounted = Some(mount)
+        }
+    }
+
+    internal fun unbind(mount: MdEditorMount) {
+        when (mounted) {
+            case Some(val current) -> if (current === mount)
+                mounted = None
+            case None -> Unit
+        }
+    }
+}

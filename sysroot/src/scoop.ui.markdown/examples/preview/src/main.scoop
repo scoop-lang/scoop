@@ -31,13 +31,13 @@ private class PreviewWindow(
 }
 
 fun main(args: Array<String>) {
-    if (args.size == 0L) {
+    if (args.size < 2L) {
         println(
             "Usage: markdown-preview <markdown-file> [--mermaid <mmdc>] [--mathjax <node> <@mathjax/src> <rsvg-convert>]"
         )
         return
     }
-    val file = currentDirectory().resolve(Path.fromString(args[0L])).normalizeLexically()
+    val file = currentDirectory().resolve(Path.fromString(args[1L])).normalizeLexically()
     val documentUri =
         url {
             scheme = Some("file");
@@ -53,7 +53,7 @@ fun main(args: Array<String>) {
             blocking { threads = 1 }
         }
     try {
-        var index = 1L
+        var index = 2L
         while (index < args.size) {
             if (args[index] == "--mermaid" && index + 1L < args.size) {
                 renderers.add(
@@ -78,7 +78,7 @@ fun main(args: Array<String>) {
                     throw IllegalArgumentException(Some("Invalid preview arguments"))
         }
         runUiApplication(
-            "Markdown preview — " + args[0L],
+            "Markdown preview — " + args[1L],
             { scope -> PreviewWindow(editor, workers, renderers, documentUri, scope) }
         )
     } finally {

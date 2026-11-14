@@ -18,7 +18,8 @@ public class MarkdownSourceHost public constructor(
     initialState: MarkdownEditorState,
     initialStyle: MarkdownSourceStyle = MarkdownSourceStyle(),
     initialOptions: MarkdownSourceOptions = MarkdownSourceOptions(),
-    private var suppliedFonts: FontCollection? = None
+    private var suppliedFonts: FontCollection? = None,
+    initialScroll: ScrollState? = None
 ): Closeable {
     internal var current = initialState
     internal var style = initialStyle
@@ -34,6 +35,8 @@ public class MarkdownSourceHost public constructor(
     internal var maximumWidth = 0.0
     internal var accepted: MarkdownSourceMeasurement? = None
     internal var anchor: MdSourceAnchor? = None
+    internal var alignment: MdScrollAlignment? = None
+    internal var editorMount: MdEditorMount? = None
     internal var connection: TextInputConnection? = None
     internal var sessionEnabled = false
     internal var retiring = false
@@ -46,7 +49,7 @@ public class MarkdownSourceHost public constructor(
     internal var changed: (MarkdownChange) -> Unit = { _ -> Unit }
     private var subscription =
         initialState.document.observe { change -> mdSourceChanged(this, change) }
-    public val scroll = ScrollState()
+    public val scroll = initialScroll ?: ScrollState()
     internal val viewport = scope.scrollViewport(scroll)
     public val area =
         scope.createArea(
@@ -155,8 +158,10 @@ public class MarkdownSourceHost public constructor(
             rows.clear()
             heights = mdHeightRun(state.snapshot.lineCount, mdSourceEstimate(style))
             maximumWidth = 0.0
-            if (rebound)
+            if (rebound) {
                 anchor = None
+                alignment = None
+            }
         }
         suppliedFonts = fonts
         this.style = style
@@ -180,6 +185,15 @@ public class MarkdownSourceHost public constructor(
             case Some(val active) -> active.owner !== input.compositionOwner
             case None -> false
         }
+
+    internal fun alignViewport(target: MdScrollAnchor) {
+        checkOpen()
+        val request = scroll.beginLayoutRequest()
+        alignment = Some(MdScrollAlignment(target, request))
+        anchor = None
+        revealNeeded = false
+        scope.requestLayout()
+    }
 
     public fun measure(
         context: MeasureContext,
@@ -328,6 +342,7 @@ internal fun mdSourceChanged(host: MarkdownSourceHost, change: MarkdownChange) {
     if (change.kind == MarkdownChangeKind.Reset) {
         host.heights = mdHeightRun(change.after.lineCount, estimate)
         host.anchor = None
+        host.alignment = None
         for (entry in host.rows)
             entry.value.close()
         host.rows.clear()
@@ -370,6 +385,10 @@ internal fun mdSourceChanged(host: MarkdownSourceHost, change: MarkdownChange) {
         when (host.anchor) {
             case Some(val anchor) -> host.anchor =
                 Some(MdSourceAnchor(change.map(anchor.source), anchor.delta, anchor.request))
+            case None -> Unit
+        }
+        when (host.alignment) {
+            case Some(val value) -> host.alignment = Some(value.map(change))
             case None -> Unit
         }
     }

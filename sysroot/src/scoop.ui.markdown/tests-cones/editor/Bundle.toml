@@ -1,0 +1,9 @@
+[bundle]
+schema = 1
+name = "markdown-editor-verification"
+version = "0.1.0"
+identifier = "org.scoop.tests.markdown-editor"
+display-name = "Scoop Markdown Editor Verification"
+
+[bundle.macos]
+formats = ["app"]

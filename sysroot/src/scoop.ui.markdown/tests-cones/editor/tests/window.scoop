@@ -1,0 +1,428 @@
+package scoop.tests.markdown.editor
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownEditorWindowTests {
+    @Test
+    fun threeNativeModesShareInputHistoryAndSourceAnchoredScrolling() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = EditorProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.discarded)
+            assertFalse(probe.view.value.sourceScroll.isAttached)
+            assertFalse(probe.view.value.richScroll.isAttached)
+            assertFalse(probe.view.value.richFocus.isAttached)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+            assertFalse(probe.fonts.isClosed)
+            assertEquals(probe.documentChanges, probe.viewChanges)
+        } catch (error: Throwable) {
+            println("Three-mode test step " + probe.step.value.toString())
+            reportEditorFailure(error)
+            throw error
+        } finally {
+            probe.close();
+            workers.close()
+        }
+    }
+}
+
+internal class EditorProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original =
+        "__ab__ 中文\n\n" +
+            "Paragraph 中文 content with **emphasis** and enough mixed English words to wrap in a narrow pane.\n\n".repeat(
+                16000L
+            )
+    val editor =
+        MarkdownEditorState(
+            MarkdownDocument.fromText(original),
+            MarkdownSelection(MarkdownPosition(3L), MarkdownPosition(3L))
+        )
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val view = state(MarkdownEditorViewState(editor, MarkdownEditorMode.Source))
+    val fonts = FontCollection()
+    val text =
+        textStyle {
+            families = ["Editor Latin", "Editor CJK"];
+            fontSize = 16.0;
+            lineHeight = Some(1.5)
+        }
+    val sourceStyle = MarkdownSourceStyle(text)
+    val richStyle = MarkdownPreviewStyle(text)
+    val step = state(0)
+    var scope: ComponentScope? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var accepted = -1
+    var waiting = false
+    var inputReady = false
+    var expectedPane = MarkdownEditorPane.Source
+    var previousPresentations = 0L
+    var firstLine = 0L
+    var previousSourceOffset = Point(0.0, 0.0)
+    var discardNext = false
+    var discarded = false
+    var finished = false
+    var viewChanges = 0L
+    var documentChanges = 0L
+    private val subscription = editor.document.observe { _ -> documentChanges += 1L }
+    init {
+        fonts.register(testSansBytes, "Editor Latin")
+        fonts.register(testCjkBytes, "Editor CJK")
+        view.value.requestFocus(MarkdownEditorPane.Source)
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown three-mode verification";
+                            size = LogicalSize(800.0, 420.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { owner -> EditorRoot(this, owner) })
+                native.createDeadline {
+                    println(
+                        "focused=" +
+                            native.isFocused.toString() +
+                            ", input=" +
+                            inputReady.toString() +
+                            ", accepted=" +
+                            accepted.toString() +
+                            ", source=" +
+                            view.value.sourceFocus.isFocusActive.toString() +
+                            ", rich=" +
+                            view.value.richFocus.isFocusActive.toString()
+                    )
+                    fail(Some("Three-mode test timeout at " + step.value.toString()))
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val input)) -> when (input) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false;
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        if (
+            !window!!.isFocused ||
+                window!!.isOccluded ||
+                frames!!.snapshot().required ||
+                accepted !=
+                step.value ||
+                frames!!.snapshot().presentations <=
+                previousPresentations
+        )
+            return false
+        val state = view.value
+        val focus =
+            if (expectedPane == MarkdownEditorPane.Source)
+                state.sourceFocus
+            else
+                state.richFocus
+        if (!focus.isFocusActive)
+            return false
+        val readOnly =
+            expectedPane ==
+                MarkdownEditorPane.Rich &&
+                state.mode ==
+                MarkdownEditorMode.SideBySide &&
+                state.rightReadOnly
+        if (inputReady == readOnly)
+            return false
+        if (state.mode != MarkdownEditorMode.Source)
+            return when (parser.current) {
+                case Some(_) -> true
+                case None -> false
+            }
+        return true
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        previousPresentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+        scope!!.requestLayout()
+    }
+
+    private fun focus(pane: MarkdownEditorPane) {
+        expectedPane = pane
+        assertTrue(view.value.requestFocus(pane))
+    }
+
+    private fun mode(value: MarkdownEditorMode, pane: MarkdownEditorPane) {
+        expectedPane = pane
+        view.value.setMode(value)
+    }
+
+    private fun line(): Long = editor.snapshot.lineAt(editor.selection.cursor)
+    private fun sameParagraph() {
+        val a = firstLine / 2L
+        val b = line() / 2L
+        assertTrue(
+            a <= b + 1L && b <= a + 1L,
+            Some(
+                "Source paragraph " + a.toString() + " differs from rich paragraph " + b.toString()
+            )
+        )
+    }
+
+    private fun advance(active: ActiveApplication) {
+        val state = view.value
+        val native = window!!
+        when (step.value) {
+            case 0 -> {
+                assertTrue(editor.snapshot.byteLength > 1048576L)
+                assertTrue(state.sourceScroll.isAttached)
+                assertFalse(state.richScroll.isAttached)
+                next { assertEquals(0, editorNativeText(native, "X")) }
+            }
+            case 1 -> {
+                assertTrue(editor.snapshot.read(MarkdownRange(0L, 7L)) == "__aXb__")
+                next { mode(MarkdownEditorMode.Wysiwyg, MarkdownEditorPane.Rich) }
+            }
+            case 2 -> {
+                assertFalse(state.sourceScroll.isAttached)
+                assertTrue(state.richScroll.isAttached)
+                next { assertEquals(0, editorNativeText(native, "Y")) }
+            }
+            case 3 -> next { assertEquals(0, editorNativeText(native, "中", 1, 1L)) }
+            case 4 -> {
+                assertTrue(editor.isComposing)
+                next { mode(MarkdownEditorMode.Source, MarkdownEditorPane.Source) }
+            }
+            case 5 -> {
+                assertFalse(editor.isComposing)
+                assertEquals("__aXY中b__", editor.snapshot.read(MarkdownRange(0L, 11L)))
+                next { assertTrue(editor.undo()) }
+            }
+            case 6 -> {
+                assertEquals("__aXYb__", editor.snapshot.read(MarkdownRange(0L, 8L)))
+                next {
+                    assertTrue(editor.redo());
+                    mode(MarkdownEditorMode.SideBySide, MarkdownEditorPane.Source)
+                }
+            }
+            case 7 -> {
+                assertTrue(state.sourceScroll.isAttached && state.richScroll.isAttached)
+                next { focus(MarkdownEditorPane.Rich) }
+            }
+            case 8 -> next { assertEquals(0, editorNativeText(native, "R")) }
+            case 9 -> {
+                assertEquals("__aXY中Rb__", editor.snapshot.read(MarkdownRange(0L, 12L)))
+                next {
+                    assertTrue(editor.undo());
+                    state.setRightReadOnly(true)
+                }
+            }
+            case 10 -> {
+                val revision = editor.snapshot.revision
+                assertEquals(1, editorNativeText(native, "blocked"))
+                assertEquals(revision, editor.snapshot.revision)
+                next { focus(MarkdownEditorPane.Source) }
+            }
+            case 11 -> next { assertEquals(0, editorNativeText(native, "ni", 1, 2L)) }
+            case 12 -> {
+                assertTrue(editor.isComposing)
+                next {
+                    state.setRightReadOnly(false);
+                    state.setRightReadOnly(true)
+                }
+            }
+            case 13 -> {
+                assertTrue(editor.isComposing)
+                next { mode(MarkdownEditorMode.Wysiwyg, MarkdownEditorPane.Rich) }
+            }
+            case 14 -> {
+                assertFalse(editor.isComposing)
+                assertEquals("__aXY中nib__", editor.snapshot.read(MarkdownRange(0L, 13L)))
+                next {
+                    state.showSource(MarkdownRange(2L, 5L));
+                    expectedPane = MarkdownEditorPane.Source
+                }
+            }
+            case 15 -> {
+                assertEquals(MarkdownPosition(2L), editor.selection.cursor)
+                next { state.sourceScroll.scrollTo(Point(0.0, 45000.0), ScrollOrigin.User) }
+            }
+            case 16 -> {
+                assertTrue(state.richScroll.offset.y > 1000.0)
+                next { editorNativeClick(native, 18.0, 8.0) }
+            }
+            case 17 -> {
+                firstLine = line()
+                next {
+                    expectedPane = MarkdownEditorPane.Rich;
+                    editorNativeClick(native, 420.0, 8.0)
+                }
+            }
+            case 18 -> {
+                sameParagraph()
+                next { state.richScroll.scrollBy(Point(0.0, 1700.0), ScrollOrigin.User) }
+            }
+            case 19 -> next { editorNativeClick(native, 420.0, 8.0) }
+            case 20 -> {
+                firstLine = line()
+                next {
+                    expectedPane = MarkdownEditorPane.Source;
+                    editorNativeClick(native, 18.0, 8.0)
+                }
+            }
+            case 21 -> {
+                sameParagraph()
+                next { state.setSynchronizeScroll(false) }
+            }
+            case 22 -> {
+                previousSourceOffset = state.sourceScroll.offset
+                next { state.richScroll.scrollBy(Point(0.0, 2500.0), ScrollOrigin.User) }
+            }
+            case 23 -> {
+                assertEquals(previousSourceOffset, state.sourceScroll.offset)
+                next {
+                    state.setSourceFraction(0.3);
+                    state.setSynchronizeScroll(true);
+                    discardNext = true
+                }
+            }
+            case 24 -> {
+                assertTrue(discarded)
+                assertEquals(0.3, state.sourceFraction)
+                next { editorNativeClick(native, 18.0, 8.0) }
+            }
+            case 25 -> {
+                firstLine = line()
+                next {
+                    expectedPane = MarkdownEditorPane.Rich;
+                    editorNativeClick(native, 300.0, 8.0)
+                }
+            }
+            case 26 -> {
+                sameParagraph()
+                next { mode(MarkdownEditorMode.Source, MarkdownEditorPane.Source) }
+            }
+            case 27 -> {
+                assertFalse(state.richScroll.isAttached)
+                next {
+                    val replacement = MarkdownEditorViewState(editor)
+                    replacement.requestFocus(MarkdownEditorPane.Rich)
+                    view.value = replacement
+                    expectedPane = MarkdownEditorPane.Rich
+                }
+            }
+            case 28 -> {
+                assertEquals(viewChanges, documentChanges)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected editor test step"))
+        }
+    }
+
+    public override fun close() {
+        subscription.close();
+        frames?.close();
+        parser.close();
+        editor.close();
+        fonts.close()
+    }
+}
+
+private class EditorRoot(val probe: EditorProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.scope = Some(scope)
+    }
+    public override fun render(): View =
+        element(
+            probe.step.value,
+            { props, owner -> EditorFrame(probe, props, owner) },
+            [
+                markdownEditor(
+                    probe.view.value,
+                    probe.parser,
+                    Some(probe.sourceStyle),
+                    Some(probe.richStyle),
+                    fonts = Some(probe.fonts),
+                    onChanged = { _ -> probe.viewChanges += 1L }
+                )
+            ]
+        )
+}
+
+private class EditorFrame(
+    val probe: EditorProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        val ticket = step.value
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false;
+            probe.window!!.requestSize(LogicalSize(900.0, 420.0))
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+            else
+                if (discard) {
+                    probe.discarded = true;
+                    scope.requestFrame()
+                }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+package scoop.ui.markdown
+
+public enum MarkdownEditorMode {
+    Source, Wysiwyg, SideBySide
+}
+
+public enum MarkdownEditorPane {
+    Source, Rich
+}
+
+public struct MarkdownEditorOptions(
+    val readOnly: Boolean = false,
+    val sourceMinimum: Double = 120.0,
+    val richMinimum: Double = 120.0,
+    val source: MarkdownSourceOptions = MarkdownSourceOptions(),
+    val rich: MarkdownPreviewOptions = MarkdownPreviewOptions()
+) {
+    internal fun check() {
+        source.check()
+        rich.check()
+        if (
+            !sourceMinimum.isFinite() ||
+                sourceMinimum <
+                0.0 ||
+                !richMinimum.isFinite() ||
+                richMinimum <
+                0.0
+        )
+            throw IllegalArgumentException(Some("Invalid Markdown editor panel minimum"))
+    }
+
+    internal fun sourceOptions(): MarkdownSourceOptions =
+        MarkdownSourceOptions(
+            source.wrap,
+            readOnly || source.readOnly,
+            source.enabled,
+            source.padding,
+            source.overscan,
+            source.tabSize,
+            source.inputContextBytes
+        )
+}

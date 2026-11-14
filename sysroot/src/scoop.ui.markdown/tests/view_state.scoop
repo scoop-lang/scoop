@@ -1,0 +1,141 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class MarkdownEditorViewStateTests {
+    @Test
+    fun `switching modes accepts one composition without rewriting source or history`() {
+        val document = MarkdownDocument.fromText("__ab__\r\n")
+        val editor = MarkdownEditorState(document, mdCaret(3L))
+        val view = MarkdownEditorViewState(editor, MarkdownEditorMode.Source)
+        val input = MarkdownSourceInput(editor)
+        input.apply(
+            TextInputBatch(
+                Some(input.inputState.revision),
+                [TextInputOperation.Preedit("你好", None, TextReplacement.CurrentSelection)]
+            )
+        )
+        val revision = editor.snapshot.revision
+        view.setMode(MarkdownEditorMode.SideBySide)
+        assertFalse(editor.isComposing)
+        assertEquals(revision, editor.snapshot.revision)
+        assertEquals("__a你好b__\r\n", document.toMarkdown())
+        assertEquals(Some(MarkdownEditorPane.Source), view.pendingFocus)
+        view.setMode(MarkdownEditorMode.Wysiwyg)
+        input.close()
+        assertTrue(editor.undo())
+        assertEquals("__ab__\r\n", document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("__a你好b__\r\n", document.toMarkdown())
+        editor.close()
+    }
+
+    @Test
+    fun `rich composition is accepted once before showing source`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("__A &amp; B__"), mdCaret(3L))
+        val parsed = editor.document.parse(MarkdownProfile.Editor)
+        val input = MarkdownRichInput(editor, parsed.inlineContent(parsed.root.children[0L].id))
+        val view = MarkdownEditorViewState(editor)
+        input.apply(
+            TextInputBatch(
+                Some(input.inputState.revision),
+                [TextInputOperation.Preedit("雪😀", None, TextReplacement.CurrentSelection)]
+            )
+        )
+        val beforeSwitch = editor.snapshot
+        assertEquals("A雪😀 & B", input.content.text.text)
+        view.showSource(MarkdownRange(2L, 10L))
+        assertFalse(editor.isComposing)
+        assertEquals(MarkdownEditorMode.SideBySide, view.mode)
+        assertEquals(mdCaret(2L), editor.selection)
+        assertEquals(Some(MarkdownEditorPane.Source), view.pendingFocus)
+        assertSame(beforeSwitch, editor.snapshot)
+        input.close()
+        editor.undo()
+        assertEquals("__A &amp; B__", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        editor.close()
+    }
+
+    @Test
+    fun `unchanged mode and layout options do not split typing groups`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val view = MarkdownEditorViewState(editor)
+        editor.replaceSelection("a", MarkdownEditKind.Typing)
+        view.setMode(MarkdownEditorMode.Wysiwyg)
+        view.setSourceFraction(0.35)
+        view.setSynchronizeScroll(false)
+        view.setRightReadOnly(true)
+        editor.replaceSelection("b", MarkdownEditKind.Typing)
+        assertEquals(0.35, view.sourceFraction)
+        assertFalse(view.synchronizeScroll)
+        editor.undo()
+        assertEquals("", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        editor.close()
+    }
+
+    @Test
+    fun `locking the right pane preserves a source composition`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("text"))
+        val view = MarkdownEditorViewState(editor, MarkdownEditorMode.SideBySide)
+        view.focused(MarkdownEditorPane.Source)
+        val input = MarkdownSourceInput(editor)
+        input.apply(
+            TextInputBatch(
+                Some(input.inputState.revision),
+                [TextInputOperation.Preedit("ni", None, TextReplacement.CurrentSelection)]
+            )
+        )
+        view.setRightReadOnly(true)
+        assertTrue(editor.isComposing)
+        assertTrue(view.rightReadOnly)
+        editor.cancelComposition()
+        assertEquals("text", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `invalid source ranges and fractions preserve the view and document`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("雪😀"))
+        val view = MarkdownEditorViewState(editor, sourceFraction = 0.4)
+        assertFailsWith<IllegalArgumentException> { view.showSource(MarkdownRange(1L, 3L)) }
+        assertFailsWith<IllegalArgumentException> { view.showSource(MarkdownRange(0L, 9L)) }
+        assertFailsWith<IllegalArgumentException> { view.setSourceFraction(-0.01) }
+        assertFailsWith<IllegalArgumentException> { view.setSourceFraction(1.01) }
+        assertEquals(0.4, view.sourceFraction)
+        assertEquals(MarkdownEditorMode.Wysiwyg, view.mode)
+        assertEquals(mdCaret(0L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertFalse(view.requestFocus(MarkdownEditorPane.Source))
+        view.showSource(MarkdownRange(7L, 7L))
+        assertEquals(mdCaret(7L), editor.selection)
+        assertEquals(Some(MarkdownEditorPane.Source), view.pendingFocus)
+        assertFalse(view.sourceFocus.isAttached)
+        editor.close()
+    }
+
+    @Test
+    fun `views sharing an editor keep independent mode and scroll state`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("text"))
+        val a = MarkdownEditorViewState(editor, MarkdownEditorMode.Source)
+        val b = MarkdownEditorViewState(editor)
+        a.setMode(MarkdownEditorMode.SideBySide)
+        a.setRightReadOnly(true)
+        a.setSourceFraction(0.25)
+        assertEquals(MarkdownEditorMode.Wysiwyg, b.mode)
+        assertFalse(b.rightReadOnly)
+        assertEquals(0.5, b.sourceFraction)
+        assertFalse(a.sourceScroll === b.sourceScroll)
+        assertFalse(a.richFocus === b.richFocus)
+        editor.replaceSelection("shared ")
+        assertSame(a.editor.snapshot, b.editor.snapshot)
+        editor.close()
+    }
+}

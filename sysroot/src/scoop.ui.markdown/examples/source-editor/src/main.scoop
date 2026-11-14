@@ -37,15 +37,15 @@ private class SourceWindow(
 }
 
 fun main(args: Array<String>) {
-    if (args.size != 1L) {
+    if (args.size != 2L) {
         println("Usage: markdown-source-editor <markdown-file>")
         return
     }
-    val path = Path.fromString(args[0L])
+    val path = Path.fromString(args[1L])
     val editor = MarkdownEditorState(MarkdownDocument.fromText(path.readText()))
     try {
         runUiApplication(
-            "Scoop Markdown — " + args[0L],
+            "Scoop Markdown — " + args[1L],
             { scope -> SourceWindow(editor, path, scope) }
         )
     } finally {

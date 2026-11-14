@@ -24,6 +24,7 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                     host.retire()
                     host.blink.cancel()
                 }
+                host.preview.editorMount?.focused(MarkdownEditorPane.Rich, active)
             }
             case TextInput(val input) -> mdRichNative(host, input)
             case Pointer(InputPointerEvent.Cancelled(_, _)) -> {

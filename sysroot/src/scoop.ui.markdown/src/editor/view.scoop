@@ -1,0 +1,171 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.markdown.*
+import scoop.surface.FocusVisibility
+import scoop.ui.*
+import scoop.ui.component.resizable
+
+internal class MdEditorProps(
+    val state: MarkdownEditorViewState,
+    val controller: MarkdownParseController,
+    val sourceStyle: MarkdownSourceStyle?,
+    val richStyle: MarkdownPreviewStyle?,
+    val options: MarkdownEditorOptions,
+    val fonts: FontCollection?,
+    val changed: (MarkdownChange) -> Unit,
+    val openLink: (String) -> Unit,
+    val source: ((MarkdownRange) -> Unit)?,
+    val images: MarkdownImageController?,
+    val documentUri: String
+)
+
+/** Three native editing modes over one borrowed document, selection and undo history. */
+public fun markdownEditor(
+    state: MarkdownEditorViewState,
+    controller: MarkdownParseController,
+    sourceStyle: MarkdownSourceStyle? = None,
+    richStyle: MarkdownPreviewStyle? = None,
+    options: MarkdownEditorOptions = MarkdownEditorOptions(),
+    fonts: FontCollection? = None,
+    onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
+    onOpenLink: (String) -> Unit = { _ -> Unit },
+    onSource: ((MarkdownRange) -> Unit)? = None,
+    images: MarkdownImageController? = None,
+    documentUri: String = ""
+): View {
+    options.check()
+    if (state.editor !== controller.editor)
+        throw IllegalArgumentException(Some("Markdown editor and parser must share the same state"))
+    return component(
+        MdEditorProps(
+            state,
+            controller,
+            sourceStyle,
+            richStyle,
+            options,
+            fonts,
+            onChanged,
+            onOpenLink,
+            onSource,
+            images,
+            documentUri
+        ),
+        { props, scope -> MdEditorComponent(props, scope) }
+    )
+}
+
+private class MdEditorShellProps(val input: MdEditorProps, val mount: MdEditorMount)
+
+private class MdEditorComponent(val props: Props<MdEditorProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private var mountedState = props.value.state
+    private var mount = MdEditorMount(props.value)
+    private var generation = 0L
+
+    public override fun render(): View {
+        val input = props.value
+        val state = input.state
+        if (mountedState !== state) {
+            mountedState = state
+            mount = MdEditorMount(input)
+            generation += 1L
+        }
+        val owner = mount
+        val mode = state.mode
+        val rightReadOnly = state.rightReadOnly
+        state.synchronizeScroll
+        val panes =
+            resizable(state.sizes.binding()) {
+                withHandle = true
+                clip = true
+                if (mode != MarkdownEditorMode.Wysiwyg)
+                    panel(
+                        mdSourcePaneKey,
+                        mdSourceEditor(
+                            MdSourceProps(
+                                state.editor,
+                                input.sourceStyle,
+                                input.options.sourceOptions(),
+                                input.fonts,
+                                FocusOptions(
+                                    handle = Some(state.sourceFocus),
+                                    visibility = FocusVisibility.Always
+                                ),
+                                { _ -> Unit },
+                                Some(owner)
+                            )
+                        )
+                    ) {
+                        minimum =
+                            if (mode == MarkdownEditorMode.SideBySide)
+                                input.options.sourceMinimum
+                            else
+                                0.0
+                    }
+                if (mode != MarkdownEditorMode.Source)
+                    panel(
+                        mdRichPaneKey,
+                        mdRichEditor(
+                            MdRichProps(
+                                input.controller,
+                                input.richStyle,
+                                input.options.rich,
+                                input.options.readOnly ||
+                                    (mode == MarkdownEditorMode.SideBySide && rightReadOnly),
+                                input.fonts,
+                                FocusOptions(
+                                    handle = Some(state.richFocus),
+                                    visibility = FocusVisibility.Always
+                                ),
+                                { _ -> Unit },
+                                input.openLink,
+                                { range -> owner.openSource(range) },
+                                input.images,
+                                input.documentUri,
+                                Some(owner)
+                            )
+                        )
+                    ) {
+                        minimum =
+                            if (mode == MarkdownEditorMode.SideBySide)
+                                input.options.richMinimum
+                            else
+                                0.0
+                    }
+            }
+        return element(
+            MdEditorShellProps(input, owner),
+            { current, childScope -> MdEditorShell(current, childScope) },
+            [panes],
+            key = ViewKey.Number(generation)
+        )
+    }
+}
+
+private class MdEditorShell(val props: Props<MdEditorShellProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        props.value.mount.update(props.value.input)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val metrics = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(metrics, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+    }
+    public override fun onUnmount() {
+        props.value.mount.close()
+    }
+}

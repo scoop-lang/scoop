@@ -18,10 +18,20 @@ public class MarkdownRichHost public constructor(
     readOnly: Boolean = false,
     fonts: FontCollection? = None,
     images: MarkdownImageController? = None,
-    documentUri: String = ""
+    documentUri: String = "",
+    initialScroll: ScrollState? = None
 ): Closeable {
     internal val preview =
-        MarkdownPreviewHost(scope, controller, style, options, fonts, images, documentUri)
+        MarkdownPreviewHost(
+            scope,
+            controller,
+            style,
+            options,
+            fonts,
+            images,
+            documentUri,
+            initialScroll
+        )
     internal val editor: MarkdownEditorState get() = preview.editor
     internal val window: Window get() = scope.nativeWindow
     internal var input: MarkdownRichInput? = None

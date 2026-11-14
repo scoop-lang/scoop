@@ -4,7 +4,7 @@ import scoop.graphics.text.FontCollection
 import scoop.markdown.*
 import scoop.ui.*
 
-private class MdRichProps(
+internal class MdRichProps(
     val controller: MarkdownParseController,
     val style: MarkdownPreviewStyle?,
     val options: MarkdownPreviewOptions,
@@ -15,7 +15,8 @@ private class MdRichProps(
     val openLink: (String) -> Unit,
     val source: (MarkdownRange) -> Unit,
     val images: MarkdownImageController?,
-    val documentUri: String
+    val documentUri: String,
+    val mount: MdEditorMount? = None
 )
 
 public fun markdownRichEditor(
@@ -31,7 +32,7 @@ public fun markdownRichEditor(
     images: MarkdownImageController? = None,
     documentUri: String = ""
 ): View =
-    component(
+    mdRichEditor(
         MdRichProps(
             controller,
             style,
@@ -44,9 +45,11 @@ public fun markdownRichEditor(
             onSource,
             images,
             documentUri
-        ),
-        { props, scope -> MdRichComponent(props, scope) }
+        )
     )
+
+internal fun mdRichEditor(props: MdRichProps): View =
+    component(props, { input, scope -> MdRichComponent(input, scope) })
 
 private class MdRichComponent(val props: Props<MdRichProps>, scope: ComponentScope): Component(
     scope
@@ -73,7 +76,8 @@ private class MdRichElement(val props: Props<MdRichProps>, scope: ComponentScope
                 props.value.readOnly,
                 props.value.fonts,
                 props.value.images,
-                props.value.documentUri
+                props.value.documentUri,
+                props.value.mount?.state?.richScroll
             )
         }
     public override fun onMount() {
@@ -94,9 +98,13 @@ private class MdRichElement(val props: Props<MdRichProps>, scope: ComponentScope
             value.images,
             value.documentUri
         )
+        value.mount?.attach(host.preview)
         if (!value.controller.isClosed)
             value.controller.start()
         return UiInvalidation.Layout
+    }
+    public override fun onUnmount() {
+        props.value.mount?.detach(host.preview)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         MarkdownPreviewMeasurement

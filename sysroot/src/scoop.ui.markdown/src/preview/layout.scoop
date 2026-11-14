@@ -37,6 +37,10 @@ private class MdPreviewMeasurePass(
     }
 
     fun adjustment(): ScrollAdjustment? {
+        when (alignment()) {
+            case Some(val value) -> return Some(value)
+            case None -> Unit
+        }
         val anchor = host.anchor ?: return None
         if (
             anchor.request !=
@@ -118,6 +122,69 @@ private class MdPreviewMeasurePass(
                     max(
                         0.0,
                         host.options.padding + host.heights.prefix(index) + local + anchor.delta
+                    )
+                )
+            )
+        )
+    }
+
+    private fun alignment(): ScrollAdjustment? {
+        val value = host.alignment ?: return None
+        if (
+            value.request !=
+                host.scroll.requestRevision ||
+                (presentation?.content?.snapshot?.revision ?: model.snapshot.revision) !=
+                host.editor.snapshot.revision
+        )
+            return None
+        val anchor = value.anchor
+        val expanded =
+            mdFrameExpanded(model, presentation, anchor.source.position, anchor.source.bias)
+        val index = model.display.rowAt(expanded, anchor.source.bias)
+        val measured = row(index)
+        var cellIndex = 0L
+        while (
+            cellIndex +
+                1L <
+                measured.row.cells.size &&
+                model.display.rows[index].cells[cellIndex].sourceRange.end <
+                expanded.byteOffset
+        )
+            cellIndex += 1L
+        if (cellIndex >= measured.resource.cells.size)
+            return None
+        val cell = measured.resource.cells[cellIndex]
+        val text = measured.row.cells[cellIndex]
+        val position =
+            cell.text.display.toDisplay(
+                TextPosition(
+                    text.textAt(
+                        mdFrameCellPosition(
+                            model,
+                            presentation,
+                            index,
+                            cellIndex,
+                            anchor.source.position,
+                            anchor.source.bias
+                        ).byteOffset,
+                        anchor.source.bias
+                    )
+                )
+            )
+        val caret = cell.text.layout.caret(position) ?: return None
+        return Some(
+            ScrollAdjustment(
+                value.request,
+                Point(
+                    host.scroll.offset.x,
+                    max(
+                        0.0,
+                        host.options.padding +
+                            host.heights.prefix(index) +
+                            cell.origin.y +
+                            caret.y +
+                            anchor.fraction *
+                            caret.height
                     )
                 )
             )

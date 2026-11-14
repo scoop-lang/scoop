@@ -4,7 +4,7 @@ import scoop.markdown.*
 import scoop.window.*
 
 private fun mdCheckRichContent(editor: MarkdownEditorState, content: MarkdownInlineContent) {
-    editor.checkEdit()
+    editor.storage.checkMutation()
     if (content.snapshot !== editor.snapshot)
         throw IllegalStateException(
             Some("Rich Markdown input requires the current document snapshot")
@@ -76,7 +76,7 @@ public class MarkdownRichInput public constructor(
 
     public fun synchronize(content: MarkdownInlineContent): Boolean {
         checkRead()
-        editor.checkEdit()
+        editor.storage.checkMutation()
         checkOwner()
         if (editor.isComposing)
             return false

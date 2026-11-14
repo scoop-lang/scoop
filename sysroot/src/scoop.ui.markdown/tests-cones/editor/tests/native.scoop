@@ -1,0 +1,76 @@
+package scoop.tests.markdown.editor
+
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.window.*
+import scoop.window.native.*
+
+private fun <T> editorNativeView(window: Window, action: (Ptr<Unit>) -> T): T {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, val view) -> action(view)
+                }
+            }
+        }
+    }
+}
+
+internal fun editorNativeText(
+    window: Window,
+    text: String,
+    kind: Int = 0,
+    selection: Long = 0L
+): Int =
+    editorNativeView(window) {
+        view -> @Unsafe
+        {
+            return@editorNativeView text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorText(
+                        view,
+                        kind,
+                        bytes,
+                        length,
+                        selection,
+                        0L,
+                        -1L,
+                        0L
+                    )
+                }
+            }
+        }
+    }
+
+internal fun editorNativeClick(window: Window, x: Double, y: Double) {
+    editorNativeView(window) {
+        view -> @Unsafe
+        {
+            assertEquals(0, nativeEditorPointer(view, x, y, true, 1, false))
+            assertEquals(0, nativeEditorPointer(view, x, y, false, 1, false))
+        }
+    }
+}
+
+internal fun reportEditorFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportEditorFailure(error.primaryFailure)
+        reportEditorFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure)
+            println(
+                error.location.file +
+                    ":" +
+                    error.location.line.toString() +
+                    ": " +
+                    (error.message ?: "assertion")
+            )
+        else
+            if (error is Exception)
+                println(error.message ?: "failure")
+}

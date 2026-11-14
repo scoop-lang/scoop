@@ -11,7 +11,7 @@ private fun mdSourceFragment(
     revision: Long,
     initial: Boolean = false
 ): MdSourceFragment {
-    editor.checkEdit()
+    editor.storage.checkMutation()
     if (context < 0L || context > 1152921504606846975L)
         throw IllegalArgumentException(Some("Invalid Markdown input context size"))
     if (editor.isComposing && !initial)
@@ -116,7 +116,7 @@ public class MarkdownSourceInput public constructor(
     /** True means the native connection must retire before the new source mapping is used. */
     public fun synchronize(force: Boolean = false): Boolean {
         checkRead()
-        editor.checkEdit()
+        editor.storage.checkMutation()
         checkOwner()
         if (editor.isComposing)
             return false

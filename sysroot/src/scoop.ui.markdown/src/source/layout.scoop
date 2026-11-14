@@ -34,6 +34,47 @@ private class MdSourceMeasurePass(
         for (entry in measured)
             entry.value.measurement.close()
     }
+
+    fun adjustment(): ScrollAdjustment? {
+        when (host.alignment) {
+            case Some(val value) -> if (value.request == host.scroll.requestRevision)
+                return at(value.anchor.source, value.request, 0.0, value.anchor.fraction)
+            case None -> Unit
+        }
+        val value = host.anchor ?: return None
+        if (value.request != host.scroll.requestRevision)
+            return None
+        return at(value.source, value.request, value.delta, 0.0)
+    }
+
+    private fun at(
+        source: MarkdownAnchor,
+        request: ULong,
+        delta: Double,
+        fraction: Double
+    ): ScrollAdjustment? {
+        val index = host.current.snapshot.lineAt(source.position)
+        val row = row(index)
+        val caret =
+            row.layout.caret(row.position(source.position.byteOffset, source.bias)) ?: return None
+        return Some(
+            ScrollAdjustment(
+                request,
+                Point(
+                    host.scroll.offset.x,
+                    max(
+                        0.0,
+                        host.options.padding +
+                            host.heights.prefix(index) +
+                            caret.y +
+                            delta +
+                            fraction *
+                            caret.height
+                    )
+                )
+            )
+        )
+    }
 }
 
 internal fun mdMeasureSource(
@@ -59,35 +100,8 @@ internal fun mdMeasureSource(
     val pass = MdSourceMeasurePass(host, context, width)
     try {
         pass.row(snapshot.lineAt(current.selection.cursor))
-        var adjustment: ScrollAdjustment? = None
-        when (host.anchor) {
-            case Some(val anchor) -> if (anchor.request == host.scroll.requestRevision) {
-                val index = snapshot.lineAt(anchor.source.position)
-                val row = pass.row(index)
-                val caret =
-                    row.layout.caret(
-                        row.position(anchor.source.position.byteOffset, anchor.source.bias)
-                    )
-                when (caret) {
-                    case Some(val rect) -> adjustment =
-                        Some(
-                            ScrollAdjustment(
-                                anchor.request,
-                                Point(
-                                    host.scroll.offset.x,
-                                    max(
-                                        0.0,
-                                        padding + host.heights.prefix(index) + rect.y + anchor.delta
-                                    )
-                                )
-                            )
-                        )
-                    case None -> Unit
-                }
-            }
-            case None -> Unit
-        }
-        val initial =
+        var adjustment = pass.adjustment()
+        var scroll =
             host.viewport.layout(
                 size,
                 Size(
@@ -96,22 +110,31 @@ internal fun mdMeasureSource(
                 ),
                 adjustment
             )
-        val offset = initial.snapshot.offset
-        var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
-        val bottom = offset.y + size.height + host.options.overscan
-        while (index < snapshot.lineCount && host.heights.prefix(index) + padding < bottom) {
-            pass.row(index)
-            index += 1L
+        while (true) {
+            val before = pass.measured.size
+            val offset = scroll.snapshot.offset
+            var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
+            val bottom = offset.y + size.height + host.options.overscan
+            while (index < snapshot.lineCount && host.heights.prefix(index) + padding < bottom) {
+                pass.row(index)
+                index += 1L
+            }
+            adjustment = pass.adjustment()
+            scroll =
+                host.viewport.layout(
+                    size,
+                    Size(
+                        if (host.options.wrap)
+                            size.width
+                        else
+                            max(size.width, host.maximumWidth + padding * 2.0),
+                        max(size.height, host.heights.total + padding * 2.0)
+                    ),
+                    adjustment
+                )
+            if (pass.measured.size == before)
+                break
         }
-        val content =
-            Size(
-                if (host.options.wrap)
-                    size.width
-                else
-                    max(size.width, host.maximumWidth + padding * 2.0),
-                max(size.height, host.heights.total + padding * 2.0)
-            )
-        val scroll = host.viewport.layout(size, content, adjustment)
         val rows = ArrayList<MdSourceLine>()
         for (entry in pass.measured)
             rows.add(entry.value)
@@ -336,6 +359,12 @@ internal fun mdSceneSource(
                 host.publishNative()
                 host.scheduleBlink()
                 mdSourceDragAccepted(host)
+                when (host.alignment) {
+                    case Some(val value) -> if (value.request == frame.requestRevision)
+                        host.alignment = None
+                    case None -> Unit
+                }
+                host.editorMount?.sourceAccepted(host, frame)
             }
         }
     } catch (error: Throwable) {
