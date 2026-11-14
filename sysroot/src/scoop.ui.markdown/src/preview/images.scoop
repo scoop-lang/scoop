@@ -96,6 +96,7 @@ internal fun mdPreviewImages(
                 val objectValue = text.runs[run].objectValue ?: continue
                 val input =
                     when (objectValue) {
+                        case MdDisplayObject.Source(_) -> continue
                         case MdDisplayObject.Image(val target, _) -> MdPreviewImageInput(
                             MarkdownImageKind.Resource,
                             target.destination
@@ -115,7 +116,13 @@ internal fun mdPreviewImages(
                     MarkdownImageRequest(
                         input.kind,
                         input.body.text,
-                        mdPreviewImageUri(model, input.body, host.documentUri),
+                        if (host.presentation?.isLocalRow(row, cell) ?: false)
+                            if (host.documentUri != "")
+                                host.documentUri
+                            else
+                                model.processed?.baseUri ?: ""
+                        else
+                            mdPreviewImageUri(model, input.body, host.documentUri),
                         available,
                         scale,
                         base.fontSize,

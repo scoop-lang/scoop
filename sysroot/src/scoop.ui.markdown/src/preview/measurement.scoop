@@ -16,7 +16,9 @@ public class MarkdownPreviewHit internal constructor(
     internal val blockKey: MdDisplayKey,
     internal val cellIndex: Long,
     internal val textPosition: TextPosition,
-    internal val document: MarkdownParsedDocument
+    internal val document: MarkdownParsedDocument,
+    internal val presentation: MdRichPresentation? = None,
+    internal val local: Boolean = false
 )
 
 internal class MdPreviewRows(val rows: Array<MdPreviewMeasuredRow>) {
@@ -44,11 +46,18 @@ public class MarkdownPreviewMeasurement internal constructor(
     internal val requestRevision: ULong,
     internal val padding: Double,
     public val reusedLayoutCount: Long,
-    ownership: MdPreviewRows? = None
+    ownership: MdPreviewRows? = None,
+    internal val presentation: MdRichPresentation? = None,
+    internal val inputRevision: Long = -1L,
+    internal val marked: MarkdownRange? = None
 ): Closeable {
     private val owner = ownership ?: MdPreviewRows(rows)
     private var closed = false
-    public val sourceRevision: Long? get() = document?.snapshot?.revision
+    public val sourceRevision: Long? get() =
+        when (presentation) {
+            case Some(val local) -> Some(local.content.snapshot.revision)
+            case None -> document?.snapshot?.revision
+        }
     public val parsed: MarkdownParsedDocument? get() = document
     public val measuredBlockCount: Long get() = rows.size
     public val blockCount: Long get() = heights.count
@@ -68,7 +77,10 @@ public class MarkdownPreviewMeasurement internal constructor(
             requestRevision,
             padding,
             reusedLayoutCount,
-            Some(owner.retain())
+            Some(owner.retain()),
+            presentation,
+            inputRevision,
+            marked
         )
     }
 
@@ -133,8 +145,14 @@ public class MarkdownPreviewMeasurement internal constructor(
                         displayed.byteOffset
                 )
         }
+        val local = presentation?.isLocal(index, selectedCell) ?: false
         var generated = false
-        when (model.processed) {
+        when (
+            if (local)
+                None
+            else
+                model.processed
+        ) {
             case Some(val processed) -> {
                 for (
                     entry in processed.sourceMap.origins(
@@ -150,9 +168,18 @@ public class MarkdownPreviewMeasurement internal constructor(
         }
         return Some(
             MarkdownPreviewHit(
-                mdPreviewOriginal(model, source),
-                source,
-                mdPreviewOriginalRange(model, measured.row.range),
+                if (local)
+                    source
+                else
+                    mdFrameOriginal(model, presentation, source),
+                if (local)
+                    presentation!!.expanded(source)
+                else
+                    source,
+                if (local)
+                    presentation!!.content.sourceRange
+                else
+                    mdFrameOriginalRange(model, presentation, measured.row.range),
                 generated,
                 measured.row.node,
                 affinity,
@@ -160,26 +187,46 @@ public class MarkdownPreviewMeasurement internal constructor(
                 measured.row.key,
                 selectedCell,
                 textPosition,
-                model
+                model,
+                presentation,
+                local
             )
         )
     }
 
     internal fun caret(position: MarkdownPosition, bias: MarkdownBias = MarkdownBias.After): Rect? {
         val model = document ?: return None
-        val expanded = mdPreviewExpanded(model, position, bias)
-        val index = model.display.rowAt(expanded, bias)
+        val expanded = mdFrameExpanded(model, presentation, position, bias)
+        val local = presentation
+        val inLocal =
+            when (local) {
+                case Some(val active) -> position.byteOffset >=
+                    active.row.cells[active.cellIndex].sourceRange.start &&
+                    position.byteOffset <=
+                    active.row.cells[active.cellIndex].sourceRange.end
+                case None -> false
+            }
+        val index =
+            if (inLocal)
+                local!!.rowIndex
+            else
+                model.display.rowAt(expanded, bias)
         val measured = row(index) ?: return None
         if (measured.resource.cells.size == 0L)
             return Some(
                 Rect(padding, padding + heights.prefix(index), 1.0, measured.resource.height)
             )
-        var cellIndex = 0L
+        var cellIndex =
+            if (inLocal)
+                local!!.cellIndex
+            else
+                0L
         while (
-            cellIndex +
+            !inLocal &&
+                cellIndex +
                 1L <
                 measured.row.cells.size &&
-                measured.row.cells[cellIndex].sourceRange.end <
+                model.display.rows[index].cells[cellIndex].sourceRange.end <
                 expanded.byteOffset
         )
             cellIndex += 1L
@@ -187,7 +234,17 @@ public class MarkdownPreviewMeasurement internal constructor(
         val text = measured.row.cells[cellIndex]
         val raw =
             TextPosition(
-                text.textAt(expanded.byteOffset, bias),
+                text.textAt(
+                    mdFrameCellPosition(
+                        model,
+                        presentation,
+                        index,
+                        cellIndex,
+                        position,
+                        bias
+                    ).byteOffset,
+                    bias
+                ),
                 if (bias == MarkdownBias.Before)
                     TextAffinity.Upstream
                 else
@@ -218,7 +275,9 @@ public class MarkdownPreviewMeasurement internal constructor(
 
     internal fun hitCaret(hit: MarkdownPreviewHit): Rect? {
         val model = document ?: return None
-        val index = model.display.rowForKey(hit.blockKey) ?: return None
+        val index =
+            (presentation?.rowForKey(hit.blockKey) ?: model.display.rowForKey(hit.blockKey)) ?:
+                return None
         val measured = row(index) ?: return None
         if (hit.cellIndex >= measured.resource.cells.size)
             return Some(
@@ -257,10 +316,11 @@ internal fun mdPreviewExpanded(
 
 internal fun mdPreviewOriginal(
     model: MarkdownParsedDocument,
-    position: MarkdownPosition
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
 ): MarkdownPosition =
     when (model.processed) {
-        case Some(val processed) -> processed.sourceMap.sourceAt(position)
+        case Some(val processed) -> processed.sourceMap.sourceAt(position, bias)
         case None -> position
     }
 

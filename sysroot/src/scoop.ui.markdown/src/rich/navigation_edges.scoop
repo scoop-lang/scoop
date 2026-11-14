@@ -1,0 +1,214 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+
+internal fun mdRichDocumentEdge(host: MarkdownRichHost, end: Boolean): MdSourceMove {
+    val model = host.preview.presentation?.base ?: host.preview.controller.current!!
+    val index =
+        if (end)
+            model.display.rows.size - 1L
+        else
+            0L
+    return mdWithRichRow(host, index) {
+        row,
+        _ -> mdRichCellEdge(
+            host,
+            row,
+            index,
+            if (end)
+                row.cells.size - 1L
+            else
+                0L,
+            end
+        )
+    }
+}
+
+private fun mdRichCellEdge(
+    host: MarkdownRichHost,
+    row: MdDisplayRow,
+    index: Long,
+    column: Long,
+    end: Boolean
+): MdSourceMove {
+    if (row.cells.size == 0L) {
+        val model = host.preview.presentation?.base ?: host.preview.controller.current!!
+        return MdSourceMove(
+            mdFrameOriginal(model, host.preview.presentation, MarkdownPosition(row.range.start)),
+            TextAffinity.Downstream,
+            None
+        )
+    }
+    return mdRichRowPosition(
+        host,
+        row,
+        index,
+        column,
+        TextPosition(
+            if (end)
+                row.cells[column].text.byteLength
+            else
+                0L,
+            if (end)
+                TextAffinity.Upstream
+            else
+                TextAffinity.Downstream
+        )
+    )
+}
+
+private fun mdRichRowCaret(
+    host: MarkdownRichHost,
+    index: Long,
+    column: Long,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): Rect? =
+    mdWithRichRow(host, index) {
+        row, resource ->
+        if (resource.cells.size == 0L)
+            return@mdWithRichRow None
+        val model = host.preview.presentation?.base ?: host.preview.controller.current!!
+        val cell = resource.cells[column]
+        val source =
+            mdFrameCellPosition(model, host.preview.presentation, index, column, position, bias)
+        val text =
+            TextPosition(
+                row.cells[column].textAt(source.byteOffset, bias),
+                if (bias == MarkdownBias.Before)
+                    TextAffinity.Upstream
+                else
+                    TextAffinity.Downstream
+            )
+        val visual = mdSourceVisualPosition(cell.text.layout, cell.text.display.toDisplay(text))
+        val caret = cell.text.layout.caret(visual) ?: return@mdWithRichRow None
+        Some(Rect(cell.origin.x + caret.x, cell.origin.y + caret.y, caret.width, caret.height))
+    }
+
+internal fun mdRichCollapse(host: MarkdownRichHost, right: Boolean): MdSourceMove {
+    val selected = host.editor.selection.range
+    val first = MarkdownPosition(selected.start)
+    val last = MarkdownPosition(selected.end)
+    val a = mdRichRow(host, first, MarkdownBias.After)
+    val b = mdRichRow(host, last, MarkdownBias.Before)
+    val logicalOrder =
+        if (a == b) {
+            val x = mdRichRowCaret(host, a, mdRichColumn(host, a, first), first, MarkdownBias.After)
+            val y = mdRichRowCaret(host, b, mdRichColumn(host, b, last), last, MarkdownBias.Before)
+            when ((x, y)) {
+                case(Some(val left), Some(val end)) ->
+                left.y < end.y || (left.y == end.y && left.x <= end.x)
+                else -> true
+            }
+        } else
+            a < b
+    val end = logicalOrder == right
+    return MdSourceMove(
+        if (end)
+            last
+        else
+            first,
+        if (end)
+            TextAffinity.Upstream
+        else
+            TextAffinity.Downstream,
+        None
+    )
+}
+
+private fun mdRichHitRow(host: MarkdownRichHost, index: Long, x: Double, y: Double): MdSourceMove =
+    mdWithRichRow(host, index) {
+        row, resource ->
+        if (resource.cells.size == 0L)
+            return@mdWithRichRow mdRichCellEdge(host, row, index, 0L, false)
+        var column = 0L
+        while (column + 1L < resource.cells.size && x >= resource.cells[column + 1L].origin.x - 6.0)
+            column += 1L
+        val cell = resource.cells[column]
+        val hit = cell.text.layout.hitTest(Point(x - cell.origin.x, y - cell.origin.y))
+        val mapped = mdRichRowPosition(host, row, index, column, cell.text.display.toDocument(hit))
+        MdSourceMove(mapped.position, mapped.affinity, Some(x))
+    }
+
+internal fun mdRichPage(
+    host: MarkdownRichHost,
+    index: Long,
+    column: Long,
+    down: Boolean
+): MdSourceMove {
+    val view = host.preview
+    val selected = host.editor.selection
+    val caret = mdRichRowCaret(host, index, column, selected.cursor, selected.cursorBias)
+    val x = host.preferredX ?: (caret?.x ?: 0.0)
+    val distance = view.measurement?.metrics?.size?.height ?: 480.0
+    val y =
+        max(
+            0.0,
+            view.heights.prefix(index) +
+                (caret?.y ?: 0.0) +
+                if (down)
+                    distance
+                else
+                    -distance
+        )
+    val target = min(view.heights.count - 1L, view.heights.indexAt(y))
+    return mdRichHitRow(host, target, x, y - view.heights.prefix(target))
+}
+
+internal fun mdRichAdjacent(
+    host: MarkdownRichHost,
+    index: Long,
+    column: Long,
+    previous: Boolean,
+    vertical: Boolean
+): MdSourceMove {
+    val view = host.preview
+    val model = view.presentation?.base ?: view.controller.current!!
+    val selected = host.editor.selection
+    val row = view.presentation?.displayRow(index) ?: model.display.rows[index]
+    if (!vertical && ((previous && column > 0L) || (!previous && column + 1L < row.cells.size)))
+        return mdRichCellEdge(
+            host,
+            row,
+            index,
+            if (previous)
+                column - 1L
+            else
+                column + 1L,
+            previous
+        )
+    if ((previous && index == 0L) || (!previous && index + 1L == model.display.rows.size))
+        return MdSourceMove(selected.cursor, host.cursorAffinity, host.preferredX)
+    val target =
+        if (previous)
+            index - 1L
+        else
+            index + 1L
+    if (vertical) {
+        val caret = mdRichRowCaret(host, index, column, selected.cursor, selected.cursorBias)
+        val x = host.preferredX ?: (caret?.x ?: 0.0)
+        val y =
+            if (previous)
+                mdWithRichRow(host, target) { _, resource -> resource.height }
+            else
+                0.0
+        return mdRichHitRow(host, target, x, y)
+    }
+    return mdWithRichRow(host, target) {
+        next,
+        _ -> mdRichCellEdge(
+            host,
+            next,
+            target,
+            if (previous)
+                next.cells.size - 1L
+            else
+                0L,
+            previous
+        )
+    }
+}

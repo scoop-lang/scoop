@@ -1,0 +1,137 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownRichProjectionTests {
+    @Test
+    fun `an empty document has an editable projected row before and after its first input`() {
+        val document = MarkdownDocument.fromText("")
+        val parsed = document.parse()
+        val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions())
+        val selection = MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+        val target = mdRichTarget(model, selection)!!
+        assertEquals(0L, target.row)
+        assertEquals(0L, target.cell)
+        val edit = target.content.replaceText(MarkdownRange(0L, 0L), "# First")
+        edit.applyTo(document)
+        val local = MdRichPresentation(model, target.content, edit.after, 0L, 0L)
+        assertEquals("# First", local.row.cells[0L].text)
+        assertEquals(0L, parsed.root.children.size)
+    }
+
+    @Test
+    fun `source markup collapses to a visible caret only for the active inline region`() {
+        val document = MarkdownDocument.fromText("# Heading\n\nOther")
+        val parsed = document.parse()
+        val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions())
+        val at = MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+        assertTrue(
+            when (mdRichTarget(model, at)) {
+                case None -> true;
+                else -> false
+            }
+        )
+        val target = mdRichTarget(model, at, true)!!
+        assertEquals(MarkdownPosition(2L), mdRichClamp(target.content, at).cursor)
+        val range = MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(16L))
+        assertTrue(
+            when (mdRichTarget(model, range, true)) {
+                case None -> true;
+                else -> false
+            }
+        )
+        assertEquals(range, mdRichClamp(target.content, range))
+    }
+
+    @Test
+    fun `an active row changes immediately while other rows and their keys remain shared`() {
+        val document = MarkdownDocument.fromText("# Title\n\n__A &amp; B__\n\nTail 中文\n")
+        val parsed = document.parse()
+        val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions())
+        val before = parsed.inlineContent(parsed.root.children[1L].id)
+        val edit = before.replaceText(MarkdownRange(2L, 3L), "😀")
+        edit.applyTo(document)
+        val local = MdRichPresentation(model, before, edit.after, 1L, 0L)
+        assertEquals("A 😀 B", local.row.cells[0L].text)
+        assertTrue(local.row.cells[0L].runs[0L].flags.strong)
+        assertTrue(local.displayRow(0L) === model.display.rows[0L])
+        assertTrue(local.displayRow(2L) === model.display.rows[2L])
+        assertEquals("A & B", model.display.rows[1L].cells[0L].text)
+        val tail = MarkdownPosition(parsed.root.children[2L].range.start)
+        val currentTail = edit.change.map(MarkdownAnchor(tail)).position
+        assertEquals(currentTail, local.original(tail))
+        assertEquals(tail, local.expanded(currentTail))
+        assertEquals(
+            "Title\nA 😀 B\nTail 中文",
+            mdPreviewSelectedText(
+                model,
+                MarkdownRange(0L, document.snapshot().byteLength),
+                Some(local)
+            )
+        )
+        assertEquals(
+            "😀",
+            mdPreviewSelectedText(
+                model,
+                MarkdownRange(edit.selection.end - 4L, edit.selection.end),
+                Some(local)
+            )
+        )
+    }
+
+    @Test
+    fun `editable inline projection uses exactly the native semantic text for source atoms`() {
+        val document = MarkdownDocument.fromText("A **b** <u>[^n] $x$ ![alt](a.png)\n\n[^n]: note")
+        val parsed = document.parse(MarkdownProfile.Editor)
+        val content = parsed.inlineContent(parsed.root.children[0L].id)
+        val projected = mdDisplayEditable(content)
+        assertEquals(content.text.text, projected.text)
+        assertEquals("A b \u{fffc}\u{fffc} \u{fffc} \u{fffc}", projected.text)
+        for (span in content.text.spans) {
+            assertEquals(
+                content.text.sourceAt(MarkdownPosition(span.textRange.start)),
+                projected.sourceAt(span.textRange.start)
+            )
+            assertEquals(
+                content.text.sourceAt(MarkdownPosition(span.textRange.end), MarkdownBias.Before),
+                projected.sourceAt(span.textRange.end, MarkdownBias.Before)
+            )
+        }
+        val next = content.setStyle(MarkdownRange(0L, 1L), MarkdownInlineStyle.Emphasis, true)
+        assertEquals(next.after.text.text, mdDisplayEditable(next.after).text)
+        assertTrue(mdDisplayEditable(next.after).runs[0L].flags.emphasis)
+    }
+
+    @Test
+    fun `a table cell overlay maps neighboring cells and retains source selection copy`() {
+        val document =
+            MarkdownDocument.fromText("| a | b | c |\n| --- | --- | --- |\n| one | two | three |\n")
+        val parsed = document.parse()
+        val row = parsed.root.children[0L].children[1L]
+        val before = parsed.inlineContent(row.children[1L].id)
+        val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions())
+        val edit = before.replaceText(MarkdownRange(0L, 3L), "中|文")
+        edit.applyTo(document)
+        val local = MdRichPresentation(model, before, edit.after, 1L, 1L)
+        assertEquals("中|文", local.row.cells[1L].text)
+        assertTrue(local.row.cells[0L] === model.display.rows[1L].cells[0L])
+        assertTrue(local.row.cells[2L] === model.display.rows[1L].cells[2L])
+        val source = row.children[2L].range
+        val current = local.originalRange(source)
+        assertEquals("three", mdPreviewSelectedText(model, current, Some(local)))
+        assertEquals(
+            MarkdownPosition(source.start),
+            mdFrameCellPosition(
+                model,
+                Some(local),
+                1L,
+                2L,
+                MarkdownPosition(current.start),
+                MarkdownBias.Before
+            )
+        )
+        assertEquals(Some(1L), local.rowForKey(local.row.key))
+    }
+}

@@ -1,0 +1,110 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.markdown.*
+import scoop.ui.*
+
+private class MdRichProps(
+    val controller: MarkdownParseController,
+    val style: MarkdownPreviewStyle?,
+    val options: MarkdownPreviewOptions,
+    val readOnly: Boolean,
+    val fonts: FontCollection?,
+    val focus: FocusOptions,
+    val changed: (MarkdownChange) -> Unit,
+    val openLink: (String) -> Unit,
+    val source: (MarkdownRange) -> Unit,
+    val images: MarkdownImageController?,
+    val documentUri: String
+)
+
+public fun markdownRichEditor(
+    controller: MarkdownParseController,
+    style: MarkdownPreviewStyle? = None,
+    options: MarkdownPreviewOptions = MarkdownPreviewOptions(),
+    readOnly: Boolean = false,
+    fonts: FontCollection? = None,
+    focus: FocusOptions = FocusOptions(),
+    onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
+    onOpenLink: (String) -> Unit = { _ -> Unit },
+    onSource: (MarkdownRange) -> Unit = { _ -> Unit },
+    images: MarkdownImageController? = None,
+    documentUri: String = ""
+): View =
+    component(
+        MdRichProps(
+            controller,
+            style,
+            options,
+            readOnly,
+            fonts,
+            focus,
+            onChanged,
+            onOpenLink,
+            onSource,
+            images,
+            documentUri
+        ),
+        { props, scope -> MdRichComponent(props, scope) }
+    )
+
+private class MdRichComponent(val props: Props<MdRichProps>, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        props.value.controller.status
+        props.value.controller.editor.selection
+        props.value.controller.editor.markedRange
+        return element(props.value, { input, mount -> MdRichElement(input, mount) })
+    }
+}
+
+private class MdRichElement(val props: Props<MdRichProps>, scope: ComponentScope): Element<
+    MarkdownPreviewMeasurement
+>(scope) {
+    private val defaults = MarkdownPreviewStyle()
+    private val host =
+        scope.resource {
+            MarkdownRichHost(
+                scope,
+                props.value.controller,
+                props.value.style ?: defaults,
+                props.value.options,
+                props.value.readOnly,
+                props.value.fonts,
+                props.value.images,
+                props.value.documentUri
+            )
+        }
+    public override fun onMount() {
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        val value = props.value
+        host.update(
+            value.controller,
+            value.style ?: defaults,
+            value.options,
+            value.readOnly,
+            value.focus,
+            value.fonts,
+            value.changed,
+            value.openLink,
+            value.source,
+            value.images,
+            value.documentUri
+        )
+        if (!value.controller.isClosed)
+            value.controller.start()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        val result = host.measure(context, constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownPreviewMeasurement) {
+        host.scene(context, layout)
+    }
+}

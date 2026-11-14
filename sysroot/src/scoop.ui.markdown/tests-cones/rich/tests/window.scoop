@@ -1,0 +1,488 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.collections.*
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownRichWindowTests {
+    @Test
+    fun nativeRichTextKeepsSemanticInputHistoryAndVirtualizedFramesTogether() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = RichProbe(workers, app.proxy())
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> app.run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.discarded)
+            assertTrue(probe.field!!.isClosed)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+            assertFalse(probe.fonts.isClosed)
+        } catch (error: Throwable) {
+            println("Rich window test step " + probe.step.value.toString())
+            reportRichFailure(error)
+            throw error
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val prefix = "# Demo\n\n__"
+    val original =
+        prefix +
+            "A &amp; B__ 中文 é 😀 end.\n\n" +
+            "Paragraph 中文 content with **emphasis** and mixed English words.\n\n".repeat(25000L)
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val fonts = FontCollection()
+    val style =
+        MarkdownPreviewStyle(
+            text =
+                textStyle {
+                    families = ["Rich Latin", "Rich CJK"];
+                    fontSize = 16.0;
+                    lineHeight = Some(1.5)
+                }
+        )
+    val options = MarkdownPreviewOptions(padding = 16.0)
+    val step = state(0)
+    val readOnly = state(false)
+    val publicFocus = FocusHandle()
+    var field: MarkdownRichHost? = None
+    var scope: ComponentScope? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var accepted = -1
+    var waiting = false
+    var inputReady = false
+    var inputStarts = 0
+    var retriedFocus = false
+    var compositionStarts = 0
+    var connection: TextInputConnection? = None
+    var compositionConnection: TextInputConnection? = None
+    var trial = false
+    var discardNext = false
+    var discarded = false
+    var finished = false
+    var previousPresentations = 0L
+    val table = "| left | right |\n| --- | --- |\n| A | B |\n"
+    init {
+        fonts.register(testSansBytes, "Rich Latin")
+        fonts.register(testCjkBytes, "Rich CJK")
+        select(prefix.byteLength + 1L)
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown rich editor verification";
+                            size = LogicalSize(560.0, 360.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { owner -> RichRoot(this, owner) })
+                native.createDeadline {
+                    println(
+                        "focused=" +
+                            native.isFocused.toString() +
+                            ", input=" +
+                            inputReady.toString() +
+                            ", accepted=" +
+                            accepted.toString() +
+                            ", composing=" +
+                            editor.isComposing.toString()
+                    )
+                    fail(Some("Rich test timeout at " + step.value.toString()))
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 20) {
+                when (input) {
+                    case Enabled(_) -> inputReady = true
+                    case Disabled(_) -> inputReady = false
+                    else -> Unit
+                }
+            }
+            case AboutToWait -> {
+                if (!window!!.isFocused && !retriedFocus) {
+                    retriedFocus = true
+                    window!!.requestFocus()
+                }
+                if (
+                    step.value >=
+                        20 &&
+                        publicFocus.isAttached &&
+                        !publicFocus.hasFocus &&
+                        !publicFocus.isPending
+                )
+                    publicFocus.requestFocus()
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        if (!window!!.isFocused || window!!.isOccluded || frames!!.snapshot().required)
+            return false
+        if (step.value >= 20)
+            return publicFocus.isFocusActive &&
+                inputReady &&
+                frames!!.snapshot().presentations >
+                previousPresentations &&
+                when (parser.current) {
+                    case Some(_) -> true
+                    case None -> false
+                }
+        if (
+            accepted !=
+                step.value ||
+                !field!!.area.isFocusActive ||
+                (!readOnly.value && !inputReady)
+        )
+            return false
+        return field!!.measurement?.sourceRevision ==
+            Some(Some(editor.snapshot.revision)) &&
+            (readOnly.value || field!!.nativeInputState != None)
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        previousPresentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+        scope!!.requestLayout()
+    }
+
+    private fun select(start: Long, end: Long = start) {
+        editor.setSelection(
+            MarkdownSelection(
+                MarkdownPosition(start),
+                MarkdownPosition(end),
+                MarkdownBias.Before,
+                MarkdownBias.Before
+            )
+        )
+    }
+
+    private fun advance(active: ActiveApplication) {
+        val host = field!!
+        val native = window!!
+        when (step.value) {
+            case 0 -> {
+                assertTrue(editor.snapshot.byteLength > 1048576L)
+                assertTrue(host.measurement!!.blockCount > 25000L)
+                assertTrue(host.measurement!!.measuredBlockCount < 100L)
+                assertEquals("A & B 中文 é 😀 end.", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                val caret = host.caret(editor.selection.cursor)!!
+                val hit = host.hitTest(Point(caret.x, caret.y + caret.height * 0.5))!!
+                assertEquals(editor.selection.cursor, hit.position)
+                compositionStarts = inputStarts
+                compositionConnection = connection
+                next { assertEquals(0, mdNativeText(native, "ni", 1, 2L)) }
+            }
+            case 1 -> {
+                assertTrue(editor.isComposing)
+                assertEquals(
+                    Some(MarkdownRange(prefix.byteLength + 1L, prefix.byteLength + 3L)),
+                    editor.markedRange
+                )
+                assertEquals(compositionStarts, inputStarts)
+                next { assertEquals(0, mdNativeText(native, "中文😀", 1, 4L)) }
+            }
+            case 2 -> {
+                assertTrue(mdNativeDocument(native, host))
+                assertEquals(compositionConnection, connection)
+                trial = true
+                discardNext = true
+                next { native.requestSize(LogicalSize(620.0, 360.0)) }
+            }
+            case 3 -> {
+                assertTrue(editor.isComposing)
+                assertEquals(compositionConnection, connection)
+                next { host.scroll.scrollTo(Point(0.0, 10000.0)) }
+            }
+            case 4 -> {
+                assertTrue(editor.isComposing)
+                assertTrue(host.measurement!!.blockIndices.contains(1L))
+                assertEquals(None, host.area.visibleCaretBounds)
+                assertEquals(compositionStarts, inputStarts)
+                next {
+                    assertTrue(host.execute(TextEditCommand.Cancel));
+                    host.scroll.scrollTo(Point(0.0, 0.0))
+                }
+            }
+            case 5 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next { assertEquals(0, mdNativeText(native, "xy")) }
+            }
+            case 6 -> {
+                assertTrue(host.nativeInputState!!.surroundingText.startsWith("Axy & B"))
+                next {
+                    select(prefix.byteLength, prefix.byteLength + 3L);
+                    assertTrue(host.setStyle(MarkdownInlineStyle.Emphasis, true))
+                }
+            }
+            case 7 -> {
+                assertTrue(host.execute(TextEditCommand.Copy))
+                assertEquals(Some("Axy"), native.clipboard.readText())
+                next { assertTrue(host.execute(TextEditCommand.Undo)) }
+            }
+            case 8 -> next { assertTrue(host.execute(TextEditCommand.Undo)) }
+            case 9 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next { assertTrue(host.execute(TextEditCommand.Redo)) }
+            }
+            case 10 -> next {
+                assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                assertTrue(host.nativeInputState!!.surroundingText.startsWith("A & B"))
+            }
+            case 11 -> next { assertTrue(host.execute(TextEditCommand.Undo)) }
+            case 12 -> {
+                assertTrue(host.nativeInputState!!.surroundingText.startsWith("Axy & B"))
+                next {
+                    select(bytePosition(editor.document.toMarkdown(), "é") + 1L)
+                    assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                }
+            }
+            case 13 -> {
+                assertFalse(host.nativeInputState!!.surroundingText.contains("é"))
+                assertFalse(host.nativeInputState!!.surroundingText.contains("́"))
+                next {
+                    editor.document.reset(table);
+                    select(bytePosition(table, "right"), bytePosition(table, "right") + 5L)
+                }
+            }
+            case 14 -> next { assertEquals(0, mdNativeText(native, "中|文")) }
+            case 15 -> {
+                assertEquals("中|文", host.nativeInputState!!.surroundingText)
+                assertTrue(editor.document.toMarkdown().contains("中\\|文"))
+                assertTrue(mdNativeDocument(native, host))
+                next { readOnly.value = true }
+            }
+            case 16 -> {
+                val before = editor.document.toMarkdown()
+                assertEquals(1, mdNativeText(native, "blocked"))
+                assertEquals(before, editor.document.toMarkdown())
+                next {
+                    readOnly.value = false;
+                    editor.document.reset("__אבגד__");
+                    select(2L, 6L)
+                }
+            }
+            case 17 -> {
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.Left, false)))
+                assertEquals(MarkdownPosition(6L), editor.selection.cursor)
+                select(2L, 6L)
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.Right, false)))
+                assertEquals(MarkdownPosition(2L), editor.selection.cursor)
+                next {
+                    editor.document.reset("First paragraph\n\n" + "More text\n\n".repeat(80L));
+                    select(5L)
+                }
+            }
+            case 18 -> {
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.PageDown, false)))
+                assertTrue(editor.selection.cursor.byteOffset > 50L)
+                next {
+                    assertTrue(
+                        host.execute(TextEditCommand.Move(TextMovement.DocumentStart, false))
+                    )
+                }
+            }
+            case 19 -> {
+                assertEquals(MarkdownPosition(0L), editor.selection.cursor)
+                next {
+                    editor.document.reset("# Public\n\n__text__");
+                    select(12L)
+                }
+            }
+            case 20 -> {
+                assertTrue(host.isClosed)
+                next { assertEquals(0, mdNativeText(native, "X")) }
+            }
+            case 21 -> {
+                assertEquals("# Public\n\n__Xtext__", editor.document.toMarkdown())
+                next { editor.document.reset("") }
+            }
+            case 22 -> next { assertEquals(0, mdNativeText(native, "# new")) }
+            case 23 -> {
+                assertEquals("\\# new", editor.document.toMarkdown())
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected rich editor step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        parser.close()
+        editor.close()
+        fonts.close()
+    }
+}
+
+private class RichRoot(val probe: RichProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.scope = Some(scope)
+    }
+    public override fun render(): View {
+        if (probe.step.value >= 20)
+            return markdownRichEditor(
+                probe.parser,
+                Some(probe.style),
+                probe.options,
+                fonts = Some(probe.fonts),
+                focus = FocusOptions(handle = Some(probe.publicFocus))
+            )
+        probe.parser.status
+        probe.editor.selection
+        probe.editor.markedRange
+        probe.readOnly.value
+        return cachedScene(
+            element(probe.step.value, { props, owner -> RichField(probe, props, owner) })
+        )
+    }
+}
+
+private class RichField(val probe: RichProbe, val step: Props<Int>, scope: ComponentScope):
+Element<MarkdownPreviewMeasurement>(scope) {
+    val host =
+        scope.resource {
+            MarkdownRichHost(
+                scope,
+                probe.parser,
+                probe.style,
+                probe.options,
+                fonts = Some(probe.fonts)
+            )
+        }
+    public override fun onMount() {
+        probe.field = Some(host)
+        scope.resource {
+            host.area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case TextInput(TextInputEvent.Enabled(val connection)) -> {
+                        probe.inputReady = true;
+                        probe.inputStarts += 1;
+                        probe.connection = connection
+                    }
+                    case TextInput(TextInputEvent.Disabled(_)) -> {
+                        probe.inputReady = false;
+                        probe.connection = None
+                    }
+                    else -> Unit
+                }
+            }
+        }
+        update()
+        probe.parser.start()
+        host.focus.handle.requestFocus()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(
+            probe.parser,
+            probe.style,
+            probe.options,
+            readOnly = probe.readOnly.value,
+            fonts = Some(probe.fonts)
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        if (probe.trial) {
+            probe.trial = false
+            val before = host.caret(probe.editor.selection.cursor)
+            val trial = host.measure(context, Constraints.tight(Size(120.0, 200.0)))
+            assertEquals(before, host.caret(probe.editor.selection.cursor))
+            trial.close()
+        }
+        val measured = host.measure(context, constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: MarkdownPreviewMeasurement) {
+        val old = host.measurement
+        host.scene(context, measured)
+        val ticket = step.value
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false;
+            probe.window!!.requestSize(LogicalSize(600.0, 360.0))
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+            else
+                if (discard) {
+                    probe.discarded = true
+                    assertSame(old!!, host.measurement!!)
+                    scope.requestFrame()
+                }
+        }
+    }
+}
+
+private fun bytePosition(text: String, value: String): Long {
+    val index = text.indexOf(value)
+    assertTrue(index >= 0L)
+    return text.substring(0L, index).byteLength
+}
+
+private fun reportRichFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportRichFailure(error.primaryFailure)
+        reportRichFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure)
+            println(
+                error.location.file +
+                    ":" +
+                    error.location.line.toString() +
+                    ": " +
+                    (error.message ?: "assertion")
+            )
+        else
+            if (error is Exception)
+                println(error.message ?: "failure")
+}

@@ -1,0 +1,83 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal class MdRichTarget(val content: MarkdownInlineContent, val row: Long, val cell: Long)
+
+internal fun mdRichContains(content: MarkdownInlineContent, selection: MarkdownSelection): Boolean {
+    val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
+    val last =
+        content.text.sourceAt(
+            MarkdownPosition(content.text.byteLength),
+            MarkdownBias.Before
+        ).byteOffset
+    return selection.range.start >= first && selection.range.end <= last
+}
+
+internal fun mdRichTarget(
+    model: MarkdownParsedDocument,
+    selection: MarkdownSelection,
+    allowMarkers: Boolean = false
+): MdRichTarget? {
+    var node = model.source.nodeAt(selection.cursor, selection.cursorBias)
+    while (true) {
+        when (node.content) {
+            case MarkdownContent.Document -> {
+                if (model.source.snapshot.byteLength == 0L)
+                    break
+                return None
+            }
+            case MarkdownContent.Paragraph(_) -> break
+            case MarkdownContent.Heading(_, _, _) -> break
+            case MarkdownContent.TableCell(_, _) -> break
+            else -> node = model.source.parent(node.id) ?: return None
+        }
+    }
+    val content = model.source.inlineContent(node.id)
+    if (!mdRichContains(content, selection) && (!allowMarkers || !selection.collapsed))
+        return None
+    return mdRichLocate(model, content)
+}
+
+internal fun mdRichClamp(
+    content: MarkdownInlineContent,
+    selection: MarkdownSelection
+): MarkdownSelection {
+    if (mdRichContains(content, selection) || !selection.collapsed)
+        return selection
+    val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+    val before = selection.cursor.byteOffset < first.byteOffset
+    val point =
+        if (before)
+            first
+        else
+            content.text.sourceAt(MarkdownPosition(content.text.byteLength), MarkdownBias.Before)
+    val bias =
+        if (before)
+            MarkdownBias.After
+        else
+            MarkdownBias.Before
+    return MarkdownSelection(point, point, bias, bias)
+}
+
+internal fun mdRichLocate(
+    model: MarkdownParsedDocument,
+    content: MarkdownInlineContent
+): MdRichTarget? {
+    if (model.display.rows.size == 0L)
+        return None
+    val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+    val position = mdPreviewExpanded(model, first, MarkdownBias.After)
+    val index = model.display.rowAt(position, MarkdownBias.Before)
+    val row = model.display.rows[index]
+    when (row.kind) {
+        case MdDisplayKind.Paragraph -> Unit
+        case MdDisplayKind.Heading(_) -> Unit
+        case MdDisplayKind.Table(_, _) -> Unit
+        else -> return None
+    }
+    var cell = 0L
+    while (cell + 1L < row.cells.size && row.cells[cell].sourceRange.end < position.byteOffset)
+        cell += 1L
+    return Some(MdRichTarget(content, index, cell))
+}

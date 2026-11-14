@@ -1,0 +1,124 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** One active cell overlays an immutable background projection; other rows remain shared. */
+internal class MdRichPresentation(
+    val base: MarkdownParsedDocument,
+    val before: MarkdownInlineContent,
+    val content: MarkdownInlineContent,
+    val rowIndex: Long,
+    val cellIndex: Long
+) {
+    val change =
+        if (before === content)
+            before.replaceText(MarkdownRange(0L, 0L), "").change
+        else
+            before.edit { restore(content) }.change
+    private val baseRow = base.display.rows[rowIndex]
+    val row =
+        MdDisplayRow(
+            baseRow.node,
+            baseRow.range,
+            baseRow.kind,
+            baseRow.indent,
+            baseRow.quotes,
+            baseRow.markers,
+            Array<MdDisplayText>(baseRow.cells.size) {
+                index -> if (index == cellIndex)
+                    mdDisplayEditable(content)
+                else
+                    baseRow.cells[index]
+            },
+            MdDisplayKey(rowIndex)
+        )
+
+    fun isLocal(row: Long, cell: Long): Boolean = row == rowIndex && cell == cellIndex
+    fun isLocalRow(row: MdDisplayRow, cell: Long): Boolean = this.row === row && cell == cellIndex
+    fun displayRow(index: Long): MdDisplayRow =
+        if (index == rowIndex)
+            row
+        else
+            base.display.rows[index]
+    fun rowForKey(key: MdDisplayKey): Long? =
+        if (key === row.key)
+            Some(rowIndex)
+        else
+            base.display.rowForKey(key)
+    fun expanded(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownPosition =
+        mdPreviewExpanded(base, change.mapBack(MarkdownAnchor(position, bias)).position, bias)
+    fun original(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownPosition =
+        change.map(MarkdownAnchor(mdPreviewOriginal(base, position, bias), bias)).position
+    fun originalRange(range: MarkdownRange): MarkdownRange =
+        MarkdownRange(
+            original(MarkdownPosition(range.start), MarkdownBias.Before).byteOffset,
+            original(MarkdownPosition(range.end), MarkdownBias.After).byteOffset
+        )
+}
+
+internal fun mdFrameExpanded(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownPosition =
+    when (presentation) {
+        case Some(val local) -> local.expanded(position, bias)
+        case None -> mdPreviewExpanded(model, position, bias)
+    }
+
+internal fun mdFrameOriginal(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownPosition =
+    when (presentation) {
+        case Some(val local) -> local.original(position, bias)
+        case None -> mdPreviewOriginal(model, position, bias)
+    }
+
+internal fun mdFrameOriginalRange(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    range: MarkdownRange
+): MarkdownRange =
+    when (presentation) {
+        case Some(val local) -> local.originalRange(range)
+        case None -> mdPreviewOriginalRange(model, range)
+    }
+
+internal fun mdFrameCellPosition(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    row: Long,
+    cell: Long,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): MarkdownPosition {
+    if (presentation?.isLocal(row, cell) ?: false)
+        return position
+    return mdFrameExpanded(model, presentation, position, bias)
+}
+
+internal fun mdSamePresentation(a: MdRichPresentation?, b: MdRichPresentation?): Boolean =
+    when ((a, b)) {
+        case(Some(val x), Some(val y)) -> x === y
+        case(None, None) -> true
+        else -> false
+    }
+
+internal fun mdPresentationModel(
+    local: MdRichPresentation?,
+    fallback: MarkdownParsedDocument?
+): MarkdownParsedDocument? =
+    when (local) {
+        case Some(val active) -> Some(active.base)
+        case None -> fallback
+    }

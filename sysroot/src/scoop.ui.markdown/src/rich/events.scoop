@@ -1,0 +1,186 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.surface.*
+import scoop.window.*
+
+internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, event: InputEvent) {
+    if (host.closed || !host.scope.isMounted)
+        return
+    if (context.phase == RoutedPhase.Notification) {
+        when (event) {
+            case FocusChanged(val active) -> {
+                host.preview.drag = None
+                host.preview.pressed = None
+                if (active)
+                    host.perform {
+                        host.editor.acceptComposition();
+                        host.editor.breakUndoGroup()
+                    }
+                else {
+                    if (!host.ownsOtherComposition())
+                        host.perform { host.editor.acceptComposition() }
+                    host.retire()
+                    host.blink.cancel()
+                }
+            }
+            case TextInput(val input) -> mdRichNative(host, input)
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.preview.drag = None
+                host.preview.pressed = None
+            }
+            else -> Unit
+        }
+        return
+    }
+    if (context.phase != RoutedPhase.Default || !host.preview.options.enabled)
+        return
+    if (host.readOnly) {
+        mdPreviewReadEvent(host.preview, context, event);
+        return
+    }
+    when (event) {
+        case TextCommand(val command) -> if (host.execute(command))
+            context.consume()
+        case Keyboard(val key) -> {
+            if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
+                return
+            for (command in key.textCommands)
+                if (host.execute(command))
+                    context.consume()
+        }
+        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, _)) -> {
+            if (state == ElementState.Pressed) {
+                val point = context.localPosition ?: return
+                val hit = host.hitTest(point) ?: return
+                host.area.requestFocus(FocusOrigin.Pointer)
+                val anchor =
+                    if (pointer.state.modifiers.shift)
+                        host.editor.selection.anchor
+                    else
+                        hit.position
+                host.perform {
+                    host.editor.setSelection(
+                        MarkdownSelection(
+                            anchor,
+                            hit.position,
+                            if (pointer.state.modifiers.shift)
+                                host.editor.selection.anchorBias
+                            else
+                                MarkdownBias.Before,
+                            MarkdownBias.Before
+                        )
+                    )
+                }
+                host.cursorAffinity = hit.affinity
+                host.preferredX = None
+                host.preview.drag = Some(anchor)
+                host.preview.pressed = Some(hit)
+                host.preview.moved = pointer.state.modifiers.shift
+            } else {
+                val hit = host.preview.pressed
+                host.preview.drag = None
+                host.preview.pressed = None
+                when (hit) {
+                    case Some(val value) -> if (!host.preview.moved) {
+                        if (value.generated)
+                            host.preview.openSource(value.sourceRange)
+                        else
+                            when (value.action) {
+                                case Some(MdDisplayAction.Source(_)) -> host.preview.activate(value)
+                                else -> Unit
+                            }
+                    }
+                    case None -> Unit
+                }
+            }
+            context.consume()
+        }
+        case Pointer(InputPointerEvent.Moved(_)) -> {
+            val anchor = host.preview.drag ?: return
+            val point = context.localPosition ?: return
+            val hit = host.hitTest(point) ?: return
+            host.preview.moved = true
+            host.perform {
+                host.editor.setSelection(
+                    MarkdownSelection(
+                        anchor,
+                        hit.position,
+                        MarkdownBias.Before,
+                        MarkdownBias.Before
+                    )
+                )
+            }
+            host.cursorAffinity = hit.affinity
+            context.consume()
+        }
+        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> mdPreviewReadEvent(
+            host.preview,
+            context,
+            event
+        )
+        else -> Unit
+    }
+}
+
+private fun mdRichNative(host: MarkdownRichHost, event: TextInputEvent) {
+    when (event) {
+        case Enabled(val connection) -> {
+            host.connection = connection
+            host.sessionEnabled = true
+            host.retiring = false
+            host.refresh()
+            host.publishNative()
+        }
+        case Disabled(val connection) -> {
+            if (host.connection != None && host.connection != connection)
+                return
+            host.connection = None
+            host.sessionEnabled = false
+            host.retiring = false
+            if (!host.ownsOtherComposition())
+                host.perform { host.editor.acceptComposition() }
+        }
+        case Edit(val batch) -> {
+            if (
+                !host.sessionEnabled ||
+                    host.retiring ||
+                    !host.area.isFocusActive ||
+                    host.readOnly ||
+                    !host.preview.options.enabled
+            )
+                return
+            when (batch.origin) {
+                case Some(val origin) -> if (host.connection != Some(origin.connection))
+                    return
+                case None -> Unit
+            }
+            host.refresh()
+            val input = host.input ?: return
+            var invalid = false
+            val prepared =
+                try {
+                    input.prepare(batch)
+                }
+                catch (error: IllegalArgumentException) {
+                    invalid = true;
+                    None
+                }
+                catch (error: IllegalStateException) {
+                    invalid = true;
+                    None
+                }
+            if (invalid) {
+                if (!host.ownsOtherComposition())
+                    host.perform { host.editor.cancelComposition() }
+                host.retire()
+                return
+            }
+            when (prepared) {
+                case Some(val value) -> host.perform(batch.origin) { input.publish(value) }
+                case None -> host.publishNative(batch.origin)
+            }
+        }
+    }
+}

@@ -1,0 +1,249 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.ui.textDirection
+import scoop.window.*
+
+/** Navigation may shape a current row before a new frame has been accepted. */
+internal fun <T> mdWithRichRow(
+    host: MarkdownRichHost,
+    index: Long,
+    action: (MdDisplayRow, MdPreviewRowResource) -> T
+): T {
+    val view = host.preview
+    val model =
+        view.presentation?.base ?:
+            view.controller.current ?:
+            throw IllegalStateException(Some("Markdown navigation needs a current projection"))
+    val row = view.presentation?.displayRow(index) ?: model.display.rows[index]
+    when (view.currentFrame()?.row(index) ?: None) {
+        case Some(val measured) -> return action(row, measured.resource)
+        case None -> Unit
+    }
+    val width =
+        if (view.layoutWidth >= 0.0)
+            view.layoutWidth
+        else
+            max(1.0, 640.0 - view.options.padding * 2.0)
+    val images = mdPreviewImages(view, model, row, width)
+    val resource =
+        try {
+            mdPreviewBuildRow(view, row, width, host.scope.layoutDirection.textDirection(), images)
+        }
+        catch (failure: Throwable) {
+            images.close();
+            throw failure
+        }
+    try {
+        return action(row, resource)
+    } finally {
+        resource.release()
+    }
+}
+
+internal fun mdRichRow(
+    host: MarkdownRichHost,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): Long {
+    val local = host.preview.presentation
+    when (local) {
+        case Some(val active) -> if (
+            mdRichContains(active.content, MarkdownSelection(position, position))
+        )
+            return active.rowIndex
+        case None -> Unit
+    }
+    val model = local?.base ?: host.preview.controller.current!!
+    return model.display.rowAt(mdFrameExpanded(model, local, position, bias), bias)
+}
+
+internal fun mdRichColumn(host: MarkdownRichHost, index: Long, position: MarkdownPosition): Long {
+    val local = host.preview.presentation
+    when (local) {
+        case Some(val active) -> if (
+            active.rowIndex ==
+                index &&
+                mdRichContains(active.content, MarkdownSelection(position, position))
+        )
+            return active.cellIndex
+        case None -> Unit
+    }
+    val model = local?.base ?: host.preview.controller.current!!
+    val expanded = mdFrameExpanded(model, local, position)
+    val row = model.display.rows[index]
+    var column = 0L
+    while (column + 1L < row.cells.size && row.cells[column].sourceRange.end < expanded.byteOffset)
+        column += 1L
+    return column
+}
+
+internal fun mdRichRowPosition(
+    host: MarkdownRichHost,
+    row: MdDisplayRow,
+    index: Long,
+    column: Long,
+    position: TextPosition
+): MdSourceMove {
+    val local = host.preview.presentation
+    val model = local?.base ?: host.preview.controller.current!!
+    val bias =
+        if (position.affinity == TextAffinity.Upstream)
+            MarkdownBias.Before
+        else
+            MarkdownBias.After
+    val source = row.cells[column].sourceAt(position.byteOffset, bias)
+    return MdSourceMove(
+        if (local?.isLocal(index, column) ?: false)
+            source
+        else
+            mdFrameOriginal(model, local, source, bias),
+        position.affinity,
+        None
+    )
+}
+
+internal fun mdRichMove(host: MarkdownRichHost, movement: TextMovement): MdSourceMove {
+    val selected = host.editor.selection
+    val model = host.preview.presentation?.base ?: host.preview.controller.current!!
+    if (model.display.rows.size == 0L)
+        return MdSourceMove(selected.cursor, host.cursorAffinity, None)
+    if (movement == TextMovement.DocumentStart || movement == TextMovement.DocumentEnd)
+        return mdRichDocumentEdge(host, movement == TextMovement.DocumentEnd)
+    val index = mdRichRow(host, selected.cursor, selected.cursorBias)
+    val column = mdRichColumn(host, index, selected.cursor)
+    if (movement == TextMovement.PageUp || movement == TextMovement.PageDown)
+        return mdRichPage(host, index, column, movement == TextMovement.PageDown)
+    val local =
+        mdWithRichRow<MdSourceMove?>(host, index) {
+            row, resource ->
+            if (resource.cells.size == 0L)
+                return@mdWithRichRow None
+            val cell = resource.cells[column]
+            val text = row.cells[column]
+            val source =
+                mdFrameCellPosition(
+                    model,
+                    host.preview.presentation,
+                    index,
+                    column,
+                    selected.cursor,
+                    selected.cursorBias
+                )
+            val position =
+                cell.text.display.toDisplay(
+                    TextPosition(
+                        text.textAt(source.byteOffset, selected.cursorBias),
+                        host.cursorAffinity
+                    )
+                )
+            val layout = cell.text.layout
+            val visual = mdSourceVisualPosition(layout, position)
+            val preferred =
+                when (host.preferredX) {
+                    case Some(val x) -> Some(x - cell.origin.x);
+                    case None -> None
+                }
+            val next =
+                when (movement) {
+                    case Backward -> Some(
+                        CaretMove(
+                            TextPosition(layout.moveGrapheme(position.byteOffset, false)),
+                            0.0
+                        )
+                    )
+                    case Forward -> Some(
+                        CaretMove(TextPosition(layout.moveGrapheme(position.byteOffset, true)), 0.0)
+                    )
+                    case WordBackward -> Some(
+                        CaretMove(TextPosition(layout.moveWord(position.byteOffset, false)), 0.0)
+                    )
+                    case WordForward -> Some(
+                        CaretMove(TextPosition(layout.moveWord(position.byteOffset, true)), 0.0)
+                    )
+                    case ParagraphStart -> Some(CaretMove(TextPosition(0L), 0.0))
+                    case ParagraphEnd -> Some(
+                        CaretMove(TextPosition(layout.text.byteLength, TextAffinity.Upstream), 0.0)
+                    )
+                    case Left -> layout.moveCaret(visual, CaretMovement.Left)
+                    case Right -> layout.moveCaret(visual, CaretMovement.Right)
+                    case WordLeft -> layout.moveCaret(visual, CaretMovement.WordLeft)
+                    case WordRight -> layout.moveCaret(visual, CaretMovement.WordRight)
+                    case Up -> layout.moveCaret(visual, CaretMovement.Up, preferred)
+                    case Down -> layout.moveCaret(visual, CaretMovement.Down, preferred)
+                    case LineStart -> layout.moveCaret(visual, CaretMovement.LineStart)
+                    case LineEnd -> layout.moveCaret(visual, CaretMovement.LineEnd)
+                    case LineLeft -> layout.moveCaret(visual, CaretMovement.LineLeft)
+                    case LineRight -> layout.moveCaret(visual, CaretMovement.LineRight)
+                    else -> None
+                }
+            when (next) {
+                case Some(val value) -> if (value.position != position) {
+                    val mapped =
+                        mdRichRowPosition(
+                            host,
+                            row,
+                            index,
+                            column,
+                            cell.text.display.toDocument(value.position)
+                        )
+                    return@mdWithRichRow Some(
+                        MdSourceMove(
+                            mapped.position,
+                            mapped.affinity,
+                            if (movement == TextMovement.Up || movement == TextMovement.Down)
+                                Some(value.preferredX + cell.origin.x)
+                            else
+                                None
+                        )
+                    )
+                }
+                case None -> Unit
+            }
+            None
+        }
+    when (local) {
+        case Some(val result) -> return result;
+        case None -> Unit
+    }
+    if (
+        movement ==
+            TextMovement.ParagraphStart ||
+            movement ==
+            TextMovement.ParagraphEnd ||
+            movement ==
+            TextMovement.LineStart ||
+            movement ==
+            TextMovement.LineEnd ||
+            movement ==
+            TextMovement.LineLeft ||
+            movement ==
+            TextMovement.LineRight
+    )
+        return MdSourceMove(selected.cursor, host.cursorAffinity, host.preferredX)
+    val previous =
+        movement ==
+            TextMovement.Backward ||
+            movement ==
+            TextMovement.Left ||
+            movement ==
+            TextMovement.WordBackward ||
+            movement ==
+            TextMovement.WordLeft ||
+            movement ==
+            TextMovement.Up ||
+            movement ==
+            TextMovement.PageUp
+    return mdRichAdjacent(
+        host,
+        index,
+        column,
+        previous,
+        movement == TextMovement.Up || movement == TextMovement.Down
+    )
+}

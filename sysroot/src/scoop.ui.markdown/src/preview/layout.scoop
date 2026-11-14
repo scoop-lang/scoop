@@ -11,6 +11,7 @@ private class MdPreviewMeasurePass(
     val host: MarkdownPreviewHost,
     val context: MeasureContext,
     val model: MarkdownParsedDocument,
+    val presentation: MdRichPresentation?,
     val width: Double
 ) {
     val measured = HashMap<Long, MdPreviewMeasuredRow>()
@@ -21,7 +22,7 @@ private class MdPreviewMeasurePass(
             case Some(val value) -> return value;
             case None -> Unit
         }
-        val row = model.display.rows[index]
+        val row = presentation?.displayRow(index) ?: model.display.rows[index]
         val cache = host.caches[row.key] ?: MdPreviewRowCache()
         host.caches[row.key] = cache
         val resource = cache.measure(host, context, model, row, width)
@@ -40,15 +41,20 @@ private class MdPreviewMeasurePass(
         if (
             anchor.request !=
                 host.scroll.requestRevision ||
-                model.snapshot.revision !=
+                (presentation?.content?.snapshot?.revision ?: model.snapshot.revision) !=
                 host.editor.snapshot.revision
         )
             return None
-        val kept = model.display.rowForKey(anchor.key)
+        val kept = presentation?.rowForKey(anchor.key) ?: model.display.rowForKey(anchor.key)
         val index =
             kept ?:
                 model.display.rowAt(
-                    mdPreviewExpanded(model, anchor.source.position, anchor.source.bias),
+                    mdFrameExpanded(
+                        model,
+                        presentation,
+                        anchor.source.position,
+                        anchor.source.bias
+                    ),
                     anchor.source.bias
                 )
         val measured = row(index)
@@ -65,13 +71,18 @@ private class MdPreviewMeasurePass(
                 }
                 case None -> {
                     val expanded =
-                        mdPreviewExpanded(model, anchor.source.position, anchor.source.bias)
+                        mdFrameExpanded(
+                            model,
+                            presentation,
+                            anchor.source.position,
+                            anchor.source.bias
+                        )
                     var cellIndex = 0L
                     while (
                         cellIndex +
                             1L <
                             measured.row.cells.size &&
-                            measured.row.cells[cellIndex].sourceRange.end <
+                            model.display.rows[index].cells[cellIndex].sourceRange.end <
                             expanded.byteOffset
                     )
                         cellIndex += 1L
@@ -80,7 +91,19 @@ private class MdPreviewMeasurePass(
                         val text = measured.row.cells[cellIndex]
                         val position =
                             cell.text.display.toDisplay(
-                                TextPosition(text.textAt(expanded.byteOffset, anchor.source.bias))
+                                TextPosition(
+                                    text.textAt(
+                                        mdFrameCellPosition(
+                                            model,
+                                            presentation,
+                                            index,
+                                            cellIndex,
+                                            anchor.source.position,
+                                            anchor.source.bias
+                                        ).byteOffset,
+                                        anchor.source.bias
+                                    )
+                                )
                             )
                         cell.origin.y + (cell.text.layout.caret(position)?.y ?: 0.0)
                     } else
@@ -116,7 +139,8 @@ internal fun mdMeasurePreview(
         constraints.constrain(Size(constraints.maxWidth ?: 640.0, constraints.maxHeight ?: 480.0))
     val padding = host.options.padding
     val width = max(0.0, size.width - padding * 2.0)
-    val model = host.controller.latest
+    val presentation = host.presentation
+    val model = mdPresentationModel(presentation, host.controller.latest)
     val estimate = mdPreviewEstimate(host.style, host.options)
     val same =
         when ((host.document, model)) {
@@ -163,13 +187,18 @@ internal fun mdMeasurePreview(
                 padding,
                 0L
             )
-    val pass = MdPreviewMeasurePass(host, context, active, width)
+    val pass = MdPreviewMeasurePass(host, context, active, presentation, width)
     try {
+        when (presentation) {
+            case Some(val local) -> pass.row(local.rowIndex)
+            case None -> Unit
+        }
         when (host.revealTarget) {
             case Some(val position) -> if (
-                active.snapshot.revision == host.editor.snapshot.revision
+                (presentation?.content?.snapshot?.revision ?: active.snapshot.revision) ==
+                    host.editor.snapshot.revision
             )
-                pass.row(active.display.rowAt(mdPreviewExpanded(active, position)))
+                pass.row(active.display.rowAt(mdFrameExpanded(active, presentation, position)))
             case None -> Unit
         }
         var adjustment = pass.adjustment()
@@ -220,7 +249,10 @@ internal fun mdMeasurePreview(
         return MarkdownPreviewMeasurement(
             LayoutMetrics(size),
             model,
-            if (active.snapshot.revision == host.editor.snapshot.revision)
+            if (
+                (presentation?.content?.snapshot?.revision ?: active.snapshot.revision) ==
+                    host.editor.snapshot.revision
+            )
                 Some(host.editor.selection)
             else
                 None,
@@ -229,7 +261,10 @@ internal fun mdMeasurePreview(
             scroll,
             host.scroll.requestRevision,
             padding,
-            pass.reused
+            pass.reused,
+            presentation = presentation,
+            inputRevision = host.editor.inputRevision,
+            marked = host.editor.markedRange
         )
     } catch (failure: Throwable) {
         pass.close()

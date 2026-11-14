@@ -99,17 +99,26 @@ public class MarkdownRichInput public constructor(
         return relocate
     }
 
-    internal fun prepare(batch: TextInputBatch): MdInputPublication? {
+    internal fun prepare(
+        batch: TextInputBatch,
+        kind: MarkdownEditKind = MarkdownEditKind.Typing
+    ): MdInputPublication? {
         checkRead()
         editor.checkEdit()
         checkOwner()
         if (current.snapshot !== editor.snapshot || observedInput != editor.inputRevision)
             throw IllegalStateException(Some("Markdown rich input fragment needs synchronization"))
-        return mdPrepareRichInput(this, input, batch)
+        return mdPrepareRichInput(this, input, batch, kind)
     }
 
     public fun apply(batch: TextInputBatch): Boolean {
         val prepared = prepare(batch) ?: return false
+        return publish(prepared)
+    }
+
+    internal fun command(operations: List<TextInputOperation>, kind: MarkdownEditKind): Boolean {
+        val prepared =
+            prepare(TextInputBatch(Some(input.revision), operations), kind) ?: return false
         return publish(prepared)
     }
 

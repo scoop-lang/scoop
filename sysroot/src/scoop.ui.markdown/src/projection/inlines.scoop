@@ -22,10 +22,31 @@ internal fun mdDisplayInlines(
     node: MarkdownNode,
     footnotes: HashMap<String, (Long, MarkdownRange)>,
     range: MarkdownRange = node.range
+): MdDisplayText = mdDisplayInlineNodes(node.children, footnotes, range, false)
+
+internal fun mdDisplayEditable(content: MarkdownInlineContent): MdDisplayText {
+    val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
+    val last =
+        content.text.sourceAt(
+            MarkdownPosition(content.text.byteLength),
+            MarkdownBias.Before
+        ).byteOffset
+    return mdDisplayInlineNodes(content.nodes, HashMap(), MarkdownRange(first, last), true)
+}
+
+private fun mdDisplayInlineNodes(
+    nodes: Array<MarkdownNode>,
+    footnotes: HashMap<String, (Long, MarkdownRange)>,
+    range: MarkdownRange,
+    editable: Boolean
 ): MdDisplayText {
     val builder = MdDisplayTextBuilder(range)
     val pending = ArrayList<MdInlineFrame>()
-    mdInlineChildren(pending, node, MdDisplayFlags(), None)
+    var index = nodes.size
+    while (index > 0L) {
+        index -= 1L
+        pending.add(MdInlineFrame(nodes[index], MdDisplayFlags(), None))
+    }
     while (pending.size > 0L) {
         val item = pending.removeAt(pending.size - 1L)
         val current = item.node
@@ -80,6 +101,17 @@ internal fun mdDisplayInlines(
                 Some(MdDisplayObject.Extension(value))
             )
             case MarkdownContent.FootnoteReference(val label) -> {
+                if (editable) {
+                    builder.append(
+                        "\u{fffc}",
+                        current.range,
+                        false,
+                        item.flags,
+                        Some(MdDisplayAction.Source(current.range)),
+                        Some(MdDisplayObject.Source("[^" + label + "]"))
+                    )
+                    continue
+                }
                 val entry =
                     footnotes[label] ?:
                         throw IllegalStateException(
@@ -98,6 +130,17 @@ internal fun mdDisplayInlines(
             case MarkdownContent.HardBreak ->
             builder.append("\n", current.range, false, item.flags, item.action)
             case MarkdownContent.HtmlInline(val source) -> {
+                if (editable) {
+                    builder.append(
+                        "\u{fffc}",
+                        current.range,
+                        false,
+                        item.flags,
+                        Some(MdDisplayAction.Source(current.range)),
+                        Some(MdDisplayObject.Source(source.text))
+                    )
+                    continue
+                }
                 if (
                     source.text ==
                         "<br>" ||
@@ -166,6 +209,7 @@ internal fun mdDisplayAlternate(node: MarkdownNode): String {
 
 internal fun mdDisplayObjectText(value: MdDisplayObject): String =
     when (value) {
+        case MdDisplayObject.Source(val text) -> text
         case MdDisplayObject.Image(val target, val alternate) ->
         if (alternate == "")
             target.destination.text

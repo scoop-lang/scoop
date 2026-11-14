@@ -124,7 +124,7 @@ internal class MdPreviewRowCache: Closeable {
     }
 }
 
-private fun mdPreviewBuildRow(
+internal fun mdPreviewBuildRow(
     host: MarkdownPreviewHost,
     row: MdDisplayRow,
     width: Double,

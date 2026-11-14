@@ -1,0 +1,68 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.window.Utf8Range
+
+internal fun MarkdownRichHost.sceneInput(context: SceneContext, frame: MarkdownPreviewMeasurement) {
+    val active = input
+    val current =
+        !readOnly &&
+            frame.sourceRevision ==
+            Some(editor.snapshot.revision) &&
+            frame.inputRevision ==
+            editor.inputRevision &&
+            mdSamePresentation(frame.presentation, preview.presentation)
+    val caret =
+        if (current)
+            frame.caret(editor.selection.cursor, editor.selection.cursorBias)
+        else
+            None
+    area.setCaret(caret, active?.inputState?.revision)
+    if (!current || !area.isFocusActive)
+        return
+    val color = preview.style.text.color
+    if (caretVisible && editor.selection.collapsed)
+        when (caret) {
+            case Some(val rect) -> context.draw {
+                paint -> paint.canvas.drawRect(rect, Paint(color))
+            }
+            case None -> Unit
+        }
+    val marked = frame.marked ?: return
+    val local = frame.presentation ?: return
+    val row = frame.row(local.rowIndex) ?: return
+    val cell = row.resource.cells[local.cellIndex]
+    val text = row.row.cells[local.cellIndex]
+    val start = text.textAt(marked.start, MarkdownBias.Before)
+    val end = text.textAt(marked.end, MarkdownBias.After)
+    val boxes = cell.text.layout.selection(cell.text.display.displayRange(Utf8Range(start, end)))
+    val left = frame.padding + cell.origin.x
+    val top = frame.padding + frame.heights.prefix(row.index) + cell.origin.y
+    context.draw {
+        paint -> for (box in boxes)
+            paint.canvas.drawRect(
+                Rect(
+                    left + box.rect.x,
+                    top + box.rect.y + box.rect.height - 1.0,
+                    box.rect.width,
+                    1.0
+                ),
+                Paint(color)
+            )
+    }
+}
+
+internal fun MarkdownRichHost.acceptedFrame(frame: MarkdownPreviewMeasurement) {
+    if (
+        frame.sourceRevision !=
+            Some(editor.snapshot.revision) ||
+            frame.inputRevision !=
+            editor.inputRevision ||
+            !mdSamePresentation(frame.presentation, preview.presentation)
+    )
+        return
+    publishNative()
+    scheduleBlink()
+}

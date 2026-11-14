@@ -48,20 +48,7 @@ internal fun mdScenePreview(
                         case(Some(val document), Some(val selection)) -> if (selection.collapsed)
                             None
                         else
-                            Some(
-                                MarkdownRange(
-                                    mdPreviewExpanded(
-                                        document,
-                                        MarkdownPosition(selection.range.start),
-                                        MarkdownBias.Before
-                                    ).byteOffset,
-                                    mdPreviewExpanded(
-                                        document,
-                                        MarkdownPosition(selection.range.end),
-                                        MarkdownBias.After
-                                    ).byteOffset
-                                )
-                            )
+                            Some(MarkdownRange(selection.range.start, selection.range.end))
                         else -> None
                     }
                 for (row in frame.rows) {
@@ -78,9 +65,10 @@ internal fun mdScenePreview(
                     content.withState {
                         block ->
                         block.translate(frame.padding, top)
-                        mdPaintPreviewRow(block, row, selected, style, options)
+                        mdPaintPreviewRow(block, row, selected, style, options, frame)
                     }
                 }
+                host.rich?.sceneInput(content, frame)
             }
         )
         context.onFrameComplete {
@@ -100,7 +88,7 @@ internal fun mdScenePreview(
             old?.close()
             host.visibleImages(frame, imageLease)
             val model = frame.document ?: return@onFrameComplete
-            if (model.snapshot.revision != host.editor.snapshot.revision)
+            if (frame.sourceRevision != Some(host.editor.snapshot.revision))
                 return@onFrameComplete
             val hit = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y))
             when (hit) {
@@ -133,6 +121,7 @@ internal fun mdScenePreview(
                 }
                 case None -> Unit
             }
+            host.rich?.acceptedFrame(frame)
         }
     } catch (failure: Throwable) {
         frame.close()
@@ -145,7 +134,8 @@ private fun mdPaintPreviewRow(
     measured: MdPreviewMeasuredRow,
     selected: MarkdownRange?,
     style: MarkdownPreviewStyle,
-    options: MarkdownPreviewOptions
+    options: MarkdownPreviewOptions,
+    frame: MarkdownPreviewMeasurement
 ) {
     val row = measured.row
     val resource = measured.resource
@@ -221,8 +211,26 @@ private fun mdPaintPreviewRow(
             val selectedBounds =
                 when (selected) {
                     case Some(val selection) -> {
-                        val a = max(selection.start, text.sourceRange.start)
-                        val b = min(selection.end, text.sourceRange.end)
+                        val start =
+                            mdFrameCellPosition(
+                                frame.document!!,
+                                frame.presentation,
+                                measured.index,
+                                index,
+                                MarkdownPosition(selection.start),
+                                MarkdownBias.Before
+                            ).byteOffset
+                        val end =
+                            mdFrameCellPosition(
+                                frame.document!!,
+                                frame.presentation,
+                                measured.index,
+                                index,
+                                MarkdownPosition(selection.end),
+                                MarkdownBias.After
+                            ).byteOffset
+                        val a = max(start, text.sourceRange.start)
+                        val b = min(end, text.sourceRange.end)
                         if (a < b) {
                             val bounds =
                                 cell.text.display.displayRange(

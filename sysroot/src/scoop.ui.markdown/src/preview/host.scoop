@@ -37,6 +37,8 @@ public class MarkdownPreviewHost public constructor(
     internal val fonts: FontCollection get() = suppliedFonts ?: scope.defaultFonts
     internal var closed = false
     internal var document: MarkdownParsedDocument? = None
+    internal var presentation: MdRichPresentation? = None
+    internal var rich: MarkdownRichHost? = None
     internal var heights = mdHeightRun(0L, mdPreviewEstimate(initialStyle, initialOptions))
     internal val caches = HashMap<MdDisplayKey, MdPreviewRowCache>()
     internal var layoutWidth = -1.0
@@ -210,10 +212,14 @@ public class MarkdownPreviewHost public constructor(
     }
     internal fun currentFrame(): MarkdownPreviewMeasurement? {
         val frame = accepted ?: return None
-        val latest = controller.current ?: return None
+        val latest = presentation?.base ?: (controller.current ?: return None)
         return when (frame.document) {
             case Some(val value) -> if (
-                value === latest && value.snapshot.revision == editor.snapshot.revision
+                value ===
+                    latest &&
+                    frame.sourceRevision ==
+                    Some(editor.snapshot.revision) &&
+                    mdSamePresentation(frame.presentation, presentation)
             )
                 Some(frame)
             else
@@ -241,13 +247,16 @@ public class MarkdownPreviewHost public constructor(
         editor.checkEdit()
         val frame = currentFrame() ?: return
         val model = frame.document!!
-        if (hit.document !== model)
+        if (hit.document !== model || !mdSamePresentation(hit.presentation, frame.presentation))
             return
         model.preview.node(hit.node)
         when (hit.action) {
             case Some(MdDisplayAction.Link(val destination)) -> openLink(destination)
             case Some(MdDisplayAction.Source(val range)) -> openSource(
-                mdPreviewOriginalRange(model, range)
+                if (hit.local)
+                    range
+                else
+                    mdFrameOriginalRange(model, frame.presentation, range)
             )
             case None -> Unit
         }

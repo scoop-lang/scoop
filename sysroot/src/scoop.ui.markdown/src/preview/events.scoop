@@ -11,6 +11,17 @@ internal fun mdPreviewEvent(
     context: RoutedEventContext,
     event: InputEvent
 ) {
+    when (host.rich) {
+        case Some(val rich) -> mdRichEvent(rich, context, event)
+        case None -> mdPreviewReadEvent(host, context, event)
+    }
+}
+
+internal fun mdPreviewReadEvent(
+    host: MarkdownPreviewHost,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
     if (host.closed || !host.scope.isMounted)
         return
     if (context.phase == RoutedPhase.Notification) {
@@ -105,11 +116,15 @@ internal fun mdPreviewCommand(host: MarkdownPreviewHost, command: TextEditComman
             true
         }
         case TextEditCommand.Copy -> {
-            val model = host.controller.current
+            val model = mdPresentationModel(host.presentation, host.controller.current)
             if (!host.editor.selection.collapsed)
                 when (model) {
                     case Some(val document) -> host.scope.application.clipboard.writeText(
-                        mdPreviewSelectedText(document, host.editor.selection.range)
+                        mdPreviewSelectedText(
+                            document,
+                            host.editor.selection.range,
+                            host.presentation
+                        )
                     )
                     case None -> Unit
                 }
@@ -120,29 +135,53 @@ internal fun mdPreviewCommand(host: MarkdownPreviewHost, command: TextEditComman
 
 internal fun mdPreviewSelectedText(
     model: MarkdownParsedDocument,
-    selection: MarkdownRange
+    selection: MarkdownRange,
+    presentation: MdRichPresentation? = None
 ): String {
     val start =
-        mdPreviewExpanded(model, MarkdownPosition(selection.start), MarkdownBias.Before).byteOffset
+        mdFrameExpanded(
+            model,
+            presentation,
+            MarkdownPosition(selection.start),
+            MarkdownBias.Before
+        ).byteOffset
     val end =
-        mdPreviewExpanded(model, MarkdownPosition(selection.end), MarkdownBias.After).byteOffset
+        mdFrameExpanded(
+            model,
+            presentation,
+            MarkdownPosition(selection.end),
+            MarkdownBias.After
+        ).byteOffset
     val output = StringBuilder()
     var wroteRow = false
-    for (row in model.display.rows) {
-        if (row.range.start >= end || row.range.end <= start)
+    for (index in 0L ..< model.display.rows.size) {
+        val row = presentation?.displayRow(index) ?: model.display.rows[index]
+        val active = presentation?.rowIndex == Some(index)
+        if (!active && (row.range.start >= end || row.range.end <= start))
             continue
-        if (wroteRow)
-            output.append('\n')
-        wroteRow = true
         var wroteCell = false
-        for (cell in row.cells) {
-            if (cell.sourceRange.start >= end || cell.sourceRange.end <= start)
+        for (cellIndex in 0L ..< row.cells.size) {
+            val cell = row.cells[cellIndex]
+            val local = presentation?.isLocal(index, cellIndex) ?: false
+            val first =
+                if (local)
+                    selection.start
+                else
+                    start
+            val last =
+                if (local)
+                    selection.end
+                else
+                    end
+            if (cell.sourceRange.start >= last || cell.sourceRange.end <= first)
                 continue
+            if (!wroteCell && wroteRow)
+                output.append('\n')
             if (wroteCell)
                 output.append('\t')
             wroteCell = true
-            val a = cell.textAt(start, MarkdownBias.Before)
-            val b = cell.textAt(end, MarkdownBias.After)
+            val a = cell.textAt(first, MarkdownBias.Before)
+            val b = cell.textAt(last, MarkdownBias.After)
             for (run in cell.runs) {
                 val from =
                     if (run.range.start < a)
@@ -162,6 +201,7 @@ internal fun mdPreviewSelectedText(
                 }
             }
         }
+        wroteRow = wroteRow || wroteCell
     }
     return output.toString()
 }

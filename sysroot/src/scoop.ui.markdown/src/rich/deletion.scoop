@@ -1,0 +1,60 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.TextPosition
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.window.*
+
+internal fun mdRichDelete(host: MarkdownRichHost, deletion: TextDeletion): MarkdownRange? {
+    val input = host.input ?: return None
+    val selected = input.inputState.selection.range
+    if (selected.start != selected.end)
+        return Some(MarkdownRange(selected.start, selected.end))
+    if (deletion == TextDeletion.Backward || deletion == TextDeletion.Forward) {
+        val source = host.editor.selection.cursor
+        val index = mdRichRow(host, source, host.editor.selection.cursorBias)
+        val column = mdRichColumn(host, index, source)
+        val inside =
+            mdWithRichRow<MarkdownRange?>(host, index) {
+                _, resource ->
+                val cell = resource.cells[column]
+                val at = cell.text.display.toDisplay(TextPosition(selected.start)).byteOffset
+                val boundaries = cell.text.layout.graphemeBoundaries
+                val next = mdSourceBoundaryIndex(boundaries, at)
+                if (next > 0L && next < boundaries.size && boundaries[next] != at) {
+                    val first =
+                        cell.text.display.toDocument(TextPosition(boundaries[next - 1L])).byteOffset
+                    val last =
+                        cell.text.display.toDocument(TextPosition(boundaries[next])).byteOffset
+                    Some(MarkdownRange(first, last))
+                } else
+                    None
+            }
+        when (inside) {
+            case Some(_) -> return inside
+            case None -> Unit
+        }
+    }
+    val movement =
+        when (deletion) {
+            case Backward -> TextMovement.Backward
+            case Forward -> TextMovement.Forward
+            case WordBackward -> TextMovement.WordBackward
+            case WordForward -> TextMovement.WordForward
+            case LineStart -> TextMovement.LineStart
+            case LineEnd -> TextMovement.LineEnd
+            case ParagraphStart -> TextMovement.ParagraphStart
+            case ParagraphEnd -> TextMovement.ParagraphEnd
+        }
+    val destination = mdRichMove(host, movement)
+    if (
+        !mdRichContains(
+            input.content,
+            MarkdownSelection(destination.position, destination.position)
+        )
+    )
+        return None
+    val offset = input.content.text.textAt(destination.position).byteOffset
+    return Some(MarkdownRange(min(offset, selected.start), max(offset, selected.end)))
+}

@@ -6,7 +6,8 @@ import scoop.window.*
 internal fun mdPrepareRichInput(
     owner: MarkdownRichInput,
     previous: TextInputState,
-    batch: TextInputBatch
+    batch: TextInputBatch,
+    kind: MarkdownEditKind
 ): MdInputPublication? {
     when (batch.baseRevision) {
         case Some(val revision) -> if (revision != previous.revision)
@@ -29,7 +30,7 @@ internal fun mdPrepareRichInput(
             }
             case None -> None
         }
-    val prepared = MdRichPreparation(owner, previous, batch, composition)
+    val prepared = MdRichPreparation(owner, previous, batch, composition, kind)
     val edit = owner.content.edit { prepared.apply(this) }
     return Some(prepared.finish(edit))
 }
@@ -38,7 +39,8 @@ private class MdRichPreparation(
     private val owner: MarkdownRichInput,
     private val previous: TextInputState,
     private val batch: TextInputBatch,
-    composition: MdRichComposition?
+    composition: MdRichComposition?,
+    private val kind: MarkdownEditKind
 ) {
     private val before = composition?.before ?: owner.content
     private val historyBefore = composition?.selection ?: owner.editor.selection
@@ -165,7 +167,7 @@ private class MdRichPreparation(
             if (boundary)
                 MarkdownEditKind.Separate
             else
-                MarkdownEditKind.Typing,
+                kind,
             Some(edit)
         )
     }
