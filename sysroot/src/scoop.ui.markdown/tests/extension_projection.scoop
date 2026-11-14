@@ -11,7 +11,7 @@ private class MarkdownExtensionProjectionTests {
             "```diagram config\nfirst\n```\n\n```mermaid\nsecond\n```\n\n```text\nthird\n```\n"
         val profile = MarkdownProfile(nodeExtensions = [markdownCodeExtension("diagram", "custom")])
         val parsed = MarkdownDocument.fromText(source).parse(profile)
-        val options = MarkdownParseOptions(profile, imageExtensions = ["custom", "mermaid"])
+        val options = MarkdownParseOptions(profile, presenters = [markdownImagePresenter("custom")])
         val model = MarkdownParsedDocument(parsed, None, options)
         assertEquals(3L, model.display.rows.size)
         assertTrue(
@@ -32,7 +32,7 @@ private class MarkdownExtensionProjectionTests {
                 else -> false
             }
         )
-        val raw = mdProjectMarkdown(parsed, imageExtensions = [])
+        val raw = mdProjectMarkdown(parsed)
         assertEquals("first", raw.rows[0L].cells[0L].text)
         assertEquals(source, model.snapshot.toMarkdown())
     }

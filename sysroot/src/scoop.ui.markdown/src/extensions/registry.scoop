@@ -1,0 +1,107 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.collections.HashSet
+import scoop.markdown.*
+
+/** Names are frozen once with the immutable parse configuration. */
+internal class MdExtensionPresenters(presenters: List<MarkdownExtensionPresenter> = []) {
+    private val entries = HashMap<String, MarkdownExtensionPresenter>()
+    init {
+        entries["math"] = markdownImagePresenter("math")
+        entries["mermaid"] = markdownImagePresenter("mermaid")
+        entries["toc"] = markdownNativePresenter("toc")
+        val names = HashSet<String>()
+        for (presenter in presenters) {
+            val name = presenter.name
+            if (name == "" || names.contains(name))
+                throw IllegalArgumentException(
+                    Some("Markdown presenter names must be nonempty and unique")
+                )
+            names.add(name)
+            entries[name] = presenter
+        }
+    }
+
+    fun inline(span: MarkdownExtensionSpan): MarkdownInlinePresentation {
+        when (entries[span.name]) {
+            case Some(val presenter) -> return presenter.presentInline(span)
+            case None -> Unit
+        }
+        return when (span.node.content) {
+            case MarkdownContent.Image(_) -> MarkdownInlinePresentation.Image(
+                mdExtensionImage(span)!!
+            )
+            case MarkdownContent.Extension(_) -> MarkdownInlinePresentation.Image(
+                mdExtensionImage(span)!!
+            )
+            else -> MarkdownInlinePresentation.Native
+        }
+    }
+
+    fun block(span: MarkdownExtensionSpan): MarkdownBlockPresentation {
+        when (entries[span.name]) {
+            case Some(val presenter) -> return presenter.presentBlock(span)
+            case None -> Unit
+        }
+        return when (span.node.content) {
+            case MarkdownContent.Image(_) -> MarkdownBlockPresentation.Image(
+                mdExtensionImage(span)!!
+            )
+            case MarkdownContent.Extension(_) -> MarkdownBlockPresentation.Source
+            else -> MarkdownBlockPresentation.Native
+        }
+    }
+}
+
+internal fun mdExtensionImage(
+    span: MarkdownExtensionSpan,
+    kind: MarkdownImageKind? = None
+): MarkdownImagePresentation? =
+    when (span.node.content) {
+        case MarkdownContent.Image(val target) -> Some(
+            MarkdownImagePresentation(
+                kind ?:
+                    if (span.name == "image")
+                        MarkdownImageKind.Resource
+                    else
+                        MarkdownImageKind.Extension(span.name),
+                target.destination,
+                alternateText = mdDisplayAlternate(span.node)
+            )
+        )
+        case MarkdownContent.CodeBlock(_, val info, val body) -> Some(
+            MarkdownImagePresentation(
+                kind ?: MarkdownImageKind.Extension(span.name),
+                body,
+                info.text
+            )
+        )
+        case MarkdownContent.Extension(val value) -> Some(
+            MarkdownImagePresentation(
+                kind ?: MarkdownImageKind.Extension(span.name),
+                value.body,
+                attributes = value.attributes,
+                alternateText = value.source.text
+            )
+        )
+        else -> None
+    }
+
+internal fun mdExtensionImageObject(
+    span: MarkdownExtensionSpan,
+    image: MarkdownImagePresentation
+): MdDisplayObject {
+    val label =
+        when (span.node.content) {
+            case MarkdownContent.Image(_) -> if (image.alternateText == "")
+                image.source.text
+            else
+                image.alternateText
+            else -> if (span.form == MarkdownExtensionForm.Block)
+                span.name
+            else
+                span.snapshot.read(span.sourceRange)
+        }
+    return MdDisplayObject.Image(image, label)
+}

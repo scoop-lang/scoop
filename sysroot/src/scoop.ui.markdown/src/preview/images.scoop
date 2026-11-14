@@ -57,24 +57,8 @@ internal class MdPreviewImageInput(
 internal fun mdPreviewImageInput(value: MdDisplayObject): MdPreviewImageInput? =
     when (value) {
         case MdDisplayObject.Source(_) -> None
-        case MdDisplayObject.Image(val target, _, val name) -> Some(
-            MdPreviewImageInput(
-                if (name == "image")
-                    MarkdownImageKind.Resource
-                else
-                    MarkdownImageKind.Extension(name),
-                target.destination
-            )
-        )
-        case MdDisplayObject.Extension(val extension) -> Some(
-            MdPreviewImageInput(
-                MarkdownImageKind.Extension(extension.name),
-                extension.body,
-                attributes = extension.attributes
-            )
-        )
-        case MdDisplayObject.Block(val kind, val body, val info) -> Some(
-            MdPreviewImageInput(kind, body, info)
+        case MdDisplayObject.Image(val image, _) -> Some(
+            MdPreviewImageInput(image.kind, image.source, image.info, image.attributes)
         )
     }
 

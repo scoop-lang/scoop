@@ -83,7 +83,8 @@ internal class ImageWindowProbe(
                     extensions = [ImageSyntax(), mdBookDirectives()],
                     nodeExtensions = [markdownCodeExtension("mermaid")]
                 ),
-                Some(MarkdownExpansionOptions(files.mainUri, files, [mdBookProcessor()]))
+                Some(MarkdownExpansionOptions(files.mainUri, files, [mdBookProcessor()])),
+                presenters = [markdownImagePresenter("probe")]
             )
         )
     val fileImages = CountImages(MarkdownFileImageRenderer())

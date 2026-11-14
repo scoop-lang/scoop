@@ -126,7 +126,15 @@ close 幂等地取消订阅、清空排队请求及交付引用，结束自己�
 
 ## 8. 图片与扩展图像
 
-`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 保存原始与派生语法的扩展索引；相同语法复用同一索引，局部和行内投影使用对应当前内容的索引。标准节点匹配属于文档 profile，UI 不再以另一份语言名单识别扩展。`MarkdownImageKind` 区分普通 Resource 和按名称的 Extension；Mermaid 围栏与自定义语法都使用 Extension(name)。`MarkdownParseOptions.imageExtensions` 仅选择哪些已识别的块由图像适配展示，默认包含 mermaid 与 math；其他代码继续按行虚拟化，front matter 保留源码表示。行内图片和扩展沿原子对象投影，独占段落且匹配为 Block 的图片使用图像块。图片的默认 image 名称消费普通资源，其他名称可选对应图像 renderer。所有图像保留完整节点／正文映射，展示与保存分别处理。
+`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 保存原始与派生语法的扩展索引；相同语法复用同一索引，局部和行内投影使用对应当前内容的索引。标准节点匹配属于文档 profile，UI 不以另一份语言名单识别扩展。展示由 `MarkdownParseOptions.presenters` 注册普通 `MarkdownExtensionPresenter`，按非空 name 选择；同一配置的重复名称是参数错误。应用注册覆盖同名默认展示，未覆盖的内置行为保持可用。
+
+presenter 的 `presentInline(span)` 和 `presentBlock(span)` 接收完整的 `MarkdownExtensionSpan`，分别返回 `MarkdownInlinePresentation` 或 `MarkdownBlockPresentation`。两种结果均明确选择 Native、Source 或 Image；接口方法默认返回 Source。展示选择仅在完整／局部投影建立时执行，配置须不可变或自行同步，不读取资源、启动进程、访问 UI 对象或修改文档。原始与派生文档、连续行内编辑使用相同注册，绘制不重新选择展示。
+
+Native 复用标准节点的原生布局：代码按行虚拟化并保留 info／高亮，段落、标题、列表和表格保持各自布局；具有 Markdown 子节点的块扩展可继续展示子节点。Source 在原位置保留完整语法，行内沿原子对象展示，块按行布局。Image 使用公共 `MarkdownImagePresentation`，其 kind、映射 source、info、attributes 与 alternateText 描述渲染输入和替代文字；source 可以是图片目标 URI、代码／公式正文或应用从语义节点选择的映射片段，不能统一假定它位于当前 token 内。
+
+`markdownImagePresenter(name, kind = None)` 为 Image、CodeBlock 和 Extension 提供通用语义适配，可显式指定图像 kind；`markdownNativePresenter(name)` 和 `markdownSourcePresenter(name)` 选择对应路径。默认 math／mermaid 采用图像，目录使用原生导航；未匹配的标准节点使用原生行为，图片和行内扩展保留图像／源码占位，未匹配的块扩展按源码展示。标准图片的 image 名称使用 Resource，自定义图片名称默认使用 Extension(name)。原生代码、扩展图像与源码回退共用这套展示入口，不另保留 imageExtensions 名单。
+
+`MarkdownImageKind` 区分普通 Resource 和按名称的 Extension，Mermaid 围栏与自定义语法都使用 Extension(name)。Inline 图像参加段落断行与 bidi，尺寸和基线来自实际图像结果；Block 图像参与文档块布局，宽度／比例变化沿现有高度与滚动锚点更新。两种形式共用图像调度和资源生命周期。展示注册不改写 Markdown，使用点与引用定义的来源仍分别保留。
 
 应用提供普通 `MarkdownImageRenderer`，每个实例注册一种 kind。`version(request)` 查询当前资源／配置版本，`render(request)` 返回复制或不可变的 PNG／JPEG 字节及实际版本；版本查询先于内容读取或工具执行。请求只包含渲染所需的源码、信息字符串、扩展 attributes、文档 URI、宽度、比例、字号、颜色和行内／块模式，不借用 UI、Canvas 或原生图形对象。方法由借用 executor 的 blocking 队列串行执行，不保证固定 OS 线程；Markdown 解析仍使用普通工作队列。
 

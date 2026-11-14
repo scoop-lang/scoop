@@ -46,11 +46,15 @@ internal fun mdRichRegionDisplay(
     if (!placeholder)
         for (row in display.rows)
             rows.add(row)
-    rows.add(mdRichEmptyRow(syntax, content))
+    rows.add(mdRichEmptyRow(syntax, content, base.options.extensionPresenters))
     return MdDisplayDocument(syntax, rows.toArray(), None)
 }
 
-private fun mdRichEmptyRow(syntax: MarkdownSyntax, content: MarkdownInlineContent): MdDisplayRow {
+private fun mdRichEmptyRow(
+    syntax: MarkdownSyntax,
+    content: MarkdownInlineContent,
+    presenters: MdExtensionPresenters
+): MdDisplayRow {
     val at = content.text.sourceAt(MarkdownPosition(0L))
     val ancestors = ArrayList<MarkdownNode>()
     var node: MarkdownNode? = Some(syntax.nodeAt(at, MarkdownBias.Before))
@@ -81,7 +85,7 @@ private fun mdRichEmptyRow(syntax: MarkdownSyntax, content: MarkdownInlineConten
         indent,
         quotes,
         [],
-        [mdDisplayEditable(content)],
+        [mdDisplayEditable(content, presenters)],
         MdDisplayKey(0L),
         None
     )

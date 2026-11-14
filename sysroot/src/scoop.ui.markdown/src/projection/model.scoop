@@ -225,19 +225,40 @@ private fun mdDisplaySameObject(a: MdDisplayObject?, b: MdDisplayObject?): Boole
         case(None, None) -> true
         case(Some(MdDisplayObject.Source(val x)), Some(MdDisplayObject.Source(val y))) -> x == y
         case(
-            Some(MdDisplayObject.Image(val x, val xa, val xn)),
-            Some(MdDisplayObject.Image(val y, val ya, val yn))
+            Some(MdDisplayObject.Image(val x, val xl)),
+            Some(MdDisplayObject.Image(val y, val yl))
         ) ->
-        xn == yn && xa == ya && x.destination.text == y.destination.text
-        case(Some(MdDisplayObject.Extension(val x)), Some(MdDisplayObject.Extension(val y))) ->
-        x.name == y.name && x.source.text == y.source.text
-        case(
-            Some(MdDisplayObject.Block(val xk, val x, val xi)),
-            Some(MdDisplayObject.Block(val yk, val y, val yi))
-        ) ->
-        xk == yk && x.text == y.text && xi == yi
+        xl == yl && mdSameImagePresentation(x, y)
         else -> false
     }
+
+private fun mdSameImagePresentation(
+    a: MarkdownImagePresentation,
+    b: MarkdownImagePresentation
+): Boolean {
+    if (
+        a.kind !=
+            b.kind ||
+            a.source.text !=
+            b.source.text ||
+            a.info !=
+            b.info ||
+            a.alternateText !=
+            b.alternateText ||
+            a.attributes.size !=
+            b.attributes.size
+    )
+        return false
+    for (index in 0L ..< a.attributes.size)
+        if (
+            a.attributes[index].name !=
+                b.attributes[index].name ||
+                a.attributes[index].value !=
+                b.attributes[index].value
+        )
+            return false
+    return true
+}
 
 internal fun mdDisplayReconcile(
     parsed: MarkdownSyntax,

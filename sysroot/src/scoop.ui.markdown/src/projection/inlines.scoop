@@ -23,10 +23,15 @@ internal fun mdDisplayInlines(
     node: MarkdownNode,
     footnotes: HashMap<String, (Long, MarkdownRange)>,
     extensions: MarkdownExtensionIndex,
+    presenters: MdExtensionPresenters = MdExtensionPresenters(),
     range: MarkdownRange = node.range
-): MdDisplayText = mdDisplayInlineNodes(node.children, footnotes, range, false, extensions)
+): MdDisplayText =
+    mdDisplayInlineNodes(node.children, footnotes, range, false, extensions, presenters)
 
-internal fun mdDisplayEditable(content: MarkdownInlineContent): MdDisplayText {
+internal fun mdDisplayEditable(
+    content: MarkdownInlineContent,
+    presenters: MdExtensionPresenters = MdExtensionPresenters()
+): MdDisplayText {
     val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
     val last =
         content.text.sourceAt(
@@ -38,7 +43,8 @@ internal fun mdDisplayEditable(content: MarkdownInlineContent): MdDisplayText {
         HashMap(),
         MarkdownRange(first, last),
         true,
-        content.extensionIndex()
+        content.extensionIndex(),
+        presenters
     )
 }
 
@@ -47,7 +53,8 @@ private fun mdDisplayInlineNodes(
     footnotes: HashMap<String, (Long, MarkdownRange)>,
     range: MarkdownRange,
     editable: Boolean,
-    extensions: MarkdownExtensionIndex
+    extensions: MarkdownExtensionIndex,
+    presenters: MdExtensionPresenters
 ): MdDisplayText {
     val builder = MdDisplayTextBuilder(range)
     val pending = ArrayList<MdInlineFrame>()
@@ -59,6 +66,52 @@ private fun mdDisplayInlineNodes(
     while (pending.size > 0L) {
         val item = pending.removeAt(pending.size - 1L)
         val current = item.node
+        when (extensions.forNode(current.id)) {
+            case Some(val span) -> {
+                val presentation =
+                    if (span.form == MarkdownExtensionForm.Inline)
+                        presenters.inline(span)
+                    else
+                        when (presenters.block(span)) {
+                            case MarkdownBlockPresentation.Native -> MarkdownInlinePresentation.Native
+                            case MarkdownBlockPresentation.Source -> MarkdownInlinePresentation.Source
+                            case MarkdownBlockPresentation.Image(
+                                val value
+                            ) -> MarkdownInlinePresentation.Image(value)
+                        }
+                when (presentation) {
+                    case MarkdownInlinePresentation.Native -> Unit
+                    case MarkdownInlinePresentation.Source -> {
+                        builder.append(
+                            "\u{fffc}",
+                            current.range,
+                            false,
+                            item.flags,
+                            Some(MdDisplayAction.Source(current.range)),
+                            Some(MdDisplayObject.Source(span.snapshot.read(span.sourceRange)))
+                        )
+                        continue
+                    }
+                    case MarkdownInlinePresentation.Image(val value) -> {
+                        val action =
+                            when (current.content) {
+                                case MarkdownContent.Image(_) -> item.action
+                                else -> Some(MdDisplayAction.Source(current.range))
+                            }
+                        builder.append(
+                            "\u{fffc}",
+                            current.range,
+                            false,
+                            item.flags,
+                            action,
+                            Some(mdExtensionImageObject(span, value))
+                        )
+                        continue
+                    }
+                }
+            }
+            case None -> Unit
+        }
         when (current.content) {
             case MarkdownContent.Text(val text) -> builder.mapped(text, item.flags, item.action)
             case MarkdownContent.CodeSpan(val text) ->
@@ -91,7 +144,7 @@ private fun mdDisplayInlineNodes(
                 mdDisplayFlags(item.flags, link = true),
                 Some(MdDisplayAction.Link(target.destination.text))
             )
-            case MarkdownContent.Image(val target) ->
+            case MarkdownContent.Image(_) ->
             builder.append(
                 "\u{fffc}",
                 current.range,
@@ -99,10 +152,9 @@ private fun mdDisplayInlineNodes(
                 item.flags,
                 item.action,
                 Some(
-                    MdDisplayObject.Image(
-                        target,
-                        mdDisplayAlternate(current),
-                        extensions.forNode(current.id)!!.name
+                    mdExtensionImageObject(
+                        extensions.forNode(current.id)!!,
+                        mdExtensionImage(extensions.forNode(current.id)!!)!!
                     )
                 )
             )
@@ -113,7 +165,7 @@ private fun mdDisplayInlineNodes(
                 false,
                 item.flags,
                 Some(MdDisplayAction.Source(current.range)),
-                Some(MdDisplayObject.Extension(value))
+                Some(MdDisplayObject.Source(value.source.text))
             )
             case MarkdownContent.FootnoteReference(val label) -> {
                 if (editable) {
@@ -225,11 +277,9 @@ internal fun mdDisplayAlternate(node: MarkdownNode): String {
 internal fun mdDisplayObjectText(value: MdDisplayObject): String =
     when (value) {
         case MdDisplayObject.Source(val text) -> text
-        case MdDisplayObject.Image(val target, val alternate, _) ->
-        if (alternate == "")
-            target.destination.text
+        case MdDisplayObject.Image(val image, _) ->
+        if (image.alternateText == "")
+            image.source.text
         else
-            alternate
-        case MdDisplayObject.Extension(val extension) -> extension.source.text
-        case MdDisplayObject.Block(_, val body, _) -> body.text
+            image.alternateText
     }

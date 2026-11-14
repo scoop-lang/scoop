@@ -1,7 +1,6 @@
 package scoop.ui.markdown
 
 import scoop.collections.HashMap
-import scoop.collections.HashSet
 import scoop.markdown.*
 
 private class MdPendingMarker(val parent: MdPendingMarker?, val value: MdDisplayMarker) {
@@ -21,7 +20,7 @@ internal class MdProjectionFootnote(val label: String, val number: Long, val nod
 internal fun mdProjectMarkdown(
     parsed: ParsedMarkdown,
     previous: MdDisplayDocument? = None,
-    imageExtensions: List<String> = ["mermaid", "math"],
+    presenters: MdExtensionPresenters = MdExtensionPresenters(),
     highlights: MarkdownCodeHighlights? = None,
     navigation: MarkdownNavigation? = None,
     extensions: MarkdownExtensionIndex = parsed.extensionIndex()
@@ -34,7 +33,7 @@ internal fun mdProjectMarkdown(
         }
     return MdBlockProjection(
         parsed,
-        imageExtensions,
+        presenters,
         notes,
         HashMap(),
         highlights,
@@ -63,7 +62,7 @@ internal fun mdProjectRegion(
         }
     return MdBlockProjection(
         parsed,
-        options.imageExtensions,
+        options.extensionPresenters,
         definitions.toArray(),
         notes,
         extensions = parsed.extensionIndex()
@@ -72,7 +71,7 @@ internal fun mdProjectRegion(
 
 private class MdBlockProjection(
     val parsed: MarkdownSyntax,
-    imageExtensions: List<String>,
+    val presenters: MdExtensionPresenters,
     val notes: Array<MdProjectionFootnote>,
     val footnotes: HashMap<String, (Long, MarkdownRange)>,
     val highlights: MarkdownCodeHighlights? = None,
@@ -81,11 +80,6 @@ private class MdBlockProjection(
 ) {
     val rows = ArrayList<MdDisplayRow>()
     val pending = ArrayList<MdBlockFrame>()
-    val imageExtension = HashSet<String>()
-    init {
-        for (name in imageExtensions)
-            imageExtension.add(name)
-    }
 
     fun build(previous: MdDisplayDocument?): MdDisplayDocument {
         for (entry in notes)
@@ -179,32 +173,31 @@ private class MdBlockProjection(
             val entry = pending.removeAt(pending.size - 1L)
             val node = entry.node
             val context = entry.context
+            when (extensions.forNode(node.id)) {
+                case Some(val span) -> if (
+                    span.form == MarkdownExtensionForm.Block && present(span, context)
+                )
+                    continue
+                case None -> Unit
+            }
             when (node.content) {
                 case MarkdownContent.Paragraph(_) -> {
                     val standalone = standaloneImage(node)
                     when (standalone) {
                         case Some(val span) -> {
-                            when (span.node.content) {
-                                case MarkdownContent.Image(val target) -> image(
+                            if (!present(span, context))
+                                image(
                                     span.node,
                                     context,
-                                    MdDisplayObject.Image(
-                                        target,
-                                        mdDisplayAlternate(span.node),
-                                        span.name
-                                    )
+                                    mdExtensionImageObject(span, mdExtensionImage(span)!!)
                                 )
-                                else -> throw IllegalStateException(
-                                    Some("Expected an indexed image")
-                                )
-                            }
                         }
                         case None -> add(
                             node,
                             node.range,
                             MdDisplayKind.Paragraph,
                             context,
-                            [mdDisplayInlines(node, footnotes, extensions)]
+                            [mdDisplayInlines(node, footnotes, extensions, presenters)]
                         )
                     }
                 }
@@ -214,7 +207,7 @@ private class MdBlockProjection(
                     node.range,
                     MdDisplayKind.Heading(level),
                     context,
-                    [mdDisplayInlines(node, footnotes, extensions)]
+                    [mdDisplayInlines(node, footnotes, extensions, presenters)]
                 )
                 case MarkdownContent.BlockQuote ->
                 children(
@@ -269,19 +262,7 @@ private class MdBlockProjection(
                 case MarkdownContent.ThematicBreak ->
                 add(node, node.range, MdDisplayKind.Rule, context, [])
                 case MarkdownContent.CodeBlock(_, val info, val body) -> {
-                    val span = extensions.forNode(node.id)!!
-                    if (imageExtension.contains(span.name))
-                        image(
-                            node,
-                            context,
-                            MdDisplayObject.Block(
-                                MarkdownImageKind.Extension(span.name),
-                                body,
-                                info.text
-                            )
-                        )
-                    else
-                        lines(node, body, context, info.text, false, highlights?.tokens(node) ?: [])
+                    lines(node, body, context, info.text, false, highlights?.tokens(node) ?: [])
                 }
                 case MarkdownContent.HtmlBlock(val source) ->
                 lines(node, source, context, "HTML", true)
@@ -295,8 +276,8 @@ private class MdBlockProjection(
                             case None -> Unit
                         }
                     }
-                    if (imageExtension.contains(extensions.forNode(node.id)!!.name))
-                        image(node, context, MdDisplayObject.Extension(value))
+                    if (node.children.size > 0L)
+                        children(node, context)
                     else
                         lines(node, value.source, context, value.name, true)
                 }
@@ -306,6 +287,66 @@ private class MdBlockProjection(
                 case MarkdownContent.ReferenceDefinition(_, _) -> Unit
                 else -> children(node, context)
             }
+        }
+    }
+
+    /** Returns false only when the node should continue through its native projection. */
+    private fun present(span: MarkdownExtensionSpan, context: MdDisplayContext): Boolean {
+        when (presenters.block(span)) {
+            case MarkdownBlockPresentation.Native -> return false
+            case MarkdownBlockPresentation.Image(val value) ->
+            image(span.node, context, mdExtensionImageObject(span, value))
+            case MarkdownBlockPresentation.Source -> {
+                when (span.node.content) {
+                    case MarkdownContent.Extension(val value) ->
+                    lines(span.node, value.source, context, span.name, true)
+                    else -> sourceLines(span.node, context, span.name)
+                }
+            }
+        }
+        return true
+    }
+
+    private fun sourceLines(node: MarkdownNode, context: MdDisplayContext, label: String) {
+        var line = parsed.snapshot.lineAt(MarkdownPosition(node.range.start))
+        var start = node.range.start
+        var first = true
+        while (true) {
+            val physical = parsed.snapshot.lineRange(line)
+            val whole = parsed.snapshot.lineRange(line, true)
+            val end =
+                if (physical.end < node.range.end)
+                    physical.end
+                else
+                    node.range.end
+            val next =
+                if (whole.end < node.range.end)
+                    whole.end
+                else
+                    node.range.end
+            val last = next == node.range.end
+            val range = MarkdownRange(start, next)
+            val builder = MdDisplayTextBuilder(range)
+            val visible =
+                MarkdownRange(
+                    start,
+                    if (end < start)
+                        start
+                    else
+                        end
+                )
+            builder.append(
+                parsed.snapshot.read(visible),
+                visible,
+                true,
+                MdDisplayFlags(code = true)
+            )
+            add(node, range, MdDisplayKind.Source(label, first, last), context, [builder.finish()])
+            if (last)
+                break
+            start = next
+            line += 1L
+            first = false
         }
     }
 
@@ -450,7 +491,7 @@ private class MdBlockProjection(
             val cells =
                 Array<MdDisplayText>(alignments.size) {
                     at -> if (at < row.children.size)
-                        mdDisplayInlines(row.children[at], footnotes, extensions)
+                        mdDisplayInlines(row.children[at], footnotes, extensions, presenters)
                     else
                         MdDisplayTextBuilder(MarkdownRange(row.range.end, row.range.end)).finish()
                 }

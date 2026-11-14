@@ -271,7 +271,7 @@ document 的内容 revision 与 native 输入快照的 revision 分开：选择�
 
 解析和内容处理仍属于独立 `scoop.markdown` Cone。标准节点匹配和新增语法识别统一输出片段，详见[文档设计 §6.1](../../markdown/DESIGN.md#61-按具体语法接入)；标准 `CodeBlock`／`Image` 保留原节点，UI 不再自行按语言或正则扫描源码以决定扩展边界。`MarkdownProcessor` 可返回带来源映射的派生 Markdown；`MarkdownExtensionLocation.Code` 只表示允许在代码正文识别指令的语法上下文。无 UI 程序不依赖展示适配。
 
-`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 已分别提供原始与派生语法的索引，图片、代码与既有扩展投影消费识别结果。`MarkdownParseOptions.imageExtensions` 只选择已识别的扩展名称采用图像展示，Mermaid 的语言匹配由文档 profile 负责；`MarkdownImageKind.Extension(name)` 统一图像适配的名称。`MarkdownImageRenderer`／`MarkdownImageRequest.inlineContent`、行内对象与原生代码视图仍是两种展示合同的实现基础，统一公共展示入口和光标自动源码编辑继续实施，不另建通用组件或脚本插件框架。
+`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 已分别提供原始与派生语法的索引，图片、代码与既有扩展投影消费识别结果。`MarkdownParseOptions.presenters` 注册 `MarkdownExtensionPresenter`，分别返回 `MarkdownInlinePresentation`／`MarkdownBlockPresentation` 的 Native、Source 或 Image；应用按名称覆盖默认展示。Image 携带 `MarkdownImagePresentation` 的语义输入与映射，沿既有 `MarkdownImageRenderer` 和资源生命周期渲染。Native 保留代码按行高亮，也能展示自定义块的 Markdown 子节点；Source 保留完整语法，块按行布局。Mermaid 语言匹配仍由文档 profile 负责；`MarkdownImageKind.Extension(name)` 选择图像适配。原位源码与光标自动切换继续实施，不另建通用组件或脚本插件框架。
 
 后台工作只处理普通数据，不访问 View、Canvas、TextLayout 或 UI State。图像路径返回编码字节、逻辑尺寸、基线和替代文字，owner 线程按 graphics 合同创建与释放资源。原生文本路径沿既有 Paragraph／TextLayout 所有权合同。异步结果仅在实际内容、配置和资源依赖仍适用时发布；卸载后不更新已关闭组件。
 
@@ -386,7 +386,7 @@ scoop.ui.markdown
 
 大文档测量从 A 开始，B 起每批保留相关回归；不把全文 String 和单 Paragraph 实现一直留到最后再优化。A 中发现必须修改 graphics.text 的实际问题，先更新该规范与当前批次，再依赖新增能力。
 
-实现已恢复，按完整大项验证后提交、推送并合并远端 main。标准节点路由、统一片段索引、逐行块解析及既有投影接入后，继续补齐统一展示合同、光标激活状态与 Inline 原位源码投影，再完成核心编辑剩余问题、必要组合与本机大文档验收。已有点击打开局部源码面和图像适配可复用，但不能据此将自动进入／离开或统一接口记为已完成。新的具体扩展在这一范围交付后独立安排。
+实现已恢复，按完整大项验证后提交、推送并合并远端 main。标准节点路由、统一片段索引、逐行块解析及 Inline／Block 公共展示合同接入后，继续补齐光标激活状态与原位源码投影，再完成核心编辑剩余问题、必要组合与本机大文档验收。已有点击打开局部源码面和图像适配可复用，但不能据此将自动进入／离开或原位编辑记为已完成。新的具体扩展在这一范围交付后独立安排。
 
 ### 11.2 必要测试
 

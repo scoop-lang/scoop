@@ -14,7 +14,7 @@ private class MarkdownBlockProjectionTests {
             MarkdownParsedDocument(
                 parsed,
                 None,
-                MarkdownParseOptions(profile, imageExtensions = ["diagram"])
+                MarkdownParseOptions(profile, presenters = [markdownImagePresenter("diagram")])
             )
         assertEquals(1L, model.sourceExtensions.spans.size)
         val span = model.sourceExtensions.spans[0L]
@@ -34,7 +34,7 @@ private class MarkdownBlockProjectionTests {
         assertEquals("first\n\nsecond\n", input.body.text)
         val bodyStart = input.body.sourceAt(MarkdownPosition(0L)).byteOffset
         assertEquals("first", model.snapshot.read(MarkdownRange(bodyStart, bodyStart + 5L)))
-        val raw = mdProjectMarkdown(parsed, imageExtensions = [])
+        val raw = mdProjectMarkdown(parsed)
         assertEquals(":::diagram", raw.rows[1L].cells[0L].text)
         assertEquals(source, model.snapshot.toMarkdown())
     }

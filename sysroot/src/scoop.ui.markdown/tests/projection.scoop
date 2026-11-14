@@ -52,20 +52,28 @@ private class MarkdownProjectionTests {
         assertEquals(code.range.end, text.sourceAt(3L).byteOffset)
         assertEquals("flowchart LR\n A --> B\n", mdDisplayObjectText(text.runs[0L].objectValue!!))
         when (text.runs[0L].objectValue) {
-            case Some(MdDisplayObject.Block(val kind, val body, val info)) -> {
-                assertEquals(MarkdownImageKind.Extension("mermaid"), kind)
-                assertEquals("flowchart LR\n A --> B\n", body.text)
-                assertEquals("mermaid title", info)
+            case Some(MdDisplayObject.Image(val value, _)) -> {
+                assertEquals(MarkdownImageKind.Extension("mermaid"), value.kind)
+                assertEquals("flowchart LR\n A --> B\n", value.source.text)
+                assertEquals("mermaid title", value.info)
             }
             else -> fail(Some("Expected a mapped image block"))
         }
         assertTrue(
             when (projected.rows[1L].cells[0L].runs[0L].objectValue) {
-                case Some(MdDisplayObject.Extension(val value)) -> value.name == "math"
+                case Some(MdDisplayObject.Image(val value, _)) -> value.kind ==
+                    MarkdownImageKind.Extension("math")
                 else -> false
             }
         )
-        val raw = mdProjectMarkdown(parsed, imageExtensions = [])
+        val raw =
+            mdProjectMarkdown(
+                parsed,
+                presenters =
+                    MdExtensionPresenters(
+                        [markdownNativePresenter("mermaid"), markdownSourcePresenter("math")]
+                    )
+            )
         assertTrue(raw.rows.size > projected.rows.size)
         assertEquals("flowchart LR", raw.rows[0L].cells[0L].text)
         assertEquals(source, snapshot.toMarkdown())

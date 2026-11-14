@@ -1,0 +1,267 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownPresenterTests {
+    @Test
+    fun bothFormsReceiveOriginalNodesAndReferenceDestinations() {
+        val source = "![block][ref]\n\ntext ![inline][ref]\n\n[ref]: image.png \"caption\"\n"
+        val profile = MarkdownProfile(nodeExtensions = [markdownImageExtension(true, "custom")])
+        val presenter = PresentationProbe()
+        val options = MarkdownParseOptions(profile, presenters = [presenter])
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        val model = MarkdownParsedDocument(parsed, None, options)
+        assertEquals(2L, presenter.calls.size)
+        assertEquals(MarkdownExtensionForm.Block, presenter.calls[0L].form)
+        assertEquals(MarkdownExtensionForm.Inline, presenter.calls[1L].form)
+        assertSame(parsed.snapshot, presenter.calls[0L].snapshot)
+        assertSame(parsed.root.children[0L].children[0L], presenter.calls[0L].node)
+        val input = mdPreviewImageInput(model.display.rows[0L].cells[0L].runs[0L].objectValue!!)!!
+        assertEquals(MarkdownImageKind.Extension("selected"), input.kind)
+        assertEquals("image.png", input.body.text)
+        assertEquals("custom info", input.info)
+        assertEquals("tone", input.attributes[0L].name)
+        assertEquals("warm", input.attributes[0L].value)
+        assertTrue(
+            input.body.sourceAt(MarkdownPosition(0L)).byteOffset >
+                presenter.calls[0L].sourceRange.end
+        )
+        val inline = model.display.rows[1L].cells[0L]
+        assertEquals("text \u{fffc}", inline.text)
+        assertEquals("![inline][ref]", mdDisplayObjectText(inline.runs[1L].objectValue!!))
+        assertEquals(source, model.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun overridingOneDefaultPreservesOthersAndNativeCodeHighlighting() {
+        val source = "```mermaid\nconst n = 1\n```\n\n$$\nx\n$$\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val options = MarkdownParseOptions(presenters = [markdownNativePresenter("mermaid")])
+        val model = MarkdownParsedDocument(parsed, None, options)
+        assertEquals(2L, model.display.rows.size)
+        assertEquals("const n = 1", model.display.rows[0L].cells[0L].text)
+        assertTrue(
+            when (model.display.rows[0L].kind) {
+                case MdDisplayKind.Code(val info, _, _) -> info == "mermaid"
+                else -> false
+            }
+        )
+        assertEquals(
+            MarkdownImageKind.Extension("math"),
+            mdPreviewImageInput(model.display.rows[1L].cells[0L].runs[0L].objectValue!!)!!.kind
+        )
+        val codeProfile =
+            MarkdownProfile(nodeExtensions = [markdownCodeExtension("scoop", "custom")])
+        val code = MarkdownDocument.fromText("```scoop\nval n = 42\n```\n").parse(codeProfile)
+        val native =
+            MarkdownParsedDocument(
+                code,
+                None,
+                MarkdownParseOptions(codeProfile, presenters = [markdownNativePresenter("custom")])
+            )
+        var highlighted = false
+        for (run in native.display.rows[0L].cells[0L].runs)
+            highlighted = highlighted || run.flags.syntax != None
+        assertTrue(highlighted)
+    }
+
+    @Test
+    fun sourceChoicePreservesFullStandardSyntaxAndLineLayout() {
+        val source = "# **Title**\r\n\r\n```scoop info\r\nval a = 1\r\nval b = 2\r\n```\r\n"
+        val profile = MarkdownProfile(nodeExtensions = [PresentationHeadingRule()])
+        val options =
+            MarkdownParseOptions(
+                profile,
+                presenters = [markdownSourcePresenter("heading"), markdownSourcePresenter("code")]
+            )
+        val model =
+            MarkdownParsedDocument(MarkdownDocument.fromText(source).parse(profile), None, options)
+        assertEquals(5L, model.display.rows.size)
+        assertEquals("# **Title**", model.display.rows[0L].cells[0L].text)
+        assertEquals("```scoop info", model.display.rows[1L].cells[0L].text)
+        assertEquals("```", model.display.rows[4L].cells[0L].text)
+        for (row in model.display.rows) {
+            assertTrue(
+                when (row.kind) {
+                    case MdDisplayKind.Source(_, _, _) -> true;
+                    else -> false
+                }
+            )
+            val text = row.cells[0L]
+            assertEquals(
+                text.text,
+                model.snapshot.read(
+                    MarkdownRange(
+                        text.sourceAt(0L).byteOffset,
+                        text.sourceAt(text.text.byteLength, MarkdownBias.Before).byteOffset
+                    )
+                )
+            )
+        }
+        assertEquals(source, model.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun nativeBlocksDisplayTheirMarkdownChildren() {
+        val source = ":::card\n# Heading\n\n![child](a.png)\n:::\n"
+        val profile = MarkdownProfile(blockExtensions = [PresentationCardRule()])
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        val raw = MarkdownParsedDocument(parsed, None, MarkdownParseOptions(profile))
+        assertEquals(":::card", raw.display.rows[0L].cells[0L].text)
+        val native =
+            MarkdownParsedDocument(
+                parsed,
+                None,
+                MarkdownParseOptions(profile, presenters = [markdownNativePresenter("card")])
+            )
+        assertEquals(2L, native.display.rows.size)
+        assertEquals("Heading", native.display.rows[0L].cells[0L].text)
+        assertTrue(
+            when (native.display.rows[0L].kind) {
+                case MdDisplayKind.Heading(1) -> true;
+                else -> false
+            }
+        )
+        assertEquals(
+            MarkdownImageKind.Resource,
+            mdPreviewImageInput(native.display.rows[1L].cells[0L].runs[0L].objectValue!!)!!.kind
+        )
+    }
+
+    @Test
+    fun currentInlineAndRegionalProjectionsKeepPresenterOverrides() {
+        val source = "left ![alt](a.png)\n\nright"
+        val parsed = MarkdownDocument.fromText(source).parse()
+        val options = MarkdownParseOptions(presenters = [markdownSourcePresenter("image")])
+        val model = MarkdownParsedDocument(parsed, None, options)
+        val edit =
+            parsed.inlineContent(parsed.root.children[0L].id).replaceText(
+                MarkdownRange(0L, 0L),
+                "雪"
+            )
+        val display =
+            MdRichPresentation(
+                model,
+                edit.after,
+                0L,
+                0L,
+                MdRichChanges(model.snapshot).append(edit.change)
+            )
+        val value = display.row!!.cells[0L].runs[1L].objectValue!!
+        assertEquals("![alt](a.png)", mdDisplayObjectText(value))
+        assertTrue(
+            when (mdPreviewImageInput(value)) {
+                case None -> true;
+                else -> false
+            }
+        )
+        val region = parsed.region(MarkdownRange(0L, 0L)).after(edit.change).parse()
+        val rows = mdProjectRegion(region, HashMap(), options).rows
+        assertEquals("雪left \u{fffc}", rows[0L].cells[0L].text)
+        assertTrue(
+            when (mdPreviewImageInput(rows[0L].cells[0L].runs[1L].objectValue!!)) {
+                case None -> true;
+                else -> false
+            }
+        )
+    }
+
+    @Test
+    fun changedImageMetadataInvalidatesOnlyTheAffectedRow() {
+        val parsed = MarkdownDocument.fromText("![a](x)\n\nTail").parse()
+        val first =
+            MarkdownParsedDocument(
+                parsed,
+                None,
+                MarkdownParseOptions(
+                    presenters =
+                        [markdownImagePresenter("image", Some(MarkdownImageKind.Extension("one")))]
+                )
+            )
+        val next =
+            MarkdownParsedDocument(
+                parsed,
+                None,
+                MarkdownParseOptions(
+                    presenters =
+                        [markdownImagePresenter("image", Some(MarkdownImageKind.Extension("two")))]
+                ),
+                Some(first)
+            )
+        assertFalse(first.display.rows[0L].key === next.display.rows[0L].key)
+        assertSame(first.display.rows[1L].key, next.display.rows[1L].key)
+        assertEquals(
+            MarkdownImageKind.Extension("two"),
+            mdPreviewImageInput(next.display.rows[0L].cells[0L].runs[0L].objectValue!!)!!.kind
+        )
+    }
+
+    @Test
+    fun emptyAndDuplicateNamesAreRejectedAtConfigurationTime() {
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownParseOptions(presenters = [markdownSourcePresenter("")])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownParseOptions(
+                presenters = [markdownSourcePresenter("x"), markdownNativePresenter("x")]
+            )
+        }
+    }
+}
+
+private class PresentationProbe: MarkdownExtensionPresenter {
+    public override val name = "custom"
+    val calls = ArrayList<MarkdownExtensionSpan>()
+    public override fun presentInline(span: MarkdownExtensionSpan): MarkdownInlinePresentation {
+        calls.add(span)
+        return MarkdownInlinePresentation.Source
+    }
+    public override fun presentBlock(span: MarkdownExtensionSpan): MarkdownBlockPresentation {
+        calls.add(span)
+        return when (span.node.content) {
+            case MarkdownContent.Image(val target) -> MarkdownBlockPresentation.Image(
+                MarkdownImagePresentation(
+                    MarkdownImageKind.Extension("selected"),
+                    target.destination,
+                    "custom info",
+                    [MarkdownAttribute("tone", "warm")],
+                    "Rendered image"
+                )
+            )
+            else -> MarkdownBlockPresentation.Source
+        }
+    }
+}
+
+private class PresentationHeadingRule: MarkdownNodeExtension {
+    public override val name = "heading"
+    public override fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm? =
+        when (input.node.content) {
+            case MarkdownContent.Heading(_, _, _) -> Some(MarkdownExtensionForm.Block)
+            else -> None
+        }
+}
+
+private class PresentationCardRule: MarkdownBlockExtension {
+    public override val name = "card"
+    public override val trigger = ":::card"
+    public override fun start(input: MarkdownExtensionInput): MarkdownBlockStart? =
+        Some(MarkdownBlockStart(PresentationCardParser(input.byteLength), parseBody = true))
+}
+
+private class PresentationCardParser(private val begin: Long): MarkdownBlockParser {
+    private var end = begin
+    public override fun next(input: MarkdownExtensionInput): MarkdownBlockContinuation {
+        if (input.source.text == ":::\n")
+            return MarkdownBlockContinuation.Close
+        end += input.byteLength
+        return MarkdownBlockContinuation.Continue
+    }
+    public override fun finish(
+        input: MarkdownExtensionInput,
+        closed: Boolean
+    ): MarkdownBlockResult = MarkdownBlockResult(MarkdownRange(begin, end))
+}

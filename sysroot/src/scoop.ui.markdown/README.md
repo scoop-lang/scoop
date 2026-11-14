@@ -1,6 +1,6 @@
 # scoop.ui.markdown
 
-扩展识别由 `scoop.markdown` 提供，`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 分别保存原始与派生语法的索引。标准图片、代码与自定义语法共用名称、Inline／Block 形态和源码范围；图像适配按 `MarkdownImageKind.Extension(name)` 接入，配置方法见[图片与扩展图像](IMAGES.md)。局部源码输入仍使用同一份文档与历史，光标自动进入／离开的统一交互继续按设计实施。
+扩展识别由 `scoop.markdown` 提供，`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 分别保存原始与派生语法的索引。标准图片、代码与自定义语法共用名称、Inline／Block 形态和源码范围；展示用 `MarkdownParseOptions.presenters` 注册 `MarkdownExtensionPresenter`，分别选择 Inline／Block 的原生、源码或图像路径。图像适配按 `MarkdownImageKind.Extension(name)` 接入，配置方法见[图片与扩展图像](IMAGES.md)。局部源码输入仍使用同一份文档与历史，光标自动进入／离开的统一交互继续按设计实施。
 
 Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像、行内与跨块输入、链接／图片编辑以及代码／扩展的局部源码编辑。完整功能继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
 

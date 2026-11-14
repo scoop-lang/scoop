@@ -37,7 +37,7 @@ internal class MdRichPresentation(
                         baseRow.markers,
                         Array<MdDisplayText>(baseRow.cells.size) {
                             index -> if (index == cellIndex)
-                                mdDisplayEditable(content)
+                                mdDisplayEditable(content, base.options.extensionPresenters)
                             else
                                 baseRow.cells[index]
                         },

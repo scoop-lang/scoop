@@ -1,0 +1,64 @@
+package scoop.tests.markdown.images
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.ui.markdown.*
+
+@Test
+private class MarkdownPresentationApiTests {
+    @Test
+    fun publicPresentersConsumeBothFormsAndAllowRendererSelection() {
+        val profile = MarkdownProfile(nodeExtensions = [markdownImageExtension(true, "picture")])
+        val parsed =
+            MarkdownDocument.fromText("![cover](a.png)\n\ntext ![icon](b.png)").parse(profile)
+        val spans = parsed.extensionIndex().spans
+        val presenter = markdownImagePresenter("picture", Some(MarkdownImageKind.Resource))
+        val options = MarkdownParseOptions(profile, presenters = [presenter, ConsumerPresenter()])
+        assertEquals(2L, options.presenters.size)
+        when (presenter.presentBlock(spans[0L])) {
+            case MarkdownBlockPresentation.Image(val image) -> {
+                assertEquals("a.png", image.source.text)
+                assertEquals("cover", image.alternateText)
+                assertEquals(MarkdownImageKind.Resource, image.kind)
+            }
+            else -> fail(Some("Expected block image"))
+        }
+        when (presenter.presentInline(spans[1L])) {
+            case MarkdownInlinePresentation.Image(val image) -> assertEquals(
+                "b.png",
+                image.source.text
+            )
+            else -> fail(Some("Expected inline image"))
+        }
+        when (options.presenters[1L].presentInline(spans[1L])) {
+            case MarkdownInlinePresentation.Image(val image) -> {
+                assertEquals("local", image.info)
+                assertEquals("small", image.attributes[0L].value)
+            }
+            else -> fail(Some("Expected consumer presentation"))
+        }
+        assertTrue(
+            when (options.presenters[1L].presentBlock(spans[0L])) {
+                case MarkdownBlockPresentation.Source -> true
+                else -> false
+            }
+        )
+    }
+}
+
+private class ConsumerPresenter: MarkdownExtensionPresenter {
+    public override val name = "consumer"
+    public override fun presentInline(span: MarkdownExtensionSpan): MarkdownInlinePresentation =
+        when (span.node.content) {
+            case MarkdownContent.Image(val target) -> MarkdownInlinePresentation.Image(
+                MarkdownImagePresentation(
+                    MarkdownImageKind.Resource,
+                    target.destination,
+                    "local",
+                    [MarkdownAttribute("size", "small")],
+                    "Image"
+                )
+            )
+            else -> MarkdownInlinePresentation.Source
+        }
+}

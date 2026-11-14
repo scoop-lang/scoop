@@ -1,0 +1,72 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Rendering input with source mapping retained for relative resources and navigation. */
+public class MarkdownImagePresentation public constructor(
+    public val kind: MarkdownImageKind,
+    public val source: MarkdownText,
+    public val info: String = "",
+    attributes: List<MarkdownAttribute> = [],
+    public val alternateText: String = ""
+) {
+    public val attributes: Array<MarkdownAttribute> = attributes.toArray()
+}
+
+/** Inline results participate in the containing paragraph's layout. */
+public enum MarkdownInlinePresentation {
+    Native, Source, Image(MarkdownImagePresentation)
+}
+
+/** Block results participate in document layout; native code and source remain line based. */
+public enum MarkdownBlockPresentation {
+    Native, Source, Image(MarkdownImagePresentation)
+}
+
+/** Pure projection selection. Resource access belongs to MarkdownImageRenderer. */
+public interface MarkdownExtensionPresenter {
+    public val name: String
+    public fun presentInline(span: MarkdownExtensionSpan): MarkdownInlinePresentation =
+        MarkdownInlinePresentation.Source
+    public fun presentBlock(span: MarkdownExtensionSpan): MarkdownBlockPresentation =
+        MarkdownBlockPresentation.Source
+}
+
+/** Uses semantic image destinations, code bodies, or extension bodies as rendering input. */
+public fun markdownImagePresenter(
+    name: String,
+    kind: MarkdownImageKind? = None
+): MarkdownExtensionPresenter = MdImagePresenter(name, kind)
+
+/** Retains the node's standard layout or the Markdown children of a block extension. */
+public fun markdownNativePresenter(name: String): MarkdownExtensionPresenter =
+    MdNativePresenter(name)
+
+/** Displays complete syntax at the occurrence's original inline or block position. */
+public fun markdownSourcePresenter(name: String): MarkdownExtensionPresenter =
+    MdSourcePresenter(name)
+
+private class MdImagePresenter(
+    public override val name: String,
+    private val kind: MarkdownImageKind?
+): MarkdownExtensionPresenter {
+    public override fun presentInline(span: MarkdownExtensionSpan): MarkdownInlinePresentation =
+        when (mdExtensionImage(span, kind)) {
+            case Some(val value) -> MarkdownInlinePresentation.Image(value)
+            case None -> MarkdownInlinePresentation.Source
+        }
+    public override fun presentBlock(span: MarkdownExtensionSpan): MarkdownBlockPresentation =
+        when (mdExtensionImage(span, kind)) {
+            case Some(val value) -> MarkdownBlockPresentation.Image(value)
+            case None -> MarkdownBlockPresentation.Source
+        }
+}
+
+private class MdNativePresenter(public override val name: String): MarkdownExtensionPresenter {
+    public override fun presentInline(span: MarkdownExtensionSpan): MarkdownInlinePresentation =
+        MarkdownInlinePresentation.Native
+    public override fun presentBlock(span: MarkdownExtensionSpan): MarkdownBlockPresentation =
+        MarkdownBlockPresentation.Native
+}
+
+private class MdSourcePresenter(public override val name: String): MarkdownExtensionPresenter

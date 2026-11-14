@@ -10,11 +10,25 @@
 
 外部命令使用 `scoop.platform.process.command(Path)` 构造；可执行文件路径应明确，参数经 argv 传递。toolVersion 标识这份固定的工具与配置；更换工具或配置时使用新版本和新适配器。固定配置的 refresh 直接复用成功图片；本地文件适配通过文件时间与尺寸检查更新。普通库使用不自动下载工具。Mermaid 和 MathJax 的语法支持由配置的工具版本决定。
 
-扩展识别在文档 profile 中完成，`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 暴露原始与派生语法的索引。默认 Editor profile 用 `markdownCodeExtension("mermaid")` 识别围栏；自定义 profile 应显式加入所需的 nodeExtensions。`MarkdownParseOptions.imageExtensions` 默认包含 mermaid 与 math，只选择已识别的块采用图像展示；其他代码继续按行显示。
+扩展识别在文档 profile 中完成，`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 暴露原始与派生语法的索引。默认 Editor profile 用 `markdownCodeExtension("mermaid")` 识别围栏；自定义 profile 应显式加入所需的 nodeExtensions。`MarkdownParseOptions.presenters` 按扩展名称注册 `MarkdownExtensionPresenter`。`presentInline(span)`／`presentBlock(span)` 分别选择 Native、Source 或 Image；默认 math 和 mermaid 使用图像，代码保留逐行原生展示。注册只覆盖同名默认，名称必须非空且不能重复。
 
-例如将 `diagram` 围栏交给名为 custom 的 renderer，需要在文档 profile 注册 `markdownCodeExtension("diagram", "custom")`，将 custom 加入 imageExtensions，并提供 `MarkdownImageKind.Extension("custom")` 的适配。代码语言、语法扩展与渲染器名称不再依靠 UI 自行扫描来关联。块的完整源范围仍包含围栏／分隔符，渲染输入使用语义正文和完整 info。
+例如将 `diagram` 围栏交给名为 custom 的 renderer，需要在文档 profile 注册 `markdownCodeExtension("diagram", "custom")`，注册 `markdownImagePresenter("custom")`，并提供 `MarkdownImageKind.Extension("custom")` 的适配。代码语言、语法扩展与渲染器名称不再依靠 UI 自行扫描来关联。块的完整源范围仍包含围栏／分隔符，渲染输入使用语义正文和完整 info。
 
 `markdownImageExtension(standaloneBlock = true)` 使独占段落的图片按 Block 排版；其余图片保持 Inline。默认 image 名称使用普通 Resource，指定其他名称时使用对应 Extension(name) renderer，输入仍是图片目标 URI。连续行内编辑也使用当前局部树上的规则和索引，不套用旧节点偏移。
+
+`markdownImagePresenter(name, kind = None)` 从 Image、CodeBlock 或 Extension 提取映射目标／正文、info、attributes 和替代文字；可显式选择 Resource 或另一个 Extension 名称。`markdownNativePresenter(name)` 保留标准布局，也可展示块扩展解析出的 Markdown 子节点；`markdownSourcePresenter(name)` 在原位置显示完整语法，块源码按行布局。
+
+应用可直接实现 `MarkdownExtensionPresenter`，从 span 的原节点语义构造 `MarkdownImagePresentation(kind, source, info, attributes, alternateText)`。引用式图片的 source 映射指向定义，可能在当前图片使用范围之外。展示选择是纯投影操作，不能读资源、执行工具、访问 UI 或改写文档；配置应不可变或自行同步。完整、局部和连续行内投影共用同一注册，绘制不会反复调用 presenter。没有实现的接口方法默认选择 Source。
+
+```scoop
+val profile = MarkdownProfile(
+    nodeExtensions = [markdownCodeExtension("diagram", "custom")]
+)
+val options = MarkdownParseOptions(
+    profile,
+    presenters = [markdownImagePresenter("custom")]
+)
+```
 
 自定义 renderer 声明 `MarkdownImageKind.Resource` 或 `Extension(name)`，实现：
 
