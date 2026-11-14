@@ -1,6 +1,6 @@
 # scoop.ui.markdown
 
-Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。当前提供原生源码视图、共享后台解析和富文本预览；WYSIWYG 输入、完整双栏和扩展图像继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
+Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。当前提供原生源码视图、共享后台解析、富文本预览和扩展图像；WYSIWYG 输入与完整双栏继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
 
 开发期间从另一个 Cone 使用 path 依赖：
 
@@ -47,6 +47,8 @@ editor.close()
 
 `markdownPreview(controller)` 返回共享解析结果上的原生预览 View，挂载时启动借用控制器，卸载时仅释放自己的视口资源。`MarkdownPreviewStyle` 配置文字、代码和颜色；`MarkdownPreviewOptions` 配置间距、虚拟化范围、统一表格最小列宽和缩进。`onOpenLink` 把 URI 交给应用；`onSource` 把行内扩展的原始源码范围交给应用。预览显示源码选区、支持拖选、全选和复制所见文字，修改正文继续通过同一个 editor。
 
-自绘组合可使用 `MarkdownPreviewHost.measure`／`scene`；LayoutResult 负责关闭每次独立测量。`measurement.parsed` 表明实际显示的解析，`hitTest` 同时提供原文／预览位置与生成内容标记；`caret` 和 `reveal` 接受原文位置。旧解析等待更新时仍可显示，但不会被用作当前源码命中。表格按实际行虚拟化，代码按实际行虚拟化，普通段落保持完整 shaping。图片及行内扩展已有原子对象和来源映射，当前无适配时显示替代文字／源码，实际图像渲染仍在后续阶段。
+自绘组合可使用 `MarkdownPreviewHost.measure`／`scene`；LayoutResult 负责关闭每次独立测量。`measurement.parsed` 表明实际显示的解析，`hitTest` 同时提供原文／预览位置与生成内容标记；`caret` 和 `reveal` 接受原文位置。旧解析等待更新时仍可显示，但不会被用作当前源码命中。表格按实际行虚拟化，代码按实际行虚拟化，普通段落保持完整 shaping。图片及扩展图像使用原子对象与原始范围；点击仍可定位源码。
+
+向 `markdownPreview` 或宿主的 `update` 传入借用的 `images: MarkdownImageController` 与文档 URI，即可按可见范围加载图片。提供本地 PNG／JPEG、Mermaid CLI 和 MathJax＋rsvg-convert 适配，也可按 `MarkdownImageRenderer` 注册自定义图像扩展。配置、版本、基线和关闭约定见[扩展图像说明](IMAGES.md)。
 
 [预览示例](examples/preview/README.md) 可直接打开仓库中的 Markdown；[源码示例](examples/source-editor/README.md) 提供原生编辑和保存。本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引、显示映射和后台解析；`tests-cones/source` 与 `tests-cones/preview` 使用本机原生窗口验证大文档、滚动、几何与资源释放。完整三模式和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。

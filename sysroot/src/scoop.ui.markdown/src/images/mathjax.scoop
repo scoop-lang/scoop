@@ -1,0 +1,86 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Size
+import scoop.compiler.includeBytes
+import scoop.platform.fs.Path
+import scoop.json.*
+import scoop.platform.process.*
+import scoop.platform.system.OsString
+import scoop.time.Duration
+
+/** A MathJax JSON command supplies SVG and real logical metrics; rsvg-convert supplies PNG. */
+public class MarkdownMathJaxImageRenderer public constructor(
+    node: Command,
+    moduleRoot: Path,
+    private val rasterizer: Command,
+    private val toolVersion: String,
+    private val timeout: Duration = Duration.seconds(15L)
+): MarkdownImageRenderer {
+    private val mathjax =
+        node.copy {
+            arg(OsString.fromString("--input-type=module"))
+            arg(OsString.fromString("--eval"))
+            arg(
+                OsString.fromString(String.fromUtf8(includeBytes("../../tools/mathjax/render.mjs")))
+            )
+            arg(OsString.fromString("--"))
+            arg(OsString.fromString("scoop-mathjax"))
+            arg(moduleRoot.toOsString())
+        }
+    public override val kind = MarkdownImageKind.Extension("math")
+    public override fun version(request: MarkdownImageRequest): String? = Some(toolVersion)
+    public override fun render(request: MarkdownImageRequest): MarkdownImageData {
+        val input =
+            Json.stringify(
+                jsonObject {
+                    add("source", JsonValue.fromString(request.source))
+                    add("inline", JsonValue.fromBoolean(request.inlineContent))
+                    add("fontSize", JsonValue.fromDouble(request.fontSize))
+                    add("availableWidth", JsonValue.fromDouble(request.availableWidth))
+                    add("foreground", JsonValue.fromString(mdImageHex(request.foreground)))
+                }
+            )
+        val convert =
+            mathjax.copy {
+                stdin = Stdio.Pipe;
+                stdout = Stdio.Pipe;
+                stderr = Stdio.Pipe
+            }
+        val result =
+            Json.parse(String.fromUtf8(mdImageRun(convert, timeout, Some(input.toByteArray()))))
+        val size =
+            Size(mdMathField(result, "width").asDouble(), mdMathField(result, "height").asDouble())
+        val baseline = mdMathField(result, "baseline").asDouble()
+        if (
+            !size.width.isFinite() ||
+                !size.height.isFinite() ||
+                size.width <=
+                0.0 ||
+                size.height <=
+                0.0 ||
+                !baseline.isFinite()
+        )
+            throw MarkdownImageException("MathJax returned invalid logical metrics")
+        val svg = mdMathField(result, "svg").asString()
+        val render =
+            rasterizer.copy {
+                arg(OsString.fromString("--format=png"))
+                arg(OsString.fromString("--zoom"));
+                arg(OsString.fromString(request.displayScale.toString()))
+                stdin = Stdio.Pipe;
+                stdout = Stdio.Pipe;
+                stderr = Stdio.Pipe
+            }
+        val bytes = mdImageRun(render, timeout, Some(svg.toByteArray()))
+        return MarkdownImageData(
+            bytes,
+            toolVersion,
+            MarkdownImageSizing.Logical(size),
+            Some(baseline),
+            request.source
+        )
+    }
+}
+
+private fun mdMathField(value: JsonValue, name: String): JsonValue =
+    value[name] ?: throw MarkdownImageException("MathJax result is missing " + name)

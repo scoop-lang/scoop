@@ -24,7 +24,7 @@ private class MdPreviewMeasurePass(
         val row = model.display.rows[index]
         val cache = host.caches[row.key] ?: MdPreviewRowCache()
         host.caches[row.key] = cache
-        val resource = cache.measure(host, context, row, width)
+        val resource = cache.measure(host, context, model, row, width)
         val value = MdPreviewMeasuredRow(index, row, resource)
         measured[index] = value
         keys.add(row.key)

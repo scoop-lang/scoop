@@ -1,0 +1,76 @@
+package scoop.ui.markdown
+
+import scoop.json.*
+import scoop.platform.fs.*
+import scoop.platform.process.*
+import scoop.platform.system.OsString
+import scoop.time.Duration
+
+/** The configured command invokes an installed mmdc; toolVersion identifies that configuration. */
+public class MarkdownMermaidImageRenderer public constructor(
+    private val tool: Command,
+    private val toolVersion: String,
+    private val timeout: Duration = Duration.seconds(30L)
+): MarkdownImageRenderer {
+    public override val kind = MarkdownImageKind.Code("mermaid")
+    public override fun version(request: MarkdownImageRequest): String? = Some(toolVersion)
+    public override fun render(request: MarkdownImageRequest): MarkdownImageData {
+        val folder = createTempDirectory(prefix = "scoop-mermaid-")
+        try {
+            val source = folder.resolve(Path.fromString("input.mmd"))
+            val destination = folder.resolve(Path.fromString("output.png"))
+            val config = folder.resolve(Path.fromString("config.json"))
+            source.writeText(request.source)
+            val foreground = mdImageHex(request.foreground)
+            val background = mdImageHex(request.background)
+            config.writeText(
+                Json.stringify(
+                    jsonObject {
+                        add("theme", JsonValue.fromString("base"))
+                        add(
+                            "themeVariables",
+                            jsonObject {
+                                add(
+                                    "fontSize",
+                                    JsonValue.fromString(request.fontSize.toString() + "px")
+                                )
+                                add("primaryColor", JsonValue.fromString(background))
+                                add("primaryTextColor", JsonValue.fromString(foreground))
+                                add("primaryBorderColor", JsonValue.fromString(foreground))
+                                add("lineColor", JsonValue.fromString(foreground))
+                                add("textColor", JsonValue.fromString(foreground))
+                                add("background", JsonValue.fromString(background))
+                            }
+                        )
+                    }
+                )
+            )
+            val command =
+                tool.copy {
+                    arg(OsString.fromString("--input"));
+                    arg(source.toOsString())
+                    arg(OsString.fromString("--output"));
+                    arg(destination.toOsString())
+                    arg(OsString.fromString("--configFile"));
+                    arg(config.toOsString())
+                    arg(OsString.fromString("--scale"));
+                    arg(OsString.fromString(request.displayScale.toString()))
+                    arg(OsString.fromString("--backgroundColor"));
+                    arg(OsString.fromString("transparent"))
+                    arg(OsString.fromString("--quiet"))
+                    stdin = Stdio.Null;
+                    stdout = Stdio.Pipe;
+                    stderr = Stdio.Pipe
+                }
+            mdImageRun(command, timeout)
+            return MarkdownImageData(
+                destination.readAllBytes(),
+                toolVersion,
+                MarkdownImageSizing.PixelScale(request.displayScale),
+                alternateText = request.source
+            )
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+}

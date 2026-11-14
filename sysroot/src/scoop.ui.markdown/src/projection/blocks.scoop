@@ -1,6 +1,7 @@
 package scoop.ui.markdown
 
 import scoop.collections.HashMap
+import scoop.collections.HashSet
 import scoop.markdown.*
 
 private class MdPendingMarker(val parent: MdPendingMarker?, val value: MdDisplayMarker) {
@@ -17,13 +18,28 @@ private class MdBlockFrame(val node: MarkdownNode, val context: MdDisplayContext
 
 internal fun mdProjectMarkdown(
     parsed: ParsedMarkdown,
-    previous: MdDisplayDocument? = None
-): MdDisplayDocument = MdBlockProjection(parsed).build(previous)
+    previous: MdDisplayDocument? = None,
+    imageCodeLanguages: List<String> = ["mermaid"],
+    imageExtensions: List<String> = ["math"]
+): MdDisplayDocument =
+    MdBlockProjection(parsed, imageCodeLanguages, imageExtensions).build(previous)
 
-private class MdBlockProjection(val parsed: ParsedMarkdown) {
+private class MdBlockProjection(
+    val parsed: ParsedMarkdown,
+    imageCodeLanguages: List<String>,
+    imageExtensions: List<String>
+) {
     val rows = ArrayList<MdDisplayRow>()
     val pending = ArrayList<MdBlockFrame>()
     val footnotes = HashMap<String, (Long, MarkdownRange)>()
+    val imageCode = HashSet<String>()
+    val imageExtension = HashSet<String>()
+    init {
+        for (language in imageCodeLanguages)
+            imageCode.add(language)
+        for (name in imageExtensions)
+            imageExtension.add(name)
+    }
 
     fun build(previous: MdDisplayDocument?): MdDisplayDocument {
         for (entry in parsed.footnotes)
@@ -176,12 +192,25 @@ private class MdBlockProjection(val parsed: ParsedMarkdown) {
                 }
                 case MarkdownContent.ThematicBreak ->
                 add(node, node.range, MdDisplayKind.Rule, context, [])
-                case MarkdownContent.CodeBlock(_, val info, val body) ->
-                lines(node, body, context, info.text, false)
+                case MarkdownContent.CodeBlock(_, val info, val body) -> {
+                    val language = mdDisplayCodeLanguage(info.text)
+                    if (imageCode.contains(language))
+                        image(
+                            node,
+                            context,
+                            MdDisplayObject.Block(MarkdownImageKind.Code(language), body, info.text)
+                        )
+                    else
+                        lines(node, body, context, info.text, false)
+                }
                 case MarkdownContent.HtmlBlock(val source) ->
                 lines(node, source, context, "HTML", true)
-                case MarkdownContent.Extension(val value) ->
-                lines(node, value.source, context, value.name, true)
+                case MarkdownContent.Extension(val value) -> {
+                    if (imageExtension.contains(value.name))
+                        image(node, context, MdDisplayObject.Extension(value))
+                    else
+                        lines(node, value.source, context, value.name, true)
+                }
                 case MarkdownContent.Table(val alignments) ->
                 table(node, alignments, context)
                 case MarkdownContent.FootnoteDefinition(_) -> Unit
@@ -189,6 +218,18 @@ private class MdBlockProjection(val parsed: ParsedMarkdown) {
                 else -> children(node, context)
             }
         }
+    }
+
+    private fun image(node: MarkdownNode, context: MdDisplayContext, value: MdDisplayObject) {
+        val builder = MdDisplayTextBuilder(node.range)
+        builder.append(
+            "\u{fffc}",
+            node.range,
+            false,
+            action = Some(MdDisplayAction.Source(node.range)),
+            objectValue = Some(value)
+        )
+        add(node, node.range, MdDisplayKind.ImageBlock, context, [builder.finish()])
     }
 
     private fun lines(
@@ -272,4 +313,14 @@ private class MdBlockProjection(val parsed: ParsedMarkdown) {
             add(row, range, MdDisplayKind.Table(alignments, header), context, cells)
         }
     }
+}
+
+private fun mdDisplayCodeLanguage(info: String): String {
+    val result = StringBuilder()
+    for (character in info) {
+        if (character == ' ' || character == '\t' || character == '\r' || character == '\n')
+            break
+        result.append(character)
+    }
+    return result.toString()
 }

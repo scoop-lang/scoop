@@ -1,0 +1,73 @@
+package scoop.tests.markdown.images
+
+import scoop.graphics.*
+import scoop.platform.env.environmentVariable
+import scoop.platform.fs.Path
+import scoop.test.*
+import scoop.ui.markdown.*
+
+@Test
+private class MarkdownFormulaToolTests {
+    @Test
+    fun alignedEquationsAndExplicitTagsHaveRealImageBounds() {
+        val renderer =
+            MarkdownMathJaxImageRenderer(
+                imageTool("SCOOP_TEST_NODE"),
+                Path.fromOsString(environmentVariable("SCOOP_TEST_MATHJAX")!!),
+                imageTool("SCOOP_TEST_RSVG"),
+                "mathjax-4.1.3-rsvg-2.63.4"
+            )
+        val request =
+            MarkdownImageRequest(
+                renderer.kind,
+                "\\begin{aligned}a &= 1\\\\b &= \\frac{2}{3}\\end{aligned}\\tag{1}",
+                "",
+                600.0,
+                displayScale = 2.0,
+                fontSize = 20.0
+            )
+        val result = renderer.render(request)
+        val size =
+            when (result.sizing) {
+                case MarkdownImageSizing.Logical(val size) -> size
+                else -> throw IllegalStateException(Some("Formula metrics must be logical"))
+            }
+        assertTrue(size.width > 20.0 && size.height > 20.0)
+        assertTrue(result.baseline!! > 0.0 && result.baseline!! < size.height)
+        Image.decode(result.encoded).use {
+            image ->
+            assertTrue(image.width.toDouble() >= size.width * 2.0)
+            assertTrue(image.height.toDouble() >= size.height * 2.0)
+            assertEquals(600.0, size.width)
+            RasterSurface(image.width, image.height).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.White)
+                    canvas.drawImage(
+                        image,
+                        Rect(0.0, 0.0, image.width.toDouble(), image.height.toDouble())
+                    )
+                }
+                val pixels = surface.readPixels()
+                var body = 0L
+                var tag = 0L
+                for (y in 0 ..< image.height)
+                    for (x in 0 ..< image.width) {
+                        val red =
+                            pixels[
+                                (y.toLong() * image.width.toLong() + x.toLong()) * 4L
+                            ].toInt().and(255)
+                        if (red < 200) {
+                            if (x > image.width / 3 && x < image.width * 2 / 3)
+                                body += 1L
+                            if (x > image.width * 3 / 4)
+                                tag += 1L
+                        }
+                    }
+                assertTrue(body > 20L)
+                assertTrue(tag > 20L)
+            }
+        }
+    }
+}

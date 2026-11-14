@@ -17,7 +17,7 @@ internal enum MdDisplayKind {
         Array<MarkdownAlignment>,
         Boolean
     ),
-    Rule, Source(String, Boolean, Boolean)
+    Rule, ImageBlock, Source(String, Boolean, Boolean)
 }
 
 internal class MdDisplayQuote(val parent: MdDisplayQuote?, val level: Long)
@@ -130,6 +130,7 @@ internal fun mdDisplaySame(a: MdDisplayRow, b: MdDisplayRow): Boolean {
                 true
             }
             case(MdDisplayKind.Rule, MdDisplayKind.Rule) -> true
+            case(MdDisplayKind.ImageBlock, MdDisplayKind.ImageBlock) -> true
             else -> false
         }
     if (!kind)
@@ -185,6 +186,11 @@ private fun mdDisplaySameObject(a: MdDisplayObject?, b: MdDisplayObject?): Boole
         xa == ya && x.destination.text == y.destination.text
         case(Some(MdDisplayObject.Extension(val x)), Some(MdDisplayObject.Extension(val y))) ->
         x.name == y.name && x.source.text == y.source.text
+        case(
+            Some(MdDisplayObject.Block(val xk, val x, val xi)),
+            Some(MdDisplayObject.Block(val yk, val y, val yi))
+        ) ->
+        xk == yk && x.text == y.text && xi == yi
         else -> false
     }
 

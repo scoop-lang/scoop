@@ -172,4 +172,5 @@ internal fun mdDisplayObjectText(value: MdDisplayObject): String =
         else
             alternate
         case MdDisplayObject.Extension(val extension) -> extension.source.text
+        case MdDisplayObject.Block(_, val body, _) -> body.text
     }

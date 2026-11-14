@@ -18,6 +18,7 @@ internal fun mdScenePreview(
     val frame = measured.retain()
     try {
         val controller = host.controller
+        val imageLease = host.imageLease
         val style = host.style
         val options = host.options
         val size = context.size
@@ -97,6 +98,7 @@ internal fun mdScenePreview(
             val old = host.accepted
             host.accepted = Some(frame)
             old?.close()
+            host.visibleImages(frame, imageLease)
             val model = frame.document ?: return@onFrameComplete
             if (model.snapshot.revision != host.editor.snapshot.revision)
                 return@onFrameComplete
@@ -297,7 +299,25 @@ private fun mdPaintPreviewRow(
                         continue
                     content.draw {
                         paint ->
-                        paint.canvas.drawRect(box.rect, Paint(style.codeBackground))
+                        when (objectText.label) {
+                            case Some(_) -> paint.canvas.drawRect(
+                                box.rect,
+                                Paint(style.codeBackground)
+                            )
+                            case None -> Unit
+                        }
+                        when (objectText.image) {
+                            case Some(val image) -> paint.canvas.drawImage(
+                                image.image,
+                                Rect(
+                                    box.rect.x,
+                                    box.rect.y,
+                                    objectText.imageSize.width,
+                                    objectText.imageSize.height
+                                )
+                            )
+                            case None -> Unit
+                        }
                         when (selectedBounds) {
                             case Some(val bounds) -> if (
                                 bounds.start <
@@ -308,14 +328,23 @@ private fun mdPaintPreviewRow(
                                 paint.canvas.drawRect(box.rect, Paint(style.selection))
                             case None -> Unit
                         }
-                        mdPreviewBorder(paint.canvas, box.rect, style.border)
+                        when (objectText.label) {
+                            case Some(_) -> mdPreviewBorder(paint.canvas, box.rect, style.border)
+                            case None -> Unit
+                        }
                     }
-                    content.drawTextLayout(
-                        objectText.paintKey,
-                        objectText.layout,
-                        0L,
-                        Point(box.rect.x + 4.0, box.rect.y + 2.0)
-                    )
+                    when (objectText.label) {
+                        case Some(val label) -> content.drawTextLayout(
+                            objectText.paintKey,
+                            label,
+                            0L,
+                            Point(
+                                box.rect.x + objectText.labelOrigin.x,
+                                box.rect.y + objectText.labelOrigin.y
+                            )
+                        )
+                        case None -> Unit
+                    }
                 }
             }
         }

@@ -1,0 +1,167 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.platform.concurrent.Mutex
+import scoop.window.ApplicationProxy
+
+internal class MdImageJob(
+    val request: MarkdownImageRequest,
+    val renderer: MarkdownImageRenderer,
+    val previousVersion: String?
+)
+
+internal enum MdImageOutcome {
+    Unchanged, Value(MarkdownImageData), Failure(Throwable)
+}
+
+internal class MdImageCompletion(val job: MdImageJob, val outcome: MdImageOutcome)
+
+private class MdImageNext(val job: MdImageJob?, val dispose: Boolean)
+
+/** Worker admission contains data only; decoded images and UI state stay with the controller. */
+internal class MdImageQueue(private val proxy: ApplicationProxy, private val deliver: () -> Unit) {
+    private val lock = Mutex()
+    private var closed = false
+    private var running = false
+    private var posted = false
+    private var wanted = HashMap<MarkdownImageRequest, MdImageJob>()
+    private val pending = HashMap<MarkdownImageRequest, MdImageJob>()
+    private val completed = HashMap<MarkdownImageRequest, MdImageCompletion>()
+
+    fun update(jobs: Array<MdImageJob>): Boolean =
+        lock.withLock {
+            val next = HashMap<MarkdownImageRequest, MdImageJob>()
+            for (job in jobs) {
+                next[job.request] = job
+                val previous = wanted[job.request]
+                val same =
+                    when (previous) {
+                        case Some(val old) -> old === job;
+                        case None -> false
+                    }
+                if (!same)
+                    pending[job.request] = job
+            }
+            val retired = ArrayList<MarkdownImageRequest>()
+            for (entry in pending)
+                if (!next.containsKey(entry.key))
+                    retired.add(entry.key)
+            for (key in retired)
+                pending.remove(key)
+            retired.clear()
+            for (entry in completed)
+                if (!next.containsKey(entry.key))
+                    retired.add(entry.key)
+            for (key in retired)
+                completed.remove(key)
+            wanted = next
+            if (running || pending.size == 0L)
+                return@withLock false
+            running = true
+            true
+        }
+
+    fun startFailed() {
+        lock.withLock {
+            pending.clear()
+            wanted.clear()
+            completed.clear()
+            running = false
+        }
+    }
+
+    fun run() {
+        while (true) {
+            val next =
+                lock.withLock {
+                    if (closed || pending.size == 0L) {
+                        running = false
+                        MdImageNext(None, closed)
+                    } else {
+                        val entry = pending.iterator().next()!!
+                        pending.remove(entry.key)
+                        MdImageNext(Some(entry.value), false)
+                    }
+                }
+            val job =
+                when (next.job) {
+                    case Some(val job) -> job
+                    case None -> {
+                        if (next.dispose)
+                            lock.dispose()
+                        return
+                    }
+                }
+            val outcome =
+                try {
+                    val version =
+                        job.renderer.version(job.request) ?:
+                            throw MarkdownImageException("Markdown image resource is not available")
+                    if (job.previousVersion == Some(version))
+                        MdImageOutcome.Unchanged
+                    else
+                        MdImageOutcome.Value(job.renderer.render(job.request))
+                } catch (failure: Throwable) {
+                    MdImageOutcome.Failure(failure)
+                }
+            val notify =
+                lock.withLock {
+                    val current = wanted[job.request]
+                    if (
+                        closed ||
+                            when (current) {
+                                case Some(val value) -> value !== job;
+                                case None -> true
+                            }
+                    )
+                        return@withLock false
+                    completed[job.request] = MdImageCompletion(job, outcome)
+                    if (posted)
+                        return@withLock false
+                    posted = true
+                    true
+                }
+            if (notify && !proxy.post { _ -> deliver() })
+                lock.withLock {
+                    posted = false;
+                    completed.clear()
+                }
+        }
+    }
+
+    fun receive(): Array<MdImageCompletion> =
+        lock.withLock {
+            posted = false
+            val result = ArrayList<MdImageCompletion>()
+            for (entry in completed)
+                result.add(entry.value)
+            completed.clear()
+            result.toArray()
+        }
+
+    fun close() {
+        val dispose =
+            lock.withLock {
+                closed = true
+                wanted.clear()
+                pending.clear()
+                completed.clear()
+                !running
+            }
+        if (dispose)
+            lock.dispose()
+    }
+}
+
+internal class MdImageWork(
+    private val queue: MdImageQueue,
+    private val task: ExecutorTask
+): BlockingWork {
+    public override fun run() {
+        try {
+            queue.run()
+        } finally {
+            task.complete()
+        }
+    }
+}

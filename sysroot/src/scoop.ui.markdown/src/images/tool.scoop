@@ -1,0 +1,39 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Color
+import scoop.platform.process.*
+import scoop.time.Duration
+
+internal fun mdImageRun(command: Command, timeout: Duration, input: List<Byte>? = None): Array<
+    Byte
+> {
+    val output = command.spawn().use { child -> child.communicate(timeout, input) }
+    when (output.status) {
+        case ExitStatus.Exited(0) -> return output.stdout
+        case ExitStatus.Exited(val code) -> throw MarkdownImageException(
+            "Image tool exited with code " +
+                code.toString() +
+                ": " +
+                String.fromUtf8Lossy(output.stderr)
+        )
+        case ExitStatus.Signaled(val signal) -> throw MarkdownImageException(
+            "Image tool terminated by signal " +
+                signal.toString() +
+                ": " +
+                String.fromUtf8Lossy(output.stderr)
+        )
+    }
+}
+
+internal fun mdImageHex(color: Color): String {
+    val output = StringBuilder().append("#")
+    val digits = "0123456789abcdef"
+    for (value in [color.red, color.green, color.blue]) {
+        if (!value.isFinite() || value < 0.0 || value > 1.0)
+            throw MarkdownImageException("Invalid image theme color")
+        val component = (value * 255.0 + 0.5).toLong()
+        output.append(digits.getCharAt(component / 16L))
+        output.append(digits.getCharAt(component % 16L))
+    }
+    return output.toString()
+}

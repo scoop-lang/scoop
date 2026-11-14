@@ -1,0 +1,448 @@
+package scoop.tests.markdown.images
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.abs
+import scoop.platform.env.environmentVariable
+import scoop.platform.process.*
+import scoop.platform.fs.Path
+import scoop.platform.system.OsString
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.tests.surface.*
+import scoop.tests.textfonts.*
+import scoop.time.Duration
+import scoop.text.indexOf
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownImageWindowTests {
+    @Test
+    fun imagesShareVersionsRetainFramesAndRenderRealTools() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val files = ImageFiles()
+        val renderer = ProbeImageRenderer()
+        val probe = ImageWindowProbe(workers, app.proxy(), files, renderer)
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> app.run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.painted)
+            assertTrue(probe.tried)
+            assertTrue(probe.queue.done)
+            assertEquals(1L, renderer.finishedClosing.load())
+        } catch (failure: Throwable) {
+            println(
+                "Image test step " +
+                    probe.step.value.toString() +
+                    ", queue " +
+                    probe.queue.phase.toString()
+            )
+            reportImageFailure(failure)
+            throw failure
+        } finally {
+            renderer.release()
+            probe.close()
+            workers.close()
+            probe.closeCounters()
+            renderer.close()
+            files.close()
+        }
+    }
+}
+
+internal class ImageWindowProbe(
+    workers: CoroutineExecutor,
+    proxy: ApplicationProxy,
+    val files: ImageFiles,
+    val renderer: ProbeImageRenderer
+): Closeable {
+    val editor =
+        MarkdownEditorState(MarkdownDocument.fromText("Background parsing remains responsive."))
+    val parser =
+        MarkdownParseController(
+            editor,
+            workers,
+            proxy,
+            MarkdownParseOptions(
+                MarkdownProfile(math = true, extensions = [ImageSyntax(), mdBookDirectives()]),
+                Some(MarkdownExpansionOptions(files.mainUri, files, [mdBookProcessor()]))
+            )
+        )
+    val fileImages = CountImages(MarkdownFileImageRenderer())
+    val diagrams =
+        CountImages(MarkdownMermaidImageRenderer(imageTool("SCOOP_TEST_MMDC"), "mmdc-12.2.0"))
+    val formulas =
+        CountImages(
+            MarkdownMathJaxImageRenderer(
+                imageTool("SCOOP_TEST_NODE"),
+                Path.fromOsString(
+                    environmentVariable("SCOOP_TEST_MATHJAX") ?:
+                        throw IllegalStateException(Some("Image tests require SCOOP_TEST_MATHJAX"))
+                ),
+                imageTool("SCOOP_TEST_RSVG"),
+                "mathjax-4.1.3-rsvg-2.63.4"
+            )
+        )
+    val badges = CountImages(renderer)
+    val images = MarkdownImageController(workers, proxy, [fileImages, diagrams, formulas, badges])
+    val observer = images.bind()
+    val queue = ImageQueueCase(workers, proxy, renderer, parser)
+    val fonts = FontCollection()
+    val style =
+        MarkdownPreviewStyle(
+            text =
+                textStyle {
+                    families = ["Image Latin", "Image CJK"];
+                    fontSize = 16.0;
+                    lineHeight = Some(1.5)
+                }
+        )
+    val options = MarkdownPreviewOptions(padding = 16.0)
+    val source =
+        "@{badge}\n\nInline $\\frac{x_1}{\\sqrt{y}}$ ends.\n\n{{#include parts/part.md}}\n\n" +
+            "```mermaid\nflowchart LR\n  A[Source] --> B[Native preview]\n```\n\n" +
+            "$$\n\\sum_{i=1}^{n} i^2\n$$\n"
+    val step = state(0)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var field: MarkdownPreviewHost? = None
+    var scope: ComponentScope? = None
+    var accepted = -1
+    var painted = false
+    var trial = false
+    var holdNext = false
+    var tried = false
+    var finished = false
+    var heldFrame: MarkdownPreviewMeasurement? = None
+    var retainedImage: Image? = None
+    var sourceRange: MarkdownRange? = None
+    var counts: Array<Long> = []
+    init {
+        fonts.register(testSansBytes, "Image Latin")
+        fonts.register(testCjkBytes, "Image CJK")
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                queue.start()
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown image verification";
+                            size = LogicalSize(720.0, 740.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { owner -> ImageRoot(this, owner) })
+                native.createDeadline {
+                    dump()
+                    fail(Some("Image test timed out at " + step.value.toString()))
+                }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(60L))
+            }
+            case AboutToWait -> {
+                if (step.value == 0) {
+                    queue.advance()
+                    if (queue.done) {
+                        step.value = 1
+                        editor.document.reset(source)
+                    }
+                    return
+                }
+                if (ready())
+                    advance(active)
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        if (window!!.isOccluded || frames!!.snapshot().required || accepted != step.value)
+            return false
+        if (step.value == 4)
+            return true
+        if (
+            !imagesReady(observer, fileImages, 1L) ||
+                !imagesReady(observer, diagrams, 1L) ||
+                !imagesReady(observer, formulas, 2L) ||
+                !imagesReady(observer, badges, 1L)
+        )
+            return false
+        return painted &&
+            when ((parser.current, field!!.measurement?.parsed ?: None)) {
+                case(Some(val a), Some(val b)) -> a === b
+                else -> false
+            }
+    }
+
+    private fun advance(active: ActiveApplication) {
+        val field = field!!
+        when (step.value) {
+            case 1 -> {
+                assertEquals(files.partUri, fileImages.requests()[0L].documentUri)
+                assertEquals("pixels%20%E4%B8%AD.png", fileImages.requests()[0L].source)
+                assertEquals("tone", badges.requests()[0L].attributes[0L].name)
+                assertEquals("warm", badges.requests()[0L].attributes[0L].value)
+                assertEquals(
+                    "flowchart LR\n  A[Source] --> B[Native preview]\n",
+                    diagrams.requests()[0L].source
+                )
+                val diagram = observer.snapshot(diagrams.requests()[0L])
+                diagram.use { value -> assertTrue(readyImage(value).size.width > 100.0) }
+                for (request in formulas.requests())
+                    observer.snapshot(request).use {
+                        snapshot ->
+                        val result = readyImage(snapshot)
+                        assertTrue(result.size.width > 10.0)
+                        assertTrue(result.baseline!! > 0.0)
+                        assertTrue(result.baseline!! < result.size.height)
+                        if (request.inlineContent) {
+                            val start = source.indexOf("$\\frac")
+                            val end = start + "$\\frac{x_1}{\\sqrt{y}}$".byteLength
+                            val before = field.caret(MarkdownPosition(start), MarkdownBias.Before)!!
+                            val after = field.caret(MarkdownPosition(end), MarkdownBias.After)!!
+                            assertTrue(abs(after.x - before.x - result.size.width) < 1.0)
+                        }
+                        Unit
+                    }
+                val caret = field.caret(MarkdownPosition(0L), MarkdownBias.Before)!!
+                val hit = field.hitTest(Point(caret.x + 20.0, caret.y + caret.height * 0.5))!!
+                field.activate(hit)
+                assertEquals(Some(MarkdownRange(0L, 8L)), sourceRange)
+                counts =
+                    [
+                        fileImages.renders.load(),
+                        diagrams.renders.load(),
+                        formulas.renders.load(),
+                        badges.renders.load()
+                    ]
+                images.refresh()
+                step.value = 2
+            }
+            case 2 -> {
+                assertCounts()
+                trial = true
+                holdNext = true
+                step.value = 3
+                scope!!.requestLayout()
+            }
+            case 3 -> {
+                assertCounts()
+                assertTrue(tried)
+                assertEquals(1L, diagrams.requests().size)
+                observer.snapshot(badges.requests()[0L]).use {
+                    snapshot -> retainedImage = Some(readyImage(snapshot).image)
+                }
+                images.close()
+                assertFalse(retainedImage!!.isClosed)
+                step.value = 4
+            }
+            case 4 -> {
+                assertFalse(retainedImage!!.isClosed)
+                heldFrame!!.close()
+                heldFrame = None
+                assertTrue(retainedImage!!.isClosed)
+                assertFalse(editor.isClosed)
+                assertFalse(parser.isClosed)
+                finished = true
+                active.requestExit()
+            }
+            else -> throw IllegalStateException(Some("Unexpected image window step"))
+        }
+    }
+
+    private fun assertCounts() {
+        assertEquals(counts[0L], fileImages.renders.load())
+        assertEquals(counts[1L], diagrams.renders.load())
+        assertEquals(counts[2L], formulas.renders.load())
+        assertEquals(counts[3L], badges.renders.load())
+    }
+    private fun dump() {
+        println(
+            "focused=" +
+                window!!.isFocused.toString() +
+                ", occluded=" +
+                window!!.isOccluded.toString() +
+                ", required=" +
+                frames!!.snapshot().required.toString() +
+                ", accepted=" +
+                accepted.toString() +
+                ", painted=" +
+                painted.toString() +
+                ", closedJob=" +
+                renderer.finishedClosing.load().toString()
+        )
+        println(
+            "image revision=" +
+                images.revision.toString() +
+                ", parser pending=" +
+                parser.isPending.toString()
+        )
+        when (parser.status) {
+            case MarkdownParseState.Failed(_, val failure, _) -> reportImageFailure(failure);
+            else -> Unit
+        }
+        dumpImages("file", fileImages);
+        dumpImages("mermaid", diagrams);
+        dumpImages("math", formulas);
+        dumpImages("custom", badges)
+    }
+    private fun dumpImages(name: String, counted: CountImages) {
+        println(
+            name +
+                ": " +
+                counted.renders.load().toString() +
+                " renders, " +
+                counted.requests().size.toString() +
+                " requests"
+        )
+        if (images.isClosed)
+            return
+        for (request in counted.requests())
+            observer.snapshot(request).use {
+                snapshot -> when (snapshot.status) {
+                    case MarkdownImageStatus.Ready(_) -> println("ready")
+                    case MarkdownImageStatus.Failed(val failure, _) -> reportImageFailure(failure)
+                    case MarkdownImageStatus.Pending(_) -> println("pending")
+                    case MarkdownImageStatus.MissingRenderer -> println("missing")
+                }
+            }
+    }
+    public override fun close() {
+        heldFrame?.close();
+        queue.close();
+        observer.close();
+        images.close();
+        parser.close();
+        editor.close();
+        fonts.close()
+    }
+    fun closeCounters() {
+        fileImages.close();
+        diagrams.close();
+        formulas.close();
+        badges.close()
+    }
+}
+
+private class ImageRoot(val probe: ImageWindowProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.scope = Some(scope)
+    }
+    public override fun render(): View {
+        probe.parser.status
+        return element(probe.step.value, { props, owner -> ImageField(probe, props, owner) })
+    }
+}
+
+private class ImageField(val probe: ImageWindowProbe, val step: Props<Int>, scope: ComponentScope):
+Element<MarkdownPreviewMeasurement>(scope) {
+    val field =
+        scope.resource {
+            MarkdownPreviewHost(scope, probe.parser, probe.style, probe.options, Some(probe.fonts))
+        }
+    public override fun onMount() {
+        probe.field = Some(field);
+        update();
+        probe.parser.start()
+    }
+    public override fun update(): UiInvalidation {
+        field.update(
+            probe.parser,
+            probe.style,
+            probe.options,
+            fonts = Some(probe.fonts),
+            images = Some(probe.images),
+            documentUri = probe.files.mainUri,
+            onSource = { value -> probe.sourceRange = Some(value) }
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        if (probe.trial) {
+            probe.trial = false
+            val accepted = field.measurement
+            field.measure(context, Constraints.tight(Size(120.0, 180.0))).close()
+            assertSame(accepted!!, field.measurement!!)
+            probe.tried = true
+        }
+        val result = field.measure(context, constraints)
+        if (probe.holdNext) {
+            probe.holdNext = false
+            probe.heldFrame = Some(field.measure(context, constraints))
+        }
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, measured: MarkdownPreviewMeasurement) {
+        field.scene(context, measured)
+        if (!probe.painted && step.value > 0)
+            context.draw {
+                paint -> for (x in 20 ..< 70)
+                    for (y in 20 ..< 55) {
+                        val pixel = imagePixel(paint.canvas, x.toDouble(), y.toDouble())
+                        val red = pixel % 256L
+                        val green = pixel / 256L % 256L
+                        val blue = pixel / 65536L % 256L
+                        if (pixel >= 0L && (red != green || green != blue))
+                            probe.painted = true
+                    }
+            }
+        val ticket = step.value
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+        }
+    }
+}
+
+private fun imagePixel(canvas: Canvas, x: Double, y: Double): Long {
+    @Unsafe
+    {
+        return canvas.withSkiaCanvas {
+            pointer -> @Unsafe
+            {
+                return@withSkiaCanvas readNativePixel(pointer, x, y)
+            }
+        }
+    }
+}
+
+private fun reportImageFailure(failure: Throwable) {
+    if (failure is ResourceUseException) {
+        reportImageFailure(failure.primaryFailure);
+        reportImageFailure(failure.cleanupFailure)
+    } else {
+        if (failure is AssertionFailure)
+            println(
+                failure.location.file +
+                    ":" +
+                    failure.location.line.toString() +
+                    ": " +
+                    (failure.message ?: "assertion")
+            )
+        else
+            if (failure is Exception)
+                println(failure.message ?: "failure")
+        failure.printStackTrace()
+    }
+}

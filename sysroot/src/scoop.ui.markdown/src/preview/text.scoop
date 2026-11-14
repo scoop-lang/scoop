@@ -8,12 +8,6 @@ import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.Utf8Range
 
-internal class MdPreviewObjectText(
-    val key: InlineKey,
-    val layout: TextLayout,
-    val paintKey: PaintKey
-)
-
 /** Owned only by one retained row resource; native text never crosses a worker boundary. */
 internal class MdPreviewText(
     val layout: TextLayout,
@@ -24,7 +18,7 @@ internal class MdPreviewText(
     public override fun close() {
         layout.close()
         for (objectText in objects)
-            objectText.layout.close()
+            objectText.label?.close()
     }
 }
 
@@ -35,7 +29,9 @@ internal fun mdPreviewText(
     base: TextStyle,
     settings: ParagraphStyle,
     width: Double?,
-    tabSize: Int
+    tabSize: Int,
+    images: MdPreviewImages,
+    cell: Long
 ): MdPreviewText {
     val display = mdSourceDisplay(text.text, tabSize)
     val objects = ArrayList<MdPreviewObjectText>()
@@ -67,21 +63,23 @@ internal fun mdPreviewText(
                         }
                         case Some(val value) -> {
                             val key = InlineKey.Number(index)
-                            val label =
-                                mdPreviewLabel(
+                            val objectText =
+                                mdPreviewObject(
                                     fonts,
-                                    mdDisplayObjectText(value),
-                                    style.code,
-                                    Some(max(1.0, (width ?: 640.0) - 8.0))
+                                    key,
+                                    value,
+                                    images.at(cell, index),
+                                    style,
+                                    width ?: 640.0
                                 )
-                            objects.add(MdPreviewObjectText(key, label, PaintKey()))
+                            objects.add(objectText)
                             metrics.add(
                                 InlineMetrics(
                                     key,
-                                    Size(label.size.width + 8.0, label.size.height + 4.0),
+                                    objectText.size,
                                     InlineAlignment.Baseline(
                                         TextBaseline.Alphabetic,
-                                        label.alphabeticBaseline + 2.0
+                                        objectText.baseline
                                     )
                                 )
                             )
@@ -100,7 +98,7 @@ internal fun mdPreviewText(
         return MdPreviewText(layout, display, PaintKey(), objects.toArray())
     } catch (failure: Throwable) {
         for (item in objects)
-            item.layout.close()
+            item.label?.close()
         throw failure
     }
 }

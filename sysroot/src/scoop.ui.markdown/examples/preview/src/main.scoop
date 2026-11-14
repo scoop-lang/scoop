@@ -3,37 +3,83 @@ package scoop.examples.markdown.preview
 import scoop.concurrent.multiThreadExecutor
 import scoop.markdown.*
 import scoop.platform.fs.*
+import scoop.platform.env.currentDirectory
+import scoop.platform.process.*
 import scoop.ui.*
 import scoop.ui.markdown.*
 import scoop.window.*
+import scoop.url.*
 
 private class PreviewWindow(
     editor: MarkdownEditorState,
     workers: CoroutineExecutor,
+    renderers: List<MarkdownImageRenderer>,
+    val documentUri: String,
     scope: ComponentScope
 ): Component(scope) {
     private val parser =
         scope.resource { MarkdownParseController(editor, workers, scope.application.proxy()) }
+    private val images =
+        scope.resource { MarkdownImageController(workers, scope.application.proxy(), renderers) }
     public override fun render(): View =
-        markdownPreview(parser, onOpenLink = { destination -> println(destination) })
+        markdownPreview(
+            parser,
+            onOpenLink = { destination -> println(destination) },
+            images = Some(images),
+            documentUri = documentUri
+        )
 }
 
 fun main(args: Array<String>) {
-    if (args.size != 1L) {
-        println("Usage: markdown-preview <markdown-file>")
+    if (args.size == 0L) {
+        println(
+            "Usage: markdown-preview <markdown-file> [--mermaid <mmdc>] [--mathjax <node> <@mathjax/src> <rsvg-convert>]"
+        )
         return
     }
-    val editor =
-        MarkdownEditorState(MarkdownDocument.fromText(Path.fromString(args[0L]).readText()))
+    val file = currentDirectory().resolve(Path.fromString(args[0L])).normalizeLexically()
+    val documentUri =
+        url {
+            scheme = Some("file");
+            host("");
+            path(file.toOsString().decodeUtf8())
+        }.toString()
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(file.readText()))
+    val renderers = ArrayList<MarkdownImageRenderer>()
+    renderers.add(MarkdownFileImageRenderer())
     val workers =
         multiThreadExecutor {
             workers = 1;
             blocking { threads = 1 }
         }
     try {
+        var index = 1L
+        while (index < args.size) {
+            if (args[index] == "--mermaid" && index + 1L < args.size) {
+                renderers.add(
+                    MarkdownMermaidImageRenderer(
+                        command(Path.fromString(args[index + 1L])),
+                        "configured-mmdc"
+                    )
+                )
+                index += 2L
+            } else
+                if (args[index] == "--mathjax" && index + 3L < args.size) {
+                    renderers.add(
+                        MarkdownMathJaxImageRenderer(
+                            command(Path.fromString(args[index + 1L])),
+                            Path.fromString(args[index + 2L]),
+                            command(Path.fromString(args[index + 3L])),
+                            "configured-mathjax-rsvg"
+                        )
+                    )
+                    index += 4L
+                } else
+                    throw IllegalArgumentException(Some("Invalid preview arguments"))
+        }
         runUiApplication(
             "Markdown preview — " + args[0L],
-            { scope -> PreviewWindow(editor, workers, scope) }
+            { scope -> PreviewWindow(editor, workers, renderers, documentUri, scope) }
         )
     } finally {
         workers.close()

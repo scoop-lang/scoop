@@ -1,0 +1,128 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.markdown.MarkdownAttribute
+
+public enum MarkdownImageKind: Equals<MarkdownImageKind>, Hash {
+    Resource, Code(String), Extension(String)
+
+    public override operator fun equals(other: MarkdownImageKind): Boolean =
+        when ((this, other)) {
+            case(Resource, Resource) -> true
+            case(Code(val a), Code(val b)) -> a == b
+            case(Extension(val a), Extension(val b)) -> a == b
+            else -> false
+        }
+    public override fun hash(): Long =
+        when (this) {
+            case Resource -> 0L
+            case Code(val value) -> value.hash().xor(1L)
+            case Extension(val value) -> value.hash().xor(2L)
+        }
+}
+
+/** Complete rendering inputs; source is a URI for Resource and a body for other kinds. */
+public class MarkdownImageRequest public constructor(
+    public val kind: MarkdownImageKind,
+    public val source: String,
+    public val documentUri: String,
+    public val availableWidth: Double,
+    public val displayScale: Double = 1.0,
+    public val fontSize: Double = 16.0,
+    public val foreground: Color = Color.Black,
+    public val background: Color = Color.White,
+    public val inlineContent: Boolean = false,
+    public val info: String = "",
+    attributes: List<MarkdownAttribute> = []
+): Equals<MarkdownImageRequest>, Hash {
+    public val attributes: Array<MarkdownAttribute> = attributes.toArray()
+    private val hashValue = kind.hash().xor(source.hash()).xor(documentUri.hash()).xor(info.hash())
+    init {
+        if (
+            !availableWidth.isFinite() ||
+                availableWidth <
+                0.0 ||
+                !displayScale.isFinite() ||
+                displayScale <=
+                0.0 ||
+                !fontSize.isFinite() ||
+                fontSize <=
+                0.0
+        )
+            throw IllegalArgumentException(Some("Invalid Markdown image request geometry"))
+    }
+    public override operator fun equals(other: MarkdownImageRequest): Boolean =
+        kind ==
+            other.kind &&
+            source ==
+            other.source &&
+            documentUri ==
+            other.documentUri &&
+            availableWidth ==
+            other.availableWidth &&
+            displayScale ==
+            other.displayScale &&
+            fontSize ==
+            other.fontSize &&
+            foreground ==
+            other.foreground &&
+            background ==
+            other.background &&
+            inlineContent ==
+            other.inlineContent &&
+            info ==
+            other.info &&
+            mdImageSameAttributes(attributes, other.attributes)
+    public override fun hash(): Long = hashValue
+}
+
+private fun mdImageSameAttributes(
+    a: Array<MarkdownAttribute>,
+    b: Array<MarkdownAttribute>
+): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}
+
+public enum MarkdownImageSizing {
+    Logical(Size), PixelScale(Double)
+}
+
+/** Encoded bytes cross the worker boundary; native images are created only on the owner. */
+public class MarkdownImageData public constructor(
+    encoded: List<Byte>,
+    public val version: String,
+    public val sizing: MarkdownImageSizing = MarkdownImageSizing.PixelScale(1.0),
+    public val baseline: Double? = None,
+    public val alternateText: String = ""
+) {
+    public val encoded: Array<Byte> = encoded.toArray()
+}
+
+/** Calls are serialized on the executor's blocking pool, without a fixed thread identity. */
+public interface MarkdownImageRenderer {
+    public val kind: MarkdownImageKind
+    public fun version(request: MarkdownImageRequest): String?
+    public fun render(request: MarkdownImageRequest): MarkdownImageData
+}
+
+public class MarkdownImageException public constructor(message: String): Exception(Some(message))
+
+/** Pixels are borrowed from the containing snapshot and must not be closed separately. */
+public class MarkdownRenderedImage internal constructor(
+    public val image: Image,
+    public val size: Size,
+    public val baseline: Double?,
+    public val alternateText: String
+)
+
+public enum MarkdownImageStatus {
+    MissingRenderer,
+    Pending(MarkdownRenderedImage?),
+    Ready(MarkdownRenderedImage),
+    Failed(Throwable, MarkdownRenderedImage?)
+}

@@ -1,0 +1,93 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.platform.concurrent.currentThreadId
+
+internal class MdImageOwned(val value: MarkdownRenderedImage, val version: String) {
+    private val thread = currentThreadId()
+    private var owners = 1L
+    fun retain(): MdImageOwned {
+        checkThread()
+        owners += 1L
+        return this
+    }
+    fun release() {
+        checkThread()
+        owners -= 1L
+        if (owners == 0L)
+            value.image.close()
+    }
+    private fun checkThread() {
+        if (thread != currentThreadId())
+            throw IllegalStateException(Some("Markdown image snapshot requires its owner thread"))
+    }
+}
+
+/** Keeps exactly this generation's native pixels alive through later cache changes or closure. */
+public class MarkdownImageSnapshot internal constructor(
+    public val status: MarkdownImageStatus,
+    public val generation: Long,
+    private val owner: MdImageOwned?
+): Closeable {
+    private val thread = currentThreadId()
+    private var closed = false
+    public val isClosed: Boolean get() = closed
+    public fun retain(): MarkdownImageSnapshot {
+        checkOpen()
+        return MarkdownImageSnapshot(status, generation, owner?.retain())
+    }
+    private fun checkOpen() {
+        if (thread != currentThreadId())
+            throw IllegalStateException(Some("Markdown image snapshot requires its owner thread"))
+        if (closed)
+            throw IllegalStateException(Some("Markdown image snapshot is closed"))
+    }
+    public override fun close() {
+        if (thread != currentThreadId())
+            throw IllegalStateException(Some("Markdown image snapshot requires its owner thread"))
+        if (closed)
+            return
+        closed = true
+        owner?.release()
+    }
+}
+
+internal fun mdDecodeMarkdownImage(
+    data: MarkdownImageData,
+    request: MarkdownImageRequest
+): MdImageOwned {
+    val image = Image.decode(data.encoded)
+    try {
+        val size =
+            when (data.sizing) {
+                case MarkdownImageSizing.Logical(val size) -> size
+                case MarkdownImageSizing.PixelScale(val scale) -> {
+                    if (!scale.isFinite() || scale <= 0.0)
+                        throw MarkdownImageException("Invalid rendered image pixel scale")
+                    Size(image.width.toDouble() / scale, image.height.toDouble() / scale)
+                }
+            }
+        if (
+            !size.width.isFinite() ||
+                !size.height.isFinite() ||
+                size.width <=
+                0.0 ||
+                size.height <=
+                0.0
+        )
+            throw MarkdownImageException("Invalid rendered image logical size")
+        when (data.baseline) {
+            case Some(val baseline) -> if (!baseline.isFinite())
+                throw MarkdownImageException("Invalid rendered image baseline")
+            case None -> if (request.inlineContent && request.kind != MarkdownImageKind.Resource)
+                throw MarkdownImageException("An inline extension image must provide its baseline")
+        }
+        return MdImageOwned(
+            MarkdownRenderedImage(image, size, data.baseline, data.alternateText),
+            data.version
+        )
+    } catch (failure: Throwable) {
+        image.close()
+        throw failure
+    }
+}

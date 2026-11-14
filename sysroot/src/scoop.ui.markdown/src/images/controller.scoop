@@ -1,0 +1,290 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.ui.*
+import scoop.window.ApplicationProxy
+
+private enum MdImagePhase {
+    Pending, Ready, Failed(Throwable)
+}
+
+private class MdImageEntry(
+    val request: MarkdownImageRequest,
+    val renderer: MarkdownImageRenderer,
+    var generation: Long,
+    var job: MdImageJob?,
+    var phase: MdImagePhase = MdImagePhase.Pending,
+    var image: MdImageOwned? = None
+)
+
+/** Shared image work and owner-thread resources, retained only while visible leases need them. */
+public class MarkdownImageController public constructor(
+    private val executor: CoroutineExecutor,
+    proxy: ApplicationProxy,
+    renderers: List<MarkdownImageRenderer>
+): Closeable {
+    private val signal = state(0L)
+    private var generation = 0L
+    private var closed = false
+    private val renderers = HashMap<MarkdownImageKind, MarkdownImageRenderer>()
+    private val leases = ArrayList<MarkdownImageLease>()
+    private val entries = HashMap<MarkdownImageRequest, MdImageEntry>()
+    private val queue = MdImageQueue(proxy, { deliver() })
+    init {
+        for (renderer in renderers) {
+            val kind = renderer.kind
+            if (this.renderers.containsKey(kind))
+                throw IllegalArgumentException(Some("Duplicate Markdown image renderer kind"))
+            this.renderers[kind] = renderer
+        }
+    }
+
+    /** Reads participate in ordinary UI state tracking. */
+    public val revision: Long get() = signal.value
+    public val isClosed: Boolean get() {
+        signal.value;
+        return closed
+    }
+
+    public fun bind(): MarkdownImageLease {
+        checkMutation()
+        val lease = MarkdownImageLease(this)
+        leases.add(lease)
+        return lease
+    }
+
+    internal fun checkRead() {
+        signal.value
+        if (closed)
+            throw IllegalStateException(Some("Markdown image controller is closed"))
+    }
+    private fun checkMutation() {
+        signal.checkMutation()
+        if (closed)
+            throw IllegalStateException(Some("Markdown image controller is closed"))
+    }
+    private fun nextGeneration(): Long {
+        generation += 1L;
+        return generation
+    }
+    private fun publish() {
+        signal.value = generation
+        for (lease in leases)
+            lease.invalidate()
+    }
+
+    internal fun snapshot(request: MarkdownImageRequest): MarkdownImageSnapshot {
+        checkRead()
+        if (!renderers.containsKey(request.kind))
+            return MarkdownImageSnapshot(MarkdownImageStatus.MissingRenderer, 0L, None)
+        val entry =
+            entries[request] ?:
+                return MarkdownImageSnapshot(MarkdownImageStatus.Pending(None), 0L, None)
+        val status =
+            when (entry.phase) {
+                case MdImagePhase.Pending -> MarkdownImageStatus.Pending(entry.image?.value)
+                case MdImagePhase.Ready -> MarkdownImageStatus.Ready(entry.image!!.value)
+                case MdImagePhase.Failed(val failure) -> MarkdownImageStatus.Failed(
+                    failure,
+                    entry.image?.value
+                )
+            }
+        return MarkdownImageSnapshot(status, entry.generation, entry.image?.retain())
+    }
+
+    internal fun show(lease: MarkdownImageLease, requests: List<MarkdownImageRequest>) {
+        checkMutation()
+        lease.requests = requests.toArray()
+        reconcile()
+    }
+
+    internal fun remove(lease: MarkdownImageLease) {
+        signal.checkMutation()
+        lease.retire()
+        if (closed)
+            return
+        for (index in 0L ..< leases.size)
+            if (leases[index] === lease) {
+                leases.removeAt(index)
+                break
+            }
+        reconcile()
+    }
+
+    private fun reconcile() {
+        val wanted = HashSet<MarkdownImageRequest>()
+        for (lease in leases)
+            for (request in lease.requests)
+                wanted.add(request)
+        var changed = false
+        val removed = ArrayList<MarkdownImageRequest>()
+        for (entry in entries)
+            if (!wanted.contains(entry.key))
+                removed.add(entry.key)
+        for (key in removed) {
+            entries[key]!!.image?.release()
+            entries.remove(key)
+            nextGeneration()
+            changed = true
+        }
+        for (request in wanted) {
+            if (entries.containsKey(request))
+                continue
+            val renderer = renderers[request.kind] ?: continue
+            val job = MdImageJob(request, renderer, None)
+            entries[request] = MdImageEntry(request, renderer, nextGeneration(), Some(job))
+            changed = true
+        }
+        if (changed)
+            publish()
+        submit()
+    }
+
+    /** Checks current versions before reading or rendering; failed requests can retry. */
+    public fun refresh() {
+        checkMutation()
+        for (entry in entries) {
+            val value = entry.value
+            val version =
+                when (value.phase) {
+                    case MdImagePhase.Ready -> value.image?.version
+                    else -> None
+                }
+            value.job = Some(MdImageJob(value.request, value.renderer, version))
+            value.phase = MdImagePhase.Pending
+            value.generation = nextGeneration()
+        }
+        publish()
+        submit()
+    }
+
+    private fun submit() {
+        if (closed)
+            return
+        val jobs = ArrayList<MdImageJob>()
+        for (entry in entries)
+            when (entry.value.job) {
+                case Some(val job) -> jobs.add(job)
+                case None -> Unit
+            }
+        if (!queue.update(jobs.toArray()))
+            return
+        try {
+            val task = executor.registerTask(None)
+            try {
+                task.dispatchBlocking(MdImageWork(queue, task))
+            } catch (failure: Throwable) {
+                task.complete()
+                throw failure
+            }
+        } catch (failure: Throwable) {
+            queue.startFailed()
+            for (entry in entries) {
+                val value = entry.value
+                when (value.job) {
+                    case Some(_) -> {
+                        value.job = None
+                        value.phase = MdImagePhase.Failed(failure)
+                        value.generation = nextGeneration()
+                    }
+                    case None -> Unit
+                }
+            }
+            publish()
+        }
+    }
+
+    private fun deliver() {
+        signal.checkMutation()
+        if (closed)
+            return
+        var changed = false
+        for (completion in queue.receive()) {
+            val entry = entries[completion.job.request] ?: continue
+            val current = entry.job ?: continue
+            if (current !== completion.job)
+                continue
+            entry.job = None
+            try {
+                when (completion.outcome) {
+                    case MdImageOutcome.Unchanged -> {
+                        when (entry.image) {
+                            case Some(_) -> entry.phase = MdImagePhase.Ready
+                            case None -> throw IllegalStateException(
+                                Some("Unchanged image result has no retained pixels")
+                            )
+                        }
+                    }
+                    case MdImageOutcome.Value(val data) -> {
+                        val decoded = mdDecodeMarkdownImage(data, entry.request)
+                        entry.image?.release()
+                        entry.image = Some(decoded)
+                        entry.phase = MdImagePhase.Ready
+                    }
+                    case MdImageOutcome.Failure(val failure) -> entry.phase =
+                        MdImagePhase.Failed(failure)
+                }
+            } catch (failure: Throwable) {
+                entry.phase = MdImagePhase.Failed(failure)
+            }
+            entry.generation = nextGeneration()
+            changed = true
+        }
+        if (changed)
+            publish()
+        submit()
+    }
+
+    public override fun close() {
+        signal.checkMutation()
+        if (closed)
+            return
+        closed = true
+        for (lease in leases) {
+            lease.invalidate()
+            lease.retire()
+        }
+        leases.clear()
+        queue.close()
+        for (entry in entries)
+            entry.value.image?.release()
+        entries.clear()
+        nextGeneration()
+        publish()
+    }
+}
+
+/** A visible consumer declares requests only after its frame has been accepted. */
+public class MarkdownImageLease internal constructor(
+    private val controller: MarkdownImageController
+): Closeable {
+    internal var requests: Array<MarkdownImageRequest> = []
+    internal var onChanged: (() -> Unit)? = None
+    private var closed = false
+    public fun snapshot(request: MarkdownImageRequest): MarkdownImageSnapshot {
+        checkOpen()
+        return controller.snapshot(request)
+    }
+    public fun show(requests: List<MarkdownImageRequest>) {
+        checkOpen()
+        controller.show(this, requests)
+    }
+    private fun checkOpen() {
+        controller.checkRead()
+        if (closed)
+            throw IllegalStateException(Some("Markdown image lease is closed"))
+    }
+    internal fun retire() {
+        closed = true;
+        requests = []
+        onChanged = None
+    }
+    internal fun invalidate() {
+        onChanged?.invoke()
+    }
+    public override fun close() {
+        if (closed)
+            return
+        controller.remove(this)
+    }
+}

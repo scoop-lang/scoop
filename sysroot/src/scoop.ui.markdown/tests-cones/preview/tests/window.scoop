@@ -115,6 +115,16 @@ internal class PreviewProbe(workers: CoroutineExecutor, proxy: ApplicationProxy)
                 native.requestFocus()
                 host.attach(native, { owner -> PreviewRoot(this, owner) })
                 native.createDeadline {
+                    println(
+                        "focused=" +
+                            native.isFocused.toString() +
+                            ", occluded=" +
+                            native.isOccluded.toString() +
+                            ", accepted=" +
+                            accepted.toString() +
+                            ", required=" +
+                            frames!!.snapshot().required.toString()
+                    )
                     fail(Some("Preview test timeout at " + step.value.toString()))
                 }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
             }
@@ -142,18 +152,19 @@ internal class PreviewProbe(workers: CoroutineExecutor, proxy: ApplicationProxy)
     }
 
     private fun ready(): Boolean {
-        if (window!!.isOccluded || !window!!.isFocused || frames!!.snapshot().required)
+        // This preview exercises direct commands and logical focus, without native key input.
+        if (window!!.isOccluded || frames!!.snapshot().required)
             return false
         if (step.value >= 10) {
             val current = displayed.value.current
             return when (current) {
-                case Some(_) -> publicFocus.isFocusActive &&
+                case Some(_) -> publicFocus.hasFocus &&
                     frames!!.snapshot().presentations >
                     previousPresentations
                 case None -> false
             }
         }
-        if (accepted != step.value || !field!!.area.isFocusActive)
+        if (accepted != step.value || !field!!.focus.handle.hasFocus)
             return false
         return when ((field!!.measurement?.parsed ?: None, parser.current)) {
             case(Some(val shown), Some(val current)) -> shown === current

@@ -7,6 +7,47 @@ import scoop.text.repeat
 @Test
 private class MarkdownProjectionTests {
     @Test
+    fun imageBlocksAreExplicitAndRetainTheirCompleteSourceRanges() {
+        val source =
+            "```mermaid title\r\nflowchart LR\r\n A --> B\r\n```\r\n\r\n$$\nx^2\n$$\n\n---\n"
+        val snapshot = MarkdownDocument.fromText(source).snapshot()
+        val parsed = parseMarkdown(snapshot, MarkdownProfile.Editor)
+        val projected = mdProjectMarkdown(parsed)
+        assertEquals(3L, projected.rows.size)
+        val code = projected.rows[0L]
+        assertTrue(
+            when (code.kind) {
+                case MdDisplayKind.ImageBlock -> true;
+                else -> false
+            }
+        )
+        assertEquals(parsed.root.children[0L].range, code.range)
+        val text = code.cells[0L]
+        assertEquals("\u{fffc}", text.text)
+        assertEquals(code.range.start, text.sourceAt(0L).byteOffset)
+        assertEquals(code.range.end, text.sourceAt(3L).byteOffset)
+        assertEquals("flowchart LR\n A --> B\n", mdDisplayObjectText(text.runs[0L].objectValue!!))
+        when (text.runs[0L].objectValue) {
+            case Some(MdDisplayObject.Block(val kind, val body, val info)) -> {
+                assertEquals(MarkdownImageKind.Code("mermaid"), kind)
+                assertEquals("flowchart LR\n A --> B\n", body.text)
+                assertEquals("mermaid title", info)
+            }
+            else -> fail(Some("Expected a mapped image block"))
+        }
+        assertTrue(
+            when (projected.rows[1L].cells[0L].runs[0L].objectValue) {
+                case Some(MdDisplayObject.Extension(val value)) -> value.name == "math"
+                else -> false
+            }
+        )
+        val raw = mdProjectMarkdown(parsed, imageCodeLanguages = [], imageExtensions = [])
+        assertTrue(raw.rows.size > projected.rows.size)
+        assertEquals("flowchart LR", raw.rows[0L].cells[0L].text)
+        assertEquals(source, snapshot.toMarkdown())
+    }
+
+    @Test
     fun decodedTextKeepsHiddenDelimitersEntitiesBreaksAndAtomicObjects() {
         val input = "**A &amp; B** and `x  y`  \r\nnext ![中](image.png) $x+1$"
         val parsed =

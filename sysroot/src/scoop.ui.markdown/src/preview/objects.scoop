@@ -1,0 +1,126 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.text.*
+import scoop.markdown.MarkdownExtensionLocation
+
+internal class MdPreviewObjectText(
+    val key: InlineKey,
+    val label: TextLayout?,
+    val labelOrigin: Point,
+    val image: MarkdownRenderedImage?,
+    val imageSize: Size,
+    val size: Size,
+    val baseline: Double,
+    val paintKey: PaintKey
+)
+
+internal fun mdPreviewObject(
+    fonts: FontCollection,
+    key: InlineKey,
+    value: MdDisplayObject,
+    snapshot: MarkdownImageSnapshot?,
+    style: MarkdownPreviewStyle,
+    width: Double
+): MdPreviewObjectText {
+    val status = snapshot?.status ?: MarkdownImageStatus.MissingRenderer
+    val image =
+        when (status) {
+            case MarkdownImageStatus.Ready(val ready) -> Some(ready)
+            case MarkdownImageStatus.Pending(val previous) -> previous
+            case MarkdownImageStatus.Failed(_, val previous) -> previous
+            case MarkdownImageStatus.MissingRenderer -> None
+        }
+    val message =
+        when (status) {
+            case MarkdownImageStatus.Ready(_) -> None
+            case MarkdownImageStatus.Pending(_) -> Some("Loading image…")
+            case MarkdownImageStatus.Failed(val failure, _) -> Some(
+                "Image error: " + mdImageFailureMessage(failure)
+            )
+            case MarkdownImageStatus.MissingRenderer -> Some(mdPreviewObjectLabel(value))
+        }
+    val label =
+        when (message) {
+            case Some(val text) -> Some(
+                mdPreviewLabel(fonts, text, style.code, Some(max(1.0, width - 8.0)))
+            )
+            case None -> None
+        }
+    val imageSize =
+        when (image) {
+            case Some(val ready) -> {
+                val ratio = min(1.0, width / ready.size.width)
+                Size(ready.size.width * ratio, ready.size.height * ratio)
+            }
+            case None -> Size(0.0, 0.0)
+        }
+    val labelOrigin = Point(4.0, imageSize.height + 2.0)
+    val size =
+        when (label) {
+            case Some(val text) -> Size(
+                max(imageSize.width, text.size.width + 8.0),
+                imageSize.height + text.size.height + 4.0
+            )
+            case None -> imageSize
+        }
+    val baseline =
+        when (image) {
+            case Some(val ready) -> (ready.baseline ?: ready.size.height) *
+                imageSize.width /
+                ready.size.width
+            case None -> label!!.alphabeticBaseline + 2.0
+        }
+    return MdPreviewObjectText(
+        key,
+        label,
+        labelOrigin,
+        image,
+        imageSize,
+        size,
+        baseline,
+        PaintKey()
+    )
+}
+
+private fun mdImageFailureMessage(failure: Throwable): String {
+    val message =
+        if (failure is Exception)
+            failure.message ?: "Rendering failed"
+        else
+            "Rendering failed"
+    val line = message.indexOf("\n")
+    val end =
+        if (line < 0L)
+            message.charLength
+        else
+            line
+    val count =
+        if (end > 160L)
+            160L
+        else
+            end
+    return message.substring(0L, count) +
+        if (count < message.charLength)
+            "…"
+        else
+            ""
+}
+
+private fun mdPreviewObjectLabel(value: MdDisplayObject): String =
+    when (value) {
+        case MdDisplayObject.Block(val kind, _, _) -> when (kind) {
+            case MarkdownImageKind.Code(val language) -> language
+            case MarkdownImageKind.Extension(val name) -> name
+            case MarkdownImageKind.Resource -> "Image"
+        }
+        case MdDisplayObject.Extension(val extension) -> when (extension.location) {
+            case MarkdownExtensionLocation.Block -> extension.name
+            else -> extension.source.text
+        }
+        else -> mdDisplayObjectText(value)
+    }

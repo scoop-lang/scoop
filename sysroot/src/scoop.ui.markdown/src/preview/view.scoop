@@ -11,7 +11,9 @@ private class MdPreviewProps(
     val fonts: FontCollection?,
     val focus: FocusOptions,
     val openLink: (String) -> Unit,
-    val source: (MarkdownRange) -> Unit
+    val source: (MarkdownRange) -> Unit,
+    val images: MarkdownImageController?,
+    val documentUri: String
 )
 
 public fun markdownPreview(
@@ -21,10 +23,22 @@ public fun markdownPreview(
     fonts: FontCollection? = None,
     focus: FocusOptions = FocusOptions(),
     onOpenLink: (String) -> Unit = { _ -> Unit },
-    onSource: (MarkdownRange) -> Unit = { _ -> Unit }
+    onSource: (MarkdownRange) -> Unit = { _ -> Unit },
+    images: MarkdownImageController? = None,
+    documentUri: String = ""
 ): View =
     component(
-        MdPreviewProps(controller, style, options, fonts, focus, onOpenLink, onSource),
+        MdPreviewProps(
+            controller,
+            style,
+            options,
+            fonts,
+            focus,
+            onOpenLink,
+            onSource,
+            images,
+            documentUri
+        ),
         { props, scope -> MdPreviewComponent(props, scope) }
     )
 
@@ -65,7 +79,9 @@ private class MdPreviewElement(val props: Props<MdPreviewProps>, scope: Componen
             input.focus,
             input.fonts,
             input.openLink,
-            input.source
+            input.source,
+            input.images,
+            input.documentUri
         )
         if (!input.controller.isClosed)
             input.controller.start()

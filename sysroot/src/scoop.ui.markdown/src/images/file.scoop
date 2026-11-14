@@ -1,0 +1,77 @@
+package scoop.ui.markdown
+
+import scoop.platform.env.currentDirectory
+import scoop.platform.fs.*
+import scoop.platform.io.readAllBytes
+import scoop.platform.system.*
+import scoop.url.*
+
+/** Loads local file URIs and relative image references, without network access. */
+public class MarkdownFileImageRenderer public constructor(
+    private val baseDirectory: Path = currentDirectory()
+): MarkdownImageRenderer {
+    public override val kind = MarkdownImageKind.Resource
+    init {
+        if (!baseDirectory.isAbsolute)
+            throw IllegalArgumentException(Some("Image base directory must be absolute"))
+    }
+    public override fun version(request: MarkdownImageRequest): String? {
+        try {
+            return Some(mdImageFileVersion(path(request).metadata()))
+        } catch (failure: PlatformException) {
+            if (
+                failure.kind ==
+                    PlatformErrorKind.NotFound ||
+                    failure.kind ==
+                    PlatformErrorKind.NotDirectory
+            )
+                return None
+            throw failure
+        }
+    }
+    public override fun render(request: MarkdownImageRequest): MarkdownImageData {
+        val file = path(request)
+        return File.open(file).use {
+            input ->
+            val version = mdImageFileVersion(input.metadata())
+            MarkdownImageData(input.readAllBytes(), version, alternateText = request.source)
+        }
+    }
+    private fun path(request: MarkdownImageRequest): Path {
+        val reference = Url.parse(request.source)
+        val resolved =
+            if (request.documentUri == "")
+                reference
+            else
+                Url.parse(request.documentUri).resolve(reference)
+        if (resolved.scheme != None && resolved.scheme != Some("file"))
+            throw MarkdownImageException("Local image renderer requires a file URI")
+        if (resolved.encodedQuery != None)
+            throw MarkdownImageException("A local image URI cannot contain a query")
+        when (resolved.authority) {
+            case Some(val authority) -> if (
+                (authority.encodedHost != "" && authority.encodedHost != "localhost") ||
+                    authority.encodedUserInfo !=
+                    None ||
+                    authority.port !=
+                    None
+            )
+                throw MarkdownImageException("Local image URI has a nonlocal authority")
+            case None -> Unit
+        }
+        val file =
+            Path.fromOsString(OsString.fromByteArray(PercentEncoding.decode(resolved.encodedPath)))
+        return baseDirectory.resolve(file).normalizeLexically()
+    }
+}
+
+private fun mdImageFileVersion(metadata: FileMetadata): String =
+    metadata.size.toString() +
+        ":" +
+        metadata.modifiedAt.epochSeconds.toString() +
+        ":" +
+        metadata.modifiedAt.nanosecondsOfSecond.toString() +
+        ":" +
+        metadata.changedAt.epochSeconds.toString() +
+        ":" +
+        metadata.changedAt.nanosecondsOfSecond.toString()

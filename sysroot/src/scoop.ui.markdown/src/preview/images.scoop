@@ -1,0 +1,176 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.math.max
+
+internal class MdPreviewImageEntry(
+    val cell: Long,
+    val run: Long,
+    val request: MarkdownImageRequest,
+    val snapshot: MarkdownImageSnapshot
+)
+
+/** A row retains immutable image generations, independent of controller and cache lifetime. */
+internal class MdPreviewImages(val entries: Array<MdPreviewImageEntry>): Closeable {
+    fun same(other: MdPreviewImages): Boolean {
+        if (entries.size != other.entries.size)
+            return false
+        for (index in 0L ..< entries.size) {
+            val a = entries[index]
+            val b = other.entries[index]
+            if (
+                a.cell !=
+                    b.cell ||
+                    a.run !=
+                    b.run ||
+                    a.request !=
+                    b.request ||
+                    a.snapshot.generation !=
+                    b.snapshot.generation
+            )
+                return false
+        }
+        return true
+    }
+
+    fun at(cell: Long, run: Long): MarkdownImageSnapshot? {
+        for (entry in entries)
+            if (entry.cell == cell && entry.run == run)
+                return Some(entry.snapshot)
+        return None
+    }
+
+    public override fun close() {
+        for (entry in entries)
+            entry.snapshot.close()
+    }
+}
+
+private class MdPreviewImageInput(
+    val kind: MarkdownImageKind,
+    val body: MarkdownText,
+    val info: String = "",
+    val attributes: Array<MarkdownAttribute> = []
+)
+
+internal fun mdPreviewColumnWidth(
+    row: MdDisplayRow,
+    width: Double,
+    options: MarkdownPreviewOptions
+): Double {
+    val available = max(40.0, width - row.indent.toDouble() * options.indent)
+    return when (row.kind) {
+        case MdDisplayKind.Table(_, _) -> max(
+            options.minimumColumnWidth,
+            available / row.cells.size.toDouble()
+        )
+        else -> available
+    }
+}
+
+internal fun mdPreviewImages(
+    host: MarkdownPreviewHost,
+    model: MarkdownParsedDocument,
+    row: MdDisplayRow,
+    width: Double
+): MdPreviewImages {
+    val result = ArrayList<MdPreviewImageEntry>()
+    val inset =
+        when (row.kind) {
+            case MdDisplayKind.Table(_, _) -> 6.0;
+            else -> 0.0
+        }
+    val available = max(1.0, mdPreviewColumnWidth(row, width, host.options) - inset * 2.0)
+    val base = mdPreviewBase(host.style, row.kind)
+    val scale = host.scope.nativeWindow.metrics?.scaleFactor ?: 1.0
+    val inlineContent =
+        when (row.kind) {
+            case MdDisplayKind.ImageBlock -> false;
+            else -> true
+        }
+    try {
+        for (cell in 0L ..< row.cells.size) {
+            val text = row.cells[cell]
+            for (run in 0L ..< text.runs.size) {
+                val objectValue = text.runs[run].objectValue ?: continue
+                val input =
+                    when (objectValue) {
+                        case MdDisplayObject.Image(val target, _) -> MdPreviewImageInput(
+                            MarkdownImageKind.Resource,
+                            target.destination
+                        )
+                        case MdDisplayObject.Extension(val value) -> MdPreviewImageInput(
+                            MarkdownImageKind.Extension(value.name),
+                            value.body,
+                            attributes = value.attributes
+                        )
+                        case MdDisplayObject.Block(
+                            val kind,
+                            val body,
+                            val info
+                        ) -> MdPreviewImageInput(kind, body, info)
+                    }
+                val request =
+                    MarkdownImageRequest(
+                        input.kind,
+                        input.body.text,
+                        mdPreviewImageUri(model, input.body, host.documentUri),
+                        available,
+                        scale,
+                        base.fontSize,
+                        base.color,
+                        host.style.background,
+                        inlineContent,
+                        input.info,
+                        input.attributes
+                    )
+                val active =
+                    when (host.imageController) {
+                        case Some(val images) -> !images.isClosed
+                        case None -> false
+                    }
+                val snapshot =
+                    if (active)
+                        host.imageLease!!.snapshot(request)
+                    else
+                        MarkdownImageSnapshot(MarkdownImageStatus.MissingRenderer, 0L, None)
+                result.add(MdPreviewImageEntry(cell, run, request, snapshot))
+            }
+        }
+        return MdPreviewImages(result.toArray())
+    } catch (failure: Throwable) {
+        for (entry in result)
+            entry.snapshot.close()
+        throw failure
+    }
+}
+
+/** A relative image in included Markdown resolves against the included resource's URI. */
+private fun mdPreviewImageUri(
+    model: MarkdownParsedDocument,
+    body: MarkdownText,
+    fallback: String
+): String {
+    val processed = model.processed ?: return fallback
+    val base =
+        if (fallback == "")
+            processed.baseUri
+        else
+            fallback
+    var found: String? = None
+    for (span in body.spans)
+        for (origin in processed.sourceMap.origins(span.sourceRange)) {
+            val uri =
+                when (origin.origin) {
+                    case MarkdownSourceOrigin.Original(_) -> base
+                    case MarkdownSourceOrigin.Generated(_, val uri, _) -> uri ?: base
+                }
+            when (found) {
+                case Some(val previous) -> if (previous != uri)
+                    return base
+                case None -> found = Some(uri)
+            }
+        }
+    return found ?: base
+}

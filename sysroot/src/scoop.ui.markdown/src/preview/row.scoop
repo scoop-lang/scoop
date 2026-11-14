@@ -16,7 +16,8 @@ internal class MdPreviewRowResource(
     val top: Double,
     val bottom: Double,
     val cells: Array<MdPreviewCellResource>,
-    val labels: Array<MdPreviewLabelResource>
+    val labels: Array<MdPreviewLabelResource>,
+    val images: MdPreviewImages
 ) {
     private var owners = 1L
     fun retain(): MdPreviewRowResource {
@@ -30,6 +31,7 @@ internal class MdPreviewRowResource(
                 cell.text.close()
             for (label in labels)
                 label.layout.close()
+            images.close()
         }
     }
 }
@@ -53,10 +55,12 @@ internal class MdPreviewRowCache: Closeable {
     fun measure(
         host: MarkdownPreviewHost,
         context: MeasureContext,
+        model: MarkdownParsedDocument,
         row: MdDisplayRow,
         width: Double
     ): MdPreviewRowResource {
         val nextFonts = host.fonts
+        val images = mdPreviewImages(host, model, row, width)
         val nextDirection =
             if (context.layoutDirection == LayoutDirection.Rtl)
                 TextDirection.Rtl
@@ -88,13 +92,21 @@ internal class MdPreviewRowCache: Closeable {
                 this.width ==
                 width &&
                 direction ==
-                nextDirection
+                nextDirection &&
+                resource!!.images.same(images)
         ) {
+            images.close()
             reused = true
             return resource!!.retain()
         }
         reused = false
-        val next = mdPreviewBuildRow(host, row, width, nextDirection)
+        val next =
+            try {
+                mdPreviewBuildRow(host, row, width, nextDirection, images)
+            } catch (failure: Throwable) {
+                images.close()
+                throw failure
+            }
         resource?.release()
         resource = Some(next)
         fonts = Some(nextFonts)
@@ -116,7 +128,8 @@ private fun mdPreviewBuildRow(
     host: MarkdownPreviewHost,
     row: MdDisplayRow,
     width: Double,
-    direction: TextDirection
+    direction: TextDirection,
+    images: MdPreviewImages
 ): MdPreviewRowResource {
     val options = host.options
     val style = host.style
@@ -163,11 +176,7 @@ private fun mdPreviewBuildRow(
             case MdDisplayKind.Table(_, _) -> 6.0
             else -> options.paragraphSpacing
         }
-    val columnWidth =
-        if (table)
-            max(options.minimumColumnWidth, available / row.cells.size.toDouble())
-        else
-            available
+    val columnWidth = mdPreviewColumnWidth(row, width, options)
     var height = base.fontSize * (base.lineHeight ?: 1.4)
     var measuredWidth = left + available
     try {
@@ -203,7 +212,9 @@ private fun mdPreviewBuildRow(
                         None
                     else
                         Some(max(1.0, columnWidth - inset * 2.0)),
-                    options.tabSize
+                    options.tabSize,
+                    images,
+                    index
                 )
             val origin = Point(left + index.toDouble() * columnWidth + inset, top)
             cells.add(MdPreviewCellResource(text, origin, columnWidth))
@@ -244,7 +255,8 @@ private fun mdPreviewBuildRow(
             top,
             bottom,
             cells.toArray(),
-            labels.toArray()
+            labels.toArray(),
+            images
         )
     } catch (failure: Throwable) {
         for (cell in cells)

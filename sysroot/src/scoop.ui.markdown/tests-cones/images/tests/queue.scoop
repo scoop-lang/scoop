@@ -1,0 +1,141 @@
+package scoop.tests.markdown.images
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.markdown.*
+import scoop.window.ApplicationProxy
+
+internal class ImageQueueCase(
+    workers: CoroutineExecutor,
+    proxy: ApplicationProxy,
+    val renderer: ProbeImageRenderer,
+    val parser: MarkdownParseController
+): Closeable {
+    val controller = MarkdownImageController(workers, proxy, [renderer])
+    val first = controller.bind()
+    val second = controller.bind()
+    val request = MarkdownImageRequest(renderer.kind, "initial", "", 300.0, inlineContent = true)
+    var phase = 0
+    var held: MarkdownImageSnapshot? = None
+    var previous: Image? = None
+    var retired: Image? = None
+    var done = false
+
+    fun start() {
+        first.snapshot(request).use {
+            snapshot -> assertTrue(
+                when (snapshot.status) {
+                    case MarkdownImageStatus.Pending(None) -> true;
+                    else -> false
+                }
+            )
+        }
+        first.snapshot(MarkdownImageRequest(MarkdownImageKind.Code("absent"), "x", "", 300.0)).use {
+            snapshot -> assertTrue(
+                when (snapshot.status) {
+                    case MarkdownImageStatus.MissingRenderer -> true;
+                    else -> false
+                }
+            )
+        }
+        assertEquals(0L, renderer.renders.load())
+        first.show([request])
+        renderer.initial.waitUntilEntered()
+        assertEquals(1L, renderer.renders.load())
+    }
+
+    fun advance() {
+        if (done)
+            return
+        if (phase == 0) {
+            when (parser.current) {
+                case Some(_) -> {
+                    // The regular parser worker completed while the sole blocking worker is gated.
+                    assertEquals(1L, renderer.renders.load())
+                    second.show([request])
+                    first.close()
+                    renderer.initial.release()
+                    phase = 1
+                }
+                case None -> Unit
+            }
+            return
+        }
+        if (phase == 5) {
+            assertTrue(retired!!.isClosed)
+            assertFalse(previous!!.isClosed)
+            held!!.close()
+            assertTrue(previous!!.isClosed)
+            held = None
+            val closing = MarkdownImageRequest(renderer.kind, "closing", "", 300.0)
+            second.show([closing])
+            renderer.closing.waitUntilEntered()
+            controller.close()
+            controller.close()
+            assertTrue(controller.isClosed)
+            assertFailsWith<IllegalStateException> { second.snapshot(closing) }
+            // close returned without waiting for the running image renderer.
+            renderer.closing.release()
+            done = true
+            return
+        }
+        second.snapshot(request).use {
+            snapshot ->
+            if (phase == 3) {
+                when (snapshot.status) {
+                    case MarkdownImageStatus.Failed(_, val old) -> {
+                        assertSame(previous!!, old!!.image)
+                        assertEquals(2L, renderer.renders.load())
+                        renderer.failing.store(0L)
+                        controller.refresh()
+                        phase = 4
+                    }
+                    else -> Unit
+                }
+                return@use
+            }
+            val image =
+                when (snapshot.status) {
+                    case MarkdownImageStatus.Ready(val image) -> image
+                    case MarkdownImageStatus.Failed(val failure, _) -> throw failure
+                    else -> return@use
+                }
+            when (phase) {
+                case 1 -> {
+                    assertEquals(1L, renderer.renders.load())
+                    assertEquals(Size(80.0, 40.0), image.size)
+                    assertEquals(Some(30.0), image.baseline)
+                    held = Some(snapshot.retain())
+                    previous = Some(image.image)
+                    controller.refresh()
+                    phase = 2
+                }
+                case 2 -> {
+                    assertSame(previous!!, image.image)
+                    assertEquals(1L, renderer.renders.load())
+                    renderer.revisions.store(1L)
+                    renderer.failing.store(1L)
+                    controller.refresh()
+                    phase = 3
+                }
+                case 4 -> {
+                    assertEquals(3L, renderer.renders.load())
+                    assertFalse(previous!! === image.image)
+                    retired = Some(image.image)
+                    second.show([])
+                    phase = 5
+                }
+                else -> throw IllegalStateException(Some("Unexpected image queue test phase"))
+            }
+        }
+        if (phase == 5)
+            advance()
+    }
+
+    public override fun close() {
+        first.close();
+        second.close();
+        controller.close();
+        held?.close()
+    }
+}

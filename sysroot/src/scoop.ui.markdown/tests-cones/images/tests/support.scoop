@@ -1,0 +1,201 @@
+package scoop.tests.markdown.images
+
+import scoop.collections.HashSet
+import scoop.graphics.Size
+import scoop.compiler.includeBytes
+import scoop.markdown.*
+import scoop.platform.concurrent.*
+import scoop.platform.env.environmentVariable
+import scoop.platform.fs.*
+import scoop.platform.process.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.markdown.*
+import scoop.url.*
+
+internal val pixels = includeBytes("data/pixels.png")
+
+internal class ImageGate: Closeable {
+    private val mutex = Mutex()
+    private val condition = ConditionVariable(mutex)
+    private var entered = false
+    private var allowed = false
+    fun enter() {
+        mutex.withLock {
+            entered = true
+            condition.broadcast()
+            while (!allowed)
+                assertTrue(condition.await(Duration.seconds(15L)))
+        }
+    }
+    fun waitUntilEntered() {
+        mutex.withLock {
+            while (!entered)
+                assertTrue(condition.await(Duration.seconds(10L)))
+        }
+    }
+    fun release() {
+        mutex.withLock {
+            allowed = true;
+            condition.broadcast()
+        }
+    }
+    public override fun close() {
+        condition.dispose();
+        mutex.dispose()
+    }
+}
+
+internal class ProbeImageRenderer: MarkdownImageRenderer, Closeable {
+    private val owner = currentThreadId()
+    val initial = ImageGate()
+    val closing = ImageGate()
+    val renders = AtomicLong(0L)
+    val revisions = AtomicLong(0L)
+    val failing = AtomicLong(0L)
+    val finishedClosing = AtomicLong(0L)
+    public override val kind = MarkdownImageKind.Extension("probe")
+    public override fun version(request: MarkdownImageRequest): String? {
+        assertNotEquals(owner, currentThreadId())
+        return Some(revisions.load().toString())
+    }
+    public override fun render(request: MarkdownImageRequest): MarkdownImageData {
+        assertNotEquals(owner, currentThreadId())
+        renders.fetchAdd(1L)
+        if (request.source == "initial")
+            initial.enter()
+        if (request.source == "closing") {
+            closing.enter();
+            finishedClosing.store(1L)
+        }
+        if (failing.load() != 0L)
+            throw IllegalStateException(Some("Expected image failure"))
+        return MarkdownImageData(
+            pixels,
+            revisions.load().toString(),
+            MarkdownImageSizing.Logical(Size(80.0, 40.0)),
+            Some(30.0),
+            "Colored test image"
+        )
+    }
+    fun release() {
+        initial.release();
+        closing.release()
+    }
+    public override fun close() {
+        initial.close();
+        closing.close()
+    }
+}
+
+internal class CountImages(val delegate: MarkdownImageRenderer): MarkdownImageRenderer, Closeable {
+    private val owner = currentThreadId()
+    private val mutex = Mutex()
+    private val seen = HashSet<MarkdownImageRequest>()
+    val renders = AtomicLong(0L)
+    public override val kind: MarkdownImageKind get() = delegate.kind
+    public override fun version(request: MarkdownImageRequest): String? {
+        assertNotEquals(owner, currentThreadId())
+        mutex.withLock { seen.add(request) }
+        return delegate.version(request)
+    }
+    public override fun render(request: MarkdownImageRequest): MarkdownImageData {
+        renders.fetchAdd(1L)
+        return delegate.render(request)
+    }
+    fun requests(): Array<MarkdownImageRequest> =
+        mutex.withLock {
+            val result = ArrayList<MarkdownImageRequest>()
+            for (request in seen)
+                result.add(request)
+            result.toArray()
+        }
+    public override fun close() {
+        mutex.dispose()
+    }
+}
+
+internal class ImageSyntax: MarkdownExtension {
+    public override val name = "probe"
+    public override val trigger = "@{"
+    public override val locations = MarkdownExtensionLocations()
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        val end = input.find("}", offset + 2L) ?: return None
+        return Some(
+            MarkdownExtensionMatch(
+                end + 1L,
+                MarkdownRange(offset + 2L, end),
+                [MarkdownAttribute("tone", "warm")]
+            )
+        )
+    }
+}
+
+internal class ImageFiles: Closeable, MarkdownResourceResolver {
+    val root = createTempDirectory(prefix = "scoop-markdown-images-test-")
+    val part = root.resolve(Path.fromString("parts/part.md"))
+    val mainUri = fileUri(root.resolve(Path.fromString("main.md")))
+    val partUri = fileUri(part)
+    init {
+        part.parent!!.createDirectory()
+        part.writeText("![included](pixels%20%E4%B8%AD.png)")
+        part.parent!!.resolve(Path.fromString("pixels 中.png")).writeAllBytes(pixels)
+    }
+    public override fun resolve(baseUri: String, reference: String): String =
+        Url.parse(baseUri).resolve(reference).toString()
+    public override fun version(uri: String): String? {
+        assertEquals(partUri, uri)
+        return Some("part-1")
+    }
+    public override fun read(uri: String): MarkdownResourceData {
+        assertEquals(partUri, uri)
+        return MarkdownResourceData(part.readText(), "part-1")
+    }
+    public override fun close() {
+        root.deleteRecursively()
+    }
+}
+
+internal fun fileUri(path: Path): String =
+    url {
+        scheme = Some("file");
+        host("");
+        path(path.toOsString().decodeUtf8())
+    }.toString()
+
+internal fun imageTool(name: String): Command =
+    command(
+        Path.fromOsString(
+            environmentVariable(name) ?:
+                throw IllegalStateException(Some("Image tests require " + name))
+        )
+    )
+
+internal fun readyImage(snapshot: MarkdownImageSnapshot): MarkdownRenderedImage =
+    when (snapshot.status) {
+        case MarkdownImageStatus.Ready(val image) -> image
+        case MarkdownImageStatus.Failed(val failure, _) -> throw failure
+        else -> throw IllegalStateException(Some("Image is not ready"))
+    }
+
+internal fun imagesReady(lease: MarkdownImageLease, counted: CountImages, count: Long): Boolean {
+    val requests = counted.requests()
+    if (requests.size != count)
+        return false
+    for (request in requests) {
+        val ready =
+            lease.snapshot(request).use {
+                snapshot -> when (snapshot.status) {
+                    case MarkdownImageStatus.Ready(_) -> true
+                    case MarkdownImageStatus.Failed(val failure, _) -> throw failure
+                    else -> false
+                }
+            }
+        if (!ready)
+            return false
+    }
+    return true
+}

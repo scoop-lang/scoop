@@ -23,12 +23,17 @@ public class MarkdownPreviewHost public constructor(
     initialController: MarkdownParseController,
     initialStyle: MarkdownPreviewStyle = MarkdownPreviewStyle(),
     initialOptions: MarkdownPreviewOptions = MarkdownPreviewOptions(),
-    private var suppliedFonts: FontCollection? = None
+    private var suppliedFonts: FontCollection? = None,
+    initialImages: MarkdownImageController? = None,
+    initialDocumentUri: String = ""
 ): Closeable {
     internal var controller = initialController
     internal val editor: MarkdownEditorState get() = controller.editor
     internal var style = initialStyle
     internal var options = initialOptions
+    internal var imageController = initialImages
+    internal var imageLease = initialImages?.bind()
+    internal var documentUri = initialDocumentUri
     internal val fonts: FontCollection get() = suppliedFonts ?: scope.defaultFonts
     internal var closed = false
     internal var document: MarkdownParsedDocument? = None
@@ -58,6 +63,7 @@ public class MarkdownPreviewHost public constructor(
         options.check()
         area.scope.defaultAction = { context, event -> mdPreviewEvent(this, context, event) }
         area.scope.enabled = options.enabled
+        observeImages()
     }
 
     public val isClosed: Boolean get() = closed
@@ -102,19 +108,37 @@ public class MarkdownPreviewHost public constructor(
         focus: FocusOptions = FocusOptions(visibility = FocusVisibility.Always),
         fonts: FontCollection? = None,
         onOpenLink: (String) -> Unit = { _ -> Unit },
-        onSource: (MarkdownRange) -> Unit = { _ -> Unit }
+        onSource: (MarkdownRange) -> Unit = { _ -> Unit },
+        images: MarkdownImageController? = None,
+        documentUri: String = ""
     ) {
         checkOpen()
         controller.editor.checkEdit()
         options.check()
         val rebound = controller !== this.controller
+        val sameImages =
+            when ((imageController, images)) {
+                case(Some(val old), Some(val next)) -> old === next
+                case(None, None) -> true
+                else -> false
+            }
         val sameFonts =
             when ((suppliedFonts, fonts)) {
                 case(Some(val a), Some(val b)) -> a === b
                 case(None, None) -> true
                 else -> false
             }
-        if (rebound || style !== this.style || options != this.options || !sameFonts) {
+        if (
+            rebound ||
+                style !==
+                this.style ||
+                options !=
+                this.options ||
+                !sameFonts ||
+                !sameImages ||
+                this.documentUri !=
+                documentUri
+        ) {
             for (entry in caches)
                 entry.value.close()
             caches.clear()
@@ -129,12 +153,48 @@ public class MarkdownPreviewHost public constructor(
             revealTarget = None
         }
         this.style = style
+        if (!sameImages) {
+            imageLease?.close()
+            imageController = images
+            imageLease = images?.bind()
+            observeImages()
+        }
+        this.documentUri = documentUri
         this.options = options
         this.focus.options = focus
         suppliedFonts = fonts
         openLink = onOpenLink
         openSource = onSource
         area.scope.enabled = options.enabled
+    }
+
+    private fun observeImages() {
+        when (imageLease) {
+            case Some(val lease) -> lease.onChanged =
+                Some {
+                    if (!closed && scope.isMounted)
+                        scope.requestLayout()
+                }
+            case None -> Unit
+        }
+    }
+
+    internal fun visibleImages(frame: MarkdownPreviewMeasurement, lease: MarkdownImageLease?) {
+        val images = imageController ?: return
+        if (images.isClosed)
+            return
+        when ((lease, imageLease)) {
+            case(Some(val expected), Some(val current)) -> {
+                if (expected !== current)
+                    return
+            }
+            else -> return
+        }
+        val requests = ArrayList<MarkdownImageRequest>()
+        for (row in frame.rows)
+            for (entry in row.resource.images.entries)
+                requests.add(entry.request)
+        lease?.show(requests)
     }
 
     public fun measure(
@@ -207,6 +267,8 @@ public class MarkdownPreviewHost public constructor(
         closed = true
         var failure: Throwable? = None
         failure = mdCleanup(failure) { subscription.close() }
+        failure = mdCleanup(failure) { imageLease?.close() }
+        imageLease = None
         failure = mdCleanup(failure) { focus.close() }
         failure = mdCleanup(failure) { area.close() }
         failure = mdCleanup(failure) { viewport.close() }
