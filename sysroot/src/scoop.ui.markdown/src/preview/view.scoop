@@ -15,7 +15,8 @@ private class MdPreviewProps(
     val source: (MarkdownRange) -> Unit,
     val images: MarkdownImageController?,
     val documentUri: String,
-    val searchResult: MarkdownSearchResult?
+    val searchResult: MarkdownSearchResult?,
+    val folding: MarkdownFoldingController?
 )
 
 public fun markdownPreview(
@@ -28,7 +29,8 @@ public fun markdownPreview(
     onSource: (MarkdownRange) -> Unit = { _ -> Unit },
     images: MarkdownImageController? = None,
     documentUri: String = "",
-    searchResult: MarkdownSearchResult? = None
+    searchResult: MarkdownSearchResult? = None,
+    folding: MarkdownFoldingController? = None
 ): View =
     component(
         MdPreviewProps(
@@ -41,7 +43,8 @@ public fun markdownPreview(
             onSource,
             images,
             documentUri,
-            searchResult
+            searchResult,
+            folding
         ),
         { props, scope -> MdPreviewComponent(props, scope) }
     )
@@ -53,6 +56,7 @@ private class MdPreviewComponent(
     public override fun render(): View {
         props.value.controller.status
         props.value.controller.editor.selection
+        val folds = props.value.folding?.projection
         return element(props.value, { input, mount -> MdPreviewElement(input, mount) })
     }
 }
@@ -86,7 +90,8 @@ private class MdPreviewElement(val props: Props<MdPreviewProps>, scope: Componen
             input.source,
             input.images,
             input.documentUri,
-            input.searchResult
+            input.searchResult,
+            input.folding
         )
         if (!input.controller.isClosed)
             input.controller.start()

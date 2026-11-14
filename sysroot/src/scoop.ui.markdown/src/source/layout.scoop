@@ -17,7 +17,8 @@ private class MdSourceMeasurePass(
 ) {
     val measured = HashMap<Long, MdSourceLine>()
     val extent = host.extent
-    fun top(index: Long): Double = host.heights.prefix(index) - host.heights.prefix(extent.first)
+    fun top(index: Long): Double =
+        host.visibleHeights.prefix(index) - host.visibleHeights.prefix(extent.first)
     val height: Double get() = top(extent.end)
     fun row(index: Long): MdSourceLine {
         when (measured[index]) {
@@ -30,6 +31,8 @@ private class MdSourceMeasurePass(
         measured[index] = row
         val height = max(mdSourceEstimate(host.style), row.layout.size.height)
         host.heights = host.heights.record(index, height)
+        host.visibleHeights = host.visibleHeights.record(index, height)
+        host.foldedHeights = host.heights
         host.maximumWidth = max(host.maximumWidth, row.layout.maxIntrinsicWidth)
         return row
     }
@@ -57,7 +60,7 @@ private class MdSourceMeasurePass(
         fraction: Double
     ): ScrollAdjustment? {
         val position = mdSourcePosition(extent.range, source.position)
-        val index = host.current.snapshot.lineAt(position)
+        val index = mdVisibleIndex(host.visibleHeights, host.current.snapshot.lineAt(position))
         val row = row(index)
         val caret = row.layout.caret(row.position(position.byteOffset, source.bias)) ?: return None
         return Some(
@@ -88,9 +91,10 @@ internal fun mdMeasureSource(
     val size =
         constraints.constrain(Size(constraints.maxWidth ?: 640.0, constraints.maxHeight ?: 480.0))
     val padding = host.options.padding
+    val gutter = mdFoldGutter(mdActiveFolds(host.folding))
     val width =
         if (host.options.wrap)
-            Some(max(0.0, size.width - padding * 2.0))
+            Some(max(0.0, size.width - padding * 2.0 - gutter))
         else
             None
     if (host.layoutWidth != width) {
@@ -100,16 +104,17 @@ internal fun mdMeasureSource(
     }
     val current = host.current
     val snapshot = current.snapshot
+    mdSyncSourceFolds(host)
     val pass = MdSourceMeasurePass(host, context, width)
     try {
         val selection = mdSourceSelection(pass.extent.range, current.selection)
-        pass.row(snapshot.lineAt(selection.cursor))
+        pass.row(mdVisibleIndex(host.visibleHeights, snapshot.lineAt(selection.cursor)))
         var adjustment = pass.adjustment()
         var scroll =
             host.viewport.layout(
                 size,
                 Size(
-                    max(size.width, host.maximumWidth + padding * 2.0),
+                    max(size.width, host.maximumWidth + padding * 2.0 + gutter),
                     max(size.height, pass.height + padding * 2.0)
                 ),
                 adjustment
@@ -119,15 +124,16 @@ internal fun mdMeasureSource(
             val offset = scroll.snapshot.offset
             var index =
                 pass.extent.index(
-                    host.heights.indexAt(
+                    host.visibleHeights.indexAt(
                         max(0.0, offset.y - padding - host.options.overscan) +
-                            host.heights.prefix(pass.extent.first)
+                            host.visibleHeights.prefix(pass.extent.first)
                     )
                 )
+            index = mdVisibleIndex(host.visibleHeights, index)
             val bottom = offset.y + size.height + host.options.overscan
             while (index < pass.extent.end && pass.top(index) + padding < bottom) {
                 pass.row(index)
-                index += 1L
+                index = host.visibleHeights.nextVisible(index + 1L)
             }
             adjustment = pass.adjustment()
             scroll =
@@ -137,7 +143,7 @@ internal fun mdMeasureSource(
                         if (host.options.wrap)
                             size.width
                         else
-                            max(size.width, host.maximumWidth + padding * 2.0),
+                            max(size.width, host.maximumWidth + padding * 2.0 + gutter),
                         max(size.height, pass.height + padding * 2.0)
                     ),
                     adjustment
@@ -163,13 +169,15 @@ internal fun mdMeasureSource(
             current.markedRange,
             current.inputRevision,
             pass.extent.range,
-            host.heights,
+            host.visibleHeights,
             rows.toArray(),
             scroll,
             host.scroll.requestRevision,
             padding,
             host.cursorAffinity,
-            searchResult = mdCurrentSearch(host.searchResult, snapshot)
+            searchResult = mdCurrentSearch(host.searchResult, snapshot),
+            folds = host.folded,
+            gutter = gutter
         )
     } catch (error: Throwable) {
         pass.close();
@@ -238,7 +246,7 @@ internal fun mdSceneSource(
                         continue
                     content.withState {
                         line ->
-                        line.translate(frame.padding, top)
+                        line.translate(frame.contentX, top)
                         mdPaintSourceSearch(line, row, frame.searchResult, style.searchMatch)
                         val selection = frame.selection.range
                         val first = max(selection.start, row.range.start)
@@ -314,6 +322,7 @@ internal fun mdSceneSource(
                         }
                         Unit
                     }
+                    mdPaintSourceFold(content, frame, row.index, top, style.caret)
                 }
                 if (host.area.isFocusActive && host.caretVisible && frame.selection.collapsed)
                     when (caret) {
@@ -330,6 +339,7 @@ internal fun mdSceneSource(
                 host.closed ||
                     host.current !==
                     current ||
+                    !mdSameFolds(frame.folds, mdActiveFolds(host.folding)) ||
                     completion.submission ==
                     FrameSubmission.Discarded
             ) {
@@ -345,7 +355,7 @@ internal fun mdSceneSource(
                     frame.inputRevision ==
                     current.inputRevision
             ) {
-                val point = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y))
+                val point = frame.hit(Point(frame.contentX, frame.scrollSnapshot.offset.y))
                 when (point) {
                     case Some(val at) -> when (
                         frame.caret(at.position, affinity = Some(at.affinity))

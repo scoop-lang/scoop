@@ -1,0 +1,115 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdActiveFolds(controller: MarkdownFoldingController?): MdFoldProjection? =
+    when (controller) {
+        case Some(val value) -> if (value.isClosed)
+            None
+        else
+            Some(value.projection)
+        case None -> None
+    }
+
+internal fun mdSameFolds(a: MdFoldProjection?, b: MdFoldProjection?): Boolean =
+    when ((a, b)) {
+        case(Some(val x), Some(val y)) -> x === y
+        case(None, None) -> true
+        else -> false
+    }
+
+internal fun mdFoldGutter(folds: MdFoldProjection?): Double =
+    when (folds) {
+        case Some(_) -> 20.0
+        case None -> 0.0
+    }
+
+internal fun mdVisibleIndex(heights: MdHeights, index: Long): Long {
+    val before =
+        heights.previousVisible(
+            if (index < heights.count)
+                index + 1L
+            else
+                heights.count
+        )
+    return if (before >= 0L)
+        before
+    else
+        heights.nextVisible(0L)
+}
+
+internal fun mdSyncSourceFolds(host: MarkdownSourceHost) {
+    val folds = mdActiveFolds(host.folding)
+    if (host.foldedHeights === host.heights && mdSameFolds(host.folded, folds))
+        return
+    host.visibleHeights =
+        when (folds) {
+            case Some(val value) -> value.sourceHeights(host.heights)
+            case None -> host.heights
+        }
+    host.foldedHeights = host.heights
+    host.folded = folds
+}
+
+internal fun mdSyncPreviewFolds(
+    host: MarkdownPreviewHost,
+    model: MarkdownParsedDocument?,
+    presentation: MdRichPresentation?
+) {
+    val folds = mdActiveFolds(host.folding)
+    val sameModel =
+        when ((model, host.foldDocument)) {
+            case(Some(val a), Some(val b)) -> a === b
+            case(None, None) -> true
+            else -> false
+        }
+    if (
+        host.foldedHeights ===
+            host.heights &&
+            mdSameFolds(host.folded, folds) &&
+            sameModel &&
+            mdSamePresentation(presentation, host.foldPresentation)
+    )
+        return
+    host.layoutFolds =
+        when (model) {
+            case Some(val current) -> mdSelectPreviewFolds(
+                presentation?.changes?.snapshot ?: current.snapshot,
+                folds,
+                host.layoutFolds
+            )
+            case None -> None
+        }
+    host.visibleHeights =
+        when ((model, host.layoutFolds)) {
+            case(Some(val current), Some(val value)) -> mdPreviewFoldHeights(
+                host.heights,
+                current,
+                presentation,
+                value
+            )
+            else -> host.heights
+        }
+    host.foldedHeights = host.heights
+    host.folded = folds
+    host.foldDocument = model
+    host.foldPresentation = presentation
+}
+
+/** A stale preview retains geometry from its own source until a current projection is available. */
+internal fun mdSelectPreviewFolds(
+    snapshot: MarkdownSnapshot,
+    current: MdFoldProjection?,
+    previous: MdFoldProjection?
+): MdFoldProjection? {
+    val next = current ?: return None
+    if (snapshot === next.snapshot)
+        return Some(next)
+    if (next.collapsed.size == 0L)
+        return None
+    val before = previous ?: return None
+    return if (before.snapshot === snapshot)
+        Some(before)
+    else
+        None
+}

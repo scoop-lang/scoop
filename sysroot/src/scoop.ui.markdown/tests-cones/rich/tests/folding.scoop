@@ -1,0 +1,505 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.Point
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.saveNativeClipboard
+import scoop.tests.window.restoreNativeClipboard
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownFoldingWindowTests {
+    @Test
+    fun nativeFoldingKeepsNavigationCompositionDeletionAndLargeViewportsConsistent() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
+            try {
+                val app = Application()
+                val workers =
+                    multiThreadExecutor {
+                        workers = 1;
+                        blocking { threads = 1 }
+                    }
+                val probe = FoldingWindowProbe(workers, app.proxy())
+                try {
+                    context(ThemeSource(shadcnTheme())) {
+                        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                            host -> app.run(host)
+                        }
+                    }
+                    assertTrue(probe.finished)
+                    assertFalse(probe.editor.isClosed)
+                    assertFalse(probe.parser.isClosed)
+                } catch (failure: Throwable) {
+                    println("Folding window step " + probe.step.value.toString())
+                    println("cursor=" + probe.editor.selection.cursor.byteOffset.toString())
+                    println("source focus=" + probe.view.sourceFocus.isFocusActive.toString())
+                    throw failure
+                } finally {
+                    probe.close();
+                    workers.close()
+                }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+}
+
+internal class FoldingWindowProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "# First\n\nalpha\n\n## Child\n\nbeta\n\n# Last\n\ngamma\n"
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val view = MarkdownEditorViewState(editor, MarkdownEditorMode.Source)
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val folding = MarkdownFoldingController(view, parser)
+    val navigation = MarkdownNavigationController(view, parser)
+    val search = MarkdownSearchController(view, workers, proxy)
+    val step = state(0)
+    val mounted = state(true)
+    val large = state(false)
+    var sourceHost: MarkdownSourceHost? = None
+    var previewHost: MarkdownPreviewHost? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var waiting = false
+    var presentations = 0L
+    var finished = false
+    var oldRegion: MarkdownFoldRegion? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown folding verification"
+                            size = LogicalSize(820.0, 540.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> FoldingWindowRoot(this, scope) })
+                native.createDeadline { fail(Some("Folding timeout at " + step.value.toString())) }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false;
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                presentations
+        )
+            return false
+        if (!mounted.value)
+            return true
+        val current = parser.current ?: return false
+        if (current.snapshot !== editor.snapshot)
+            return false
+        if (step.value == 33) {
+            val result = search.current ?: return false
+            if (result.snapshot !== editor.snapshot)
+                return false
+        }
+        if (large.value) {
+            val source = sourceHost ?: return false
+            val preview = previewHost ?: return false
+            val sourceFrame = source.measurement ?: return false
+            val previewFrame = preview.measurement ?: return false
+            if (sourceFrame.sourceRevision != editor.snapshot.revision)
+                return false
+            if (previewFrame.sourceRevision != Some(editor.snapshot.revision))
+                return false
+        }
+        return true
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+    private fun key(code: Int, text: String = "", flags: Int = 0) {
+        mdNativeKey(window!!, code, text, flags)
+    }
+    private fun region(index: Long): MarkdownFoldRegion = folding.current!!.regions[index]
+    private fun collapsed(index: Long): Boolean = folding.isCollapsed(region(index))
+    private fun collapse(index: Long, value: Boolean = true) {
+        assertTrue(folding.setCollapsed(region(index), value))
+    }
+    private fun select(position: MarkdownPosition) {
+        editor.setSelection(MarkdownSelection(position, position))
+    }
+    private fun line(): Long = editor.snapshot.lineAt(editor.selection.cursor)
+    private fun unchanged() {
+        assertEquals(original, editor.document.toMarkdown());
+        assertFalse(editor.canUndo)
+    }
+    private fun editableHeading(index: Long): MarkdownPosition =
+        parser.current!!.source.inlineContent(
+            parser.current!!.sourceNavigation.headings[index].node
+        )
+        .text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> {
+                assertEquals(3L, folding.current!!.regions.size)
+                assertTrue(view.sourceFocus.isFocusActive)
+                next { select(editor.snapshot.positionAt(2L, 2L)) }
+            }
+            case 1 -> next { mdNativeClick(window!!, 20.0, 22.0) }
+            case 2 -> {
+                assertTrue(collapsed(0L));
+                assertEquals(MarkdownPosition(0L), editor.selection.cursor);
+                unchanged()
+                next { key(125) }
+            }
+            case 3 -> {
+                assertEquals(8L, line());
+                assertTrue(collapsed(0L));
+                next { key(126) }
+            }
+            case 4 -> {
+                assertEquals(0L, line());
+                next { key(124, "", 8) }
+            }
+            case 5 -> {
+                assertEquals(editor.snapshot.lineRange(0L).end, editor.selection.cursor.byteOffset)
+                next { key(117) }
+            }
+            case 6 -> {
+                assertFalse(collapsed(0L));
+                unchanged()
+                next {
+                    collapse(0L);
+                    select(editor.snapshot.positionAt(8L))
+                }
+            }
+            case 7 -> next { key(51, "\u{7f}") }
+            case 8 -> {
+                assertFalse(collapsed(0L));
+                unchanged()
+                next {
+                    collapse(1L);
+                    collapse(0L)
+                }
+            }
+            case 9 -> {
+                assertTrue(collapsed(0L));
+                assertTrue(collapsed(1L));
+                next { collapse(0L, false) }
+            }
+            case 10 -> {
+                assertTrue(collapsed(1L));
+                next { navigation.goToLine(6L, 2L) }
+            }
+            case 11 -> {
+                assertFalse(collapsed(1L));
+                assertTrue(view.sourceFocus.isFocusActive)
+                next { assertEquals(0, mdNativeText(window!!, "中", 1, 1L)) }
+            }
+            case 12 -> {
+                assertTrue(editor.isComposing)
+                assertFalse(folding.setCollapsed(region(0L), true))
+                assertFalse(folding.setCollapsed(region(1L), true))
+                next {
+                    collapse(2L);
+                    folding.collapseAll()
+                }
+            }
+            case 13 -> {
+                assertTrue(editor.isComposing);
+                assertFalse(collapsed(0L));
+                assertFalse(collapsed(1L));
+                assertTrue(collapsed(2L))
+                next { key(53, "\u{1b}") }
+            }
+            case 14 -> {
+                assertFalse(editor.isComposing);
+                unchanged()
+                next {
+                    folding.expandAll();
+                    collapse(0L);
+                    oldRegion = Some(region(0L))
+                    editor.replace(
+                        MarkdownRange(editor.snapshot.byteLength, editor.snapshot.byteLength),
+                        "\n"
+                    )
+                    assertFalse(folding.setCollapsed(oldRegion!!, false))
+                }
+            }
+            case 15 -> {
+                assertTrue(collapsed(0L));
+                next { editor.undo() }
+            }
+            case 16 -> {
+                assertTrue(collapsed(0L));
+                unchanged()
+                next { editor.replace(MarkdownRange(2L, 7L), "Changed") }
+            }
+            case 17 -> {
+                assertFalse(collapsed(0L));
+                next { editor.undo() }
+            }
+            case 18 -> {
+                assertFalse(collapsed(0L));
+                unchanged()
+                next {
+                    select(MarkdownPosition(0L));
+                    view.setMode(MarkdownEditorMode.Wysiwyg)
+                }
+            }
+            case 19 -> {
+                assertTrue(view.richFocus.isFocusActive);
+                next { mdNativeClick(window!!, 28.0, 30.0) }
+            }
+            case 20 -> {
+                assertTrue(collapsed(0L));
+                assertEquals(editableHeading(0L), editor.selection.cursor);
+                next { key(125) }
+            }
+            case 21 -> {
+                assertEquals(8L, line());
+                assertTrue(collapsed(0L));
+                next { key(126) }
+            }
+            case 22 -> {
+                assertEquals(0L, line());
+                next { key(124, "", 8) }
+            }
+            case 23 -> next { key(117) }
+            case 24 -> {
+                assertFalse(collapsed(0L));
+                unchanged()
+                next {
+                    collapse(0L);
+                    navigation.goToHeading(2L)
+                }
+            }
+            case 25 -> {
+                assertTrue(collapsed(0L))
+                next { key(51, "\u{7f}") }
+            }
+            case 26 -> {
+                assertFalse(collapsed(0L));
+                unchanged()
+                next {
+                    collapse(0L);
+                    view.setMode(MarkdownEditorMode.SideBySide);
+                    view.setRightReadOnly(true)
+                }
+            }
+            case 27 -> next { navigation.goToHeading(1L) }
+            case 28 -> {
+                assertFalse(collapsed(0L));
+                unchanged()
+                next {
+                    view.setMode(MarkdownEditorMode.Source);
+                    collapse(0L);
+                    select(MarkdownPosition(0L))
+                }
+            }
+            case 29 -> next { key(0, "a", 8) }
+            case 30 -> {
+                assertTrue(collapsed(0L));
+                assertEquals(MarkdownRange(0L, editor.snapshot.byteLength), editor.selection.range)
+                next { key(7, "x", 8) }
+            }
+            case 31 -> {
+                assertEquals("", editor.document.toMarkdown());
+                next { key(6, "z", 8) }
+            }
+            case 32 -> {
+                unchanged()
+                next {
+                    collapse(0L);
+                    search.show();
+                    search.configure(MarkdownSearchQuery("beta"), true)
+                }
+            }
+            case 33 -> {
+                assertFalse(collapsed(0L));
+                assertEquals("beta", editor.snapshot.read(editor.selection.range))
+                next {
+                    search.hide();
+                    collapse(0L);
+                    select(editor.snapshot.positionAt(2L, 1L))
+                }
+            }
+            case 34 -> {
+                assertFalse(collapsed(0L));
+                next { assertTrue(folding.collapseAll()) }
+            }
+            case 35 -> {
+                assertTrue(view.sourceFocus.isFocusActive)
+                assertTrue(collapsed(0L));
+                assertTrue(collapsed(1L));
+                assertTrue(collapsed(2L));
+                unchanged()
+                next { key(125, "", 8) }
+            }
+            case 36 -> {
+                assertFalse(collapsed(2L));
+                assertTrue(collapsed(0L));
+                assertTrue(collapsed(1L))
+                assertEquals(editor.snapshot.byteLength, editor.selection.cursor.byteOffset)
+                next {
+                    editor.document.reset(
+                        "# Huge\n\n" +
+                            "Paragraph 中文 content and **emphasis**.\n\n".repeat(30000L) +
+                            "# End\n\nFinal\n"
+                    )
+                    select(MarkdownPosition(0L));
+                    large.value = true
+                }
+            }
+            case 37 -> {
+                assertTrue(editor.snapshot.byteLength > 1024L * 1024L)
+                assertTrue(sourceHost!!.measurement!!.measuredLineCount < 100L)
+                assertTrue(previewHost!!.measurement!!.measuredBlockCount < 100L)
+                next {
+                    collapse(0L)
+                    assertTrue(
+                        when (sourceHost!!.hitTest(Point(45.0, 35.0))) {
+                            case None -> true;
+                            else -> false
+                        }
+                    )
+                    assertTrue(
+                        when (previewHost!!.hitTest(Point(45.0, 35.0))) {
+                            case None -> true;
+                            else -> false
+                        }
+                    )
+                }
+            }
+            case 38 -> {
+                assertTrue(sourceHost!!.measurement!!.measuredLineCount <= 6L)
+                assertEquals(3L, previewHost!!.measurement!!.measuredBlockCount)
+                assertEquals(0.0, sourceHost!!.measurement!!.scrollSnapshot.maximum.y)
+                assertEquals(0.0, previewHost!!.measurement!!.scrollSnapshot.maximum.y)
+                assertTrue(previewHost!!.measurement!!.blockCount > 30000L)
+                next { collapse(0L, false) }
+            }
+            case 39 -> {
+                assertTrue(sourceHost!!.measurement!!.measuredLineCount < 100L)
+                assertTrue(previewHost!!.measurement!!.measuredBlockCount < 100L)
+                assertTrue(sourceHost!!.measurement!!.scrollSnapshot.maximum.y > 100000.0)
+                assertTrue(previewHost!!.measurement!!.scrollSnapshot.maximum.y > 100000.0)
+                next {
+                    collapse(0L)
+                    previewHost!!.reveal(editor.snapshot.positionAt(2L))
+                }
+            }
+            case 40 -> {
+                assertFalse(collapsed(0L))
+                next {
+                    folding.close();
+                    sourceHost!!.focus.handle.requestFocus()
+                }
+            }
+            case 41 -> next { key(125) }
+            case 42 -> {
+                assertEquals(1L, line())
+                next { mounted.value = false }
+            }
+            case 43 -> {
+                assertTrue(sourceHost!!.isClosed);
+                assertTrue(previewHost!!.isClosed)
+                folding.close();
+                folding.close()
+                assertTrue(folding.isClosed)
+                assertFailsWith<IllegalStateException> { folding.expandAll() }
+                assertFalse(editor.isClosed);
+                assertFalse(parser.isClosed)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected folding step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close();
+        search.close();
+        navigation.close();
+        folding.close();
+        parser.close();
+        editor.close()
+    }
+}
+
+private class FoldingWindowRoot(val probe: FoldingWindowProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Source)
+    }
+    public override fun render(): View {
+        val current = probe
+        current.step.value
+        current.parser.status
+        current.editor.selection
+        val folds = current.folding.current
+        return column {
+            alignment = CrossAlignment.Stretch
+            if (current.mounted.value) {
+                if (current.large.value)
+                    item(mdFoldingMeasuredViews(current)) {
+                        grow = 1.0;
+                        basis = FlexBasis.Fixed(0.0)
+                    }
+                else {
+                    column {
+                        if (current.search.isVisible)
+                            item(markdownSearchBar(current.search))
+                    }
+                    item(
+                        markdownEditor(
+                            current.view,
+                            current.parser,
+                            navigation = Some(current.navigation),
+                            search = Some(current.search),
+                            folding = Some(current.folding)
+                        )
+                    ) {
+                        grow = 1.0;
+                        basis = FlexBasis.Fixed(0.0)
+                    }
+                    item(markdownFoldingToolbar(current.folding))
+                }
+            }
+        }
+    }
+}

@@ -124,7 +124,8 @@ public class MarkdownRichHost public constructor(
         onSource: (MarkdownRange) -> Unit = { _ -> Unit },
         images: MarkdownImageController? = None,
         documentUri: String = "",
-        searchResult: MarkdownSearchResult? = None
+        searchResult: MarkdownSearchResult? = None,
+        folding: MarkdownFoldingController? = None
     ) {
         checkOpen()
         val rebound = controller !== preview.controller
@@ -147,7 +148,8 @@ public class MarkdownRichHost public constructor(
             onSource,
             images,
             documentUri,
-            searchResult
+            searchResult,
+            folding
         )
         if (rebound)
             subscription = editor.document.observe { change -> sourceChanged(change) }

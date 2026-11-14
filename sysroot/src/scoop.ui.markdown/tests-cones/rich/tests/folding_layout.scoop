@@ -1,0 +1,74 @@
+package scoop.tests.markdown.rich
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+
+internal fun mdFoldingMeasuredViews(probe: FoldingWindowProbe): View =
+    row {
+        alignment = CrossAlignment.Stretch
+        item(element(probe.step.value, { step, scope -> FoldingSourceField(probe, step, scope) })) {
+            grow = 1.0;
+            basis = FlexBasis.Fixed(0.0)
+        }
+        item(
+            element(probe.step.value, { step, scope -> FoldingPreviewField(probe, step, scope) })
+        ) {
+            grow = 1.0;
+            basis = FlexBasis.Fixed(0.0)
+        }
+    }
+
+private class FoldingSourceField(
+    val probe: FoldingWindowProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+):
+Element<MarkdownSourceMeasurement>(scope) {
+    private val style = MarkdownSourceStyle()
+    private val host = scope.resource { MarkdownSourceHost(scope, probe.editor, style) }
+    public override fun onMount() {
+        probe.sourceHost = Some(host);
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(probe.editor, style, folding = Some(probe.folding))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownSourceMeasurement
+    > {
+        val result = host.measure(context, constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownSourceMeasurement) {
+        host.scene(context, layout)
+    }
+}
+
+private class FoldingPreviewField(
+    val probe: FoldingWindowProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+):
+Element<MarkdownPreviewMeasurement>(scope) {
+    private val style = MarkdownPreviewStyle()
+    private val host = scope.resource { MarkdownPreviewHost(scope, probe.parser, style) }
+    public override fun onMount() {
+        probe.previewHost = Some(host);
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(probe.parser, style, folding = Some(probe.folding))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        val result = host.measure(context, constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownPreviewMeasurement) {
+        host.scene(context, layout)
+    }
+}

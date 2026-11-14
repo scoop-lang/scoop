@@ -379,3 +379,13 @@ MarkdownNavigationController 管理标题、行列、内部链接及 128 项导�
 最终原生窗口 319 步通过：导航 30 步约 1.85 秒、富文本 61 步约 3.11 秒、格式 56 步约 1.60 秒、链接／图片 35 步约 1.92 秒、局部源码 54 步约 1.39 秒、块操作 42 步约 1.75 秒、查找 41 步约 1.63 秒。另有导航历史／生命周期及后台查询各 1 项通过。程序由 scoop test 构建，使用 scoop bundle／Launch Services 按独立进程串行启动；各项 begin／end／complete 完整且 failures 为空。新增覆盖原生行列输入、错误与组合取消、大纲／目录点击、只读后退起点、旧索引拒绝，以及超过 1 MiB 文档在两侧的末尾滚动。
 
 规范、设计、README、示例、原生复现说明及编程导航同步；严格 API 文档生成和 MarkdownNavigation、MarkdownNavigationController、markdownOutline、tableOfContentsDirective 查询通过。编程导航安装副本已同步。本批没有编译器或 runtime 修改。原始日志、临时应用包及 API 站点核对后清理，保留正常构建缓存。标题／front matter 折叠、源码辅助、HTML 导入和其余 Typora 扩展、最终 1／5 MiB 综合性能验收继续实施。
+
+## C／D：标题、代码与 front matter 折叠（2026-11-15）
+
+UI 在后台建立 MarkdownFoldIndex，MarkdownFoldingController 管理每个视图的折叠状态；markdownEditor、独立 View／Host 和 markdownFoldingToolbar 共用该状态。标题与 front matter 同时折叠源码和预览，代码围栏仅折叠源码，局部源码面保留完整内容。折叠不改正文或撤销；修改头部或 Reset 展开，展开父项保留子项状态，搜索／导航／程序化光标自动展开目标。中文组合范围不能被收起，边界删除先展开隐藏正文，显式跨区选区仍操作完整范围。
+
+布局保留展开时的持久高度树，通过整段零高度范围跳过隐藏行；预览行索引处理 include、文末脚注和局部结构替换。旧快照的预览沿用自身折叠几何，过期命中不能改变当前状态。大于 1 MiB、30,000 段的原生样本收起后仅测量不超过 6 个源码行和 3 个预览块，展开后仍只测量视口附近内容。另有百万行高度树及大段局部修改组合覆盖；这些验证不替代最终 1／5 MiB 交互延迟基线。
+
+使用 ~/.scoop 完成相关 fmt、check --tests --release 与编辑器示例 check。UI 库全量 138 项通过。原生窗口共 450 步通过：新增折叠 44 步、富文本 61 步、格式 56 步、链接／图片 35 步、局部源码 54 步、块操作 42 步、查找 41 步、导航 30 步、源码 52 步、三模式 35 步；另有导航状态和后台查询各 1 项通过。全部由 scoop test 构建，scoop bundle／Launch Services 串行启动，begin／end／complete 完整且 failures 为空。新增折叠用例约 1.47 秒。验收修复逻辑字符移动在同一字节位置因 affinity 改变而提前停止、导致富文本退格合并隐藏正文的问题，并固定测试搜索栏的容器以保持编辑器焦点。
+
+严格 API 文档生成及 MarkdownFoldIndex、MarkdownFoldingController、sourceFolds、markdownFoldingToolbar 查询通过；规范、设计、README、示例、原生复现说明与编程导航（含安装副本）同步。本批没有编译器、runtime 或其他系统库修改。原始日志、临时应用包和 API 站点核对后清理，正常构建缓存保留。源码辅助、HTML 导入、其余 Typora 扩展和最终 1／5 MiB 综合性能验收继续实施。

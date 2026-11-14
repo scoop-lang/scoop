@@ -6,6 +6,32 @@ import scoop.test.*
 @Test
 private class MarkdownSourceLayoutTests {
     @Test
+    fun hiddenRunsSkipAMillionLinesWithoutLosingExpandedMeasurements() {
+        val expanded = mdHeightRun(1000000L, 20.0).record(500000L, 75.0)
+        val hidden = expanded.replace(1L, 999999L, 999998L, 0.0)
+        assertEquals(2L, hidden.visibleCount)
+        assertEquals(40.0, hidden.total)
+        assertEquals(0L, hidden.indexAt(0.0))
+        assertEquals(999999L, hidden.indexAt(20.0))
+        assertEquals(999999L, hidden.nextVisible(1L))
+        assertEquals(0L, hidden.previousVisible(999999L))
+        assertEquals(1000000L, hidden.nextVisible(1000000L))
+        assertEquals(-1L, hidden.previousVisible(0L))
+        assertEquals(75.0, expanded.extent(500000L))
+        assertEquals(0.0, hidden.extent(500000L))
+        assertSame(expanded, expanded.record(500000L, 75.0))
+        assertTrue(hidden.depth < 10)
+        val all = hidden.replace(0L, hidden.count, hidden.count, 0.0)
+        assertEquals(all.count, all.indexAt(0.0))
+        assertEquals(all.count, all.nextVisible(0L))
+        assertEquals(-1L, all.previousVisible(all.count))
+        val trailing = all.record(999999L, 30.0)
+        assertEquals(999999L, trailing.indexAt(-1.0))
+        assertEquals(999999L, trailing.nextVisible(500L))
+        assertEquals(999999L, trailing.previousVisible(trailing.count))
+    }
+
+    @Test
     fun `measured and unknown line runs survive local splices and keep old geometry`() {
         var tree = mdHeightRun(1000000L, 20.0)
         val original = tree

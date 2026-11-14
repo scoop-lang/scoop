@@ -1,0 +1,162 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.comparisons.comparatorOf
+import scoop.markdown.*
+
+public enum MarkdownFoldKind {
+    Heading(Int), Code, FrontMatter
+}
+
+/** One foldable source interval. Its complete header remains visible when collapsed. */
+public class MarkdownFoldRegion internal constructor(
+    internal val parsed: ParsedMarkdown,
+    public val node: MarkdownNodeId,
+    public val kind: MarkdownFoldKind,
+    public val range: MarkdownRange,
+    public val header: MarkdownRange
+) {
+    public val snapshot: MarkdownSnapshot get() = parsed.snapshot
+    public val hidden: MarkdownRange get() = MarkdownRange(header.end, range.end)
+}
+
+/** Immutable source folds, built with the background parse rather than during layout. */
+public class MarkdownFoldIndex internal constructor(
+    public val parsed: ParsedMarkdown,
+    public val regions: Array<MarkdownFoldRegion>
+) {
+    private val parents = ArrayList<Long>()
+    private val headers = HashMap<Long, MarkdownFoldRegion>()
+    internal val lines = HashMap<Long, MarkdownFoldRegion>()
+    init {
+        val stack = ArrayList<Long>()
+        for (index in 0L ..< regions.size) {
+            val region = regions[index]
+            while (
+                stack.size > 0L && regions[stack[stack.size - 1L]].range.end <= region.range.start
+            )
+                stack.removeAt(stack.size - 1L)
+            if (stack.size > 0L)
+                parents.add(stack[stack.size - 1L])
+            else
+                parents.add(-1L)
+            stack.add(index)
+            headers[region.header.start] = region
+            lines[parsed.snapshot.lineAt(MarkdownPosition(region.header.start))] = region
+        }
+    }
+
+    /** Innermost fold containing a source position, including its retained header. */
+    public fun at(position: MarkdownPosition): MarkdownFoldRegion? {
+        parsed.snapshot.read(MarkdownRange(position.byteOffset, position.byteOffset))
+        var low = 0L
+        var high = regions.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (regions[middle].range.start <= position.byteOffset)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        var index = low - 1L
+        while (index >= 0L) {
+            val region = regions[index]
+            if (mdFoldContains(region.range, position.byteOffset, parsed.snapshot.byteLength))
+                return Some(region)
+            index = parents[index]
+        }
+        return None
+    }
+
+    internal fun matching(header: Long, kind: MarkdownFoldKind): MarkdownFoldRegion? {
+        val region = headers[header] ?: return None
+        return if (region.kind == kind)
+            Some(region)
+        else
+            None
+    }
+}
+
+internal fun mdFoldIndex(
+    parsed: ParsedMarkdown,
+    navigation: MarkdownNavigation,
+    previous: MarkdownFoldIndex?
+): MarkdownFoldIndex {
+    when (previous) {
+        case Some(val value) -> if (value.parsed === parsed)
+            return value
+        case None -> Unit
+    }
+    val regions = ArrayList<MarkdownFoldRegion>()
+    for (heading in navigation.headings)
+        mdAddFold(
+            parsed,
+            heading.node,
+            MarkdownFoldKind.Heading(heading.level),
+            heading.section,
+            mdFoldLineEnd(parsed.snapshot, heading.range),
+            regions
+        )
+    for (node in parsed.nodes()) {
+        val kind =
+            when (node.content) {
+                case MarkdownContent.CodeBlock(Some(_), _, _) -> Some(MarkdownFoldKind.Code)
+                case MarkdownContent.Extension(val value) ->
+                if (value.name == "front-matter")
+                    Some(MarkdownFoldKind.FrontMatter)
+                else
+                    None
+                else -> None
+            }
+        when (kind) {
+            case Some(val value) -> {
+                val line = parsed.snapshot.lineAt(MarkdownPosition(node.range.start))
+                val header = parsed.snapshot.lineRange(line, true)
+                mdAddFold(
+                    parsed,
+                    node.id,
+                    value,
+                    MarkdownRange(header.start, mdFoldLineEnd(parsed.snapshot, node.range)),
+                    header.end,
+                    regions
+                )
+            }
+            case None -> Unit
+        }
+    }
+    regions.sortWith(
+        comparatorOf<MarkdownFoldRegion> { a, b -> a.range.start.compareTo(b.range.start) }
+    )
+    return MarkdownFoldIndex(parsed, regions.toArray())
+}
+
+private fun mdFoldLineEnd(snapshot: MarkdownSnapshot, range: MarkdownRange): Long {
+    var line = snapshot.lineAt(MarkdownPosition(range.end))
+    if (range.end > range.start && snapshot.positionOfLine(line).byteOffset == range.end)
+        line -= 1L
+    return snapshot.lineRange(line, true).end
+}
+
+private fun mdAddFold(
+    parsed: ParsedMarkdown,
+    node: MarkdownNodeId,
+    kind: MarkdownFoldKind,
+    range: MarkdownRange,
+    headerEnd: Long,
+    result: ArrayList<MarkdownFoldRegion>
+) {
+    val start =
+        parsed.snapshot.positionOfLine(
+            parsed.snapshot.lineAt(MarkdownPosition(range.start))
+        ).byteOffset
+    if (headerEnd < range.end)
+        result.add(
+            MarkdownFoldRegion(
+                parsed,
+                node,
+                kind,
+                MarkdownRange(start, range.end),
+                MarkdownRange(start, headerEnd)
+            )
+        )
+}

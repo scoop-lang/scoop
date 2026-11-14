@@ -34,6 +34,7 @@ private class EditorWindow(
     private val search =
         scope.resource { MarkdownSearchController(view, workers, scope.application.proxy()) }
     private val navigation = scope.resource { MarkdownNavigationController(view, parser) }
+    private val folding = scope.resource { MarkdownFoldingController(view, parser) }
     private val outline = state(true)
     private val message = state("")
 
@@ -104,6 +105,7 @@ private class EditorWindow(
                 item(markdownBlockToolbar(owner.view))
                 item(markdownSearchBar(owner.search))
                 item(markdownNavigationBar(owner.navigation))
+                item(markdownFoldingToolbar(owner.folding))
                 item(
                     editorRow {
                         alignment = CrossAlignment.Stretch
@@ -119,6 +121,7 @@ private class EditorWindow(
                                 documentUri = owner.documentUri,
                                 search = Some(owner.search),
                                 navigation = Some(owner.navigation),
+                                folding = Some(owner.folding),
                                 onOpenLink = { destination -> owner.message.value = destination }
                             )
                         ) {

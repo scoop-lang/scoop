@@ -50,7 +50,9 @@ public class MarkdownPreviewMeasurement internal constructor(
     internal val presentation: MdRichPresentation? = None,
     internal val inputRevision: Long = -1L,
     internal val marked: MarkdownRange? = None,
-    internal val searchResult: MarkdownSearchResult? = None
+    internal val searchResult: MarkdownSearchResult? = None,
+    internal val folds: MdFoldProjection? = None,
+    internal val gutter: Double = 0.0
 ): Closeable {
     private val owner = ownership ?: MdPreviewRows(rows)
     private var closed = false
@@ -63,6 +65,7 @@ public class MarkdownPreviewMeasurement internal constructor(
     public val measuredBlockCount: Long get() = rows.size
     public val blockCount: Long get() = heights.count
     public val scrollSnapshot: ScrollSnapshot get() = scroll.snapshot
+    internal val contentX: Double get() = padding + gutter
     public val blockIndices: Array<Long> get() = Array<Long>(rows.size) { at -> rows[at].index }
 
     internal fun retain(): MarkdownPreviewMeasurement {
@@ -82,7 +85,9 @@ public class MarkdownPreviewMeasurement internal constructor(
             presentation,
             inputRevision,
             marked,
-            searchResult
+            searchResult,
+            folds,
+            gutter
         )
     }
 
@@ -95,11 +100,11 @@ public class MarkdownPreviewMeasurement internal constructor(
 
     internal fun hit(point: Point): MarkdownPreviewHit? {
         val model = document ?: return None
-        if (heights.count == 0L)
+        if (heights.visibleCount == 0L)
             return None
         var index = heights.indexAt(point.y - padding)
         if (index == heights.count)
-            index -= 1L
+            index = heights.previousVisible(index)
         val measured = row(index) ?: return None
         var source = MarkdownPosition(measured.row.range.start)
         var affinity = TextAffinity.Downstream
@@ -113,7 +118,7 @@ public class MarkdownPreviewMeasurement internal constructor(
                     1L <
                     measured.resource.cells.size &&
                     point.x -
-                    padding >=
+                    contentX >=
                     measured.resource.cells[cellIndex + 1L].origin.x -
                     6.0
             )
@@ -123,7 +128,7 @@ public class MarkdownPreviewMeasurement internal constructor(
             val hit =
                 cell.text.layout.hitTest(
                     Point(
-                        point.x - padding - cell.origin.x,
+                        point.x - contentX - cell.origin.x,
                         point.y - padding - heights.prefix(index) - cell.origin.y
                     )
                 )
@@ -214,7 +219,7 @@ public class MarkdownPreviewMeasurement internal constructor(
         val measured = row(index) ?: return None
         if (measured.resource.cells.size == 0L)
             return Some(
-                Rect(padding, padding + heights.prefix(index), 1.0, measured.resource.height)
+                Rect(contentX, padding + heights.prefix(index), 1.0, measured.resource.height)
             )
         val cellIndex = mdFrameColumn(model, presentation, index, position, bias)
         val cell = measured.resource.cells[cellIndex]
@@ -252,7 +257,7 @@ public class MarkdownPreviewMeasurement internal constructor(
         val rect = cell.text.layout.caret(displayed) ?: return None
         return Some(
             Rect(
-                padding + cell.origin.x + rect.x,
+                contentX + cell.origin.x + rect.x,
                 padding + heights.prefix(index) + cell.origin.y + rect.y,
                 rect.width,
                 rect.height
@@ -266,14 +271,14 @@ public class MarkdownPreviewMeasurement internal constructor(
         val measured = row(index) ?: return None
         if (hit.cellIndex >= measured.resource.cells.size)
             return Some(
-                Rect(padding, padding + heights.prefix(index), 1.0, measured.resource.height)
+                Rect(contentX, padding + heights.prefix(index), 1.0, measured.resource.height)
             )
         val cell = measured.resource.cells[hit.cellIndex]
         val rect =
             cell.text.layout.caret(cell.text.display.toDisplay(hit.textPosition)) ?: return None
         return Some(
             Rect(
-                padding + cell.origin.x + rect.x,
+                contentX + cell.origin.x + rect.x,
                 padding + heights.prefix(index) + cell.origin.y + rect.y,
                 rect.width,
                 rect.height

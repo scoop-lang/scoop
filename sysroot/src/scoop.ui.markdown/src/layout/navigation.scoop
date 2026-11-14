@@ -1,0 +1,18 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.TextPosition
+import scoop.window.TextMovement
+
+/** Logical movement must advance text before stopping at a row boundary. */
+internal fun mdNavigationMoved(
+    before: TextPosition,
+    after: TextPosition,
+    movement: TextMovement
+): Boolean =
+    when (movement) {
+        case Backward -> before.byteOffset != after.byteOffset
+        case Forward -> before.byteOffset != after.byteOffset
+        case WordBackward -> before.byteOffset != after.byteOffset
+        case WordForward -> before.byteOffset != after.byteOffset
+        else -> before != after
+    }

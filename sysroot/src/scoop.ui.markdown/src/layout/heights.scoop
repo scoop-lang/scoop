@@ -16,6 +16,14 @@ internal class MdHeights(val kind: MdHeightKind) {
             case Run(val count, val extent) -> count.toDouble() * extent
             case Branch(val left, val right) -> left.total + right.total
         }
+    val visibleCount: Long =
+        when (kind) {
+            case Run(val count, val extent) -> if (extent > 0.0)
+                count
+            else
+                0L
+            case Branch(val left, val right) -> left.visibleCount + right.visibleCount
+        }
     val depth: Int =
         when (kind) {
             case Run(val count, _) -> if (count == 0L)
@@ -43,7 +51,7 @@ internal class MdHeights(val kind: MdHeightKind) {
     }
     fun indexAt(y: Double): Long {
         if (y <= 0.0)
-            return 0L
+            return nextVisible(0L)
         if (y >= total)
             return count
         return when (kind) {
@@ -54,6 +62,62 @@ internal class MdHeights(val kind: MdHeightKind) {
                 left.count + right.indexAt(y - left.total)
         }
     }
+    fun nextVisible(start: Long): Long {
+        if (start < 0L || start > count)
+            throw IllegalArgumentException(Some("Markdown visible index out of range"))
+        if (visibleCount == 0L || start == count)
+            return count
+        return when (kind) {
+            case Run(_, _) -> start
+            case Branch(val left, val right) -> {
+                if (start < left.count) {
+                    val at = left.nextVisible(start)
+                    if (at < left.count)
+                        return at
+                }
+                left.count +
+                    right.nextVisible(
+                        if (start > left.count)
+                            start - left.count
+                        else
+                            0L
+                    )
+            }
+        }
+    }
+    fun previousVisible(end: Long): Long {
+        if (end < 0L || end > count)
+            throw IllegalArgumentException(Some("Markdown visible index out of range"))
+        if (visibleCount == 0L || end == 0L)
+            return -1L
+        return when (kind) {
+            case Run(_, _) -> end - 1L
+            case Branch(val left, val right) -> {
+                if (end > left.count) {
+                    val at = right.previousVisible(end - left.count)
+                    if (at >= 0L)
+                        return left.count + at
+                }
+                left.previousVisible(
+                    if (end < left.count)
+                        end
+                    else
+                        left.count
+                )
+            }
+        }
+    }
+    fun extent(index: Long): Double {
+        if (index < 0L || index >= count)
+            throw IllegalArgumentException(Some("Markdown layout index out of range"))
+        return when (kind) {
+            case Run(_, val extent) -> extent
+            case Branch(val left, val right) -> if (index < left.count)
+                left.extent(index)
+            else
+                right.extent(index - left.count)
+        }
+    }
     fun replace(start: Long, end: Long, count: Long, extent: Double): MdHeights {
         if (start < 0L || end < start || end > this.count)
             throw IllegalArgumentException(Some("Markdown layout replacement out of range"))
@@ -61,13 +125,15 @@ internal class MdHeights(val kind: MdHeightKind) {
         val last = mdSplitHeights(first._2, end - start)
         return mdJoinHeights(mdJoinHeights(first._1, mdHeightRun(count, extent)), last._2)
     }
-    fun record(index: Long, extent: Double): MdHeights = replace(index, index + 1L, 1L, extent)
+    fun record(index: Long, extent: Double): MdHeights =
+        if (this.extent(index) == extent)
+            this
+        else
+            replace(index, index + 1L, 1L, extent)
 }
 
 internal fun mdHeightRun(count: Long, extent: Double): MdHeights {
-    if (
-        count < 0L || !extent.isFinite() || extent <= 0.0 || !(count.toDouble() * extent).isFinite()
-    )
+    if (count < 0L || !extent.isFinite() || extent < 0.0 || !(count.toDouble() * extent).isFinite())
         throw IllegalArgumentException(Some("Invalid Markdown layout extent"))
     return MdHeights(MdHeightKind.Run(count, extent))
 }

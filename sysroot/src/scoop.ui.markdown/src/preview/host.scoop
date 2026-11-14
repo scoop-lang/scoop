@@ -43,6 +43,13 @@ public class MarkdownPreviewHost public constructor(
     internal var heightRegions: MdRichRegionRows? = None
     internal var rich: MarkdownRichHost? = None
     internal var heights = mdHeightRun(0L, mdPreviewEstimate(initialStyle, initialOptions))
+    internal var folding: MarkdownFoldingController? = None
+    internal var folded: MdFoldProjection? = None
+    internal var layoutFolds: MdFoldProjection? = None
+    internal var foldedHeights = heights
+    internal var visibleHeights = heights
+    internal var foldDocument: MarkdownParsedDocument? = None
+    internal var foldPresentation: MdRichPresentation? = None
     internal val caches = HashMap<MdDisplayKey, MdPreviewRowCache>()
     internal var layoutWidth = -1.0
     internal var maximumWidth = 0.0
@@ -125,11 +132,19 @@ public class MarkdownPreviewHost public constructor(
         onSource: (MarkdownRange) -> Unit = { _ -> Unit },
         images: MarkdownImageController? = None,
         documentUri: String = "",
-        searchResult: MarkdownSearchResult? = None
+        searchResult: MarkdownSearchResult? = None,
+        folding: MarkdownFoldingController? = None
     ) {
         checkOpen()
         controller.editor.checkEdit()
         options.check()
+        when (folding) {
+            case Some(val value) -> if (value.parser !== controller)
+                throw IllegalArgumentException(
+                    Some("Markdown preview folding belongs to another parser")
+                )
+            case None -> Unit
+        }
         val rebound = controller !== this.controller
         val sameImages =
             when ((imageController, images)) {
@@ -177,6 +192,8 @@ public class MarkdownPreviewHost public constructor(
         }
         this.documentUri = documentUri
         this.searchResult = searchResult
+        this.folding = folding
+        folding?.revealSelection()
         this.options = options
         this.focus.options = focus
         suppliedFonts = fonts
@@ -243,7 +260,8 @@ public class MarkdownPreviewHost public constructor(
                     latest &&
                     frame.sourceRevision ==
                     Some(editor.snapshot.revision) &&
-                    mdSamePresentation(frame.presentation, presentation)
+                    mdSamePresentation(frame.presentation, presentation) &&
+                    mdSameFolds(frame.folds, mdActiveFolds(folding))
             )
                 Some(frame)
             else
@@ -263,6 +281,7 @@ public class MarkdownPreviewHost public constructor(
         checkOpen()
         editor.checkEdit()
         editor.snapshot.read(MarkdownRange(position.byteOffset, position.byteOffset))
+        folding?.reveal(position)
         revealTarget = Some(position)
         scope.requestLayout()
     }

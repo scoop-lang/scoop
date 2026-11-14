@@ -59,6 +59,7 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
                 else
                     MarkdownBias.After
             host.perform {
+                host.preview.folding?.reveal(result.position)
                 editor.setSelection(
                     MarkdownSelection(
                         if (extend)
@@ -100,6 +101,10 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
                 return true
             val input = host.input ?: return false
             val selected = input.inputState.selection.range
+            if (mdRichExposeDeletion(host, deletion)) {
+                host.scope.requestLayout()
+                return true
+            }
             val atBoundary =
                 selected.start ==
                     selected.end &&

@@ -1,0 +1,86 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+
+private class MdFoldingToolbarProps(
+    val controller: MarkdownFoldingController,
+    val fonts: FontCollection?
+)
+
+/** Keyboard-accessible folding actions; source text and undo history remain unchanged. */
+public fun markdownFoldingToolbar(
+    controller: MarkdownFoldingController,
+    fonts: FontCollection? = None
+): View =
+    component(
+        MdFoldingToolbarProps(controller, fonts),
+        { props, scope -> MdFoldingToolbar(props, scope) }
+    )
+
+private class MdFoldingToolbar(
+    val props: Props<MdFoldingToolbarProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val folding = props.value.controller
+        val suppliedFonts = props.value.fonts
+        val region = folding.current?.at(folding.editor.selection.cursor) ?: None
+        val collapsed =
+            when (region) {
+                case Some(val value) -> folding.isCollapsed(value)
+                case None -> false
+            }
+        val available =
+            when (region) {
+                case Some(_) -> true;
+                case None -> false
+            }
+        val canCollapseAll = (folding.current?.regions?.size ?: 0L) > 0L
+        val canExpandAll = !folding.isClosed && folding.projection.collapsed.size > 0L
+        return row {
+            spacing = 4.0
+            alignment = CrossAlignment.Center
+            button(
+                if (collapsed)
+                    "Expand"
+                else
+                    "Collapse",
+                {
+                    when (region) {
+                        case Some(val value) -> folding.setCollapsed(value, !collapsed)
+                        case None -> Unit
+                    }
+                    folding.view.requestFocus(folding.view.activePane)
+                }
+            ) {
+                enabled = available;
+                size = ButtonSize.Sm;
+                fonts = suppliedFonts
+            }
+            button(
+                "Collapse all",
+                {
+                    folding.collapseAll()
+                    folding.view.requestFocus(folding.view.activePane)
+                }
+            ) {
+                enabled = canCollapseAll;
+                size = ButtonSize.Sm;
+                fonts = suppliedFonts
+            }
+            button(
+                "Expand all",
+                {
+                    folding.expandAll()
+                    folding.view.requestFocus(folding.view.activePane)
+                }
+            ) {
+                enabled = canExpandAll;
+                size = ButtonSize.Sm;
+                fonts = suppliedFonts
+            }
+        }
+    }
+}

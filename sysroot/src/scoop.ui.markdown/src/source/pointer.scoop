@@ -42,6 +42,8 @@ internal fun mdSourcePress(
     clicks: Int
 ) {
     val point = local ?: return
+    if (mdSourceFoldPress(host, point))
+        return
     val hit = host.hitTest(point) ?: return
     val position = hit.position
     host.area.requestFocus(FocusOrigin.Pointer)

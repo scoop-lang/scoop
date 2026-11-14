@@ -104,7 +104,10 @@ internal fun <T> mdWithSourceLine(
                 paragraph.layout(
                     max(
                         0.0,
-                        (host.accepted?.metrics?.size?.width ?: 640.0) - host.options.padding * 2.0
+                        (host.accepted?.metrics?.size?.width ?: 640.0) -
+                            host.options.padding *
+                            2.0 -
+                            mdFoldGutter(mdActiveFolds(host.folding))
                     )
                 )
             else
@@ -114,6 +117,7 @@ internal fun <T> mdWithSourceLine(
 }
 
 internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdSourceMove {
+    mdSyncSourceFolds(host)
     val state = host.current
     val snapshot = state.snapshot
     val cursor = state.selection.cursor
@@ -135,7 +139,7 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
             val y =
                 max(
                     0.0,
-                    host.heights.prefix(index) +
+                    host.visibleHeights.prefix(index) +
                         (caret?.y ?: 0.0) +
                         (
                             if (movement == TextMovement.PageUp)
@@ -144,10 +148,11 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
                                 distance
                         )
                 )
-            val destination = extent.index(host.heights.indexAt(y))
+            val destination =
+                mdVisibleIndex(host.visibleHeights, extent.index(host.visibleHeights.indexAt(y)))
             return@mdWithSourceLine mdWithSourceLine(host, destination) {
                 nextRange, nextDisplay, nextLayout ->
-                val hit = nextLayout.hitTest(Point(x, y - host.heights.prefix(destination)))
+                val hit = nextLayout.hitTest(Point(x, y - host.visibleHeights.prefix(destination)))
                 val mapped = nextDisplay.toDocument(hit)
                 MdSourceMove(
                     MarkdownPosition(nextRange.start + mapped.byteOffset),
@@ -199,7 +204,7 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
                 movement ==
                 TextMovement.PageDown
         when (local) {
-            case Some(val next) -> if (next.position != position) {
+            case Some(val next) -> if (mdNavigationMoved(position, next.position, movement)) {
                 val mapped = display.toDocument(next.position)
                 return@mdWithSourceLine MdSourceMove(
                     MarkdownPosition(range.start + mapped.byteOffset),
@@ -238,17 +243,15 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
                 TextMovement.Down ||
                 movement ==
                 TextMovement.PageDown
-        if (
-            (!previous && !following) ||
-                (previous && index == extent.first) ||
-                (following && index + 1L == extent.end)
-        )
+        if (!previous && !following)
             return@mdWithSourceLine MdSourceMove(cursor, host.cursorAffinity, host.preferredX)
         val target =
             if (previous)
-                index - 1L
+                host.visibleHeights.previousVisible(index)
             else
-                index + 1L
+                host.visibleHeights.nextVisible(index + 1L)
+        if (target < extent.first || target >= extent.end)
+            return@mdWithSourceLine MdSourceMove(cursor, host.cursorAffinity, host.preferredX)
         val caret = layout.caret(visual)
         val x = host.preferredX ?: (caret?.x ?: 0.0)
         val destination = target

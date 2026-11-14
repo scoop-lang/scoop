@@ -94,13 +94,16 @@ public class MarkdownSourceMeasurement internal constructor(
     internal val padding: Double,
     internal val cursorAffinity: TextAffinity,
     ownership: MdSourceRows? = None,
-    internal val searchResult: MarkdownSearchResult? = None
+    internal val searchResult: MarkdownSearchResult? = None,
+    internal val folds: MdFoldProjection? = None,
+    internal val gutter: Double = 0.0
 ): Closeable {
     private val owner = ownership ?: MdSourceRows(rows)
     private var closed = false
     public val sourceRevision: Long get() = snapshot.revision
     public val measuredLineCount: Long get() = rows.size
     public val scrollSnapshot: ScrollSnapshot get() = scroll.snapshot
+    internal val contentX: Double get() = padding + gutter
     public val lineIndices: Array<Long> get() =
         Array<Long>(rows.size) { index -> rows[index].index }
     internal val extent = MdSourceExtent(snapshot, sourceRange)
@@ -122,7 +125,9 @@ public class MarkdownSourceMeasurement internal constructor(
             padding,
             cursorAffinity,
             Some(owner.retain()),
-            searchResult
+            searchResult,
+            folds,
+            gutter
         )
     }
     internal fun line(index: Long): MdSourceLine? {
@@ -142,13 +147,17 @@ public class MarkdownSourceMeasurement internal constructor(
         val rect =
             row.layout.caret(row.position(position.byteOffset, bias, affinity)) ?: return None
         return Some(
-            Rect(rect.x + padding, rect.y + padding + top(row.index), rect.width, rect.height)
+            Rect(rect.x + contentX, rect.y + padding + top(row.index), rect.width, rect.height)
         )
     }
     internal fun hit(point: Point): MarkdownSourceHit? {
-        val index = extent.index(heights.indexAt(point.y - padding + heights.prefix(extent.first)))
+        val index =
+            mdVisibleIndex(
+                heights,
+                extent.index(heights.indexAt(point.y - padding + heights.prefix(extent.first)))
+            )
         val row = line(index) ?: return None
-        val hit = row.layout.hitTest(Point(point.x - padding, point.y - padding - top(index)))
+        val hit = row.layout.hitTest(Point(point.x - contentX, point.y - padding - top(index)))
         return Some(MarkdownSourceHit(row.source(hit), hit.affinity))
     }
     public override fun close() {

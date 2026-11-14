@@ -34,6 +34,7 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
                             mdSourceMove(host, movement)
             host.perform(
                 {
+                    host.folding?.reveal(result.position)
                     state.setSelection(
                         MarkdownSelection(
                             if (extend)
@@ -72,6 +73,23 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
             if (host.options.readOnly)
                 return true
             val range = mdSourceDelete(host, deletion)
+            val folding = host.folding
+            if (
+                folding?.exposeDeletion(range) ==
+                    Some(true) ||
+                    (
+                        (
+                            deletion == TextDeletion.Forward || deletion == TextDeletion.WordForward
+                        ) &&
+                            state.selection.cursor.byteOffset >=
+                            host.lineRange(state.snapshot.lineAt(state.selection.cursor)).end &&
+                            folding?.exposeFollowingHeader(state.selection.cursor, false) ==
+                            Some(true)
+                    )
+            ) {
+                host.scope.requestLayout()
+                return true
+            }
             val kind =
                 when (deletion) {
                     case Backward -> MarkdownEditKind.Backspace

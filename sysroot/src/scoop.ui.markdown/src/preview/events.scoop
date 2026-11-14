@@ -48,6 +48,10 @@ internal fun mdPreviewReadEvent(
         case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, _)) -> {
             if (state == ElementState.Pressed) {
                 val point = context.localPosition ?: return
+                if (mdPreviewFoldPress(host, point)) {
+                    context.consume()
+                    return
+                }
                 val hit = host.hitTest(point) ?: return
                 host.area.requestFocus(FocusOrigin.Pointer)
                 val link =

@@ -4,6 +4,7 @@ import scoop.markdown.*
 
 internal fun mdRevealEditorPosition(view: MarkdownEditorViewState, position: MarkdownPosition) {
     val mount = view.mounted ?: return
+    mount.props.folding?.reveal(position)
     val anchor = MdScrollAnchor(MarkdownAnchor(position, MarkdownBias.Before), 0.0)
     if (
         view.mode ==

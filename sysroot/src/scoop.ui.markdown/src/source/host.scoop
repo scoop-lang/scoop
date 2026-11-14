@@ -36,6 +36,10 @@ public class MarkdownSourceHost public constructor(
     internal val window: Window get() = scope.nativeWindow
     internal var heights =
         mdHeightRun(initialState.snapshot.lineCount, mdSourceEstimate(initialStyle))
+    internal var folding: MarkdownFoldingController? = None
+    internal var folded: MdFoldProjection? = None
+    internal var foldedHeights = heights
+    internal var visibleHeights = heights
     internal val rows = HashMap<Long, MdSourceRow>()
     internal var layoutWidth: Double? = None
     internal var maximumWidth = 0.0
@@ -142,12 +146,20 @@ public class MarkdownSourceHost public constructor(
         region: MarkdownSourceRegion? = None,
         onExit: (() -> Unit)? = None,
         highlights: MarkdownCodeHighlights? = None,
-        searchResult: MarkdownSearchResult? = None
+        searchResult: MarkdownSearchResult? = None,
+        folding: MarkdownFoldingController? = None
     ) {
         checkOpen()
         state.checkEdit()
         options.check()
         mdSourceLimit(state, region)
+        when (folding) {
+            case Some(val value) -> if (value.editor !== state)
+                throw IllegalArgumentException(
+                    Some("Markdown source folding belongs to another editor")
+                )
+            case None -> Unit
+        }
         val sameRegion =
             when ((this.region, region)) {
                 case(Some(val a), Some(val b)) -> a === b
@@ -212,6 +224,12 @@ public class MarkdownSourceHost public constructor(
         exitSource = onExit
         this.highlights = highlights
         this.searchResult = searchResult
+        this.folding =
+            when (region) {
+                case Some(_) -> None
+                case None -> folding
+            }
+        this.folding?.revealSelection()
         area.scope.enabled = active
         area.textInput = active && !options.readOnly
         if (!ownsOtherComposition()) {
@@ -261,7 +279,11 @@ public class MarkdownSourceHost public constructor(
     public fun hitTest(point: Point): MarkdownSourceHit? {
         checkOpen()
         val frame = accepted ?: return None
-        if (frame.sourceRevision != current.snapshot.revision)
+        if (
+            frame.sourceRevision !=
+                current.snapshot.revision ||
+                !mdSameFolds(frame.folds, mdActiveFolds(folding))
+        )
             return None
         return frame.hit(point)
     }
@@ -287,7 +309,11 @@ public class MarkdownSourceHost public constructor(
     ): Rect? {
         checkOpen()
         val frame = accepted ?: return None
-        if (frame.sourceRevision != current.snapshot.revision)
+        if (
+            frame.sourceRevision !=
+                current.snapshot.revision ||
+                !mdSameFolds(frame.folds, mdActiveFolds(folding))
+        )
             return None
         return frame.caret(position, bias, affinity)
     }

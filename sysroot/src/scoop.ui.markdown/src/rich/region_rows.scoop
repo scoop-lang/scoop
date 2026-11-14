@@ -10,6 +10,7 @@ internal class MdRichRowSplice(
     val rows: Array<MdDisplayRow>,
     val position: Long
 ) {
+    val sourceSegments = mdFoldRowSegments(rows)
     val next: Long get() = position + rows.size
     val shift: Long get() = next - end
 }
@@ -120,6 +121,57 @@ internal class MdRichRegionRows(
                     splice.rows.size,
                     estimate
                 )
+        return result
+    }
+
+    fun foldHeights(
+        heights: MdHeights,
+        baseRows: Array<MdFoldRows>,
+        source: MarkdownRange
+    ): MdHeights {
+        var result = heights
+        for (range in baseRows) {
+            var cursor = range.start
+            var shift = 0L
+            for (splice in splices) {
+                if (splice.end <= cursor) {
+                    shift = splice.shift
+                    continue
+                }
+                if (splice.start >= range.end)
+                    break
+                val end =
+                    if (splice.start < range.end)
+                        splice.start
+                    else
+                        range.end
+                if (cursor < end)
+                    result = result.replace(cursor + shift, end + shift, end - cursor, 0.0)
+                if (splice.end > cursor)
+                    cursor = splice.end
+                shift = splice.shift
+                if (cursor >= range.end)
+                    break
+            }
+            if (cursor < range.end)
+                result = result.replace(cursor + shift, range.end + shift, range.end - cursor, 0.0)
+        }
+        for (splice in splices)
+            for (
+                range in mdHiddenRows(
+                    splice.rows,
+                    splice.sourceSegments,
+                    source,
+                    syntax.snapshot.byteLength
+                )
+            )
+                result =
+                    result.replace(
+                        splice.position + range.start,
+                        splice.position + range.end,
+                        range.end - range.start,
+                        0.0
+                    )
         return result
     }
 

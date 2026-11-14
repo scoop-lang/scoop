@@ -35,6 +35,8 @@ public class MarkdownParsedDocument internal constructor(
 ) {
     public val sourceNavigation: MarkdownNavigation =
         mdNavigationIndex(source, previous?.sourceNavigation)
+    public val sourceFolds: MarkdownFoldIndex =
+        mdFoldIndex(source, sourceNavigation, previous?.sourceFolds)
     public val previewNavigation: MarkdownNavigation =
         if (preview === source)
             sourceNavigation

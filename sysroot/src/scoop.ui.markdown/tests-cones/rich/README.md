@@ -42,6 +42,8 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-局部源码、格式、链接／图片、块操作及查找用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 、`MarkdownSearchBackgroundTests`、`MarkdownNavigationWindowTests` 或 `MarkdownNavigationStateTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
+局部源码、格式、链接／图片、块操作、查找、导航与折叠用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 、`MarkdownSearchBackgroundTests`、`MarkdownNavigationWindowTests`、`MarkdownNavigationStateTests` 或 `MarkdownFoldingWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
+
+`MarkdownFoldingWindowTests` 验证源码／富文本折叠按钮、键盘越过隐藏内容、正反删除先展开、嵌套标题状态、中文组合保护、修改头部与旧范围拒绝、只读导航、跨折叠全选剪切及统一撤销、搜索／程序化光标自动展开。大文档阶段从两栏 Host 的实际 measurement 检查可见行数量和滚动范围，确认折叠后仅测量少量可见行；关闭后的借用资源仍可用。
 
 示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现所选用例的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在相同事件目录的 stdout／stderr 文件。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。

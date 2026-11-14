@@ -1,0 +1,39 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.math.min
+import scoop.math.max
+import scoop.window.*
+
+internal fun mdRichExposeDeletion(host: MarkdownRichHost, deletion: TextDeletion): Boolean {
+    val folding = host.preview.folding ?: return false
+    if (
+        folding.isClosed ||
+            !host.editor.selection.collapsed ||
+            folding.projection.collapsed.size ==
+            0L
+    )
+        return false
+    val movement =
+        when (deletion) {
+            case Backward -> TextMovement.Backward
+            case Forward -> TextMovement.Forward
+            case WordBackward -> TextMovement.WordBackward
+            case WordForward -> TextMovement.WordForward
+            else -> return false
+        }
+    val input = host.input ?: return false
+    val position = host.editor.selection.cursor
+    if (
+        (deletion == TextDeletion.Forward || deletion == TextDeletion.WordForward) &&
+            input.inputState.selection.range.end ==
+            input.content.text.byteLength &&
+            folding.exposeFollowingHeader(position, true)
+    )
+        return true
+    val end = mdRichMove(host, movement).position.byteOffset
+    return folding.exposeDeletion(
+        MarkdownRange(min(position.byteOffset, end), max(position.byteOffset, end)),
+        true
+    )
+}

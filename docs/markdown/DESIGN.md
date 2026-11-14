@@ -140,6 +140,12 @@ markdownDocument(configure): MarkdownDocument
 
 `positionAt(line, column)` 与 `lineColumn(position)` 提供物理行／Unicode 标量列和 UTF-8 字节坐标的转换；参数从零计数，列越过行正文时停在行尾。独立程序可复用它们做批处理定位。Editor profile 的 `tableOfContentsDirective()` 识别独占一行的 [TOC]，保留源码；目录只在调用方明确生成或 UI 最终预览投影中派生。
 
+### 4.5 编辑器折叠
+
+UI 在后台从原语法和导航章节范围建立 `MarkdownFoldIndex`，保留完整标题、代码围栏首行与 front matter 首行。`MarkdownFoldingController` 保存每个视图的折叠状态，两栏共享源范围；代码只在源码栏折叠，预览图像块仍走既有扩展展示。按钮与 `markdownFoldingToolbar` 使用同一控制器，折叠不生成正文历史。
+
+布局保留展开时的持久高度树，再以整段零高度投影隐藏物理行或显示块；可见行查询跳过隐藏子树。显示行按单调源码区间建立索引，处理文末脚注、include 和局部编辑行片段，避免折叠大段正文时逐行扫描。跳转／搜索和程序化光标展开目标祖先，键盘跨行移动跳过隐藏区；光标删除将跨过隐藏内容时先展开，显式跨区选区仍操作完整正文。IME 组合范围不能被收起；过期命中和帧不能改变新折叠布局。
+
 ## 5. 从结构生成 Markdown
 
 生成器提供 document／block／inline builder，使用普通 Scoop receiver DSL。生成器是无 UI API，不复用 `StyledText` 或组件描述。

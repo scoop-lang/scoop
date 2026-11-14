@@ -1,0 +1,110 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.ui.*
+
+private fun mdSourceFold(frame: MarkdownSourceMeasurement, line: Long): MarkdownFoldRegion? {
+    val folds = frame.folds ?: return None
+    val index = folds.index ?: return None
+    return index.lines[line]
+}
+
+private fun mdPreviewFold(frame: MarkdownPreviewMeasurement, index: Long): MarkdownFoldRegion? {
+    val folds = frame.folds ?: return None
+    val model = frame.document ?: return None
+    val row = mdFrameRow(model, frame.presentation, index)
+    val range = mdFrameRowRange(model, frame.presentation, index, row.range)
+    val line = folds.snapshot.lineAt(MarkdownPosition(range.start))
+    val foldingIndex = folds.index ?: return None
+    val region = foldingIndex.lines[line] ?: return None
+    if (region.kind == MarkdownFoldKind.Code)
+        return None
+    return Some(region)
+}
+
+private fun mdPaintFoldArrow(
+    context: SceneContext,
+    x: Double,
+    top: Double,
+    collapsed: Boolean,
+    color: Color
+) {
+    context.draw {
+        paint -> path {
+            if (collapsed) {
+                moveTo(Point(x + 5.0, top + 5.0))
+                lineTo(Point(x + 12.0, top + 10.0))
+                lineTo(Point(x + 5.0, top + 15.0))
+            } else {
+                moveTo(Point(x + 3.0, top + 7.0))
+                lineTo(Point(x + 13.0, top + 7.0))
+                lineTo(Point(x + 8.0, top + 14.0))
+            }
+            closeContour()
+        }.use { shape -> paint.canvas.drawPath(shape, Paint(color)) }
+    }
+}
+
+internal fun mdPaintSourceFold(
+    context: SceneContext,
+    frame: MarkdownSourceMeasurement,
+    index: Long,
+    top: Double,
+    color: Color
+) {
+    val region = mdSourceFold(frame, index) ?: return
+    mdPaintFoldArrow(context, frame.padding, top, frame.folds!!.isCollapsed(region), color)
+}
+
+internal fun mdPaintPreviewFold(
+    context: SceneContext,
+    frame: MarkdownPreviewMeasurement,
+    index: Long,
+    top: Double,
+    color: Color
+) {
+    val region = mdPreviewFold(frame, index) ?: return
+    mdPaintFoldArrow(context, frame.padding, top, frame.folds!!.isCollapsed(region), color)
+}
+
+internal fun mdSourceFoldPress(host: MarkdownSourceHost, point: Point): Boolean {
+    val controller = host.folding ?: return false
+    val frame = host.accepted ?: return false
+    if (
+        !mdSameFolds(frame.folds, mdActiveFolds(host.folding)) ||
+            frame.sourceRevision !=
+            host.current.snapshot.revision ||
+            point.x <
+            frame.padding ||
+            point.x >=
+            frame.contentX
+    )
+        return false
+    val index = frame.heights.indexAt(point.y - frame.padding)
+    if (index >= frame.heights.count || point.y - frame.padding - frame.top(index) > 22.0)
+        return false
+    val region = mdSourceFold(frame, index) ?: return false
+    mdSourceStopDrag(host)
+    controller.setCollapsed(region, !controller.isCollapsed(region))
+    host.scope.requestLayout()
+    return true
+}
+
+internal fun mdPreviewFoldPress(host: MarkdownPreviewHost, point: Point): Boolean {
+    val controller = host.folding ?: return false
+    val frame = host.currentFrame() ?: return false
+    if (point.x < frame.padding || point.x >= frame.contentX)
+        return false
+    val index = frame.heights.indexAt(point.y - frame.padding)
+    if (
+        index >= frame.heights.count || point.y - frame.padding - frame.heights.prefix(index) > 22.0
+    )
+        return false
+    val region = mdPreviewFold(frame, index) ?: return false
+    host.drag = None
+    host.pressed = None
+    controller.setCollapsed(region, !controller.isCollapsed(region))
+    host.scope.requestLayout()
+    return true
+}

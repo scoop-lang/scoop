@@ -29,7 +29,7 @@ internal fun <T> mdWithRichRow(
         if (view.layoutWidth >= 0.0)
             view.layoutWidth
         else
-            max(1.0, 640.0 - view.options.padding * 2.0)
+            max(1.0, 640.0 - view.options.padding * 2.0 - mdFoldGutter(mdActiveFolds(view.folding)))
     val images = mdPreviewImages(view, model, row, width)
     val resource =
         try {
@@ -159,7 +159,7 @@ internal fun mdRichMove(host: MarkdownRichHost, movement: TextMovement): MdSourc
                     else -> None
                 }
             when (next) {
-                case Some(val value) -> if (value.position != position) {
+                case Some(val value) -> if (mdNavigationMoved(position, value.position, movement)) {
                     val mapped =
                         mdRichRowPosition(
                             host,

@@ -57,6 +57,7 @@ internal class MdDisplayDocument(
 ) {
     val identity = MdDisplayIdentity()
     private val sourceOrder: Array<Long> = mdDisplaySourceOrder(rows)
+    private val sourceSegments = mdFoldRowSegments(rows)
     private val byKey = HashMap<MdDisplayKey, Long>()
     init {
         for (index in 0L ..< rows.size)
@@ -64,6 +65,9 @@ internal class MdDisplayDocument(
     }
 
     fun rowForKey(key: MdDisplayKey): Long? = byKey[key]
+
+    fun hiddenRows(range: MarkdownRange): Array<MdFoldRows> =
+        mdHiddenRows(rows, sourceSegments, range, parsed.snapshot.byteLength)
 
     fun rowsInSourceRange(range: MarkdownRange): Array<Long> {
         var low = 0L

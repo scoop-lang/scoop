@@ -18,7 +18,8 @@ internal class MdRichProps(
     val images: MarkdownImageController?,
     val documentUri: String,
     val mount: MdEditorMount? = None,
-    val searchResult: MarkdownSearchResult? = None
+    val searchResult: MarkdownSearchResult? = None,
+    val folding: MarkdownFoldingController? = None
 )
 
 public fun markdownRichEditor(
@@ -33,7 +34,8 @@ public fun markdownRichEditor(
     onSource: ((MarkdownRange) -> Unit)? = None,
     images: MarkdownImageController? = None,
     documentUri: String = "",
-    searchResult: MarkdownSearchResult? = None
+    searchResult: MarkdownSearchResult? = None,
+    folding: MarkdownFoldingController? = None
 ): View =
     mdRichEditor(
         MdRichProps(
@@ -48,7 +50,8 @@ public fun markdownRichEditor(
             onSource,
             images,
             documentUri,
-            searchResult = searchResult
+            searchResult = searchResult,
+            folding = folding
         )
     )
 
@@ -65,6 +68,7 @@ private class MdRichComponent(val props: Props<MdRichProps>, scope: ComponentSco
         input.controller.status
         input.controller.editor.selection
         input.controller.editor.markedRange
+        val folds = input.folding?.projection
         val current = source.current.value
         val local =
             when (current) {
@@ -140,7 +144,10 @@ private class MdRichElement(
             value.changed,
             value.openLink,
             {
-                range -> when (value.source) {
+                range ->
+                value.folding?.reveal(MarkdownPosition(range.start))
+                value.folding?.reveal(MarkdownPosition(range.end))
+                when (value.source) {
                     case Some(val handler) -> handler(range)
                     case None -> source.open(
                         value.controller.editor,
@@ -151,7 +158,8 @@ private class MdRichElement(
             },
             value.images,
             value.documentUri,
-            value.searchResult
+            value.searchResult,
+            value.folding
         )
         value.mount?.attach(host.preview)
         if (!value.controller.isClosed)

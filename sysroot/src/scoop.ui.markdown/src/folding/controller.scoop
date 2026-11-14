@@ -1,0 +1,318 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.comparisons.comparatorOf
+import scoop.markdown.*
+import scoop.ui.*
+
+/** Per-view folding leaves source text and document undo unchanged. */
+public class MarkdownFoldingController public constructor(
+    public val view: MarkdownEditorViewState,
+    public val parser: MarkdownParseController
+): Closeable {
+    public val editor: MarkdownEditorState = view.editor
+    private val revision = state(0L)
+    private var collapsed: Array<MdCollapsedFold> = []
+    private var closed = false
+    private var cached: MdFoldProjection? = None
+    private var cachedRevision = -1L
+    init {
+        if (editor !== parser.editor)
+            throw IllegalArgumentException(
+                Some("Markdown folding and parser must share the same editor")
+            )
+    }
+    private val subscription = editor.document.observe { change -> changed(change) }
+
+    public val isClosed: Boolean get() {
+        revision.value;
+        return closed
+    }
+    public val current: MarkdownFoldIndex? get() =
+        if (isClosed || editor.isClosed)
+            None
+        else
+            parser.current?.sourceFolds
+
+    internal val projection: MdFoldProjection get() {
+        val version = revision.value
+        val snapshot = editor.snapshot
+        val index = current
+        when (cached) {
+            case Some(val value) -> {
+                val same =
+                    when ((value.index, index)) {
+                        case(Some(val a), Some(val b)) -> a === b
+                        case(None, None) -> true
+                        else -> false
+                    }
+                if (cachedRevision == version && value.snapshot === snapshot && same)
+                    return value
+            }
+            case None -> Unit
+        }
+        val latest = parser.latest?.sourceFolds
+        val basis =
+            when (index) {
+                case Some(_) -> index
+                case None -> when (latest) {
+                    case Some(val value) -> if (value.parsed.snapshot === snapshot)
+                        Some(value)
+                    else
+                        None
+                    case None -> None
+                }
+            }
+        val result =
+            MdFoldProjection(
+                snapshot,
+                index,
+                if (closed)
+                    []
+                else
+                    mdReconcileFolds(collapsed, basis)
+            )
+        cached = Some(result)
+        cachedRevision = version
+        return result
+    }
+
+    public fun isCollapsed(region: MarkdownFoldRegion): Boolean =
+        valid(region) && projection.isCollapsed(region)
+
+    /** Returns false for stale syntax, unchanged state, or a hidden active composition. */
+    public fun setCollapsed(region: MarkdownFoldRegion, value: Boolean): Boolean {
+        checkOpen()
+        if (!valid(region))
+            return false
+        val before = projection
+        if (before.isCollapsed(region) == value)
+            return false
+        if (value && composing(region.hidden))
+            return false
+        val next = ArrayList<MdCollapsedFold>()
+        for (entry in before.collapsed)
+            if (entry.header.start != region.header.start || entry.kind != region.kind)
+                next.add(entry)
+        if (value)
+            next.add(MdCollapsedFold(region.kind, region.range, region.header))
+        publish(next)
+        if (value)
+            retainVisibleSelection()
+        return true
+    }
+
+    public fun toggleAt(position: MarkdownPosition): Boolean {
+        checkOpen()
+        val index = current ?: return false
+        val region = index.at(position) ?: return false
+        return setCollapsed(region, !isCollapsed(region))
+    }
+
+    /** Skips folds whose hidden text contains an active IME composition. */
+    public fun collapseAll(): Boolean {
+        checkOpen()
+        val index = current ?: return false
+        val next = ArrayList<MdCollapsedFold>()
+        for (region in index.regions)
+            if (!composing(region.hidden))
+                next.add(MdCollapsedFold(region.kind, region.range, region.header))
+        val before = projection.collapsed
+        var same = before.size == next.size
+        if (same)
+            for (index in 0L ..< before.size)
+                if (
+                    before[index].header.start !=
+                        next[index].header.start ||
+                        before[index].kind !=
+                        next[index].kind
+                )
+                    same = false
+        if (same)
+            return false
+        publish(next)
+        retainVisibleSelection()
+        return true
+    }
+
+    public fun expandAll(): Boolean {
+        checkOpen()
+        if (collapsed.size == 0L)
+            return false
+        collapsed = []
+        revision.value += 1L
+        return true
+    }
+
+    internal fun reveal(position: MarkdownPosition): Boolean {
+        if (isClosed)
+            return false
+        checkOpen()
+        if (!projection.hides(position))
+            return false
+        val next = ArrayList<MdCollapsedFold>()
+        val before = projection.collapsed
+        for (entry in before)
+            if (!mdFoldContains(entry.hidden, position.byteOffset, editor.snapshot.byteLength))
+                next.add(entry)
+        if (next.size == before.size)
+            return false
+        publish(next)
+        return true
+    }
+
+    internal fun revealSelection() {
+        if (isClosed)
+            return
+        reveal(editor.selection.anchor)
+        reveal(editor.selection.cursor)
+    }
+
+    /** A caret deletion first exposes the text it would cross. Explicit selections remain intact. */
+    internal fun exposeDeletion(range: MarkdownRange, preview: Boolean = false): Boolean {
+        if (isClosed || !editor.selection.collapsed || range.isEmpty)
+            return false
+        val next = ArrayList<MdCollapsedFold>()
+        val before = projection.collapsed
+        for (entry in before)
+            if (
+                (preview && entry.kind == MarkdownFoldKind.Code) ||
+                    !mdFoldIntersects(entry.hidden, range, editor.snapshot.byteLength)
+            )
+                next.add(entry)
+        if (next.size == before.size)
+            return false
+        publish(next)
+        return true
+    }
+
+    internal fun exposeFollowingHeader(position: MarkdownPosition, preview: Boolean): Boolean {
+        if (isClosed || !editor.selection.collapsed)
+            return false
+        val next = ArrayList<MdCollapsedFold>()
+        val before = projection.collapsed
+        val snapshot = editor.snapshot
+        val line = snapshot.lineRange(snapshot.lineAt(position), true)
+        for (entry in before) {
+            val follows =
+                position.byteOffset >=
+                    entry.header.start &&
+                    position.byteOffset <
+                    entry.header.end &&
+                    (preview || line.end == entry.header.end) &&
+                    !(preview && entry.kind == MarkdownFoldKind.Code)
+            if (!follows)
+                next.add(entry)
+        }
+        if (next.size == before.size)
+            return false
+        publish(next)
+        return true
+    }
+
+    private fun valid(region: MarkdownFoldRegion): Boolean {
+        val index = current ?: return false
+        return region.parsed === index.parsed
+    }
+
+    private fun composing(hidden: MarkdownRange): Boolean =
+        when (editor.markedRange) {
+            case Some(val range) -> mdFoldIntersects(hidden, range, editor.snapshot.byteLength)
+            case None -> false
+        }
+
+    private fun retainVisibleSelection() {
+        val selection = editor.selection
+        for (entry in projection.collapsed) {
+            if (
+                mdFoldContains(
+                    entry.hidden,
+                    selection.anchor.byteOffset,
+                    editor.snapshot.byteLength
+                ) ||
+                    mdFoldContains(
+                        entry.hidden,
+                        selection.cursor.byteOffset,
+                        editor.snapshot.byteLength
+                    )
+            ) {
+                editor.setSelection(mdCaret(entry.header.start))
+                return
+            }
+        }
+    }
+
+    private fun publish(next: ArrayList<MdCollapsedFold>) {
+        next.sortWith(
+            comparatorOf<MdCollapsedFold> { a, b -> a.header.start.compareTo(b.header.start) }
+        )
+        collapsed = next.toArray()
+        revision.value += 1L
+    }
+
+    private fun changed(change: MarkdownChange) {
+        revision.checkMutation()
+        if (change.kind == MarkdownChangeKind.Reset) {
+            collapsed = []
+        } else {
+            val previous = parser.latest?.sourceFolds
+            val index =
+                when (previous) {
+                    case Some(val value) -> if (value.parsed.snapshot === change.before)
+                        Some(value)
+                    else
+                        None
+                    case None -> None
+                }
+            val next = ArrayList<MdCollapsedFold>()
+            for (entry in mdReconcileFolds(collapsed, index)) {
+                var headerChanged = false
+                for (replacement in change.replacements)
+                    if (mdFoldIntersects(entry.header, replacement.range, change.before.byteLength))
+                        headerChanged = true
+                if (headerChanged)
+                    continue
+                val start =
+                    change.map(
+                        MarkdownAnchor(MarkdownPosition(entry.header.start), MarkdownBias.After)
+                    ).position.byteOffset
+                val middle =
+                    change.map(
+                        MarkdownAnchor(MarkdownPosition(entry.header.end), MarkdownBias.Before)
+                    ).position.byteOffset
+                val end =
+                    change.map(
+                        MarkdownAnchor(MarkdownPosition(entry.range.end), MarkdownBias.Before)
+                    ).position.byteOffset
+                if (start < middle && middle < end)
+                    next.add(
+                        MdCollapsedFold(
+                            entry.kind,
+                            MarkdownRange(start, end),
+                            MarkdownRange(start, middle)
+                        )
+                    )
+            }
+            collapsed = next.toArray()
+        }
+        revision.value += 1L
+    }
+
+    private fun checkOpen() {
+        revision.checkMutation()
+        if (closed)
+            throw IllegalStateException(Some("Markdown folding controller is closed"))
+        editor.checkEdit()
+    }
+
+    public override fun close() {
+        revision.checkMutation()
+        if (closed)
+            return
+        subscription.close()
+        closed = true
+        collapsed = []
+        cached = None
+        revision.value += 1L
+    }
+}

@@ -1,0 +1,100 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal struct MdFoldRows(val start: Long, val end: Long)
+
+/** Footnotes can interrupt source order; each remaining run supports binary range lookup. */
+internal fun mdFoldRowSegments(rows: Array<MdDisplayRow>): Array<MdFoldRows> {
+    val result = ArrayList<MdFoldRows>()
+    var start = 0L
+    for (index in 1L ..< rows.size) {
+        val before = rows[index - 1L].range
+        val after = rows[index].range
+        if (after.start < before.start || after.end < before.end) {
+            result.add(MdFoldRows(start, index))
+            start = index
+        }
+    }
+    if (start < rows.size)
+        result.add(MdFoldRows(start, rows.size))
+    return result.toArray()
+}
+
+internal fun mdHiddenRows(
+    rows: Array<MdDisplayRow>,
+    segments: Array<MdFoldRows>,
+    range: MarkdownRange,
+    length: Long
+): Array<MdFoldRows> {
+    val result = ArrayList<MdFoldRows>()
+    for (segment in segments) {
+        var low = segment.start
+        var high = segment.end
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (rows[middle].range.start < range.start)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        val first = low
+        high = segment.end
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            val item = rows[middle].range
+            if (item.end <= range.end && (item.start < range.end || range.end == length))
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (first < low)
+            result.add(MdFoldRows(first, low))
+    }
+    return result.toArray()
+}
+
+internal fun mdMaskFoldRows(heights: MdHeights, rows: Array<MdFoldRows>): MdHeights {
+    var result = heights
+    for (range in rows)
+        result = result.replace(range.start, range.end, range.end - range.start, 0.0)
+    return result
+}
+
+internal fun mdPreviewFoldHeights(
+    heights: MdHeights,
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    folds: MdFoldProjection
+): MdHeights {
+    var result = heights
+    var covered = -1L
+    for (entry in folds.collapsed) {
+        if (entry.kind == MarkdownFoldKind.Code || entry.hidden.end <= covered)
+            continue
+        val range = entry.hidden
+        val expanded =
+            MarkdownRange(
+                mdFrameExpanded(
+                    model,
+                    presentation,
+                    MarkdownPosition(range.start),
+                    MarkdownBias.After
+                ).byteOffset,
+                mdFrameExpanded(
+                    model,
+                    presentation,
+                    MarkdownPosition(range.end),
+                    MarkdownBias.Before
+                ).byteOffset
+            )
+        val rows = model.display.hiddenRows(expanded)
+        result =
+            when (presentation?.regions ?: None) {
+                case Some(val local) -> local.foldHeights(result, rows, range)
+                case None -> mdMaskFoldRows(result, rows)
+            }
+        covered = range.end
+    }
+    return result
+}

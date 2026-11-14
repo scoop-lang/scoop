@@ -64,9 +64,10 @@ internal fun mdScenePreview(
                         continue
                     content.withState {
                         block ->
-                        block.translate(frame.padding, top)
+                        block.translate(frame.contentX, top)
                         mdPaintPreviewRow(block, row, selected, style, options, frame)
                     }
+                    mdPaintPreviewFold(content, frame, row.index, top, style.text.color)
                 }
                 host.rich?.sceneInput(content, frame)
             }
@@ -77,6 +78,7 @@ internal fun mdScenePreview(
                 host.closed ||
                     host.controller !==
                     controller ||
+                    !mdSameFolds(frame.folds, mdActiveFolds(host.folding)) ||
                     completion.submission ==
                     FrameSubmission.Discarded
             ) {
@@ -90,7 +92,7 @@ internal fun mdScenePreview(
             val model = frame.document ?: return@onFrameComplete
             if (frame.sourceRevision != Some(host.editor.snapshot.revision))
                 return@onFrameComplete
-            val hit = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y))
+            val hit = frame.hit(Point(frame.contentX, frame.scrollSnapshot.offset.y))
             when (hit) {
                 case Some(val value) -> {
                     val caret = frame.hitCaret(value)

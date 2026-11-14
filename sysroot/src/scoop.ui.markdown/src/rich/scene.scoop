@@ -38,7 +38,7 @@ internal fun MarkdownRichHost.sceneInput(context: SceneContext, frame: MarkdownP
     val start = text.textAt(marked.start, MarkdownBias.Before)
     val end = text.textAt(marked.end, MarkdownBias.After)
     val boxes = cell.text.layout.selection(cell.text.display.displayRange(Utf8Range(start, end)))
-    val left = frame.padding + cell.origin.x
+    val left = frame.contentX + cell.origin.x
     val top = frame.padding + frame.heights.prefix(row.index) + cell.origin.y
     context.draw {
         paint -> for (box in boxes)

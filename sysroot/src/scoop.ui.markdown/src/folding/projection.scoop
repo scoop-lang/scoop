@@ -1,0 +1,89 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.collections.HashSet
+
+internal class MdCollapsedFold(
+    val kind: MarkdownFoldKind,
+    val range: MarkdownRange,
+    val header: MarkdownRange
+) {
+    val hidden: MarkdownRange get() = MarkdownRange(header.end, range.end)
+}
+
+/** A frame retains this exact visibility projection along with its source and height tree. */
+internal class MdFoldProjection(
+    val snapshot: MarkdownSnapshot,
+    val index: MarkdownFoldIndex?,
+    val collapsed: Array<MdCollapsedFold>
+) {
+    private val headers = HashSet<Long>()
+    private val outer = ArrayList<MarkdownRange>()
+    init {
+        for (entry in collapsed) {
+            headers.add(entry.header.start)
+            if (outer.size == 0L || outer[outer.size - 1L].end <= entry.hidden.start)
+                outer.add(entry.hidden)
+            else
+                if (outer[outer.size - 1L].end < entry.hidden.end)
+                    outer[outer.size - 1L] =
+                        MarkdownRange(outer[outer.size - 1L].start, entry.hidden.end)
+        }
+    }
+    fun isCollapsed(region: MarkdownFoldRegion): Boolean {
+        return headers.contains(region.header.start)
+    }
+
+    fun hides(position: MarkdownPosition): Boolean {
+        var low = 0L
+        var high = outer.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (outer[middle].start <= position.byteOffset)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return low > 0L && mdFoldContains(outer[low - 1L], position.byteOffset, snapshot.byteLength)
+    }
+
+    fun sourceHeights(heights: MdHeights): MdHeights {
+        var result = heights
+        var covered = -1L
+        for (entry in collapsed) {
+            if (entry.hidden.end <= covered)
+                continue
+            val start = snapshot.lineAt(MarkdownPosition(entry.hidden.start))
+            val end =
+                if (entry.hidden.end == snapshot.byteLength)
+                    snapshot.lineCount
+                else
+                    snapshot.lineAt(MarkdownPosition(entry.hidden.end))
+            if (start < end)
+                result = result.replace(start, end, end - start, 0.0)
+            covered = entry.hidden.end
+        }
+        return result
+    }
+}
+
+internal fun mdFoldContains(range: MarkdownRange, point: Long, length: Long): Boolean =
+    point >= range.start && (point < range.end || (point == length && range.end == length))
+
+internal fun mdFoldIntersects(a: MarkdownRange, b: MarkdownRange, length: Long): Boolean =
+    if (b.isEmpty)
+        mdFoldContains(a, b.start, length)
+    else
+        a.start < b.end && a.end > b.start
+
+internal fun mdReconcileFolds(collapsed: Array<MdCollapsedFold>, index: MarkdownFoldIndex?): Array<
+    MdCollapsedFold
+> {
+    val current = index ?: return collapsed
+    val result = ArrayList<MdCollapsedFold>()
+    for (entry in collapsed) {
+        val region = current.matching(entry.header.start, entry.kind) ?: continue
+        result.add(MdCollapsedFold(region.kind, region.range, region.header))
+    }
+    return result.toArray()
+}

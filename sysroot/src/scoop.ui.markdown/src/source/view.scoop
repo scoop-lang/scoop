@@ -17,7 +17,8 @@ internal class MdSourceProps(
     val exitSource: (() -> Unit)? = None,
     val localSource: MdRichSourceSession? = None,
     val highlights: MarkdownCodeHighlights? = None,
-    val searchResult: MarkdownSearchResult? = None
+    val searchResult: MarkdownSearchResult? = None,
+    val folding: MarkdownFoldingController? = None
 )
 
 /** Source view for a shared Markdown editor state; its mount owns native and layout resources. */
@@ -31,7 +32,8 @@ public fun markdownSourceEditor(
     region: MarkdownSourceRegion? = None,
     onExit: (() -> Unit)? = None,
     highlights: MarkdownCodeHighlights? = None,
-    searchResult: MarkdownSearchResult? = None
+    searchResult: MarkdownSearchResult? = None,
+    folding: MarkdownFoldingController? = None
 ): View =
     mdSourceEditor(
         MdSourceProps(
@@ -44,7 +46,8 @@ public fun markdownSourceEditor(
             region = region,
             exitSource = onExit,
             highlights = highlights,
-            searchResult = searchResult
+            searchResult = searchResult,
+            folding = folding
         )
     )
 
@@ -58,6 +61,7 @@ private class MdSourceComponent(val props: Props<MdSourceProps>, scope: Componen
         props.value.state.snapshot
         props.value.state.selection
         props.value.state.markedRange
+        val folds = props.value.folding?.projection
         val activeRange = props.value.region?.range
         return element(props.value, { input, mount -> MdSourceElement(input, mount) })
     }
@@ -94,10 +98,16 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
             input.region,
             input.exitSource,
             input.highlights,
-            input.searchResult
+            input.searchResult,
+            input.folding
         )
         input.mount?.attach(host)
         input.localSource?.attach(host)
+        when (input.folding) {
+            case Some(val value) -> if (!value.isClosed && !value.parser.isClosed)
+                value.parser.start()
+            case None -> Unit
+        }
         return UiInvalidation.Layout
     }
     public override fun onUnmount() {

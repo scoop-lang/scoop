@@ -208,3 +208,15 @@ MarkdownParsedDocument 在后台建立 sourceNavigation 和 previewNavigation，
 `markdownOutline(controller)` 使用标准 VirtualList，只挂载可见标题，按真实父层级缩进；点击标题跳转并恢复编辑焦点。`markdownNavigationBar(controller)` 提供 Back／Forward 与原生行列输入；Primary-L 聚焦行列字段，Enter 跳转，组合结束后的 Escape 返回当前编辑栏。markdownEditor 的 navigation 参数绑定同一 controller，使预览内部链接和目录跳转进入统一的导航历史。
 
 [TOC] 保留原指令，由最终预览标题派生为可定位的目录行，生成文字不可直接写回；编辑指令仍走局部源码。预览脚注编号跳转到定义，活动编辑片段中的脚注原子仍提供源码编辑入口。未挂载的目标以源码锚点定位并等待有效布局。内部链接解析失败时交给宿主的既有 onOpenLink；普通外部 URI 保留宿主处理方式。只读仍允许导航，禁用组件不处理输入。
+
+## 13. 源码与预览折叠
+
+`MarkdownParsedDocument.sourceFolds` 在工作线程从原语法和标题索引建立 `MarkdownFoldIndex`。每个 MarkdownFoldRegion 保存当前快照、节点、kind、完整 range、保留的 header 与隐藏的 hidden 范围；Heading 使用原章节范围并保留完整 ATX／Setext 标题，Code 保留围栏首行，FrontMatter 保留首行定界符。仅跨实际物理行的非空区域可折叠。代码折叠作用于源码栏，标题与 front matter 同时作用于预览；图像块保持原展示规则。
+
+`MarkdownFoldingController(viewState, parser)` 借用编辑状态与解析器，提供 current、isCollapsed、setCollapsed、toggleAt、collapseAll、expandAll。markdownEditor 的 folding 参数接入同一视图的两栏，单独源码／预览组件也可使用；markdownFoldingToolbar 提供当前区域及全部折叠／展开。每个视图保存自己的折叠状态，不修改 Markdown、不生成正文撤销项。只读可以折叠，过期区域不能修改当前状态。
+
+收起时保留标题或首行及折叠按钮。普通选区落入待隐藏内容时移到保留的头部；不得隐藏正在组合的文字，包含 marked range 的收起操作返回 false，全部收起跳过这些区域。隐藏正文中的显式跳转、搜索结果、程序化光标和局部源码编辑先展开相关祖先，再定位或输入。展开父区域保留独立子区域的折叠状态。
+
+正文改变映射折叠位置；修改头部或删除区域时展开，Reset 清空。后台解析待完成时保留可映射的折叠范围，新解析到达后按实际章节与块边界重建。仍显示旧快照的预览沿用属于该快照的折叠几何，不把新源码范围直接套到旧行；全部展开或关闭折叠立即清除隐藏，匹配当前源码的局部／完整投影使用当前状态。普通移动不扫描全文或重建解析；高度索引以整段零高度区间和可见节点查询跳过隐藏行／块，展开复用未改动的测量，不逐隐藏行测量或遍历。
+
+上下、翻页及跨行左右移动跳过隐藏行／块。逻辑字符／单词前后移动以字节位置是否前进判断行内结果，不把同一位置的视觉 affinity 改变当作已跨过边界。折叠光标的删除操作若将穿过隐藏内容，先展开该范围并消耗本次删除，不直接删除不可见正文；明确选择跨越折叠区域时，复制、删除与格式操作仍使用完整源码选区。已接受帧保存匹配的折叠投影，折叠状态改变后的旧命中与旧帧不能覆盖新布局。局部源码面完整展示所选范围，其内容不再套用主视图折叠。

@@ -123,6 +123,16 @@ RichHost 和 viewState 提供 `setCode`／`toggleCode`／`codeState`，Primary-E
 
 `goBack`／`goForward` 与 `canGoBack`／`canGoForward` 管理最近 128 个显式跳转位置。普通修改映射已有位置，外部 Reset 清空历史，后退恢复反向选区；导航不会添加正文撤销项，只读仍可导航。TOC 和内部链接通过同一 controller 记录跳转；未配置 controller 的预览仍能定位本文件锚点。
 
-Editor profile 的 [TOC] 按最终预览标题派生只读目录，包括 include 生成的标题。生成标题通过 sourceMap 返回所属指令；原文件保存时保留 [TOC]。预览脚注编号跳转到定义，活动编辑片段中的脚注原子仍提供源码编辑。缺失锚点和外部 URI 交给 onOpenLink。标题／front matter 折叠仍在后续实现范围。
+Editor profile 的 [TOC] 按最终预览标题派生只读目录，包括 include 生成的标题。生成标题通过 sourceMap 返回所属指令；原文件保存时保留 [TOC]。预览脚注编号跳转到定义，活动编辑片段中的脚注原子仍提供源码编辑。缺失锚点和外部 URI 交给 onOpenLink。
 
 活动富文本栏的折叠光标遵守可编辑文字边界：跳转到标题／列表隐藏标记时定位到同一块的文字起点；源码和只读预览保留请求的源码位置。内部链接点击先保留跳转前的选区，再记录导航，后退不会退到链接点击造成的临时选区。
+
+## 标题、代码与 front matter 折叠
+
+创建 `MarkdownFoldingController(viewState, parser)`，传给 `markdownEditor(..., folding = Some(controller))`。可选 `markdownFoldingToolbar(controller)` 提供当前区域和全部区域的折叠／展开；各栏保留首行旁的三角按钮。独立的 `markdownSourceEditor`、`markdownRichEditor`、`markdownPreview` 及 Host.update 同样接收 folding；局部源码面完整展示自己的范围。示例用 `scope.resource` 管理控制器，关闭它不会关闭借用的文档或解析器。
+
+`parser.current?.sourceFolds` 与 `controller.current` 提供后台建立的 `MarkdownFoldIndex`；`regions` 和 `at(position)` 返回 `MarkdownFoldRegion`，包含 snapshot、node、kind、range、header、hidden。标题使用章节范围，保留完整 ATX／Setext 标题；代码保留围栏首行，front matter 保留首行定界符。代码折叠只影响源码，标题与 front matter 同时影响预览，Mermaid 等图像仍使用现有展示接口。
+
+`setCollapsed(region, value)`、`toggleAt(position)`、`collapseAll()`、`expandAll()` 返回状态是否改变，`isCollapsed(region)` 查询当前状态。过期区域不能修改新结构；文档变化映射折叠位置，修改头部或 Reset 会展开相应区域。展开父标题保留已收起的子标题。折叠不改 Markdown，也不增加撤销项，只读仍可使用。
+
+收起正文时将隐藏的普通选区移到保留的头部；包含正在输入的 IME 组合范围时拒绝收起，全部收起跳过这些区域。搜索、导航、程序化光标和局部源码入口自动展开目标。上下／翻页／跨行左右移动跳过隐藏区；光标删除若要跨过隐藏正文，先展开并消耗本次删除，明确选中的完整范围仍可复制、删除和格式化。两栏按整段高度跳过隐藏内容，展开复用未变化的测量。

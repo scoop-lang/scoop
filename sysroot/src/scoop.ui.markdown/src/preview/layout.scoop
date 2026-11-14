@@ -30,6 +30,8 @@ private class MdPreviewMeasurePass(
         measured[index] = value
         keys.add(row.key)
         host.heights = host.heights.record(index, resource.height)
+        host.visibleHeights = host.visibleHeights.record(index, resource.height)
+        host.foldedHeights = host.heights
         host.maximumWidth = max(host.maximumWidth, resource.width)
         if (cache.reused)
             reused += 1L
@@ -37,6 +39,8 @@ private class MdPreviewMeasurePass(
     }
 
     fun adjustment(): ScrollAdjustment? {
+        if (host.visibleHeights.visibleCount == 0L)
+            return None
         when (alignment()) {
             case Some(val value) -> return Some(value)
             case None -> Unit
@@ -49,9 +53,21 @@ private class MdPreviewMeasurePass(
                 host.editor.snapshot.revision
         )
             return None
-        val kept = mdFrameRowForKey(model, presentation, anchor.key)
+        val previous = mdFrameRowForKey(model, presentation, anchor.key)
+        val kept =
+            when (previous) {
+                case Some(val index) -> if (host.visibleHeights.extent(index) > 0.0)
+                    Some(index)
+                else
+                    None
+                case None -> None
+            }
         val index =
-            kept ?: mdFrameRowAt(model, presentation, anchor.source.position, anchor.source.bias)
+            mdVisibleIndex(
+                host.visibleHeights,
+                kept ?:
+                    mdFrameRowAt(model, presentation, anchor.source.position, anchor.source.bias)
+            )
         val measured = row(index)
         val local =
             when (kept) {
@@ -104,7 +120,10 @@ private class MdPreviewMeasurePass(
                     host.scroll.offset.x,
                     max(
                         0.0,
-                        host.options.padding + host.heights.prefix(index) + local + anchor.delta
+                        host.options.padding +
+                            host.visibleHeights.prefix(index) +
+                            local +
+                            anchor.delta
                     )
                 )
             )
@@ -121,7 +140,11 @@ private class MdPreviewMeasurePass(
         )
             return None
         val anchor = value.anchor
-        val index = mdFrameRowAt(model, presentation, anchor.source.position, anchor.source.bias)
+        val index =
+            mdVisibleIndex(
+                host.visibleHeights,
+                mdFrameRowAt(model, presentation, anchor.source.position, anchor.source.bias)
+            )
         val measured = row(index)
         val cellIndex =
             mdFrameColumn(model, presentation, index, anchor.source.position, anchor.source.bias)
@@ -154,7 +177,7 @@ private class MdPreviewMeasurePass(
                     max(
                         0.0,
                         host.options.padding +
-                            host.heights.prefix(index) +
+                            host.visibleHeights.prefix(index) +
                             cell.origin.y +
                             caret.y +
                             anchor.fraction *
@@ -179,7 +202,8 @@ internal fun mdMeasurePreview(
     val size =
         constraints.constrain(Size(constraints.maxWidth ?: 640.0, constraints.maxHeight ?: 480.0))
     val padding = host.options.padding
-    val width = max(0.0, size.width - padding * 2.0)
+    val gutter = mdFoldGutter(mdActiveFolds(host.folding))
+    val width = max(0.0, size.width - padding * 2.0 - gutter)
     val presentation = host.presentation
     val model = mdPresentationModel(presentation, host.controller.latest)
     val estimate = mdPreviewEstimate(host.style, host.options)
@@ -192,23 +216,28 @@ internal fun mdMeasurePreview(
             mdHeightRun(presentation?.count ?: (model?.display?.rows?.size ?: 0L), estimate)
         host.maximumWidth = 0.0
     }
+    mdSyncPreviewFolds(host, model, presentation)
     val active =
         model ?:
             return MarkdownPreviewMeasurement(
                 LayoutMetrics(size),
                 None,
                 None,
-                host.heights,
+                host.visibleHeights,
                 [],
                 host.viewport.layout(size, size),
                 host.scroll.requestRevision,
                 padding,
-                0L
+                0L,
+                folds = host.folded,
+                gutter = gutter
             )
     val pass = MdPreviewMeasurePass(host, context, active, presentation, width)
     try {
         when (presentation) {
-            case Some(val local) -> if (local.rowIndex >= 0L)
+            case Some(val local) -> if (
+                local.rowIndex >= 0L && host.visibleHeights.extent(local.rowIndex) > 0.0
+            )
                 pass.row(local.rowIndex)
             case None -> Unit
         }
@@ -216,8 +245,11 @@ internal fun mdMeasurePreview(
             case Some(val position) -> if (
                 (presentation?.changes?.snapshot?.revision ?: active.snapshot.revision) ==
                     host.editor.snapshot.revision
-            )
-                pass.row(mdFrameRowAt(active, presentation, position))
+            ) {
+                val index = mdFrameRowAt(active, presentation, position)
+                if (host.visibleHeights.extent(index) > 0.0)
+                    pass.row(index)
+            }
             case None -> Unit
         }
         var adjustment = pass.adjustment()
@@ -225,33 +257,34 @@ internal fun mdMeasurePreview(
             host.viewport.layout(
                 size,
                 Size(
-                    max(size.width, host.maximumWidth + padding * 2.0),
-                    max(size.height, host.heights.total + padding * 2.0)
+                    max(size.width, host.maximumWidth + padding * 2.0 + gutter),
+                    max(size.height, host.visibleHeights.total + padding * 2.0)
                 ),
                 adjustment
             )
         while (true) {
             val before = pass.measured.size
             val offset = scroll.snapshot.offset
-            var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
+            var index =
+                host.visibleHeights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
             val bottom = offset.y + size.height + host.options.overscan
             while (
                 index <
                     mdFrameRowCount(active, presentation) &&
-                    host.heights.prefix(index) +
+                    host.visibleHeights.prefix(index) +
                     padding <
                     bottom
             ) {
                 pass.row(index)
-                index += 1L
+                index = host.visibleHeights.nextVisible(index + 1L)
             }
             adjustment = pass.adjustment()
             scroll =
                 host.viewport.layout(
                     size,
                     Size(
-                        max(size.width, host.maximumWidth + padding * 2.0),
-                        max(size.height, host.heights.total + padding * 2.0)
+                        max(size.width, host.maximumWidth + padding * 2.0 + gutter),
+                        max(size.height, host.visibleHeights.total + padding * 2.0)
                     ),
                     adjustment
                 )
@@ -279,7 +312,7 @@ internal fun mdMeasurePreview(
                 Some(host.editor.selection)
             else
                 None,
-            host.heights,
+            host.visibleHeights,
             rows.toArray(),
             scroll,
             host.scroll.requestRevision,
@@ -292,7 +325,9 @@ internal fun mdMeasurePreview(
                 mdCurrentSearch(
                     host.searchResult,
                     presentation?.changes?.snapshot ?: active.snapshot
-                )
+                ),
+            folds = host.folded,
+            gutter = gutter
         )
     } catch (failure: Throwable) {
         pass.close()

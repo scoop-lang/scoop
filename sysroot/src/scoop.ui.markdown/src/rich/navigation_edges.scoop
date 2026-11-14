@@ -13,6 +13,16 @@ internal fun mdRichDocumentEdge(host: MarkdownRichHost, end: Boolean): MdSourceM
             mdFrameRowCount(model, host.preview.presentation) - 1L
         else
             0L
+    val target = mdFrameRow(model, host.preview.presentation, index)
+    val range = mdFrameRowRange(model, host.preview.presentation, index, target.range)
+    host.preview.folding?.reveal(
+        MarkdownPosition(
+            if (end)
+                range.end
+            else
+                range.start
+        )
+    )
     return mdWithRichRow(host, index) {
         row,
         _ -> mdRichCellEdge(
@@ -152,6 +162,11 @@ internal fun mdRichPage(
         mdPresentationModel(view.presentation, view.controller.current),
         view.presentation
     )
+    mdSyncPreviewFolds(
+        view,
+        mdPresentationModel(view.presentation, view.controller.current),
+        view.presentation
+    )
     val selected = host.editor.selection
     val caret = mdRichRowCaret(host, index, column, selected.cursor, selected.cursorBias)
     val x = host.preferredX ?: (caret?.x ?: 0.0)
@@ -159,15 +174,15 @@ internal fun mdRichPage(
     val y =
         max(
             0.0,
-            view.heights.prefix(index) +
+            view.visibleHeights.prefix(index) +
                 (caret?.y ?: 0.0) +
                 if (down)
                     distance
                 else
                     -distance
         )
-    val target = min(view.heights.count - 1L, view.heights.indexAt(y))
-    return mdRichHitRow(host, target, x, y - view.heights.prefix(target))
+    val target = mdVisibleIndex(view.visibleHeights, view.visibleHeights.indexAt(y))
+    return mdRichHitRow(host, target, x, y - view.visibleHeights.prefix(target))
 }
 
 internal fun mdRichAdjacent(
@@ -192,16 +207,15 @@ internal fun mdRichAdjacent(
                 column + 1L,
             previous
         )
-    if (
-        (previous && index == 0L) ||
-            (!previous && index + 1L == mdFrameRowCount(model, view.presentation))
-    )
-        return MdSourceMove(selected.cursor, host.cursorAffinity, host.preferredX)
+    mdSyncPreviewHeights(view, Some(model), view.presentation)
+    mdSyncPreviewFolds(view, Some(model), view.presentation)
     val target =
         if (previous)
-            index - 1L
+            view.visibleHeights.previousVisible(index)
         else
-            index + 1L
+            view.visibleHeights.nextVisible(index + 1L)
+    if (target < 0L || target >= view.visibleHeights.count)
+        return MdSourceMove(selected.cursor, host.cursorAffinity, host.preferredX)
     if (vertical) {
         val caret = mdRichRowCaret(host, index, column, selected.cursor, selected.cursorBias)
         val x = host.preferredX ?: (caret?.x ?: 0.0)

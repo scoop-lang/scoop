@@ -1,0 +1,278 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.collections.joinToString
+import scoop.test.*
+import scoop.text.*
+
+private fun mdTestFoldModel(source: String): MarkdownParsedDocument =
+    MarkdownParsedDocument(
+        MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor),
+        None,
+        MarkdownParseOptions()
+    )
+
+private fun mdTestFolds(
+    model: MarkdownParsedDocument,
+    regions: List<MarkdownFoldRegion>
+): MdFoldProjection =
+    MdFoldProjection(
+        model.snapshot,
+        Some(model.sourceFolds),
+        Array<MdCollapsedFold>(regions.size) {
+            index ->
+            val region = regions[index]
+            MdCollapsedFold(region.kind, region.range, region.header)
+        }
+    )
+
+@Test
+private class MarkdownFoldingProjectionTests {
+    @Test
+    fun indexRetainsCompleteSetextHeadersAndFindsNestedCodeWithCrLf() {
+        val source =
+            "---\r\ntitle: Test\r\n---\r\n\r\n# Root\r\n\r\nIntro\r\n\r\nChild\r\n-----\r\n\r\n```scoop\r\none\r\ntwo\r\n```\r\n\r\n## Next\r\n\r\nTail\r\n"
+        val model = mdTestFoldModel(source)
+        val index = model.sourceFolds
+        assertEquals(5L, index.regions.size)
+        assertEquals(MarkdownFoldKind.FrontMatter, index.regions[0L].kind)
+        assertEquals(MarkdownFoldKind.Heading(1), index.regions[1L].kind)
+        assertEquals(MarkdownFoldKind.Heading(2), index.regions[2L].kind)
+        assertEquals(MarkdownFoldKind.Code, index.regions[3L].kind)
+        assertEquals("Child\r\n-----\r\n", model.snapshot.read(index.regions[2L].header))
+        assertEquals("```scoop\r\n", model.snapshot.read(index.regions[3L].header))
+        assertEquals(index.regions[4L].range.start, index.regions[2L].range.end)
+        assertSame(index.regions[3L], index.at(MarkdownPosition(index.regions[3L].hidden.start))!!)
+        assertSame(index.regions[2L], index.at(MarkdownPosition(index.regions[3L].range.end))!!)
+        assertSame(index.regions[4L], index.at(MarkdownPosition(model.snapshot.byteLength))!!)
+        val same = MarkdownParsedDocument(model.source, None, model.options, Some(model))
+        assertSame(index, same.sourceFolds)
+        assertEquals(source, model.snapshot.toMarkdown())
+        assertEquals(0L, mdTestFoldModel("# Alone\n").sourceFolds.regions.size)
+        assertEquals(0L, mdTestFoldModel("    a\n    b\n").sourceFolds.regions.size)
+    }
+
+    @Test
+    fun sourceCodeFoldsLeavePreviewCodeAndImageBlocksVisible() {
+        val model =
+            mdTestFoldModel("```scoop\nfirst\nsecond\n```\n\n```mermaid\ngraph TD; A-->B\n```\n")
+        assertEquals(2L, model.sourceFolds.regions.size)
+        val folds = mdTestFolds(model, model.sourceFolds.regions)
+        val source = folds.sourceHeights(mdHeightRun(model.snapshot.lineCount, 20.0))
+        assertEquals(3L, source.visibleCount)
+        val before = mdHeightRun(model.display.rows.size, 30.0)
+        assertSame(before, mdPreviewFoldHeights(before, model, None, folds))
+        assertTrue(folds.hides(MarkdownPosition(model.snapshot.byteLength)))
+        assertFalse(folds.hides(MarkdownPosition(0L)))
+    }
+
+    @Test
+    fun headingAndFrontMatterFoldWholeRowsIncludingRelocatedFootnotes() {
+        val model =
+            mdTestFoldModel(
+                "---\ntitle: Test\n---\n\n# First\n\none[^x]\n\n[^x]: hidden note\n\n# Second\n\nvisible\n"
+            )
+        val regions = model.sourceFolds.regions
+        val folds = mdTestFolds(model, [regions[0L], regions[1L]])
+        val original = mdHeightRun(model.display.rows.size, 25.0)
+        val heights = mdPreviewFoldHeights(original, model, None, folds)
+        var foundFootnote = false
+        for (index in 0L ..< model.display.rows.size) {
+            val row = model.display.rows[index]
+            val expected =
+                (
+                    row.range.start >=
+                        regions[0L].hidden.start &&
+                        row.range.end <=
+                        regions[0L].hidden.end
+                ) ||
+                    (
+                        row.range.start >=
+                            regions[1L].hidden.start &&
+                            row.range.end <=
+                            regions[1L].hidden.end
+                    )
+            assertEquals(expected, heights.extent(index) == 0.0)
+            if (row.cells.size > 0L && row.cells[0L].text.contains("hidden note")) {
+                foundFootnote = true
+                assertEquals(0.0, heights.extent(index))
+                assertTrue(index > model.display.rowAt(MarkdownPosition(regions[2L].range.start)))
+            }
+        }
+        assertTrue(foundFootnote)
+        assertEquals(model.display.rows.size.toDouble() * 25.0, original.total)
+    }
+
+    @Test
+    fun aFoldContainsAllGeneratedIncludeRowsAndKeepsTheFollowingHeading() {
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val document =
+            MarkdownDocument.fromText("# Root\n\n{{#include part.md}}\n\n# End\n\nFinal\n")
+        val processed =
+            MarkdownProcessingSession(MdFoldResolver(), [mdBookProcessor()])
+            .process(document.snapshot(), "book/root.md", profile)
+        val model =
+            MarkdownParsedDocument(
+                processed.sourceParsed,
+                Some(processed),
+                MarkdownParseOptions(profile)
+            )
+        val folds = mdTestFolds(model, [model.sourceFolds.regions[0L]])
+        val heights =
+            mdPreviewFoldHeights(mdHeightRun(model.display.rows.size, 20.0), model, None, folds)
+        assertEquals(3L, heights.visibleCount)
+        val visible = ArrayList<String>()
+        var index = heights.nextVisible(0L)
+        while (index < heights.count) {
+            visible.add(model.display.rows[index].cells[0L].text)
+            index = heights.nextVisible(index + 1L)
+        }
+        assertEquals("Root|End|Final", visible.joinToString("|"))
+        assertEquals(document.toMarkdown(), model.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun aPendingParagraphSplitRetainsDistantFoldedRowsWithoutAFullParse() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("start\n\n# Fold\n\nhidden\n\n# End\n\nTail\n"),
+                mdCaret(2L)
+            )
+        val model =
+            MarkdownParsedDocument(
+                editor.document.parse(MarkdownProfile.Editor),
+                None,
+                MarkdownParseOptions()
+            )
+        val local = MdRichRegionState(model, editor.selection)
+        val subscription = editor.document.observe { change -> assertTrue(local.advance(change)) }
+        try {
+            val edit = mdRichNewline(local.syntax(editor.selection)!!, editor.selection)!!
+            editor.apply(edit.change, edit.selection, edit.reversed)
+            local.prepared(edit.syntax)
+            val target = local.project(editor.selection, true)!!
+            val presentation =
+                MdRichPresentation(
+                    model,
+                    target.content,
+                    target.row,
+                    target.cell,
+                    local.changes,
+                    local.rows
+                )
+            val original = model.sourceFolds.regions[0L]
+            val first =
+                edit.change.map(
+                    MarkdownAnchor(MarkdownPosition(original.header.start), MarkdownBias.After)
+                ).position.byteOffset
+            val middle =
+                edit.change.map(
+                    MarkdownAnchor(MarkdownPosition(original.header.end), MarkdownBias.Before)
+                ).position.byteOffset
+            val last =
+                edit.change.map(
+                    MarkdownAnchor(MarkdownPosition(original.range.end), MarkdownBias.Before)
+                ).position.byteOffset
+            val folds =
+                MdFoldProjection(
+                    editor.snapshot,
+                    None,
+                    [
+                        MdCollapsedFold(
+                            original.kind,
+                            MarkdownRange(first, last),
+                            MarkdownRange(first, middle)
+                        )
+                    ]
+                )
+            val heights =
+                mdPreviewFoldHeights(
+                    mdHeightRun(presentation.count, 20.0),
+                    model,
+                    Some(presentation),
+                    folds
+                )
+            assertEquals(5L, heights.visibleCount)
+            for (index in 0L ..< presentation.count) {
+                val row = presentation.displayRow(index)
+                val range = mdFrameRowRange(model, Some(presentation), index, row.range)
+                assertEquals(
+                    range.start >= middle && range.end <= last,
+                    heights.extent(index) == 0.0
+                )
+            }
+            assertEquals("art", presentation.content!!.text.text)
+            assertTrue(local.syntax(editor.selection)!!.root.range.end < editor.snapshot.byteLength)
+        } finally {
+            subscription.close();
+            editor.close()
+        }
+    }
+
+    @Test
+    fun foldingALargeSectionMeasuresNeitherItsPhysicalLinesNorItsPreviewRows() {
+        val source =
+            "# Huge\n\n" + "A paragraph with 中文 text.\n\n".repeat(60000L) + "# End\n\nFinal\n"
+        assertTrue(source.byteLength > 1024L * 1024L)
+        val model = mdTestFoldModel(source)
+        val folds = mdTestFolds(model, [model.sourceFolds.regions[0L]])
+        val normal = mdHeightRun(model.snapshot.lineCount, 20.0).record(50000L, 90.0)
+        val physical = folds.sourceHeights(normal)
+        assertTrue(physical.visibleCount <= 6L)
+        assertTrue(physical.depth < 30)
+        assertEquals(90.0, normal.extent(50000L))
+        val displayed =
+            mdPreviewFoldHeights(mdHeightRun(model.display.rows.size, 30.0), model, None, folds)
+        assertEquals(3L, displayed.visibleCount)
+        assertEquals(60001L, displayed.nextVisible(1L))
+        assertEquals(0L, displayed.previousVisible(60001L))
+        assertEquals(90.0, displayed.total)
+    }
+
+    @Test
+    fun pendingExternalEditsKeepFoldGeometryBoundToThePreviewSnapshot() {
+        val model = mdTestFoldModel("# First\n\nhidden\n\n# End\n\nvisible\n")
+        val old = mdTestFolds(model, [model.sourceFolds.regions[0L]])
+        val next = MarkdownDocument.fromText("Intro\n\n" + model.snapshot.toMarkdown()).snapshot()
+        val entry = old.collapsed[0L]
+        val shifted =
+            MdFoldProjection(
+                next,
+                None,
+                [
+                    MdCollapsedFold(
+                        entry.kind,
+                        MarkdownRange(entry.range.start + 7L, entry.range.end + 7L),
+                        MarkdownRange(entry.header.start + 7L, entry.header.end + 7L)
+                    )
+                ]
+            )
+        assertSame(old, mdSelectPreviewFolds(model.snapshot, Some(shifted), Some(old))!!)
+        assertSame(shifted, mdSelectPreviewFolds(next, Some(shifted), Some(old))!!)
+        assertTrue(
+            when (
+                mdSelectPreviewFolds(
+                    model.snapshot,
+                    Some(MdFoldProjection(next, None, [])),
+                    Some(old)
+                )
+            ) {
+                case None -> true
+                else -> false
+            }
+        )
+        assertTrue(
+            when (mdSelectPreviewFolds(model.snapshot, None, Some(old))) {
+                case None -> true;
+                else -> false
+            }
+        )
+    }
+}
+
+private class MdFoldResolver: MarkdownResourceResolver {
+    public override fun resolve(baseUri: String, reference: String): String = "book/" + reference
+    public override fun version(uri: String): String? = Some("1")
+    public override fun read(uri: String): MarkdownResourceData =
+        MarkdownResourceData("## Included\n\ntext\n\n### Nested\n\nmore\n", "1")
+}
