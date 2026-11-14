@@ -12,7 +12,7 @@ internal fun mdListInfo(node: MarkdownNode): MarkdownListInfo =
         else -> throw IllegalArgumentException(Some("The Markdown node is not a list"))
     }
 
-internal fun mdItemLocation(parsed: ParsedMarkdown, id: MarkdownNodeId): MdItemLocation {
+internal fun mdItemLocation(parsed: MarkdownSyntax, id: MarkdownNodeId): MdItemLocation {
     val item = parsed.node(id)
     when (item.content) {
         case MarkdownContent.ListItem(_) -> Unit
@@ -27,7 +27,7 @@ internal fun mdItemLocation(parsed: ParsedMarkdown, id: MarkdownNodeId): MdItemL
 
 /** Canonical continuation prefixes retain each ancestor's actual list indentation width. */
 internal fun mdListPrefix(
-    parsed: ParsedMarkdown,
+    parsed: MarkdownSyntax,
     node: MarkdownNode,
     include: Boolean = false
 ): String {

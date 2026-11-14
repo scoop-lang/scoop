@@ -53,7 +53,7 @@ internal fun mdContinuationPrefix(snapshot: MarkdownSnapshot, node: MarkdownNode
     return result.toString()
 }
 
-internal fun mdInTable(parsed: ParsedMarkdown, node: MarkdownNode): Boolean {
+internal fun mdInTable(parsed: MarkdownSyntax, node: MarkdownNode): Boolean {
     var current: MarkdownNode? = Some(node)
     while (true) {
         val value = current ?: return false

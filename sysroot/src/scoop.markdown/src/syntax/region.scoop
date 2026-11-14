@@ -1,0 +1,106 @@
+package scoop.markdown
+
+/** An immutable source region; advancing it never parses or materializes its body. */
+public class MarkdownRegion internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val range: MarkdownRange,
+    public val profile: MarkdownProfile,
+    internal val definitions: Array<MdRegionDefinition>,
+    internal val definitionBoundary: Long = range.end,
+    internal val definitionShift: Long = 0L
+) {
+    public fun after(change: MarkdownChange): MarkdownRegion {
+        if (change.before !== snapshot || change.kind == MarkdownChangeKind.Reset)
+            throw IllegalStateException(Some("Markdown region requires its current edit snapshot"))
+        for (entry in change.replacements)
+            requireMarkdown(
+                entry.range.start >= range.start && entry.range.end <= range.end,
+                "The change extends outside this Markdown region"
+            )
+        if (!change.changed)
+            return this
+        val next =
+            MarkdownRange(range.start, range.end + (change.after.byteLength - snapshot.byteLength))
+        requireMarkdown(
+            next.end ==
+                change.after.byteLength ||
+                change.after.positionOfLine(
+                    change.after.lineAt(MarkdownPosition(next.end))
+                ).byteOffset ==
+                next.end,
+            "The change removed the Markdown region's line boundary"
+        )
+        return MarkdownRegion(
+            change.after,
+            next,
+            profile,
+            definitions,
+            definitionBoundary,
+            definitionShift + (change.after.byteLength - snapshot.byteLength)
+        )
+    }
+
+    public fun parse(): ParsedMarkdownRegion = mdParseRegion(this)
+}
+
+/** A complete tree of one explicit region, never presented as the full document. */
+public class ParsedMarkdownRegion internal constructor(
+    public val region: MarkdownRegion,
+    root: MarkdownNode,
+    index: Array<MarkdownNode>,
+    parents: Array<Long>,
+    diagnostics: Array<MarkdownDiagnostic>
+): MarkdownSyntax(region.snapshot, region.profile, root, index, parents, diagnostics)
+
+/** Selects whole top-level blocks and immediate neighbors, preserving their container context. */
+public fun ParsedMarkdown.region(range: MarkdownRange): MarkdownRegion {
+    snapshot.checkRange(range)
+    val children = root.children
+    if (children.size == 0L)
+        return MarkdownRegion(snapshot, root.range, profile, [])
+    var first = mdRegionBlockAt(children, range.start, MarkdownBias.After)
+    var last = mdRegionBlockAt(children, range.end, MarkdownBias.Before)
+    if (last < first)
+        last = first
+    if (first > 0L)
+        first -= 1L
+    if (last + 1L < children.size)
+        last += 1L
+    val selected =
+        MarkdownRange(
+            if (first == 0L)
+                0L
+            else
+                snapshot.positionOfLine(mdNodeLine(snapshot, children[first])).byteOffset,
+            if (last + 1L == children.size)
+                snapshot.byteLength
+            else
+                snapshot.positionOfLine(mdNodeLine(snapshot, children[last + 1L])).byteOffset
+        )
+    val outside = ArrayList<MdRegionDefinition>()
+    for (entry in definitions)
+        if (entry.range.end <= selected.start || entry.range.start >= selected.end)
+            outside.add(entry)
+    return MarkdownRegion(snapshot, selected, profile, outside.toArray())
+}
+
+private fun mdRegionBlockAt(
+    children: Array<MarkdownNode>,
+    position: Long,
+    bias: MarkdownBias
+): Long {
+    var low = 0L
+    var high = children.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        val end = children[middle].range.end
+        if (end < position || (end == position && bias == MarkdownBias.After))
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return if (low == children.size)
+        low - 1L
+    else
+        low
+}

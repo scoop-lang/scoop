@@ -144,7 +144,7 @@ public class MarkdownEditorState public constructor(
     }
 
     public fun transform(
-        parsed: ParsedMarkdown,
+        parsed: MarkdownSyntax,
         configure: MarkdownTransformBuilder.() -> Unit
     ): MarkdownChange {
         checkEdit()

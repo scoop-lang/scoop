@@ -5,10 +5,10 @@ import scoop.comparisons.comparatorOf
 
 /** Prepares local source replacements on one parse and publishes through the normal transaction path. */
 public fun MarkdownDocument.transform(
-    parsed: ParsedMarkdown,
+    parsed: MarkdownSyntax,
     configure: MarkdownTransformBuilder.() -> Unit
 ): MarkdownChange {
-    if (parsed.documentId !== documentId || parsed.revision != revision)
+    if (parsed.snapshot !== snapshot())
         throw IllegalStateException(
             Some("Markdown structure edits require the current document parse")
         )
@@ -18,12 +18,16 @@ public fun MarkdownDocument.transform(
 }
 
 /** All operations in this builder use the same original parse, not intermediate edited nodes. */
-public class MarkdownTransformBuilder internal constructor(public val parsed: ParsedMarkdown) {
+public class MarkdownTransformBuilder internal constructor(public val parsed: MarkdownSyntax) {
     internal val snapshot: MarkdownSnapshot = parsed.snapshot
     private val replacements = ArrayList<MarkdownReplacement>()
 
     public fun replaceSource(range: MarkdownRange, source: String) {
         snapshot.checkRange(range)
+        requireMarkdown(
+            range.start >= parsed.root.range.start && range.end <= parsed.root.range.end,
+            "Source replacement is outside this Markdown syntax region"
+        )
         replacements.add(MarkdownReplacement(range, source))
     }
 

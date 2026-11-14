@@ -7,7 +7,12 @@ internal class MdBlockParser(
     val profile: MarkdownProfile
 ) {
     val lines = mdLines(input)
-    val root = MdBuildNode(MdKind.Document, 0L, input.size)
+    val root =
+        MdBuildNode(
+            MdKind.Document,
+            input.range(0L, 0L).start,
+            input.range(input.size, input.size).end
+        )
     var tip = root
     var oldTip = root
     var lastMatched = root
@@ -131,7 +136,12 @@ internal class MdBlockParser(
     fun add(kind: MdKind, start: Long): MdBuildNode {
         while (!canContain(tip.kind, kind))
             finalize(tip, lineIndex - 1L)
-        val node = MdBuildNode(kind, start, line.next)
+        val node =
+            MdBuildNode(
+                kind,
+                input.range(start, start).start,
+                input.range(line.next, line.next).end
+            )
         node.startLine = lineIndex
         node.endLine = lineIndex
         tip.append(node)

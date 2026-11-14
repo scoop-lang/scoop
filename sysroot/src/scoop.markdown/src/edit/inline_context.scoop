@@ -33,7 +33,7 @@ internal class MdInlinePlacement(
     }
 }
 
-internal fun mdInlinePlacement(parsed: ParsedMarkdown, node: MarkdownNode): MdInlinePlacement {
+internal fun mdInlinePlacement(parsed: MarkdownSyntax, node: MarkdownNode): MdInlinePlacement {
     var scope = node.range
     var cell: MdInlineCell? = None
     var leading = ""

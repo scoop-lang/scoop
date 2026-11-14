@@ -7,12 +7,37 @@ public fun parseMarkdown(
     snapshot: MarkdownSnapshot,
     profile: MarkdownProfile = MarkdownProfile.Gfm
 ): ParsedMarkdown {
+    val tree = mdParseSyntax(mdSource(snapshot), profile, [])
+    return ParsedMarkdown(snapshot, profile, tree.root, tree.index, tree.parents, tree.diagnostics)
+}
+
+internal fun mdParseRegion(region: MarkdownRegion): ParsedMarkdownRegion {
+    val definitions =
+        Array<MdRegionDefinition>(region.definitions.size) {
+            index ->
+            val entry = region.definitions[index]
+            if (entry.range.start >= region.definitionBoundary)
+                entry.shift(region.definitionShift)
+            else
+                entry
+        }
+    val tree = mdParseSyntax(mdSource(region.snapshot, region.range), region.profile, definitions)
+    return ParsedMarkdownRegion(region, tree.root, tree.index, tree.parents, tree.diagnostics)
+}
+
+private fun mdParseSyntax(
+    source: MdInput,
+    profile: MarkdownProfile,
+    outside: Array<MdRegionDefinition>
+): MdFrozenSyntax {
     val syntax = MdSyntax()
     try {
-        val source = mdSource(snapshot)
         val root = MdBlockParser(source, syntax, profile).parse()
         val references = HashMap<String, MarkdownLinkTarget>()
         val footnotes = HashMap<String, MdBuildNode>()
+        for (entry in outside)
+            if (entry.range.end <= root.start)
+                mdRegionDefinition(entry, references, footnotes)
         val blocks = mdBuildNodes(root)
         for (node in blocks) {
             if (node.kind == MdKind.Paragraph)
@@ -20,6 +45,9 @@ public fun parseMarkdown(
             if (node.kind == MdKind.FootnoteDefinition && !footnotes.containsKey(node.label))
                 footnotes[node.label] = node
         }
+        for (entry in outside)
+            if (entry.range.start >= root.end)
+                mdRegionDefinition(entry, references, footnotes)
         mdCustomBlocks(root, profile)
         for (node in mdBuildNodes(root)) {
             if (
@@ -40,9 +68,27 @@ public fun parseMarkdown(
         mdMergeText(root)
         if (profile.autolinks)
             mdGfmAutolinks(root, syntax)
-        return mdFreeze(snapshot, profile, root)
+        return mdFreezeSyntax(root)
     } finally {
         syntax.close()
+    }
+}
+
+private fun mdRegionDefinition(
+    entry: MdRegionDefinition,
+    references: HashMap<String, MarkdownLinkTarget>,
+    footnotes: HashMap<String, MdBuildNode>
+) {
+    when (entry.target) {
+        case Some(val target) -> {
+            if (!references.containsKey(entry.label))
+                references[entry.label] = target
+        }
+        case None -> {
+            if (!footnotes.containsKey(entry.label))
+                footnotes[entry.label] =
+                    MdBuildNode(MdKind.FootnoteDefinition, entry.range.start, entry.range.end)
+        }
     }
 }
 

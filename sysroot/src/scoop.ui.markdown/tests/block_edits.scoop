@@ -7,6 +7,29 @@ import scoop.window.*
 @Test
 private class MarkdownBlockEditorStateTests {
     @Test
+    fun `a current region tree uses the same structural history and source selection`() {
+        val source = "first\n\nsecond\n\nbody\n\nlast\n\nend\n"
+        val document = MarkdownDocument.fromText(source)
+        val complete = document.parse()
+        val target = complete.root.children[2L]
+        val selected = mdCaret(target.range.start + 2L)
+        val editor = MarkdownEditorState(document, selected)
+        val region = complete.region(target.range)
+        val local = region.parse()
+        val change = editor.transform(local) { setHeading(local.root.children[1L].id, 2) }
+        val after = region.after(change).parse()
+        assertEquals("body", after.inlineContent(after.root.children[1L].id).text.text)
+        assertTrue(editor.undo())
+        assertEquals(source, document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        assertFailsWith<IllegalStateException> {
+            editor.transform(local) { setParagraph(local.root.children[1L].id) }
+        }
+        assertFalse(editor.canUndo)
+        editor.close()
+    }
+
+    @Test
     fun `block transactions publish their caret once and restore directional selections`() {
         val original = "__ab cd__\n"
         val selected = MarkdownSelection(MarkdownPosition(7L), MarkdownPosition(3L))

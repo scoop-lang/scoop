@@ -105,9 +105,11 @@ document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 
 `parsed.splitBlock(id, range)` 删除段落／标题中的显示选区后拆分块，返回带结果源码光标的 `MarkdownBlockEdit`。左侧保留标题种类，右侧为段落；直接在列表项中的块延续下一项，新任务框未勾选，空列表项退出一层。`parsed.joinBlocks(first, second)` 合并同一容器中相邻的段落／标题并把光标放在连接处。准备不修改文档，调用 `applyTo(document)` 一次发布；行内格式在分界处正确闭合，反向事务恢复原字节。完整范围与容器规则见[块编辑规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#84-块拆分与合并)。
 
-普通文字也可以按显示内容的 UTF-8 范围编辑。`inlineContent` 接收段落、标题或表格单元格的节点身份，返回带源码映射的 `text`；隐藏标记不计入显示范围，图片／扩展等按 U+FFFC 原子对象计入：
+完整解析的 `region(range)` 提供包含完整顶层块及相邻块的 `MarkdownRegion`。用 `after(change)` 跟随原文档的区内修改，再用 `parse()` 显式解析当前区域，得到 `ParsedMarkdownRegion`；这些调用不另建可保存文档或历史。局部树与完整树都通过 `MarkdownSyntax` 提供节点查询、行内编辑和结构事务，范围始终是原文档的全局字节位置。区域保留区外引用定义与脚注标签，但不承担任意源码变化的跨区域传播；调用方只在编辑保持区外块边界时沿用区域，其他情况等待完整解析。
 
-零字节文档可用 `parsed.inlineContent(parsed.root.id)` 取得位置 0 的空编辑区域。创建该区域不修改原文或完整解析树；首次输入按普通段落的文字写回。
+普通文字也可以按显示内容的 UTF-8 范围编辑。`inlineContent` 接收段落、标题、表格单元格或空列表项的节点身份，返回带源码映射的 `text`；隐藏标记不计入显示范围，图片／扩展等按 U+FFFC 原子对象计入：
+
+零字节文档可用 `parsed.inlineContent(parsed.root.id)` 取得位置 0 的空编辑区域。`syntax.inlineContentAt(position)` 还可以定位已有行内块或普通空白行的输入区域；代码和扩展内部返回 None。创建区域不修改原文或解析树；首次输入按普通段落文字写回，空列表项保留标记并补齐必要分隔空格。
 
 ```scoop
 val parsed = document.parse()

@@ -151,11 +151,14 @@ internal class MdBuildNode(
         }
 }
 
-internal fun mdFreeze(
-    snapshot: MarkdownSnapshot,
-    profile: MarkdownProfile,
-    root: MdBuildNode
-): ParsedMarkdown {
+internal class MdFrozenSyntax(
+    val root: MarkdownNode,
+    val index: Array<MarkdownNode>,
+    val parents: Array<Long>,
+    val diagnostics: Array<MarkdownDiagnostic>
+)
+
+internal fun mdFreezeSyntax(root: MdBuildNode): MdFrozenSyntax {
     val nodes = mdFreezeNodes(root)
     val diagnostics = ArrayList<MarkdownDiagnostic>()
     for (node in nodes)
@@ -169,9 +172,7 @@ internal fun mdFreeze(
                 )
             case None -> Unit
         }
-    return ParsedMarkdown(
-        snapshot,
-        profile,
+    return MdFrozenSyntax(
         root.frozen!!,
         Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! },
         Array<Long>(nodes.size) { i -> nodes[i].parent?.ordinal ?: -1L },

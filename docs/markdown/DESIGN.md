@@ -51,6 +51,7 @@ flowchart LR
 | `MarkdownDocument` | 可变的源文本、文档身份、单调内容 revision，以及可复用的解析结果；修改由一个 owner 串行执行 |
 | `MarkdownSnapshot` | 不可变源文本快照、revision、行索引和范围读取；可以经正常同步交给工作线程 |
 | `ParsedMarkdown` | 与一个 snapshot 精确对应的完整语法树、引用定义、诊断和源码映射 |
+| `MarkdownRegion`／`ParsedMarkdownRegion` | 保留原文档身份的局部源码区域及其明确的局部树；沿差量推进后按需解析 |
 | `MarkdownNode` | 已识别的节点种类、子节点、完整源码范围、正文及分隔符位置 |
 | `MarkdownChange` | 同一基线上的替换集合、前后 revision、位置映射及需要的逆向修改数据 |
 
@@ -59,6 +60,8 @@ flowchart LR
 文档提供普通内容差量订阅，一次成功事务发布后通知一次；回调消费不可变 change，不在通知栈中重入修改。该接口不依赖 UI，也不建立通用消息总线。`MarkdownEditorState` 据此更新选区、派生状态和历史归属；程序化修改不会成为 UI 察觉不到的第二条写入路径。整体重新载入使用明确的 reset 操作，由编辑器重置旧历史。
 
 读取源文本与读取解析结构分别表达：`snapshot()` 不隐式触发全文解析；`parse()` 返回匹配快照的完整 `ParsedMarkdown`，必要时同步完成解析。UI 显式在后台调用同一解析入口，不能通过读取 `document.root` 意外在输入线程进行重解析。树中的必要结构不以未填充的 Option 或等待下游补全的占位节点表达。
+
+需要连续块编辑时，从完整解析的 `region(range)` 取得包含完整顶层块与邻接上下文的区域。`region.after(change)` 只推进快照与外部定义映射，`region.parse()` 再显式构造局部树；完整与局部树共用 `MarkdownSyntax` 的查询和结构事务。区域坐标始终是原文档坐标，不建立独立文档或历史。区域编辑必须保持区外块边界，任意源码修改的跨块影响仍由完整后台解析处理，详见[文档规范 §6.1](../specs/SCOOP-MARKDOWN-SPEC.md#61-局部结构区域)。
 
 拟议核心入口：
 
@@ -104,11 +107,11 @@ markdownDocument(configure): MarkdownDocument
 
 `MarkdownEdit` 包含基线 revision 和按同一基线定义的有序、不重叠替换。入口核对实际范围、编码边界和版本后原子发布，失败不留下半篇新文本。位置映射、逆向修改和解析失效信息复用同一批差量。
 
-结构化操作在 `ParsedMarkdown` 上定位，再编译为同样的源码替换：修改标题级别、替换文字、增加／去掉标记、插入／移除节点、改变列表层级、修改链接目标、修改表格单元格／行列。它们与 UI 的源码输入没有第二条写入路径。
+结构化操作在完整或局部的 `MarkdownSyntax` 上定位，再编译为同样的源码替换：修改标题级别、替换文字、增加／去掉标记、插入／移除节点、改变列表层级、修改链接目标、修改表格单元格／行列。它们与 UI 的源码输入没有第二条写入路径。
 
 结构操作要求其依赖的解析结果仍适用。首期拒绝过期结果，由调用方重新取得当前解析；不按旧节点偏移直接改新文档，也不因一次改写重新验证所有未变化的节点。
 
-`ParsedMarkdown.splitBlock`／`joinBlocks` 返回 `MarkdownBlockEdit`，将块操作和结果源码光标准备为一次事务。它们可由无 UI 程序直接 applyTo，也可交给编辑器共享历史；拆分继承列表和引用容器，合并只接受同容器的相邻段落／标题。具体字节、空标题、任务及编号规则见[文档规范 §8.4](../specs/SCOOP-MARKDOWN-SPEC.md#84-块拆分与合并)。
+`MarkdownSyntax.splitBlock`／`joinBlocks` 返回 `MarkdownBlockEdit`，将块操作和结果源码光标准备为一次事务。它们可由无 UI 程序直接 applyTo，也可交给编辑器共享历史；拆分继承列表和引用容器，合并只接受同容器的相邻段落／标题。具体字节、空标题、任务及编号规则见[文档规范 §8.4](../specs/SCOOP-MARKDOWN-SPEC.md#84-块拆分与合并)。
 
 ### 4.2 必须解决的写回细节
 

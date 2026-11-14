@@ -10,7 +10,7 @@ public class MarkdownBlockEdit internal constructor(
     public fun applyTo(document: MarkdownDocument): MarkdownChange = document.applyPrepared(change)
 }
 
-internal fun mdBlockContent(parsed: ParsedMarkdown, node: MarkdownNode): MarkdownInlineContent {
+internal fun mdBlockContent(parsed: MarkdownSyntax, node: MarkdownNode): MarkdownInlineContent {
     when (node.content) {
         case MarkdownContent.Paragraph(_) -> Unit
         case MarkdownContent.Heading(_, _, _) -> Unit

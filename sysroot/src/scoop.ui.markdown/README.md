@@ -31,6 +31,8 @@ editor.close()
 
 `parsed.splitBlock(id, range)`／`joinBlocks(first, second)` 返回带结果源码光标的 `MarkdownBlockEdit`，同样交给 `editor.apply(prepared)`，与行内操作共用一次发布和统一历史。列表延续、任务框和容器处理由文档 Cone 完成；UI 取得当前解析后准备，不使用旧节点改写新快照。
 
+`editor.transform(syntax)` 也接受当前 `ParsedMarkdownRegion`，沿用同一历史和源码锚点规则。区域从完整解析的 `region(range)` 取得，通过 `after(change)` 前进后显式 `parse()`；文档库保留完整容器与区外引用上下文。局部树属于原文档的当前快照，不能把同 revision 数字的未发布分支当作当前文档操作。
+
 状态绑定创建线程，通过现有 `State` 参与 UI 读取追踪。编辑前检查 owner 和 UI 修改时机；关闭释放订阅与历史，不关闭文档。`markSaved(revision)` 只记录宿主实际保存完成的 revision；较旧的保存完成不会把后续修改标成已保存。
 
 `MarkdownSourceInput(editor, contextBytes = 4096L)` 为窗口输入准备局部 `TextInputState`，包含完整选区与左右上下文。`sourceRange` 明确片段与全文的坐标关系；`apply(TextInputBatch)` 先校验整个批次，再通过一次源码事务发布。它不持有窗口，宿主仍负责原生 connection／origin 和已接受帧的 caret 几何。`synchronize()` 返回 true 时必须退休旧连接后再发布新映射；组合期间不移动片段边界。

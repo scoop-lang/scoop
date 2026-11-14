@@ -1,0 +1,270 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownRegionTests {
+    @Test
+    fun `a region keeps complete containers and global positions without another document`() {
+        val before = "first\r\n\r\nsecond\r\n\r\n"
+        val source =
+            before +
+                "# Title\r\n\r\n> - [x] 中文 &amp; **body**\r\n>   continuation\r\n\r\nlast\r\n\r\nend\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse()
+        val selected = full.root.children[3L]
+        val region = full.region(selected.range)
+        assertTrue(region.range.start > 0L)
+        assertTrue(region.range.end < document.snapshot().byteLength)
+        val parsed = region.parse()
+        assertSame(document.snapshot(), parsed.snapshot)
+        assertEquals(region.range, parsed.root.range)
+        assertEquals(3L, parsed.root.children.size)
+        assertEquals(selected.range, parsed.root.children[1L].range)
+        for (node in parsed.nodes()) {
+            assertTrue(node.range.start >= region.range.start)
+            assertTrue(node.range.end <= region.range.end)
+            parsed.snapshot.read(node.range)
+            for (marker in node.markers)
+                parsed.snapshot.read(marker)
+        }
+        val paragraph = parsed.root.children[1L].children[0L].children[0L].children[0L]
+        val content = parsed.inlineContent(paragraph.id)
+        assertEquals("中文 & body continuation", content.text.text)
+        assertEquals(
+            "中",
+            parsed.snapshot.read(
+                MarkdownRange(
+                    content.text.sourceAt(MarkdownPosition(0L)).byteOffset,
+                    content.text.sourceAt(MarkdownPosition(3L), MarkdownBias.Before).byteOffset
+                )
+            )
+        )
+        assertFailsWith<IllegalArgumentException> { full.node(paragraph.id) }
+        assertFailsWith<IllegalArgumentException> { parsed.nodeAt(MarkdownPosition(0L)) }
+    }
+
+    @Test
+    fun `local split join and inline edits advance one source and preserve the outer bytes`() {
+        val source = "zero\n\none\n\ntwo\n\n**ab cd**\n\nfour\n\nfive\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse()
+        var region = full.region(full.root.children[3L].range)
+        val first = region.parse()
+        val split = first.splitBlock(first.root.children[1L].id, MarkdownRange(2L, 3L))
+        split.applyTo(document)
+        region = region.after(split.change)
+        val second = region.parse()
+        assertSame(document.snapshot(), second.snapshot)
+        val right = second.inlineContent(second.root.children[2L].id)
+        val typing = right.replaceText(MarkdownRange(0L, 0L), "中文 ")
+        typing.applyTo(document)
+        region = region.after(typing.change)
+        val third = region.parse()
+        val joined = third.joinBlocks(third.root.children[1L].id, third.root.children[2L].id)
+        joined.applyTo(document)
+        region = region.after(joined.change)
+        val finalSyntax = region.parse()
+        assertEquals(
+            "ab中文 cd",
+            finalSyntax.inlineContent(finalSyntax.root.children[1L].id).text.text
+        )
+        assertTrue(document.toMarkdown().startsWith("zero\n\none\n\n"))
+        assertTrue(document.toMarkdown().endsWith("five\n"))
+        document.apply(MarkdownEdit(document.revision, joined.change.inverseReplacements))
+        document.apply(MarkdownEdit(document.revision, typing.change.inverseReplacements))
+        document.apply(MarkdownEdit(document.revision, split.change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+        assertEquals(source, full.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun `external definitions retain source order and mappings after a local definition is removed`() {
+        val source =
+            "[a]: /before\n\nzero\n\none\n\n[b]: /local\n\n[a] [b] [^n]\n\nlast\n\nend\n\n[b]: /after \"title\"\n\n[^n]: note\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse(MarkdownProfile.Editor)
+        val paragraph = full.root.children[4L]
+        var region = full.region(paragraph.range)
+        var parsed = region.parse()
+        val content = parsed.inlineContent(parsed.root.children[1L].id)
+        assertEquals("a b \u{fffc}", content.text.text)
+        assertEquals("/before", mdRegionTestLink(parsed, "a").destination.text)
+        assertEquals("/local", mdRegionTestLink(parsed, "b").destination.text)
+        val removed = document.replace(parsed.root.children[0L].range, "")
+        region = region.after(removed)
+        parsed = region.parse()
+        val target = mdRegionTestLink(parsed, "b")
+        assertEquals("/after", target.destination.text)
+        assertEquals("/after", document.snapshot().read(target.destinationRange!!))
+        assertEquals("title", target.title.text)
+        var footnotes = 0L
+        for (node in parsed.nodes())
+            when (node.content) {
+                case MarkdownContent.FootnoteReference(_) -> footnotes += 1L
+                else -> Unit
+            }
+        assertEquals(1L, footnotes)
+    }
+
+    @Test
+    fun `local table list and math commands preserve CRLF and physical container prefixes`() {
+        val source =
+            "zero\r\n\r\none\r\n\r\n> - left\r\n> - right\r\n>\r\n> | a | b |\r\n> | - | - |\r\n> | x | y |\r\n>\r\n> $$\r\n> x^2\r\n> $$\r\n\r\nlast\r\n\r\nend\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse(MarkdownProfile.Editor)
+        var region = full.region(full.root.children[2L].range)
+        val local = region.parse()
+        val quote = local.root.children[1L]
+        val change =
+            document.transform(local) {
+                indentListItem(quote.children[0L].children[1L].id)
+                setTableCell(quote.children[1L].id, 1L, 0L) { text("中|文") }
+            }
+        region = region.after(change)
+        val after = region.parse()
+        assertTrue(document.toMarkdown().contains(">   - right\r\n"))
+        assertTrue(document.toMarkdown().contains("中\\|文"))
+        val math = after.root.children[1L].children[2L]
+        val value = mdExtensionValue(math)
+        assertEquals("x^2\n", value.body.text)
+        assertEquals(
+            "x^2",
+            document.snapshot().read(
+                MarkdownRange(
+                    value.body.sourceAt(MarkdownPosition(0L)).byteOffset,
+                    value.body.sourceAt(MarkdownPosition(3L), MarkdownBias.Before).byteOffset
+                )
+            )
+        )
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `region starts do not create front matter and indented code uses global ends`() {
+        val source = "zero\n\none\n\n---\n\nbody\n\n    indented\n    code\n\nend\n\nlast\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse(MarkdownProfile.Editor)
+        val region = full.region(full.root.children[3L].range)
+        val parsed = region.parse()
+        assertTrue(region.range.start > 0L)
+        assertTrue(
+            when (parsed.root.children[0L].content) {
+                case MarkdownContent.ThematicBreak -> true
+                else -> false
+            }
+        )
+        val code = parsed.root.children[2L]
+        assertEquals(full.root.children[4L].range, code.range)
+        assertEquals("indented\n    code\n", document.snapshot().read(code.range))
+        assertEquals(0L, parsed.diagnostics.size)
+        for (ending in ["中文", "😀"]) {
+            val utf8 = MarkdownDocument.fromText("before\n\nmiddle\n\n    " + ending).parse()
+            val suffix = utf8.region(utf8.root.children[2L].range).parse()
+            val last = suffix.root.children[suffix.root.children.size - 1L]
+            assertEquals(utf8.snapshot.byteLength, last.range.end)
+            assertEquals(ending, utf8.snapshot.read(last.range))
+        }
+    }
+
+    @Test
+    fun `region updates reject stale resets outside changes and removed end boundaries`() {
+        val source = "zero\n\none\n\ntwo\n\nthree\n\nfour\n\nfive\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse()
+        val region = full.region(full.root.children[2L].range)
+        val outside = document.replace(MarkdownRange(0L, 0L), "x")
+        assertFailsWith<IllegalArgumentException> { region.after(outside) }
+        val fresh = document.parse().region(MarkdownRange(12L, 12L))
+        assertFailsWith<IllegalStateException> { fresh.after(outside) }
+        val reset = document.reset(source)
+        assertFailsWith<IllegalStateException> { fresh.after(reset) }
+        val before = document.parse().region(document.parse().root.children[2L].range)
+        val cut = document.replace(MarkdownRange(before.range.end - 2L, before.range.end), "")
+        assertFailsWith<IllegalArgumentException> { before.after(cut) }
+        val branched = MarkdownDocument.fromText("body")
+        val original = branched.parse()
+        val body = original.inlineContent(original.root.children[0L].id)
+        val first = body.replaceText(MarkdownRange(0L, 1L), "a")
+        val second = body.replaceText(MarkdownRange(0L, 1L), "c")
+        val speculative = original.region(original.root.range).after(second.change).parse()
+        first.applyTo(branched)
+        assertEquals(speculative.revision, branched.revision)
+        assertFailsWith<IllegalStateException> {
+            branched.transform(speculative) { setHeading(speculative.root.children[0L].id, 2) }
+        }
+        assertEquals("aody", branched.toMarkdown())
+    }
+
+    @Test
+    fun `empty regions and blank lines support repeated input without synthetic tree nodes`() {
+        val document = MarkdownDocument.fromText("")
+        var region = document.parse().region(MarkdownRange(0L, 0L))
+        val local = region.parse()
+        val typing =
+            local.inlineContentAt(MarkdownPosition(0L))!!.replaceText(
+                MarkdownRange(0L, 0L),
+                "first"
+            )
+        typing.applyTo(document)
+        region = region.after(typing.change)
+        val parsed = region.parse()
+        val split = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(5L, 5L))
+        split.applyTo(document)
+        region = region.after(split.change)
+        val empty = region.parse().inlineContentAt(MarkdownPosition(split.selection.start))!!
+        val next = empty.replaceText(MarkdownRange(0L, 0L), "next")
+        next.applyTo(document)
+        assertEquals("first\n\nnext", document.toMarkdown())
+        assertEquals(0L, local.root.children.size)
+    }
+
+    @Test
+    fun `a local structural command does not parse the large unrelated suffix`() {
+        val probe = MdRegionProbe()
+        val profile = MarkdownProfile(extensions = [probe])
+        val document =
+            MarkdownDocument.fromText(
+                "head\n\nfirst\n\n@probe body\n\n" + "@probe suffix\n\n".repeat(80000L)
+            )
+        val full = document.parse(profile)
+        probe.calls = 0L
+        var region = full.region(full.root.children[2L].range)
+        assertTrue(region.range.byteLength < 100L)
+        val parsed = region.parse()
+        val split = parsed.splitBlock(parsed.root.children[1L].id, MarkdownRange(3L, 3L))
+        split.applyTo(document)
+        region = region.after(split.change)
+        region.parse()
+        assertTrue(probe.calls < 10L)
+        assertTrue(document.snapshot().byteLength > 1048576L)
+    }
+}
+
+private fun mdRegionTestLink(parsed: MarkdownSyntax, label: String): MarkdownLinkTarget {
+    for (node in parsed.nodes())
+        when (node.content) {
+            case MarkdownContent.Link(val target) -> {
+                if (target.label == label)
+                    return target
+            }
+            else -> Unit
+        }
+    throw IllegalStateException(Some("Missing reference link"))
+}
+
+private class MdRegionProbe: MarkdownExtension {
+    var calls = 0L
+    public override val name: String get() = "region-probe"
+    public override val trigger: String get() = "@probe"
+    public override val locations: MarkdownExtensionLocations get() = MarkdownExtensionLocations()
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        calls += 1L
+        return None
+    }
+}

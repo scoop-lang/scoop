@@ -80,8 +80,11 @@ internal class MdInput(internal val value: MarkdownText) {
 
 internal struct MdLine(val start: Long, val end: Long, val next: Long)
 
-internal fun mdSource(snapshot: MarkdownSnapshot): MdInput {
-    val text = snapshot.toMarkdown()
+internal fun mdSource(
+    snapshot: MarkdownSnapshot,
+    range: MarkdownRange = MarkdownRange(0L, snapshot.byteLength)
+): MdInput {
+    val text = snapshot.read(range)
     val spans =
         if (text.byteLength == 0L)
             []
@@ -89,11 +92,11 @@ internal fun mdSource(snapshot: MarkdownSnapshot): MdInput {
             [
                 MarkdownTextSpan(
                     MarkdownRange(0L, text.byteLength),
-                    MarkdownRange(0L, text.byteLength),
+                    range,
                     MarkdownTextMapping.Literal
                 )
             ]
-    return MdInput(MarkdownText(text, spans, 0L))
+    return MdInput(MarkdownText(text, spans, range.start))
 }
 
 internal fun mdLines(input: MdInput): Array<MdLine> {

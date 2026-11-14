@@ -11,7 +11,17 @@ internal class MdExtensionBlock(
 
 internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean {
     val start = nextNonspace
-    if (profile.frontMatter && lineIndex == 0L && container === root && offset == 0L) {
+    if (
+        profile.frontMatter &&
+            root.start ==
+            0L &&
+            lineIndex ==
+            0L &&
+            container ===
+            root &&
+            offset ==
+            0L
+    ) {
         val marker =
             if (input.at(0L) == 239 && input.at(1L) == 187 && input.at(2L) == 191)
                 3L
@@ -22,7 +32,7 @@ internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean 
             val node = add(MdKind.Extension, 0L)
             node.extensionBlock = Some(MdExtensionBlock("front-matter", "---", "---", 0L))
             node.markers.add(input.range(marker, line.end))
-            node.ready = Some(mdEmptyText(line.next))
+            node.ready = Some(mdEmptyText(input.range(line.next, line.next).end))
             offset = line.end
             skipContent = true
             return true
@@ -61,7 +71,7 @@ internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean 
             node.ready = Some(input.slice(bodyStart, end))
             node.markers.add(input.range(end, end + 2L))
         }
-        case None -> node.ready = Some(mdEmptyText(line.next))
+        case None -> node.ready = Some(mdEmptyText(input.range(line.next, line.next).end))
     }
     offset = line.end
     skipContent = true
@@ -103,7 +113,10 @@ internal fun MdBlockParser.finishExtensionBlock(node: MdBuildNode) {
             MarkdownExtensionValue(
                 data.name,
                 MarkdownExtensionLocation.Block,
-                input.slice(node.start, node.end),
+                input.slice(
+                    input.value.textAt(MarkdownPosition(node.start)).byteOffset,
+                    input.value.textAt(MarkdownPosition(node.end), MarkdownBias.Before).byteOffset
+                ),
                 node.input().value,
                 if (data.name == "front-matter")
                     [MarkdownAttribute("language", "yaml")]

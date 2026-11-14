@@ -60,6 +60,16 @@ GFM 的裸网址在行内词法阶段识别，其正文中的实体或反斜杠�
 
 CommonMark 官方样例通过 Scoop 测试中的 HTML 投影核对语义；投影只是测试 oracle 的适配，不成为本库必需的公共 HTML API。额外测试覆盖源码映射、查询、无损保存、GFM 和真实仓库文档。
 
+### 6.1 局部结构区域
+
+`MarkdownSyntax` 共享不可变树的 snapshot、profile、root、diagnostics、节点查询、父节点和遍历；`ParsedMarkdown` 表示完整文档，`ParsedMarkdownRegion` 明确表示一个局部区域，二者不混淆完整性。所有范围仍使用原文档的全局 UTF-8 坐标。行内内容与结构事务接受同一语法基类，因此局部树上的修改仍发布到原文档，并使用同一逆向事务。
+
+`parsed.region(range)` 从完整树选取覆盖选区的完整顶层块及相邻块，连同块间空行建立 `MarkdownRegion`；不读取或复制正文，不建立另一份文档或历史。区域边界在物理行首或文件末尾，嵌套列表／引用整体保留容器语义。区域保存区外引用定义和脚注标签的必要上下文；同名定义仍按原文顺序采用第一次出现者。区内定义由本次解析收集，删除后可使用区外后续定义。
+
+`region.after(change)` 要求 change.before 为该区域的当前快照，且所有替换位于区域内；它只推进快照、范围与区外定义映射，不解析、不复制正文。旧区域继续有效；其他文档、过期分支、Reset 或区外修改拒绝沿用，调用方在完整解析到达后重新取得区域。`region.parse()` 只读取区域源码，返回匹配当前快照的 `ParsedMarkdownRegion`；未改变时由调用方复用既有解析。此接口用于已知保持区外块边界的结构编辑，不宣称任意源码修改具有局部失效范围；完整后台解析仍负责跨区域的语法变化及文档级脚注编号。
+
+局部解析不将位于文档中间的区域开头当作 front matter 起点。扩展处理器、行内映射、列表前缀、CRLF、代码围栏和定义目标继续使用全局源码范围。区域节点身份只属于该区域解析，不能用于另一次区域或全文解析的结构操作。
+
 ## 7. Markdown 生成
 
 `markdownDocument(options, configure)` 使用 `MarkdownDocumentBuilder.() -> Unit` 收集内容，生成新的 `MarkdownDocument`；`markdownText(options, configure)` 返回同一生成行为的 String。生成不修改已有文档，也不隐式解析。`MarkdownWriteOptions` 选择 LF／CRLF／CR、是否保留最终换行、无序列表符号与列表缩进；选项必须能形成合法的 CommonMark 写法。
@@ -76,7 +86,7 @@ inline builder 提供 text、emphasis、strong、strikethrough、code、link、i
 
 ## 8. 结构事务
 
-`document.transform(parsed) { ... }` 在匹配 documentId／revision 的解析结果上准备结构修改，并通过 `MarkdownEdit` 一次发布。过期或其他文档的结果抛 IllegalStateException。准备期间不修改文档；按原始坐标稳定排序后检查操作不重叠，任何非法参数或冲突都使本次准备失败。一个事务内的方法都基于同一份原始解析；不能用第一次操作尚未发布的节点作为后续操作的输入。回调返回前文档若被其他调用修改，最终 apply 仍拒绝旧基线。
+`document.transform(parsed) { ... }` 在当前不可变源快照对应的解析结果上准备结构修改，并通过 `MarkdownEdit` 一次发布。过期、其他文档或尚未发布分支的结果抛 IllegalStateException；相同 revision 数字不替代实际快照匹配。准备期间不修改文档；按原始坐标稳定排序后检查操作不重叠，任何非法参数或冲突都使本次准备失败。一个事务内的方法都基于同一份原始解析；不能用第一次操作尚未发布的节点作为后续操作的输入。回调返回前文档若被其他调用修改，最终 apply 仍拒绝旧基线。
 
 `MarkdownTransformBuilder` 提供 `replaceSource`、`replaceText`、`setInlineContent`、`setHeading`、`setParagraph`、`wrapInline`、`unwrapInline`、`setLinkTarget`、`setReferenceDefinition`、`setTask`，以及单元格、表格行列和矩形修改（§8.2）。节点参数使用该解析结果的 MarkdownNodeId，错误节点种类或索引抛 IllegalArgumentException。不同节点的互不重叠修改可以组合，旧快照与反向事务遵守既有合同。带结果光标的拆分／合并使用 §8.4 的准备接口。
 
@@ -95,6 +105,8 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 `parsed.inlineContent(id)` 为一个 Paragraph、Heading 或 TableCell 提供 `MarkdownInlineContent`。`text` 是带源码映射的显示文字：软换行是空格，硬换行是换行，图片、扩展、原始 HTML 与脚注引用是 UTF-8 三字节的 U+FFFC 原子对象。格式和链接定界符不出现在显示文字中。它属于一份不可变源快照并保留局部行内结构，不拥有另一份可保存文档。nodes 提供当前局部树的顶层行内节点，供无 UI 处理与显示投影读取格式、链接及对象；它们使用 snapshot 的源码坐标，节点身份不属于其他完整 ParsedMarkdown，不能交给另一棵解析树的结构命令。
 
 零字节文档的 root.id 也可传给 inlineContent，得到源码位置 0 的空行内区域；只准备区域不增加段落、不修改原文或完整解析树。首次输入按普通段落文字转义，后续操作、取消和逆向事务沿同一套局部编辑规则进行。非空文档的 Document 根不能当作行内区域。
+
+空列表条目的 id 也可取得插入区域，保留列表／任务前缀并在必要时补分隔空格。`syntax.inlineContentAt(position, bias)` 查找当前位置所属的行内块；位于普通空白行时返回该位置的空区域，仍不向解析树添加节点。代码、扩展及不可作为普通文字输入的容器位置返回 None。调用方须使用完整解析或明确的区域解析提供结构上下文。
 
 `replaceText(range, text, bias)` 的 range 使用这份显示文字的 UTF-8 坐标；可跨普通文字、行内格式和链接，但不跨所属段落／标题／单元格。插入继承所选边界处的格式与链接；Before 选择左侧，After 选择右侧，边缘使用存在的一侧。替换非空选区继承被替换的第一个内容单元。对象只能按完整标量处理，原始 HTML、扩展的内部修改继续使用源码事务。代码 span 的新内容按既有生成规则规范化换行与围栏；普通文字按字面值写入，不把输入中的 Markdown 标记直接执行为格式。
 

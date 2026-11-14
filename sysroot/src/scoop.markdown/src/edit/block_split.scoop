@@ -3,7 +3,7 @@ package scoop.markdown
 import scoop.text.*
 
 /** Deletes a display range and splits its paragraph or heading, continuing an immediate list item. */
-public fun ParsedMarkdown.splitBlock(id: MarkdownNodeId, range: MarkdownRange): MarkdownBlockEdit {
+public fun MarkdownSyntax.splitBlock(id: MarkdownNodeId, range: MarkdownRange): MarkdownBlockEdit {
     val selected = node(id)
     when (selected.content) {
         case MarkdownContent.ListItem(_) -> {
@@ -64,7 +64,7 @@ public fun ParsedMarkdown.splitBlock(id: MarkdownNodeId, range: MarkdownRange): 
     return mdBlockPrepared(builder, following, content.model.units, 0L)
 }
 
-private fun mdExitEmptyItem(parsed: ParsedMarkdown, item: MarkdownNode): MarkdownBlockEdit {
+private fun mdExitEmptyItem(parsed: MarkdownSyntax, item: MarkdownNode): MarkdownBlockEdit {
     val builder = MarkdownTransformBuilder(parsed)
     builder.outdentListItem(item.id)
     val change = prepareMarkdownEdit(parsed.snapshot, builder.edit(), MarkdownChangeKind.Edit)

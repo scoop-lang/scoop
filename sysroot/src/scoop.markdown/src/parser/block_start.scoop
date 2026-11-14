@@ -237,7 +237,12 @@ internal fun MdBlockParser.startSetext(paragraph: MdBuildNode, marker: Int): Boo
     closeUnmatched()
     var heading = paragraph
     if (consumed > 0L) {
-        heading = MdBuildNode(MdKind.Heading, body.range(consumed, consumed).start, line.next)
+        heading =
+            MdBuildNode(
+                MdKind.Heading,
+                body.range(consumed, consumed).start,
+                input.range(line.next, line.next).end
+            )
         heading.startLine = sourceLine(heading.start)
         heading.endLine = lineIndex
         heading.ready = Some(body.slice(consumed, body.size))

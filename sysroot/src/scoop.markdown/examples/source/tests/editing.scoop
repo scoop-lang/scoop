@@ -6,6 +6,25 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun `a headless consumer advances local syntax on the original source snapshot`() {
+        val document = MarkdownDocument.fromText("before\n\n# Title\n\nbody\n\nend\n")
+        val complete = document.parse()
+        val region = complete.region(complete.root.children[1L].range)
+        val local = region.parse()
+        val edit = local.splitBlock(local.root.children[1L].id, MarkdownRange(2L, 2L))
+        edit.applyTo(document)
+        val next = region.after(edit.change).parse()
+        assertSame(document.snapshot(), next.snapshot)
+        assertEquals("Title", local.inlineContent(local.root.children[1L].id).text.text)
+        assertEquals(
+            "tle",
+            next.inlineContentAt(MarkdownPosition(edit.selection.start))!!.text.text
+        )
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals("before\n\n# Title\n\nbody\n\nend\n", document.toMarkdown())
+    }
+
+    @Test
     fun `headless consumers split and join blocks with a prepared result caret`() {
         val document = MarkdownDocument.fromText("# Hello Scoop\n")
         val parsed = document.parse()

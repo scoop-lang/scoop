@@ -12,8 +12,8 @@ public class MarkdownNode internal constructor(
     internal val itemSource: MdItemSource? = None
 )
 
-/** A complete immutable tree for exactly one source snapshot and profile. */
-public class ParsedMarkdown internal constructor(
+/** Immutable syntax with global source positions, shared by complete and region parses. */
+public abstract class MarkdownSyntax internal constructor(
     public val snapshot: MarkdownSnapshot,
     public val profile: MarkdownProfile,
     public val root: MarkdownNode,
@@ -21,10 +21,6 @@ public class ParsedMarkdown internal constructor(
     private val parents: Array<Long>,
     public val diagnostics: Array<MarkdownDiagnostic>
 ) {
-    private val footnoteIndex = mdIndexFootnotes(root, profile.footnotes)
-    public val footnotes: Array<MarkdownFootnote> get() = footnoteIndex.entries
-    public fun footnoteDefinition(label: String): MarkdownNode? =
-        footnoteIndex.definitions[mdReferenceLabel(label)]
     public val documentId: MarkdownDocumentId get() = snapshot.documentId
     public val revision: Long get() = snapshot.revision
 
@@ -57,6 +53,10 @@ public class ParsedMarkdown internal constructor(
         bias: MarkdownBias = MarkdownBias.After
     ): MarkdownNode {
         snapshot.checkPosition(position.byteOffset)
+        requireMarkdown(
+            position.byteOffset >= root.range.start && position.byteOffset <= root.range.end,
+            "Position is outside this Markdown syntax region"
+        )
         var result = root
         while (true) {
             var selected: MarkdownNode? = None
@@ -82,6 +82,22 @@ public class ParsedMarkdown internal constructor(
             result = selected ?: return result
         }
     }
+}
+
+/** A complete immutable tree for exactly one source snapshot and profile. */
+public class ParsedMarkdown internal constructor(
+    snapshot: MarkdownSnapshot,
+    profile: MarkdownProfile,
+    root: MarkdownNode,
+    index: Array<MarkdownNode>,
+    parents: Array<Long>,
+    diagnostics: Array<MarkdownDiagnostic>
+): MarkdownSyntax(snapshot, profile, root, index, parents, diagnostics) {
+    private val footnoteIndex = mdIndexFootnotes(root, profile.footnotes)
+    internal val definitions = mdRegionDefinitions(root)
+    public val footnotes: Array<MarkdownFootnote> get() = footnoteIndex.entries
+    public fun footnoteDefinition(label: String): MarkdownNode? =
+        footnoteIndex.definitions[mdReferenceLabel(label)]
 }
 
 internal class MdNodes(private val root: MarkdownNode): Iterable<MarkdownNode> {

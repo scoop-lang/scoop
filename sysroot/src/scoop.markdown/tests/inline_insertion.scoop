@@ -1,0 +1,56 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownInlineInsertionTests {
+    @Test
+    fun `empty list markers remain intact through text and exact restore`() {
+        for (
+            (source, expected) in [
+                ("-\n", "- text\n"),
+                ("- \r\n", "- text\r\n"),
+                ("3)\n", "3) text\n"),
+                ("- [x]\n", "- [x] text\n"),
+                ("> - [ ] \n", "> - [ ] text\n")
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val position = document.snapshot().lineRange(0L).end
+            val content = parsed.inlineContentAt(MarkdownPosition(position), MarkdownBias.Before)!!
+            assertEquals("", content.text.text)
+            val edit = content.replaceText(MarkdownRange(0L, 0L), "text")
+            edit.applyTo(document)
+            assertEquals(expected, document.toMarkdown())
+            val restored = edit.after.edit { restore(content) }
+            restored.applyTo(document)
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `blank input positions never claim code or extension bodies`() {
+        val document = MarkdownDocument.fromText("before\n\n\n```\n\n```\n\n$$\n\n$$\n\nlast\n")
+        val parsed = document.parse(MarkdownProfile.Editor)
+        val blank = parsed.inlineContentAt(MarkdownPosition(8L))!!
+        assertEquals(MarkdownRange(8L, 8L), blank.sourceRange)
+        val snapshot = document.snapshot()
+        assertTrue(
+            when (parsed.inlineContentAt(snapshot.positionOfLine(4L))) {
+                case None -> true
+                else -> false
+            }
+        )
+        assertTrue(
+            when (parsed.inlineContentAt(snapshot.positionOfLine(8L))) {
+                case None -> true
+                else -> false
+            }
+        )
+        val typing = blank.replaceText(MarkdownRange(0L, 0L), "# literal")
+        typing.applyTo(document)
+        assertEquals("# literal", typing.after.text.text)
+        assertEquals(0L, snapshot.revision)
+    }
+}

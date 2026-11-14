@@ -1,7 +1,7 @@
 package scoop.markdown
 
 /** Joins adjacent inline blocks in one container and places the caret at their display boundary. */
-public fun ParsedMarkdown.joinBlocks(
+public fun MarkdownSyntax.joinBlocks(
     first: MarkdownNodeId,
     second: MarkdownNodeId
 ): MarkdownBlockEdit {

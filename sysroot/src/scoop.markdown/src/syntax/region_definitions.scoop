@@ -1,0 +1,62 @@
+package scoop.markdown
+
+import scoop.map
+
+internal class MdRegionDefinition(
+    val range: MarkdownRange,
+    val label: String,
+    val target: MarkdownLinkTarget?
+) {
+    fun shift(delta: Long): MdRegionDefinition {
+        if (delta == 0L)
+            return this
+        return MdRegionDefinition(
+            mdRegionShiftRange(range, delta),
+            label,
+            when (target) {
+                case Some(val value) -> Some(
+                    MarkdownLinkTarget(
+                        mdRegionShiftText(value.destination, delta),
+                        mdRegionShiftText(value.title, delta),
+                        value.style,
+                        value.label,
+                        value.destinationRange.map { source -> mdRegionShiftRange(source, delta) },
+                        value.titleRange.map { source -> mdRegionShiftRange(source, delta) }
+                    )
+                )
+                case None -> None
+            }
+        )
+    }
+}
+
+private fun mdRegionShiftRange(range: MarkdownRange, delta: Long): MarkdownRange =
+    MarkdownRange(range.start + delta, range.end + delta)
+
+private fun mdRegionShiftText(value: MarkdownText, delta: Long): MarkdownText =
+    MarkdownText(
+        value.text,
+        Array<MarkdownTextSpan>(value.spans.size) {
+            index ->
+            val span = value.spans[index]
+            MarkdownTextSpan(
+                span.textRange,
+                mdRegionShiftRange(span.sourceRange, delta),
+                span.mapping
+            )
+        },
+        value.emptyPosition + delta
+    )
+
+internal fun mdRegionDefinitions(root: MarkdownNode): Array<MdRegionDefinition> {
+    val result = ArrayList<MdRegionDefinition>()
+    for (node in MdNodes(root))
+        when (node.content) {
+            case MarkdownContent.ReferenceDefinition(val label, val target) ->
+            result.add(MdRegionDefinition(node.range, label, Some(target)))
+            case MarkdownContent.FootnoteDefinition(val label) ->
+            result.add(MdRegionDefinition(node.range, label, None))
+            else -> Unit
+        }
+    return result.toArray()
+}
