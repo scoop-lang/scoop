@@ -1,0 +1,46 @@
+package scoop.markdown
+
+/** A prepared block transaction with its resulting source caret, independent of UI state. */
+public class MarkdownBlockEdit internal constructor(
+    public val change: MarkdownChange,
+    public val selection: MarkdownRange
+) {
+    public val documentId: MarkdownDocumentId get() = change.before.documentId
+    public val edit: MarkdownEdit = MarkdownEdit(change.beforeRevision, change.replacements)
+    public fun applyTo(document: MarkdownDocument): MarkdownChange = document.applyPrepared(change)
+}
+
+internal fun mdBlockContent(parsed: ParsedMarkdown, node: MarkdownNode): MarkdownInlineContent {
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> Unit
+        case MarkdownContent.Heading(_, _, _) -> Unit
+        case MarkdownContent.Document -> requireMarkdown(
+            parsed.snapshot.byteLength == 0L,
+            "Only an empty Markdown document is an editable block"
+        )
+        else -> throw IllegalArgumentException(
+            Some("The Markdown node is not a paragraph or heading")
+        )
+    }
+    return parsed.inlineContent(node.id)
+}
+
+internal fun mdBlockPrepared(
+    builder: MarkdownTransformBuilder,
+    body: MdBlockBody,
+    context: Array<MdInlineUnit>,
+    cursor: Long
+): MarkdownBlockEdit {
+    val change = prepareMarkdownEdit(builder.snapshot, builder.edit(), MarkdownChangeKind.Edit)
+    val node = mdInlineReparse(builder.parsed.profile, context, body.input)
+    val mapped = mdInlineModel(change.after, node, body.input.emptyPosition).text
+    val position =
+        mapped.sourceAt(
+            MarkdownPosition(cursor),
+            if (cursor == 0L)
+                MarkdownBias.After
+            else
+                MarkdownBias.Before
+        ).byteOffset
+    return MarkdownBlockEdit(change, MarkdownRange(position, position))
+}

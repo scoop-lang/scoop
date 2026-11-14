@@ -1,0 +1,83 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class MarkdownBlockEditorStateTests {
+    @Test
+    fun `block transactions publish their caret once and restore directional selections`() {
+        val original = "__ab cd__\n"
+        val selected = MarkdownSelection(MarkdownPosition(7L), MarkdownPosition(3L))
+        val document = MarkdownDocument.fromText(original)
+        val editor = MarkdownEditorState(document, selected)
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = document.observe { change -> changes.add(change) }
+        val parsed = document.parse()
+        val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(2L, 3L))
+        editor.apply(edit)
+        assertEquals(1L, changes.size)
+        assertEquals(edit.selection.start, editor.selection.cursor.byteOffset)
+        assertTrue(editor.selection.collapsed)
+        assertTrue(editor.undo())
+        assertEquals(original, document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        val splitSource = document.toMarkdown()
+        val splitSelection = editor.selection
+        val current = document.parse()
+        editor.apply(current.joinBlocks(current.root.children[0L].id, current.root.children[1L].id))
+        assertEquals("**abcd**\n", document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals(splitSource, document.toMarkdown())
+        assertEquals(splitSelection, editor.selection)
+        subscription.close()
+        editor.close()
+    }
+
+    @Test
+    fun `block edits accept composition with a separate undo boundary`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("ab"), mdCaret(1L))
+        val input = MarkdownSourceInput(editor)
+        input.apply(
+            TextInputBatch(
+                Some(input.inputState.revision),
+                [TextInputOperation.Preedit("中", None, TextReplacement.CurrentSelection)]
+            )
+        )
+        assertTrue(editor.isComposing)
+        val parsed = editor.document.parse()
+        editor.apply(parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(4L, 4L)))
+        assertFalse(editor.isComposing)
+        assertEquals("a中\n\nb", editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("a中b", editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("ab", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `stale or foreign block plans preserve the current text selection and history`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("abcd"), mdCaret(2L))
+        val parsed = editor.document.parse()
+        val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(2L, 2L))
+        val other = MarkdownEditorState(MarkdownDocument.fromText("abcd"))
+        assertFailsWith<IllegalStateException> { other.apply(edit) }
+        assertFalse(other.canUndo)
+        editor.replaceSelection("x")
+        val source = editor.document.toMarkdown()
+        val selection = editor.selection
+        assertFailsWith<IllegalStateException> { editor.apply(edit) }
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selection, editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("abcd", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        other.close()
+        editor.close()
+    }
+}

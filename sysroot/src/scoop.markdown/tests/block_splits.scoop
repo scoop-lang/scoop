@@ -1,0 +1,247 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownBlockSplitTests {
+    @Test
+    fun `splitting a display selection closes styles and preserves outside source`() {
+        val original = "Before  \r\n\r\n__ab cd__\r\n\r\nAfter &amp; end\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val edit = parsed.splitBlock(parsed.root.children[1L].id, MarkdownRange(2L, 3L))
+        assertEquals(original, document.toMarkdown())
+        edit.applyTo(document)
+        assertSame(edit.change.after, document.snapshot())
+        assertEquals(
+            "Before  \r\n\r\n**ab**\r\n\r\n**cd**\r\n\r\nAfter &amp; end\r\n",
+            document.toMarkdown()
+        )
+        val after = document.parse()
+        val right = after.inlineContent(after.root.children[2L].id)
+        assertEquals("cd", right.text.text)
+        assertEquals(right.text.sourceAt(MarkdownPosition(0L)).byteOffset, edit.selection.start)
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `Unicode entity and inline object boundaries use display bytes`() {
+        val document = MarkdownDocument.fromText("A &amp; **中文😀** ![x](image.png) end")
+        val parsed = document.parse()
+        val split = "A & 中".byteLength
+        val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(split, split))
+        edit.applyTo(document)
+        val after = document.parse()
+        assertEquals("A & 中", after.inlineContent(after.root.children[0L].id).text.text)
+        assertEquals("文😀 \u{fffc} end", after.inlineContent(after.root.children[1L].id).text.text)
+        assertTrue(document.toMarkdown().contains("![x](image.png)"))
+        assertFailsWith<IllegalArgumentException> {
+            parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(split - 1L, split - 1L))
+        }
+        val byteStart = "A & 中文😀 ".byteLength
+        assertFailsWith<IllegalArgumentException> {
+            parsed.splitBlock(
+                parsed.root.children[0L].id,
+                MarkdownRange(byteStart + 1L, byteStart + 1L)
+            )
+        }
+    }
+
+    @Test
+    fun `ATX and setext headings keep their original left hand markers`() {
+        for (
+            (original, expected) in [
+                ("##  ab ##\r\n", "##  a ##\r\n\r\nb\r\n"),
+                ("ab\n=====\n", "a\n=====\n\nb\n")
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse()
+            val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(1L, 1L))
+            edit.applyTo(document)
+            assertEquals(expected, document.toMarkdown())
+            val after = document.parse()
+            assertEquals("a", after.inlineContent(after.root.children[0L].id).text.text)
+            assertEquals("b", after.inlineContent(after.root.children[1L].id).text.text)
+            document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+            assertEquals(original, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `an empty left setext title remains an expressible heading`() {
+        val document = MarkdownDocument.fromText("Title\n---")
+        val parsed = document.parse()
+        val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(0L, 0L))
+        edit.applyTo(document)
+        assertEquals("## \n\nTitle", document.toMarkdown())
+        val after = document.parse()
+        assertEquals("", after.inlineContent(after.root.children[0L].id).text.text)
+        assertEquals("Title", after.inlineContent(after.root.children[1L].id).text.text)
+    }
+
+    @Test
+    fun `new physical lines retain quote and parent list containers`() {
+        val original = "- > **ab**\r\n  > tail\r\n- end\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val paragraph = parsed.root.children[0L].children[0L].children[0L].children[0L]
+        val edit = parsed.splitBlock(paragraph.id, MarkdownRange(1L, 1L))
+        edit.applyTo(document)
+        val after = document.parse()
+        val list = after.root.children[0L]
+        assertEquals(2L, list.children.size)
+        val quote = list.children[0L].children[0L]
+        assertEquals(2L, quote.children.size)
+        assertEquals("a", after.inlineContent(quote.children[0L].id).text.text)
+        assertEquals("b tail", after.inlineContent(quote.children[1L].id).text.text)
+        assertTrue(document.toMarkdown().endsWith("- end\r\n"))
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `bullet and task continuations preserve style and reset the new checkbox`() {
+        for (
+            (original, expected) in [
+                ("+ **ab**\n+ end\n", "+ **a**\n+ **b**\n+ end\n"),
+                ("- [X] ab\n", "- [X] a\n- [ ] b\n")
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse()
+            val paragraph = parsed.root.children[0L].children[0L].children[0L]
+            val edit = parsed.splitBlock(paragraph.id, MarkdownRange(1L, 1L))
+            edit.applyTo(document)
+            assertEquals(expected, document.toMarkdown())
+            val after = document.parse()
+            val next = after.root.children[0L].children[1L].children[0L]
+            assertEquals("b", after.inlineContent(next.id).text.text)
+            document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+            assertEquals(original, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `number widening moves trailing code into the new item without changing its body`() {
+        val original = "9) ab\n\n   ```mermaid\n   A-->B\n   ```\n10) last\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val paragraph = parsed.root.children[0L].children[0L].children[0L]
+        val edit = parsed.splitBlock(paragraph.id, MarkdownRange(1L, 1L))
+        edit.applyTo(document)
+        assertEquals(
+            "9) a\n\n10) b\n\n    ```mermaid\n    A-->B\n    ```\n10) last\n",
+            document.toMarkdown()
+        )
+        val after = document.parse()
+        assertEquals(3L, after.root.children[0L].children.size)
+        assertEquals(2L, after.root.children[0L].children[1L].children.size)
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `the maximum ordered marker remains valid Markdown`() {
+        val document = MarkdownDocument.fromText("999999999. ab")
+        val parsed = document.parse()
+        val paragraph = parsed.root.children[0L].children[0L].children[0L]
+        parsed.splitBlock(paragraph.id, MarkdownRange(1L, 1L)).applyTo(document)
+        assertEquals("999999999. a\n999999999. b", document.toMarkdown())
+        assertEquals(2L, document.parse().root.children[0L].children.size)
+    }
+
+    @Test
+    fun `empty items leave exactly one list level and remove top level task markers`() {
+        for (
+            (original, expected) in [
+                ("-", ""),
+                ("- [ ] ", ""),
+                ("- parent\n\n  - \n", "- parent\n\n- \n"),
+                ("> -\r\n", "> \r\n")
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse()
+            var target: MarkdownNode? = None
+            for (node in parsed.nodes())
+                when (node.content) {
+                    case MarkdownContent.ListItem(_) -> {
+                        if (mdEmptyListItem(node))
+                            target = Some(node)
+                    }
+                    else -> Unit
+                }
+            val item =
+                target ?: throw IllegalStateException(Some("Expected an empty item in " + original))
+            val id =
+                if (item.children.size == 0L)
+                    item.id
+                else
+                    item.children[0L].id
+            val edit = parsed.splitBlock(id, MarkdownRange(0L, 0L))
+            edit.applyTo(document)
+            assertEquals(expected, document.toMarkdown())
+            assertEquals(edit.selection.start, edit.selection.end)
+            document.snapshot().checkPosition(edit.selection.start)
+            document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+            assertEquals(original, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `empty document and paragraph end produce a source insertion point`() {
+        val empty = MarkdownDocument.fromText("")
+        val parsed = empty.parse()
+        val initial = parsed.splitBlock(parsed.root.id, MarkdownRange(0L, 0L))
+        initial.applyTo(empty)
+        assertEquals("\n\n", empty.toMarkdown())
+        assertEquals(MarkdownRange(2L, 2L), initial.selection)
+        val document = MarkdownDocument.fromText("text")
+        val block = document.parse()
+        val edit = block.splitBlock(block.root.children[0L].id, MarkdownRange(4L, 4L))
+        edit.applyTo(document)
+        assertEquals("text\n\n", document.toMarkdown())
+        assertEquals(MarkdownRange(6L, 6L), edit.selection)
+    }
+
+    @Test
+    fun `split validation and stale plans do not publish partial edits`() {
+        val original = "text\n\n```code\na\n```\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        assertFailsWith<IllegalArgumentException> {
+            parsed.splitBlock(parsed.root.id, MarkdownRange(0L, 0L))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            parsed.splitBlock(parsed.root.children[1L].id, MarkdownRange(0L, 0L))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(0L, 5L))
+        }
+        assertEquals(0L, document.revision)
+        val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(2L, 2L))
+        val other = MarkdownDocument.fromText(original)
+        assertFailsWith<IllegalStateException> { edit.applyTo(other) }
+        document.replace(MarkdownRange(0L, 0L), "new ")
+        assertFailsWith<IllegalStateException> { edit.applyTo(document) }
+        assertEquals("new " + original, document.toMarkdown())
+    }
+
+    @Test
+    fun `a local block split leaves a large unrelated suffix untouched`() {
+        val suffix = "\n\nUnchanged paragraph 中文 **text**.\n\n".repeat(35000L)
+        val document = MarkdownDocument.fromText("start" + suffix)
+        val parsed = document.parse()
+        assertTrue(parsed.snapshot.byteLength > 1048576L)
+        val edit = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(2L, 2L))
+        assertEquals(1L, edit.change.replacements.size)
+        assertEquals(6L, edit.change.replacements[0L].range.end)
+        edit.applyTo(document)
+        assertEquals("st\n\nart" + suffix, document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals("start" + suffix, document.toMarkdown())
+    }
+}

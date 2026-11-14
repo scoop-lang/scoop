@@ -1,0 +1,83 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal class MdBlockBody(val source: String, val input: MarkdownText)
+
+internal class MdBlockSurround(val leading: String, val trailing: String)
+
+internal fun mdBlockSurround(
+    snapshot: MarkdownSnapshot,
+    node: MarkdownNode,
+    empty: Boolean
+): MdBlockSurround {
+    when (node.content) {
+        case MarkdownContent.Heading(val level, MarkdownHeadingStyle.Setext, _) -> {
+            if (empty)
+                return MdBlockSurround("#".repeat(level.toLong()) + " ", "")
+        }
+        else -> Unit
+    }
+    val range = mdInlineRange(mdInlineSource(node))
+    val ending = mdNodeEnding(snapshot, node)
+    return MdBlockSurround(
+        snapshot.read(MarkdownRange(node.range.start, range.start)),
+        snapshot.read(MarkdownRange(range.end, node.range.end - ending.byteLength))
+    )
+}
+
+/** Maps only generated body bytes, retaining physical line endings and container prefixes. */
+internal fun mdBlockBody(
+    source: String,
+    start: Long,
+    newline: String,
+    prefix: String
+): MdBlockBody {
+    val bytes = source.toByteArray()
+    val output = StringBuilder()
+    val mapped = MdTextBuilder()
+    var run = 0L
+    var offset = start
+    for (index in 0L ..< bytes.size) {
+        if (bytes[index].toInt() != 10)
+            continue
+        val body = mdBytesText(bytes, run, index)
+        output.append(body).append(newline).append(prefix)
+        mapped.add(body, MarkdownRange(offset, offset + body.byteLength))
+        offset += body.byteLength
+        mapped.add(
+            "\n",
+            MarkdownRange(offset, offset + newline.byteLength),
+            MarkdownTextMapping.Normalized
+        )
+        offset += newline.byteLength + prefix.byteLength
+        run = index + 1L
+    }
+    val body = mdBytesText(bytes, run, bytes.size)
+    output.append(body)
+    mapped.add(body, MarkdownRange(offset, offset + body.byteLength))
+    return MdBlockBody(output.toString(), mapped.build(start))
+}
+
+internal fun mdBlockAtxUnits(units: Array<MdInlineUnit>): Array<MdInlineUnit> {
+    val result = ArrayList<MdInlineUnit>()
+    for (unit in units) {
+        when (unit.kind) {
+            case MdInlineUnitKind.SoftBreak -> result.add(
+                MdInlineUnit(MdInlineUnitKind.Text, " ", 0, unit.link)
+            )
+            case MdInlineUnitKind.HardBreak -> result.add(
+                MdInlineUnit(MdInlineUnitKind.Text, " ", 0, unit.link)
+            )
+            case MdInlineUnitKind.Object -> {
+                requireMarkdown(
+                    !unit.raw.contains("\n") && !unit.raw.contains("\r"),
+                    "A multiline raw object cannot be joined into an ATX heading"
+                )
+                result.add(unit)
+            }
+            else -> result.add(unit)
+        }
+    }
+    return result.toArray()
+}

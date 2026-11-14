@@ -162,8 +162,23 @@ public class MarkdownEditorState public constructor(
         reversed: Boolean = false,
         kind: MarkdownEditKind = MarkdownEditKind.Separate
     ): MarkdownChange {
+        return applySemantic(edit.selection, reversed, kind) { edit.applyTo(document) }
+    }
+
+    /** Publishes a prepared block operation and its caret as one independent history entry. */
+    public fun apply(edit: MarkdownBlockEdit): MarkdownChange {
+        return applySemantic(edit.selection, false, MarkdownEditKind.Separate) {
+            edit.applyTo(document)
+        }
+    }
+
+    private fun applySemantic(
+        range: MarkdownRange,
+        reversed: Boolean,
+        kind: MarkdownEditKind,
+        publish: () -> MarkdownChange
+    ): MarkdownChange {
         checkEdit()
-        val range = edit.selection
         val after =
             MarkdownSelection(
                 MarkdownPosition(
@@ -181,7 +196,7 @@ public class MarkdownEditorState public constructor(
             )
         pending = Some(MdPendingEdit(kind, Some(after)))
         try {
-            val change = edit.applyTo(document)
+            val change = publish()
             if (!change.changed) {
                 val previous = storage.value
                 val accepted = mdEndComposition(this, previous.snapshot, previous.selection)

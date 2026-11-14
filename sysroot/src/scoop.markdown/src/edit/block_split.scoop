@@ -1,0 +1,122 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Deletes a display range and splits its paragraph or heading, continuing an immediate list item. */
+public fun ParsedMarkdown.splitBlock(id: MarkdownNodeId, range: MarkdownRange): MarkdownBlockEdit {
+    val selected = node(id)
+    when (selected.content) {
+        case MarkdownContent.ListItem(_) -> {
+            requireMarkdown(
+                mdEmptyListItem(selected) && range == MarkdownRange(0L, 0L),
+                "Only an empty list item can be split directly"
+            )
+            return mdExitEmptyItem(this, selected)
+        }
+        else -> Unit
+    }
+    val content = mdBlockContent(this, selected)
+    mdInlineCheckRange(content, range)
+    val parent = parent(selected.id)
+    val item =
+        when (parent?.content) {
+            case Some(MarkdownContent.ListItem(_)) -> parent
+            else -> None
+        }
+    when (item) {
+        case Some(val value) -> if (content.text.byteLength == 0L && mdEmptyListItem(value))
+            return mdExitEmptyItem(this, value)
+        case None -> Unit
+    }
+    val left = mdInlineUnitsSlice(content.model.units, 0L, range.start)
+    val right = mdInlineUnitsSlice(content.model.units, range.end, content.text.byteLength)
+    val block = content.node
+    val surround = mdBlockSurround(snapshot, block, left.size == 0L)
+    val newline = mdLocalNewline(snapshot, selected.range.start)
+    val prefix = mdListPrefix(this, selected)
+    val body =
+        mdBlockBody(
+            mdInlineUnitsWrite(left, false),
+            block.range.start + surround.leading.byteLength,
+            newline,
+            prefix
+        )
+    val output =
+        StringBuilder().append(surround.leading).append(body.source).append(surround.trailing)
+    val builder = MarkdownTransformBuilder(this)
+    val rightPrefix =
+        when (item) {
+            case Some(val value) -> mdSplitItemPrefix(builder, value, block, output, newline)
+            case None -> {
+                output.append(newline).append(prefix).append(newline).append(prefix)
+                prefix
+            }
+        }
+    val following =
+        mdBlockBody(
+            mdInlineUnitsWrite(right, false),
+            block.range.start + output.toString().byteLength,
+            newline,
+            rightPrefix
+        )
+    output.append(following.source).append(mdNodeEnding(snapshot, block))
+    builder.replace(block.range, output.toString())
+    return mdBlockPrepared(builder, following, content.model.units, 0L)
+}
+
+private fun mdExitEmptyItem(parsed: ParsedMarkdown, item: MarkdownNode): MarkdownBlockEdit {
+    val builder = MarkdownTransformBuilder(parsed)
+    builder.outdentListItem(item.id)
+    val change = prepareMarkdownEdit(parsed.snapshot, builder.edit(), MarkdownChangeKind.Edit)
+    val end = parsed.snapshot.lineRange(mdNodeLine(parsed.snapshot, item)).end
+    val position =
+        change.map(MarkdownAnchor(MarkdownPosition(end), MarkdownBias.After)).position.byteOffset
+    return MarkdownBlockEdit(change, MarkdownRange(position, position))
+}
+
+private fun mdSplitItemPrefix(
+    builder: MarkdownTransformBuilder,
+    item: MarkdownNode,
+    block: MarkdownNode,
+    output: StringBuilder,
+    newline: String
+): String {
+    val parsed = builder.parsed
+    val source = item.itemSource!!
+    val prefix = mdListPrefix(parsed, item)
+    val token = mdItemToken(builder.snapshot, item)
+    val chars = token.toCharArray()
+    val next =
+        if (source.ordered && source.start < 999999999L)
+            (source.start + 1L).toString() + chars[chars.size - 1L].toString()
+        else
+            token
+    val gap = source.padding - token.byteLength
+    val padding =
+        next.byteLength +
+            if (gap > 0L)
+                gap
+            else
+                1L
+    val continuation = prefix + " ".repeat(source.offset + padding)
+    val list = parsed.parent(item.id)!!
+    if (!mdListInfo(list).tight)
+        output.append(newline).append(prefix)
+    output.append(newline).append(prefix).append(" ".repeat(source.offset))
+    .append(next).append(" ".repeat(padding - next.byteLength))
+    when (item.content) {
+        case MarkdownContent.ListItem(Some(_)) -> output.append("[ ] ")
+        else -> Unit
+    }
+    if (padding == source.padding)
+        return continuation
+    for (line in source.lines) {
+        if (line.lineStart < block.range.end || mdItemBlankLine(builder.snapshot, line))
+            continue
+        builder.mdListPrefixEdit(
+            MarkdownRange(line.lineStart, line.end),
+            continuation + " ".repeat(line.remainder)
+        )
+    }
+    return continuation
+}

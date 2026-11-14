@@ -1,0 +1,49 @@
+package scoop.markdown
+
+/** Joins adjacent inline blocks in one container and places the caret at their display boundary. */
+public fun ParsedMarkdown.joinBlocks(
+    first: MarkdownNodeId,
+    second: MarkdownNodeId
+): MarkdownBlockEdit {
+    val leftNode = node(first)
+    val rightNode = node(second)
+    val left = mdBlockContent(this, leftNode)
+    val right = mdBlockContent(this, rightNode)
+    val container =
+        parent(first) ?: throw IllegalArgumentException(Some("The document root cannot be joined"))
+    val otherParent =
+        parent(second) ?: throw IllegalArgumentException(Some("The document root cannot be joined"))
+    requireMarkdown(otherParent === container, "Joined blocks must have the same parent")
+    var index = 0L
+    while (container.children[index] !== leftNode)
+        index += 1L
+    requireMarkdown(
+        index + 1L < container.children.size && container.children[index + 1L] === rightNode,
+        "Joined blocks must be adjacent and in source order"
+    )
+    val combined = ArrayList<MdInlineUnit>()
+    for (unit in left.model.units)
+        combined.add(unit)
+    for (unit in right.model.units)
+        combined.add(unit)
+    var units = combined.toArray()
+    when (leftNode.content) {
+        case MarkdownContent.Heading(_, MarkdownHeadingStyle.Atx, _) -> units =
+            mdBlockAtxUnits(units)
+        else -> Unit
+    }
+    val surround = mdBlockSurround(snapshot, leftNode, units.size == 0L)
+    val body =
+        mdBlockBody(
+            mdInlineUnitsWrite(units, false),
+            leftNode.range.start + surround.leading.byteLength,
+            mdLocalNewline(snapshot, leftNode.range.start),
+            mdListPrefix(this, leftNode)
+        )
+    val builder = MarkdownTransformBuilder(this)
+    builder.replace(
+        MarkdownRange(leftNode.range.start, rightNode.range.end),
+        surround.leading + body.source + surround.trailing + mdNodeEnding(snapshot, rightNode)
+    )
+    return mdBlockPrepared(builder, body, units, left.text.byteLength)
+}

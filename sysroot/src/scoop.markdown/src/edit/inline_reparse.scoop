@@ -4,9 +4,17 @@ import scoop.collections.HashMap
 
 /** Rebuilds only the editable block's inline mapping; references retain their original targets. */
 internal fun mdInlineReparse(content: MarkdownInlineContent, source: MarkdownText): MarkdownNode {
+    return mdInlineReparse(content.profile, content.model.units, source)
+}
+
+internal fun mdInlineReparse(
+    profile: MarkdownProfile,
+    context: Array<MdInlineUnit>,
+    source: MarkdownText
+): MarkdownNode {
     val references = HashMap<String, MarkdownLinkTarget>()
     val footnotes = HashMap<String, MdBuildNode>()
-    for (unit in content.model.units) {
+    for (unit in context) {
         when (unit.link) {
             case Some(val link) -> if (link.target.label != "")
                 references[link.target.label] = link.target
@@ -23,16 +31,9 @@ internal fun mdInlineReparse(content: MarkdownInlineContent, source: MarkdownTex
     root.ready = Some(source)
     val syntax = MdSyntax()
     try {
-        MdInlineParser(
-            root,
-            MdInput(source),
-            syntax,
-            content.profile,
-            references,
-            footnotes
-        ).parse()
+        MdInlineParser(root, MdInput(source), syntax, profile, references, footnotes).parse()
         mdMergeText(root)
-        if (content.profile.autolinks)
+        if (profile.autolinks)
             mdGfmAutolinks(root, syntax)
         mdFreezeNodes(root)
         return root.frozen!!

@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | A1：源文本、持久化快照、行索引、事务与通知 | 已完成 | 本机 release：文档库 16 项、独立 consumer 2 项测试通过 |
 | A2：CommonMark／GFM 解析、源码映射与查询 | 已完成 | 652 个 CommonMark、26 个 GFM 样例；文档库 23 项、consumer 3 项、真实仓库 2 项测试通过 |
-| A3：结构化修改、生成 DSL、扩展语法和无 UI 内容处理 | 实施中 | 生成、基础结构事务、行内语义编辑、表格与列表结构、扩展语法及内容展开已完成；文档库 129 项分批通过，consumer 11 项通过；继续分段／跨块、格式化与跨 revision 复用 |
+| A3：结构化修改、生成 DSL、扩展语法和无 UI 内容处理 | 实施中 | 生成、基础结构事务、行内语义编辑、块拆分／合并、表格与列表结构、扩展语法及内容展开已完成；文档库 149 项分批通过，consumer 12 项通过；继续跨块选区、格式化与跨 revision 复用 |
 | B：源码编辑、虚拟布局、双栏、统一历史及图像块 | 已完成 | 三模式、右侧只读、源码锚点滚动同步、共享历史和扩展图像已接入；编辑器库 55 项全部通过，真实图像工具及原生视图通过 |
 | C：普通 Markdown 所见即所得编辑 | 实施中 | 行内语义事务、连续输入、原生富文本及三模式组件完成；24 步富文本输入、29 步三模式交互通过；继续表格／列表块命令与跨块编辑 |
 | D：公式、指令和 Typora 编辑能力补齐 | 待实施 | 扩展来源映射、正确展示、错误恢复与编辑操作 |
@@ -38,6 +38,8 @@
 解析器的可选值分支暴露出 `Unit`／`()` 无操作语句的缺口。已先明确语言规范，再允许 HIR lowering 接受 Unit literal 语句；其他非调用值仍不因此成为合法语句。同步了 Option 示例和编程材料。
 
 已使用仓库现有 LLVM 22.1.8 SDK 重建本机六个配套命令，安装到 `~/.scoop`；当前本机开发标识为 `0.0.0-dev (6289e706e3+unit-statements)`。不涉及 IR 格式、runtime 或现有预编译系统库的契约变更。Rust fmt／相关 clippy 完成（有变更外既有 lint 提示）；Core consumer 的 check --tests --release 通过，`scoop test ... --release --filter UnitStatementTests` 的 2 项原生测试通过，覆盖两种写法、Some／None、嵌套分支、if 和 finally 的执行行为。
+
+此修复已独立抽取到基于 main 的 `codex/fix-unit-statements`，经 [PR #133](https://github.com/scoop-lang/scoop/pull/133) 合并至 main；Markdown 工作分支已合入并发布新的 main。修复 PR 仅包含编译器、规范、编程参考与相应测试。
 
 ## A2 验证
 
@@ -223,3 +225,11 @@ MarkdownTransformBuilder 支持插入／删除列、设置列对齐、替换文�
 新增带模式工具栏、保存和退出快捷键的公开示例，实际打开 641,186 字节的仓库规范文件并检查双栏显示。三份示例统一按 Scoop main 的 argv[0] 约定读取文件参数，格式化与 release 检查通过。API 生成及 MarkdownEditorViewState／markdownEditor 查询通过；规范、设计、README、测试复现说明和编程导航同步。
 
 本机现有 ui.style、ui.component、ui.style.shadcn 预编译产物与已安装 ui 的语义指纹不一致，已用 ~/.scoop 中的工具链和原有安装源码重建配套产物；未修改这些系统库源码，也没有新增编译器或 runtime 修复。临时应用包、API 站点、诊断用文件读取 Cone 和原始日志验收后清理，保留正常构建缓存。块级 Enter／Tab、跨块替换、完整指针交互和最终性能验收继续实施。
+
+## A3／C 块拆分与合并事务
+
+已提供 ParsedMarkdown.splitBlock、joinBlocks 和 MarkdownBlockEdit。拆分使用显示字节选区，闭合两侧行内样式并保留标题、引用与列表容器；列表延续原标记，新任务框未勾选，编号跨位时调整必要续行。空条目退出一级。相邻同容器段落／标题可合并，保留首块种类，ATX 标题中的换行转为空格；代码、扩展和引用定义等块边界保持明确。准备结果带源码差量与结果 caret，不发布文档或重新解析整篇；MarkdownEditorState.apply 将结果作为独立历史项。
+
+使用 ~/.scoop 完成相关 fmt、check --tests --release。文档库首次全量 148 项中 147 项通过，唯一失败样例缺少空行而被 CommonMark 识别为 Setext 标题；修正样例并补充多行 HTML 边界后，20 项块编辑定向测试全部通过，连同已通过的 129 项回归共覆盖当前 149 项。编辑器库 12 个容器、58 项全部通过；独立 consumer 6 个容器、12 项全部通过。覆盖 Unicode／实体／原子对象、引用与脚注、CRLF、标题标记、任务与嵌套列表、编号上限、过期或其他文档事务、一次通知、组合输入及精确撤销。另以大于 1 MiB 文档验证块外源码保持，约 0.36 秒包含首次完整解析，不作为交互延迟指标。
+
+API 生成及 MarkdownBlockEdit／splitBlock／joinBlocks／MarkdownEditorState.apply 查询通过；规范、设计、README、consumer 示例与编程导航同步。本批无工具链或系统库修改，临时 API 站点和日志核对后清理，保留正常构建缓存。此批完成文档操作及共享历史，原生 Enter／Tab 和跨块连续输入继续接入。

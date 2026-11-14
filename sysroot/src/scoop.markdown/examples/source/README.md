@@ -18,7 +18,7 @@
 
 需要持续编辑的应用应复用一个 `MarkdownProcessingSession`，以取得版本未变时的结果复用；源文档的保存继续使用原始 snapshot。应用有更准确的文件通知版本时，可以替换示例 resolver 的版本实现。
 
-[processing 测试](tests/processing.scoop) 在临时目录内验证实际读取、单独输出、保留原文件和更新检测，完成后删除目录；同时从另一个 Cone 实现自定义 topic 处理器，检查生成链接的来源映射。[结构编辑测试](tests/editing.scoop) 使用公开 API 添加带格式和对齐的表格列、粘贴矩形 TSV、缩进任务项并转换有序列表、按行内显示范围编辑及精确撤销。其他测试覆盖生成 DSL、扩展语法和快照。
+[processing 测试](tests/processing.scoop) 在临时目录内验证实际读取、单独输出、保留原文件和更新检测，完成后删除目录；同时从另一个 Cone 实现自定义 topic 处理器，检查生成链接的来源映射。[结构编辑测试](tests/editing.scoop) 使用公开 API 添加带格式和对齐的表格列、粘贴矩形 TSV、缩进任务项并转换有序列表、按行内显示范围编辑及精确撤销。段落拆分／合并返回 `MarkdownBlockEdit`，包含尚未发布的差量与结果源码 caret，无 UI 程序通过 `applyTo(document)` 发布，并可使用普通反向差量撤销。其他测试覆盖生成 DSL、扩展语法和快照。
 
 ```sh
 ~/.scoop/bin/scoop --sysroot ~/.scoop test sysroot/src/scoop.markdown/examples/source --release

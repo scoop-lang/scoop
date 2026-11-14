@@ -78,7 +78,7 @@ inline builder 提供 text、emphasis、strong、strikethrough、code、link、i
 
 `document.transform(parsed) { ... }` 在匹配 documentId／revision 的解析结果上准备结构修改，并通过 `MarkdownEdit` 一次发布。过期或其他文档的结果抛 IllegalStateException。准备期间不修改文档；按原始坐标稳定排序后检查操作不重叠，任何非法参数或冲突都使本次准备失败。一个事务内的方法都基于同一份原始解析；不能用第一次操作尚未发布的节点作为后续操作的输入。回调返回前文档若被其他调用修改，最终 apply 仍拒绝旧基线。
 
-`MarkdownTransformBuilder` 提供 `replaceSource`、`replaceText`、`setInlineContent`、`setHeading`、`setParagraph`、`wrapInline`、`unwrapInline`、`setLinkTarget`、`setReferenceDefinition`、`setTask`，以及单元格、表格行列和矩形修改（§8.2）。节点参数使用该解析结果的 MarkdownNodeId，错误节点种类或索引抛 IllegalArgumentException。不同节点的互不重叠修改可以组合，旧快照与反向事务遵守既有合同。
+`MarkdownTransformBuilder` 提供 `replaceSource`、`replaceText`、`setInlineContent`、`setHeading`、`setParagraph`、`wrapInline`、`unwrapInline`、`setLinkTarget`、`setReferenceDefinition`、`setTask`，以及单元格、表格行列和矩形修改（§8.2）。节点参数使用该解析结果的 MarkdownNodeId，错误节点种类或索引抛 IllegalArgumentException。不同节点的互不重叠修改可以组合，旧快照与反向事务遵守既有合同。带结果光标的拆分／合并使用 §8.4 的准备接口。
 
 Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类型的行内解析输入：保留 Markdown 标记、实体和普通转义，去掉容器前缀、标题标记和任务框前缀；表格竖线先按 GFM 表格词法去转义。去前缀、换行规范化和表格转义均保留原始映射。这与叶 Text 的已解码显示文字明确区分。`ParsedMarkdown.parent(id)` 提供所属树内的父节点，根返回 None，不重新搜索整树。
 
@@ -125,6 +125,16 @@ unwrapListItem(id) 移除当前条目的列表标记及任务框，把正文留�
 setBulletList(id, marker) 将指定 ListBlock 转为无序列表，marker 默认 `-`，允许 `-`、`+`、`*`。setOrderedList(id, start, delimiter) 转为有序列表，并显式按顺序编号；默认从 1 开始、分隔符为 `.`，也允许 `)`，全部编号须落在 CommonMark 的 0～999999999 范围。任务状态、列表正文与紧凑／宽松所需的空行不变；编号宽度变化同步调整所属续行。调用这些显式转换才修改其他条目的标记，普通输入和层级移动不隐式重编号。
 
 这些命令使用解析时保留的实际容器前缀及 Tab 消费位置，修改源码前缀和必要分隔；正文、围栏与扩展内容不经整体重新生成。受影响的缩进可规范化为空格，跨越容器边界的部分 Tab 保留其剩余显示列，懒续行补全对应容器。未涉及的源范围保持原样；普通源码锚点按差量移动，反向事务恢复原始字节。错误节点、非法参数、无前驱的缩进或同批重叠修改均不发布。
+
+### 8.4 块拆分与合并
+
+`ParsedMarkdown.splitBlock(id, range)` 按段落或标题的显示 UTF-8 字节范围删除选中文字，再拆成两个块；范围须为标量边界，原子对象不可从内部拆开。左侧保留原块种类和标题级别／风格，右侧成为段落。空 Setext 左侧改为同级 ATX 标题，以保留可表达的空标题。空文档根也接受零范围。源码范围、换行和容器依据当前解析准备，不修改原文档。
+
+直接属于 ListItem 的段落／标题在拆分时延续为下一个列表项；保留项目符号或有序列表分隔符，有序标记在九位数范围内加一，达到上限时复用原标记。新任务项未勾选，原条目的任务状态保留。跟在拆分位置之后的块归到新条目；编号宽度变化时同步其续行前缀。新行继承列表松紧和外层引用／列表容器。空 ListItem 或其唯一空段落的零范围拆分执行一次 outdentListItem，顶层因此解除列表，嵌套列表只退出一层。
+
+`ParsedMarkdown.joinBlocks(first, second)` 合并同一父容器中相邻的两个段落／标题，保留第一个块的种类与外围标记，光标放在原两段显示文字的连接处；不自动插入空格。ATX 标题的结果将软／硬换行转换为空格，多行原始对象不能合入 ATX 标题。不能越过其他块、引用定义、列表项边界或容器；表格、代码和扩展块不作为这两个操作的行内目标。
+
+两种操作返回 `MarkdownBlockEdit`，包含一次已准备的 change、结果源码 selection、普通 edit 和 applyTo(document)。准备只处理受影响块及必要的列表续行，不物化其他正文或重新解析整篇文档；样式和链接按显示内容在分界两侧正确闭合，原子对象保留源码。受影响块允许规范化行内拼写，块外源码保持原样；反向事务恢复精确原字节。失败、外部文档或过期快照不发布，applyTo 使用与 MarkdownInlineEdit 相同的当前快照身份检查。
 
 ## 9. 扩展语法
 

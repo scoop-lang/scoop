@@ -1,0 +1,151 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownBlockJoinTests {
+    @Test
+    fun `multiline inline HTML cannot turn an ATX join into unrelated blocks`() {
+        val original = "# Heading\n\ntext <span\nclass=x>body</span>\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        assertEquals(2L, parsed.root.children.size)
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[1L].id)
+        }
+        assertEquals(original, document.toMarkdown())
+        assertEquals(0L, document.revision)
+    }
+
+    @Test
+    fun `joining adjacent styled blocks avoids colliding delimiters and restores exact source`() {
+        val original = "__ab__\n\n**cd**\n\nTail &amp; text\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val edit = parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[1L].id)
+        assertEquals(original, document.toMarkdown())
+        edit.applyTo(document)
+        assertEquals("**abcd**\n\nTail &amp; text\n", document.toMarkdown())
+        val after = document.parse()
+        val content = after.inlineContent(after.root.children[0L].id)
+        assertEquals("abcd", content.text.text)
+        assertEquals(2L, content.text.textAt(MarkdownPosition(edit.selection.start)).byteOffset)
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `the first heading keeps markers and ATX joins normalize physical breaks`() {
+        val document = MarkdownDocument.fromText("## Head ###\r\n\r\nBody\\\r\nmore\r\n")
+        val parsed = document.parse()
+        val edit = parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[1L].id)
+        edit.applyTo(document)
+        assertEquals("## HeadBody more ###\r\n", document.toMarkdown())
+        val after = document.parse()
+        val content = after.inlineContent(after.root.children[0L].id)
+        assertEquals("HeadBody more", content.text.text)
+        assertEquals(4L, content.text.textAt(MarkdownPosition(edit.selection.start)).byteOffset)
+    }
+
+    @Test
+    fun `setext joins retain their underline and a paragraph removes the second heading marker`() {
+        for (
+            (original, expected) in [
+                ("a\n===\n\nb", "ab\n==="),
+                ("a\n\n## b ###\n", "ab\n"),
+                ("# \n\n# \n", "# \n")
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse()
+            val edit = parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[1L].id)
+            edit.applyTo(document)
+            assertEquals(expected, document.toMarkdown())
+            document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+            assertEquals(original, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `quote and task containers remain outside the joined body`() {
+        for (
+            (original, expected) in [
+                ("> a\r\n>\r\n> b\r\n", "> ab\r\n"),
+                ("- [x] a\n\n  b\n", "- [x] ab\n")
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse()
+            var container = parsed.root.children[0L]
+            when (container.content) {
+                case MarkdownContent.ListBlock(_) -> container = container.children[0L]
+                else -> Unit
+            }
+            val edit = parsed.joinBlocks(container.children[0L].id, container.children[1L].id)
+            edit.applyTo(document)
+            assertEquals(expected, document.toMarkdown())
+            document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+            assertEquals(original, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `references footnotes math and raw images retain local parse context`() {
+        val original = "[A][r] $x$\n\n[^n] ![pic](p.png)\n\n[r]: dest\n\n[^n]: note\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse(MarkdownProfile.Editor)
+        val left = parsed.inlineContent(parsed.root.children[0L].id)
+        val edit = parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[1L].id)
+        edit.applyTo(document)
+        val after = document.parse(MarkdownProfile.Editor)
+        val content = after.inlineContent(after.root.children[0L].id)
+        assertEquals("A \u{fffc}\u{fffc} \u{fffc}", content.text.text)
+        assertEquals(
+            left.text.byteLength,
+            content.text.textAt(
+                MarkdownPosition(edit.selection.start),
+                MarkdownBias.Before
+            ).byteOffset
+        )
+        assertTrue(document.toMarkdown().endsWith("[r]: dest\n\n[^n]: note\n"))
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `joins reject skipped blocks reversed order and separate list items`() {
+        val document = MarkdownDocument.fromText("a\n\nb\n\nc\n\n- d\n- e\n")
+        val parsed = document.parse()
+        val blocks = parsed.root.children
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(blocks[0L].id, blocks[2L].id)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(blocks[1L].id, blocks[0L].id)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(blocks[0L].id, blocks[0L].id)
+        }
+        val items = blocks[3L].children
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(items[0L].children[0L].id, items[1L].children[0L].id)
+        }
+        assertEquals(0L, document.revision)
+        val foreign = MarkdownDocument.fromText("a").parse()
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(blocks[0L].id, foreign.root.children[0L].id)
+        }
+    }
+
+    @Test
+    fun `a reference definition between paragraphs is not silently removed`() {
+        val document = MarkdownDocument.fromText("a\n\n[x]: destination\n\nb")
+        val parsed = document.parse()
+        assertEquals(3L, parsed.root.children.size)
+        assertFailsWith<IllegalArgumentException> {
+            parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[2L].id)
+        }
+        assertEquals(0L, document.revision)
+    }
+}

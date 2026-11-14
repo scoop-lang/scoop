@@ -14,6 +14,8 @@
 
 `apply(MarkdownInlineEdit, reversed, kind)` 接收文档 Cone 准备的行内语义修改，在发布同一个源码事务时采用其编辑后源码选区。reversed 保留选区方向；普通格式命令默认单独历史项。文档身份与 revision 必须匹配，错误准备结果不改变正文或历史；无正文变化时仍可更新选区并结束活动组合。
 
+`apply(MarkdownBlockEdit)` 将文档 Cone 准备的块拆分／合并与结果源码选区作为一个独立历史项发布，复用行内语义操作的组合接受、观察者通知、失败原子性和 undo／redo 路径。准备本身不更改 UI 状态；后台解析未匹配当前 revision 时不能用旧 ParsedMarkdown 发起结构命令。
+
 状态以公开 State 读取追踪发布当前 snapshot、selection、canUndo、canRedo 与保存 revision。状态 API 先检查 UI 的修改时机，再准备与发布文档修改，不能先改文档、后因 State 禁止写入而留下部分 UI 状态。外部文档修改也必须发生在相同 owner 的正常编辑时机。
 
 ## 3. 统一历史

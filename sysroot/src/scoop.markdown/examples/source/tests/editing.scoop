@@ -6,6 +6,23 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun `headless consumers split and join blocks with a prepared result caret`() {
+        val document = MarkdownDocument.fromText("# Hello Scoop\n")
+        val parsed = document.parse()
+        val split = parsed.splitBlock(parsed.root.children[0L].id, MarkdownRange(5L, 6L))
+        split.applyTo(document)
+        assertEquals("# Hello\n\nScoop\n", document.toMarkdown())
+        assertEquals(MarkdownRange(9L, 9L), split.selection)
+        val current = document.parse()
+        val join = current.joinBlocks(current.root.children[0L].id, current.root.children[1L].id)
+        join.applyTo(document)
+        assertEquals("# HelloScoop\n", document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, join.change.inverseReplacements))
+        document.apply(MarkdownEdit(document.revision, split.change.inverseReplacements))
+        assertEquals("# Hello Scoop\n", document.toMarkdown())
+    }
+
+    @Test
     fun `headless consumers can nest list items and explicitly number the outer list`() {
         val original = "- First\n- [x] Child\n- Last\n"
         val document = MarkdownDocument.fromText(original)
