@@ -152,7 +152,12 @@ private class MdBlockProjection(
                 context.quotes,
                 markers.toArray(),
                 cells,
-                MdDisplayKey(rows.size)
+                MdDisplayKey(rows.size),
+                when (kind) {
+                    case MdDisplayKind.Code(_, _, _) -> Some(node.range)
+                    case MdDisplayKind.Source(_, _, _) -> Some(node.range)
+                    else -> None
+                }
             )
         )
     }

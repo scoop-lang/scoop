@@ -16,6 +16,9 @@ private class MdSourceMeasurePass(
     val width: Double?
 ) {
     val measured = HashMap<Long, MdSourceLine>()
+    val extent = host.extent
+    fun top(index: Long): Double = host.heights.prefix(index) - host.heights.prefix(extent.first)
+    val height: Double get() = top(extent.end)
     fun row(index: Long): MdSourceLine {
         when (measured[index]) {
             case Some(val row) -> return row;
@@ -53,10 +56,10 @@ private class MdSourceMeasurePass(
         delta: Double,
         fraction: Double
     ): ScrollAdjustment? {
-        val index = host.current.snapshot.lineAt(source.position)
+        val position = mdSourcePosition(extent.range, source.position)
+        val index = host.current.snapshot.lineAt(position)
         val row = row(index)
-        val caret =
-            row.layout.caret(row.position(source.position.byteOffset, source.bias)) ?: return None
+        val caret = row.layout.caret(row.position(position.byteOffset, source.bias)) ?: return None
         return Some(
             ScrollAdjustment(
                 request,
@@ -65,7 +68,7 @@ private class MdSourceMeasurePass(
                     max(
                         0.0,
                         host.options.padding +
-                            host.heights.prefix(index) +
+                            top(index) +
                             caret.y +
                             delta +
                             fraction *
@@ -99,23 +102,30 @@ internal fun mdMeasureSource(
     val snapshot = current.snapshot
     val pass = MdSourceMeasurePass(host, context, width)
     try {
-        pass.row(snapshot.lineAt(current.selection.cursor))
+        val selection = mdSourceSelection(pass.extent.range, current.selection)
+        pass.row(snapshot.lineAt(selection.cursor))
         var adjustment = pass.adjustment()
         var scroll =
             host.viewport.layout(
                 size,
                 Size(
                     max(size.width, host.maximumWidth + padding * 2.0),
-                    max(size.height, host.heights.total + padding * 2.0)
+                    max(size.height, pass.height + padding * 2.0)
                 ),
                 adjustment
             )
         while (true) {
             val before = pass.measured.size
             val offset = scroll.snapshot.offset
-            var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
+            var index =
+                pass.extent.index(
+                    host.heights.indexAt(
+                        max(0.0, offset.y - padding - host.options.overscan) +
+                            host.heights.prefix(pass.extent.first)
+                    )
+                )
             val bottom = offset.y + size.height + host.options.overscan
-            while (index < snapshot.lineCount && host.heights.prefix(index) + padding < bottom) {
+            while (index < pass.extent.end && pass.top(index) + padding < bottom) {
                 pass.row(index)
                 index += 1L
             }
@@ -128,7 +138,7 @@ internal fun mdMeasureSource(
                             size.width
                         else
                             max(size.width, host.maximumWidth + padding * 2.0),
-                        max(size.height, host.heights.total + padding * 2.0)
+                        max(size.height, pass.height + padding * 2.0)
                     ),
                     adjustment
                 )
@@ -149,9 +159,10 @@ internal fun mdMeasureSource(
         return MarkdownSourceMeasurement(
             LayoutMetrics(size),
             snapshot,
-            current.selection,
+            selection,
             current.markedRange,
             current.inputRevision,
+            pass.extent.range,
             host.heights,
             rows.toArray(),
             scroll,
@@ -212,7 +223,7 @@ internal fun mdSceneSource(
                     )
                 )
                 for (row in frame.rows) {
-                    val top = frame.padding + frame.heights.prefix(row.index)
+                    val top = frame.padding + frame.top(row.index)
                     val height =
                         frame.heights.prefix(row.index + 1L) - frame.heights.prefix(row.index)
                     if (

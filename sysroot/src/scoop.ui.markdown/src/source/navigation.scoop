@@ -85,7 +85,7 @@ internal fun <T> mdWithSourceLine(
         }
         case None -> Unit
     }
-    val range = snapshot.lineRange(index)
+    val range = host.lineRange(index)
     val display = mdSourceDisplay(snapshot.read(range), host.options.tabSize)
     val style = host.style.text
     val content =
@@ -118,10 +118,11 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
     val snapshot = state.snapshot
     val cursor = state.selection.cursor
     val index = snapshot.lineAt(cursor)
+    val extent = host.extent
     if (movement == TextMovement.DocumentStart)
-        return MdSourceMove(MarkdownPosition(0L), TextAffinity.Downstream, None)
+        return MdSourceMove(MarkdownPosition(extent.range.start), TextAffinity.Downstream, None)
     if (movement == TextMovement.DocumentEnd)
-        return MdSourceMove(MarkdownPosition(snapshot.byteLength), TextAffinity.Upstream, None)
+        return MdSourceMove(MarkdownPosition(extent.range.end), TextAffinity.Upstream, None)
     return mdWithSourceLine(host, index) {
         range, display, layout ->
         val relative = min(cursor.byteOffset - range.start, range.byteLength)
@@ -143,7 +144,7 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
                                 distance
                         )
                 )
-            val destination = min(snapshot.lineCount - 1L, host.heights.indexAt(y))
+            val destination = extent.index(host.heights.indexAt(y))
             return@mdWithSourceLine mdWithSourceLine(host, destination) {
                 nextRange, nextDisplay, nextLayout ->
                 val hit = nextLayout.hitTest(Point(x, y - host.heights.prefix(destination)))
@@ -239,8 +240,8 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
                 TextMovement.PageDown
         if (
             (!previous && !following) ||
-                (previous && index == 0L) ||
-                (following && index + 1L == snapshot.lineCount)
+                (previous && index == extent.first) ||
+                (following && index + 1L == extent.end)
         )
             return@mdWithSourceLine MdSourceMove(cursor, host.cursorAffinity, host.preferredX)
         val target =
@@ -272,7 +273,7 @@ internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdS
                 )
             }
         else {
-            val nextRange = snapshot.lineRange(destination)
+            val nextRange = host.lineRange(destination)
             MdSourceMove(
                 MarkdownPosition(
                     if (previous)
@@ -298,9 +299,9 @@ internal fun mdSourceDelete(host: MarkdownSourceHost, deletion: TextDeletion): M
         val snapshot = host.current.snapshot
         val cursor = selection.cursor.byteOffset
         val line = snapshot.lineAt(selection.cursor)
-        val raw = snapshot.lineRange(line)
+        val raw = host.lineRange(line)
         if (cursor > raw.end)
-            return MarkdownRange(raw.end, snapshot.lineRange(line, true).end)
+            return MarkdownRange(raw.end, host.lineRange(line, true).end)
         val inside =
             mdWithSourceLine(host, line) {
                 range, display, layout ->

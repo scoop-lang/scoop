@@ -7,6 +7,30 @@ import scoop.text.repeat
 @Test
 private class MarkdownProjectionTests {
     @Test
+    fun emptyCodeAndRawBlocksOfferTheirCompleteSourceForLocalEditing() {
+        val source = "```text\n\n```\n\n<div>raw</div>\n\n{{#include part.md}}\n"
+        val document = MarkdownDocument.fromText(source)
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val parsed = document.parse(profile)
+        val projected = mdProjectMarkdown(parsed)
+        assertEquals(3L, projected.rows.size)
+        for (index in 0L ..< projected.rows.size)
+            assertEquals(
+                Some(parsed.root.children[index].range),
+                projected.rows[index].sourceAction
+            )
+        assertEquals("", projected.rows[0L].cells[0L].text)
+        document.replace(MarkdownRange(0L, 0L), "Prefix\n\n")
+        val current = document.parse(profile)
+        val reused = mdProjectMarkdown(current, Some(projected))
+        assertEquals(4L, reused.rows.size)
+        for (index in 1L ..< reused.rows.size) {
+            assertSame(projected.rows[index - 1L].key, reused.rows[index].key)
+            assertEquals(Some(current.root.children[index].range), reused.rows[index].sourceAction)
+        }
+    }
+
+    @Test
     fun imageBlocksAreExplicitAndRetainTheirCompleteSourceRanges() {
         val source =
             "```mermaid title\r\nflowchart LR\r\n A --> B\r\n```\r\n\r\n$$\nx^2\n$$\n\n---\n"

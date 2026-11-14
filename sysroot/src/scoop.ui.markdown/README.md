@@ -1,6 +1,6 @@
 # scoop.ui.markdown
 
-Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像和原生富文本行内编辑；块级分段、列表与表格导航已接入；跨块交互继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
+Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像、行内与跨块输入以及代码／扩展的局部源码编辑。完整功能继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
 
 组合控件使用标准 `scoop.ui.component` 的可调分栏，应用在实际 run／mount 入口绑定 `ThemeSource`，与按钮等组件相同。示例使用 `context(ThemeSource(shadcnTheme())) { runUiApplication(...) }`。单独的源码／预览／富文本视图继续使用其显式样式，不要求分栏的主题上下文。
 
@@ -49,6 +49,8 @@ editor.close()
 
 视图用物理行的高度索引定位可见区，只排版视口附近及光标行。一个很长的物理行仍完整 shaping；不把它切成会改变双向文字和连字的任意片段。支持方向选择、系统编辑命令、复制／剪切／粘贴、自动折行或横向滚动、Tab 缩进、拖选滚动、中文组合以及共享撤销。光标闪烁只请求绘制；字体、宽度和对应行内容变化才使文字排版失效。
 
+`MarkdownSourceRegion(editor, range)` 限定一个随文档差量移动的源码区域。把它作为 `region = Some(region)` 传给 `MarkdownSourceInput` 或 `markdownSourceEditor`，自绘宿主用 `MarkdownSourceHost(..., initialRegion = Some(region))` 并在 update 中继续传入 region。排版、原生周边文字、全选、删除和缩进均限于此范围，首尾可以位于物理行中间。它借用同一 editor，不另建文档、选区或历史；公开 range 在 Reset 或 close 后为 None，调用方在不用时关闭区域。源码测量的 sourceRange 属于该帧，旧测量保持有效。
+
 [源码文件编辑示例](examples/source-editor/README.md) 可打开已有 Markdown，并通过 Cmd-S 保存。库不自行写文件；`onChanged` 只传递源码差量。
 
 `MarkdownParseController(editor, executor, application.proxy(), options)` 在后台取得同一编辑文档的结构结果，供多个视图共享。executor 使用已有 `CoroutineExecutor`，由应用持有；例如应用可使用 `scoop.concurrent.multiThreadExecutor`。构造不启动任务，在正常 owner 回调或 onMount 中调用 `start()`；源码修改随后自动合并请求。`MarkdownParseOptions` 选择 profile，以及可选的 `MarkdownExpansionOptions(baseUri, resolver, processors)`。
@@ -63,7 +65,9 @@ editor.close()
 
 自绘组合可使用 `MarkdownPreviewHost.measure`／`scene`；LayoutResult 负责关闭每次独立测量。`measurement.parsed` 表明实际显示的解析，`hitTest` 同时提供原文／预览位置与生成内容标记；`caret` 和 `reveal` 接受原文位置。旧解析等待更新时仍可显示，但不会被用作当前源码命中。表格按实际行虚拟化，代码按实际行虚拟化，普通段落保持完整 shaping。图片及扩展图像使用原子对象与原始范围；点击仍可定位源码。
 
-`markdownRichEditor(controller, readOnly = false)` 返回原生富文本 View；`MarkdownRichHost` 用于自绘 Element，使用同一套预览样式、布局参数、字体与图像控制器。段落、标题和单元格中的普通文字可直接输入、选择、复制／粘贴和修改样式；`setStyle` 接受当前行内选区。方向键使用真实文字排版，连续键入和组合不等待全文解析。readOnly 保留选择与复制。Enter 拆分段落／标题并延续列表，空项退出一级；边界 Backspace／Delete 合并同容器相邻段落。列表 Tab／Shift-Tab 调整层级，表格 Tab／Shift-Tab 按单元格导航，末格 Tab 或末行 Enter 新增正文行。表格中的 TSV 粘贴按矩形写入。跨块替换继续实施。
+`markdownRichEditor(controller, readOnly = false)` 返回原生富文本 View；`MarkdownRichHost` 用于自绘 Element，使用同一套预览样式、布局参数、字体与图像控制器。段落、标题和单元格中的普通文字可直接输入、选择、复制／粘贴和修改样式；`setStyle` 接受当前行内选区。方向键使用真实文字排版，连续键入和组合不等待全文解析。readOnly 保留选择与复制。Enter 拆分段落／标题并延续列表，空项退出一级；边界 Backspace／Delete 合并同容器相邻段落。列表 Tab／Shift-Tab 调整层级，表格 Tab／Shift-Tab 按单元格导航，末格 Tab 或末行 Enter 新增正文行。表格中的 TSV 粘贴按矩形写入，跨块普通文字替换保留未选内容和容器边界。
+
+富文本 View 默认在当前栏内打开代码、公式、Mermaid、HTML 或自定义扩展的局部源码面，保留完整围栏及指令。临时未闭合的输入仍能编辑，解析及图像展示使用同一文档的新快照。Done 按钮或无组合时的 Escape 关闭面板并返回富文本焦点；组合期间 Escape 先取消组合。只读配置同样作用于局部面。显式提供 `onSource` 时交由应用展示；直接使用 MarkdownRichHost 的自绘宿主继续通过该回调组合自己的局部视图。
 
 活动区域直接使用本次编辑后的局部树生成显示，其他行共享后台投影；按键只替换活动行布局。`measurement.sourceRevision` 是本帧实际显示和命中的文档版本，`measurement.parsed` 可以仍是后台基线。块命令按需解析当前 `MarkdownRegion`，多行投影以局部片段替换原来的行，其他行保持共享；Enter 后的新段落不等待全文解析便可接收输入。旧 native 连接先退休，新连接启用后发布对应片段。未变化的 mdBook 展开和脚注显示顺序仍保留，完整后台结果到达后收敛。区外修改或区域边界变化会等待新的完整结果。试测和丢弃帧保留各自的资源，候选窗几何只来自匹配的文档／输入版本。图片、公式、HTML、脚注引用保持原子对象，通过 `onSource` 定位源码；HTML 和脚注的可编辑投影与原生 U+FFFC 坐标一致。
 
@@ -71,6 +75,6 @@ editor.close()
 
 `MarkdownEditorViewState(editor, mode = MarkdownEditorMode.Wysiwyg)` 配合 `markdownEditor(viewState, controller)` 提供三模式组件。`setMode` 切换视图并保留正文／历史；`setRightReadOnly` 可将双栏右侧设为只读；`setSynchronizeScroll` 控制按源码锚点的双向滚动，`setSourceFraction` 调整分栏比例。两侧的 ScrollState 和 FocusHandle 独立稳定，模式和纯布局设置不重复序列化文档；整次修改只触发一次组合控件的 `onChanged`。
 
-默认不抢焦点；显式 `requestFocus(MarkdownEditorPane.Source)` 可在挂载前请求可见栏。`showSource(range)` 把当前范围起点定位到源码栏，必要时从 Wysiwyg 转双栏；未提供 `onSource` 时扩展源码操作沿此入口。`MarkdownEditorOptions` 统一配置整体只读、两栏最小宽度及各自布局参数。一个 viewState 只能绑定一个控件；多个 viewState 可以共享同一 editor。所有 Host 的可选 `initialScroll` 允许自绘宿主保留滚动状态，viewport 与原生资源仍随 Host 关闭。
+默认不抢焦点；显式 `requestFocus(MarkdownEditorPane.Source)` 可在挂载前请求可见栏。显式 `showSource(range)` 把当前范围起点定位到源码栏，必要时从 Wysiwyg 转双栏；默认扩展点击使用上述局部源码面并保留当前模式。`MarkdownEditorOptions` 统一配置整体只读、两栏最小宽度及各自布局参数。一个 viewState 只能绑定一个控件；多个 viewState 可以共享同一 editor。所有 Host 的可选 `initialScroll` 允许自绘宿主保留滚动状态，viewport 与原生资源仍随 Host 关闭。
 
 [三模式示例](examples/editor/README.md) 提供模式、只读、同步开关、撤销／重做和 Cmd-S 保存；[预览示例](examples/preview/README.md) 和[源码示例](examples/source-editor/README.md) 展示单独使用。本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引、显示映射和后台解析；`tests-cones/source`、`tests-cones/preview`、[富文本原生测试](tests-cones/rich/README.md) 和[三模式原生测试](tests-cones/editor/README.md) 使用本机窗口验证大文档、滚动、几何、输入与资源释放。完整功能和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。

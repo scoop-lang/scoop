@@ -1,0 +1,242 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+import scoop.window.*
+
+private fun mdRegionBatch(input: MarkdownSourceInput, operation: TextInputOperation): Boolean =
+    input.apply(TextInputBatch(Some(input.inputState.revision), [operation]))
+
+@Test
+private class MarkdownSourceRegionTests {
+    @Test
+    fun aPartialPhysicalLineExposesOnlyItsSourceAndCancelsUnicodeCompositionExactly() {
+        val prefix = "Before "
+        val body = "{{#include 中文.md}}"
+        val source = prefix + body + " after\r\nTail"
+        val selected =
+            MarkdownSelection(
+                MarkdownPosition(prefix.byteLength + 10L),
+                MarkdownPosition(prefix.byteLength + 3L)
+            )
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selected)
+        val range = MarkdownRange(prefix.byteLength, prefix.byteLength + body.byteLength)
+        MarkdownSourceRegion(editor, range).use {
+            region -> MarkdownSourceInput(editor, region = Some(region)).use {
+                input ->
+                assertEquals(body, input.inputState.surroundingText)
+                assertEquals(range, input.sourceRange)
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Preedit("你好😀", None, TextReplacement.CurrentSelection)
+                )
+                assertTrue(editor.isComposing)
+                assertEquals(Some(MarkdownRange(range.start, range.end + 3L)), region.range)
+                assertTrue(editor.document.toMarkdown().startsWith(prefix))
+                assertTrue(editor.document.toMarkdown().endsWith(" after\r\nTail"))
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Preedit("", None, TextReplacement.CurrentSelection)
+                )
+                assertEquals(source, editor.document.toMarkdown())
+                assertEquals(selected, editor.selection)
+                assertEquals(Some(range), region.range)
+                assertFalse(editor.canUndo)
+            }
+        }
+        editor.close()
+    }
+
+    @Test
+    fun aWholeRegionCanBecomeUnclosedAndUndoRestoresItsExactBytes() {
+        val prefix = "Before\n\n"
+        val code = "```mermaid\r\nA --> B\r\n```\r\n"
+        val source = prefix + code + "\nAfter\n"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source))
+        val range = MarkdownRange(prefix.byteLength, prefix.byteLength + code.byteLength)
+        MarkdownSourceRegion(editor, range).use {
+            region ->
+            editor.setSelection(
+                MarkdownSelection(MarkdownPosition(range.start), MarkdownPosition(range.end))
+            )
+            MarkdownSourceInput(editor, region = Some(region)).use {
+                input ->
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Commit(
+                        "```mermaid\n中文 --> B",
+                        TextReplacement.CurrentSelection
+                    )
+                )
+                assertEquals(prefix + "```mermaid\n中文 --> B\nAfter\n", editor.document.toMarkdown())
+                assertEquals(
+                    Some(MarkdownRange(range.start, editor.selection.cursor.byteOffset)),
+                    region.range
+                )
+                assertTrue(editor.undo())
+                assertEquals(source, editor.document.toMarkdown())
+                assertEquals(Some(range), region.range)
+                assertTrue(editor.redo())
+                input.synchronize()
+                assertEquals("```mermaid\n中文 --> B", input.inputState.surroundingText)
+            }
+        }
+        editor.close()
+    }
+
+    @Test
+    fun outsideChangesMoveTheRegionWithoutChangingAnOutsideSelection() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("Before $x$ After"))
+        MarkdownSourceRegion(editor, MarkdownRange(7L, 10L)).use {
+            region -> MarkdownSourceInput(editor, region = Some(region)).use {
+                input ->
+                assertEquals(MarkdownPosition(0L), editor.selection.cursor)
+                assertEquals(Utf8Selection(0L, 0L), input.inputState.selection)
+                assertFailsWith<IllegalStateException> {
+                    mdRegionBatch(
+                        input,
+                        TextInputOperation.Commit("bad", TextReplacement.CurrentSelection)
+                    )
+                }
+                editor.replace(MarkdownRange(0L, 0L), "中")
+                assertEquals(Some(MarkdownRange(10L, 13L)), region.range)
+                input.synchronize()
+                assertEquals("$x$", input.inputState.surroundingText)
+                assertEquals(MarkdownPosition(3L), editor.selection.cursor)
+                editor.setSelection(mdCaret(11L))
+                input.synchronize()
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Commit("y", TextReplacement.CurrentSelection)
+                )
+                assertEquals("中Before $yx$ After", editor.document.toMarkdown())
+                assertEquals(Some(MarkdownRange(10L, 14L)), region.range)
+            }
+        }
+        editor.close()
+    }
+
+    @Test
+    fun insertsAtBothSourceEdgesRemainInsideTheLiveRegion() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("before||after"), mdCaret(7L))
+        MarkdownSourceRegion(editor, MarkdownRange(7L, 7L)).use {
+            region -> MarkdownSourceInput(editor, region = Some(region)).use {
+                input ->
+                assertEquals("", input.inputState.surroundingText)
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Commit("a", TextReplacement.CurrentSelection)
+                )
+                editor.setSelection(mdCaret(7L))
+                input.synchronize()
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Commit("中", TextReplacement.CurrentSelection)
+                )
+                assertEquals(Some(MarkdownRange(7L, 11L)), region.range)
+                assertEquals("before|中a|after", editor.document.toMarkdown())
+                assertFalse(input.synchronize())
+            }
+        }
+        editor.close()
+    }
+
+    @Test
+    fun resetAndCloseInvalidateTheRegionWithoutEditingTheDocument() {
+        val editor =
+            MarkdownEditorState(MarkdownDocument.fromText("before code after"), mdCaret(7L))
+        val region = MarkdownSourceRegion(editor, MarkdownRange(7L, 11L))
+        val input = MarkdownSourceInput(editor, region = Some(region))
+        editor.document.reset("new source")
+        assertEquals(None, region.range)
+        input.synchronize()
+        assertFailsWith<IllegalStateException> {
+            mdRegionBatch(input, TextInputOperation.Commit("bad", TextReplacement.CurrentSelection))
+        }
+        region.close()
+        region.close()
+        assertTrue(region.isClosed)
+        assertEquals("new source", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun invalidScalarRangesAndForeignEditorsFailBeforeInputIsPublished() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("中 code"))
+        val other = MarkdownEditorState(MarkdownDocument.fromText("other"))
+        assertFailsWith<IllegalArgumentException> {
+            MarkdownSourceRegion(editor, MarkdownRange(1L, 3L))
+        }
+        MarkdownSourceRegion(editor, MarkdownRange(4L, 8L)).use {
+            region ->
+            assertFailsWith<IllegalArgumentException> {
+                MarkdownSourceInput(other, region = Some(region))
+            }
+            editor.setSelection(mdCaret(4L))
+            MarkdownSourceInput(editor, region = Some(region)).use {
+                input ->
+                assertFailsWith<IllegalArgumentException> {
+                    mdRegionBatch(
+                        input,
+                        TextInputOperation.Commit("bad", TextReplacement.Range(Utf8Range(0L, 5L)))
+                    )
+                }
+                assertEquals("中 code", editor.document.toMarkdown())
+            }
+        }
+        editor.close()
+        other.close()
+    }
+
+    @Test
+    fun indentationAtPartialLineBoundariesPreservesOutsideTextAndUndo() {
+        val source = "Before  a\n b After"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source))
+        MarkdownSourceRegion(editor, MarkdownRange(6L, 12L)).use {
+            region ->
+            editor.setSelection(MarkdownSelection(MarkdownPosition(12L), MarkdownPosition(6L)))
+            mdIndentSource(editor, 4, true, region.range!!)
+            assertEquals("Beforea\nb After", editor.document.toMarkdown())
+            assertTrue(editor.undo())
+            assertEquals(source, editor.document.toMarkdown())
+            assertEquals(Some(MarkdownRange(6L, 12L)), region.range)
+            mdIndentSource(editor, 4, false, region.range!!)
+            assertEquals("Before\t  a\n\t b After", editor.document.toMarkdown())
+        }
+        editor.close()
+    }
+
+    @Test
+    fun aMegabyteSourceRegionStillUsesALocalNativeFragment() {
+        val prefix = "Before\n\n"
+        val body = "```text\n" + "text 中文 line\n".repeat(80000L) + "```\n"
+        val source = prefix + body + "\nAfter"
+        val document = MarkdownDocument.fromText(source)
+        val editor =
+            MarkdownEditorState(
+                document,
+                mdCaret(document.snapshot().positionOfLine(40000L).byteOffset)
+            )
+        MarkdownSourceRegion(
+            editor,
+            MarkdownRange(prefix.byteLength, prefix.byteLength + body.byteLength)
+        ).use {
+            region -> MarkdownSourceInput(editor, 128L, Some(region)).use {
+                input ->
+                assertTrue(region.range!!.byteLength > 1048576L)
+                assertTrue(input.inputState.surroundingText.byteLength <= 256L)
+                assertTrue(input.sourceRange.start > region.range!!.start)
+                assertTrue(input.sourceRange.end < region.range!!.end)
+                mdRegionBatch(
+                    input,
+                    TextInputOperation.Commit("new", TextReplacement.CurrentSelection)
+                )
+                assertTrue(editor.undo())
+                assertEquals(source, editor.document.toMarkdown())
+            }
+        }
+        editor.close()
+    }
+}

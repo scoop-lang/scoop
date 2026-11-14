@@ -32,7 +32,7 @@ private fun mdSourceDragRange(
     when (unit) {
         case Character -> MarkdownRange(position.byteOffset, position.byteOffset)
         case Word -> mdSourceWord(host, position)
-        case Line -> host.current.snapshot.lineRange(host.current.snapshot.lineAt(position), true)
+        case Line -> host.lineRange(host.current.snapshot.lineAt(position), true)
     }
 
 internal fun mdSourcePress(
@@ -57,7 +57,7 @@ internal fun mdSourcePress(
     val range = mdSourceDragRange(host, position, unit)
     val anchor =
         if (shift)
-            host.current.selection.anchor
+            mdSourcePosition(host.sourceRange, host.current.selection.anchor)
         else
             MarkdownPosition(range.start)
     val cursor =

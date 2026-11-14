@@ -145,6 +145,13 @@ public class MarkdownPreviewMeasurement internal constructor(
                         displayed.byteOffset
                 )
         }
+        when (action) {
+            case None -> when (measured.row.sourceAction) {
+                case Some(val range) -> action = Some(MdDisplayAction.Source(range))
+                case None -> Unit
+            }
+            case Some(_) -> Unit
+        }
         val local = presentation?.isLocal(index, selectedCell) ?: false
         var generated = false
         when (

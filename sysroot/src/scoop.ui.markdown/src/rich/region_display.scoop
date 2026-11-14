@@ -82,6 +82,7 @@ private fun mdRichEmptyRow(syntax: MarkdownSyntax, content: MarkdownInlineConten
         quotes,
         [],
         [mdDisplayEditable(content)],
-        MdDisplayKey(0L)
+        MdDisplayKey(0L),
+        None
     )
 }

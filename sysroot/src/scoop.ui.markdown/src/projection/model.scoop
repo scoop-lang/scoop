@@ -38,7 +38,8 @@ internal class MdDisplayRow(
     val quotes: MdDisplayQuote?,
     val markers: Array<MdDisplayMarker>,
     val cells: Array<MdDisplayText>,
-    val key: MdDisplayKey
+    val key: MdDisplayKey,
+    val sourceAction: MarkdownRange?
 )
 
 internal class MdDisplayReuse(
@@ -275,7 +276,8 @@ internal fun mdDisplayReconcile(
                 row.quotes,
                 row.markers,
                 row.cells,
-                key
+                key,
+                row.sourceAction
             )
         }
     return MdDisplayDocument(

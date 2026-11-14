@@ -19,13 +19,16 @@ public class MarkdownSourceHost public constructor(
     initialStyle: MarkdownSourceStyle = MarkdownSourceStyle(),
     initialOptions: MarkdownSourceOptions = MarkdownSourceOptions(),
     private var suppliedFonts: FontCollection? = None,
-    initialScroll: ScrollState? = None
+    initialScroll: ScrollState? = None,
+    initialRegion: MarkdownSourceRegion? = None
 ): Closeable {
     internal var current = initialState
     internal var style = initialStyle
     internal var options = initialOptions
     internal var closed = false
-    internal var input = MarkdownSourceInput(initialState, initialOptions.inputContextBytes)
+    internal var region = initialRegion
+    internal var input =
+        MarkdownSourceInput(initialState, initialOptions.inputContextBytes, initialRegion)
     internal val fonts: FontCollection get() = suppliedFonts ?: scope.defaultFonts
     internal val window: Window get() = scope.nativeWindow
     internal var heights =
@@ -47,15 +50,16 @@ public class MarkdownSourceHost public constructor(
     internal var caretVisible = true
     internal var drag: MdSourceDrag? = None
     internal var changed: (MarkdownChange) -> Unit = { _ -> Unit }
+    internal var exitSource: (() -> Unit)? = None
     private var subscription =
         initialState.document.observe { change -> mdSourceChanged(this, change) }
     public val scroll = initialScroll ?: ScrollState()
     internal val viewport = scope.scrollViewport(scroll)
     public val area =
-        scope.createArea(
-            focusable = true,
-            textInput = initialOptions.enabled && !initialOptions.readOnly
-        ) { context, event -> mdSourceEvent(this, context, event) }
+        scope.createArea(focusable = true, textInput = active && !initialOptions.readOnly) {
+            context,
+            event -> mdSourceEvent(this, context, event)
+        }
     public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
     internal val blink =
         scope.createDeadline {
@@ -78,7 +82,7 @@ public class MarkdownSourceHost public constructor(
                     else -> Unit
                 }
             }
-        area.scope.enabled = initialOptions.enabled
+        area.scope.enabled = active
     }
 
     public val state: MarkdownEditorState get() {
@@ -86,6 +90,26 @@ public class MarkdownSourceHost public constructor(
         return current
     }
     public val isClosed: Boolean get() = closed
+    public val sourceRange: MarkdownRange get() {
+        checkOpen()
+        return mdSourceLimit(current, region)
+    }
+    internal val extent: MdSourceExtent get() = MdSourceExtent(current.snapshot, sourceRange)
+    internal val active: Boolean get() =
+        options.enabled &&
+            when (region) {
+                case Some(val value) -> value.range != None
+                case None -> true
+            }
+    internal fun selectRegion() {
+        if (!active)
+            return
+        val selected = mdSourceSelection(sourceRange, current.selection)
+        if (selected != current.selection)
+            current.setSelection(selected)
+    }
+    internal fun lineRange(index: Long, includeNewline: Boolean = false): MarkdownRange =
+        extent.line(index, includeNewline)
     public val nativeInputState: TextInputState get() {
         checkOpen();
         return input.inputState
@@ -111,11 +135,20 @@ public class MarkdownSourceHost public constructor(
         options: MarkdownSourceOptions = MarkdownSourceOptions(),
         focus: FocusOptions = FocusOptions(visibility = FocusVisibility.Always),
         onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
-        fonts: FontCollection? = None
+        fonts: FontCollection? = None,
+        region: MarkdownSourceRegion? = None,
+        onExit: (() -> Unit)? = None
     ) {
         checkOpen()
         state.checkEdit()
         options.check()
+        mdSourceLimit(state, region)
+        val sameRegion =
+            when ((this.region, region)) {
+                case(Some(val a), Some(val b)) -> a === b
+                case(None, None) -> true
+                else -> false
+            }
         val sameFonts =
             when ((suppliedFonts, fonts)) {
                 case(Some(val before), Some(val after)) -> before === after
@@ -125,6 +158,7 @@ public class MarkdownSourceHost public constructor(
         val rebound = state !== current
         val restart =
             rebound ||
+                !sameRegion ||
                 options.readOnly !=
                 this.options.readOnly ||
                 options.enabled !=
@@ -139,10 +173,12 @@ public class MarkdownSourceHost public constructor(
                 current = state
                 subscription = state.document.observe { change -> mdSourceChanged(this, change) }
             }
-            input = MarkdownSourceInput(state, options.inputContextBytes)
+            this.region = region
+            input = MarkdownSourceInput(state, options.inputContextBytes, region)
         }
         if (
             rebound ||
+                !sameRegion ||
                 !sameFonts ||
                 style !==
                 this.style ||
@@ -158,7 +194,7 @@ public class MarkdownSourceHost public constructor(
             rows.clear()
             heights = mdHeightRun(state.snapshot.lineCount, mdSourceEstimate(style))
             maximumWidth = 0.0
-            if (rebound) {
+            if (rebound || !sameRegion) {
                 anchor = None
                 alignment = None
             }
@@ -168,8 +204,9 @@ public class MarkdownSourceHost public constructor(
         this.options = options
         this.focus.options = focus
         changed = onChanged
-        area.scope.enabled = options.enabled
-        area.textInput = options.enabled && !options.readOnly
+        exitSource = onExit
+        area.scope.enabled = active
+        area.textInput = active && !options.readOnly
         if (!ownsOtherComposition()) {
             val previousInput = input.inputState.revision
             if (input.synchronize())
@@ -209,8 +246,9 @@ public class MarkdownSourceHost public constructor(
     public fun execute(command: TextEditCommand): Boolean {
         checkOpen()
         current.checkEdit()
-        if (!options.enabled || !area.isFocusActive || !area.scope.isInputAllowed)
+        if (!active || !area.isFocusActive || !area.scope.isInputAllowed)
             return false
+        selectRegion()
         return mdSourceCommand(this, command)
     }
     public fun hitTest(point: Point): MarkdownSourceHit? {
@@ -252,7 +290,7 @@ public class MarkdownSourceHost public constructor(
                 retiring ||
                 !sessionEnabled ||
                 !area.isFocusActive ||
-                !options.enabled ||
+                !active ||
                 options.readOnly ||
                 ownsOtherComposition()
         )
@@ -277,6 +315,8 @@ public class MarkdownSourceHost public constructor(
         } finally {
             performing = false
             if (!closed && !ownsOtherComposition()) {
+                if (area.isFocusActive)
+                    selectRegion()
                 val relocated = input.synchronize()
                 if (relocated || (composing && !current.isComposing))
                     retire()
@@ -338,6 +378,7 @@ internal fun mdThrow(failure: Throwable?) {
 internal fun mdSourceChanged(host: MarkdownSourceHost, change: MarkdownChange) {
     if (host.closed)
         return
+    host.region?.advance(change)
     val estimate = mdSourceEstimate(host.style)
     if (change.kind == MarkdownChangeKind.Reset) {
         host.heights = mdHeightRun(change.after.lineCount, estimate)

@@ -122,7 +122,7 @@ private class MdEditorComponent(val props: Props<MdEditorProps>, scope: Componen
                                 ),
                                 { _ -> Unit },
                                 input.openLink,
-                                { range -> owner.openSource(range) },
+                                input.source,
                                 input.images,
                                 input.documentUri,
                                 Some(owner)

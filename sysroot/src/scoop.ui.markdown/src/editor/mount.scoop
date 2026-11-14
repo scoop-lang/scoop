@@ -142,13 +142,6 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
         }
     }
 
-    fun openSource(range: MarkdownRange) {
-        when (props.source) {
-            case Some(val handler) -> handler(range)
-            case None -> state.showSource(range)
-        }
-    }
-
     private fun scrollIntent(pane: MarkdownEditorPane, intent: ScrollIntent) {
         if (
             closed ||

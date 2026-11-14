@@ -9,6 +9,7 @@ private fun mdSourceFragment(
     editor: MarkdownEditorState,
     context: Long,
     revision: Long,
+    region: MarkdownSourceRegion?,
     initial: Boolean = false
 ): MdSourceFragment {
     editor.storage.checkMutation()
@@ -19,20 +20,21 @@ private fun mdSourceFragment(
             Some("Accept the active Markdown composition before relocating input")
         )
     val snapshot = editor.snapshot
-    val selected = editor.selection
+    val limit = mdSourceLimit(editor, region)
+    val selected = mdSourceSelection(limit, editor.selection)
     val range = selected.range
     val first =
-        if (range.start > context)
+        if (range.start - limit.start > context)
             range.start - context
         else
-            0L
+            limit.start
     val last =
         range.end +
             (
-                if (snapshot.byteLength - range.end > context)
+                if (limit.end - range.end > context)
                     context
                 else
-                    snapshot.byteLength - range.end
+                    limit.end - range.end
             )
     val start = mdResetPosition(snapshot, MarkdownPosition(first)).byteOffset
     val end = mdResetPosition(snapshot, MarkdownPosition(last)).byteOffset
@@ -48,10 +50,11 @@ private fun mdSourceFragment(
 /** One source-coordinate native fragment; the mounted host owns the actual input connection. */
 public class MarkdownSourceInput public constructor(
     public val editor: MarkdownEditorState,
-    public val contextBytes: Long = 4096L
+    public val contextBytes: Long = 4096L,
+    public val region: MarkdownSourceRegion? = None
 ): Closeable {
     internal val compositionOwner = MdCompositionOwner { cancelForState() }
-    private var fragment = mdSourceFragment(editor, contextBytes, 0L, true)
+    private var fragment = mdSourceFragment(editor, contextBytes, 0L, region, true)
     private var sourceRevision = editor.snapshot.revision
     private var observedInput = editor.inputRevision
     private var closed = false
@@ -98,7 +101,8 @@ public class MarkdownSourceInput public constructor(
     }
 
     private fun shouldRecenter(): Boolean {
-        val selected = editor.selection.range
+        val limit = mdSourceLimit(editor, region)
+        val selected = mdSourceSelection(limit, editor.selection).range
         val range = fragment.range
         val margin = contextBytes / 4L
         return range.byteLength >
@@ -109,8 +113,8 @@ public class MarkdownSourceInput public constructor(
             range.start ||
             selected.end >
             range.end ||
-            (range.start > 0L && selected.start - range.start < margin) ||
-            (range.end < editor.snapshot.byteLength && range.end - selected.end < margin)
+            (range.start > limit.start && selected.start - range.start < margin) ||
+            (range.end < limit.end && range.end - selected.end < margin)
     }
 
     /** True means the native connection must retire before the new source mapping is used. */
@@ -127,9 +131,9 @@ public class MarkdownSourceInput public constructor(
         if (revision == 9223372036854775807L)
             throw IllegalArgumentException(Some("Markdown input revision overflow"))
         if (relocate)
-            fragment = mdSourceFragment(editor, contextBytes, revision + 1L)
+            fragment = mdSourceFragment(editor, contextBytes, revision + 1L, region)
         else {
-            val selected = editor.selection
+            val selected = mdSourceSelection(mdSourceLimit(editor, region), editor.selection)
             fragment =
                 MdSourceFragment(
                     fragment.range,
@@ -152,6 +156,25 @@ public class MarkdownSourceInput public constructor(
         checkRead()
         editor.checkEdit()
         checkOwner()
+        when (region) {
+            case Some(val value) -> {
+                val limit =
+                    value.range ?:
+                        throw IllegalStateException(
+                            Some("Markdown source region is no longer active")
+                        )
+                if (
+                    editor.selection.range.start <
+                        limit.start ||
+                        editor.selection.range.end >
+                        limit.end
+                )
+                    throw IllegalStateException(
+                        Some("Markdown source selection is outside its region")
+                    )
+            }
+            case None -> Unit
+        }
         if (sourceRevision != editor.snapshot.revision || observedInput != editor.inputRevision)
             throw IllegalStateException(Some("Markdown input fragment needs synchronization"))
         return mdPrepareSourceInput(this, fragment.input, batch)

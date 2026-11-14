@@ -86,6 +86,7 @@ public class MarkdownSourceMeasurement internal constructor(
     internal val selection: MarkdownSelection,
     internal val marked: MarkdownRange?,
     internal val inputRevision: Long,
+    public val sourceRange: MarkdownRange,
     internal val heights: MdHeights,
     internal val rows: Array<MdSourceLine>,
     internal val scroll: ScrollLayout,
@@ -101,6 +102,8 @@ public class MarkdownSourceMeasurement internal constructor(
     public val scrollSnapshot: ScrollSnapshot get() = scroll.snapshot
     public val lineIndices: Array<Long> get() =
         Array<Long>(rows.size) { index -> rows[index].index }
+    internal val extent = MdSourceExtent(snapshot, sourceRange)
+    internal fun top(index: Long): Double = heights.prefix(index) - heights.prefix(extent.first)
     internal fun retain(): MarkdownSourceMeasurement {
         if (closed)
             throw IllegalStateException(Some("Markdown source measurement is closed"))
@@ -110,6 +113,7 @@ public class MarkdownSourceMeasurement internal constructor(
             selection,
             marked,
             inputRevision,
+            sourceRange,
             heights,
             rows,
             scroll,
@@ -130,25 +134,19 @@ public class MarkdownSourceMeasurement internal constructor(
         bias: MarkdownBias = MarkdownBias.After,
         affinity: TextAffinity? = None
     ): Rect? {
+        if (position.byteOffset < sourceRange.start || position.byteOffset > sourceRange.end)
+            return None
         val row = line(snapshot.lineAt(position)) ?: return None
         val rect =
             row.layout.caret(row.position(position.byteOffset, bias, affinity)) ?: return None
         return Some(
-            Rect(
-                rect.x + padding,
-                rect.y + padding + heights.prefix(row.index),
-                rect.width,
-                rect.height
-            )
+            Rect(rect.x + padding, rect.y + padding + top(row.index), rect.width, rect.height)
         )
     }
     internal fun hit(point: Point): MarkdownSourceHit? {
-        var index = heights.indexAt(point.y - padding)
-        if (index == heights.count)
-            index -= 1L
+        val index = extent.index(heights.indexAt(point.y - padding + heights.prefix(extent.first)))
         val row = line(index) ?: return None
-        val hit =
-            row.layout.hitTest(Point(point.x - padding, point.y - padding - heights.prefix(index)))
+        val hit = row.layout.hitTest(Point(point.x - padding, point.y - padding - top(index)))
         return Some(MarkdownSourceHit(row.source(hit), hit.affinity))
     }
     public override fun close() {
@@ -179,7 +177,7 @@ internal class MdSourceRow: Closeable {
         width: Double?
     ): MdSourceLine {
         val snapshot = host.current.snapshot
-        val range = snapshot.lineRange(index)
+        val range = host.lineRange(index)
         val text = snapshot.read(range)
         val nextStyle = host.style.text
         val nextFonts = host.fonts
@@ -235,7 +233,7 @@ internal class MdSourceRow: Closeable {
         return MdSourceLine(
             index,
             range,
-            snapshot.lineRange(index, true),
+            host.lineRange(index, true),
             measured,
             display!!,
             key,

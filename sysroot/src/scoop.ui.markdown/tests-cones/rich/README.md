@@ -2,6 +2,8 @@
 
 本 Cone 使用 `scoop.test`，在一个真实窗口中验证行内与跨块富文本输入、中文 IME 组合及取消、剪切／粘贴／删除、整篇替换与统一历史、连续 Enter／输入／边界合并、列表层级、表格新增行及跨单元格输入、RTL 导航、只读切换、空文件输入和大文档的活动行排版。覆盖待后台解析时立即全选、回到单段输入，以及末块为代码时的整篇编辑。测试只在窗口获得系统焦点、输入连接启用、对应布局已接受后执行下一步；超时会报告当前步骤及焦点状态。
 
+`MarkdownLocalSourceWindowTests` 通过公开 `markdownEditor` 点击代码、Mermaid、块／行内公式及 mdBook 指令，验证局部源码的全选、中文组合取消、修改与撤销重做、未闭合指令修复、Done／Escape 返回、Reset 关闭面板及只读。所有编辑共用原文档与历史，并保留区间外源码。
+
 从仓库根运行：
 
 ```sh
@@ -26,4 +28,6 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现用例 `0` 的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在 `0.stdout`、`0.stderr`。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。
+局部源码用例使用同一应用包，把筛选器改为 `MarkdownLocalSourceWindowTests`，并设置另一个空的 `SCOOP_TEST_RUN_DIR`。两个窗口用例串行运行，避免争用原生焦点。
+
+示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现所选用例的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在相同事件目录的 stdout／stderr 文件。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。

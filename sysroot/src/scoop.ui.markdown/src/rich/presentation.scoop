@@ -41,7 +41,8 @@ internal class MdRichPresentation(
                             else
                                 baseRow.cells[index]
                         },
-                        MdDisplayKey(rowIndex)
+                        MdDisplayKey(rowIndex),
+                        baseRow.sourceAction
                     )
                 )
             }

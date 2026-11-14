@@ -3,6 +3,7 @@ package scoop.ui.markdown
 import scoop.graphics.text.FontCollection
 import scoop.markdown.*
 import scoop.ui.*
+import scoop.ui.component.*
 
 internal class MdRichProps(
     val controller: MarkdownParseController,
@@ -13,7 +14,7 @@ internal class MdRichProps(
     val focus: FocusOptions,
     val changed: (MarkdownChange) -> Unit,
     val openLink: (String) -> Unit,
-    val source: (MarkdownRange) -> Unit,
+    val source: ((MarkdownRange) -> Unit)?,
     val images: MarkdownImageController?,
     val documentUri: String,
     val mount: MdEditorMount? = None
@@ -28,7 +29,7 @@ public fun markdownRichEditor(
     focus: FocusOptions = FocusOptions(),
     onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
     onOpenLink: (String) -> Unit = { _ -> Unit },
-    onSource: (MarkdownRange) -> Unit = { _ -> Unit },
+    onSource: ((MarkdownRange) -> Unit)? = None,
     images: MarkdownImageController? = None,
     documentUri: String = ""
 ): View =
@@ -54,17 +55,50 @@ internal fun mdRichEditor(props: MdRichProps): View =
 private class MdRichComponent(val props: Props<MdRichProps>, scope: ComponentScope): Component(
     scope
 ) {
+    private val source = MdRichSourceSession()
     public override fun render(): View {
-        props.value.controller.status
-        props.value.controller.editor.selection
-        props.value.controller.editor.markedRange
-        return element(props.value, { input, mount -> MdRichElement(input, mount) })
+        val session = source
+        val input = props.value
+        input.controller.status
+        input.controller.editor.selection
+        input.controller.editor.markedRange
+        val current = source.current.value
+        val local =
+            when (current) {
+                case Some(val value) -> if (
+                    value.editor === input.controller.editor && value.range != None
+                )
+                    Some(value)
+                else
+                    None
+                case None -> None
+            }
+        val content = element(input, { value, mount -> MdRichElement(value, mount, source) })
+        return column {
+            alignment = CrossAlignment.Stretch
+            item(content) {
+                grow = 2.0
+                basis = FlexBasis.Fixed(0.0)
+            }
+            when (local) {
+                case Some(val value) -> item(mdLocalSourceView(input, value, session)) {
+                    grow = 1.0
+                    basis = FlexBasis.Fixed(0.0)
+                }
+                case None -> Unit
+            }
+        }
+    }
+    public override fun onUnmount() {
+        source.close()
     }
 }
 
-private class MdRichElement(val props: Props<MdRichProps>, scope: ComponentScope): Element<
-    MarkdownPreviewMeasurement
->(scope) {
+private class MdRichElement(
+    val props: Props<MdRichProps>,
+    scope: ComponentScope,
+    val source: MdRichSourceSession
+): Element<MarkdownPreviewMeasurement>(scope) {
     private val defaults = MarkdownPreviewStyle()
     private val host =
         scope.resource {
@@ -85,16 +119,29 @@ private class MdRichElement(val props: Props<MdRichProps>, scope: ComponentScope
     }
     public override fun update(): UiInvalidation {
         val value = props.value
+        source.bind(value.controller.editor)
+        val requestedFocus = value.focus
+        source.returnFocus = requestedFocus.handle ?: source.richFocus
         host.update(
             value.controller,
             value.style ?: defaults,
             value.options,
             value.readOnly,
-            value.focus,
+            FocusOptions(
+                Some(source.returnFocus),
+                requestedFocus.tabStop,
+                requestedFocus.order,
+                requestedFocus.visibility
+            ),
             value.fonts,
             value.changed,
             value.openLink,
-            value.source,
+            {
+                range -> when (value.source) {
+                    case Some(val handler) -> handler(range)
+                    case None -> source.open(value.controller.editor, range)
+                }
+            },
             value.images,
             value.documentUri
         )

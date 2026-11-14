@@ -1,0 +1,391 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownLocalSourceWindowTests {
+    @Test
+    fun codeMathAndDirectivesUseOneNativeSourcePaneAndReturnToTheirPreview() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = LocalSourceProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+        } catch (error: Throwable) {
+            println("Local source window step " + probe.step.value.toString())
+            throw error
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "```scoop\nval x = 1\n```\n\nTail\n"
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val view = MarkdownEditorViewState(editor)
+    val parser =
+        MarkdownParseController(
+            editor,
+            workers,
+            proxy,
+            MarkdownParseOptions(MarkdownProfile(math = true, extensions = [mdBookDirectives()]))
+        )
+    val step = state(0)
+    val locked = state(false)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var inputReady = false
+    var source = false
+    var waiting = false
+    var presentations = 0L
+    var raw = ""
+    var suffix = ""
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown local source verification"
+                            size = LogicalSize(640.0, 420.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> LocalSourceRoot(this, scope) })
+                native.createDeadline {
+                    println(
+                        "local=" +
+                            source.toString() +
+                            ", richFocus=" +
+                            view.richFocus.isFocusActive.toString() +
+                            ", input=" +
+                            inputReady.toString()
+                    )
+                    fail(Some("Local source timeout at " + step.value.toString()))
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val value)) -> when (value) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                presentations
+        )
+            return false
+        val parsed = parser.current ?: return false
+        if (parsed.snapshot !== editor.snapshot)
+            return false
+        return if (source)
+            !view.richFocus.isFocusActive && (locked.value || inputReady)
+        else
+            view.richFocus.isFocusActive
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+
+    private fun open(inline: Boolean = false) {
+        val parsed = parser.current!!.source
+        val node =
+            if (inline)
+                parsed.root.children[0L].children[0L]
+            else
+                parsed.root.children[0L]
+        raw = editor.snapshot.read(node.range)
+        suffix = editor.snapshot.read(MarkdownRange(node.range.end, editor.snapshot.byteLength))
+        assertEquals(0L, node.range.start)
+        source = true
+        mdLocalClick(window!!, 24.0, 28.0)
+    }
+
+    private fun checkNative() {
+        assertEquals(MarkdownEditorMode.Wysiwyg, view.mode)
+        assertEquals(raw + suffix, editor.document.toMarkdown())
+        assertTrue(mdLocalNativeDocument(window!!, editor, raw))
+    }
+
+    private fun selectAll() {
+        mdLocalKey(window!!, 0, "a", 8)
+    }
+
+    private fun replace(text: String) {
+        raw = text
+        assertEquals(0, mdNativeText(window!!, text))
+    }
+
+    private fun done(pointer: Boolean = false) {
+        source = false
+        if (pointer)
+            mdLocalClick(window!!, 24.0, 290.0)
+        else
+            mdLocalKey(window!!, 53, "\u{1b}")
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> next { open() }
+            case 1 -> {
+                checkNative()
+                next { selectAll() }
+            }
+            case 2 -> {
+                assertEquals(MarkdownRange(0L, raw.byteLength), editor.selection.range)
+                next { assertEquals(0, mdNativeText(window!!, "ni", 1, 2L)) }
+            }
+            case 3 -> {
+                assertTrue(editor.isComposing)
+                assertEquals("ni" + suffix, editor.document.toMarkdown())
+                assertTrue(mdLocalNativeDocument(window!!, editor, "ni"))
+                next { mdLocalKey(window!!, 53, "\u{1b}") }
+            }
+            case 4 -> {
+                assertFalse(editor.isComposing)
+                assertEquals(original, editor.document.toMarkdown())
+                checkNative()
+                next { replace("```scoop\nval x = 2\n```\n") }
+            }
+            case 5 -> {
+                checkNative()
+                next { mdLocalKey(window!!, 6, "z", 8) }
+            }
+            case 6 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next { mdLocalKey(window!!, 6, "z", 9) }
+            }
+            case 7 -> {
+                checkNative()
+                next { done() }
+            }
+            case 8 -> {
+                when (parser.current!!.source.root.children[0L].content) {
+                    case MarkdownContent.CodeBlock(_, _, val body) -> assertEquals(
+                        "val x = 2\n",
+                        body.text
+                    )
+                    else -> fail(Some("Edited code must return to its code preview"))
+                }
+                next { editor.document.reset("```mermaid\nflowchart LR\n A --> B\n```\n\nTail\n") }
+            }
+            case 9 -> next { open() }
+            case 10 -> {
+                checkNative()
+                next { selectAll() }
+            }
+            case 11 -> next { replace("```mermaid\nflowchart LR\n A --> C\n```\n") }
+            case 12 -> {
+                checkNative()
+                when (parser.current!!.source.root.children[0L].content) {
+                    case MarkdownContent.CodeBlock(_, val info, val body) -> {
+                        assertEquals("mermaid", info.text)
+                        assertEquals("flowchart LR\n A --> C\n", body.text)
+                    }
+                    else -> fail(Some("Mermaid source must remain a fenced code block"))
+                }
+                next { done(true) }
+            }
+            case 13 -> next { editor.document.reset("$$\nx^2\n$$\n\nTail\n") }
+            case 14 -> next { open() }
+            case 15 -> {
+                checkNative();
+                next { selectAll() }
+            }
+            case 16 -> next { replace("$$\nx^3\n$$\n") }
+            case 17 -> {
+                checkNative()
+                when (parser.current!!.source.root.children[0L].content) {
+                    case MarkdownContent.Extension(val value) -> assertEquals(
+                        "x^3\n",
+                        value.body.text
+                    )
+                    else -> fail(Some("Edited display math must remain an extension"))
+                }
+                next { done() }
+            }
+            case 18 -> next { editor.document.reset("{{#include first.md}}\n\nTail\n") }
+            case 19 -> next { open() }
+            case 20 -> {
+                checkNative();
+                next { selectAll() }
+            }
+            case 21 -> next { replace("{{#include second.md") }
+            case 22 -> {
+                checkNative();
+                next { selectAll() }
+            }
+            case 23 -> next { replace("{{#include second.md}}\n") }
+            case 24 -> {
+                checkNative()
+                when (parser.current!!.source.root.children[0L].content) {
+                    case MarkdownContent.Extension(val value) -> assertEquals("mdbook", value.name)
+                    else -> fail(Some("Repaired directive must return to its registered extension"))
+                }
+                next {
+                    source = false
+                    editor.document.reset("$x+1$ tail")
+                }
+            }
+            case 25 -> next { open(true) }
+            case 26 -> {
+                checkNative()
+                assertEquals("$x+1$", raw)
+                next { selectAll() }
+            }
+            case 27 -> next { replace("$x+2$") }
+            case 28 -> {
+                checkNative()
+                assertEquals("$x+2$ tail", editor.document.toMarkdown())
+                next { done() }
+            }
+            case 29 -> next {
+                editor.document.reset(original)
+                locked.value = true
+            }
+            case 30 -> next { open() }
+            case 31 -> next { selectAll() }
+            case 32 -> {
+                assertEquals(MarkdownRange(0L, raw.byteLength), editor.selection.range)
+                next { mdLocalKey(window!!, 51, "\u{8}") }
+            }
+            case 33 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next { done() }
+            }
+            case 34 -> {
+                assertEquals(MarkdownEditorMode.Wysiwyg, view.mode)
+                assertEquals(original, editor.document.toMarkdown())
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected local source step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class LocalSourceRoot(val probe: LocalSourceProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Rich)
+    }
+    public override fun render(): View {
+        probe.step.value
+        return markdownEditor(
+            probe.view,
+            probe.parser,
+            options = MarkdownEditorOptions(readOnly = probe.locked.value)
+        )
+    }
+}
+
+private fun mdLocalClick(window: Window, x: Double, y: Double) {
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            assertEquals(0, nativeEditorPointer(view, x, y, true, 1, false))
+            assertEquals(0, nativeEditorPointer(view, x, y, false, 1, false))
+        }
+    }
+}
+
+private fun mdLocalKey(window: Window, code: Int, text: String, flags: Int = 0) {
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    assertEquals(0, nativeEditorKey(view, code, bytes, length, flags))
+                }
+            }
+        }
+    }
+}
+
+private fun mdLocalNativeDocument(
+    window: Window,
+    editor: MarkdownEditorState,
+    source: String
+): Boolean =
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            return@mdNativeView source.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorDocument(
+                        view,
+                        bytes,
+                        length,
+                        editor.selection.range.start,
+                        editor.selection.range.end,
+                        editor.markedRange?.start ?: -1L,
+                        editor.markedRange?.end ?: -1L
+                    )
+                }
+            }
+        }
+    }

@@ -91,8 +91,8 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
             {
                 state.setSelection(
                     MarkdownSelection(
-                        MarkdownPosition(0L),
-                        MarkdownPosition(state.snapshot.byteLength)
+                        MarkdownPosition(host.sourceRange.start),
+                        MarkdownPosition(host.sourceRange.end)
                     )
                 )
             }
@@ -120,16 +120,20 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
                 state.snapshot.lineAt(state.selection.anchor) !=
                     state.snapshot.lineAt(state.selection.cursor)
             )
-                host.perform({ mdIndentSource(state, host.options.tabSize, false) })
+                host.perform(
+                    { mdIndentSource(state, host.options.tabSize, false, host.sourceRange) }
+                )
             else
                 host.perform({ state.replaceSelection("\t") })
         }
         case InsertBacktab -> if (!host.options.readOnly)
-            host.perform({ mdIndentSource(state, host.options.tabSize, true) })
+            host.perform({ mdIndentSource(state, host.options.tabSize, true, host.sourceRange) })
         case Cancel -> {
-            if (!state.isComposing)
-                return false
-            host.perform({ state.cancelComposition() })
+            if (!state.isComposing) {
+                val exit = host.exitSource ?: return false
+                exit()
+            } else
+                host.perform({ state.cancelComposition() })
         }
     }
     when (command) {
@@ -142,7 +146,12 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
     return true
 }
 
-internal fun mdIndentSource(state: MarkdownEditorState, tabSize: Int, remove: Boolean) {
+internal fun mdIndentSource(
+    state: MarkdownEditorState,
+    tabSize: Int,
+    remove: Boolean,
+    limit: MarkdownRange
+) {
     val snapshot = state.snapshot
     val selection = state.selection.range
     val start = snapshot.lineAt(MarkdownPosition(selection.start))
@@ -156,8 +165,9 @@ internal fun mdIndentSource(state: MarkdownEditorState, tabSize: Int, remove: Bo
     )
         end -= 1L
     val edits = ArrayList<MarkdownReplacement>()
+    val extent = MdSourceExtent(snapshot, limit)
     for (line in start .. end) {
-        val range = snapshot.lineRange(line)
+        val range = extent.line(line)
         if (remove) {
             val text = snapshot.read(range)
             var bytes = 0L

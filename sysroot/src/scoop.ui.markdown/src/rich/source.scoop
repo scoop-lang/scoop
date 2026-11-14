@@ -1,0 +1,109 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.surface.FocusVisibility
+import scoop.ui.*
+import scoop.ui.component.*
+
+/** The rich component owns only the local source interval and its view state. */
+internal class MdRichSourceSession: Closeable {
+    val current = state<MarkdownSourceRegion?>(None)
+    val sourceFocus = FocusHandle()
+    val richFocus = FocusHandle()
+    var returnFocus = richFocus
+    private var pending = false
+    private var mounted: MarkdownSourceHost? = None
+
+    fun bind(editor: MarkdownEditorState) {
+        when (current.value) {
+            case Some(val value) -> if (value.editor !== editor || value.range == None)
+                finish(value.editor === editor)
+            case None -> Unit
+        }
+    }
+
+    fun open(editor: MarkdownEditorState, range: MarkdownRange) {
+        val next = MarkdownSourceRegion(editor, range)
+        editor.acceptComposition()
+        editor.breakUndoGroup()
+        current.value?.close()
+        current.value = Some(next)
+        val selected = mdSourceSelection(range, editor.selection)
+        if (selected != editor.selection)
+            editor.setSelection(selected)
+        pending = true
+    }
+
+    fun attach(host: MarkdownSourceHost) {
+        mounted = Some(host)
+        if (pending && sourceFocus.isAttached && sourceFocus.requestFocus()) {
+            pending = false
+            host.revealNeeded = true
+            host.scope.requestLayout()
+        }
+    }
+
+    fun detach(host: MarkdownSourceHost) {
+        when (mounted) {
+            case Some(val value) -> if (value === host)
+                mounted = None
+            case None -> Unit
+        }
+    }
+
+    fun finish(focus: Boolean = true) {
+        when (mounted) {
+            case Some(val host) -> if (
+                !host.isClosed && !host.state.isClosed && !host.ownsOtherComposition()
+            ) {
+                host.state.acceptComposition()
+                host.state.breakUndoGroup()
+            }
+            case None -> Unit
+        }
+        current.value?.close()
+        current.value = None
+        pending = false
+        if (focus && returnFocus.isAttached)
+            returnFocus.requestFocus()
+    }
+
+    public override fun close() {
+        finish(false)
+        mounted = None
+    }
+}
+
+internal fun mdLocalSourceView(
+    input: MdRichProps,
+    region: MarkdownSourceRegion,
+    session: MdRichSourceSession
+): View =
+    column {
+        alignment = CrossAlignment.Stretch
+        item(mdSourceDone(input, session))
+        item(
+            mdSourceEditor(
+                MdSourceProps(
+                    input.controller.editor,
+                    None,
+                    MarkdownSourceOptions(
+                        readOnly = input.readOnly,
+                        enabled = input.options.enabled
+                    ),
+                    input.fonts,
+                    FocusOptions(
+                        handle = Some(session.sourceFocus),
+                        visibility = FocusVisibility.Always
+                    ),
+                    { _ -> Unit },
+                    region = Some(region),
+                    exitSource = Some { session.finish() },
+                    localSource = Some(session)
+                )
+            )
+        ) {
+            grow = 1.0
+            basis = FlexBasis.Fixed(0.0)
+        }
+    }

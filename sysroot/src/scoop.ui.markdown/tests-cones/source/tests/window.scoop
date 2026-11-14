@@ -62,6 +62,12 @@ internal class MdWindowProbe: Closeable {
         )
     val step = state(0)
     var options = MarkdownSourceOptions(inputContextBytes = 128L)
+    var region: MarkdownSourceRegion? = None
+    val localPrefix = "Before "
+    val localBody = "```text\n中文 code\n```"
+    val localSuffix = " After\nTail"
+    var largeEnd = 0L
+    var beforePage = 0L
     var field: MarkdownSourceHost? = None
     var scope: ComponentScope? = None
     var window: Window? = None
@@ -114,7 +120,7 @@ internal class MdWindowProbe: Closeable {
                 }
                 .schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
             }
-            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 39) {
+            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 48) {
                 when (input) {
                     case Enabled(_) -> inputReady = true
                     case Disabled(_) -> inputReady = false
@@ -128,7 +134,7 @@ internal class MdWindowProbe: Closeable {
                 }
                 if (
                     step.value >=
-                        39 &&
+                        48 &&
                         publicFocus.isAttached &&
                         !publicFocus.hasFocus &&
                         !publicFocus.isPending
@@ -149,7 +155,7 @@ internal class MdWindowProbe: Closeable {
     }
     private fun ready(): Boolean =
         (
-            if (step.value >= 39)
+            if (step.value >= 48)
                 frames!!.snapshot().presentations > beforePresentation && publicFocus.isFocusActive
             else
                 accepted == step.value && field!!.area.isFocusActive
@@ -442,20 +448,142 @@ internal class MdWindowProbe: Closeable {
             case 38 -> {
                 assertEquals(4L, editor.selection.cursor.byteOffset)
                 next {
+                    editor.document.reset(localPrefix + localBody + localSuffix)
+                    region =
+                        Some(
+                            MarkdownSourceRegion(
+                                editor,
+                                MarkdownRange(
+                                    localPrefix.byteLength,
+                                    localPrefix.byteLength + localBody.byteLength
+                                )
+                            )
+                        )
+                    editor.setSelection(
+                        MarkdownSelection(
+                            MarkdownPosition(localPrefix.byteLength),
+                            MarkdownPosition(localPrefix.byteLength)
+                        )
+                    )
+                }
+            }
+            case 39 -> {
+                assertEquals(region!!.range!!, host.sourceRange)
+                assertEquals(host.sourceRange, host.measurement!!.sourceRange)
+                assertEquals(localBody, host.nativeInputState.surroundingText)
+                assertEquals(None, host.caret(MarkdownPosition(0L)))
+                assertTrue(mdNativeDocument(native, host))
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.DocumentStart, false)))
+                assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                assertEquals(localPrefix + localBody + localSuffix, editor.document.toMarkdown())
+                next {
+                    assertTrue(host.execute(TextEditCommand.SelectAll))
+                    assertEquals(0, mdNativeText(native, "你好", 1, 2L))
+                }
+            }
+            case 40 -> {
+                assertTrue(editor.isComposing)
+                assertEquals("你好", host.nativeInputState.surroundingText)
+                assertEquals(localPrefix + "你好" + localSuffix, editor.document.toMarkdown())
+                assertTrue(mdNativeDocument(native, host))
+                next { assertTrue(host.execute(TextEditCommand.Cancel)) }
+            }
+            case 41 -> {
+                assertEquals(localPrefix + localBody + localSuffix, editor.document.toMarkdown())
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.DocumentEnd, false)))
+                assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Forward)))
+                assertEquals(localPrefix + localBody + localSuffix, editor.document.toMarkdown())
+                assertTrue(host.execute(TextEditCommand.InsertNewline))
+                assertEquals(
+                    localPrefix + localBody + "\n" + localSuffix,
+                    editor.document.toMarkdown()
+                )
+                assertTrue(host.execute(TextEditCommand.Undo))
+                next()
+            }
+            case 42 -> {
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "!")) }
+            }
+            case 43 -> {
+                assertEquals(
+                    localPrefix + localBody + "!" + localSuffix,
+                    editor.document.toMarkdown()
+                )
+                assertTrue(host.execute(TextEditCommand.Undo))
+                val at = localPrefix.byteLength + "```text\n中".byteLength
+                editor.setSelection(MarkdownSelection(MarkdownPosition(at), MarkdownPosition(at)))
+                assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                assertEquals(
+                    localPrefix + "```text\n文 code\n```" + localSuffix,
+                    editor.document.toMarkdown()
+                )
+                assertTrue(host.execute(TextEditCommand.Undo))
+                next { editor.document.replace(MarkdownRange(0L, 0L), "!") }
+            }
+            case 44 -> {
+                assertEquals(localPrefix.byteLength + 1L, host.sourceRange.start)
+                assertEquals(localBody, host.nativeInputState.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next {
+                    region!!.close()
+                    val prefix = "Outside\n".repeat(5000L)
+                    val body = "```text\n" + "body 中文 line\n".repeat(80000L) + "```\n"
+                    editor.document.reset(prefix + body + "After\n")
+                    largeEnd = prefix.byteLength + body.byteLength
+                    region =
+                        Some(
+                            MarkdownSourceRegion(editor, MarkdownRange(prefix.byteLength, largeEnd))
+                        )
+                    val at = editor.snapshot.positionOfLine(45000L)
+                    editor.setSelection(MarkdownSelection(at, at))
+                }
+            }
+            case 45 -> {
+                assertTrue(host.sourceRange.byteLength > 1048576L)
+                assertTrue(host.nativeInputState.surroundingText.byteLength < 270L)
+                assertTrue(host.measurement!!.measuredLineCount < 100L)
+                for (line in host.measurement!!.lineIndices)
+                    assertTrue(
+                        line >= 5000L && line <= editor.snapshot.lineAt(MarkdownPosition(largeEnd))
+                    )
+                beforePage = editor.selection.cursor.byteOffset
+                next {
+                    assertTrue(host.execute(TextEditCommand.Move(TextMovement.PageDown, false)))
+                }
+            }
+            case 46 -> {
+                assertTrue(editor.selection.cursor.byteOffset > beforePage)
+                assertTrue(host.scroll.offset.y > 0.0)
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.DocumentEnd, false)))
+                assertEquals(largeEnd, editor.selection.cursor.byteOffset)
+                val before = editor.snapshot
+                assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Forward)))
+                assertTrue(before === editor.snapshot)
+                next { options = MarkdownSourceOptions(readOnly = true, inputContextBytes = 128L) }
+            }
+            case 47 -> {
+                val before = editor.snapshot
+                assertTrue(host.execute(TextEditCommand.InsertNewline))
+                assertTrue(before === editor.snapshot)
+                next {
+                    region!!.close()
+                    region = None
+                    options = MarkdownSourceOptions(inputContextBytes = 128L)
                     editor.document.reset("one")
                     editor.setSelection(
                         MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
                     )
                 }
             }
-            case 39 -> next { assertEquals(0, mdNativeText(native, "X")) }
-            case 40 -> {
+            case 48 -> next { assertEquals(0, mdNativeText(native, "X")) }
+            case 49 -> {
                 assertTrue(host.isClosed)
                 assertEquals("Xone", editor.document.toMarkdown())
                 next { displayed.value = second }
             }
-            case 41 -> next { assertEquals(0, mdNativeText(native, "Y")) }
-            case 42 -> {
+            case 50 -> next { assertEquals(0, mdNativeText(native, "Y")) }
+            case 51 -> {
                 assertEquals("Xone", editor.document.toMarkdown())
                 assertEquals("Ytwo", second.document.toMarkdown())
                 finished = true
@@ -480,6 +608,7 @@ internal class MdWindowProbe: Closeable {
     public override fun close() {
         restoreSource()
         frames?.close()
+        region?.close()
         editor.close()
         second.close()
         fonts.close()
@@ -491,7 +620,7 @@ private class MdWindowRoot(val probe: MdWindowProbe, scope: ComponentScope): Com
         probe.ownerScope = Some(scope)
     }
     public override fun render(): View {
-        if (probe.step.value >= 39)
+        if (probe.step.value >= 48)
             return markdownSourceEditor(
                 probe.displayed.value,
                 fonts = Some(probe.fonts),
@@ -538,7 +667,13 @@ private class MdWindowField(
         host.focus.handle.requestFocus()
     }
     public override fun update(): UiInvalidation {
-        host.update(probe.editor, probe.style, probe.options, fonts = Some(probe.fonts))
+        host.update(
+            probe.editor,
+            probe.style,
+            probe.options,
+            fonts = Some(probe.fonts),
+            region = probe.region
+        )
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

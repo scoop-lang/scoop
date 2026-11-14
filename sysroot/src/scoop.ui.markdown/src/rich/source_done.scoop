@@ -1,0 +1,88 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.ui.text.*
+
+private class MdSourceDoneProps(
+    val enabled: Boolean,
+    val fonts: FontCollection?,
+    val session: MdRichSourceSession
+)
+
+/** Uses the same explicit styling contract as the source view, without requiring a theme. */
+internal fun mdSourceDone(input: MdRichProps, session: MdRichSourceSession): View =
+    element(
+        MdSourceDoneProps(input.options.enabled, input.fonts, session),
+        { props, scope -> MdSourceDone(props, scope) }
+    )
+
+private class MdSourceDone(val props: Props<MdSourceDoneProps>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area)
+    private val press = scope.press(area) { props.value.session.finish() }
+    private val paragraph = scope.resource { ParagraphHost() }
+    private val key = PaintKey()
+    private val text =
+        styledText {
+            text("Done")
+            style = textStyle { fontSize = 14.0 }
+        }
+    private var generation = 0L
+
+    public override fun onMount() {
+        update()
+    }
+
+    public override fun update(): UiInvalidation {
+        area.scope.enabled = props.value.enabled
+        press.update(PressOptions(enabled = props.value.enabled), { props.value.session.finish() })
+        return UiInvalidation.Layout
+    }
+
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val width = min(80.0, constraints.maxWidth ?: 80.0)
+        val measured =
+            paragraph.measure(
+                context,
+                Constraints(maxWidth = Some(max(0.0, width - 16.0))),
+                props.value.fonts ?: scope.defaultFonts,
+                text
+            )
+        generation += 1L
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, measured.layout.size.height + 12.0))),
+            measured,
+            { measured.close() }
+        )
+    }
+
+    public override fun scene(context: SceneContext, layout: ParagraphMeasurement) {
+        val bounds =
+            Rect(
+                0.0,
+                0.0,
+                min(context.size.width, layout.layout.size.width + 16.0),
+                context.size.height
+            )
+        context.place(area, bounds)
+        val color =
+            if (press.interaction.pressed || area.isFocusVisible)
+                Color(0.78, 0.85, 0.98)
+            else
+                Color(0.93, 0.94, 0.96)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(color)) }
+        context.withState {
+            label ->
+            label.translate(8.0, 6.0)
+            label.drawTextLayout(key, layout.layout, generation)
+        }
+    }
+}

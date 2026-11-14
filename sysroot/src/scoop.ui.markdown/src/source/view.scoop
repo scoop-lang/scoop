@@ -11,7 +11,10 @@ internal class MdSourceProps(
     val fonts: FontCollection?,
     val focus: FocusOptions,
     val changed: (MarkdownChange) -> Unit,
-    val mount: MdEditorMount? = None
+    val mount: MdEditorMount? = None,
+    val region: MarkdownSourceRegion? = None,
+    val exitSource: (() -> Unit)? = None,
+    val localSource: MdRichSourceSession? = None
 )
 
 /** Source view for a shared Markdown editor state; its mount owns native and layout resources. */
@@ -21,8 +24,22 @@ public fun markdownSourceEditor(
     options: MarkdownSourceOptions = MarkdownSourceOptions(),
     fonts: FontCollection? = None,
     focus: FocusOptions = FocusOptions(),
-    onChanged: (MarkdownChange) -> Unit = { _ -> Unit }
-): View = mdSourceEditor(MdSourceProps(state, style, options, fonts, focus, onChanged))
+    onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
+    region: MarkdownSourceRegion? = None,
+    onExit: (() -> Unit)? = None
+): View =
+    mdSourceEditor(
+        MdSourceProps(
+            state,
+            style,
+            options,
+            fonts,
+            focus,
+            onChanged,
+            region = region,
+            exitSource = onExit
+        )
+    )
 
 internal fun mdSourceEditor(props: MdSourceProps): View =
     component(props, { props, scope -> MdSourceComponent(props, scope) })
@@ -34,6 +51,7 @@ private class MdSourceComponent(val props: Props<MdSourceProps>, scope: Componen
         props.value.state.snapshot
         props.value.state.selection
         props.value.state.markedRange
+        val activeRange = props.value.region?.range
         return element(props.value, { input, mount -> MdSourceElement(input, mount) })
     }
 }
@@ -50,7 +68,8 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
                 props.value.style ?: defaults,
                 props.value.options,
                 props.value.fonts,
-                props.value.mount?.state?.sourceScroll
+                props.value.mount?.state?.sourceScroll,
+                props.value.region
             )
         }
     public override fun onMount() {
@@ -64,13 +83,17 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
             input.options,
             input.focus,
             input.changed,
-            input.fonts
+            input.fonts,
+            input.region,
+            input.exitSource
         )
         input.mount?.attach(host)
+        input.localSource?.attach(host)
         return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         props.value.mount?.detach(host)
+        props.value.localSource?.detach(host)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         MarkdownSourceMeasurement

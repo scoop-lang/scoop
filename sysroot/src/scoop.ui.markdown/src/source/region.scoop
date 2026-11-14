@@ -1,0 +1,124 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+
+private fun mdCheckedSourceRegion(
+    editor: MarkdownEditorState,
+    range: MarkdownRange
+): MarkdownRange? {
+    editor.checkEdit()
+    mdCheckSelection(
+        editor.snapshot,
+        MarkdownSelection(MarkdownPosition(range.start), MarkdownPosition(range.end))
+    )
+    return Some(range)
+}
+
+/** A live source interval borrowing one editor and its complete undo history. */
+public class MarkdownSourceRegion public constructor(
+    public val editor: MarkdownEditorState,
+    range: MarkdownRange
+): Closeable {
+    private val current = state(mdCheckedSourceRegion(editor, range))
+    private var source = editor.snapshot
+    private var closed = false
+    private val subscription = editor.document.observe { change -> advance(change) }
+
+    /** None after reset or close; ordinary edits retain a possibly empty interval. */
+    public val range: MarkdownRange? get() = current.value
+    public val isClosed: Boolean get() = closed
+
+    internal fun advance(change: MarkdownChange) {
+        if (closed || source === change.after)
+            return
+        if (source !== change.before)
+            throw IllegalStateException(
+                Some("Markdown source region requires its current snapshot")
+            )
+        source = change.after
+        current.value =
+            when (current.value) {
+                case Some(val value) -> if (change.kind == MarkdownChangeKind.Reset)
+                    None
+                else
+                    Some(
+                        MarkdownRange(
+                            change.map(
+                                MarkdownAnchor(MarkdownPosition(value.start), MarkdownBias.Before)
+                            ).position.byteOffset,
+                            change.map(
+                                MarkdownAnchor(MarkdownPosition(value.end), MarkdownBias.After)
+                            ).position.byteOffset
+                        )
+                    )
+                case None -> None
+            }
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        current.checkMutation()
+        subscription.close()
+        closed = true
+        current.value = None
+    }
+}
+
+internal fun mdSourceLimit(
+    editor: MarkdownEditorState,
+    region: MarkdownSourceRegion?
+): MarkdownRange =
+    when (region) {
+        case Some(val value) -> {
+            if (value.editor !== editor)
+                throw IllegalArgumentException(
+                    Some("Markdown source region belongs to another editor")
+                )
+            value.range ?: MarkdownRange(0L, 0L)
+        }
+        case None -> MarkdownRange(0L, editor.snapshot.byteLength)
+    }
+
+internal fun mdSourcePosition(range: MarkdownRange, position: MarkdownPosition): MarkdownPosition =
+    MarkdownPosition(
+        if (position.byteOffset < range.start)
+            range.start
+        else
+            if (position.byteOffset > range.end)
+                range.end
+            else
+                position.byteOffset
+    )
+
+internal fun mdSourceSelection(
+    range: MarkdownRange,
+    selection: MarkdownSelection
+): MarkdownSelection =
+    MarkdownSelection(
+        mdSourcePosition(range, selection.anchor),
+        mdSourcePosition(range, selection.cursor),
+        selection.anchorBias,
+        selection.cursorBias
+    )
+
+internal class MdSourceExtent(val snapshot: MarkdownSnapshot, val range: MarkdownRange) {
+    val first = snapshot.lineAt(MarkdownPosition(range.start))
+    val end = snapshot.lineAt(MarkdownPosition(range.end)) + 1L
+    fun line(index: Long, includeNewline: Boolean = false): MarkdownRange {
+        val original = snapshot.lineRange(index, includeNewline)
+        return MarkdownRange(
+            mdSourcePosition(range, MarkdownPosition(original.start)).byteOffset,
+            mdSourcePosition(range, MarkdownPosition(original.end)).byteOffset
+        )
+    }
+    fun index(value: Long): Long =
+        if (value < first)
+            first
+        else
+            if (value >= end)
+                end - 1L
+            else
+                value
+}

@@ -66,6 +66,14 @@ apply 依次校验原生批次并准备行内语义操作，最终只发布一�
 
 `onChanged` 只传递文档差量。宿主销毁时退休输入连接，结束自己持有的组合，释放订阅、输入区域、滚动和布局；不销毁借用文档。卸载后的输入通知不再更新窗口或请求布局。各模式按第 9 节接入同一个编辑状态。
 
+### 5.1 局部源码范围
+
+`MarkdownSourceRegion(editor, range)` 借用同一编辑状态，以全局 UTF-8 源码范围限定一个源码编辑面。它沿真实文档差量映射两端，保留起点前、终点后的插入偏向，使范围内的输入、组合取消和撤销／重做继续包含在该区域；不创建第二份文档或历史。区外修改正常移动区域，Reset 使区域失效，close 释放订阅。无效 UTF-8 范围或其他 editor 的区域不能绑定输入。
+
+`MarkdownSourceInput`、`MarkdownSourceHost` 和 `markdownSourceEditor` 可借用该 region。原生周边文字、排版、命中、方向键、整篇起止、全选、删除和缩进只消费其范围；首尾可以位于物理行中间。大型区域仍按可见行和局部输入上下文处理。外部选区位于区外时不改写共享选区，重新聚焦后将选区收敛到区域；共享撤销仍作用于同一个完整历史。关闭或 Reset 后不接受新的输入。测量结果保留自己的 sourceRange，旧帧和试测不覆盖当前输入几何。
+
+局部面直接编辑包含围栏、语言标记、公式定界符或模板指令的原始源码，未闭合和临时无法解析的内容仍可继续编辑。解析和图像控制器照常消费同一文档的新快照，错误沿已有展示及重试路径报告；完成编辑不额外序列化或改写原文。
+
 ## 6. 共享后台解析
 
 `MarkdownParseController(editor, executor, proxy, options)` 借用同一个编辑状态、现有 `CoroutineExecutor` 和 `ApplicationProxy`。构造不启动后台任务，start／refresh 在正常 owner 回调中请求处理；start 幂等，refresh 还用于文件通知后的资源版本检查。options 包含固定 Markdown profile 和可选的资源展开配置；configure 使用新配置后请求新结果。调用方在应用层管理 executor 的 shutdown／join，不在组件卸载时等待全文解析结束。
@@ -119,7 +127,7 @@ Mermaid 适配只向配置好的 mmdc 传递单个 fence body，经 argv 和临�
 
 实际模式切换先接受当前组合一次并结束连续输入合并，保留源字节、选区与历史；设置相同模式不产生这些副作用。视图复用现有 resizable 的稳定栏 key，仍显示的栏保留挂载，隐藏栏释放自己的原生资源；各自滚动状态保留，重新显示后绑定新 viewport。`rightReadOnly` 只影响双栏右侧；`MarkdownEditorOptions.readOnly` 作用于所有模式，源码还遵守 `source.readOnly`。切换右栏只读不结束左栏的组合。
 
-默认不抢焦点。`requestFocus(pane)` 对当前可见栏记录请求，必要时等待挂载；隐藏栏返回 false。`showSource(range)` 先验证当前源码两端的 UTF-8 标量边界，再将共享选区折叠到起点；当前为 Wysiwyg 时切为 SideBySide，随后聚焦源码。无效范围不改变模式、选区或历史。宿主可以提供自己的 `onSource` 显示局部源码；未提供时使用上述行为。
+默认不抢焦点。`requestFocus(pane)` 对当前可见栏记录请求，必要时等待挂载；隐藏栏返回 false。显式 `showSource(range)` 先验证当前源码两端的 UTF-8 标量边界，再将共享选区折叠到起点；当前为 Wysiwyg 时切为 SideBySide，随后聚焦源码。无效范围不改变模式、选区或历史。`markdownRichEditor` 和三模式组件默认在富文本栏内打开 §5.1 的局部源码面，保留当前模式，完整展示原始范围；可通过完成按钮或无组合时的 Escape 关闭并返回富文本焦点。关闭先接受已有组合，组合期间 Escape 先取消组合。只读设置同样作用于局部面，生成内容编辑其来源指令。宿主显式提供 onSource 时由该回调接管展示。
 
 组合控件仅订阅一次 `onChanged`，同一源事务不因左右两栏而重复通知。解析完成、选区与纯视图设置不产生正文差量。控件卸载关闭自己的订阅及两侧宿主，不关闭借用的 editor、controller、字体或图像控制器。
 

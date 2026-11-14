@@ -20,6 +20,7 @@ internal fun mdSourceEvent(
                 if (active) {
                     host.current.acceptComposition()
                     host.current.breakUndoGroup()
+                    host.selectRegion()
                     if (host.input.synchronize())
                         host.retire()
                     host.invalidate()
@@ -40,7 +41,7 @@ internal fun mdSourceEvent(
         }
         return
     }
-    if (context.phase != RoutedPhase.Default || !host.options.enabled)
+    if (context.phase != RoutedPhase.Default || !host.active)
         return
     when (event) {
         case TextCommand(val command) -> if (host.execute(command))
@@ -121,7 +122,7 @@ private fun mdSourceNative(host: MarkdownSourceHost, event: TextInputEvent) {
                 !host.sessionEnabled ||
                     host.retiring ||
                     !host.area.isFocusActive ||
-                    !host.options.enabled ||
+                    !host.active ||
                     host.options.readOnly
             )
                 return
