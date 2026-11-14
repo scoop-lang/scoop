@@ -26,6 +26,8 @@ internal class MdInput(internal val value: MarkdownText) {
             bytes[offset].toInt().and(255)
     internal fun text(start: Long, end: Long): String = mdBytesText(bytes, start, end)
     internal fun slice(start: Long, end: Long): MarkdownText = mdTextSlice(value, start, end)
+    internal fun sourceEnd(offset: Long): Long =
+        value.sourceAt(MarkdownPosition(offset), MarkdownBias.Before).byteOffset
     internal fun range(start: Long, end: Long): MarkdownRange {
         val first = value.sourceAt(MarkdownPosition(start), MarkdownBias.After).byteOffset
         return MarkdownRange(
@@ -33,7 +35,7 @@ internal class MdInput(internal val value: MarkdownText) {
             if (start == end)
                 first
             else
-                value.sourceAt(MarkdownPosition(end), MarkdownBias.Before).byteOffset
+                sourceEnd(end)
         )
     }
     internal fun run(offset: Long, code: Int): Long {

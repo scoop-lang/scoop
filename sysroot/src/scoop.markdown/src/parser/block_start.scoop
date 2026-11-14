@@ -222,6 +222,8 @@ internal fun MdBlockParser.startBlock(container: MdBuildNode): Int {
         add(MdKind.Code, offset)
         return 2
     }
+    if (startCustomBlock(container))
+        return 2
     return 0
 }
 
@@ -241,7 +243,7 @@ internal fun MdBlockParser.startSetext(paragraph: MdBuildNode, marker: Int): Boo
             MdBuildNode(
                 MdKind.Heading,
                 body.range(consumed, consumed).start,
-                input.range(line.next, line.next).end
+                input.sourceEnd(line.next)
             )
         heading.startLine = sourceLine(heading.start)
         heading.endLine = lineIndex

@@ -4,7 +4,8 @@ package scoop.markdown
 internal class MdBlockParser(
     val input: MdInput,
     val syntax: MdSyntax,
-    val profile: MarkdownProfile
+    val profile: MarkdownProfile,
+    val extensionBodies: ArrayList<MdBuildNode>
 ) {
     val lines = mdLines(input)
     val root =
@@ -101,26 +102,26 @@ internal class MdBlockParser(
 
     fun addLine() {
         tip.ready = None
+        appendLine(tip.source)
+    }
+
+    fun appendLine(target: MdTextBuilder) {
         if (partialTab) {
             val spaces = StringBuilder()
             for (index in 0L ..< (4L - column % 4L))
                 spaces.append(' ')
-            tip.source.add(
+            target.add(
                 spaces.toString(),
                 input.range(offset, offset + 1L),
                 MarkdownTextMapping.Normalized
             )
             offset += 1L
         }
-        mdAppendSource(tip.source, input, offset, line.end)
-        tip.source.add(
-            "\n",
-            input.range(line.end, line.next),
-            if (line.next - line.end == 1L && input.at(line.end) == 10)
-                MarkdownTextMapping.Literal
-            else
-                MarkdownTextMapping.Normalized
-        )
+        mdAppendSource(target, input, offset, line.end)
+        if (line.next - line.end == 1L && input.at(line.end) == 10)
+            mdAppendSource(target, input, line.end, line.next)
+        else
+            target.add("\n", input.range(line.end, line.next), MarkdownTextMapping.Normalized)
     }
 
     fun canContain(parent: MdKind, child: MdKind): Boolean =
@@ -136,12 +137,7 @@ internal class MdBlockParser(
     fun add(kind: MdKind, start: Long): MdBuildNode {
         while (!canContain(tip.kind, kind))
             finalize(tip, lineIndex - 1L)
-        val node =
-            MdBuildNode(
-                kind,
-                input.range(start, start).start,
-                input.range(line.next, line.next).end
-            )
+        val node = MdBuildNode(kind, input.range(start, start).start, input.sourceEnd(line.next))
         node.startLine = lineIndex
         node.endLine = lineIndex
         tip.append(node)

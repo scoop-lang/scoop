@@ -1,0 +1,139 @@
+package scoop.markdown
+
+internal class MdCustomExtensionBlock(
+    val entry: MdRegisteredBlockExtension,
+    val start: MarkdownBlockStart,
+    val indent: Long
+) {
+    var closed = start.closed
+}
+
+/** Each nested body is strictly smaller; traversal does not recurse through the host stack. */
+internal fun mdParseBlocks(
+    source: MdInput,
+    syntax: MdSyntax,
+    profile: MarkdownProfile
+): MdBuildNode {
+    val bodies = ArrayList<MdBuildNode>()
+    val root = MdBlockParser(source, syntax, profile, bodies).parse()
+    while (bodies.size > 0L) {
+        val node = bodies.removeAt(bodies.size - 1L)
+        val parsed = MdBlockParser(MdInput(node.extension!!.body), syntax, profile, bodies).parse()
+        while (true) {
+            val child = parsed.first ?: break
+            node.append(child)
+        }
+    }
+    return root
+}
+
+internal fun MdBlockParser.startCustomBlock(container: MdBuildNode): Boolean {
+    if (indent >= 4L || profile.registeredBlocks.size == 0L)
+        return false
+    val paragraph =
+        container.kind == MdKind.Paragraph || (!allClosed && tip.kind == MdKind.Paragraph)
+    var prepared: MarkdownText? = None
+    for (entry in profile.registeredBlocks) {
+        if (
+            (paragraph && !entry.interruptsParagraph) ||
+                !mdExtensionStarts(input, entry.trigger, nextNonspace)
+        )
+            continue
+        val text = prepared ?: extensionLine(true, 0L)
+        prepared = Some(text)
+        val lineInput = MarkdownExtensionInput(MdInput(text), MarkdownExtensionLocation.Block)
+        val matched = entry.handler.start(lineInput) ?: continue
+        val start = nextNonspace
+        val indentation = indent
+        closeUnmatched()
+        val node = add(MdKind.Extension, start)
+        node.extensionBlock =
+            Some(MdExtensionBlock.Custom(MdCustomExtensionBlock(entry, matched, indentation)))
+        node.source.append(text)
+        offset = line.end
+        skipContent = true
+        return true
+    }
+    return false
+}
+
+internal fun MdBlockParser.continueCustomBlock(
+    node: MdBuildNode,
+    data: MdCustomExtensionBlock
+): Int {
+    if (data.closed)
+        return 1
+    val text = extensionLine(false, data.indent)
+    val current = MarkdownExtensionInput(MdInput(text), MarkdownExtensionLocation.Block)
+    when (data.start.parser.next(current)) {
+        case MarkdownBlockContinuation.Stop -> return 1
+        case MarkdownBlockContinuation.Continue -> {
+            node.ready = None
+            node.source.append(text)
+            skipContent = true
+            return 0
+        }
+        case MarkdownBlockContinuation.Close -> {
+            node.ready = None
+            node.source.append(text)
+            data.closed = true
+            finalize(node, lineIndex)
+            return 2
+        }
+    }
+}
+
+internal fun MdBlockParser.finishCustomBlock(node: MdBuildNode, data: MdCustomExtensionBlock) {
+    val source = node.input()
+    val input = MarkdownExtensionInput(source, MarkdownExtensionLocation.Block)
+    val closed = data.closed || data.start.parser.closedAtBoundary
+    val result = data.start.parser.finish(input, closed)
+    input.checkRange(result.body)
+    if (data.start.parseBody)
+        requireMarkdown(
+            result.body.byteLength < source.size,
+            "Parsed Markdown extension body must be smaller than its token"
+        )
+    val body = source.slice(result.body.start, result.body.end)
+    node.ready = Some(body)
+    node.extension =
+        Some(
+            MarkdownExtensionValue(
+                data.entry.name,
+                MarkdownExtensionLocation.Block,
+                source.value,
+                body,
+                result.attributes,
+                closed
+            )
+        )
+    if (result.body.start > 0L)
+        node.markers.add(source.range(0L, result.body.start))
+    if (result.body.end < source.size)
+        node.markers.add(source.range(result.body.end, source.size))
+    if (data.start.parseBody && body.byteLength > 0L)
+        extensionBodies.add(node)
+}
+
+/** Peeking a candidate or stopping a block must leave the ordinary parser cursor untouched. */
+private fun MdBlockParser.extensionLine(opening: Boolean, indentation: Long): MarkdownText {
+    val savedOffset = offset
+    val savedColumn = column
+    val savedPartial = partialTab
+    if (opening)
+        advanceNonspace()
+    else {
+        var remaining = indentation
+        while (remaining > 0L && offset < line.end && mdSpace(input.at(offset))) {
+            advance(1L, true)
+            remaining -= 1L
+        }
+    }
+    val start = input.range(offset, offset).start
+    val result = MdTextBuilder()
+    appendLine(result)
+    offset = savedOffset
+    column = savedColumn
+    partialTab = savedPartial
+    return result.build(start)
+}

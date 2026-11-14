@@ -1,0 +1,62 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownBlockProjectionTests {
+    @Test
+    fun multilineSyntaxUsesTheExistingImageAndSourceProjectionPaths() {
+        val source = "before\n\n> :::diagram\n> first\n>\n> second\n> :::\n\nafter"
+        val profile = MarkdownProfile(blockExtensions = [ProjectionBlockRule()])
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        val model =
+            MarkdownParsedDocument(
+                parsed,
+                None,
+                MarkdownParseOptions(profile, imageExtensions = ["diagram"])
+            )
+        assertEquals(1L, model.sourceExtensions.spans.size)
+        val span = model.sourceExtensions.spans[0L]
+        assertEquals("diagram", span.name)
+        assertTrue(span.closed)
+        assertEquals(3L, model.display.rows.size)
+        val row = model.display.rows[1L]
+        assertEquals(span.sourceRange, row.range)
+        assertTrue(
+            when (row.kind) {
+                case MdDisplayKind.ImageBlock -> true
+                else -> false
+            }
+        )
+        val input = mdPreviewImageInput(row.cells[0L].runs[0L].objectValue!!)!!
+        assertEquals(MarkdownImageKind.Extension("diagram"), input.kind)
+        assertEquals("first\n\nsecond\n", input.body.text)
+        val bodyStart = input.body.sourceAt(MarkdownPosition(0L)).byteOffset
+        assertEquals("first", model.snapshot.read(MarkdownRange(bodyStart, bodyStart + 5L)))
+        val raw = mdProjectMarkdown(parsed, imageExtensions = [])
+        assertEquals(":::diagram", raw.rows[1L].cells[0L].text)
+        assertEquals(source, model.snapshot.toMarkdown())
+    }
+}
+
+private class ProjectionBlockRule: MarkdownBlockExtension {
+    public override val name = "diagram"
+    public override val trigger = ":::diagram"
+    public override fun start(input: MarkdownExtensionInput): MarkdownBlockStart? =
+        Some(MarkdownBlockStart(ProjectionBlockParser(input.byteLength)))
+}
+
+private class ProjectionBlockParser(private val begin: Long): MarkdownBlockParser {
+    private var end = begin
+    public override fun next(input: MarkdownExtensionInput): MarkdownBlockContinuation {
+        if (input.source.text == ":::\n")
+            return MarkdownBlockContinuation.Close
+        end += input.byteLength
+        return MarkdownBlockContinuation.Continue
+    }
+    public override fun finish(
+        input: MarkdownExtensionInput,
+        closed: Boolean
+    ): MarkdownBlockResult = MarkdownBlockResult(MarkdownRange(begin, end))
+}

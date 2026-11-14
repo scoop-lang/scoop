@@ -1,0 +1,96 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+internal class TestBlockRule(
+    public override val name: String = "panel",
+    public override val trigger: String = ":::panel",
+    private val markdown: Boolean = false,
+    public override val interruptsParagraph: Boolean = false,
+    private val boundaryClosed: Boolean = false,
+    private val accepts: Boolean = true
+): MarkdownBlockExtension {
+    var starts = 0L
+    var finishes = 0L
+    val lines = ArrayList<String>()
+    public override fun start(input: MarkdownExtensionInput): MarkdownBlockStart? {
+        starts += 1L
+        assertEquals(MarkdownExtensionLocation.Block, input.location)
+        assertTrue(input.startsWith(trigger, 0L))
+        if (!accepts)
+            return None
+        val title = input.read(MarkdownRange(trigger.byteLength, input.lineEnd(0L))).trim()
+        return Some(
+            MarkdownBlockStart(
+                TestBlockParser(this, title, input.byteLength, boundaryClosed),
+                parseBody = markdown
+            )
+        )
+    }
+}
+
+private class TestBlockParser(
+    private val rule: TestBlockRule,
+    private val title: String,
+    private val begin: Long,
+    public override val closedAtBoundary: Boolean
+): MarkdownBlockParser {
+    private var end = begin
+    public override fun next(input: MarkdownExtensionInput): MarkdownBlockContinuation {
+        assertEquals(MarkdownExtensionLocation.Block, input.location)
+        rule.lines.add(input.source.text)
+        if (input.source.text.trim() == ":::")
+            return MarkdownBlockContinuation.Close
+        if (input.source.text == "STOP\n")
+            return MarkdownBlockContinuation.Stop
+        end += input.byteLength
+        return MarkdownBlockContinuation.Continue
+    }
+    public override fun finish(
+        input: MarkdownExtensionInput,
+        closed: Boolean
+    ): MarkdownBlockResult {
+        rule.finishes += 1L
+        assertTrue(input.byteLength >= end)
+        return MarkdownBlockResult(MarkdownRange(begin, end), [MarkdownAttribute("title", title)])
+    }
+}
+
+internal class PrefixBlockRule(
+    public override val name: String = "prefix",
+    public override val trigger: String = ":",
+    private val bodyStart: Long = 1L,
+    private val bodyEnd: Long? = None,
+    private val markdown: Boolean = true
+): MarkdownBlockExtension {
+    var starts = 0L
+    var finishes = 0L
+    public override fun start(input: MarkdownExtensionInput): MarkdownBlockStart? {
+        starts += 1L
+        return Some(
+            MarkdownBlockStart(
+                PrefixBlockParser(this, bodyStart, bodyEnd),
+                closed = true,
+                parseBody = markdown
+            )
+        )
+    }
+}
+
+private class PrefixBlockParser(
+    private val rule: PrefixBlockRule,
+    private val begin: Long,
+    private val end: Long?
+): MarkdownBlockParser {
+    public override fun next(input: MarkdownExtensionInput): MarkdownBlockContinuation =
+        fail(Some("A complete opening line must not receive the following line"))
+    public override fun finish(
+        input: MarkdownExtensionInput,
+        closed: Boolean
+    ): MarkdownBlockResult {
+        assertTrue(closed)
+        rule.finishes += 1L
+        return MarkdownBlockResult(MarkdownRange(begin, end ?: input.byteLength))
+    }
+}

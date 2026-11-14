@@ -1,0 +1,305 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownBlockExtensionTests {
+    @Test
+    fun multilineBlocksKeepBlankLinesMappingsAndOpaqueContent() {
+        val before = "# Before\r\n\r\n"
+        val token = ":::panel 你好\r\n*literal*\r\n\r\n![image](a)\r\n:::\r\n"
+        val source = before + token + "\r\nafter"
+        val rule = TestBlockRule()
+        val parsed =
+            MarkdownDocument.fromText(source).parse(MarkdownProfile(blockExtensions = [rule]))
+        val index = parsed.extensionIndex()
+        assertEquals(1L, index.spans.size)
+        val span = index.spans[0L]
+        assertEquals(
+            MarkdownRange(before.byteLength, before.byteLength + token.byteLength),
+            span.sourceRange
+        )
+        assertEquals(token, parsed.snapshot.read(span.sourceRange))
+        val value = mdExtensionValue(span.node)
+        assertEquals(":::panel 你好\n*literal*\n\n![image](a)\n:::\n", value.source.text)
+        assertEquals("*literal*\n\n![image](a)\n", value.body.text)
+        assertEquals(Some("你好"), value.attribute("title"))
+        assertEquals(0L, span.node.children.size)
+        assertTrue(span.closed)
+        assertEquals(MarkdownExtensionForm.Block, span.form)
+        assertEquals(4L, rule.lines.size)
+        assertEquals("\n", rule.lines[1L])
+        assertEquals(1L, rule.finishes)
+        assertEquals(0L, parsed.diagnostics.size)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun quoteAndListPrefixesStayOutsideTheLogicalBody() {
+        val prefix = "> - "
+        val token = ":::panel\r\n>   one\r\n>   \r\n>   two\r\n>   :::\r\n"
+        val source = prefix + token + "\r\noutside"
+        val parsed =
+            MarkdownDocument.fromText(source).parse(
+                MarkdownProfile(blockExtensions = [TestBlockRule()])
+            )
+        val span = parsed.extensionIndex().spans[0L]
+        val value = mdExtensionValue(span.node)
+        assertEquals(":::panel\none\n\ntwo\n:::\n", value.source.text)
+        assertEquals("one\n\ntwo\n", value.body.text)
+        assertEquals(
+            MarkdownRange(prefix.byteLength, prefix.byteLength + token.byteLength),
+            span.sourceRange
+        )
+        val at = value.body.sourceAt(MarkdownPosition(0L)).byteOffset
+        assertEquals("one", parsed.snapshot.read(MarkdownRange(at, at + 3L)))
+        assertEquals(2L, parsed.root.children.size)
+        assertTrue(span.closed)
+        val tabs =
+            MarkdownDocument.fromText("\t:::panel\n").parse(
+                MarkdownProfile(blockExtensions = [TestBlockRule()])
+            )
+        assertEquals("code", tabs.extensionIndex().spans[0L].name)
+        val partial =
+            MarkdownDocument.fromText("  :::panel\n\tbody\n  :::\n").parse(
+                MarkdownProfile(blockExtensions = [TestBlockRule()])
+            )
+        assertEquals("  body\n", mdExtensionValue(partial.root.children[0L]).body.text)
+    }
+
+    @Test
+    fun containerEndAndEofDoNotConsumeOutsideSource() {
+        for (prefix in ["> ", "- "]) {
+            val inside =
+                if (prefix == "> ")
+                    "> inside\n"
+                else
+                    "  inside\n"
+            val token = prefix + ":::panel\n" + inside
+            val rule = TestBlockRule()
+            val parsed =
+                MarkdownDocument.fromText(token + "outside\n").parse(
+                    MarkdownProfile(blockExtensions = [rule])
+                )
+            val span = parsed.extensionIndex().spans[0L]
+            assertFalse(span.closed)
+            assertEquals(token.byteLength, span.sourceRange.end)
+            assertEquals("inside\n", mdExtensionValue(span.node).body.text)
+            assertEquals(1L, rule.lines.size)
+            assertEquals(1L, parsed.diagnostics.size)
+            assertEquals(2L, parsed.root.children.size)
+        }
+        val source = ":::panel\n雪"
+        val parsed =
+            MarkdownDocument.fromText(source).parse(
+                MarkdownProfile(blockExtensions = [TestBlockRule()])
+            )
+        assertFalse(parsed.extensionIndex().spans[0L].closed)
+        assertEquals("雪\n", mdExtensionValue(parsed.root.children[0L]).body.text)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun stopReturnsTheCurrentLineAndUsesTheBoundaryPolicy() {
+        for (closed in [false, true]) {
+            val source = "  :::panel\n  body\nSTOP\nnext"
+            val parsed =
+                MarkdownDocument.fromText(source).parse(
+                    MarkdownProfile(blockExtensions = [TestBlockRule(boundaryClosed = closed)])
+                )
+            val span = parsed.extensionIndex().spans[0L]
+            assertEquals(closed, span.closed)
+            assertEquals("body\n", mdExtensionValue(span.node).body.text)
+            assertEquals("  :::panel\n  body\n".byteLength, span.sourceRange.end)
+            when (parsed.root.children[1L].content) {
+                case MarkdownContent.Paragraph(val text) -> assertEquals("STOP\nnext", text.text)
+                else -> fail(Some("Stopped line must be parsed again as ordinary Markdown"))
+            }
+            assertEquals(
+                if (closed)
+                    0L
+                else
+                    1L,
+                parsed.diagnostics.size
+            )
+        }
+    }
+
+    @Test
+    fun paragraphInterruptionIsExplicitIncludingLazyContainerLines() {
+        for (first in ["paragraph\n", "> paragraph\n", "- paragraph\n"]) {
+            val source = first + ":::panel\nbody\n:::\n"
+            val quiet = TestBlockRule()
+            val plain =
+                MarkdownDocument.fromText(source).parse(MarkdownProfile(blockExtensions = [quiet]))
+            assertEquals(0L, plain.extensionIndex().spans.size)
+            assertEquals(0L, quiet.starts)
+            val interrupting = TestBlockRule(interruptsParagraph = true)
+            val parsed =
+                MarkdownDocument.fromText(source).parse(
+                    MarkdownProfile(blockExtensions = [interrupting])
+                )
+            assertEquals(1L, parsed.extensionIndex().spans.size)
+            assertEquals(first.byteLength, parsed.extensionIndex().spans[0L].sourceRange.start)
+            assertTrue(parsed.extensionIndex().spans[0L].closed)
+        }
+    }
+
+    @Test
+    fun builtInBlocksWinAndMatchingOrderIsStable() {
+        val code = TestBlockRule(name = "trap-code", trigger = "```")
+        val quote = TestBlockRule(name = "trap-quote", trigger = ">")
+        val list = TestBlockRule(name = "trap-list", trigger = "-")
+        val html = TestBlockRule(name = "trap-html", trigger = "<")
+        val reject = TestBlockRule(name = "reject", accepts = false)
+        val chosen = TestBlockRule(name = "chosen")
+        val ignored = TestBlockRule(name = "ignored")
+        val profile =
+            MarkdownProfile(blockExtensions = [code, quote, list, html, reject, chosen, ignored])
+        val source =
+            "```text\n:::panel\n```\n\n<div>\n:::panel\n</div>\n\n> ordinary\n\n- ordinary\n\noutside\n\n    :::panel\n\n:::panel\nselected\n:::\n"
+        val index = MarkdownDocument.fromText(source).parse(profile).extensionIndex()
+        assertEquals(3L, index.spans.size)
+        assertEquals("chosen", index.spans[2L].name)
+        for (rule in [code, quote, list, html, ignored])
+            assertEquals(0L, rule.starts)
+        assertEquals(1L, reject.starts)
+        assertEquals(1L, chosen.starts)
+    }
+
+    @Test
+    fun markdownBodiesParticipateInReferencesAndNestedExtensionIndexes() {
+        val source =
+            "[outer]: a.png\n\n:::panel\n![inside][outer]\n\n[inner]: b.png\n:::\n\n![outside][inner]\n"
+        val profile = MarkdownProfile(blockExtensions = [TestBlockRule(markdown = true)])
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        val index = parsed.extensionIndex()
+        assertEquals(3L, index.spans.size)
+        assertEquals("panel", index.spans[0L].name)
+        assertSame(index.spans[0L].node.id, index.spans[1L].parent!!)
+        assertEquals("image", index.spans[1L].name)
+        for (at in 1L .. 2L)
+            when (index.spans[at].node.content) {
+                case MarkdownContent.Image(val target) -> assertEquals(
+                    if (at == 1L)
+                        "a.png"
+                    else
+                        "b.png",
+                    target.destination.text
+                )
+                else -> fail(Some("Expected resolved image in and after the custom block"))
+            }
+        assertEquals(2L, index.spans[0L].node.children.size)
+        assertEquals(source, parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun mappedMarkdownBodiesKeepSetextAndCodeSourceLines() {
+        val source =
+            "> :::panel\r\n> [asset]: a.png\r\n> 标题\r\n> ====\r\n> \r\n>     雪\r\n> :::\r\n"
+        val parsed =
+            MarkdownDocument.fromText(source).parse(
+                MarkdownProfile(blockExtensions = [TestBlockRule(markdown = true)])
+            )
+        val block = parsed.extensionIndex().spans[0L].node
+        assertEquals(3L, block.children.size)
+        val heading = block.children[1L]
+        when (heading.content) {
+            case MarkdownContent.Heading(val level, val setext, val text) -> {
+                assertEquals(1, level)
+                assertEquals(MarkdownHeadingStyle.Setext, setext)
+                assertEquals("标题", text.text)
+            }
+            else -> fail(Some("Expected a setext heading after the reference definition"))
+        }
+        assertEquals("标题\r\n> ====\r\n", parsed.snapshot.read(heading.range))
+        when (block.children[2L].content) {
+            case MarkdownContent.CodeBlock(_, _, val body) -> assertEquals("雪\n", body.text)
+            else -> fail(Some("Expected indented code in the mapped body"))
+        }
+    }
+
+    @Test
+    fun regionalBlockEditsKeepGlobalCoordinatesAndOutsideReferences() {
+        val document =
+            MarkdownDocument.fromText(
+                "before\n\n:::panel\n![x][id]\n:::\n\nafter\n\n[id]: remote.png\n"
+            )
+        val profile = MarkdownProfile(blockExtensions = [TestBlockRule(markdown = true)])
+        val parsed = document.parse(profile)
+        val original = parsed.extensionIndex().spans[0L]
+        val region = parsed.region(original.sourceRange)
+        val local = region.parse().extensionIndex()
+        assertEquals(2L, local.spans.size)
+        assertEquals(original.sourceRange, local.spans[0L].sourceRange)
+        val value = mdExtensionValue(local.spans[0L].node)
+        val start = value.body.sourceAt(MarkdownPosition(2L)).byteOffset
+        val change = document.replace(MarkdownRange(start, start + 1L), "雪")
+        val updated = region.after(change).parse().extensionIndex()
+        assertEquals(original.sourceRange.start, updated.spans[0L].sourceRange.start)
+        assertEquals(original.sourceRange.end + 2L, updated.spans[0L].sourceRange.end)
+        assertEquals("![雪][id]\n", mdExtensionValue(updated.spans[0L].node).body.text)
+        when (updated.spans[1L].node.content) {
+            case MarkdownContent.Image(val target) -> {
+                assertEquals("remote.png", target.destination.text)
+                assertEquals("remote.png", updated.snapshot.read(target.destinationRange!!))
+            }
+            else -> fail(Some("Expected a regional image using the outside definition"))
+        }
+        assertEquals("![x][id]\n", value.body.text)
+    }
+
+    @Test
+    fun nestedSingleLineBodiesUseFreshParsersAndAnExplicitQueue() {
+        val text = StringBuilder()
+        for (at in 0 ..< 512)
+            text.append(':')
+        text.append("tail")
+        val rule = PrefixBlockRule()
+        val parsed =
+            MarkdownDocument.fromText(text.toString()).parse(
+                MarkdownProfile(blockExtensions = [rule])
+            )
+        val spans = parsed.extensionIndex().spans
+        assertEquals(512L, spans.size)
+        assertEquals(512L, rule.starts)
+        assertEquals(512L, rule.finishes)
+        for (at in 1L ..< spans.size)
+            assertSame(spans[at - 1L].node.id, spans[at].parent!!)
+        when (spans[511L].node.children[0L].content) {
+            case MarkdownContent.Paragraph(val value) -> assertEquals("tail", value.text)
+            else -> fail(Some("Expected Markdown at the innermost body"))
+        }
+    }
+
+    @Test
+    fun invalidConfigurationAndBodyRangesFailWithoutPublishingSource() {
+        for (
+            rule in [
+                PrefixBlockRule(name = ""),
+                PrefixBlockRule(trigger = ""),
+                PrefixBlockRule(trigger = "a\nb")
+            ]
+        )
+            assertFailsWith<IllegalArgumentException> { MarkdownProfile(blockExtensions = [rule]) }
+        for (
+            rule in [
+                PrefixBlockRule(bodyStart = 0L),
+                PrefixBlockRule(bodyEnd = Some(100L)),
+                PrefixBlockRule(bodyStart = 2L, markdown = false)
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(":雪")
+            assertFailsWith<IllegalArgumentException> {
+                document.parse(MarkdownProfile(blockExtensions = [rule]))
+            }
+            assertEquals(":雪", document.toMarkdown())
+        }
+        val rule = TestBlockRule()
+        val same = MarkdownProfile(blockExtensions = [rule])
+        assertTrue(same == MarkdownProfile(blockExtensions = [rule]))
+        assertFalse(same == MarkdownProfile(blockExtensions = [TestBlockRule()]))
+        assertEquals(1L, same.blockExtensions.size)
+    }
+}

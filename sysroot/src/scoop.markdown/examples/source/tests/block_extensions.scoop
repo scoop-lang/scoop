@@ -1,0 +1,54 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownBlockExtensionExampleTests {
+    @Test
+    fun aHeadlessConsumerParsesAndEditsItsOwnMultilineBlock() {
+        val source = ":::panel\r\n# 标题\r\n\r\n![picture](a.png)\r\n:::\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse(MarkdownProfile(blockExtensions = [ConsumerPanelRule()]))
+        val spans = parsed.extensionIndex().spans
+        assertEquals(2L, spans.size)
+        assertEquals("consumer-panel", spans[0L].name)
+        assertEquals(MarkdownExtensionForm.Block, spans[0L].form)
+        assertTrue(spans[0L].closed)
+        assertSame(spans[0L].node.id, spans[1L].parent!!)
+        assertEquals(source, document.toMarkdown())
+        when (spans[0L].node.content) {
+            case MarkdownContent.Extension(val value) -> {
+                assertEquals("# 标题\n\n![picture](a.png)\n", value.body.text)
+                val position = value.body.sourceAt(MarkdownPosition(2L)).byteOffset
+                document.replace(MarkdownRange(position, position + "标题".byteLength), "修改")
+                assertEquals(
+                    ":::panel\r\n# 修改\r\n\r\n![picture](a.png)\r\n:::\r\n",
+                    document.toMarkdown()
+                )
+            }
+            else -> fail(Some("Expected a custom block with mapped body text"))
+        }
+    }
+}
+
+private class ConsumerPanelRule: MarkdownBlockExtension {
+    public override val name = "consumer-panel"
+    public override val trigger = ":::panel"
+    public override fun start(input: MarkdownExtensionInput): MarkdownBlockStart? =
+        Some(MarkdownBlockStart(ConsumerPanelParser(input.byteLength), parseBody = true))
+}
+
+private class ConsumerPanelParser(private val begin: Long): MarkdownBlockParser {
+    private var end = begin
+    public override fun next(input: MarkdownExtensionInput): MarkdownBlockContinuation {
+        if (input.source.text == ":::\n")
+            return MarkdownBlockContinuation.Close
+        end += input.byteLength
+        return MarkdownBlockContinuation.Continue
+    }
+    public override fun finish(
+        input: MarkdownExtensionInput,
+        closed: Boolean
+    ): MarkdownBlockResult = MarkdownBlockResult(MarkdownRange(begin, end))
+}

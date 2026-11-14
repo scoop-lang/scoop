@@ -1,6 +1,10 @@
 package scoop.markdown
 
-internal class MdExtensionBlock(
+internal enum MdExtensionBlock {
+    Builtin(MdBuiltinExtensionBlock), Custom(MdCustomExtensionBlock)
+}
+
+internal class MdBuiltinExtensionBlock(
     val name: String,
     val delimiter: String,
     val closer: String,
@@ -30,7 +34,12 @@ internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean 
         if (input.text(marker, line.end) == "---") {
             closeUnmatched()
             val node = add(MdKind.Extension, 0L)
-            node.extensionBlock = Some(MdExtensionBlock("front-matter", "---", "---", 0L))
+            node.extensionBlock =
+                Some(
+                    MdExtensionBlock.Builtin(
+                        MdBuiltinExtensionBlock("front-matter", "---", "---", 0L)
+                    )
+                )
             node.markers.add(input.range(marker, line.end))
             node.ready = Some(mdEmptyText(input.range(line.next, line.next).end))
             offset = line.end
@@ -62,8 +71,8 @@ internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean 
     val indentation = indent
     closeUnmatched()
     val node = add(MdKind.Extension, start)
-    val data = MdExtensionBlock("math", delimiter, closer, indentation)
-    node.extensionBlock = Some(data)
+    val data = MdBuiltinExtensionBlock("math", delimiter, closer, indentation)
+    node.extensionBlock = Some(MdExtensionBlock.Builtin(data))
     node.markers.add(input.range(start, bodyStart))
     when (closing) {
         case Some(val end) -> {
@@ -79,7 +88,16 @@ internal fun MdBlockParser.startExtensionBlock(container: MdBuildNode): Boolean 
 }
 
 internal fun MdBlockParser.continueExtensionBlock(node: MdBuildNode): Int {
-    val data = node.extensionBlock!!
+    return when (node.extensionBlock!!) {
+        case MdExtensionBlock.Builtin(val data) -> continueBuiltinExtensionBlock(node, data)
+        case MdExtensionBlock.Custom(val data) -> continueCustomBlock(node, data)
+    }
+}
+
+private fun MdBlockParser.continueBuiltinExtensionBlock(
+    node: MdBuildNode,
+    data: MdBuiltinExtensionBlock
+): Int {
     if (data.closed)
         return 1
     val text = input.text(nextNonspace, line.end)
@@ -107,7 +125,16 @@ internal fun MdBlockParser.continueExtensionBlock(node: MdBuildNode): Int {
 }
 
 internal fun MdBlockParser.finishExtensionBlock(node: MdBuildNode) {
-    val data = node.extensionBlock!!
+    when (node.extensionBlock!!) {
+        case MdExtensionBlock.Builtin(val data) -> finishBuiltinExtensionBlock(node, data)
+        case MdExtensionBlock.Custom(val data) -> finishCustomBlock(node, data)
+    }
+}
+
+private fun MdBlockParser.finishBuiltinExtensionBlock(
+    node: MdBuildNode,
+    data: MdBuiltinExtensionBlock
+) {
     node.extension =
         Some(
             MarkdownExtensionValue(

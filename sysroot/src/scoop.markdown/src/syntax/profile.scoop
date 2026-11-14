@@ -10,7 +10,8 @@ public class MarkdownProfile public constructor(
     public val frontMatter: Boolean = false,
     public val footnotes: Boolean = false,
     extensions: List<MarkdownExtension> = [],
-    nodeExtensions: List<MarkdownNodeExtension> = []
+    nodeExtensions: List<MarkdownNodeExtension> = [],
+    blockExtensions: List<MarkdownBlockExtension> = []
 ): Equals<MarkdownProfile> {
     internal val registered =
         Array<MdRegisteredExtension>(extensions.size) {
@@ -26,10 +27,32 @@ public class MarkdownProfile public constructor(
         Array<MarkdownNodeExtension>(registeredNodes.size) {
             index -> registeredNodes[index].handler
         }
+    internal val registeredBlocks =
+        Array<MdRegisteredBlockExtension>(blockExtensions.size) {
+            index -> MdRegisteredBlockExtension(blockExtensions[index])
+        }
+    public val blockExtensions: Array<MarkdownBlockExtension> get() =
+        Array<MarkdownBlockExtension>(registeredBlocks.size) {
+            index -> registeredBlocks[index].handler
+        }
 
     init {
         for (entry in registeredNodes)
             requireMarkdown(entry.name != "", "Markdown node extension name is empty")
+        for (entry in registeredBlocks) {
+            requireMarkdown(entry.name != "", "Markdown block extension name is empty")
+            requireMarkdown(entry.trigger.size > 0L, "Markdown block extension trigger is empty")
+            for (byte in entry.trigger)
+                requireMarkdown(
+                    byte != 10.toByte() && byte != 13.toByte(),
+                    "Markdown block extension trigger must stay on one line"
+                )
+            requireMarkdown(!math || entry.name != "math", "The math extension name is reserved")
+            requireMarkdown(
+                !frontMatter || entry.name != "front-matter",
+                "The front-matter extension name is reserved"
+            )
+        }
         for (index in 0L ..< registered.size) {
             val entry = registered[index]
             requireMarkdown(entry.name != "", "Markdown extension name is empty")
@@ -73,7 +96,9 @@ public class MarkdownProfile public constructor(
                 registered.size !=
                 other.registered.size ||
                 registeredNodes.size !=
-                other.registeredNodes.size
+                other.registeredNodes.size ||
+                registeredBlocks.size !=
+                other.registeredBlocks.size
         )
             return false
         for (index in 0L ..< registered.size)
@@ -81,6 +106,9 @@ public class MarkdownProfile public constructor(
                 return false
         for (index in 0L ..< registeredNodes.size)
             if (registeredNodes[index].handler !== other.registeredNodes[index].handler)
+                return false
+        for (index in 0L ..< registeredBlocks.size)
+            if (registeredBlocks[index].handler !== other.registeredBlocks[index].handler)
                 return false
         return true
     }

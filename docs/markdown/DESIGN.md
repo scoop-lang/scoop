@@ -236,7 +236,7 @@ doc.writeTo(writer)
 
 当前 `MarkdownExtensionLocation.Code` 是明确允许在代码正文匹配指令的语法上下文，不是第三种展示形态。例如 fence 内的 mdBook include 只有显式启用才识别，其他代码中的 `$` 或花括号保持普通代码。这样的子片段仍复用 Inline／Block 形态与来源映射；正文按代码或 Markdown 展开由处理上下文决定。
 
-标准节点路由通过 `MarkdownProfile.nodeExtensions` 与 `MarkdownNodeExtension.match` 实现，和已有语法扩展共用 `MarkdownExtensionSpan`／`MarkdownExtensionIndex`。图片与语言围栏提供普通规则工厂，仍消费原有节点和源码映射。自定义 Block 当前主要接管 CommonMark 之后已确定的整个段落；上述多行块接入点仍待实现，不能用单段落后处理代替。
+标准节点路由通过 `MarkdownProfile.nodeExtensions` 与 `MarkdownNodeExtension.match` 实现，和语法扩展共用 `MarkdownExtensionSpan`／`MarkdownExtensionIndex`。图片与语言围栏提供普通规则工厂，仍消费原有节点和源码映射。真正的多行块通过 `blockExtensions` 注册 `MarkdownBlockExtension`，由 parser 驱动 start、逐行 next 和 finish；每次出现独立持有 `MarkdownBlockParser` 状态，可选择原始正文或继续解析 Markdown 子节点，正式合同见[规范 §9.3](../specs/SCOOP-MARKDOWN-SPEC.md#93-逐行块语法接入)。既有 token 扩展的 Block 上下文仍表示整段落匹配，保留其依赖段落边界的语义。
 
 语法识别不要求内容处理或图像渲染。`MarkdownProcessor` 提供可选的展开，renderer 位于 UI／应用适配层；没有 renderer 的 headless 程序仍可查询图片、代码与自定义扩展，处理或生成原始 Markdown。不新增动态插件装载、脚本权限或编译器插件机制。
 

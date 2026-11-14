@@ -32,7 +32,7 @@ private fun mdParseSyntax(
 ): MdFrozenSyntax {
     val syntax = MdSyntax()
     try {
-        val root = MdBlockParser(source, syntax, profile).parse()
+        val root = mdParseBlocks(source, syntax, profile)
         val references = HashMap<String, MarkdownLinkTarget>()
         val footnotes = HashMap<String, MdBuildNode>()
         for (entry in outside)

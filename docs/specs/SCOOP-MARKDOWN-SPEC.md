@@ -220,7 +220,7 @@ replaceImage 支持折叠插入和非空替换，alternate、URI 和 title 按�
 
 ## 9. 扩展语法
 
-`MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关，以及有序的语法 `extensions` 和标准节点 `nodeExtensions` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注，并注册 Mermaid 围栏的节点匹配；mdBook 指令由调用方显式注册。配置及扩展的行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与两类注册对象及顺序，不以扩展名称猜测两个不同处理器等价。
+`MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关，以及有序的 token 语法 `extensions`、逐行块语法 `blockExtensions` 和标准节点 `nodeExtensions` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注，并注册 Mermaid 围栏的节点匹配；mdBook 指令由调用方显式注册。配置及扩展的行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与各类注册对象及顺序，不以扩展名称猜测两个不同处理器等价。
 
 `MarkdownExtension` 提供 name、非空 trigger、locations 和 parse。locations 分别选择 Inline、Block 和 Code；Block 只接管已经确定的整个段落输入，不能跨 CommonMark 容器边界，跨容器展开交给后续 processor。Code 明确启用代码块正文中的匹配，不影响 code span 或 HTML。Inline 在代码、普通转义和 HTML 词法之外匹配；相同 trigger 按 profile 注册顺序选择第一个成功结果，固定公式语法优先于自定义匹配。名称重复和保留的内置名称冲突是配置错误。
 
@@ -247,6 +247,20 @@ front matter 只在文件起始处（可在 UTF-8 BOM 之后）识别独占行�
 `MarkdownSyntax.extensionIndex()` 和 `MarkdownInlineContent.extensionIndex()` 显式构造不可变 `MarkdownExtensionIndex`，供完整文档、局部树和连续行内编辑共用。索引持有 snapshot 与源码顺序的 spans；`forNode(id)` 按节点身份查询，未收录或其他解析的身份返回 None，不能按相同 ordinal 混用。`at(position, bias)` 返回包含位置的最内层片段：起点仅归 After，终点仅归 Before。`intersect(range)` 按源码顺序返回与非空范围相交的片段，包括父子片段；空范围返回空数组。位置与范围必须是本 snapshot 的合法 UTF-8 边界，区域外合法查询返回空结果。
 
 索引构建不物化整个源字符串。查询在有序兄弟范围中二分并沿嵌套关系访问，工作量随匹配结果和嵌套深度增长，不扫描其余片段。源码变化后旧索引继续只属于旧快照；调用方在新的完整／局部语法上重新建立索引。未变化的相同解析结果可复用索引，活动源码编辑区域另随差量维护，不将旧片段直接用于修改新正文。构建索引不要求 renderer，也不执行内容展开。
+
+### 9.3 逐行块语法接入
+
+`MarkdownBlockExtension` 提供非空 name、同一行内的非空 trigger、interruptsParagraph 和 `start(input): MarkdownBlockStart?`。同名规则可以覆盖不同 trigger，但不能占用已启用的 math／front-matter 内置名称。parser 在决定新段落之前，按 blockExtensions 的顺序选择首个成功匹配。开始位置必须是当前容器内至多三列缩进后的非空白位置；代码和 HTML 块内部不触发。已存在的内置块语法优先，扩展不能抢占 Markdown 围栏或容器标记。interruptsParagraph 默认 false，包括引用／列表的 lazy continuation；启用后才可在没有空行时结束已有段落并开始扩展。
+
+start 的 input 为去掉容器前缀和开始缩进的当前逻辑行，location 为 Block，包含规范化为 LF 的行尾及原始来源映射。末行没有物理换行时也提供逻辑 LF，映射到文件末尾的空区间。它只读当前行，不预先读取后续容器内容。匹配返回每次出现独立的 `MarkdownBlockStart(parser, closed = false, parseBody = false)`；closed 为 true 时当前行已经构成完整块。parser 实例只属于这次解析和出现位置，不保存到 profile 作为可变共享状态。
+
+`MarkdownBlockParser.next(input)` 接收当前容器内的下一逻辑行，并返回 `MarkdownBlockContinuation`：Continue 收入当前行；Close 收入当前行并正常闭合；Stop 在当前行之前结束，把该行交还普通块解析。空行照常交给 next。引用前缀、列表缩进与制表位由 parser 处理，逐行输入最多再去掉开始时的缩进列数。容器结束和文件末尾不把外部内容交给扩展；此时以及 Stop 时的完整性由 closedAtBoundary 决定，默认 false，适用于需要显式闭合符号的语法。
+
+结束时调用 `MarkdownBlockParser.finish(input, closed): MarkdownBlockResult`。input 是此次已收入各逻辑行的完整映射文本；结果给出其中的 body 范围与 attributes。范围必须有效且处于 UTF-8 边界，不能读取或吞入未消费的下一行。parser 构造 location 为 Block 的 `MarkdownExtensionValue`，完整源文档保留在 snapshot，node.range 包含此次消费行的原始范围，source 与 body 保留去除容器前缀后的映射。未闭合块照常保留、生成范围诊断，并进入扩展索引。
+
+parseBody 默认 false，正文不解析强调、链接或其他 Markdown。启用时，正文按同一 profile 解析为该 Extension 的子节点，参加文档级引用定义解析、结构查询与扩展索引；body 必须严格小于完整 token，确保嵌套解析前进。内部块通过显式工作队列解析，不能依赖机器调用栈承受任意嵌套。其他容器和原始文件的坐标不能混用，区域解析同样保留全局来源位置。
+
+这一路径承载真正的跨行块语法。既有 `MarkdownExtensionLocations.blocks` 继续表示整段落 token 识别，适用于 mdBook／目录等依赖普通段落边界的指令，不等价于逐行块 parser。两种语法入口与标准节点匹配最终共用同一组 Extension／片段类型，展示仍只有 Inline 与 Block。无需 UI、资源访问、内容 processor 或 renderer 即可使用。
 
 ## 10. 脚注
 

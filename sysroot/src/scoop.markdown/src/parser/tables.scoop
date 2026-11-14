@@ -146,7 +146,7 @@ internal fun MdBlockParser.startTable(paragraph: MdBuildNode): Boolean {
     var table = paragraph
     if (bodyLines.size > 1L) {
         val headerRange = headerBody.range(0L, headerBody.size)
-        table = MdBuildNode(MdKind.Table, headerRange.start, input.range(line.next, line.next).end)
+        table = MdBuildNode(MdKind.Table, headerRange.start, input.sourceEnd(line.next))
         table.startLine = lineIndex - 1L
         table.endLine = lineIndex
         paragraph.ready = Some(body.slice(0L, headerLine.start))
@@ -162,10 +162,7 @@ internal fun MdBlockParser.startTable(paragraph: MdBuildNode): Boolean {
     mdAddTableRow(
         table,
         headerBody,
-        MarkdownRange(
-            table.start,
-            input.range(lines[lineIndex - 1L].next, lines[lineIndex - 1L].next).end
-        ),
+        MarkdownRange(table.start, input.sourceEnd(lines[lineIndex - 1L].next)),
         true,
         lineIndex - 1L
     )
@@ -201,7 +198,7 @@ internal fun MdBlockParser.continueTable(table: MdBuildNode): Int {
         false,
         lineIndex
     )
-    table.end = input.range(line.next, line.next).end
+    table.end = input.sourceEnd(line.next)
     table.endLine = lineIndex
     return 2
 }

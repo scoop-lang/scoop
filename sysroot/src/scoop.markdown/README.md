@@ -48,9 +48,13 @@ val profile = MarkdownProfile(
 val parsed = document.parse(profile)
 ```
 
-`mdBookDirectives()` 只识别 `{{#command arguments}}`，同时支持行内、独立段落和代码块正文。解析不会读取 include 文件或启动渲染工具。自定义实现提供 name、trigger、locations 和 parse，输入及返回范围均采用该映射片段中的 UTF-8 字节坐标；完整用法见[无 UI 扩展示例](examples/source/tests/extensions.scoop)。Block 注册只能接管一个完整段落，不能跨 CommonMark 容器；代码块正文必须单独启用，code span 和 HTML 保持自己的词法。未注册的内容仍按普通 Markdown 解析，配置变化应使用新的 profile／扩展实例。解析在调用线程执行；UI 的全文解析与局部结构命令可能并发使用同一 profile，语法扩展应使用不可变配置或同步自己的内部状态。资源处理器与渲染器仍由宿主管理调用。
+`mdBookDirectives()` 只识别 `{{#command arguments}}`，同时支持行内、独立段落和代码块正文。解析不会读取 include 文件或启动渲染工具。自定义实现提供 name、trigger、locations 和 parse，输入及返回范围均采用该映射片段中的 UTF-8 字节坐标；完整用法见[无 UI 扩展示例](examples/source/tests/extensions.scoop)。`MarkdownExtensionLocations.blocks` 只接管一个完整段落，不能跨 CommonMark 容器；代码块正文必须单独启用，code span 和 HTML 保持自己的词法。未注册的内容仍按普通 Markdown 解析，配置变化应使用新的 profile／扩展实例。解析在调用线程执行；UI 的全文解析与局部结构命令可能并发使用同一 profile，语法扩展应使用不可变配置或同步自己的内部状态。资源处理器与渲染器仍由宿主管理调用。
 
-标准节点通过 `MarkdownProfile.nodeExtensions` 匹配扩展，复用 Image／CodeBlock 的原始结构；新增语法继续使用 `extensions`。两种入口统一产生带有 snapshot、原节点、完整 sourceRange、name、Inline／Block form 与 closed 的 `MarkdownExtensionSpan`：
+真正的多行块通过 `MarkdownProfile.blockExtensions` 注册 `MarkdownBlockExtension`。其 start 在段落分界确定前接收当前逻辑行，返回独立的 `MarkdownBlockStart`；后续由 `MarkdownBlockParser.next` 选择 Continue、Close 或 Stop，finish 从完整映射输入返回 body 范围与属性。引用／列表前缀、缩进、制表位、换行和容器边界由 parser 管理，空行可以留在正文中。开始规则默认不打断现有段落，需要时显式开启 interruptsParagraph；已有 Markdown 围栏、HTML 和容器语法优先。
+
+`MarkdownBlockStart.parseBody` 选择正文保持原始内容，或继续解析成 Extension 的 Markdown 子节点，并参与同一文档的引用解析与扩展索引。EOF／容器结束及 Stop 使用 closedAtBoundary，默认表示未闭合；定界块的正常 Close 则收下结束行。完整源码仍由 snapshot 保存。规则配置可共享，每次匹配的 parser 状态独立。跨 Cone 的完整注册、解析与映射修改示例见 [block_extensions.scoop](examples/source/tests/block_extensions.scoop)。
+
+标准节点通过 `MarkdownProfile.nodeExtensions` 匹配扩展，复用 Image／CodeBlock 的原始结构；新增语法使用 token 规则 `extensions` 或逐行规则 `blockExtensions`。这些入口统一产生带有 snapshot、原节点、完整 sourceRange、name、Inline／Block form 与 closed 的 `MarkdownExtensionSpan`：
 
 ```scoop
 val profile = MarkdownProfile(nodeExtensions = [

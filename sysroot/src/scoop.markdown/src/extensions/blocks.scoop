@@ -1,0 +1,42 @@
+package scoop.markdown
+
+/** Starts a block in the current Markdown container, before paragraph boundaries are decided. */
+public interface MarkdownBlockExtension {
+    public val name: String
+    public val trigger: String
+    public val interruptsParagraph: Boolean get() = false
+    public fun start(input: MarkdownExtensionInput): MarkdownBlockStart?
+}
+
+/** Owns one occurrence's parser; a closed start consumes only its opening line. */
+public class MarkdownBlockStart public constructor(
+    public val parser: MarkdownBlockParser,
+    public val closed: Boolean = false,
+    public val parseBody: Boolean = false
+)
+
+/** Close consumes its line; Stop returns the line to ordinary block parsing. */
+public enum MarkdownBlockContinuation {
+    Continue, Close, Stop
+}
+
+/** Receives mapped logical lines after the Markdown container prefixes have been removed. */
+public interface MarkdownBlockParser {
+    public val closedAtBoundary: Boolean get() = false
+    public fun next(input: MarkdownExtensionInput): MarkdownBlockContinuation
+    public fun finish(input: MarkdownExtensionInput, closed: Boolean): MarkdownBlockResult
+}
+
+/** Body positions refer to the complete mapped input supplied to finish. */
+public class MarkdownBlockResult public constructor(
+    public val body: MarkdownRange,
+    attributes: List<MarkdownAttribute> = []
+) {
+    public val attributes: Array<MarkdownAttribute> = attributes.toArray()
+}
+
+internal class MdRegisteredBlockExtension(val handler: MarkdownBlockExtension) {
+    val name = handler.name
+    val trigger = handler.trigger.toByteArray()
+    val interruptsParagraph = handler.interruptsParagraph
+}
