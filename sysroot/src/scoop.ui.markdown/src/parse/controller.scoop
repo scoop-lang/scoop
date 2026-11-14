@@ -1,0 +1,156 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.window.ApplicationProxy
+
+/** Shared, owner-thread publication of background parsing for every view of one editor. */
+public class MarkdownParseController public constructor(
+    public val editor: MarkdownEditorState,
+    private val executor: CoroutineExecutor,
+    proxy: ApplicationProxy,
+    initialOptions: MarkdownParseOptions = MarkdownParseOptions()
+): Closeable {
+    private val storage = state<MarkdownParseState>(MarkdownParseState.Idle(editor.snapshot))
+    private var settings = initialOptions
+    private var started = false
+    private var closed = false
+    private var requested: MdParseRequest? = None
+    private val queue = MdParseQueue(proxy, { deliver() })
+    private val subscription =
+        editor.document.observe {
+            _ -> if (started)
+                request()
+            else
+                storage.value = MarkdownParseState.Idle(editor.snapshot)
+        }
+
+    public val options: MarkdownParseOptions get() {
+        storage.value
+        return settings
+    }
+    public val status: MarkdownParseState get() = storage.value
+    public val current: MarkdownParsedDocument? get() =
+        when (storage.value) {
+            case MarkdownParseState.Ready(val result) -> Some(result)
+            else -> None
+        }
+    public val latest: MarkdownParsedDocument? get() = mdPreviousParsed(storage.value)
+    public val isPending: Boolean get() =
+        when (storage.value) {
+            case MarkdownParseState.Pending(_, _) -> true
+            else -> false
+        }
+    public val isClosed: Boolean get() {
+        storage.value
+        return closed
+    }
+
+    public fun start() {
+        checkOpen()
+        if (started)
+            return
+        started = true
+        request()
+    }
+
+    /** Explicitly checks resource versions even when the source snapshot has not changed. */
+    public fun refresh() {
+        checkOpen()
+        started = true
+        request()
+    }
+
+    public fun configure(options: MarkdownParseOptions) {
+        checkOpen()
+        if (settings === options)
+            return
+        settings = options
+        if (started)
+            request()
+    }
+
+    private fun request() {
+        checkOpen()
+        val request = MdParseRequest(editor.snapshot, settings)
+        requested = Some(request)
+        storage.value =
+            MarkdownParseState.Pending(request.snapshot, mdPreviousParsed(storage.value))
+        if (!queue.submit(request))
+            return
+        try {
+            val task = executor.registerTask(None)
+            try {
+                task.dispatch(MdParseWork(queue, task))
+            } catch (failure: Throwable) {
+                task.complete()
+                throw failure
+            }
+        } catch (failure: Throwable) {
+            queue.startFailed()
+            storage.value =
+                MarkdownParseState.Failed(
+                    request.snapshot,
+                    failure,
+                    mdPreviousParsed(storage.value)
+                )
+        }
+    }
+
+    private fun deliver() {
+        storage.checkMutation()
+        if (closed)
+            return
+        if (editor.isClosed) {
+            close()
+            return
+        }
+        val completion = queue.receive() ?: return
+        val current = requested ?: return
+        if (
+            completion.request !==
+                current ||
+                editor.snapshot.revision !=
+                current.snapshot.revision ||
+                settings !==
+                current.options
+        )
+            return
+        storage.value =
+            when (completion.outcome) {
+                case MdParseOutcome.Success(val result) -> MarkdownParseState.Ready(result)
+                case MdParseOutcome.Failure(val failure) ->
+                MarkdownParseState.Failed(
+                    current.snapshot,
+                    failure,
+                    mdPreviousParsed(storage.value)
+                )
+            }
+    }
+
+    private fun checkOpen() {
+        storage.checkMutation()
+        if (closed)
+            throw IllegalStateException(Some("Markdown parse controller is closed"))
+        editor.snapshot
+    }
+
+    public override fun close() {
+        storage.checkMutation()
+        if (closed)
+            return
+        closed = true
+        subscription.close()
+        requested = None
+        queue.close()
+        storage.value = MarkdownParseState.Closed
+    }
+}
+
+private fun mdPreviousParsed(value: MarkdownParseState): MarkdownParsedDocument? =
+    when (value) {
+        case MarkdownParseState.Pending(_, val previous) -> previous
+        case MarkdownParseState.Ready(val result) -> Some(result)
+        case MarkdownParseState.Failed(_, _, val previous) -> previous
+        else -> None
+    }

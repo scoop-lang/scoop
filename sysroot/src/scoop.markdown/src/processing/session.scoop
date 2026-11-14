@@ -34,25 +34,36 @@ public class MarkdownProcessingSession public constructor(
         processing = true
         try {
             val access = MdProcessingResources(resolver, resources)
+            var sourceParsed: ParsedMarkdown? = None
             when (previous) {
                 case Some(val result) -> {
                     if (
-                        result.cacheable &&
-                            result.source.documentId ===
+                        result.source.documentId ===
                             snapshot.documentId &&
                             result.source.revision ==
                             snapshot.revision &&
-                            result.baseUri ==
-                            baseUri &&
                             result.expanded.profile ==
-                            profile &&
-                            access.unchanged(result.dependencies)
-                    )
-                        return result
+                            profile
+                    ) {
+                        if (
+                            result.cacheable &&
+                                result.baseUri ==
+                                baseUri &&
+                                access.unchanged(result.dependencies)
+                        )
+                            return result
+                        sourceParsed = Some(result.sourceParsed)
+                    }
                 }
                 case None -> Unit
             }
-            val result = mdProcess(snapshot, baseUri, profile, registered, access)
+            val result =
+                mdProcess(
+                    sourceParsed ?: parseMarkdown(snapshot, profile),
+                    baseUri,
+                    registered,
+                    access
+                )
             access.retireUnused()
             previous = Some(result)
             return result

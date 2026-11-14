@@ -112,11 +112,11 @@ footnotes 开关识别 `[^label]:` 定义与 `[^label]` 引用。定义是可包
 
 ## 11. 无 UI 内容处理与资源
 
-`MarkdownProcessingSession(resolver, processors)` 对不可变 snapshot 显式执行 `process(snapshot, baseUri, profile)`，返回 `ProcessedMarkdown`。它包含原始快照、派生解析、分段来源映射、实际资源依赖和诊断；原文、revision 与订阅不改变。默认输出仍写原始 snapshot；需要展开后的 Markdown 时显式写 `result.expanded.snapshot`。session 由调用方串行使用，处理器与 resolver 的配置在其生命周期内保持不变；配置改变时建立新 session。
+`MarkdownProcessingSession(resolver, processors)` 对不可变 snapshot 显式执行 `process(snapshot, baseUri, profile)`，返回 `ProcessedMarkdown`。它包含原始快照及其 sourceParsed、派生解析、分段来源映射、实际资源依赖和诊断；原文、revision 与订阅不改变。没有替换时 expanded 可以与 sourceParsed 共享结果，发生替换后的派生快照具有独立文档身份。默认输出仍写原始 snapshot；需要展开后的 Markdown 时显式写 `result.expanded.snapshot`。session 由调用方串行使用，处理器与 resolver 的配置在其生命周期内保持不变；配置改变时建立新 session。
 
 `MarkdownResourceResolver` 提供 resolve(baseUri, reference)、version(uri) 和 read(uri)。URI 是调用方定义的稳定逻辑地址，resolve 负责普通相对路径解析；version 返回不读取正文的可选版本，None 表示资源不存在。read 返回同一个资源快照的 UTF-8 文本与版本；读期间发生修改时，以实际返回的版本为准。解析器仍不调用 resolver。平台文件、网络与内存适配在应用侧实现，不增加文档库的平台依赖。
 
-session 先比较输入文档身份、revision、base URI、profile 和已用资源版本，命中直接返回既有结果，不重新读取正文或重放处理。单次处理对同一 URI 使用同一资源快照；版本改变才读新正文。缺失资源也记录依赖，因此资源出现后可重处理；普通读取或版本查询异常形成当前指令诊断，下次显式 process 可以重试。缓存只保留当前结果及相关资源，clearCache 明确释放引用。缓存不读取内容以复核摘要，不检查文件系统来源。
+session 先比较输入文档身份、revision、base URI、profile 和已用资源版本，命中直接返回既有结果，不重新读取正文或重放处理。源 snapshot／profile 没有变化时继续复用 sourceParsed，资源更新只重做相关读取及派生展开。单次处理对同一 URI 使用同一资源快照；版本改变才读新正文。缺失资源也记录依赖，因此资源出现后可重处理；普通读取或版本查询异常形成当前指令诊断，下次显式 process 可以重试。缓存只保留当前结果及相关资源，clearCache 明确释放引用。缓存不读取内容以复核摘要，不检查文件系统来源。
 
 `MarkdownProcessor` 以扩展 name 注册，接收节点、当前派生解析、base URI 和本次资源读取入口，返回 Keep、Replace(fragment) 或诊断。重复 name 是配置错误。资源 I/O 错误转为诊断；处理器自身的编程错误照常传播，不发布部分结果。未注册的处理器不影响语法解析或原文保存。
 

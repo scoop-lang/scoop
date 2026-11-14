@@ -20,3 +20,4 @@ kind = "library"
 
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
+"scoop:scoop.concurrent" = "0.1.0"

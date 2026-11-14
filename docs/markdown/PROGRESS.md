@@ -120,3 +120,13 @@
 本机完成相关 fmt、check --tests --release；文档库 15 个容器、74 项 Scoop 测试通过，包括原有标准语料和新增 15 项处理／缓存／来源测试。组合覆盖引用、列表、表格、脚注、缩进与围栏代码、前一个 include 改变后续词法上下文、中文／emoji／混合换行、生成及删除边界、30 层嵌套和允许的局部自包含。独立 consumer 6 个容器、8 项通过，真实文件适配验证读取、独立输出、原文件保留和更新；另一个 Cone 实现自定义 topic 处理器。consumer 的 release build、API 文档及 `MarkdownProcessingSession`／`MarkdownSourceMap` 查询均通过。
 
 规范、README、可运行文件示例和编程导航同步；没有编译器、runtime 或已安装系统库的修改。临时 API 站点、参考下载和本批日志验收后清理。该批完成内容处理层，UI 中的预览、公式／图像与三模式编辑继续实施。
+
+## B 共享后台解析验证
+
+已实现借用 editor、CoroutineExecutor 和 ApplicationProxy 的 MarkdownParseController，以 Idle／Pending／Ready／Failed／Closed 发布状态。工作线程串行解析不可变快照，同时只保留一项运行请求、一份最新待处理请求和一个待交付消息；owner 只接受当前文档与配置的结果。关闭取消订阅并释放排队引用，不在 UI 线程 join，也不关闭借用的 executor。异常可通过新输入或 refresh 恢复。
+
+展开结果新增 sourceParsed，供原文结构编辑直接使用；真实替换后的派生快照具有独立文档身份。资源更新复用未变化原文的解析，纯解析 refresh 复用相同快照与配置的结果，避免把上一份配置的成功结果误作失败重试结果。
+
+本机完成两库 fmt、check --tests --release；编辑器库 5 个容器、23 项 Scoop 测试通过，缓存完善后的后台解析定向复验通过，文档处理 3 个容器、15 项复验通过。新用例运行真实原生 Application 消息循环和独立工作线程，覆盖超过 1 MiB 的快照、连续 1,000 次输入的合并、旧结果退休、选区／保存不触发解析、配置失败及重试、资源刷新与原文解析复用、当前解析上的结构事务，以及非阻塞关闭和应用退出后交付被拒绝时的任务收尾。
+
+规范、README、编程导航与 API 文档同步，公开 MarkdownParseController 声明可查询。本批没有工具链或系统库修改；临时 API 站点和原始日志核对后清理。此批完成解析调度，原生富文本预览、双栏和 WYSIWYG 编辑继续实施。

@@ -84,7 +84,17 @@ internal class MdExpansionBuffer(
             root = markdownRopeJoin(root, piece.rope)
         return MdExpansionBuffer(
             source,
-            MarkdownSnapshot(snapshot.documentId, markdownAdd(snapshot.revision, 1L), root),
+            MarkdownSnapshot(
+                if (snapshot.documentId === source.documentId)
+                    MarkdownDocumentId()
+                else
+                    snapshot.documentId,
+                if (snapshot.documentId === source.documentId)
+                    0L
+                else
+                    markdownAdd(snapshot.revision, 1L),
+                root
+            ),
             output
         )
     }

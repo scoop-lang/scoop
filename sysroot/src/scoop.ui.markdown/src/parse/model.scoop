@@ -1,0 +1,122 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Resource access and processing are performed serially on the borrowed background executor. */
+public class MarkdownExpansionOptions public constructor(
+    public val baseUri: String,
+    public val resolver: MarkdownResourceResolver,
+    processors: List<MarkdownProcessor>
+) {
+    public val processors: Array<MarkdownProcessor> = processors.toArray()
+    init {
+        if (baseUri == "")
+            throw IllegalArgumentException(Some("Markdown expansion requires a base URI"))
+    }
+}
+
+public class MarkdownParseOptions public constructor(
+    public val profile: MarkdownProfile = MarkdownProfile.Editor,
+    public val expansion: MarkdownExpansionOptions? = None
+)
+
+/** Original syntax is used for edits; preview syntax may additionally contain generated content. */
+public class MarkdownParsedDocument internal constructor(
+    public val source: ParsedMarkdown,
+    public val processed: ProcessedMarkdown?,
+    public val options: MarkdownParseOptions
+) {
+    public val preview: ParsedMarkdown get() =
+        when (processed) {
+            case Some(val result) -> result.expanded
+            case None -> source
+        }
+    public val snapshot: MarkdownSnapshot get() = source.snapshot
+    public val diagnostics: Array<MarkdownDiagnostic> get() =
+        when (processed) {
+            case Some(val result) -> result.diagnostics
+            case None -> source.diagnostics
+        }
+}
+
+public enum MarkdownParseState {
+    Idle(MarkdownSnapshot),
+    Pending(MarkdownSnapshot, MarkdownParsedDocument?),
+    Ready(MarkdownParsedDocument),
+    Failed(MarkdownSnapshot, Throwable, MarkdownParsedDocument?),
+    Closed
+}
+
+internal class MdParseRequest(val snapshot: MarkdownSnapshot, val options: MarkdownParseOptions)
+
+internal enum MdParseOutcome {
+    Success(MarkdownParsedDocument),
+    Failure(Throwable)
+}
+
+internal class MdParseCompletion(val request: MdParseRequest, val outcome: MdParseOutcome)
+
+/** Owned by the serialized parse work, never accessed by UI reads or layout. */
+internal class MdParseEngine {
+    private var options: MarkdownParseOptions? = None
+    private var session: MarkdownProcessingSession? = None
+    private var previous: MarkdownParsedDocument? = None
+
+    fun parse(request: MdParseRequest): MarkdownParsedDocument {
+        val same =
+            when (options) {
+                case Some(val previous) -> previous === request.options
+                case None -> false
+            }
+        if (!same) {
+            options = Some(request.options)
+            session =
+                when (request.options.expansion) {
+                    case Some(val expansion) ->
+                    Some(MarkdownProcessingSession(expansion.resolver, expansion.processors))
+                    case None -> None
+                }
+        }
+        val result =
+            when (request.options.expansion) {
+                case Some(val expansion) -> {
+                    val result =
+                        session!!.process(
+                            request.snapshot,
+                            expansion.baseUri,
+                            request.options.profile
+                        )
+                    MarkdownParsedDocument(result.sourceParsed, Some(result), request.options)
+                }
+                case None -> {
+                    when (previous) {
+                        case Some(val value) -> {
+                            if (
+                                value.options ===
+                                    request.options &&
+                                    value.snapshot.documentId ===
+                                    request.snapshot.documentId &&
+                                    value.snapshot.revision ==
+                                    request.snapshot.revision
+                            )
+                                return value
+                        }
+                        case None -> Unit
+                    }
+                    MarkdownParsedDocument(
+                        parseMarkdown(request.snapshot, request.options.profile),
+                        None,
+                        request.options
+                    )
+                }
+            }
+        previous = Some(result)
+        return result
+    }
+
+    fun clear() {
+        options = None
+        session = None
+        previous = None
+    }
+}

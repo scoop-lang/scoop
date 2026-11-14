@@ -1,0 +1,135 @@
+package scoop.ui.markdown
+
+import scoop.platform.concurrent.Mutex
+import scoop.window.ApplicationProxy
+
+internal class MdParseNext(val request: MdParseRequest?, val dispose: Boolean)
+
+/** Mutex-protected admission and one replaceable completion; no UI objects are read here. */
+internal class MdParseQueue(private val proxy: ApplicationProxy, private val deliver: () -> Unit) {
+    private val lock = Mutex()
+    private val engine = MdParseEngine()
+    private var closed = false
+    private var running = false
+    private var pending: MdParseRequest? = None
+    private var wanted: MdParseRequest? = None
+    private var completed: MdParseCompletion? = None
+    private var posted = false
+
+    fun submit(request: MdParseRequest): Boolean =
+        lock.withLock {
+            if (closed)
+                throw IllegalStateException(Some("Markdown parse queue is closed"))
+            pending = Some(request)
+            wanted = Some(request)
+            completed = None
+            if (running)
+                return@withLock false
+            running = true
+            true
+        }
+
+    fun startFailed() {
+        lock.withLock {
+            pending = None
+            wanted = None
+            running = false
+        }
+    }
+
+    fun run() {
+        while (true) {
+            val next =
+                lock.withLock {
+                    val next = pending
+                    pending = None
+                    if (
+                        closed ||
+                            when (next) {
+                                case None -> true;
+                                else -> false
+                            }
+                    ) {
+                        running = false
+                        MdParseNext(None, closed)
+                    } else
+                        MdParseNext(next, false)
+                }
+            val request =
+                when (next.request) {
+                    case Some(val request) -> request
+                    case None -> {
+                        if (next.dispose) {
+                            engine.clear()
+                            lock.dispose()
+                        }
+                        return
+                    }
+                }
+            val outcome =
+                try {
+                    MdParseOutcome.Success(engine.parse(request))
+                } catch (failure: Throwable) {
+                    MdParseOutcome.Failure(failure)
+                }
+            val notify =
+                lock.withLock {
+                    val current = wanted
+                    if (
+                        closed ||
+                            when (current) {
+                                case Some(val current) -> current !== request
+                                case None -> true
+                            }
+                    )
+                        return@withLock false
+                    completed = Some(MdParseCompletion(request, outcome))
+                    if (posted)
+                        return@withLock false
+                    posted = true
+                    true
+                }
+            if (notify && !proxy.post { _ -> deliver() })
+                lock.withLock {
+                    posted = false
+                    completed = None
+                }
+        }
+    }
+
+    fun receive(): MdParseCompletion? =
+        lock.withLock {
+            posted = false
+            val result = completed
+            completed = None
+            result
+        }
+
+    fun close() {
+        val dispose =
+            lock.withLock {
+                closed = true
+                pending = None
+                wanted = None
+                completed = None
+                !running
+            }
+        if (dispose) {
+            engine.clear()
+            lock.dispose()
+        }
+    }
+}
+
+internal class MdParseWork(
+    private val queue: MdParseQueue,
+    private val task: ExecutorTask
+): CoroutineWork {
+    public override fun run() {
+        try {
+            queue.run()
+        } finally {
+            task.complete()
+        }
+    }
+}

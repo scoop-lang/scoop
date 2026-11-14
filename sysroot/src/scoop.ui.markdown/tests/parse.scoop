@@ -1,0 +1,247 @@
+package scoop.ui.markdown
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.text.repeat
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class MarkdownBackgroundParseTests {
+    @Test
+    fun nativeOwnerReceivesOnlyCurrentResultsWhileWorkersCoalesceAndClose() {
+        val application = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val syntax = MdGatedSyntax()
+        val probe = MdParseProbe(application.proxy(), workers, syntax)
+        try {
+            application.run(probe)
+            assertTrue(probe.finished)
+            // This completion is intentionally produced after the application mailbox has closed.
+            syntax.shutdown.release()
+            workers.requestShutdown()
+            workers.join()
+            assertTrue(workers.isTerminated)
+            assertTrue(probe.shutdownController!!.isPending)
+            assertTrue(
+                when (probe.shutdownController!!.current) {
+                    case None -> true;
+                    else -> false
+                }
+            )
+            probe.shutdownController!!.close()
+            assertFalse(probe.editor.isClosed)
+        } finally {
+            probe.close()
+            syntax.releaseAll()
+            workers.close()
+            syntax.close()
+        }
+    }
+}
+
+private class MdParseProbe(
+    val proxy: ApplicationProxy,
+    val workers: CoroutineExecutor,
+    val syntax: MdGatedSyntax
+): ApplicationHandler, Closeable {
+    val original = "@{initial}\n\n" + "Paragraph 中文.\n\n".repeat(64000L)
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val initialSnapshot = editor.snapshot
+    val options = MarkdownParseOptions(MarkdownProfile(extensions = [syntax]))
+    val parser = MarkdownParseController(editor, workers, proxy, options)
+    val resolver = MdWorkerResolver()
+    val failing = MdFailingSyntax()
+    var shutdownController: MarkdownParseController? = None
+    var previous: MarkdownParsedDocument? = None
+    var finished = false
+    private var step = 0
+    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(20L)
+
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case ApplicationEvent.Resumed -> {
+                assertTrue(
+                    when (parser.status) {
+                        case MarkdownParseState.Idle(_) -> true;
+                        else -> false
+                    }
+                )
+                assertEquals(0L, syntax.calls.load())
+                parser.start()
+                parser.start()
+                syntax.initial.waitUntilEntered()
+                assertTrue(parser.isPending)
+                editor.setSelection(mdCaret(editor.snapshot.byteLength))
+                for (index in 0L ..< 1000L)
+                    editor.replaceSelection("x", MarkdownEditKind.Typing)
+                editor.document.reset("@{latest}")
+                assertTrue(
+                    when (parser.current) {
+                        case None -> true;
+                        else -> false
+                    }
+                )
+                assertEquals(1L, syntax.calls.load())
+                syntax.initial.release()
+                step = 1
+                active.setControlFlow(ControlFlow.WaitUntil(deadline))
+            }
+            case ApplicationEvent.AboutToWait -> advance(active)
+            case ApplicationEvent.NewEvents(StartCause.Deadline) ->
+            throw IllegalStateException(
+                Some("Markdown parse test timed out at step " + step.toString())
+            )
+            else -> Unit
+        }
+    }
+
+    private fun advance(active: ActiveApplication) {
+        if (step == 1) {
+            val current = parser.current ?: return
+            assertEquals("@{latest}", current.snapshot.toMarkdown())
+            assertSame(editor.snapshot.documentId, current.snapshot.documentId)
+            assertEquals(editor.snapshot.revision, current.snapshot.revision)
+            assertEquals(2L, syntax.calls.load())
+            assertEquals(original.byteLength, initialSnapshot.byteLength)
+            assertEquals("@{initial}", initialSnapshot.read(initialSnapshot.lineRange(0L)))
+            assertSame(current.source, current.preview)
+            previous = Some(current)
+            editor.setSelection(mdCaret(1L))
+            editor.markSaved(editor.snapshot.revision)
+            assertSame(current, parser.current!!)
+            assertEquals(2L, syntax.calls.load())
+            parser.refresh()
+            step = 8
+            return
+        }
+        if (step == 8) {
+            val current = parser.current ?: return
+            assertSame(previous!!, current)
+            assertEquals(2L, syntax.calls.load())
+            parser.configure(MarkdownParseOptions(MarkdownProfile(extensions = [failing])))
+            step = 9
+            return
+        }
+        if (step == 9 || step == 10) {
+            when (parser.status) {
+                case MarkdownParseState.Failed(_, val failure, val latest) -> {
+                    assertSame(failing.failure, failure)
+                    assertSame(previous!!, latest!!)
+                    if (step == 9) {
+                        assertEquals(1L, failing.calls.load())
+                        parser.refresh()
+                        step = 10
+                    } else {
+                        assertEquals(2L, failing.calls.load())
+                        parser.configure(options)
+                        editor.document.reset("@{failure}")
+                        step = 2
+                    }
+                }
+                else -> Unit
+            }
+            return
+        }
+        if (step == 2) {
+            when (parser.status) {
+                case MarkdownParseState.Failed(val snapshot, val failure, val latest) -> {
+                    assertEquals(editor.snapshot.revision, snapshot.revision)
+                    assertSame(syntax.failure, failure)
+                    assertSame(previous!!, latest!!)
+                    assertTrue(
+                        when (parser.current) {
+                            case None -> true;
+                            else -> false
+                        }
+                    )
+                    editor.document.reset("Recovered")
+                    step = 3
+                }
+                else -> Unit
+            }
+            return
+        }
+        if (step == 3) {
+            val current = parser.current ?: return
+            assertEquals("Recovered", current.snapshot.toMarkdown())
+            editor.document.reset("{{#include part.md}}")
+            parser.configure(
+                MarkdownParseOptions(
+                    MarkdownProfile(extensions = [mdBookDirectives()]),
+                    Some(MarkdownExpansionOptions("book/root.md", resolver, [mdBookProcessor()]))
+                )
+            )
+            step = 4
+            return
+        }
+        if (step == 4) {
+            val current = parser.current ?: return
+            assertEquals("## Included 0", current.preview.snapshot.toMarkdown())
+            assertEquals("{{#include part.md}}", current.source.snapshot.toMarkdown())
+            assertSame(current.source, current.processed!!.sourceParsed)
+            assertSame(editor.snapshot.documentId, current.source.documentId)
+            assertFalse(current.preview.documentId === current.source.documentId)
+            assertEquals(1L, resolver.reads.load())
+            previous = Some(current)
+            resolver.revision.store(1L)
+            parser.refresh()
+            assertSame(current, parser.latest!!)
+            step = 5
+            return
+        }
+        if (step == 5) {
+            val current = parser.current ?: return
+            assertEquals("## Included 1", current.preview.snapshot.toMarkdown())
+            assertEquals(previous!!.snapshot.revision, current.snapshot.revision)
+            assertSame(previous!!.source, current.source)
+            assertEquals(2L, resolver.reads.load())
+            val node = current.source.root.children[0L]
+            editor.transform(current.source) { replaceSource(node.range, "## Changed") }
+            step = 6
+            return
+        }
+        if (step == 6) {
+            val current = parser.current ?: return
+            assertEquals("## Changed", current.preview.snapshot.toMarkdown())
+            assertSame(current.source, current.preview)
+            assertEquals(0L, current.processed!!.dependencies.size)
+            parser.configure(options)
+            editor.document.reset("@{closing}")
+            syntax.closing.waitUntilEntered()
+            parser.close()
+            parser.close()
+            assertTrue(parser.isClosed)
+            assertFalse(parser.isPending)
+            assertTrue(
+                when (parser.status) {
+                    case MarkdownParseState.Closed -> true;
+                    else -> false
+                }
+            )
+            assertFailsWith<IllegalStateException> { parser.refresh() }
+            // Returning from close before releasing this gate proves that it does not join parsing.
+            editor.document.reset("@{shutdown}")
+            syntax.closing.release()
+            val next = MarkdownParseController(editor, workers, proxy, options)
+            shutdownController = Some(next)
+            next.start()
+            syntax.shutdown.waitUntilEntered()
+            finished = true
+            step = 7
+            active.requestExit()
+        }
+    }
+
+    public override fun close() {
+        shutdownController?.close()
+        parser.close()
+        editor.close()
+    }
+}

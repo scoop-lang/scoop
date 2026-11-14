@@ -22,6 +22,8 @@ private class MarkdownProcessingTests {
                 MarkdownProfile(extensions = [mdBookDirectives()])
             )
         assertSame(before, result.source)
+        assertSame(before, result.sourceParsed.snapshot)
+        assertFalse(result.expanded.documentId === result.sourceParsed.documentId)
         assertSame(before, document.snapshot())
         assertEquals(0L, notifications.size)
         assertEquals(source, document.toMarkdown())

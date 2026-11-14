@@ -37,4 +37,12 @@ editor.close()
 
 [源码文件编辑示例](examples/source-editor/README.md) 可打开已有 Markdown，并通过 Cmd-S 保存。库不自行写文件；`onChanged` 只传递源码差量。
 
-本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合和高度索引；`tests-cones/source` 通过本机原生窗口验证大文档、系统拼音、滚动、几何与资源释放。完整三模式和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。
+`MarkdownParseController(editor, executor, application.proxy(), options)` 在后台取得同一编辑文档的结构结果，供多个视图共享。executor 使用已有 `CoroutineExecutor`，由应用持有；例如应用可使用 `scoop.concurrent.multiThreadExecutor`。构造不启动任务，在正常 owner 回调或 onMount 中调用 `start()`；源码修改随后自动合并请求。`MarkdownParseOptions` 选择 profile，以及可选的 `MarkdownExpansionOptions(baseUri, resolver, processors)`。
+
+`status` 是可追踪的 Idle／Pending／Ready／Failed／Closed 状态。`current` 只返回当前已完成的解析，`latest` 还可保留正在更新前的显示结果；过期结果不能用于结构编辑。`MarkdownParsedDocument.source` 是原文解析，`preview` 是可选的展开解析，`processed` 保留依赖、诊断与来源映射。结构修改使用 `source`，生成内容保持只读。
+
+控制器最多执行一项后台解析、保存一份最新待处理快照和一个待交付结果；通过 ApplicationProxy 在 owner 发布，选区及保存状态变化不重解析。资源通知后显式 `refresh()`，配置变化用 `configure()`。扩展和 resolver 的方法由工作线程串行调用，其实现不应读写 UI State。处理错误进入对应请求的 Failed，下一次输入或刷新仍可恢复。
+
+关闭控制器会停止订阅及后续交付，不等待运行中的解析，不关闭借用的 editor／document／executor。应用在自己的退出收尾中 shutdown／join 线程池；投递被拒绝或应用关闭后丢弃消息，后台任务仍会完成登记和清理。`tests/parse.scoop` 在真实工作线程与原生应用消息循环中验证合并、过期结果、错误恢复、资源刷新和这条关闭路径。
+
+本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引和后台解析；`tests-cones/source` 通过本机原生窗口验证大文档、系统拼音、滚动、几何与资源释放。完整三模式和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。

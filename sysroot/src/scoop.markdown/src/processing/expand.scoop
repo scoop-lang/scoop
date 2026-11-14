@@ -21,23 +21,24 @@ internal class MdProcessedToken(
 }
 
 internal fun mdProcess(
-    source: MarkdownSnapshot,
+    sourceParsed: ParsedMarkdown,
     baseUri: String,
-    profile: MarkdownProfile,
     processors: HashMap<String, MarkdownProcessor>,
     resources: MdProcessingResources
 ): ProcessedMarkdown {
+    val source = sourceParsed.snapshot
+    val profile = sourceParsed.profile
     val range = MarkdownRange(0L, source.byteLength)
     val context = MdExpansionContext(baseUri, [MdResourceSelection(baseUri, [range])])
     var buffer =
         MdExpansionBuffer(
             source,
-            MarkdownSnapshot(MarkdownDocumentId(), 0L, source.root),
+            source,
             [MdExpansionPiece(source.root, MarkdownSourceOrigin.Original(range), context)]
         )
+    var parsed = sourceParsed
     var handled: Array<MdProcessedToken> = []
     while (true) {
-        val parsed = parseMarkdown(buffer.snapshot, profile)
         val edits = ArrayList<MdExpansionEdit>()
         val records = ArrayList<MdProcessedToken>()
         val diagnostics = ArrayList<MarkdownDiagnostic>()
@@ -141,6 +142,7 @@ internal fun mdProcess(
             return ProcessedMarkdown(
                 source,
                 baseUri,
+                sourceParsed,
                 parsed,
                 buffer.map,
                 resources.dependencies(),
@@ -150,6 +152,7 @@ internal fun mdProcess(
         val changes = edits.toArray()
         handled = mdShiftProcessed(records.toArray(), changes)
         buffer = buffer.apply(changes)
+        parsed = parseMarkdown(buffer.snapshot, profile)
     }
 }
 

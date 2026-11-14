@@ -1,0 +1,114 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+import scoop.time.Duration
+
+internal class MdParseGate: Closeable {
+    private val lock = Mutex()
+    private val condition = ConditionVariable(lock)
+    private var entered = false
+    private var allowed = false
+
+    fun enter() {
+        lock.withLock {
+            entered = true
+            condition.broadcast()
+            while (!allowed)
+                if (!condition.await(Duration.seconds(10L)))
+                    throw IllegalStateException(Some("Timed out waiting for a Markdown test gate"))
+        }
+    }
+    fun waitUntilEntered() {
+        lock.withLock {
+            while (!entered)
+                assertTrue(condition.await(Duration.seconds(10L)))
+        }
+    }
+    fun release() {
+        lock.withLock {
+            allowed = true
+            condition.broadcast()
+        }
+    }
+    public override fun close() {
+        condition.dispose()
+        lock.dispose()
+    }
+}
+
+internal class MdGatedSyntax: MarkdownExtension, Closeable {
+    private val owner = currentThreadId()
+    val initial = MdParseGate()
+    val closing = MdParseGate()
+    val shutdown = MdParseGate()
+    val calls = AtomicLong(0L)
+    val failure = IllegalStateException(Some("Markdown syntax test failure"))
+    public override val name: String = "gated"
+    public override val trigger: String = "@{"
+    public override val locations: MarkdownExtensionLocations = MarkdownExtensionLocations()
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        assertNotEquals(owner, currentThreadId())
+        calls.fetchAdd(1L)
+        val end = input.find("}", offset + 2L) ?: return None
+        val range = MarkdownRange(offset + 2L, end)
+        when (input.read(range)) {
+            case "initial" -> initial.enter()
+            case "closing" -> closing.enter()
+            case "shutdown" -> shutdown.enter()
+            case "failure" -> throw failure
+            else -> Unit
+        }
+        return Some(MarkdownExtensionMatch(end + 1L, range))
+    }
+    fun releaseAll() {
+        initial.release()
+        closing.release()
+        shutdown.release()
+    }
+    public override fun close() {
+        initial.close()
+        closing.close()
+        shutdown.close()
+    }
+}
+
+internal class MdWorkerResolver: MarkdownResourceResolver {
+    private val owner = currentThreadId()
+    val revision = AtomicLong(0L)
+    val reads = AtomicLong(0L)
+    public override fun resolve(baseUri: String, reference: String): String {
+        assertNotEquals(owner, currentThreadId())
+        assertEquals("book/root.md", baseUri)
+        return "book/" + reference
+    }
+    public override fun version(uri: String): String? {
+        assertNotEquals(owner, currentThreadId())
+        return Some(revision.load().toString())
+    }
+    public override fun read(uri: String): MarkdownResourceData {
+        assertNotEquals(owner, currentThreadId())
+        reads.fetchAdd(1L)
+        val value = revision.load()
+        return MarkdownResourceData("## Included " + value.toString(), value.toString())
+    }
+}
+
+internal class MdFailingSyntax: MarkdownExtension {
+    val calls = AtomicLong(0L)
+    val failure = IllegalStateException(Some("Markdown configuration failure"))
+    public override val name: String = "failing"
+    public override val trigger: String = "@"
+    public override val locations: MarkdownExtensionLocations = MarkdownExtensionLocations()
+    public override fun parse(
+        input: MarkdownExtensionInput,
+        offset: Long
+    ): MarkdownExtensionMatch? {
+        calls.fetchAdd(1L)
+        throw failure
+    }
+}

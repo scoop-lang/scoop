@@ -58,7 +58,7 @@ val result = session.process(document.snapshot(), sourceUri, profile)
 val expanded = result.expanded.snapshot
 ```
 
-`document` 与 `result.source` 保持原始 Markdown；写 `expanded` 才输出展开内容。`mdBookProcessor()` 支持整文件、单行、一基闭区间、开放起止行号和成对 anchor，嵌套路径相对各自文件解析。每次替换后在实际上下文重新解析，因此包括表格续行、引用／列表和代码围栏的变化。缺失、越界、未配对 anchor 和循环包含保留指令并给出诊断；未知命令同样保留，未实现的 rustdoc_include 不被当作普通 include。
+`document` 与 `result.source` 保持原始 Markdown；`sourceParsed` 保留这份原文的解析及节点身份，写 `expanded` 才输出展开内容。没有实际替换时，两份解析复用同一个结果；发生替换的派生快照具有独立文档身份。`mdBookProcessor()` 支持整文件、单行、一基闭区间、开放起止行号和成对 anchor，嵌套路径相对各自文件解析。每次替换后在实际上下文重新解析，因此包括表格续行、引用／列表和代码围栏的变化。缺失、越界、未配对 anchor 和循环包含保留指令并给出诊断；未知命令同样保留，未实现的 rustdoc_include 不被当作普通 include。
 
 `MarkdownProcessor` 也可以由另一个 Cone 实现，返回 Keep、Replace 或诊断。片段的 Text 是已经合成的 Markdown；Resource 引用本次读取资源的原样范围，并允许继续处理其嵌套指令。`sourceMap.origins(range)` 给出派生范围的来源：Original 精确对应原文，Generated 定位到原指令，能确定资源字节时额外保留 URI 和范围。补出的容器前缀与合成文字不声称精确资源偏移；`sourceAt`／`expandedAt` 用偏向处理替换和删除边界。所有结果诊断范围属于 `expanded` 快照。
 

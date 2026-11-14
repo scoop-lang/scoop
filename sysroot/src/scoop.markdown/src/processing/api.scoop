@@ -69,6 +69,7 @@ public class MarkdownProcessingInput internal constructor(
 public class ProcessedMarkdown internal constructor(
     public val source: MarkdownSnapshot,
     public val baseUri: String,
+    public val sourceParsed: ParsedMarkdown,
     public val expanded: ParsedMarkdown,
     public val sourceMap: MarkdownSourceMap,
     public val dependencies: Array<MarkdownResourceDependency>,

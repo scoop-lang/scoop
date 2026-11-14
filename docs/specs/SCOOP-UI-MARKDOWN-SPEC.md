@@ -45,3 +45,15 @@ undo／redo 各通过一次源码事务恢复整个历史项，并恢复相应�
 `hitTest` 返回 `MarkdownSourceHit`，保留源码位置和视觉 affinity；`caret` 可接受该 affinity。源码偏向决定文本事务中的位置归属，视觉 affinity 决定折行／双向边界的排版侧，不能互相代替。翻页按视口距离定位，包含同一个长物理行内的多个排版行；标量位置落在 grapheme 内部时，绘制使用边界几何，普通前后删除消费完整 grapheme。
 
 `onChanged` 只传递文档差量。宿主销毁时退休输入连接，结束自己持有的组合，释放订阅、输入区域、滚动和布局；不销毁借用文档。卸载后的输入通知不再更新窗口或请求布局。当前视图先实现源码输入，富文本与双栏继续按完整设计接入同一个编辑状态。
+
+## 6. 共享后台解析
+
+`MarkdownParseController(editor, executor, proxy, options)` 借用同一个编辑状态、现有 `CoroutineExecutor` 和 `ApplicationProxy`。构造不启动后台任务，start／refresh 在正常 owner 回调中请求处理；start 幂等，refresh 还用于文件通知后的资源版本检查。options 包含固定 Markdown profile 和可选的资源展开配置；configure 使用新配置后请求新结果。调用方在应用层管理 executor 的 shutdown／join，不在组件卸载时等待全文解析结束。
+
+控制器以 Idle、Pending、Ready、Failed、Closed 表达完整状态。Pending 和 Failed 可携带上一份成功结果用于显示；只有 Ready 的 current 才能用于当前结构编辑。`MarkdownParsedDocument` 同时提供原始源码解析与可选的展开结果；生成内容展示使用派生解析，结构命令使用原始解析及其节点身份。无展开时只解析一次；有展开时复用处理器已经取得的原始解析，不为同一快照重复完整解析。
+
+文档差量先完成源码和历史发布，再将不可变 snapshot 入队，不在 UI 线程物化全文或调用 parser。控制器最多运行一项解析，并保留一份最新待处理请求；已有任务正常完成后直接继续最新请求，连续输入不会排队所有旧快照。profile、扩展和 resolver 被后台串行调用，调用方的实现须遵守这个线程归属，不读取 UI State。
+
+工作线程只处理值和只读快照。完成结果通过至多一个待执行消息回到 owner；后来的结果替换尚未交付的旧结果。发布时核对请求身份、文档 revision 与配置，过期成功或失败均不覆盖当前状态。选区、caret 和保存状态变化不触发解析。解析／扩展异常成为对应请求的 Failed；后续输入或 refresh 可继续处理。
+
+close 幂等地取消订阅、清空排队请求及交付引用，结束自己的控制器生命周期；运行中的普通解析允许完成，其 executor task 无论结果是否可交付都完成登记。关闭后迟到消息不访问编辑状态或图形资源；消息队列拒绝／丢弃交付不影响后台任务收尾。close 不关闭借用的 document、editor 或 executor，不依赖下一次可见帧释放后台资源。
