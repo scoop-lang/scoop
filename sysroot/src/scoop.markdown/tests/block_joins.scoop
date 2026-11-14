@@ -6,6 +6,19 @@ import scoop.text.*
 @Test
 private class MarkdownBlockJoinTests {
     @Test
+    fun joiningAHeadingIntoAParagraphKeepsTheNextParagraphSeparate() {
+        val source = "first\n\n# second\nthird\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val edit = parsed.joinBlocks(parsed.root.children[0L].id, parsed.root.children[1L].id)
+        edit.applyTo(document)
+        assertEquals("firstsecond\n\nthird\n", document.toMarkdown())
+        assertEquals(2L, document.parse().root.children.size)
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
     fun `multiline inline HTML cannot turn an ATX join into unrelated blocks`() {
         val original = "# Heading\n\ntext <span\nclass=x>body</span>\n"
         val document = MarkdownDocument.fromText(original)

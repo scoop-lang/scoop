@@ -33,17 +33,25 @@ public fun MarkdownSyntax.joinBlocks(
         else -> Unit
     }
     val surround = mdBlockSurround(snapshot, leftNode, units.size == 0L)
+    val prefix = mdListPrefix(this, leftNode)
     val body =
         mdBlockBody(
             mdInlineUnitsWrite(units, false),
             leftNode.range.start + surround.leading.byteLength,
             mdLocalNewline(snapshot, leftNode.range.start),
-            mdListPrefix(this, leftNode)
+            prefix
         )
     val builder = MarkdownTransformBuilder(this)
     builder.replace(
         MarkdownRange(leftNode.range.start, rightNode.range.end),
-        surround.leading + body.source + surround.trailing + mdNodeEnding(snapshot, rightNode)
+        surround.leading +
+            body.source +
+            surround.trailing +
+            mdNodeEnding(snapshot, rightNode) +
+            when (leftNode.content) {
+                case MarkdownContent.Paragraph(_) -> mdBlockFollowingGap(this, rightNode, prefix)
+                else -> ""
+            }
     )
     return mdBlockPrepared(builder, body, units, left.text.byteLength)
 }

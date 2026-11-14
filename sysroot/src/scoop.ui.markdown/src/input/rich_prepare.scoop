@@ -50,8 +50,16 @@ private class MdRichPreparation(
     private var current = mdInputVersion(previous, 0L)
     private var selected = owner.editor.selection
     private var restored = false
-    private var boundary = batch.operations.size != 1L || previous.markedRange != None
-    fun apply(builder: MarkdownInlineEditBuilder) {
+    private var boundary =
+        batch.operations.size !=
+            1L ||
+            previous.markedRange !=
+            None ||
+            when (owner.content.inlineContent) {
+                case Some(val inline) -> !mdRichContains(inline, owner.editor.selection)
+                case None -> true
+            }
+    fun apply(builder: MarkdownTextEditBuilder) {
         for (operation in batch.operations) {
             if (restored && mdExplicitInputRange(operation))
                 throw IllegalStateException(
@@ -86,7 +94,15 @@ private class MdRichPreparation(
                             selected.cursorBias
                         )
                         current =
-                            mdRichReplacedInput(prior, applied, builder.content, range, text, true)
+                            mdRichReplacedInput(
+                                prior,
+                                applied,
+                                builder.content,
+                                range,
+                                text,
+                                true,
+                                builder.insertedRange
+                            )
                         selected = mdRichSelection(builder.content, current.selection)
                     }
                 }
@@ -98,7 +114,15 @@ private class MdRichPreparation(
                         selected.cursorBias
                     )
                     current =
-                        mdRichReplacedInput(prior, applied, builder.content, range, text, false)
+                        mdRichReplacedInput(
+                            prior,
+                            applied,
+                            builder.content,
+                            range,
+                            text,
+                            false,
+                            builder.insertedRange
+                        )
                     selected = mdRichSelection(builder.content, current.selection)
                     baseline = None
                     baselineContent = None
@@ -112,14 +136,19 @@ private class MdRichPreparation(
                 case DeleteSurrounding(val left, val right) -> {
                     val range = prior.selection.range
                     builder.replaceText(MarkdownRange(range.end, range.end + right), "")
+                    val length = builder.content.text.byteLength
                     builder.replaceText(MarkdownRange(range.start - left, range.start), "")
+                    val shift = builder.content.text.byteLength - length
                     boundary = true
                     baseline = None
                     baselineContent = None
                     current =
                         TextInputState(
                             builder.content.text.text,
-                            applied.selection,
+                            Utf8Selection(
+                                prior.selection.anchor + shift,
+                                prior.selection.cursor + shift
+                            ),
                             caretRect = applied.caretRect,
                             revision = applied.revision
                         )
@@ -130,7 +159,7 @@ private class MdRichPreparation(
         builder.select(MarkdownRange(current.selection.range.start, current.selection.range.end))
     }
 
-    fun finish(edit: MarkdownInlineEdit): MdInputPublication {
+    fun finish(edit: MarkdownTextEdit): MdInputPublication {
         val committed = baselineContent ?: edit.after
         val history =
             if (!owner.editor.isComposing && baseline == None)
@@ -154,7 +183,7 @@ private class MdRichPreparation(
             }
         return MdInputPublication(
             next,
-            mdRichDelta(edit.change),
+            edit.change,
             history,
             historyBefore,
             if (baseline == None)

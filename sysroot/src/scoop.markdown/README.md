@@ -123,7 +123,20 @@ val caret = prepared.selection.end
 
 `replaceText` 将输入作为普通字面文字，处理实体、Unicode、格式边界、链接与代码 span；`setStyle(range, MarkdownInlineStyle.Strong, true)` 对非空显示范围设置格式，false 则移除相应样式。两者只准备 `MarkdownInlineEdit`，不修改文档；其中的 change 是包含正反差量的准备结果，edit 是普通源码事务，selection 是修改后的源码选区。after 是更新后的可编辑内容，after.text 提供局部显示映射；可直接继续准备后续输入。`applyTo` 要求文档仍处于准备所用的同一快照，发布后 document.snapshot() 与 after.snapshot 相同。
 
-单个文字叶片内的修改保留外围标记；会改变定界匹配的边界或跨行内结构的操作，重建当前行内块需要的结构。代码按既有围栏与换行规则写入，隐式引用链接改名保留原目标；不齐表格会补齐编辑位置所需的单元格。局部解析不会执行 include 或重新解析整篇文档。`inline.edit { replaceText(...); setStyle(...); select(...) }` 按当前显示坐标顺序准备操作，最终只发布一次源码事务。builder.content 提供中间内容，restore(savedContent) 恢复同一区域的确切源码，可用于组合取消。nodes 提供当前局部树的顶层行内节点，范围属于本内容的 snapshot；它们的 id 不能交给另一份完整解析。sourceRange 保留必要容器上下文，表格包括整行，确保补缺单元格也能恢复。外部修改后须从新解析重新取得内容。此接口范围是一个段落、标题或单元格；跨块选区替换与显式格式化继续按设计实施。Mermaid 仍保留普通代码围栏，图像生成由 UI／应用适配承担。
+单个文字叶片内的修改保留外围标记；会改变定界匹配的边界或跨行内结构的操作，重建当前行内块需要的结构。代码按既有围栏与换行规则写入，隐式引用链接改名保留原目标；不齐表格会补齐编辑位置所需的单元格。局部解析不会执行 include 或重新解析整篇文档。`inline.edit { replaceText(...); setStyle(...); select(...) }` 按当前显示坐标顺序准备操作，最终只发布一次源码事务。builder.content 提供中间内容，restore(savedContent) 恢复同一区域的确切源码，可用于组合取消。nodes 提供当前局部树的顶层行内节点，范围属于本内容的 snapshot；它们的 id 不能交给另一份完整解析。sourceRange 保留必要容器上下文，表格包括整行，确保补缺单元格也能恢复。外部修改后须从新解析重新取得内容。此接口范围是一个段落、标题或单元格。Mermaid 仍保留普通代码围栏，图像生成由 UI／应用适配承担。
+
+跨块选择使用 `syntax.textContent(sourceRange)` 取得 `MarkdownTextContent`。它按源码顺序连接当前区域的显示文字，块间为换行，同一表格行的单元格之间为 Tab；格式标记不进入文字，代码与扩展块作为 U+FFFC 原子，内部仍从源码编辑。普通单段选区自动复用行内快速路径。返回的 `MarkdownTextEdit` 包含准备好的 change、结果源码 selection、实际插入文字的显示 insertedRange，以及可继续编辑的 after：
+
+```scoop
+val document = MarkdownDocument.fromText("ab\n\ncd\n\nTail\n")
+val content = document.parse().textContent(MarkdownRange(1L, 5L))
+// The source selection spans b, the paragraph boundary, and c.
+val prepared = content.replaceText(MarkdownRange(1L, 4L), "中文")
+prepared.applyTo(document)
+// Source: a中文d\n\nTail\n; displayed text: a中文d\nTail.
+```
+
+同容器段落和同级列表项可合并，保留起始块种类和两端未选文字；不同容器及表格网格保留结构，只清除选中内容。整篇选择可替换整个文档。`content.edit { ... }` 按当前显示坐标准备多个操作，`restore(savedContent)` 恢复同一上下文原来的完整块和确切字节。`inlineContent` 在可用时提供当前插入边界的行内结构，`region` 提供局部树；它们不意味着整个 surrounding text 只有一段。详细边界见[多块编辑规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#85-多块显示内容的编辑)。显式全文格式化继续按设计实施。
 
 完整的独立消费示例见 [examples/source](examples/source/src/main.scoop)，其 Cone 通过 path 依赖当前源码库，不要求先重新打包 sysroot。未安装本库时，应用在 `Cone.toml` 中为 `scoop:scoop.markdown` 指定实际源码目录。
 

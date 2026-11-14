@@ -1,0 +1,105 @@
+package scoop.markdown
+
+import scoop.text.*
+
+private fun mdTextJoinable(node: MarkdownNode): Boolean =
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> true
+        case MarkdownContent.Heading(_, _, _) -> true
+        else -> false
+    }
+
+internal fun mdTextCanJoin(
+    syntax: MarkdownSyntax,
+    first: MarkdownNode,
+    last: MarkdownNode
+): Boolean {
+    if (!mdTextJoinable(first) || !mdTextJoinable(last))
+        return false
+    val left = syntax.parent(first.id) ?: return false
+    val right = syntax.parent(last.id) ?: return false
+    if (left === right)
+        return true
+    return when ((left.content, right.content)) {
+        case(MarkdownContent.ListItem(_), MarkdownContent.ListItem(_)) ->
+        syntax.parent(left.id)!! === syntax.parent(right.id)!!
+        else -> false
+    }
+}
+
+internal fun mdTextJoin(
+    content: MarkdownTextContent,
+    blocks: MdBlockText,
+    first: MdTextBlock,
+    last: MdTextBlock,
+    start: Long,
+    end: Long,
+    text: String,
+    bias: MarkdownBias
+): MarkdownTextEdit {
+    val syntax = blocks.syntax
+    val left = first.inline!!
+    val right = last.inline!!
+    val inserted =
+        mdTextInsertionUnit(
+            left,
+            start,
+            text,
+            if (start == left.text.byteLength)
+                bias
+            else
+                MarkdownBias.After
+        )
+    val combined = ArrayList<MdInlineUnit>()
+    for (unit in mdInlineUnitsSlice(left.model.units, 0L, start))
+        combined.add(unit)
+    if (inserted.text != "")
+        combined.add(inserted)
+    for (unit in mdInlineUnitsSlice(right.model.units, end, right.text.byteLength))
+        combined.add(unit)
+    var units = combined.toArray()
+    when (first.node.content) {
+        case MarkdownContent.Heading(_, MarkdownHeadingStyle.Atx, _) -> units =
+            mdBlockAtxUnits(units)
+        else -> Unit
+    }
+    val surround = mdBlockSurround(syntax.snapshot, first.node, units.size == 0L)
+    val prefix = mdListPrefix(syntax, first.node)
+    val body =
+        mdBlockBody(
+            mdInlineUnitsWrite(units, false),
+            first.node.range.start + surround.leading.byteLength,
+            mdLocalNewline(syntax.snapshot, first.node.range.start),
+            prefix
+        )
+    val builder = MarkdownTransformBuilder(syntax)
+    builder.replace(
+        MarkdownRange(first.node.range.start, last.node.range.end),
+        surround.leading +
+            body.source +
+            surround.trailing +
+            mdNodeEnding(syntax.snapshot, last.node) +
+            when (first.node.content) {
+                case MarkdownContent.Paragraph(_) -> mdBlockFollowingGap(syntax, last.node, prefix)
+                else -> ""
+            }
+    )
+    val firstParent = syntax.parent(first.node.id)!!
+    val lastParent = syntax.parent(last.node.id)!!
+    if (firstParent !== lastParent) {
+        for (line in lastParent.itemSource!!.lines) {
+            if (line.lineStart < last.node.range.end || mdItemBlankLine(syntax.snapshot, line))
+                continue
+            builder.mdListPrefixEdit(
+                MarkdownRange(line.lineStart, line.end),
+                prefix + " ".repeat(line.remainder)
+            )
+        }
+    }
+    val change = syntax.snapshot.prepare(builder.edit())
+    val node = mdInlineReparse(syntax.profile, units, body.input)
+    val mapped = mdInlineModel(change.after, node, body.input.emptyPosition).text
+    val insertion =
+        mdInlineSelection(mapped, MarkdownRange(start, start + inserted.text.byteLength))
+    return mdTextChanged(content, syntax, change, insertion)
+}

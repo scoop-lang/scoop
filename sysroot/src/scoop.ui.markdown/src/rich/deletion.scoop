@@ -15,11 +15,25 @@ internal fun mdRichDelete(host: MarkdownRichHost, deletion: TextDeletion): Markd
         val source = host.editor.selection.cursor
         val index = mdRichRow(host, source, host.editor.selection.cursorBias)
         val column = mdRichColumn(host, index, source)
+        val model =
+            mdPresentationModel(host.preview.presentation, host.preview.controller.current)!!
+        val presentation = host.preview.presentation
         val inside =
             mdWithRichRow<MarkdownRange?>(host, index) {
-                _, resource ->
+                row, resource ->
                 val cell = resource.cells[column]
-                val at = cell.text.display.toDisplay(TextPosition(selected.start)).byteOffset
+                val local =
+                    mdFrameCellPosition(
+                        model,
+                        presentation,
+                        index,
+                        column,
+                        source,
+                        host.editor.selection.cursorBias
+                    )
+                val offset =
+                    row.cells[column].textAt(local.byteOffset, host.editor.selection.cursorBias)
+                val at = cell.text.display.toDisplay(TextPosition(offset)).byteOffset
                 val boundaries = cell.text.layout.graphemeBoundaries
                 val next = mdSourceBoundaryIndex(boundaries, at)
                 if (next > 0L && next < boundaries.size && boundaries[next] != at) {
@@ -27,7 +41,30 @@ internal fun mdRichDelete(host: MarkdownRichHost, deletion: TextDeletion): Markd
                         cell.text.display.toDocument(TextPosition(boundaries[next - 1L])).byteOffset
                     val last =
                         cell.text.display.toDocument(TextPosition(boundaries[next])).byteOffset
-                    Some(MarkdownRange(first, last))
+                    val firstSource =
+                        mdFrameCellOriginal(
+                            model,
+                            presentation,
+                            index,
+                            column,
+                            row.cells[column].sourceAt(first),
+                            MarkdownBias.After
+                        )
+                    val lastSource =
+                        mdFrameCellOriginal(
+                            model,
+                            presentation,
+                            index,
+                            column,
+                            row.cells[column].sourceAt(last),
+                            MarkdownBias.Before
+                        )
+                    Some(
+                        MarkdownRange(
+                            input.content.text.textAt(firstSource, MarkdownBias.After).byteOffset,
+                            input.content.text.textAt(lastSource, MarkdownBias.Before).byteOffset
+                        )
+                    )
                 } else
                     None
             }

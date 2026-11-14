@@ -4,6 +4,16 @@ import scoop.markdown.*
 
 internal class MdRichTarget(val content: MarkdownInlineContent, val row: Long, val cell: Long)
 
+internal fun mdRichContains(content: MarkdownTextContent, selection: MarkdownSelection): Boolean {
+    when (content.region) {
+        case Some(_) -> return selection.range.start >=
+            content.sourceRange.start &&
+            selection.range.end <=
+            content.sourceRange.end
+        case None -> return mdRichContains(content.inlineContent!!, selection)
+    }
+}
+
 internal fun mdRichContains(content: MarkdownInlineContent, selection: MarkdownSelection): Boolean {
     val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
     val last =

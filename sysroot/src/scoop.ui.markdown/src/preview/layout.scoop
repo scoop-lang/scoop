@@ -45,7 +45,7 @@ private class MdPreviewMeasurePass(
         if (
             anchor.request !=
                 host.scroll.requestRevision ||
-                (presentation?.content?.snapshot?.revision ?: model.snapshot.revision) !=
+                (presentation?.changes?.snapshot?.revision ?: model.snapshot.revision) !=
                 host.editor.snapshot.revision
         )
             return None
@@ -116,7 +116,7 @@ private class MdPreviewMeasurePass(
         if (
             value.request !=
                 host.scroll.requestRevision ||
-                (presentation?.content?.snapshot?.revision ?: model.snapshot.revision) !=
+                (presentation?.changes?.snapshot?.revision ?: model.snapshot.revision) !=
                 host.editor.snapshot.revision
         )
             return None
@@ -208,12 +208,13 @@ internal fun mdMeasurePreview(
     val pass = MdPreviewMeasurePass(host, context, active, presentation, width)
     try {
         when (presentation) {
-            case Some(val local) -> pass.row(local.rowIndex)
+            case Some(val local) -> if (local.rowIndex >= 0L)
+                pass.row(local.rowIndex)
             case None -> Unit
         }
         when (host.revealTarget) {
             case Some(val position) -> if (
-                (presentation?.content?.snapshot?.revision ?: active.snapshot.revision) ==
+                (presentation?.changes?.snapshot?.revision ?: active.snapshot.revision) ==
                     host.editor.snapshot.revision
             )
                 pass.row(mdFrameRowAt(active, presentation, position))
@@ -272,7 +273,7 @@ internal fun mdMeasurePreview(
             LayoutMetrics(size),
             model,
             if (
-                (presentation?.content?.snapshot?.revision ?: active.snapshot.revision) ==
+                (presentation?.changes?.snapshot?.revision ?: active.snapshot.revision) ==
                     host.editor.snapshot.revision
             )
                 Some(host.editor.selection)

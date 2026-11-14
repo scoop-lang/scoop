@@ -39,7 +39,9 @@ editor.close()
 
 `MarkdownSourceInput(editor, contextBytes = 4096L)` 为窗口输入准备局部 `TextInputState`，包含完整选区与左右上下文。`sourceRange` 明确片段与全文的坐标关系；`apply(TextInputBatch)` 先校验整个批次，再通过一次源码事务发布。它不持有窗口，宿主仍负责原生 connection／origin 和已接受帧的 caret 几何。`synchronize()` 返回 true 时必须退休旧连接后再发布新映射；组合期间不移动片段边界。
 
-`MarkdownRichInput(editor, parsed.inlineContent(nodeId))` 将当前段落、标题或单元格的显示文字接入同一原生输入协议；初始选区使用该内容的源码映射。连续输入直接使用更新后的 content，不等待后台全文解析；字体、图片与窗口仍由视图管理。原生范围使用显示文字的 UTF-8 坐标，隐藏标记不占位置，图片／扩展按 U+FFFC 计入。源码和富文本共享唯一组合与历史，取消组合恢复原始定界符、实体、表格补缺等确切源码。外部修改后通过 `synchronize(newContent)` 提供新解析的区域；返回 true 时退休旧原生连接。
+`MarkdownRichInput(editor, parsed.inlineContent(nodeId))` 将当前段落、标题或单元格的显示文字接入同一原生输入协议；跨块选区可传入 `parsed.textContent(editor.selection.range)`。公开 content 为 `MarkdownTextContent`，通过 content.inlineContent 读取可用的单段结构。连续单段输入直接使用更新后的内容，不等待后台全文解析；多块上下文按源码顺序提供真实文字、块分隔和原子对象。输入的 UTF-8 范围逐项校验，整批只发布一次准备好的源码快照，结构保留后的光标与组合区使用文档库返回的新映射。
+
+源码和富文本共享唯一组合与历史，跨块取消可恢复原始定界符、实体、已删除的块及定向选区。剪切、粘贴、删除及整篇选择后的键入使用相同路径。跨块替换结束原来的键入分组；组合结束并收敛到单段后，宿主退休旧连接并切回单段输入。外部修改后通过 `synchronize(newContent)` 提供新解析的区域；返回 true 时退休旧原生连接。字体、图片与窗口仍由视图管理。
 
 `isComposing`／`markedRange` 反映即时预编辑；重复 Preedit 不逐条入历史，Commit／ClearPreedit／`acceptComposition()` 接受为一个历史项。空 Preedit 或 `cancelComposition()` 恢复组合前正文与选区。选择、格式命令和外部 Edit 接受组合；Reset 放弃它。undo／redo 遇到活动组合先取消，下一次再操作历史。保存前调用 `acceptComposition()` 再固定文档 snapshot。
 

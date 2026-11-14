@@ -1,0 +1,95 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownTextTransactionTests {
+    @Test
+    fun aSequentialBatchUsesUpdatedDisplayCoordinatesAndPublishesOnce() {
+        val source = "ab\n\ncd\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val before = mdWholeText(document)
+        val edit =
+            before.edit {
+                replaceText(MarkdownRange(1L, 4L), "中")
+                assertEquals("a中d\nTail", content.text.text)
+                replaceText(MarkdownRange(6L, 10L), "End")
+                select(MarkdownRange(1L, 4L))
+            }
+        assertEquals(source, document.toMarkdown())
+        assertEquals(before.snapshot.revision + 1L, edit.after.snapshot.revision)
+        val observed = ArrayList<MarkdownChange>()
+        val subscription = document.observe { change -> observed.add(change) }
+        edit.applyTo(document)
+        assertEquals(1L, observed.size)
+        assertTrue(observed[0L] === edit.change)
+        assertEquals("a中d\nEnd", edit.after.text.text)
+        assertEquals(MarkdownRange(1L, 4L), edit.selection)
+        subscription.close()
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun restoringAnEarlierMultiBlockContextRecoversExactBytesAndMappedSelection() {
+        val source = "__A &amp; B__\r\n\r\n> *中文*\r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val before = mdWholeText(document)
+        val changed = before.replaceText(MarkdownRange(0L, "A & B\n中文".byteLength), "nihao")
+        changed.applyTo(document)
+        val restored =
+            changed.after.edit { restore(before, MarkdownRange(0L, "A & B\n中文".byteLength)) }
+        restored.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+        assertEquals(before.text.text, restored.after.text.text)
+        assertEquals(before.sourceRange, restored.after.sourceRange)
+        assertEquals(MarkdownPosition(2L), MarkdownPosition(restored.selection.start))
+    }
+
+    @Test
+    fun foreignRestoreAndStalePreparedBranchesFailWithoutPublication() {
+        val document = MarkdownDocument.fromText("ab\n\ncd\n")
+        val before = mdWholeText(document)
+        val other = mdWholeText(document)
+        assertFailsWith<IllegalArgumentException> { before.edit { restore(other) } }
+        val edit = before.replaceText(MarkdownRange(1L, 4L), "X")
+        document.replace(MarkdownRange(0L, 0L), "!")
+        assertFailsWith<IllegalStateException> { edit.applyTo(document) }
+        assertEquals("!ab\n\ncd\n", document.toMarkdown())
+        assertEquals("ab\n\ncd\n", before.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun anEmptyLocalHeadingKeepsItsInsertionPointAfterTheMarker() {
+        val source = "Far\n\n# one\n\nmiddle\n\nlast\n\nEnd\n"
+        val document = MarkdownDocument.fromText(source)
+        val full = document.parse()
+        val local = full.region(full.root.children[2L].range).parse()
+        val before = local.textContent(local.root.range)
+        val edit = before.edit { replaceText(MarkdownRange(0L, content.text.byteLength), "") }
+        edit.applyTo(document)
+        assertEquals("Far\n\n# \n\nEnd\n", document.toMarkdown())
+        assertEquals("", edit.after.text.text)
+        assertEquals(MarkdownPosition(7L), edit.after.text.sourceAt(MarkdownPosition(0L)))
+        assertEquals(MarkdownRange(7L, 7L), edit.selection)
+        val restored = edit.after.edit { restore(before) }
+        restored.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun invalidUtf8AndAtomicBoundariesAbortTheEntirePreparedBatch() {
+        val document = MarkdownDocument.fromText("中😀\n\n```\nx\n```\n\nTail\n")
+        val before = mdWholeText(document)
+        assertFailsWith<IllegalArgumentException> {
+            before.edit {
+                replaceText(MarkdownRange(0L, 0L), "!")
+                replaceText(MarkdownRange(2L, 3L), "bad")
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            before.replaceText(MarkdownRange(9L, 10L), "bad")
+        }
+        assertEquals(before.snapshot.toMarkdown(), document.toMarkdown())
+        assertEquals(0L, document.revision)
+    }
+}

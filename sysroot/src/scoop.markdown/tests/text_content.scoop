@@ -1,0 +1,217 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+internal fun mdWholeText(document: MarkdownDocument): MarkdownTextContent =
+    document.parse(MarkdownProfile.Editor).textContent(
+        MarkdownRange(0L, document.snapshot().byteLength)
+    )
+
+internal fun mdTextUndo(document: MarkdownDocument, change: MarkdownChange, source: String) {
+    document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+    assertEquals(source, document.toMarkdown())
+}
+
+@Test
+private class MarkdownTextContentTests {
+    @Test
+    fun sourceOrderIncludesMappedBlockAndTableSeparatorsAndAtomicBlocks() {
+        val source =
+            "# Intro\n\nA **bold** [link][ref]\n\n> quote\n\n| H | K |\n| --- | --- |\n| a | b |\n\n```scoop\nval x = 1\n```\n\n[ref]: /doc\n"
+        val document = MarkdownDocument.fromText(source)
+        val content = mdWholeText(document)
+        assertEquals("Intro\nA bold link\nquote\nH\tK\na\tb\n\u{fffc}\n\u{fffc}", content.text.text)
+        assertEquals(source, document.toMarkdown())
+        val offset = "Intro\nA bold ".byteLength
+        val at = content.text.sourceAt(MarkdownPosition(offset))
+        assertEquals(MarkdownPosition(offset), content.text.textAt(at))
+        assertEquals(MarkdownRange(0L, source.byteLength), content.sourceRange)
+    }
+
+    @Test
+    fun replacingAcrossFormattedParagraphsKeepsBothUnselectedTails() {
+        val source = "# Keep\n\nab **CD**\n\nmiddle\n\n_ef_ gh\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            mdWholeText(document).replaceText(
+                MarkdownRange("Keep\nab ".byteLength, "Keep\nab CD\nmiddle\ne".byteLength),
+                "中文"
+            )
+        assertEquals("Keep\nab 中文f gh\nTail", edit.after.text.text)
+        assertEquals(
+            "中文",
+            mdBytesText(edit.after.text.bytes, edit.insertedRange.start, edit.insertedRange.end)
+        )
+        assertEquals(source, document.toMarkdown())
+        val change = edit.applyTo(document)
+        assertTrue(document.toMarkdown().startsWith("# Keep\n\n"))
+        val joined = document.parse().root.children[1L]
+        var strong = ""
+        for (node in joined.children)
+            when (node.content) {
+                case MarkdownContent.Strong -> when (node.children[0L].content) {
+                    case MarkdownContent.Text(val value) -> strong = value.text
+                    else -> fail(Some("Inserted strong text must remain semantic text"))
+                }
+                else -> Unit
+            }
+        assertEquals("中文", strong)
+        assertTrue(document.toMarkdown().endsWith("\n\nTail\n"))
+        assertTrue(edit.after.snapshot === document.snapshot())
+        mdTextUndo(document, change, source)
+    }
+
+    @Test
+    fun deletingTheGapJoinsParagraphsAndKeepsHiddenStylesBalanced() {
+        val source = "**ab**\n\n_cd_\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit = mdWholeText(document).replaceText(MarkdownRange(2L, 3L), "")
+        assertEquals("abcd\nTail", edit.after.text.text)
+        edit.applyTo(document)
+        val parsed = document.parse()
+        assertEquals(2L, parsed.root.children.size)
+        val children = parsed.root.children[0L].children
+        assertEquals(2L, children.size)
+        when ((children[0L].content, children[1L].content)) {
+            case(MarkdownContent.Strong, MarkdownContent.Emphasis) -> Unit
+            else -> fail(Some("Both unselected inline styles must survive"))
+        }
+    }
+
+    @Test
+    fun joiningIntoAParagraphPreservesTheFollowingUnselectedBlockBoundary() {
+        val source = "ab\n\n## cd\nfollowing\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit = mdWholeText(document).replaceText(MarkdownRange(1L, 4L), "")
+        edit.applyTo(document)
+        assertEquals("ad\n\nfollowing\n", document.toMarkdown())
+        val parsed = document.parse()
+        assertEquals(2L, parsed.root.children.size)
+        assertEquals("following", parsed.inlineContent(parsed.root.children[1L].id).text.text)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun theFirstHeadingKindSurvivesAPartialCrossBlockReplacement() {
+        val source = "### ab\n\n*cd*\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit = mdWholeText(document).replaceText(MarkdownRange(1L, 4L), "X")
+        edit.applyTo(document)
+        assertEquals("aXd\nTail", edit.after.text.text)
+        when (document.parse().root.children[0L].content) {
+            case MarkdownContent.Heading(val level, _, _) -> assertEquals(3, level)
+            else -> fail(Some("The start heading must survive"))
+        }
+    }
+
+    @Test
+    fun sameLevelTaskItemsJoinWithoutCopyingTheLastCheckbox() {
+        val source = "- [x] ab\n- [ ] cd\n- tail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit = mdWholeText(document).replaceText(MarkdownRange(1L, 4L), "X")
+        edit.applyTo(document)
+        assertEquals("- [x] aXd\n- tail\n", document.toMarkdown())
+        assertEquals(2L, document.parse().root.children[0L].children.size)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun joiningOrderedItemsReindentsTheirUnselectedContinuation() {
+        val source = "9. ab\n10. cd\n\n    retained\n\n11. tail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit = mdWholeText(document).replaceText(MarkdownRange(1L, 4L), "X")
+        edit.applyTo(document)
+        assertEquals("9. aXd\n\n   retained\n\n11. tail\n", document.toMarkdown())
+        val list = document.parse().root.children[0L]
+        assertEquals(2L, list.children.size)
+        assertEquals(2L, list.children[0L].children.size)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun differentContainersKeepTheirUnselectedChildrenAndSourcePrefixes() {
+        val source = "before\n\n> ab\n>\n> - cd\n>   - child\n>\n> tail\n\noutside\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            mdWholeText(document).replaceText(
+                MarkdownRange("before\na".byteLength, "before\nab\nc".byteLength),
+                "X"
+            )
+        edit.applyTo(document)
+        assertEquals("before\naX\nd\nchild\ntail\noutside", edit.after.text.text)
+        assertTrue(document.toMarkdown().contains(">   - child\n>\n> tail"))
+        assertTrue(document.toMarkdown().startsWith("before\n\n> aX"))
+        assertTrue(document.toMarkdown().endsWith("\n\noutside\n"))
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun anEntireMiddleTableAndCodeBlockAreRemovedAsBlocks() {
+        val source = "ab\n\n| h |\n| --- |\n| x |\n\n```\ncode\n```\n\ncd\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val content = mdWholeText(document)
+        val end = "ab\nh\nx\n\u{fffc}\nc".byteLength
+        val edit = content.replaceText(MarkdownRange(1L, end), "X")
+        edit.applyTo(document)
+        assertEquals("aXd\n\nTail\n", document.toMarkdown())
+        assertEquals("aXd\nTail", edit.after.text.text)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun wholeDocumentReplacementRemovesContainersDefinitionsAndOuterWhitespace() {
+        val source = "\r\n# Title\r\n\r\n> - [x] old\r\n\r\n[ref]: /target\r\n\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val content = mdWholeText(document)
+        val edit =
+            content.replaceText(MarkdownRange(0L, content.text.byteLength), "## literal &\n中文")
+        edit.applyTo(document)
+        assertEquals("## literal &\n中文", edit.after.text.text)
+        val parsed = document.parse()
+        assertEquals(1L, parsed.root.children.size)
+        when (parsed.root.children[0L].content) {
+            case MarkdownContent.Paragraph(_) -> Unit
+            else -> fail(Some("Plain replacement must not execute Markdown syntax"))
+        }
+        assertEquals(
+            MarkdownPosition(document.snapshot().byteLength),
+            MarkdownPosition(edit.selection.end)
+        )
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun wholeDocumentDeletionAllowsImmediateFurtherInput() {
+        val document = MarkdownDocument.fromText("# One\n\n- two\n")
+        val before = mdWholeText(document)
+        val deleted = before.replaceText(MarkdownRange(0L, before.text.byteLength), "")
+        deleted.applyTo(document)
+        assertEquals("", document.toMarkdown())
+        assertEquals(MarkdownRange(0L, 0L), deleted.selection)
+        val typed = deleted.after.replaceText(MarkdownRange(0L, 0L), "中文")
+        typed.applyTo(document)
+        assertEquals("中文", document.toMarkdown())
+        assertEquals("中文", typed.after.text.text)
+    }
+
+    @Test
+    fun localCrossBlockEditingPreservesDistantSourceAndReferenceResolution() {
+        val source = "Far\n\nBefore\n\nab [cd][r]\n\n[ef][r] gh\n\nAfter\n\n[r]: /target\n\nEnd\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val start = "Far\n\nBefore\n\nab ".byteLength
+        val end = "Far\n\nBefore\n\nab [cd][r]\n\n[e".byteLength
+        val content = parsed.textContent(MarkdownRange(start, end))
+        assertTrue(content.sourceRange.start > 0L)
+        assertTrue(content.sourceRange.end < source.byteLength)
+        val a = content.text.textAt(MarkdownPosition(start)).byteOffset
+        val b = content.text.textAt(MarkdownPosition(end)).byteOffset
+        val edit = content.replaceText(MarkdownRange(a, b), "X")
+        edit.applyTo(document)
+        assertTrue(document.toMarkdown().startsWith("Far\n\nBefore\n\n"))
+        assertTrue(document.toMarkdown().endsWith("\n\nAfter\n\n[r]: /target\n\nEnd\n"))
+        assertEquals("Before\nab Xf gh\nAfter", edit.after.text.text)
+        mdTextUndo(document, edit.change, source)
+    }
+}

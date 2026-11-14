@@ -299,13 +299,7 @@ public class MarkdownEditorState public constructor(
         pending =
             Some(MdPendingEdit(prepared.kind, Some(prepared.selection), input = Some(prepared)))
         try {
-            val change =
-                when (prepared.inline) {
-                    case Some(val inline) -> inline.applyTo(document)
-                    case None -> document.apply(
-                        MarkdownEdit(document.revision, prepared.source.replacements)
-                    )
-                }
+            val change = prepared.change.applyTo(document)
             if (!change.changed)
                 mdPublishEditorInput(this, change.after, prepared)
             return true

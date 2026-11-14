@@ -1,0 +1,74 @@
+package scoop.markdown
+
+/** Sequential edits share source snapshots and publish as one ordinary Markdown change. */
+public class MarkdownTextEditBuilder internal constructor(private val base: MarkdownTextContent) {
+    private var current = base
+    private var selected = MarkdownRange(0L, 0L)
+    private var inserted = MarkdownRange(0L, 0L)
+    public val content: MarkdownTextContent get() = current
+    public val selection: MarkdownRange get() = selected
+    public val insertedRange: MarkdownRange get() = inserted
+
+    public fun replaceText(
+        range: MarkdownRange,
+        text: String,
+        bias: MarkdownBias = MarkdownBias.After
+    ) {
+        val edit = current.replaceText(range, text, bias)
+        current = edit.after
+        inserted = edit.insertedRange
+        selected = MarkdownRange(inserted.end, inserted.end)
+    }
+
+    public fun select(range: MarkdownRange) {
+        mdTextCheckRange(current, range)
+        selected = range
+    }
+
+    /** Restores the exact source of this same context, including removed blocks and delimiters. */
+    public fun restore(
+        saved: MarkdownTextContent,
+        selection: MarkdownRange = MarkdownRange(0L, 0L)
+    ) {
+        requireMarkdown(
+            saved.origin ===
+                current.origin &&
+                saved.snapshot.documentId ===
+                current.snapshot.documentId &&
+                saved.sourceRange.start ==
+                current.sourceRange.start,
+            "Text restore requires content from the same Markdown context"
+        )
+        mdTextCheckRange(saved, selection)
+        val change =
+            current.snapshot.prepare(
+                MarkdownEdit(
+                    current.snapshot.revision,
+                    mdInlineDifference(
+                        current.snapshot,
+                        current.sourceRange,
+                        saved.snapshot.read(saved.sourceRange)
+                    )
+                )
+            )
+        current = mdTextRebind(saved, change.after)
+        selected = selection
+        inserted = MarkdownRange(selection.end, selection.end)
+    }
+
+    internal fun finish(): MarkdownTextEdit {
+        val change =
+            base.snapshot.prepare(
+                MarkdownEdit(
+                    base.snapshot.revision,
+                    mdInlineDifference(
+                        base.snapshot,
+                        base.sourceRange,
+                        current.snapshot.read(current.sourceRange)
+                    )
+                )
+            )
+        val after = mdTextRebind(current, change.after)
+        return MarkdownTextEdit(change, mdInlineSelection(after.text, selected), inserted, after)
+    }
+}

@@ -24,6 +24,9 @@ public abstract class MarkdownSyntax internal constructor(
     public val documentId: MarkdownDocumentId get() = snapshot.documentId
     public val revision: Long get() = snapshot.revision
 
+    internal fun rebind(region: MarkdownRegion): ParsedMarkdownRegion =
+        ParsedMarkdownRegion(region, root, index, parents, diagnostics)
+
     public fun node(id: MarkdownNodeId): MarkdownNode {
         requireMarkdown(
             id.ordinal >= 0L && id.ordinal < index.size,

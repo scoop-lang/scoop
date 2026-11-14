@@ -88,6 +88,8 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
     var finished = false
     var previousPresentations = 0L
     val table = "| left | right |\n| --- | --- |\n| A | B |\n"
+    val multiSource = "# Multi\n\n__ab__\n\ncd\n\nTail\n"
+    val multiTable = "| ab | cd |\n| --- | --- |\n| ef | gh |\n"
     init {
         fonts.register(testSansBytes, "Rich Latin")
         fonts.register(testCjkBytes, "Rich CJK")
@@ -123,7 +125,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                     fail(Some("Rich test timeout at " + step.value.toString()))
                 }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
             }
-            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 29) {
+            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 43) {
                 when (input) {
                     case Enabled(_) -> inputReady = true
                     case Disabled(_) -> inputReady = false
@@ -137,7 +139,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 }
                 if (
                     step.value >=
-                        29 &&
+                        43 &&
                         publicFocus.isAttached &&
                         !publicFocus.hasFocus &&
                         !publicFocus.isPending
@@ -160,7 +162,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
     private fun ready(): Boolean {
         if (!window!!.isFocused || window!!.isOccluded || frames!!.snapshot().required)
             return false
-        if (step.value >= 29)
+        if (step.value >= 43)
             return publicFocus.isFocusActive &&
                 inputReady &&
                 frames!!.snapshot().presentations >
@@ -197,6 +199,25 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 MarkdownBias.Before
             )
         )
+    }
+
+    private fun assertMultiJoin(strong: String) {
+        val source = editor.document.toMarkdown()
+        assertTrue(source.startsWith("# Multi\n\n"))
+        assertTrue(source.endsWith("\n\nTail\n"))
+        val parsed = editor.document.parse()
+        assertEquals(3L, parsed.root.children.size)
+        val paragraph = parsed.root.children[1L]
+        assertEquals(strong + "d", parsed.inlineContent(paragraph.id).text.text)
+        assertEquals(2L, paragraph.children.size)
+        when (paragraph.children[0L].content) {
+            case MarkdownContent.Strong -> Unit
+            else -> fail(Some("The first unselected character and inserted text must stay strong"))
+        }
+        when (paragraph.children[1L].content) {
+            case MarkdownContent.Text(val text) -> assertEquals("d", text.text)
+            else -> fail(Some("The unselected tail must stay plain text"))
+        }
     }
 
     private fun advance(active: ActiveApplication) {
@@ -345,6 +366,12 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 assertTrue(host.execute(TextEditCommand.InsertNewline))
                 assertTrue(parser.isPending)
                 assertEquals("CD", host.nativeInputState!!.surroundingText)
+                val caret = editor.selection
+                assertTrue(host.execute(TextEditCommand.SelectAll))
+                assertTrue(host.nativeInputState!!.surroundingText.byteLength > 1048576L)
+                editor.setSelection(caret)
+                host.execute(TextEditCommand.Copy)
+                assertEquals("CD", host.nativeInputState!!.surroundingText)
             }
             case 21 -> {
                 assertEquals("CD", host.nativeInputState!!.surroundingText)
@@ -404,20 +431,117 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 assertTrue(host.execute(TextEditCommand.Redo))
                 assertEquals("", host.nativeInputState!!.surroundingText)
                 next {
+                    editor.document.reset(multiSource)
+                    select("# Multi\n\n__a".byteLength, "# Multi\n\n__ab__\n\nc".byteLength)
+                }
+            }
+            case 29 -> {
+                assertEquals("Multi\nab\ncd\nTail", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "ni", 1, 2L)) }
+            }
+            case 30 -> {
+                assertTrue(editor.isComposing)
+                assertEquals("Multi\nanid\nTail", host.nativeInputState!!.surroundingText)
+                next { assertEquals(0, mdNativeText(native, "你好", 1, 2L)) }
+            }
+            case 31 -> {
+                assertEquals("Multi\na你好d\nTail", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertTrue(host.execute(TextEditCommand.Cancel)) }
+            }
+            case 32 -> {
+                assertEquals(multiSource, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "X")) }
+            }
+            case 33 -> {
+                assertMultiJoin("aX")
+                assertEquals("aXd", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    assertEquals(multiSource, editor.document.toMarkdown())
+                    assertTrue(host.execute(TextEditCommand.Cut))
+                }
+            }
+            case 34 -> {
+                assertEquals(Some("b\nc"), native.clipboard.readText())
+                assertMultiJoin("a")
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    native.clipboard.writeText("P")
+                    assertTrue(host.execute(TextEditCommand.Paste))
+                }
+            }
+            case 35 -> {
+                assertMultiJoin("aP")
+                assertTrue(mdNativeDocument(native, host))
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                    assertMultiJoin("a")
+                    val end = editor.snapshot.byteLength
+                    editor.document.replace(MarkdownRange(end, end), "\n```\ncode\n```\n")
+                    assertTrue(host.execute(TextEditCommand.SelectAll))
+                }
+            }
+            case 36 -> {
+                assertEquals(MarkdownRange(0L, editor.snapshot.byteLength), editor.selection.range)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "正文")) }
+            }
+            case 37 -> {
+                assertEquals("正文", editor.document.toMarkdown())
+                assertEquals("正文", host.nativeInputState!!.surroundingText)
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    assertTrue(host.execute(TextEditCommand.Redo))
+                    assertEquals("正文", editor.document.toMarkdown())
+                    assertTrue(host.execute(TextEditCommand.SelectAll))
+                    assertTrue(host.execute(TextEditCommand.Cut))
+                }
+            }
+            case 38 -> {
+                assertEquals("", editor.document.toMarkdown())
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "新文")) }
+            }
+            case 39 -> {
+                assertEquals("新文", editor.document.toMarkdown())
+                next {
+                    editor.document.reset(multiTable)
+                    select(3L, 8L)
+                }
+            }
+            case 40 -> {
+                assertEquals("ab\tcd\nef\tgh", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "中|文", 1, 3L)) }
+            }
+            case 41 -> {
+                assertEquals("a中|文\td\nef\tgh", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertTrue(host.execute(TextEditCommand.Cancel)) }
+            }
+            case 42 -> {
+                assertEquals(multiTable, editor.document.toMarkdown())
+                next {
                     editor.document.reset("# Public\n\n__text__")
                     select(12L)
                 }
             }
-            case 29 -> {
+            case 43 -> {
                 assertTrue(host.isClosed)
                 next { assertEquals(0, mdNativeText(native, "X")) }
             }
-            case 30 -> {
+            case 44 -> {
                 assertEquals("# Public\n\n__Xtext__", editor.document.toMarkdown())
                 next { editor.document.reset("") }
             }
-            case 31 -> next { assertEquals(0, mdNativeText(native, "# new")) }
-            case 32 -> {
+            case 45 -> next { assertEquals(0, mdNativeText(native, "# new")) }
+            case 46 -> {
                 assertEquals("\\# new", editor.document.toMarkdown())
                 finished = true
                 active.requestExit()
@@ -439,7 +563,7 @@ private class RichRoot(val probe: RichProbe, scope: ComponentScope): Component(s
         probe.scope = Some(scope)
     }
     public override fun render(): View {
-        if (probe.step.value >= 29)
+        if (probe.step.value >= 43)
             return markdownRichEditor(
                 probe.parser,
                 Some(probe.style),

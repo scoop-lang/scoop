@@ -5,14 +5,25 @@ import scoop.text.*
 import scoop.window.*
 
 internal fun mdRichNativeSelection(
-    content: MarkdownInlineContent,
+    content: MarkdownTextContent,
     selection: MarkdownSelection
 ): Utf8Selection {
     val text = content.text
-    val first = text.sourceAt(MarkdownPosition(0L), MarkdownBias.Before).byteOffset
-    val last = text.sourceAt(MarkdownPosition(text.byteLength), MarkdownBias.After).byteOffset
+    val first =
+        when (content.region) {
+            case Some(_) -> content.sourceRange.start
+            case None -> text.sourceAt(MarkdownPosition(0L), MarkdownBias.Before).byteOffset
+        }
+    val last =
+        when (content.region) {
+            case Some(_) -> content.sourceRange.end
+            case None -> text.sourceAt(
+                MarkdownPosition(text.byteLength),
+                MarkdownBias.After
+            ).byteOffset
+        }
     if (selection.range.start < first || selection.range.end > last)
-        throw IllegalArgumentException(Some("Rich Markdown selection is outside its inline text"))
+        throw IllegalArgumentException(Some("Rich Markdown selection is outside its text context"))
     return Utf8Selection(
         text.textAt(selection.anchor, selection.anchorBias).byteOffset,
         text.textAt(selection.cursor, selection.cursorBias).byteOffset
@@ -20,7 +31,7 @@ internal fun mdRichNativeSelection(
 }
 
 internal fun mdRichSelection(
-    content: MarkdownInlineContent,
+    content: MarkdownTextContent,
     selection: Utf8Selection
 ): MarkdownSelection {
     val text = content.text
@@ -52,7 +63,7 @@ internal fun mdRichSelection(
     )
 }
 
-internal fun mdRichMarked(content: MarkdownInlineContent, marked: Utf8Range?): MarkdownRange? =
+internal fun mdRichMarked(content: MarkdownTextContent, marked: Utf8Range?): MarkdownRange? =
     when (marked) {
         case Some(val range) -> Some(
             MarkdownRange(
@@ -93,14 +104,15 @@ private fun mdRichInsertedSelection(
 internal fun mdRichReplacedInput(
     before: TextInputState,
     applied: TextInputState,
-    content: MarkdownInlineContent,
+    content: MarkdownTextContent,
     range: Utf8Range,
     raw: String,
-    preedit: Boolean
+    preedit: Boolean,
+    insertedRange: MarkdownRange
 ): TextInputState {
     val text = content.text.text
-    val length = text.byteLength - before.surroundingText.byteLength + range.end - range.start
-    val inserted = text.utf8Slice(Utf8Range(range.start, range.start + length))
+    val length = insertedRange.byteLength
+    val inserted = text.utf8Slice(Utf8Range(insertedRange.start, insertedRange.end))
     val relative =
         Utf8Selection(
             applied.selection.anchor - range.start,
@@ -109,9 +121,12 @@ internal fun mdRichReplacedInput(
     val selection = mdRichInsertedSelection(raw, inserted, relative)
     return TextInputState(
         text,
-        Utf8Selection(range.start + selection.anchor, range.start + selection.cursor),
+        Utf8Selection(
+            insertedRange.start + selection.anchor,
+            insertedRange.start + selection.cursor
+        ),
         if (preedit && length > 0L)
-            Some(Utf8Range(range.start, range.start + length))
+            Some(Utf8Range(insertedRange.start, insertedRange.end))
         else
             None,
         applied.caretRect,
@@ -123,8 +138,8 @@ internal fun mdRichDelta(change: MarkdownChange): MdInputDelta =
     MdInputDelta(change.replacements, change.inverseReplacements)
 
 internal fun mdRichDifference(
-    before: MarkdownInlineContent,
-    after: MarkdownInlineContent
+    before: MarkdownTextContent,
+    after: MarkdownTextContent
 ): MdInputDelta {
     if (before === after)
         return MdInputDelta([], [])
@@ -134,10 +149,10 @@ internal fun mdRichDifference(
 internal class MdRichComposition(
     public override val owner: MdCompositionOwner,
     val baseline: TextInputState,
-    val before: MarkdownInlineContent,
+    val before: MarkdownTextContent,
     public override val selection: MarkdownSelection,
     val current: TextInputState,
-    val after: MarkdownInlineContent
+    val after: MarkdownTextContent
 ): MdEditorComposition {
     public override val marked: MarkdownRange? get() = mdRichMarked(after, current.markedRange)
     public override fun delta(snapshot: MarkdownSnapshot): MdInputDelta =

@@ -3,7 +3,7 @@ package scoop.ui.markdown
 import scoop.markdown.*
 import scoop.window.*
 
-private fun mdCheckRichContent(editor: MarkdownEditorState, content: MarkdownInlineContent) {
+private fun mdCheckRichContent(editor: MarkdownEditorState, content: MarkdownTextContent) {
     editor.storage.checkMutation()
     if (content.snapshot !== editor.snapshot)
         throw IllegalStateException(
@@ -11,10 +11,10 @@ private fun mdCheckRichContent(editor: MarkdownEditorState, content: MarkdownInl
         )
 }
 
-/** Native semantic text for one inline region; the mounted host owns the input connection. */
+/** Native semantic text for one inline block or a source region; the host owns the connection. */
 public class MarkdownRichInput public constructor(
     public val editor: MarkdownEditorState,
-    content: MarkdownInlineContent
+    content: MarkdownTextContent
 ): Closeable {
     internal val compositionOwner = MdCompositionOwner { cancelForState() }
     private var current = content
@@ -22,6 +22,11 @@ public class MarkdownRichInput public constructor(
         TextInputState(content.text.text, mdRichNativeSelection(content, editor.selection))
     private var observedInput = editor.inputRevision
     private var closed = false
+
+    public constructor(editor: MarkdownEditorState, content: MarkdownInlineContent): this(
+        editor,
+        content.editableText()
+    ) {}
 
     init {
         mdCheckRichContent(editor, content)
@@ -33,7 +38,7 @@ public class MarkdownRichInput public constructor(
             throw IllegalStateException(Some("Markdown rich input fragment is closed"))
     }
 
-    public val content: MarkdownInlineContent get() {
+    public val content: MarkdownTextContent get() {
         checkRead();
         return current
     }
@@ -74,7 +79,10 @@ public class MarkdownRichInput public constructor(
     /** Returns true when the caller must retire the native connection before using new mappings. */
     public fun synchronize(): Boolean = synchronize(current)
 
-    public fun synchronize(content: MarkdownInlineContent): Boolean {
+    public fun synchronize(content: MarkdownInlineContent): Boolean =
+        synchronize(content.editableText())
+
+    public fun synchronize(content: MarkdownTextContent): Boolean {
         checkRead()
         editor.storage.checkMutation()
         checkOwner()
@@ -128,7 +136,7 @@ public class MarkdownRichInput public constructor(
         }
         finally {
             if (prepared.published) {
-                current = prepared.inline!!.after
+                current = prepared.rich!!.after
                 input = prepared.current
                 observedInput = editor.inputRevision
             }

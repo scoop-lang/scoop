@@ -28,47 +28,19 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
         }
         case None -> Unit
     }
-    val local = host.local
     val previous = host.input
     val usable =
         when (previous) {
             case Some(val active) -> active.content.snapshot ===
                 editor.snapshot &&
-                mdRichContains(active.content, editor.selection)
+                mdRichContains(active.content, editor.selection) &&
+                mdRichReusableContent(active.content, editor.selection, editor.isComposing)
             case None -> false
         }
     if (usable) {
         previous!!.synchronize()
-        val content = previous!!.content
-        val state = local ?: return
-        val display = host.preview.presentation
-        when (display) {
-            case Some(val value) -> if (
-                value.base ===
-                    state.base &&
-                    value.content ===
-                    content &&
-                    value.changes ===
-                    state.changes
-            )
-                return
-            case None -> Unit
-        }
-        val target =
-            state.locate(content) ?:
-                state.project(editor.selection, host.area.isFocusActive) ?:
-                return
-        host.preview.presentation =
-            Some(
-                MdRichPresentation(
-                    state.base,
-                    content,
-                    target.row,
-                    target.cell,
-                    state.changes,
-                    state.rows
-                )
-            )
+        val state = host.local ?: return
+        mdPresentRichInput(host, state, previous!!)
         return
     }
     when (previous) {
@@ -82,16 +54,37 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
     val kept = host.preview.presentation
     host.preview.presentation =
         when (kept) {
-            case Some(val value) -> if (value.content.snapshot === editor.snapshot)
+            case Some(val value) -> if (value.changes.snapshot === editor.snapshot)
                 Some(value)
             else
                 None
             case None -> None
         }
-    val state = local ?: return
+    val state = host.local ?: return
     when (ready) {
         case Some(_) -> state.select(editor.selection)
         case None -> Unit
+    }
+    if (!editor.selection.collapsed) {
+        val target =
+            when (ready) {
+                case Some(val model) -> mdRichTarget(model, editor.selection)
+                case None -> None
+            }
+        when (target) {
+            case Some(val value) -> {
+                state.rows = None
+                host.input = Some(MarkdownRichInput(editor, value.content))
+                mdPresentRichTarget(host, state, value)
+                return
+            }
+            case None -> Unit
+        }
+        val syntax = state.syntax(editor.selection) ?: return
+        val input = MarkdownRichInput(editor, syntax.textContent(editor.selection.range))
+        host.input = Some(input)
+        mdPresentRichInput(host, state, input)
+        return
     }
     val target =
         when (ready) {
@@ -99,7 +92,7 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
                 mdRichTarget(model, editor.selection, host.area.isFocusActive)
             ) {
                 case Some(val target) -> {
-                    state.rows = None;
+                    state.rows = None
                     Some(target)
                 }
                 case None -> state.project(editor.selection, host.area.isFocusActive)
@@ -111,6 +104,14 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
     if (selection != editor.selection)
         editor.setSelection(selection)
     host.input = Some(MarkdownRichInput(editor, target.content))
+    mdPresentRichTarget(host, state, target)
+}
+
+private fun mdPresentRichTarget(
+    host: MarkdownRichHost,
+    state: MdRichRegionState,
+    target: MdRichTarget
+) {
     host.preview.presentation =
         Some(
             MdRichPresentation(
@@ -122,4 +123,120 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
                 state.rows
             )
         )
+}
+
+private fun mdPresentRichInput(
+    host: MarkdownRichHost,
+    state: MdRichRegionState,
+    input: MarkdownRichInput
+) {
+    val content = input.content
+    val region = content.region
+    val blocks =
+        when (region) {
+            case Some(val syntax) -> {
+                state.prepared(syntax);
+                true
+            }
+            case None -> false
+        }
+    val inline = content.inlineContent
+    val selected = host.editor.selection
+    when (host.preview.presentation) {
+        case Some(val previous) -> {
+            val sameContent =
+                when (region) {
+                    case Some(val syntax) -> when (previous.regions) {
+                        case Some(val rows) -> rows.syntax === syntax
+                        case None -> false
+                    }
+                    case None -> when ((previous.content, inline)) {
+                        case(Some(val a), Some(val b)) -> a === b
+                        else -> false
+                    }
+                }
+            if (previous.base === state.base && previous.changes === state.changes && sameContent) {
+                var relocate = false
+                when (previous.content) {
+                    case Some(val active) -> if (
+                        blocks && !host.editor.isComposing && mdRichContains(active, selected)
+                    ) {
+                        input.synchronize(active)
+                        host.retire()
+                        return
+                    }
+                    case None -> Unit
+                }
+                when (region) {
+                    case Some(val syntax) -> if (!host.editor.isComposing) {
+                        val next = syntax.inlineContentAt(selected.cursor, selected.cursorBias)
+                        relocate =
+                            when (next) {
+                                case Some(val value) -> mdRichContains(value, selected)
+                                case None -> false
+                            }
+                    }
+                    case None -> Unit
+                }
+                if (!relocate)
+                    return
+            }
+        }
+        case None -> Unit
+    }
+    val caret =
+        MarkdownSelection(
+            selected.cursor,
+            selected.cursor,
+            selected.cursorBias,
+            selected.cursorBias
+        )
+    val target =
+        if (blocks)
+            state.project(caret, host.area.isFocusActive)
+        else
+            when (inline) {
+                case Some(val value) -> when (state.locate(value)) {
+                    case Some(val located) -> Some(located)
+                    case None -> state.project(caret, host.area.isFocusActive)
+                }
+                case None -> None
+            }
+    when (target) {
+        case Some(val value) -> {
+            if (blocks && !host.editor.isComposing && mdRichContains(value.content, selected)) {
+                input.synchronize(value.content)
+                host.retire()
+            }
+            val active =
+                if (blocks)
+                    value.content
+                else
+                    inline ?: value.content
+            mdPresentRichTarget(host, state, MdRichTarget(active, value.row, value.cell))
+        }
+        case None -> when (region) {
+            case Some(val syntax) -> host.preview.presentation =
+                Some(MdRichPresentation(state.base, state.changes, state.projectRegion(syntax)))
+            case None -> Unit
+        }
+    }
+}
+
+private fun mdRichReusableContent(
+    content: MarkdownTextContent,
+    selection: MarkdownSelection,
+    composing: Boolean
+): Boolean {
+    if (!selection.collapsed || composing)
+        return true
+    return when (content.region) {
+        case Some(val syntax) -> when (
+            syntax.inlineContentAt(selection.cursor, selection.cursorBias)
+        ) {
+            case Some(_) -> true
+            case None -> false
+        }
+        case None -> true
+    }
 }

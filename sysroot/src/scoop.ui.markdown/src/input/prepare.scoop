@@ -25,7 +25,7 @@ internal class MdSourceComposition(
 
 internal class MdInputPublication(
     val current: TextInputState,
-    val source: MdInputDelta,
+    val change: MarkdownChange,
     val history: MdInputDelta,
     val historyBefore: MarkdownSelection,
     val historyAfter: MarkdownSelection,
@@ -33,7 +33,7 @@ internal class MdInputPublication(
     val composition: MdEditorComposition?,
     val boundary: Boolean,
     val kind: MarkdownEditKind,
-    val inline: MarkdownInlineEdit? = None
+    val rich: MarkdownTextEdit? = None
 ) {
     var published = false
 }
@@ -199,10 +199,16 @@ internal fun mdPrepareSourceInput(
             )
             case None -> None
         }
+    val source =
+        mdInputDelta(previous.surroundingText, next.surroundingText, publicationSpans, start)
+    val change =
+        owner.editor.snapshot.prepare(
+            MarkdownEdit(owner.editor.snapshot.revision, source.replacements)
+        )
     return Some(
         MdInputPublication(
             next,
-            mdInputDelta(previous.surroundingText, next.surroundingText, publicationSpans, start),
+            change,
             mdInputDelta(before.surroundingText, committed.surroundingText, committedSpans, start),
             historyBefore,
             if (baseline == None)

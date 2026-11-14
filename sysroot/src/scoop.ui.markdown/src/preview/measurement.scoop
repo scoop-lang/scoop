@@ -55,7 +55,7 @@ public class MarkdownPreviewMeasurement internal constructor(
     private var closed = false
     public val sourceRevision: Long? get() =
         when (presentation) {
-            case Some(val local) -> Some(local.content.snapshot.revision)
+            case Some(val local) -> Some(local.changes.snapshot.revision)
             case None -> document?.snapshot?.revision
         }
     public val parsed: MarkdownParsedDocument? get() = document
@@ -174,7 +174,7 @@ public class MarkdownPreviewMeasurement internal constructor(
         val original = mdFrameCellOriginal(model, presentation, index, selectedCell, source, bias)
         val range =
             if (presentation?.isActive(index, selectedCell) ?: false)
-                presentation!!.content.sourceRange
+                presentation!!.content!!.sourceRange
             else
                 mdFrameRowRange(model, presentation, index, measured.row.range)
         return Some(

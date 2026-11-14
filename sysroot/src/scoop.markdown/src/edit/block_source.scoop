@@ -81,3 +81,23 @@ internal fun mdBlockAtxUnits(units: Array<MdInlineUnit>): Array<MdInlineUnit> {
     }
     return result.toArray()
 }
+
+/** A surviving inline block must not absorb its unselected following sibling. */
+internal fun mdBlockFollowingGap(
+    syntax: MarkdownSyntax,
+    node: MarkdownNode,
+    prefix: String
+): String {
+    val parent = syntax.parent(node.id) ?: return ""
+    var index = 0L
+    while (parent.children[index] !== node)
+        index += 1L
+    if (index + 1L == parent.children.size)
+        return ""
+    val next = parent.children[index + 1L]
+    val start = syntax.snapshot.positionOfLine(mdNodeLine(syntax.snapshot, next)).byteOffset
+    return if (start == node.range.end)
+        prefix + mdLocalNewline(syntax.snapshot, node.range.start)
+    else
+        ""
+}

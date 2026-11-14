@@ -47,6 +47,17 @@ internal class MdRichChanges(
         return result
     }
 
+    fun advance(region: MarkdownRegion): MarkdownRegion {
+        val pending = changesFrom(region.snapshot)
+        var current = region
+        var index = pending.size
+        while (index > 0L) {
+            index -= 1L
+            current = current.after(pending[index])
+        }
+        return current
+    }
+
     fun touches(range: MarkdownRange): Boolean {
         var current = range
         val pending = changesFrom(base)

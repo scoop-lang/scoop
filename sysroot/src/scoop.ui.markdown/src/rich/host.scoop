@@ -178,12 +178,22 @@ public class MarkdownRichHost public constructor(
             return false
         refresh()
         val active = input ?: return false
-        val range = active.inputState.selection.range
-        if (range.start == range.end)
+        val content = active.content.inlineContent ?: return false
+        if (!mdRichContains(content, editor.selection) || editor.selection.collapsed)
             return false
+        val range =
+            MarkdownRange(
+                content.text.textAt(
+                    MarkdownPosition(editor.selection.range.start),
+                    MarkdownBias.After
+                ).byteOffset,
+                content.text.textAt(
+                    MarkdownPosition(editor.selection.range.end),
+                    MarkdownBias.Before
+                ).byteOffset
+            )
         perform {
-            val edit =
-                active.content.setStyle(MarkdownRange(range.start, range.end), style, enabled)
+            val edit = content.setStyle(range, style, enabled)
             editor.apply(
                 edit,
                 active.inputState.selection.anchor > active.inputState.selection.cursor

@@ -1,0 +1,203 @@
+package scoop.markdown
+
+internal class MdTextBlock(
+    val node: MarkdownNode,
+    val inline: MarkdownInlineContent?,
+    val text: MarkdownText,
+    val row: MarkdownNodeId?,
+    val start: Long
+) {
+    val end: Long get() = start + text.byteLength
+}
+
+/** Source-order text keeps structural separators distinct from editable inline characters. */
+internal class MdBlockText(
+    val syntax: ParsedMarkdownRegion,
+    val activePosition: MarkdownPosition? = None
+) {
+    val active: MarkdownInlineContent? =
+        when (activePosition) {
+            case Some(val position) -> syntax.inlineContentAt(position, MarkdownBias.Before)
+            case None -> None
+        }
+    private val values = mdTextBlocks(syntax, active)
+    val text: MarkdownText = values.text
+    val blocks: Array<MdTextBlock> = values.blocks
+
+    fun at(offset: Long): Long {
+        var low = 0L
+        var high = blocks.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (blocks[middle].end < offset)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return if (low == blocks.size)
+            low - 1L
+        else
+            low
+    }
+}
+
+private class MdTextBlocks(val text: MarkdownText, val blocks: Array<MdTextBlock>)
+
+private fun mdTextBlocks(
+    syntax: ParsedMarkdownRegion,
+    active: MarkdownInlineContent?
+): MdTextBlocks {
+    val leaves = ArrayList<MarkdownNode>()
+    val pending = ArrayList<MarkdownNode>()
+    pending.add(syntax.root)
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L)
+        val container =
+            when (node.content) {
+                case MarkdownContent.Document -> true
+                case MarkdownContent.BlockQuote -> true
+                case MarkdownContent.ListBlock(_) -> true
+                case MarkdownContent.ListItem(_) -> node.children.size > 0L
+                case MarkdownContent.Table(_) -> true
+                case MarkdownContent.TableRow(_) -> true
+                case MarkdownContent.FootnoteDefinition(_) -> true
+                else -> false
+            }
+        if (container) {
+            var index = node.children.size
+            while (index > 0L) {
+                index -= 1L
+                pending.add(node.children[index])
+            }
+        } else
+            leaves.add(node)
+    }
+    val output = MdTextBuilder()
+    val blocks = ArrayList<MdTextBlock>()
+    var addedActive = false
+    for (node in leaves) {
+        when (active) {
+            case Some(val inline) -> if (
+                !addedActive &&
+                    inline.sourceRange.isEmpty &&
+                    inline.sourceRange.start <
+                    node.range.start
+            ) {
+                mdTextAppendBlock(output, blocks, inline.node, Some(inline), None)
+                addedActive = true
+            }
+            case None -> Unit
+        }
+        val inline =
+            when (node.content) {
+                case MarkdownContent.Paragraph(_) -> Some(syntax.inlineContent(node.id))
+                case MarkdownContent.Heading(_, _, _) -> Some(syntax.inlineContent(node.id))
+                case MarkdownContent.TableCell(_, _) -> Some(syntax.inlineContent(node.id))
+                case MarkdownContent.ListItem(_) -> Some(syntax.inlineContent(node.id))
+                else -> None
+            }
+        val row =
+            when (node.content) {
+                case MarkdownContent.TableCell(_, _) -> Some(syntax.parent(node.id)!!.id)
+                else -> None
+            }
+        mdTextAppendBlock(output, blocks, node, inline, row)
+        when (active) {
+            case Some(val value) -> when (inline) {
+                case Some(val current) -> if (value.sourceRange == current.sourceRange)
+                    addedActive = true
+                case None -> Unit
+            }
+            case None -> Unit
+        }
+    }
+    when (active) {
+        case Some(val inline) -> if (
+            !addedActive && (inline.sourceRange.isEmpty || leaves.size == 0L)
+        )
+            mdTextAppendBlock(output, blocks, inline.node, Some(inline), None)
+        case None -> Unit
+    }
+    if (blocks.size == 0L) {
+        val position = syntax.region.range.start
+        val inline = syntax.inlineContentAt(MarkdownPosition(position))
+        when (inline) {
+            case Some(val value) -> mdTextAppendBlock(output, blocks, value.node, Some(value), None)
+            case None -> Unit
+        }
+    }
+    val emptyPosition =
+        if (blocks.size == 0L)
+            syntax.region.range.start
+        else
+            blocks[0L].text.sourceAt(MarkdownPosition(0L)).byteOffset
+    return MdTextBlocks(output.build(emptyPosition), blocks.toArray())
+}
+
+private fun mdTextAppendBlock(
+    output: MdTextBuilder,
+    blocks: ArrayList<MdTextBlock>,
+    node: MarkdownNode,
+    inline: MarkdownInlineContent?,
+    row: MarkdownNodeId?
+) {
+    val text =
+        when (inline) {
+            case Some(val value) -> value.text
+            case None -> {
+                val mapped = MdTextBuilder()
+                mapped.add("\u{fffc}", node.range, MarkdownTextMapping.Normalized)
+                mapped.build(node.range.start)
+            }
+        }
+    if (blocks.size > 0L) {
+        val previous = blocks[blocks.size - 1L]
+        val from =
+            previous.text.sourceAt(
+                MarkdownPosition(previous.text.byteLength),
+                MarkdownBias.Before
+            ).byteOffset
+        val to = text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
+        val sameRow =
+            when ((row, previous.row)) {
+                case(Some(val a), Some(val b)) -> a === b
+                else -> false
+            }
+        output.add(
+            if (sameRow)
+                "\t"
+            else
+                "\n",
+            MarkdownRange(from, to),
+            MarkdownTextMapping.Normalized
+        )
+    }
+    blocks.add(MdTextBlock(node, inline, text, row, output.length))
+    output.append(text)
+}
+
+internal fun mdTextChanged(
+    before: MarkdownTextContent,
+    syntax: ParsedMarkdownRegion,
+    change: MarkdownChange,
+    insertion: MarkdownRange
+): MarkdownTextEdit {
+    val next = syntax.region.after(change).parse()
+    val after =
+        MarkdownTextContent(
+            MdTextContext.Blocks(MdBlockText(next, Some(MarkdownPosition(insertion.end)))),
+            before.origin
+        )
+    val start = after.text.textAt(MarkdownPosition(insertion.start), MarkdownBias.After).byteOffset
+    val end =
+        if (insertion.isEmpty)
+            start
+        else
+            after.text.textAt(MarkdownPosition(insertion.end), MarkdownBias.Before).byteOffset
+    return MarkdownTextEdit(
+        change,
+        MarkdownRange(insertion.end, insertion.end),
+        MarkdownRange(start, end),
+        after
+    )
+}

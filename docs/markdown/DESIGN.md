@@ -113,6 +113,8 @@ markdownDocument(configure): MarkdownDocument
 
 `MarkdownSyntax.splitBlock`／`joinBlocks` 返回 `MarkdownBlockEdit`，将块操作和结果源码光标准备为一次事务。它们可由无 UI 程序直接 applyTo，也可交给编辑器共享历史；拆分继承列表和引用容器，合并只接受同容器的相邻段落／标题。具体字节、空标题、任务及编号规则见[文档规范 §8.4](../specs/SCOOP-MARKDOWN-SPEC.md#84-块拆分与合并)。
 
+`MarkdownSyntax.textContent(sourceRange)` 提供跨块的 `MarkdownTextContent`，将真实显示文字与结构分隔映射到源码；replaceText 和顺序编辑批次返回一次 `MarkdownTextEdit`。同容器段落／同级列表项合并，不同容器和表格网格保留边界；恢复可跨越多个原始块，输入法和无 UI 消费者共用这套文档操作。完整规则见[文档规范 §8.5](../specs/SCOOP-MARKDOWN-SPEC.md#85-多块显示内容的编辑)。
+
 ### 4.2 必须解决的写回细节
 
 - 改写强调或代码 span 时处理转义和分隔符冲突；新建代码围栏长于正文中相同字符的最长相关连续串。

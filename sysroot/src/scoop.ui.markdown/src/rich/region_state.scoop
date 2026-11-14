@@ -42,10 +42,41 @@ internal class MdRichRegionState(val base: MarkdownParsedDocument, selection: Ma
                 case None -> false
             }
         if (!inside) {
-            if (changes.snapshot !== base.snapshot)
-                return false
-            val selected = base.source.region(selection.range)
-            region = Some(selected)
+            val range =
+                if (changes.snapshot === base.snapshot)
+                    selection.range
+                else {
+                    when (previous) {
+                        case Some(_) -> Unit
+                        case None -> return false
+                    }
+                    val first =
+                        changes.backward(
+                            MarkdownAnchor(
+                                MarkdownPosition(selection.range.start),
+                                MarkdownBias.Before
+                            )
+                        ).position.byteOffset
+                    val last =
+                        changes.backward(
+                            MarkdownAnchor(
+                                MarkdownPosition(selection.range.end),
+                                MarkdownBias.After
+                            )
+                        ).position.byteOffset
+                    MarkdownRange(
+                        if (first < origin.start)
+                            first
+                        else
+                            origin.start,
+                        if (last > origin.end)
+                            last
+                        else
+                            origin.end
+                    )
+                }
+            val selected = base.source.region(range)
+            region = Some(changes.advance(selected))
             origin = selected.range
             parsed = None
             rows = None
@@ -72,6 +103,13 @@ internal class MdRichRegionState(val base: MarkdownParsedDocument, selection: Ma
             throw IllegalStateException(
                 Some("Prepared Markdown region must match the published snapshot")
             )
+        when (parsed) {
+            case Some(val current) -> if (current === syntax)
+                return
+            case None -> Unit
+        }
+        if (changes.snapshot === base.snapshot)
+            origin = syntax.region.range
         region = Some(syntax.region)
         parsed = Some(syntax)
         rows = None
@@ -92,6 +130,13 @@ internal class MdRichRegionState(val base: MarkdownParsedDocument, selection: Ma
             case Some(val local) -> mdRichRegionTarget(local, changes, content)
             case None -> mdRichLocate(base, content, changes)
         }
+
+    fun projectRegion(syntax: ParsedMarkdownRegion): MdRichRegionRows {
+        prepared(syntax)
+        val display = MdRichRegionRows(base, origin, syntax, changes)
+        rows = Some(display)
+        return display
+    }
 }
 
 private fun mdRichRegionTarget(

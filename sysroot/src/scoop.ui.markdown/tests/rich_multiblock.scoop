@@ -1,0 +1,317 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+import scoop.window.*
+
+private fun multiInput(editor: MarkdownEditorState): MarkdownRichInput =
+    MarkdownRichInput(
+        editor,
+        editor.document.parse(MarkdownProfile.Editor).textContent(editor.selection.range)
+    )
+
+private fun multiBatch(input: MarkdownRichInput, operations: List<TextInputOperation>): Boolean =
+    input.apply(TextInputBatch(Some(input.inputState.revision), operations))
+
+private fun multiCommit(text: String): TextInputOperation =
+    TextInputOperation.Commit(text, TextReplacement.CurrentSelection)
+
+private fun multiPreedit(text: String): TextInputOperation =
+    TextInputOperation.Preedit(text, None, TextReplacement.CurrentSelection)
+
+@Test
+private class MarkdownRichMultiBlockTests {
+    @Test
+    fun aSmallCrossBlockSelectionKeepsLocalInputWithinAMegabyteDocument() {
+        val tail = "Tail paragraph 中文.\n\n"
+        val source = "ab\n\ncd\n\n" + tail.repeat(60000L)
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(5L))
+            )
+        val before = editor.snapshot
+        val input = multiInput(editor)
+        assertTrue(before.byteLength > 1048576L)
+        assertTrue(input.sourceRange.byteLength < 4096L)
+        multiBatch(input, [multiCommit("中文")])
+        assertTrue(input.sourceRange.byteLength < 4096L)
+        assertTrue(input.inputState.surroundingText.startsWith("a中文d\nTail"))
+        assertEquals(
+            tail,
+            editor.snapshot.read(
+                MarkdownRange(
+                    editor.snapshot.byteLength - tail.byteLength,
+                    editor.snapshot.byteLength
+                )
+            )
+        )
+        assertEquals(source.byteLength, before.byteLength)
+        assertTrue(editor.undo())
+        assertEquals(before.byteLength, editor.snapshot.byteLength)
+        assertEquals("ab\n\ncd\n\n", editor.snapshot.read(MarkdownRange(0L, 8L)))
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun crossParagraphInputAndFollowingTextPublishOnePreparedSnapshot() {
+        val source = "ab\n\ncd\n\nTail\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(5L))
+            )
+        val input = multiInput(editor)
+        assertEquals("ab\ncd\nTail", input.inputState.surroundingText)
+        assertEquals(Utf8Selection(1L, 4L), input.inputState.selection)
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = editor.document.observe { change -> changes.add(change) }
+        multiBatch(input, [multiCommit("中文"), multiCommit("😀")])
+        assertEquals(1L, changes.size)
+        assertEquals("a中文😀d\n\nTail\n", editor.document.toMarkdown())
+        assertTrue(changes[0L].after === input.content.snapshot)
+        assertTrue(input.content.snapshot === editor.snapshot)
+        assertEquals("a中文😀d\nTail", input.inputState.surroundingText)
+        assertTrue(editor.undo())
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(
+            MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(5L)),
+            editor.selection
+        )
+        subscription.close()
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun aWholeDocumentSelectionCanBeReplacedAndUndone() {
+        val source = "# old\n\n- [x] item\n\n```\ncode\n```\n"
+        val selected = MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(source.byteLength))
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selected)
+        val input = multiInput(editor)
+        multiBatch(input, [multiCommit("# literal 中")])
+        assertEquals("# literal 中", input.inputState.surroundingText)
+        assertEquals("\\# literal 中", editor.document.toMarkdown())
+        assertEquals(
+            Utf8Selection("# literal 中".byteLength, "# literal 中".byteLength),
+            input.inputState.selection
+        )
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun crossContainerCompositionCancellationRestoresBytesAndDirection() {
+        val source = "__A &amp; B__\r\n\r\n> *中文*\r\n\r\nTail\r\n"
+        val selected =
+            MarkdownSelection(
+                MarkdownPosition("__A &amp; B__\r\n\r\n> *中文".byteLength),
+                MarkdownPosition(2L),
+                MarkdownBias.Before,
+                MarkdownBias.After
+            )
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selected)
+        val input = multiInput(editor)
+        val initial = input.inputState.surroundingText
+        multiBatch(input, [multiPreedit("nihao")])
+        multiBatch(input, [multiPreedit("你好😀")])
+        assertTrue(editor.isComposing)
+        assertTrue(editor.canUndo)
+        assertEquals(Some(Utf8Range(0L, "你好😀".byteLength)), input.inputState.markedRange)
+        assertTrue(editor.cancelComposition())
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        assertEquals(initial, input.inputState.surroundingText)
+        assertTrue(input.content.snapshot === editor.snapshot)
+        assertFalse(editor.canUndo)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun crossBlockReplacementEndsTypingGroupsBeforeSubsequentInput() {
+        val source = "ab\n\ncd\n\nTail\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(5L))
+            )
+        val input = multiInput(editor)
+        multiBatch(input, [multiCommit("X")])
+        multiBatch(input, [multiCommit("Y")])
+        assertEquals("aXYd\n\nTail\n", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("aXd\n\nTail\n", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun crossBlockCommitAndNextPreeditHaveIndependentUndoBoundaries() {
+        val source = "# Old\n\n- item\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(source.byteLength))
+            )
+        val input = multiInput(editor)
+        multiBatch(input, [multiPreedit("ni")])
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = editor.document.observe { change -> changes.add(change) }
+        multiBatch(input, [multiCommit("你"), multiPreedit("hao")])
+        assertEquals(1L, changes.size)
+        assertEquals("你hao", editor.document.toMarkdown())
+        assertEquals(Some(MarkdownRange(3L, 6L)), editor.markedRange)
+        editor.undo()
+        assertEquals("你", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        editor.redo()
+        assertEquals("你", editor.document.toMarkdown())
+        subscription.close()
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun tableCompositionMarksOnlyInsertedTextAndKeepsStructuralSeparators() {
+        val prefix = "before\n\n| "
+        val source = prefix + "ab | cd |\n| --- | --- |\n| ef | gh |\n\nTail\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(
+                    MarkdownPosition((prefix + "a").byteLength),
+                    MarkdownPosition((prefix + "ab | c").byteLength)
+                )
+            )
+        val input = multiInput(editor)
+        multiBatch(
+            input,
+            [
+                TextInputOperation.Preedit(
+                    "中|文",
+                    Some(Utf8Selection(3L, 7L)),
+                    TextReplacement.CurrentSelection
+                )
+            ]
+        )
+        assertEquals("before\na中|文\td\nef\tgh\nTail", input.inputState.surroundingText)
+        assertEquals(Some(Utf8Range(8L, 15L)), input.inputState.markedRange)
+        assertEquals(Utf8Selection(11L, 15L), input.inputState.selection)
+        multiBatch(input, [multiCommit("完成")])
+        assertEquals("before\na完成\td\nef\tgh\nTail", input.inputState.surroundingText)
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun cancellationAndNewInputInOneBatchUseTheRestoredMultiBlockSelection() {
+        val source = "ab\n\ncd\n\nTail\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(5L))
+            )
+        val input = multiInput(editor)
+        multiBatch(input, [multiPreedit("long")])
+        multiBatch(input, [multiPreedit(""), multiCommit("X")])
+        assertEquals("aXd\n\nTail\n", editor.document.toMarkdown())
+        assertFalse(editor.isComposing)
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun invalidBatchesAndRangesAfterCancellationLeaveSourceAndCompositionUntouched() {
+        val source = "ab\n\n中文\n\nTail\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(4L))
+            )
+        val input = multiInput(editor)
+        val revision = input.inputState.revision
+        assertFailsWith<IllegalArgumentException> {
+            multiBatch(
+                input,
+                [
+                    multiCommit("!"),
+                    TextInputOperation.Commit("bad", TextReplacement.Range(Utf8Range(3L, 4L)))
+                ]
+            )
+        }
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(revision, input.inputState.revision)
+        multiBatch(input, [multiPreedit("long")])
+        val composed = editor.document.toMarkdown()
+        assertFailsWith<IllegalStateException> {
+            multiBatch(
+                input,
+                [
+                    multiPreedit(""),
+                    TextInputOperation.Commit("X", TextReplacement.Range(Utf8Range(0L, 0L)))
+                ]
+            )
+        }
+        assertEquals(composed, editor.document.toMarkdown())
+        assertTrue(editor.isComposing)
+        assertFailsWith<IllegalStateException> {
+            input.apply(TextInputBatch(Some(revision), [multiCommit("stale")]))
+        }
+        editor.cancelComposition()
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun surroundingDeletionPreservesSelectedParagraphsAndTheirDirection() {
+        val source = "ab\n\ncd\n\nef\n\nTail\n"
+        val selected =
+            MarkdownSelection(MarkdownPosition("ab\n\ncd\n\ne".byteLength), MarkdownPosition(1L))
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selected)
+        val input = multiInput(editor)
+        multiBatch(input, [TextInputOperation.DeleteSurrounding(1L, 1L)])
+        assertEquals("b\ncd\ne\nTail", input.inputState.surroundingText)
+        assertEquals(Utf8Selection("b\ncd\ne".byteLength, 0L), input.inputState.selection)
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun clearingPreeditCommitsAndClosingAcceptsTheSharedComposition() {
+        val source = "**one**\n\n_two_\n"
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText(source),
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(source.byteLength))
+            )
+        val input = multiInput(editor)
+        multiBatch(input, [multiPreedit("你"), TextInputOperation.ClearPreedit])
+        assertEquals("你", editor.document.toMarkdown())
+        assertFalse(editor.isComposing)
+        multiBatch(input, [multiPreedit("好")])
+        input.close()
+        assertEquals("你好", editor.document.toMarkdown())
+        assertFalse(editor.isComposing)
+        editor.undo()
+        assertEquals("你", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        editor.close()
+    }
+}

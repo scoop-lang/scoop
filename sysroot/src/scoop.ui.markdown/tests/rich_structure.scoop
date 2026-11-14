@@ -3,6 +3,7 @@ package scoop.ui.markdown
 import scoop.markdown.*
 import scoop.test.*
 import scoop.text.*
+import scoop.window.*
 
 private class MdRichStructureFixture(source: String, position: Long): Closeable {
     val editor = MarkdownEditorState(MarkdownDocument.fromText(source), mdCaret(position))
@@ -34,8 +35,8 @@ private class MdRichStructureFixture(source: String, position: Long): Closeable 
     }
     fun type(text: String): MdRichPresentation {
         val target = display()
-        val at = target.content.text.textAt(editor.selection.cursor).byteOffset
-        val edit = target.content.replaceText(MarkdownRange(at, at), text)
+        val at = target.content!!.text.textAt(editor.selection.cursor).byteOffset
+        val edit = target.content!!.replaceText(MarkdownRange(at, at), text)
         editor.apply(edit)
         return MdRichPresentation(
             model,
@@ -55,6 +56,40 @@ private class MdRichStructureFixture(source: String, position: Long): Closeable 
 @Test
 private class MarkdownRichStructureTests {
     @Test
+    fun aPendingLocalEditCanImmediatelyExpandToAWholeDocumentSelection() {
+        val source = "ab\n\ncd\n\n" + "paragraph\n\n".repeat(500L)
+        MdRichStructureFixture(source, 1L).use {
+            fixture ->
+            assertTrue(fixture.syntax().root.range.end < fixture.editor.snapshot.byteLength)
+            fixture.type("中")
+            val current = fixture.editor.snapshot
+            fixture.editor.setSelection(
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(current.byteLength))
+            )
+            val expanded = fixture.syntax()
+            assertSame(current, expanded.snapshot)
+            assertEquals(MarkdownRange(0L, current.byteLength), expanded.root.range)
+            val input =
+                MarkdownRichInput(
+                    fixture.editor,
+                    expanded.textContent(fixture.editor.selection.range)
+                )
+            assertTrue(input.inputState.surroundingText.startsWith("a中b\ncd\n"))
+            input.apply(
+                TextInputBatch(
+                    Some(input.inputState.revision),
+                    [TextInputOperation.Commit("new", TextReplacement.CurrentSelection)]
+                )
+            )
+            assertEquals("new", fixture.editor.document.toMarkdown())
+            assertEquals("new", fixture.display().content!!.text.text)
+            assertTrue(fixture.editor.undo())
+            assertEquals(current.byteLength, fixture.editor.snapshot.byteLength)
+            input.close()
+        }
+    }
+
+    @Test
     fun splitTypeAndJoinReuseDistantRowsAndRestoreTheCommandCaret() {
         val source = "# Start\n\nab**CD**\n\nNeighbor\n\nFar\n\nEnd\n"
         MdRichStructureFixture(source, "# Start\n\nab".byteLength).use {
@@ -63,12 +98,12 @@ private class MarkdownRichStructureTests {
             fixture.apply(split)
             val first = fixture.display()
             assertEquals(6L, first.count)
-            assertEquals("CD", first.content.text.text)
+            assertEquals("CD", first.content!!.text.text)
             assertTrue(first.displayRow(4L) === fixture.model.display.rows[3L])
-            val oldKey = first.row.key
+            val oldKey = first.row!!.key
             val typed = fixture.type("中")
-            assertEquals("中CD", typed.content.text.text)
-            assertEquals("CD", first.content.text.text)
+            assertEquals("中CD", typed.content!!.text.text)
+            assertEquals("CD", first.content!!.text.text)
             assertTrue(typed.displayRow(4L) === first.displayRow(4L))
             assertTrue(
                 when (typed.rowForKey(oldKey)) {
@@ -76,14 +111,14 @@ private class MarkdownRichStructureTests {
                     else -> false
                 }
             )
-            val start = typed.content.text.sourceAt(MarkdownPosition(0L))
+            val start = typed.content!!.text.sourceAt(MarkdownPosition(0L))
             fixture.editor.setSelection(MarkdownSelection(start, start))
             fixture.apply(mdRichJoin(fixture.syntax(), fixture.editor.selection, true)!!)
             val caret = fixture.editor.selection
-            assertEquals("ab中CD", fixture.display().content.text.text)
+            assertEquals("ab中CD", fixture.display().content!!.text.text)
             assertEquals(5L, fixture.display().count)
             assertTrue(fixture.editor.undo())
-            assertEquals("中CD", fixture.display().content.text.text)
+            assertEquals("中CD", fixture.display().content!!.text.text)
             assertTrue(fixture.editor.redo())
             assertEquals(caret, fixture.editor.selection)
             assertEquals(source, fixture.model.snapshot.toMarkdown())
@@ -96,12 +131,12 @@ private class MarkdownRichStructureTests {
             fixture ->
             fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
             val view = fixture.display()
-            assertEquals("", view.content.text.text)
+            assertEquals("", view.content!!.text.text)
             assertEquals(2L, view.count)
-            assertEquals(1L, view.row.indent)
-            assertEquals(0L, view.row.quotes!!.level)
+            assertEquals(1L, view.row!!.indent)
+            assertEquals(0L, view.row!!.quotes!!.level)
             val typed = fixture.type("# x")
-            assertEquals("# x", typed.content.text.text)
+            assertEquals("# x", typed.content!!.text.text)
             assertTrue(fixture.editor.document.toMarkdown().endsWith("> \\# x"))
             assertEquals(
                 "A\n# x",
@@ -128,7 +163,7 @@ private class MarkdownRichStructureTests {
                     Some(fixture.model.display)
                 )
             assertTrue(
-                when (mdRichLocate(completed, local.content)) {
+                when (mdRichLocate(completed, local.content!!)) {
                     case None -> true;
                     else -> false
                 }
@@ -155,8 +190,8 @@ private class MarkdownRichStructureTests {
         MdRichStructureFixture("- [x] ", 6L).use {
             fixture ->
             fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
-            assertEquals("", fixture.display().content.text.text)
-            assertEquals("plain", fixture.type("plain").content.text.text)
+            assertEquals("", fixture.display().content!!.text.text)
+            assertEquals("plain", fixture.type("plain").content!!.text.text)
             assertEquals("plain", fixture.editor.document.toMarkdown())
         }
         val source = "- first\n- second\n"
@@ -166,13 +201,13 @@ private class MarkdownRichStructureTests {
             assertEquals("- first\n  - second\n", fixture.editor.document.toMarkdown())
             assertEquals(
                 3L,
-                fixture.display().content.text.textAt(fixture.editor.selection.cursor).byteOffset
+                fixture.display().content!!.text.textAt(fixture.editor.selection.cursor).byteOffset
             )
             fixture.apply(mdRichListTab(fixture.syntax(), fixture.editor.selection, true)!!)
             assertEquals(source, fixture.editor.document.toMarkdown())
             assertEquals(MarkdownPosition(13L), fixture.editor.selection.cursor)
             fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
-            assertEquals("ond", fixture.display().content.text.text)
+            assertEquals("ond", fixture.display().content!!.text.text)
             assertEquals("- first\n- sec\n- ond\n", fixture.editor.document.toMarkdown())
         }
     }
@@ -190,9 +225,9 @@ private class MarkdownRichStructureTests {
             val inserted = fixture.editor.selection
             val view = fixture.display()
             assertEquals(4L, view.count)
-            assertEquals("", view.content.text.text)
+            assertEquals("", view.content!!.text.text)
             val typed = fixture.type("中|文")
-            assertEquals("中|文", typed.content.text.text)
+            assertEquals("中|文", typed.content!!.text.text)
             assertTrue(fixture.editor.document.toMarkdown().contains("中\\|文"))
             val previous = typed.displayRow(1L).cells[1L]
             val current = typed.cellRange(1L, 1L, previous.sourceRange)
@@ -204,7 +239,7 @@ private class MarkdownRichStructureTests {
             assertEquals(source, fixture.editor.document.toMarkdown())
             assertTrue(fixture.editor.redo())
             assertEquals(inserted, fixture.editor.selection)
-            assertEquals("", fixture.display().content.text.text)
+            assertEquals("", fixture.display().content!!.text.text)
         }
     }
 
@@ -216,17 +251,17 @@ private class MarkdownRichStructureTests {
             val cell = mdRichBlockAt(syntax, fixture.editor.selection.cursor, MarkdownBias.After)!!
             fixture.apply(mdRichTableStep(syntax, cell, false)!!)
             assertFalse(fixture.editor.canUndo)
-            assertEquals("b", fixture.display().content.text.text)
+            assertEquals("b", fixture.display().content!!.text.text)
             fixture.apply(
                 mdRichTablePaste(fixture.syntax(), fixture.editor.selection, "中\t文\n甲\t乙")!!
             )
-            assertEquals("中", fixture.display().content.text.text)
+            assertEquals("中", fixture.display().content!!.text.text)
             val caret = fixture.editor.selection
-            assertEquals(3L, fixture.display().row.cells.size)
+            assertEquals(3L, fixture.display().row!!.cells.size)
             assertTrue(fixture.editor.undo())
             assertTrue(fixture.editor.redo())
             assertEquals(caret, fixture.editor.selection)
-            assertEquals("中", fixture.display().content.text.text)
+            assertEquals("中", fixture.display().content!!.text.text)
         }
     }
 
@@ -240,7 +275,7 @@ private class MarkdownRichStructureTests {
             fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
             val view = fixture.display()
             assertEquals(original.rows.size + 1L, view.count)
-            assertEquals("cd", view.content.text.text)
+            assertEquals("cd", view.content!!.text.text)
             assertEquals(5L, view.rowIndex)
             assertTrue(view.displayRow(2L) === original.rows[2L])
             assertTrue(view.displayRow(3L) === original.rows[3L])
@@ -312,7 +347,7 @@ private class MarkdownRichStructureTests {
                     state.rows
                 )
             assertEquals(5L, view.count)
-            assertEquals("CD", view.content.text.text)
+            assertEquals("CD", view.content!!.text.text)
             assertTrue(view.displayRow(2L) === model.display.rows[1L])
             assertTrue(view.displayRow(3L) === model.display.rows[2L])
             assertEquals("Expanded", view.displayRow(2L).cells[0L].text)

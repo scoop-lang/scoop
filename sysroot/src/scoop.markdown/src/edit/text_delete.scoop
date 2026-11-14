@@ -1,0 +1,180 @@
+package scoop.markdown
+
+/** Different containers and tables keep their boundary blocks and unselected descendants. */
+internal fun mdTextReplaceSeparated(
+    content: MarkdownTextContent,
+    blocks: MdBlockText,
+    first: Long,
+    last: Long,
+    start: Long,
+    end: Long,
+    text: String,
+    bias: MarkdownBias
+): MarkdownTextEdit {
+    val syntax = blocks.syntax
+    val left = blocks.blocks[first]
+    val right = blocks.blocks[last]
+    val builder = MarkdownTransformBuilder(syntax)
+    val insertion =
+        when (left.inline) {
+            case Some(val inline) -> {
+                val range =
+                    MarkdownRange(
+                        start,
+                        if (first == last)
+                            end
+                        else
+                            inline.text.byteLength
+                    )
+                val edit = inline.replaceText(range, text, bias)
+                for (entry in edit.change.replacements)
+                    builder.replace(entry.range, entry.text)
+                mdTextInlineInsertion(inline, range, edit)
+            }
+            case None -> mdTextReplaceObject(
+                builder,
+                left.node,
+                start,
+                if (first == last)
+                    end
+                else
+                    left.text.byteLength,
+                text
+            )
+        }
+    if (first != last) {
+        when (right.inline) {
+            case Some(val inline) -> {
+                val edit = inline.replaceText(MarkdownRange(0L, end), "")
+                for (entry in edit.change.replacements)
+                    builder.replace(entry.range, entry.text)
+            }
+            case None -> if (end > 0L)
+                mdTextRemoveNode(builder, right.node)
+        }
+        mdTextRemoveMiddle(builder, blocks, first, last)
+    }
+    val change = syntax.snapshot.prepare(builder.edit())
+    return mdTextChanged(content, syntax, change, insertion)
+}
+
+private fun mdTextReplaceObject(
+    builder: MarkdownTransformBuilder,
+    node: MarkdownNode,
+    start: Long,
+    end: Long,
+    text: String
+): MarkdownRange {
+    val snapshot = builder.snapshot
+    val prefix = mdListPrefix(builder.parsed, node)
+    val newline = mdLocalNewline(snapshot, node.range.start)
+    val source = mdInlineUnitsWrite([MdInlineUnit(MdInlineUnitKind.Text, text, 0, None)], false)
+    val before = start == end && start == 0L
+    val after = start == end && start > 0L
+    val position =
+        if (after)
+            node.range.end
+        else
+            node.range.start
+    val leading =
+        if (after) {
+            if (mdNodeEnding(snapshot, node) == "")
+                newline + prefix + newline + prefix
+            else
+                prefix + newline + prefix
+        } else
+            ""
+    val trailing =
+        if (before)
+            newline + prefix + newline + prefix
+        else
+            mdNodeEnding(snapshot, node) + mdBlockFollowingGap(builder.parsed, node, prefix)
+    builder.replace(
+        if (before || after)
+            MarkdownRange(position, position)
+        else
+            node.range,
+        leading + source + trailing
+    )
+    return MarkdownRange(
+        position + leading.byteLength,
+        position + leading.byteLength + source.byteLength
+    )
+}
+
+private fun mdTextRemoveMiddle(
+    builder: MarkdownTransformBuilder,
+    blocks: MdBlockText,
+    first: Long,
+    last: Long
+) {
+    val floor = blocks.blocks[first].node.range.end
+    val ceiling = blocks.blocks[last].node.range.start
+    var index = first + 1L
+    while (index < last) {
+        val leaf = blocks.blocks[index]
+        when (leaf.node.content) {
+            case MarkdownContent.TableCell(_, _) -> {
+                val row = builder.parsed.parent(leaf.node.id)!!
+                val table = builder.parsed.parent(row.id)!!
+                if (table.range.start < floor || table.range.end > ceiling) {
+                    val inline = leaf.inline!!
+                    val edit = inline.replaceText(MarkdownRange(0L, inline.text.byteLength), "")
+                    for (entry in edit.change.replacements)
+                        builder.replace(entry.range, entry.text)
+                    index += 1L
+                    continue
+                }
+            }
+            else -> Unit
+        }
+        var selected = leaf.node
+        while (true) {
+            val parent = builder.parsed.parent(selected.id) ?: break
+            if (
+                parent ===
+                    builder.parsed.root ||
+                    parent.range.start <
+                    floor ||
+                    parent.range.end >
+                    ceiling
+            )
+                break
+            selected = parent
+        }
+        mdTextRemoveNode(builder, selected)
+        index += 1L
+        while (index < last && blocks.blocks[index].node.range.end <= selected.range.end)
+            index += 1L
+    }
+}
+
+/** Keeps a required first-line container prefix when later children still use it. */
+private fun mdTextRemoveNode(builder: MarkdownTransformBuilder, node: MarkdownNode) {
+    val snapshot = builder.snapshot
+    val line = mdNodeLine(snapshot, node)
+    val lineStart = snapshot.positionOfLine(line).byteOffset
+    var current = builder.parsed.parent(node.id)
+    var keepPrefix = false
+    while (true) {
+        val parent = current ?: break
+        if (parent === builder.parsed.root)
+            break
+        if (mdNodeLine(snapshot, parent) == line && parent.range.end > node.range.end)
+            keepPrefix = true
+        current = builder.parsed.parent(parent.id)
+    }
+    builder.replace(
+        MarkdownRange(
+            if (keepPrefix)
+                node.range.start
+            else
+                lineStart,
+            node.range.end
+        ),
+        if (keepPrefix)
+            mdNodeEnding(snapshot, node)
+        else
+            ""
+    )
+}

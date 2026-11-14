@@ -5,46 +5,71 @@ import scoop.markdown.*
 /** Current inline text overlays sparse current block rows and a shared background projection. */
 internal class MdRichPresentation(
     val base: MarkdownParsedDocument,
-    val content: MarkdownInlineContent,
+    val content: MarkdownInlineContent?,
     val rowIndex: Long,
     val cellIndex: Long,
     val changes: MdRichChanges,
     val regions: MdRichRegionRows? = None
 ) {
-    private val baseRow = regions?.row(rowIndex) ?: base.display.rows[rowIndex]
-    val row =
-        MdDisplayRow(
-            baseRow.node,
-            baseRow.range,
-            baseRow.kind,
-            baseRow.indent,
-            baseRow.quotes,
-            baseRow.markers,
-            Array<MdDisplayText>(baseRow.cells.size) {
-                index -> if (index == cellIndex)
-                    mdDisplayEditable(content)
-                else
-                    baseRow.cells[index]
-            },
-            MdDisplayKey(rowIndex)
-        )
+    constructor(
+        base: MarkdownParsedDocument,
+        content: MarkdownInlineContent,
+        rowIndex: Long,
+        cellIndex: Long,
+        changes: MdRichChanges,
+        regions: MdRichRegionRows? = None
+    ): this(base, Some(content), rowIndex, cellIndex, changes, regions) {}
+
+    constructor(base: MarkdownParsedDocument, changes: MdRichChanges, regions: MdRichRegionRows):
+    this(base, None, -1L, -1L, changes, Some(regions)) {}
+
+    val row: MdDisplayRow? =
+        when (content) {
+            case Some(val content) -> {
+                val baseRow = regions?.row(rowIndex) ?: base.display.rows[rowIndex]
+                Some(
+                    MdDisplayRow(
+                        baseRow.node,
+                        baseRow.range,
+                        baseRow.kind,
+                        baseRow.indent,
+                        baseRow.quotes,
+                        baseRow.markers,
+                        Array<MdDisplayText>(baseRow.cells.size) {
+                            index -> if (index == cellIndex)
+                                mdDisplayEditable(content)
+                            else
+                                baseRow.cells[index]
+                        },
+                        MdDisplayKey(rowIndex)
+                    )
+                )
+            }
+            case None -> None
+        }
     val count: Long get() = regions?.count ?: base.display.rows.size
 
     fun isActive(row: Long, cell: Long): Boolean = row == rowIndex && cell == cellIndex
     fun isLocal(row: Long, cell: Long): Boolean = isActive(row, cell) || regionRow(row)
     fun isLocalRow(row: MdDisplayRow, cell: Long): Boolean =
-        if (this.row === row)
-            cell == cellIndex || regionRow(rowIndex)
-        else
-            regions?.contains(row.key) ?: false
+        when (this.row) {
+            case Some(val current) -> if (current === row)
+                cell == cellIndex || regionRow(rowIndex)
+            else
+                regions?.contains(row.key) ?: false
+            case None -> regions?.contains(row.key) ?: false
+        }
     fun displayRow(index: Long): MdDisplayRow =
         if (index == rowIndex)
-            row
+            row!!
         else
             regions?.row(index) ?: base.display.rows[index]
     fun rowForKey(key: MdDisplayKey): Long? {
-        if (key === row.key)
-            return Some(rowIndex)
+        when (row) {
+            case Some(val current) -> if (key === current.key)
+                return Some(rowIndex)
+            case None -> Unit
+        }
         val result =
             when (regions) {
                 case Some(val current) -> current.rowForKey(key)
@@ -57,8 +82,13 @@ internal class MdRichPresentation(
     }
 
     fun rowAt(position: MarkdownPosition, bias: MarkdownBias): Long {
-        if (mdRichContains(content, MarkdownSelection(position, position)))
-            return rowIndex
+        when (content) {
+            case Some(val current) -> if (
+                mdRichContains(current, MarkdownSelection(position, position))
+            )
+                return rowIndex
+            case None -> Unit
+        }
         when (regions) {
             case Some(val local) -> {
                 val point =
@@ -240,7 +270,7 @@ internal fun mdFrameColumn(
         case Some(val local) -> if (
             local.rowIndex ==
                 index &&
-                mdRichContains(local.content, MarkdownSelection(position, position))
+                mdRichContains(local.content!!, MarkdownSelection(position, position))
         )
             return local.cellIndex
         case None -> Unit

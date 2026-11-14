@@ -24,7 +24,7 @@ private class MarkdownRichProjectionTests {
                 0L,
                 MdRichChanges(model.snapshot).append(edit.change)
             )
-        assertEquals("# First", local.row.cells[0L].text)
+        assertEquals("# First", local.row!!.cells[0L].text)
         assertEquals(0L, parsed.root.children.size)
     }
 
@@ -68,8 +68,8 @@ private class MarkdownRichProjectionTests {
                 0L,
                 MdRichChanges(model.snapshot).append(edit.change)
             )
-        assertEquals("A 😀 B", local.row.cells[0L].text)
-        assertTrue(local.row.cells[0L].runs[0L].flags.strong)
+        assertEquals("A 😀 B", local.row!!.cells[0L].text)
+        assertTrue(local.row!!.cells[0L].runs[0L].flags.strong)
         assertTrue(local.displayRow(0L) === model.display.rows[0L])
         assertTrue(local.displayRow(2L) === model.display.rows[2L])
         assertEquals("A & B", model.display.rows[1L].cells[0L].text)
@@ -136,9 +136,9 @@ private class MarkdownRichProjectionTests {
                 1L,
                 MdRichChanges(model.snapshot).append(edit.change)
             )
-        assertEquals("中|文", local.row.cells[1L].text)
-        assertTrue(local.row.cells[0L] === model.display.rows[1L].cells[0L])
-        assertTrue(local.row.cells[2L] === model.display.rows[1L].cells[2L])
+        assertEquals("中|文", local.row!!.cells[1L].text)
+        assertTrue(local.row!!.cells[0L] === model.display.rows[1L].cells[0L])
+        assertTrue(local.row!!.cells[2L] === model.display.rows[1L].cells[2L])
         val source = row.children[2L].range
         val current = local.originalRange(source)
         assertEquals("three", mdPreviewSelectedText(model, current, Some(local)))
@@ -153,6 +153,6 @@ private class MarkdownRichProjectionTests {
                 MarkdownBias.Before
             )
         )
-        assertEquals(Some(1L), local.rowForKey(local.row.key))
+        assertEquals(Some(1L), local.rowForKey(local.row!!.key))
     }
 }

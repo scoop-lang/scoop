@@ -1,0 +1,79 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownTextTableTests {
+    @Test
+    fun crossCellReplacementKeepsTheGridAndUnselectedCellSpelling() {
+        val source = "pre\n\n| ab | cd | ef |\n| :--- | ---: | --- |\n| gh | ij | kl |\n\npost\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            mdWholeText(document).replaceText(
+                MarkdownRange("pre\na".byteLength, "pre\nab\nc".byteLength),
+                "中|文"
+            )
+        edit.applyTo(document)
+        assertEquals("pre\na中|文\td\tef\ngh\tij\tkl\npost", edit.after.text.text)
+        assertEquals(
+            "中|文",
+            mdBytesText(edit.after.text.bytes, edit.insertedRange.start, edit.insertedRange.end)
+        )
+        assertTrue(document.toMarkdown().contains("| :--- | ---: | --- |\n| gh | ij | kl |"))
+        val table = document.parse().root.children[1L]
+        assertEquals(2L, table.children.size)
+        assertEquals(3L, table.children[0L].children.size)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun crossRowDeletionClearsSelectedCellsWithoutDroppingRows() {
+        val source = "pre\n\n| ab | cd |\n| --- | --- |\n| ef | gh |\n| ij | kl |\n\npost\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            mdWholeText(document).replaceText(
+                MarkdownRange("pre\na".byteLength, "pre\nab\tcd\nef\tg".byteLength),
+                ""
+            )
+        edit.applyTo(document)
+        assertEquals("pre\na\t\n\th\nij\tkl\npost", edit.after.text.text)
+        val table = document.parse().root.children[1L]
+        assertEquals(3L, table.children.size)
+        assertEquals(2L, table.children[1L].children.size)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun crossingFromATableToAParagraphKeepsBothBoundaryStructures() {
+        val source = "| ab | cd |\n| --- | --- |\n| ef | gh |\n\noutside\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            mdWholeText(document).replaceText(
+                MarkdownRange(1L, "ab\tcd\nef\tgh\nout".byteLength),
+                "X"
+            )
+        edit.applyTo(document)
+        assertEquals("aX\t\n\t\nside\nTail", edit.after.text.text)
+        val parsed = document.parse()
+        assertEquals(3L, parsed.root.children.size)
+        when (parsed.root.children[0L].content) {
+            case MarkdownContent.Table(_) -> Unit
+            else -> fail(Some("The boundary table must retain its grid"))
+        }
+        assertTrue(document.toMarkdown().endsWith("side\n\nTail\n"))
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun aWholeMiddleTableIsDeletedBetweenDifferentContainers() {
+        val source = "> ab\n\n| h |\n| --- |\n| x |\n\ncd\n\nTail\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            mdWholeText(document).replaceText(MarkdownRange(1L, "ab\nh\nx\nc".byteLength), "X")
+        edit.applyTo(document)
+        assertEquals("aX\nd\nTail", edit.after.text.text)
+        assertFalse(document.toMarkdown().contains("|"))
+        mdTextUndo(document, edit.change, source)
+    }
+}

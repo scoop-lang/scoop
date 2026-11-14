@@ -1,0 +1,147 @@
+package scoop.markdown
+
+internal class MdTextOrigin
+
+internal enum MdTextContext {
+    Inline(MarkdownInlineContent), Blocks(MdBlockText)
+}
+
+/** Semantic text spanning one inline block or an explicit source region. */
+public class MarkdownTextContent internal constructor(
+    internal val context: MdTextContext,
+    internal val origin: MdTextOrigin = MdTextOrigin()
+) {
+    public val snapshot: MarkdownSnapshot get() =
+        when (context) {
+            case Inline(val value) -> value.snapshot
+            case Blocks(val value) -> value.syntax.snapshot
+        }
+    public val sourceRange: MarkdownRange get() =
+        when (context) {
+            case Inline(val value) -> value.sourceRange
+            case Blocks(val value) -> value.syntax.region.range
+        }
+    public val text: MarkdownText get() =
+        when (context) {
+            case Inline(val value) -> value.text
+            case Blocks(val value) -> value.text
+        }
+    public val inlineContent: MarkdownInlineContent? get() =
+        when (context) {
+            case Inline(val value) -> Some(value)
+            case Blocks(val value) -> value.active
+        }
+    public val region: ParsedMarkdownRegion? get() =
+        when (context) {
+            case Inline(_) -> None
+            case Blocks(val value) -> Some(value.syntax)
+        }
+
+    public fun replaceText(
+        range: MarkdownRange,
+        text: String,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownTextEdit {
+        mdTextCheckRange(this, range)
+        return when (context) {
+            case Inline(val value) -> {
+                val edit = value.replaceText(range, text, bias)
+                val after = MarkdownTextContent(MdTextContext.Inline(edit.after), origin)
+                val length = after.text.byteLength - this.text.byteLength + range.byteLength
+                MarkdownTextEdit(
+                    edit.change,
+                    edit.selection,
+                    MarkdownRange(range.start, range.start + length),
+                    after
+                )
+            }
+            case Blocks(val value) -> mdTextReplaceBlocks(this, value, range, text, bias)
+        }
+    }
+
+    public fun edit(configure: MarkdownTextEditBuilder.() -> Unit): MarkdownTextEdit {
+        val builder = MarkdownTextEditBuilder(this)
+        builder.configure()
+        return builder.finish()
+    }
+}
+
+/** A prepared semantic transaction with source selection and displayed insertion coordinates. */
+public class MarkdownTextEdit internal constructor(
+    public val change: MarkdownChange,
+    public val selection: MarkdownRange,
+    public val insertedRange: MarkdownRange,
+    public val after: MarkdownTextContent
+) {
+    public fun applyTo(document: MarkdownDocument): MarkdownChange = change.applyTo(document)
+}
+
+public fun MarkdownInlineContent.editableText(): MarkdownTextContent =
+    MarkdownTextContent(MdTextContext.Inline(this))
+
+/** Builds native-independent surrounding text without modifying the source or expanding includes. */
+public fun MarkdownSyntax.textContent(range: MarkdownRange): MarkdownTextContent {
+    snapshot.checkRange(range)
+    requireMarkdown(
+        range.start >= root.range.start && range.end <= root.range.end,
+        "Text selection is outside this Markdown syntax region"
+    )
+    when (inlineContentAt(MarkdownPosition(range.start), MarkdownBias.After)) {
+        case Some(val inline) -> {
+            val start = inline.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
+            val end =
+                inline.text.sourceAt(
+                    MarkdownPosition(inline.text.byteLength),
+                    MarkdownBias.Before
+                ).byteOffset
+            if (range.start >= start && range.end <= end)
+                return inline.editableText()
+        }
+        case None -> Unit
+    }
+    val syntax = this
+    val region =
+        if (syntax is ParsedMarkdownRegion)
+            syntax
+        else
+            if (syntax is ParsedMarkdown)
+                syntax.region(range).parse()
+            else
+                throw IllegalArgumentException(
+                    Some("Text editing requires complete or region syntax")
+                )
+    return MarkdownTextContent(MdTextContext.Blocks(MdBlockText(region)))
+}
+
+internal fun mdTextCheckRange(content: MarkdownTextContent, range: MarkdownRange) {
+    requireMarkdown(
+        range.start >= 0L && range.end >= range.start && range.end <= content.text.byteLength,
+        "Text range is outside its Markdown content"
+    )
+    content.text.sourceAt(MarkdownPosition(range.start))
+    content.text.sourceAt(MarkdownPosition(range.end))
+}
+
+internal fun mdTextRebind(
+    content: MarkdownTextContent,
+    snapshot: MarkdownSnapshot
+): MarkdownTextContent {
+    val context =
+        when (content.context) {
+            case Inline(val value) -> MdTextContext.Inline(mdInlineRebind(value, snapshot))
+            case Blocks(val value) -> {
+                val old = value.syntax.region
+                val region =
+                    MarkdownRegion(
+                        snapshot,
+                        old.range,
+                        old.profile,
+                        old.definitions,
+                        old.definitionBoundary,
+                        old.definitionShift
+                    )
+                MdTextContext.Blocks(MdBlockText(value.syntax.rebind(region), value.activePosition))
+            }
+        }
+    return MarkdownTextContent(context, content.origin)
+}
