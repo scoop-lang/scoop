@@ -113,6 +113,8 @@
 
 普通复制／剪切同时提供所见 text/plain 与语义 text/markdown，原指令的生成显示不会取代被复制的源码。富文本粘贴以独立 Markdown 片段为优先，源码面直接插入原文；仅有纯文本时保持字面含义。MarkdownClipboardCommand 的显式纯文本、Markdown 和 TSV 命令供 Host／ViewState 的菜单入口使用；一次粘贴复用 MarkdownFragmentEdit.after 并进入单一历史项，详见编辑器规范。HTML 导入继续单独实施。
 
+块操作通过 `MarkdownBlockCommand`、RichHost／viewState 的 `blockState`／`executeBlock` 及可选 `markdownBlockToolbar` 接入。Block、List、Table 菜单覆盖段落／H1–H6、引用层级、列表类型与条目层级、代码块、分隔线、表格插入和行列／对齐；Primary-0／1…6 切换段落／标题。状态只读取已有结构，执行才解析必要的当前区域。连续同级块包装复用文档 Cone 的前缀事务，标题转换保留相邻块；空表格单元格使用真实源边界定位，删除后选择相邻有效单元格，禁止删除表头或最后一列。菜单关闭后恢复输入，代码转换直接打开局部源码面；所有操作共用当前选区、组合和撤销。
+
 ### 5.4 输入片段与全文文档分开
 
 现有 window 发布入口会复制完整 `surroundingText`。Markdown 宿主向原生连接提供当前输入片段的快照与映射，覆盖活动选区、marked range 和必要上下文；全局导航、跨块选区和历史仍由文档级宿主处理。

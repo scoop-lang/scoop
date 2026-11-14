@@ -1,0 +1,282 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.collections.*
+import scoop.text.*
+
+@Test
+private class MarkdownBlockWrappingTests {
+    @Test
+    fun `paragraph conversion keeps adjacent block boundaries and list wrapping keeps rules`() {
+        val document = MarkdownDocument.fromText("Before\n# Middle\nAfter\n")
+        val parsed = document.parse()
+        val changed = document.transform(parsed) { setParagraph(parsed.root.children[1L].id) }
+        assertEquals("Before\n\nMiddle\n\nAfter\n", document.toMarkdown())
+        assertEquals(3L, document.parse().root.children.size)
+        document.apply(MarkdownEdit(document.revision, changed.inverseReplacements))
+        assertEquals("Before\n# Middle\nAfter\n", document.toMarkdown())
+        val rule = MarkdownDocument.fromText("---\n\nTail\n")
+        val syntax = rule.parse()
+        rule.transform(syntax) { wrapBulletList(syntax.root.children[0L].id) }
+        val list = rule.parse().root.children[0L]
+        when (list.content) {
+            case MarkdownContent.ListBlock(_) -> when (list.children[0L].children[0L].content) {
+                case MarkdownContent.ThematicBreak -> Unit
+                else -> fail(Some(rule.toMarkdown()))
+            }
+            else -> fail(Some(rule.toMarkdown()))
+        }
+    }
+
+    @Test
+    fun `quote wrapping preserves raw inline and code spelling and unselected neighbors`() {
+        val original =
+            "Before\r\n# __A__ &amp; B\r\n\r\n~~~~ scoop\r\nbody\t中\r\n~~~~~~\r\nAfter\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) {
+                wrapBlockQuote(parsed.root.children[1L].id, parsed.root.children[2L].id)
+            }
+        val source = document.toMarkdown()
+        assertTrue(source.startsWith("Before\r\n\r\n> # __A__ &amp; B\r\n"))
+        assertTrue(source.contains("> ~~~~ scoop\r\n> body\t中\r\n> ~~~~~~\r\n\r\nAfter"))
+        val after = document.parse()
+        assertEquals(3L, after.root.children.size)
+        assertEquals(2L, after.root.children[1L].children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `nested wrapping retains outer lists quotes footnotes and lazy continuation`() {
+        for (
+            source in [
+                "> - alpha **b**\r\n>   beta &amp; c\r\n\r\nTail\r\n",
+                ">\talpha\ncontinued\n\nTail\n",
+                "- alpha\n  beta\n\n- other\n",
+                "[^n]: alpha\n    beta\n\nref [^n]\n"
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse(MarkdownProfile.Editor)
+            val paragraph =
+                mdTestFind(parsed) {
+                    node -> when (node.content) {
+                        case MarkdownContent.Paragraph(_) -> true
+                        else -> false
+                    }
+                }
+            val text = parsed.inlineContent(paragraph.id).text.text
+            val change = document.transform(parsed) { wrapBlockQuote(paragraph.id) }
+            val after = document.parse(MarkdownProfile.Editor)
+            val first =
+                mdTestFind(after) {
+                    node -> when (node.content) {
+                        case MarkdownContent.Paragraph(_) -> true
+                        else -> false
+                    }
+                }
+            assertEquals(text, after.inlineContent(first.id).text.text, Some(document.toMarkdown()))
+            assertEquals(
+                parsed.nodes().count() + 1L,
+                after.nodes().count(),
+                Some(document.toMarkdown())
+            )
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `quote removal handles tab remainders nested containers and adjacent blocks`() {
+        for (
+            source in [
+                "Before\n>\talpha\n>\tbeta\n# After\n",
+                "- > alpha\n  > beta\n\n- other\n",
+                "> >     code\n> >     next\n"
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val quote =
+                mdTestFind(parsed) {
+                    node -> when (node.content) {
+                        case MarkdownContent.BlockQuote -> true
+                        else -> false
+                    }
+                }
+            val before = parsed.textContent(parsed.root.range).text.text
+            val change = document.transform(parsed) { unwrapBlockQuote(quote.id) }
+            val after = document.parse()
+            assertEquals(
+                before,
+                after.textContent(after.root.range).text.text,
+                Some(document.toMarkdown())
+            )
+            assertEquals(
+                parsed.nodes().count() - 1L,
+                after.nodes().count(),
+                Some(document.toMarkdown())
+            )
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `quote removal consumes its indentation without changing ancestor tab columns`() {
+        for (
+            source in [
+                "   >\talpha\n   >\tbeta\n",
+                "> \t> alpha\n> \t> beta\n",
+                ">\t>\talpha\n>\t>\tbeta\n",
+                "- >\talpha\n\t>\tbeta\n",
+                "-\t>\talpha\n\t>\tbeta\n",
+                ">\t-\t>\talpha\n>\t\t>\tbeta\n",
+                ">\t-\t>     alpha\n>\t\t>     beta\n>\t\t\n>\t\toutside\n",
+                "-\t>     alpha\n\t>     beta\n\n- other\n",
+                "-\t>\t```\n\t>\t  code\n\t>\t```\n\n\toutside\n",
+                "[^n]: >\talpha\n    >\tbeta\n\nref [^n]\n"
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse(MarkdownProfile.Editor)
+            var quote: MarkdownNode? = None
+            for (node in parsed.nodes())
+                when (node.content) {
+                    case MarkdownContent.BlockQuote -> quote = Some(node)
+                    else -> Unit
+                }
+            val before = parsed.textContent(parsed.root.range).text.text
+            val id = quote!!.id
+            val change = document.transform(parsed) { unwrapBlockQuote(id) }
+            val after = document.parse(MarkdownProfile.Editor)
+            assertEquals(
+                before,
+                after.textContent(after.root.range).text.text,
+                Some(document.toMarkdown())
+            )
+            assertEquals(
+                parsed.nodes().count() - 1L,
+                after.nodes().count(),
+                Some(document.toMarkdown())
+            )
+            val originalCode = mdQuoteCodeBodies(parsed)
+            val updatedCode = mdQuoteCodeBodies(after)
+            assertEquals(originalCode.size, updatedCode.size, Some(document.toMarkdown()))
+            for (index in 0L ..< originalCode.size)
+                assertEquals(originalCode[index], updatedCode[index], Some(document.toMarkdown()))
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `list wrapping retains blocks and supports tasks and ordered numbers`() {
+        val source = "> first __word__\r\n> continued\r\n>\r\n> second &amp;\r\n\r\nTail\r\n"
+        for (kind in 0 .. 2) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val quote = parsed.root.children[0L]
+            val change =
+                document.transform(parsed) {
+                    if (kind == 0)
+                        wrapBulletList(quote.children[0L].id, quote.children[1L].id)
+                    else
+                        if (kind == 1)
+                            wrapOrderedList(quote.children[0L].id, quote.children[1L].id, 8L)
+                        else
+                            wrapTaskList(quote.children[0L].id, quote.children[1L].id)
+                }
+            val after = document.parse()
+            val list = after.root.children[0L].children[0L]
+            assertEquals(2L, list.children.size, Some(document.toMarkdown()))
+            assertTrue(
+                document.toMarkdown().contains(
+                    "__word__\r\n> " +
+                        if (kind == 1)
+                            "   continued"
+                        else
+                            "  continued"
+                )
+            )
+            assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
+            if (kind == 1)
+                assertTrue(document.toMarkdown().contains("> 9. second"))
+            if (kind == 2)
+                assertTrue(document.toMarkdown().contains("> - [ ] second"))
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `code conversion preserves raw inline source and chooses a safe fence`() {
+        val source =
+            "> - __literal__ &amp;\r\n>   continued ``` inside\r\n>\r\n>   # Second\r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[0L].children[0L]
+        val change =
+            document.transform(parsed) {
+                setFencedCode(item.children[0L].id, item.children[1L].id, "custom `info`")
+            }
+        val after = document.parse()
+        val code =
+            mdTestFind(after) {
+                node -> when (node.content) {
+                    case MarkdownContent.CodeBlock(_, _, _) -> true
+                    else -> false
+                }
+            }
+        when (code.content) {
+            case MarkdownContent.CodeBlock(Some(val fence), val info, val body) -> {
+                assertEquals('~', fence.marker)
+                assertEquals("custom `info`", info.text)
+                assertEquals("__literal__ &amp;\ncontinued ``` inside\n\nSecond\n", body.text)
+            }
+            else -> fail()
+        }
+        assertTrue(document.toMarkdown().startsWith("> - ~~~"))
+        assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `invalid wrapping remains atomic across containers tables tasks and invalid info`() {
+        val document = MarkdownDocument.fromText("- [ ] task\n\n# Heading\n\n|a|b|\n|-|-|\n|c|d|\n")
+        val parsed = document.parse()
+        val item = parsed.root.children[0L].children[0L]
+        val heading = parsed.root.children[1L]
+        val table = parsed.root.children[2L]
+        val before = document.snapshot()
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { wrapBlockQuote(item.children[0L].id) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { wrapBulletList(item.children[0L].id, heading.id) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { wrapBlockQuote(table.children[0L].children[0L].id) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { wrapTaskList(heading.id) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setFencedCode(heading.id, info = "bad\ninfo") }
+        }
+        assertSame(before, document.snapshot())
+    }
+}
+
+private fun mdQuoteCodeBodies(parsed: ParsedMarkdown): Array<String> {
+    val bodies = ArrayList<String>()
+    for (node in parsed.nodes())
+        when (node.content) {
+            case MarkdownContent.CodeBlock(_, _, val body) -> bodies.add(body.text)
+            else -> Unit
+        }
+    return bodies.toArray()
+}

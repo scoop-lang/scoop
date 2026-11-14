@@ -1,0 +1,380 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownBlockWindowTests {
+    @Test
+    fun blockMenusNativeInputAndTableCommandsShareSelectionAndHistory() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = BlockProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+        } catch (failure: Throwable) {
+            println("Block window step " + probe.step.value.toString())
+            println(probe.editor.document.toMarkdown())
+            println("cursor=" + probe.editor.selection.cursor.byteOffset.toString())
+            throw failure
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class BlockProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "alpha\n\nbeta\n\nTail\n"
+    val tableSource = "| h1 | h2 |\n| --- | --- |\n| a | b |\n| c | d |\n\nTail\n"
+    val editor =
+        MarkdownEditorState(
+            MarkdownDocument.fromText(original),
+            MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(1L))
+        )
+    val view = MarkdownEditorViewState(editor)
+    val parser =
+        MarkdownParseController(
+            editor,
+            workers,
+            proxy,
+            MarkdownParseOptions(MarkdownProfile.Editor)
+        )
+    val step = state(0)
+    val mounted = state(true)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var inputReady = false
+    var menuOpen = false
+    var localSource = false
+    var allowNoInput = false
+    var waiting = false
+    var presentations = 0L
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown block editor verification"
+                            size = LogicalSize(680.0, 520.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> BlockRoot(this, scope) })
+                native.createDeadline {
+                    fail(
+                        Some(
+                            "Block timeout at " +
+                                step.value.toString() +
+                                ", rich=" +
+                                view.richFocus.isFocusActive.toString() +
+                                ", input=" +
+                                inputReady.toString()
+                        )
+                    )
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val event)) -> when (event) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                presentations
+        )
+            return false
+        if (!mounted.value || menuOpen)
+            return true
+        if (parser.current?.snapshot?.revision != Some(editor.snapshot.revision))
+            return false
+        if (localSource)
+            return inputReady
+        val focused =
+            if (view.mode == MarkdownEditorMode.Source)
+                view.sourceFocus.isFocusActive
+            else
+                view.richFocus.isFocusActive
+        return focused &&
+            (
+                inputReady ||
+                    allowNoInput ||
+                    (view.mode == MarkdownEditorMode.SideBySide && view.rightReadOnly)
+            )
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+    private fun key(code: Int, text: String = "", flags: Int = 0) {
+        mdNativeKey(window!!, code, text, flags)
+    }
+    private fun apply(command: MarkdownBlockCommand) {
+        assertTrue(view.executeBlock(command))
+    }
+    private fun source(): String = editor.document.toMarkdown()
+    private fun selectCell(row: Long, column: Long) {
+        val syntax = editor.document.parse()
+        val content =
+            syntax.inlineContent(syntax.root.children[0L].children[row].children[column].id)
+        val at = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+        editor.setSelection(MarkdownSelection(at, at))
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> next { key(19, "2", 8) }
+            case 1 -> {
+                assertEquals(
+                    MarkdownStyleState.On,
+                    view.blockState(MarkdownBlockCommand.Heading(2))
+                )
+                next { assertEquals(0, mdNativeText(window!!, "中", 1, 1L)) }
+            }
+            case 2 -> {
+                assertTrue(editor.isComposing)
+                next { apply(MarkdownBlockCommand.Quote) }
+            }
+            case 3 -> {
+                assertFalse(editor.isComposing)
+                assertTrue(source().startsWith("> ## a中lpha"))
+                next { assertEquals(0, mdNativeText(window!!, "文")) }
+            }
+            case 4 -> next { key(6, "z", 8) }
+            case 5 -> {
+                assertFalse(source().contains("文"))
+                next { key(6, "z", 8) }
+            }
+            case 6 -> {
+                assertTrue(source().startsWith("## a中lpha"))
+                next { key(6, "z", 8) }
+            }
+            case 7 -> {
+                assertTrue(source().startsWith("## alpha"))
+                next { key(6, "z", 8) }
+            }
+            case 8 -> {
+                assertEquals(original, source())
+                next {
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(10L), MarkdownPosition(1L))
+                    )
+                }
+            }
+            case 9 -> next { apply(MarkdownBlockCommand.BulletList) }
+            case 10 -> {
+                assertEquals(
+                    MarkdownStyleState.On,
+                    view.blockState(MarkdownBlockCommand.BulletList)
+                )
+                next {
+                    menuOpen = true;
+                    mdNativeClick(window!!, 79.0, 14.0)
+                }
+            }
+            case 11 -> next { key(17, "t") }
+            case 12 -> next {
+                key(36, "\r");
+                menuOpen = false
+            }
+            case 13 -> {
+                assertEquals(MarkdownStyleState.On, view.blockState(MarkdownBlockCommand.TaskList))
+                assertTrue(view.richFocus.isFocusActive)
+                next { apply(MarkdownBlockCommand.TaskList) }
+            }
+            case 14 -> next { apply(MarkdownBlockCommand.OrderedList) }
+            case 15 -> next {
+                val syntax = editor.document.parse()
+                val content =
+                    syntax.inlineContent(syntax.root.children[0L].children[1L].children[0L].id)
+                val at = content.text.sourceAt(MarkdownPosition(1L))
+                editor.setSelection(MarkdownSelection(at, at))
+            }
+            case 16 -> next { apply(MarkdownBlockCommand.Indent) }
+            case 17 -> next { apply(MarkdownBlockCommand.Outdent) }
+            case 18 -> next { apply(MarkdownBlockCommand.RemoveList) }
+            case 19 -> {
+                assertTrue(source().endsWith("beta\n\nTail\n"))
+                next { editor.document.reset(tableSource) }
+            }
+            case 20 -> {
+                assertEquals(
+                    MarkdownStyleState.Unavailable,
+                    view.blockState(MarkdownBlockCommand.RemoveTableRow)
+                )
+                next { selectCell(1L, 1L) }
+            }
+            case 21 -> next { apply(MarkdownBlockCommand.InsertTableRow(false)) }
+            case 22 -> next { assertEquals(0, mdNativeText(window!!, "中文")) }
+            case 23 -> next {
+                menuOpen = true;
+                mdNativeClick(window!!, 133.0, 14.0)
+            }
+            case 24 -> next { key(119) }
+            case 25 -> next {
+                key(36, "\r");
+                menuOpen = false
+            }
+            case 26 -> {
+                assertEquals(
+                    MarkdownStyleState.On,
+                    view.blockState(MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Right)),
+                    Some(source())
+                )
+                assertTrue(source().contains("中文"))
+                next { apply(MarkdownBlockCommand.RemoveTableRow) }
+            }
+            case 27 -> {
+                assertFalse(source().contains("中文"))
+                next { key(6, "z", 8) }
+            }
+            case 28 -> {
+                assertTrue(source().contains("中文"))
+                next { apply(MarkdownBlockCommand.InsertTableColumn(true)) }
+            }
+            case 29 -> next { assertEquals(0, mdNativeText(window!!, "new")) }
+            case 30 -> next { apply(MarkdownBlockCommand.RemoveTableColumn) }
+            case 31 -> {
+                assertFalse(source().contains("new"))
+                next { key(6, "z", 8) }
+            }
+            case 32 -> {
+                assertTrue(source().contains("new"))
+                next {
+                    view.setMode(MarkdownEditorMode.SideBySide);
+                    view.setRightReadOnly(true)
+                }
+            }
+            case 33 -> {
+                assertEquals(
+                    MarkdownStyleState.Unavailable,
+                    view.blockState(MarkdownBlockCommand.RemoveTableColumn)
+                )
+                assertFalse(view.executeBlock(MarkdownBlockCommand.InsertTableRow(false)))
+                next { view.setMode(MarkdownEditorMode.Source) }
+            }
+            case 34 -> {
+                assertFalse(view.executeBlock(MarkdownBlockCommand.Heading(2)))
+                next {
+                    view.setMode(MarkdownEditorMode.Wysiwyg);
+                    editor.document.reset("")
+                }
+            }
+            case 35 -> next { apply(MarkdownBlockCommand.InsertTable(2L, 2L)) }
+            case 36 -> {
+                val table = editor.document.parse().root.children[0L]
+                assertEquals(2L, table.children.size)
+                assertEquals(2L, table.children[0L].children.size)
+                next { key(6, "z", 8) }
+            }
+            case 37 -> {
+                assertEquals("", source())
+                next {
+                    localSource = true;
+                    apply(MarkdownBlockCommand.CodeBlock)
+                }
+            }
+            case 38 -> next { assertEquals(0, mdNativeText(window!!, "value")) }
+            case 39 -> {
+                assertTrue(source().contains("\nvalue\n"))
+                next {
+                    key(53);
+                    localSource = false;
+                    allowNoInput = true
+                }
+            }
+            case 40 -> {
+                assertTrue(view.richFocus.isFocusActive)
+                assertTrue(source().startsWith("```"))
+                next { mounted.value = false }
+            }
+            case 41 -> {
+                assertEquals(
+                    MarkdownStyleState.Unavailable,
+                    view.blockState(MarkdownBlockCommand.Heading(1))
+                )
+                assertFalse(view.executeBlock(MarkdownBlockCommand.Quote))
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected block step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close();
+        parser.close();
+        editor.close()
+    }
+}
+
+private class BlockRoot(val probe: BlockProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Rich)
+    }
+    public override fun render(): View {
+        val current = probe
+        current.step.value
+        return column {
+            alignment = CrossAlignment.Stretch
+            if (current.mounted.value) {
+                item(markdownBlockToolbar(current.view))
+                item(markdownEditor(current.view, current.parser)) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+            }
+        }
+    }
+}

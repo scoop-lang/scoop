@@ -1,0 +1,204 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal class MdBlockContext(val syntax: MarkdownSyntax, val selection: MarkdownSelection) {
+    val first = mdCommandLeaf(syntax, selection.range.start, MarkdownBias.After)
+    val last =
+        if (selection.collapsed)
+            first
+        else
+            mdCommandLeaf(syntax, selection.range.end, MarkdownBias.Before)
+    val empty =
+        selection.collapsed &&
+            when (first.content) {
+                case MarkdownContent.Document -> syntax.inlineContentAt(
+                    selection.cursor
+                )?.text?.byteLength ==
+                    Some(0L)
+                case MarkdownContent.BlockQuote -> syntax.inlineContentAt(
+                    selection.cursor
+                )?.text?.byteLength ==
+                    Some(0L)
+                case MarkdownContent.ListItem(_) -> first.children.size == 0L
+                else -> false
+            }
+    val blocks =
+        if (empty)
+            []
+        else
+            mdCommandSiblings(syntax, first, last)
+    val item =
+        mdCommandAncestor(
+            syntax,
+            first,
+            {
+                node -> when (node.content) {
+                    case MarkdownContent.ListItem(_) -> true
+                    else -> false
+                }
+            },
+            selection.range.end
+        )
+    val list =
+        mdCommandAncestor(
+            syntax,
+            first,
+            {
+                node -> when (node.content) {
+                    case MarkdownContent.ListBlock(_) -> true
+                    else -> false
+                }
+            },
+            selection.range.end
+        )
+    val quote =
+        mdCommandAncestor(
+            syntax,
+            first,
+            {
+                node -> when (node.content) {
+                    case MarkdownContent.BlockQuote -> true
+                    else -> false
+                }
+            },
+            selection.range.end
+        )
+    val cell =
+        if (first === last)
+            when (first.content) {
+                case MarkdownContent.TableCell(_, _) -> Some(first)
+                else -> None
+            }
+        else
+            None
+    val row =
+        when (cell) {
+            case Some(val value) -> syntax.parent(value.id);
+            case None -> None
+        }
+    val table =
+        when (row) {
+            case Some(val value) -> syntax.parent(value.id);
+            case None -> None
+        }
+    val rowIndex =
+        when (row) {
+            case Some(val value) -> mdCommandIndex(table!!.children, value);
+            case None -> -1L
+        }
+    val column =
+        when (cell) {
+            case Some(val value) -> mdCommandIndex(row!!.children, value);
+            case None -> -1L
+        }
+    val leaves = mdCommandLeaves(blocks, selection.range)
+    val paragraphs =
+        leaves.size >
+            0L &&
+            mdCommandAll(
+                leaves,
+                {
+                    node -> when (node.content) {
+                        case MarkdownContent.Paragraph(_) -> true
+                        case MarkdownContent.Heading(_, _, _) -> true
+                        else -> false
+                    }
+                }
+            )
+    val wrapping = mdCommandCanWrap(syntax, blocks)
+
+    fun values(previousList: MdBlockValues? = None): MdBlockValues {
+        val emptyBlock =
+            empty &&
+                when (item?.content) {
+                    case Some(MarkdownContent.ListItem(Some(_))) -> false
+                    else -> true
+                }
+        val insideTable =
+            when (first.content) {
+                case MarkdownContent.TableCell(_, _) -> true
+                case MarkdownContent.TableRow(_) -> true
+                else -> false
+            }
+        val info =
+            when (list?.content) {
+                case Some(MarkdownContent.ListBlock(val value)) -> Some(value)
+                else -> None
+            }
+        val task =
+            when (list) {
+                case Some(val value) -> previousList?.taskPossible ?:
+                    mdCommandAll(
+                        value.children,
+                        {
+                            node -> node.children.size ==
+                                0L ||
+                                when (node.children[0L].content) {
+                                    case MarkdownContent.Paragraph(_) -> true
+                                    else -> false
+                                }
+                        }
+                    )
+                case None -> wrapping &&
+                    mdCommandAll(
+                        blocks,
+                        {
+                            node -> when (node.content) {
+                                case MarkdownContent.Paragraph(_) -> true
+                                else -> false
+                            }
+                        }
+                    )
+            }
+        var level = -1
+        if (paragraphs) {
+            level = mdCommandLevel(leaves[0L])
+            for (node in leaves)
+                if (mdCommandLevel(node) != level)
+                    level = -2
+        }
+        val heading =
+            paragraphs && mdCommandAll(leaves, { node -> !mdCommandTaskFirst(syntax, node) })
+        val itemIndex =
+            when (item) {
+                case Some(val value) -> mdCommandIndex(syntax.parent(value.id)!!.children, value)
+                case None -> -1L
+            }
+        val tasks =
+            when (list) {
+                case Some(val value) -> previousList?.tasks ?: mdCommandTaskState(value)
+                case None -> MarkdownStyleState.Off
+            }
+        return MdBlockValues(
+            paragraphs || empty,
+            heading || emptyBlock,
+            level,
+            wrapping || emptyBlock,
+            quote?.range?.byteLength != None,
+            info?.ordered,
+            tasks,
+            task || empty,
+            syntax.profile.taskLists,
+            itemIndex,
+            wrapping && paragraphs || emptyBlock,
+            cell?.range?.byteLength != None,
+            rowIndex,
+            column,
+            table?.children?.size ?: 0L,
+            row?.children?.size ?: 0L,
+            when (cell?.content) {
+                case Some(MarkdownContent.TableCell(val value, _)) -> value;
+                else -> MarkdownAlignment.None
+            },
+            !insideTable && !mdCommandTaskFirst(syntax, first) && (!empty || emptyBlock),
+            syntax.profile.tables,
+            first ===
+                last &&
+                when (first.content) {
+                    case MarkdownContent.CodeBlock(_, _, _) -> true
+                    else -> false
+                }
+        )
+    }
+}

@@ -1,0 +1,174 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+private class MdBlockToolbarProps(val editor: MarkdownEditorViewState, val fonts: FontCollection?)
+
+/** Optional block, list and table menus sharing the editor's current selection and history. */
+public fun markdownBlockToolbar(
+    state: MarkdownEditorViewState,
+    fonts: FontCollection? = None
+): View =
+    component(MdBlockToolbarProps(state, fonts), { props, scope -> MdBlockToolbar(props, scope) })
+
+private class MdBlockToolbar(
+    val props: Props<MdBlockToolbarProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val blockOpen = state(false)
+    private val listOpen = state(false)
+    private val tableOpen = state(false)
+    private var pending: MarkdownBlockCommand? = None
+
+    private fun closed() {
+        val command = pending
+        pending = None
+        val editor = props.value.editor
+        when (command) {
+            case Some(val action) -> if (!editor.executeBlock(action))
+                editor.requestFocus(MarkdownEditorPane.Rich)
+            case None -> editor.requestFocus(MarkdownEditorPane.Rich)
+        }
+    }
+
+    private fun commands(
+        title: String,
+        open: State<Boolean>,
+        commands: Array<MarkdownBlockCommand>
+    ): View {
+        val owner = this
+        val input = props.value
+        val content =
+            menu {
+                for (index in 0L ..< commands.size) {
+                    val command = commands[index]
+                    val status = input.editor.blockState(command)
+                    val label =
+                        (
+                            if (status == MarkdownStyleState.On)
+                                "✓ "
+                            else
+                                if (status == MarkdownStyleState.Mixed)
+                                    "– "
+                                else
+                                    ""
+                        ) +
+                            mdBlockLabel(command)
+                    item(ViewKey.Text(index.toString()), label, { owner.pending = Some(command) }) {
+                        enabled = status != MarkdownStyleState.Unavailable
+                    }
+                }
+            }
+        return dropdownMenu(open.binding(), content) {
+            trigger(title) {
+                size = ButtonSize.Sm;
+                variant = ButtonVariant.Ghost
+            }
+            fonts = input.fonts
+            width = 236.0
+            focus { restoreFocus = false }
+            onClosed = { _ -> owner.closed() }
+        }
+    }
+
+    public override fun render(): View {
+        val owner = this
+        return row {
+            spacing = 4.0
+            item(
+                owner.commands(
+                    "Block",
+                    owner.blockOpen,
+                    [
+                        MarkdownBlockCommand.Paragraph,
+                        MarkdownBlockCommand.Heading(1),
+                        MarkdownBlockCommand.Heading(2),
+                        MarkdownBlockCommand.Heading(3),
+                        MarkdownBlockCommand.Heading(4),
+                        MarkdownBlockCommand.Heading(5),
+                        MarkdownBlockCommand.Heading(6),
+                        MarkdownBlockCommand.Quote,
+                        MarkdownBlockCommand.Unquote,
+                        MarkdownBlockCommand.CodeBlock,
+                        MarkdownBlockCommand.InsertThematicBreak
+                    ]
+                )
+            )
+            item(
+                owner.commands(
+                    "List",
+                    owner.listOpen,
+                    [
+                        MarkdownBlockCommand.BulletList,
+                        MarkdownBlockCommand.OrderedList,
+                        MarkdownBlockCommand.TaskList,
+                        MarkdownBlockCommand.Indent,
+                        MarkdownBlockCommand.Outdent,
+                        MarkdownBlockCommand.RemoveList,
+                        MarkdownBlockCommand.RenumberList
+                    ]
+                )
+            )
+            item(
+                owner.commands(
+                    "Table",
+                    owner.tableOpen,
+                    [
+                        MarkdownBlockCommand.InsertTable(3L, 3L),
+                        MarkdownBlockCommand.InsertTableRow(true),
+                        MarkdownBlockCommand.InsertTableRow(false),
+                        MarkdownBlockCommand.RemoveTableRow,
+                        MarkdownBlockCommand.InsertTableColumn(true),
+                        MarkdownBlockCommand.InsertTableColumn(false),
+                        MarkdownBlockCommand.RemoveTableColumn,
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.None),
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Left),
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Center),
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Right)
+                    ]
+                )
+            )
+        }
+    }
+}
+
+private fun mdBlockLabel(command: MarkdownBlockCommand): String =
+    when (command) {
+        case Paragraph -> "Paragraph"
+        case Heading(val level) -> "Heading " + level.toString()
+        case Quote -> "Increase quote level"
+        case Unquote -> "Remove quote level"
+        case BulletList -> "Bulleted list"
+        case OrderedList -> "Numbered list"
+        case TaskList -> "Toggle task list"
+        case Indent -> "Indent list item"
+        case Outdent -> "Outdent list item"
+        case RemoveList -> "Remove list item marker"
+        case RenumberList -> "Renumber from 1"
+        case CodeBlock -> "Code block"
+        case InsertThematicBreak -> "Insert horizontal rule"
+        case InsertTable(val rows, val columns) -> "Insert " +
+            rows.toString() +
+            " × " +
+            columns.toString() +
+            " table"
+        case InsertTableRow(val before) -> if (before)
+            "Insert row above"
+        else
+            "Insert row below"
+        case RemoveTableRow -> "Delete row"
+        case InsertTableColumn(val before) -> if (before)
+            "Insert column left"
+        else
+            "Insert column right"
+        case RemoveTableColumn -> "Delete column"
+        case AlignTableColumn(val alignment) -> when (alignment) {
+            case None -> "Default column alignment"
+            case Left -> "Align column left"
+            case Center -> "Align column center"
+            case Right -> "Align column right"
+        }
+    }

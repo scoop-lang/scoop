@@ -95,6 +95,12 @@ RichHost 和 viewState 提供 `setCode`／`toggleCode`／`codeState`，Primary-E
 
 [三模式示例](examples/editor/README.md) 提供模式、格式工具栏、只读、同步开关、撤销／重做和 Cmd-S 保存；[预览示例](examples/preview/README.md) 和[源码示例](examples/source-editor/README.md) 展示单独使用。本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引、显示映射和后台解析；`tests-cones/source`、`tests-cones/preview`、[富文本原生测试](tests-cones/rich/README.md) 和[三模式原生测试](tests-cones/editor/README.md) 使用本机窗口验证大文档、滚动、几何、输入与资源释放。完整功能和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。
 
+`markdownBlockToolbar(viewState)` 提供 Block、List、Table 菜单，可与格式工具栏并用。RichHost／viewState 的 `blockState(command)`、`executeBlock(command)` 接收 `MarkdownBlockCommand`，供应用自建菜单使用。支持段落／H1–H6、增减引用层级、无序／有序／任务列表、缩进／提升／解除条目、显式从 1 重编号、代码块、分隔线和表格插入；Primary-0／1…6 切换段落／标题。代码转换后直接打开该块的局部源码面。
+
+表格菜单支持上下插行、左右插列、删除与四种列对齐，新增／删除后定位有效单元格；禁止删除表头和最后一列。`InsertTable(rows, columns)` 的行数包含表头，菜单默认 3 × 3；`InsertTableRow(before)`／`InsertTableColumn(before)` 以当前单元格为参照。跨单元格选区不能执行针对单个单元格的行列命令。列表类型作用于当前层级的整份列表，任务命令在全部为任务时移除任务框，否则补齐并保留已勾选状态。
+
+块命令先准备当前局部结构，接受本输入面的组合后作为一个事务发布；菜单关闭后恢复输入焦点，源码模式、只读、不相容结构和未挂载状态返回 false。查询状态读取已有投影，普通键入不触发同步区域解析；在同一块内移动光标、对同一列表查询时复用结构状态。标题转段落保留前后独立块，源码选区与撤销方向沿统一历史处理。
+
 ## 剪贴板格式
 
 默认复制／剪切同时写入所见 `text/plain` 和语义 `text/markdown`；源码面两者均为原选区。默认粘贴优先读取存在的 Markdown 格式，富文本面按文档 Cone 的 replaceMarkdown 插入，源码面原样插入；缺失时将普通文本按字面文字插入。一次粘贴独立撤销，先接受当前组合，剪切先成功写剪贴板再删除。生成内容的 Markdown 表示保留原指令。HTML 导入尚未接入。

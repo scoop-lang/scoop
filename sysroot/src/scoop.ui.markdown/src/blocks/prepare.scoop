@@ -1,0 +1,342 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.text.*
+
+internal fun mdPrepareBlockCommand(
+    syntax: ParsedMarkdownRegion,
+    selection: MarkdownSelection,
+    command: MarkdownBlockCommand
+): MdRichStructureEdit? {
+    val context = MdBlockContext(syntax, selection)
+    if (context.values().value(command) == MarkdownStyleState.Unavailable)
+        return None
+    when (command) {
+        case InsertThematicBreak -> return Some(mdInsertBlock(syntax, selection, "***"))
+        case InsertTable(val rows, val columns) -> {
+            val source =
+                markdownText {
+                    table {
+                        header {
+                            for (column in 0L ..< columns)
+                                cell {}
+                        }
+                        for (index in 1L ..< rows)
+                            row {
+                                for (column in 0L ..< columns)
+                                    cell {}
+                            }
+                    }
+                }
+            return Some(mdInsertBlock(syntax, selection, source))
+        }
+        else -> Unit
+    }
+    val existingList =
+        context.list?.range?.byteLength !=
+            None &&
+            when (command) {
+                case BulletList -> true
+                case OrderedList -> true
+                case TaskList -> true
+                case RenumberList -> true
+                case Indent -> true
+                case Outdent -> true
+                case RemoveList -> true
+                else -> false
+            }
+    if (context.empty && context.blocks.size == 0L && !existingList) {
+        val source =
+            when (command) {
+                case Paragraph -> ""
+                case Heading(val level) -> "#".repeat(level.toLong()) + " "
+                case Quote -> "> "
+                case BulletList -> "- "
+                case OrderedList -> "1. "
+                case TaskList -> "- [ ] "
+                case CodeBlock -> "```\n\n```"
+                else -> return None
+            }
+        return Some(mdInsertBlock(syntax, selection, source))
+    }
+    val change =
+        syntax.prepareTransform {
+            when (command) {
+                case Paragraph -> for (node in context.leaves)
+                    setParagraph(node.id)
+                case Heading(val level) -> for (node in context.leaves)
+                    setHeading(node.id, level)
+                case Quote -> wrapBlockQuote(
+                    context.blocks[0L].id,
+                    context.blocks[context.blocks.size - 1L].id
+                )
+                case Unquote -> unwrapBlockQuote(context.quote!!.id)
+                case BulletList -> when (context.list) {
+                    case Some(val list) -> setBulletList(list.id)
+                    case None -> wrapBulletList(
+                        context.blocks[0L].id,
+                        context.blocks[context.blocks.size - 1L].id
+                    )
+                }
+                case OrderedList -> when (context.list) {
+                    case Some(val list) -> setOrderedList(list.id)
+                    case None -> wrapOrderedList(
+                        context.blocks[0L].id,
+                        context.blocks[context.blocks.size - 1L].id
+                    )
+                }
+                case TaskList -> when (context.list) {
+                    case Some(val list) -> {
+                        val remove = context.values().tasks == MarkdownStyleState.On
+                        for (node in list.children) {
+                            val checked =
+                                when (node.content) {
+                                    case MarkdownContent.ListItem(val value) -> value ?: false
+                                    else -> false
+                                }
+                            setTask(
+                                node.id,
+                                if (remove)
+                                    None
+                                else
+                                    Some(checked)
+                            )
+                        }
+                    }
+                    case None -> wrapTaskList(
+                        context.blocks[0L].id,
+                        context.blocks[context.blocks.size - 1L].id
+                    )
+                }
+                case Indent -> indentListItem(context.item!!.id)
+                case Outdent -> outdentListItem(context.item!!.id)
+                case RemoveList -> unwrapListItem(context.item!!.id)
+                case RenumberList -> setOrderedList(context.list!!.id)
+                case CodeBlock -> when (context.first.content) {
+                    case MarkdownContent.CodeBlock(_, val info, _) -> setCodeInfo(
+                        context.first.id,
+                        info.text
+                    )
+                    else -> setFencedCode(
+                        context.blocks[0L].id,
+                        context.blocks[context.blocks.size - 1L].id
+                    )
+                }
+                case InsertTableRow(val before) -> insertTableRow(
+                    context.table!!.id,
+                    context.rowIndex +
+                        if (before)
+                            0L
+                        else
+                            1L
+                ) {
+                    for (column in 0L ..< context.row!!.children.size)
+                        cell {}
+                }
+                case RemoveTableRow -> removeTableRow(context.table!!.id, context.rowIndex)
+                case InsertTableColumn(val before) -> insertTableColumn(
+                    context.table!!.id,
+                    context.column +
+                        if (before)
+                            0L
+                        else
+                            1L
+                )
+                case RemoveTableColumn -> removeTableColumn(context.table!!.id, context.column)
+                case AlignTableColumn(val alignment) -> setTableColumnAlignment(
+                    context.table!!.id,
+                    context.column,
+                    alignment
+                )
+                case InsertThematicBreak -> Unit
+                case InsertTable(_, _) -> Unit
+            }
+        }
+    val after = syntax.region.after(change).parse()
+    var selected = mdBlockMapSelection(change, selection)
+    when (command) {
+        case InsertTableRow(val before) -> selected =
+            mdBlockTableSelection(
+                context,
+                after,
+                change,
+                context.rowIndex +
+                    if (before)
+                        0L
+                    else
+                        1L,
+                context.column
+            )
+        case RemoveTableRow -> selected =
+            mdBlockTableSelection(context, after, change, context.rowIndex, context.column)
+        case InsertTableColumn(val before) -> selected =
+            mdBlockTableSelection(
+                context,
+                after,
+                change,
+                context.rowIndex,
+                context.column +
+                    if (before)
+                        0L
+                    else
+                        1L
+            )
+        case RemoveTableColumn -> selected =
+            mdBlockTableSelection(context, after, change, context.rowIndex, context.column)
+        case Paragraph -> selected = mdBlockTextSelection(syntax, after, change, selection)
+        case Heading(_) -> selected = mdBlockTextSelection(syntax, after, change, selection)
+        else -> Unit
+    }
+    return Some(
+        MdRichStructureEdit(
+            change,
+            after,
+            selected,
+            selection.anchor.byteOffset > selection.cursor.byteOffset
+        )
+    )
+}
+
+private fun mdInsertBlock(
+    syntax: ParsedMarkdownRegion,
+    selection: MarkdownSelection,
+    source: String
+): MdRichStructureEdit {
+    val edit = syntax.replaceMarkdown(selection.range, source)
+    return MdRichStructureEdit(edit.change, edit.after, edit.selection)
+}
+
+private fun mdBlockMapSelection(
+    change: MarkdownChange,
+    selection: MarkdownSelection
+): MarkdownRange {
+    val first =
+        change.map(
+            MarkdownAnchor(MarkdownPosition(selection.range.start), MarkdownBias.After)
+        ).position.byteOffset
+    val last =
+        change.map(
+            MarkdownAnchor(
+                MarkdownPosition(selection.range.end),
+                if (selection.collapsed)
+                    MarkdownBias.After
+                else
+                    MarkdownBias.Before
+            )
+        ).position.byteOffset
+    return if (last < first)
+        MarkdownRange(first, first)
+    else
+        MarkdownRange(first, last)
+}
+
+private fun mdBlockTableSelection(
+    context: MdBlockContext,
+    after: ParsedMarkdownRegion,
+    change: MarkdownChange,
+    row: Long,
+    column: Long
+): MarkdownRange {
+    val start =
+        change.map(
+            MarkdownAnchor(MarkdownPosition(context.table!!.range.start), MarkdownBias.Before)
+        ).position
+    val table =
+        mdCommandAncestor(
+            after,
+            after.nodeAt(start),
+            {
+                node -> when (node.content) {
+                    case MarkdownContent.Table(_) -> true
+                    else -> false
+                }
+            },
+            start.byteOffset
+        )!!
+    val nextRow =
+        table.children[
+            if (row < table.children.size)
+                row
+            else
+                table.children.size - 1L
+        ]
+    val cell =
+        nextRow.children[
+            if (column < nextRow.children.size)
+                column
+            else
+                nextRow.children.size - 1L
+        ]
+    val at =
+        after.inlineContent(cell.id).text.sourceAt(
+            MarkdownPosition(0L),
+            MarkdownBias.After
+        ).byteOffset
+    return MarkdownRange(at, at)
+}
+
+private fun mdBlockTextSelection(
+    before: MarkdownSyntax,
+    after: MarkdownSyntax,
+    change: MarkdownChange,
+    selection: MarkdownSelection
+): MarkdownRange {
+    val first =
+        mdBlockTextPoint(
+            before,
+            after,
+            change,
+            MarkdownPosition(selection.range.start),
+            MarkdownBias.After
+        )
+    val last =
+        mdBlockTextPoint(
+            before,
+            after,
+            change,
+            MarkdownPosition(selection.range.end),
+            if (selection.collapsed)
+                MarkdownBias.After
+            else
+                MarkdownBias.Before
+        )
+    return if (last < first)
+        MarkdownRange(first, first)
+    else
+        MarkdownRange(first, last)
+}
+
+private fun mdBlockTextPoint(
+    before: MarkdownSyntax,
+    after: MarkdownSyntax,
+    change: MarkdownChange,
+    point: MarkdownPosition,
+    bias: MarkdownBias
+): Long {
+    val mapped = change.map(MarkdownAnchor(point, bias)).position.byteOffset
+    val original = before.inlineContentAt(point, bias) ?: return mapped
+    val start =
+        change.map(
+            MarkdownAnchor(
+                original.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After),
+                MarkdownBias.Before
+            )
+        ).position
+    val next = mdCommandLeaf(after, start.byteOffset, MarkdownBias.After)
+    val content =
+        when (next.content) {
+            case MarkdownContent.Paragraph(_) -> after.inlineContent(next.id)
+            case MarkdownContent.Heading(_, _, _) -> after.inlineContent(next.id)
+            else -> return mapped
+        }
+    val offset = original.text.textAt(point, bias).byteOffset
+    return content.text.sourceAt(
+        MarkdownPosition(
+            if (offset < content.text.byteLength)
+                offset
+            else
+                content.text.byteLength
+        ),
+        bias
+    ).byteOffset
+}

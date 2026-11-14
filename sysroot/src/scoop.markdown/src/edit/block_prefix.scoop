@@ -1,0 +1,110 @@
+package scoop.markdown
+
+internal struct MdWrapPrefix(val end: Long, val carry: Long = 0L)
+
+internal fun mdWrapAncestors(syntax: MarkdownSyntax, node: MarkdownNode): Array<MarkdownNode> {
+    val values = ArrayList<MarkdownNode>()
+    var current = syntax.parent(node.id)
+    while (true) {
+        val ancestor = current ?: break
+        values.add(ancestor)
+        current = syntax.parent(ancestor.id)
+    }
+    return Array<MarkdownNode>(values.size) { index -> values[values.size - index - 1L] }
+}
+
+/** Uses consumed source prefixes, including lazy lines and partly consumed tabs. */
+internal fun mdWrapPrefix(
+    snapshot: MarkdownSnapshot,
+    ancestors: Array<MarkdownNode>,
+    line: MarkdownRange
+): MdWrapPrefix {
+    var result = MdWrapPrefix(line.start)
+    for (node in ancestors) {
+        when (node.content) {
+            case MarkdownContent.ListItem(_) -> {
+                val lines = node.itemSource!!.lines
+                var low = 0L
+                var high = lines.size
+                while (low < high) {
+                    val middle = low + (high - low) / 2L
+                    if (lines[middle].lineStart < line.start)
+                        low = middle + 1L
+                    else
+                        high = middle
+                }
+                if (low < lines.size && lines[low].lineStart == line.start)
+                    result = MdWrapPrefix(lines[low].end, lines[low].remainder)
+            }
+            case MarkdownContent.BlockQuote -> {
+                val markers = node.markers
+                var low = 0L
+                var high = markers.size
+                while (low < high) {
+                    val middle = low + (high - low) / 2L
+                    if (markers[middle].start < line.start)
+                        low = middle + 1L
+                    else
+                        high = middle
+                }
+                if (low < markers.size && markers[low].start <= line.end)
+                    result = mdWrapQuoteEnd(snapshot, line, markers[low])
+            }
+            case MarkdownContent.FootnoteDefinition(_) -> {
+                val marker = node.markers[0L]
+                if (marker.start >= line.start && marker.end <= line.end) {
+                    val input = mdSourceInput(snapshot, MarkdownRange(marker.end, line.end))
+                    var offset = 0L
+                    while (offset < input.size && mdSpace(input.at(offset)))
+                        offset += 1L
+                    result = MdWrapPrefix(marker.end + offset)
+                    continue
+                }
+                val input = mdSourceInput(snapshot, MarkdownRange(result.end, line.end))
+                var columns = result.carry
+                var offset = 0L
+                val column = mdWrapColumn(snapshot, line.start, result.end) - result.carry
+                while (columns < 4L && offset < input.size && mdSpace(input.at(offset))) {
+                    columns += if (input.at(offset) == 9)
+                        4L - (column + columns) % 4L
+                    else
+                        1L
+                    offset += 1L
+                }
+                if (columns >= 4L)
+                    result = MdWrapPrefix(result.end + offset, columns - 4L)
+            }
+            else -> Unit
+        }
+    }
+    return result
+}
+
+internal fun mdWrapQuoteEnd(
+    snapshot: MarkdownSnapshot,
+    line: MarkdownRange,
+    marker: MarkdownRange
+): MdWrapPrefix {
+    if (
+        marker.end <
+            line.end &&
+            snapshot.read(MarkdownRange(marker.end - 1L, marker.end)) ==
+            ">" &&
+            snapshot.read(MarkdownRange(marker.end, marker.end + 1L)) ==
+            "\t"
+    ) {
+        val column = mdWrapColumn(snapshot, line.start, marker.end)
+        return MdWrapPrefix(marker.end + 1L, 3L - column % 4L)
+    }
+    return MdWrapPrefix(marker.end)
+}
+
+internal fun mdWrapColumn(snapshot: MarkdownSnapshot, start: Long, end: Long): Long {
+    var column = 0L
+    for (value in snapshot.read(MarkdownRange(start, end)).toByteArray())
+        column += if (value.toInt() == 9)
+            4L - column % 4L
+        else
+            1L
+    return column
+}

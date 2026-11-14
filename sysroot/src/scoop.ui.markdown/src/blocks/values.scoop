@@ -1,0 +1,74 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Small observable values, independent of the syntax and its source coordinates. */
+internal struct MdBlockValues(
+    val paragraph: Boolean = false,
+    val heading: Boolean = false,
+    val level: Int = -1,
+    val wrapping: Boolean = false,
+    val quoted: Boolean = false,
+    val ordered: Boolean? = None,
+    val tasks: MarkdownStyleState = MarkdownStyleState.Off,
+    val taskPossible: Boolean = false,
+    val taskProfile: Boolean = false,
+    val itemIndex: Long = -1L,
+    val code: Boolean = false,
+    val table: Boolean = false,
+    val row: Long = -1L,
+    val column: Long = -1L,
+    val rows: Long = 0L,
+    val columns: Long = 0L,
+    val alignment: MarkdownAlignment = MarkdownAlignment.None,
+    val insert: Boolean = false,
+    val tableProfile: Boolean = false,
+    val fenced: Boolean = false
+) {
+    fun value(command: MarkdownBlockCommand): MarkdownStyleState {
+        return when (command) {
+            case Paragraph -> typed(paragraph, 0)
+            case Heading(val next) -> typed(heading && next >= 1 && next <= 6, next)
+            case Quote -> status(wrapping, quoted)
+            case Unquote -> status(quoted)
+            case BulletList -> status(wrapping || ordered != None, ordered == Some(false))
+            case OrderedList -> status(wrapping || ordered != None, ordered == Some(true))
+            case TaskList -> if (taskProfile && taskPossible)
+                tasks
+            else
+                MarkdownStyleState.Unavailable
+            case Indent -> status(itemIndex > 0L)
+            case Outdent -> status(itemIndex >= 0L)
+            case RemoveList -> status(itemIndex >= 0L)
+            case RenumberList -> status(ordered == Some(true))
+            case CodeBlock -> status(code || fenced, fenced)
+            case InsertThematicBreak -> status(insert)
+            case InsertTable(val rowCount, val columnCount) -> status(
+                insert && tableProfile && rowCount >= 1L && columnCount >= 1L
+            )
+            case InsertTableRow(val before) -> status(table && (!before || row > 0L))
+            case RemoveTableRow -> status(table && row > 0L)
+            case InsertTableColumn(_) -> status(table)
+            case RemoveTableColumn -> status(table && columns > 1L)
+            case AlignTableColumn(val value) -> status(table, value == alignment)
+        }
+    }
+
+    private fun typed(available: Boolean, target: Int): MarkdownStyleState =
+        if (!available)
+            MarkdownStyleState.Unavailable
+        else
+            if (level == -2)
+                MarkdownStyleState.Mixed
+            else
+                status(true, level == target)
+
+    private fun status(available: Boolean, on: Boolean = false): MarkdownStyleState =
+        if (!available)
+            MarkdownStyleState.Unavailable
+        else
+            if (on)
+                MarkdownStyleState.On
+            else
+                MarkdownStyleState.Off
+}

@@ -47,7 +47,7 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
         case Keyboard(val key) -> {
             if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
                 return
-            if (mdRichFormatKey(host, key)) {
+            if (mdRichFormatKey(host, key) || mdRichBlockKey(host, key)) {
                 context.consume()
                 return
             }

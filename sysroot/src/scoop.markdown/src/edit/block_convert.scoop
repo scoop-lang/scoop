@@ -1,0 +1,130 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Removes one quote level without regenerating its children. */
+public fun MarkdownTransformBuilder.unwrapBlockQuote(id: MarkdownNodeId) {
+    val node = parsed.node(id)
+    when (node.content) {
+        case MarkdownContent.BlockQuote -> Unit
+        else -> throw IllegalArgumentException(Some("unwrapBlockQuote requires a block quote"))
+    }
+    val parent = parsed.parent(id)!!
+    when (parent.content) {
+        case MarkdownContent.ListItem(_) -> {
+            if (mdNodeLine(snapshot, parent) == mdNodeLine(snapshot, node)) {
+                mdUnwrapItemQuote(node, parent)
+                mdWrapFollowing(node)
+                return
+            }
+        }
+        else -> Unit
+    }
+    val leading = mdWrapBefore(node)
+    val ancestors = mdWrapAncestors(parsed, node)
+    for (index in 0L ..< node.markers.size) {
+        val marker = node.markers[index]
+        val line = snapshot.lineRange(snapshot.lineAt(MarkdownPosition(marker.start)))
+        val outer = mdWrapPrefix(snapshot, ancestors, line)
+        var start = outer.end
+        var retained = 0L
+        if (outer.carry > 0L) {
+            start -= 1L
+            retained = 4L - mdWrapColumn(snapshot, line.start, start) % 4L - outer.carry
+        }
+        val end = mdWrapQuoteEnd(snapshot, line, marker)
+        replace(
+            MarkdownRange(start, end.end),
+            (
+                if (index == 0L)
+                    leading
+                else
+                    ""
+            ) +
+                " ".repeat(retained + end.carry)
+        )
+    }
+    mdWrapFollowing(node)
+}
+
+/** An empty marker line prevents the first child's indentation from changing list padding. */
+private fun MarkdownTransformBuilder.mdUnwrapItemQuote(node: MarkdownNode, item: MarkdownNode) {
+    val source = item.itemSource!!
+    val token = mdItemToken(snapshot, item)
+    val header = " ".repeat(source.offset) + token + " "
+    val continuation = mdListPrefix(parsed, item) + " ".repeat(header.byteLength)
+    val newline = mdLocalNewline(snapshot, item.range.start)
+    val firstLine = snapshot.lineRange(mdNodeLine(snapshot, item))
+    val outer = mdWrapPrefix(snapshot, mdWrapAncestors(parsed, item), firstLine)
+    var firstStart = outer.end
+    var retained = 0L
+    if (outer.carry > 0L) {
+        firstStart -= 1L
+        retained = 4L - mdWrapColumn(snapshot, firstLine.start, firstStart) % 4L - outer.carry
+    }
+    var markerIndex = 0L
+    for (index in 0L ..< source.lines.size) {
+        val entry = source.lines[index]
+        if (index > 0L && mdItemBlankLine(snapshot, entry))
+            continue
+        val line = snapshot.lineRange(snapshot.lineAt(MarkdownPosition(entry.lineStart)))
+        var end = MdWrapPrefix(entry.end, entry.remainder)
+        if (markerIndex < node.markers.size) {
+            val marker = node.markers[markerIndex]
+            if (marker.start >= line.start && marker.start < line.end) {
+                end = mdWrapQuoteEnd(snapshot, line, marker)
+                markerIndex += 1L
+            }
+        }
+        val before =
+            if (index == 0L)
+                " ".repeat(retained) + header + newline + continuation
+            else
+                continuation
+        mdListPrefixEdit(
+            MarkdownRange(
+                if (index == 0L)
+                    firstStart
+                else
+                    entry.lineStart,
+                end.end
+            ),
+            before + " ".repeat(end.carry)
+        )
+    }
+}
+
+/** Converts complete inline blocks into literal fenced code, preserving their Markdown spelling. */
+public fun MarkdownTransformBuilder.setFencedCode(
+    first: MarkdownNodeId,
+    last: MarkdownNodeId = first,
+    info: String = ""
+) {
+    requireMarkdown(!info.contains("\n") && !info.contains("\r"), "Code info must be a single line")
+    val nodes = mdWrapBlocks(parsed, first, last)
+    val body = StringBuilder()
+    for (index in 0L ..< nodes.size) {
+        val node = nodes[index]
+        val text =
+            when (node.content) {
+                case MarkdownContent.Paragraph(val source) -> source
+                case MarkdownContent.Heading(_, _, val source) -> source
+                else -> throw IllegalArgumentException(
+                    Some("setFencedCode requires paragraphs or headings")
+                )
+            }
+        if (index > 0L)
+            body.append("\n\n")
+        body.append(text.text)
+    }
+    val left = nodes[0L]
+    val right = nodes[nodes.size - 1L]
+    val newline = mdLocalNewline(snapshot, left.range.start)
+    val prefix = mdListPrefix(parsed, left)
+    val generated = mdWriteFence(info, body.toString()).replace("\n", newline + prefix)
+    replace(
+        MarkdownRange(left.range.start, right.range.end),
+        mdWrapBefore(left) + generated + mdNodeEnding(snapshot, right)
+    )
+    mdWrapFollowing(right)
+}

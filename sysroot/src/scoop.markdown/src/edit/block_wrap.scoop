@@ -1,0 +1,179 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Adds one quote level around consecutive sibling blocks, retaining their original bodies. */
+public fun MarkdownTransformBuilder.wrapBlockQuote(
+    first: MarkdownNodeId,
+    last: MarkdownNodeId = first
+) {
+    val blocks = mdWrapBlocks(parsed, first, last)
+    mdWrapLines(blocks[0L], blocks[blocks.size - 1L], "> ", "> ", mdWrapBefore(blocks[0L]))
+    mdWrapFollowing(blocks[blocks.size - 1L])
+}
+
+public fun MarkdownTransformBuilder.wrapBulletList(
+    first: MarkdownNodeId,
+    last: MarkdownNodeId = first
+) {
+    mdWrapList(mdWrapBlocks(parsed, first, last), false, 1L, false)
+}
+
+public fun MarkdownTransformBuilder.wrapOrderedList(
+    first: MarkdownNodeId,
+    last: MarkdownNodeId = first,
+    start: Long = 1L
+) {
+    val blocks = mdWrapBlocks(parsed, first, last)
+    requireMarkdown(
+        start >= 0L && start <= 999999999L && blocks.size - 1L <= 999999999L - start,
+        "Markdown list numbers must be between 0 and 999999999"
+    )
+    mdWrapList(blocks, true, start, false)
+}
+
+public fun MarkdownTransformBuilder.wrapTaskList(
+    first: MarkdownNodeId,
+    last: MarkdownNodeId = first
+) {
+    val blocks = mdWrapBlocks(parsed, first, last)
+    requireMarkdown(parsed.profile.taskLists, "The Markdown profile does not enable task lists")
+    for (node in blocks)
+        when (node.content) {
+            case MarkdownContent.Paragraph(_) -> Unit
+            else -> throw IllegalArgumentException(Some("A task list requires paragraph blocks"))
+        }
+    mdWrapList(blocks, false, 1L, true)
+}
+
+private fun MarkdownTransformBuilder.mdWrapList(
+    blocks: Array<MarkdownNode>,
+    ordered: Boolean,
+    start: Long,
+    task: Boolean
+) {
+    for (index in 0L ..< blocks.size) {
+        val node = blocks[index]
+        val marker =
+            if (ordered)
+                (start + index).toString() + ". "
+            else
+                "- "
+        val beforeBody =
+            when (node.content) {
+                case MarkdownContent.ThematicBreak -> mdLocalNewline(snapshot, node.range.start) +
+                    mdListPrefix(parsed, node) +
+                    " ".repeat(marker.byteLength)
+                else -> ""
+            }
+        mdWrapLines(
+            node,
+            node,
+            marker +
+                beforeBody +
+                if (task)
+                    "[ ] "
+                else
+                    "",
+            " ".repeat(marker.byteLength),
+            if (index == 0L)
+                mdWrapBefore(node)
+            else
+                ""
+        )
+    }
+    mdWrapFollowing(blocks[blocks.size - 1L])
+}
+
+internal fun mdWrapBlocks(
+    syntax: MarkdownSyntax,
+    first: MarkdownNodeId,
+    last: MarkdownNodeId
+): Array<MarkdownNode> {
+    val left = syntax.node(first)
+    val right = syntax.node(last)
+    val parent =
+        syntax.parent(first) ?: throw IllegalArgumentException(Some("A block needs a parent"))
+    val otherParent =
+        syntax.parent(last) ?: throw IllegalArgumentException(Some("A block needs a parent"))
+    requireMarkdown(otherParent === parent, "Markdown blocks need the same parent")
+    when (parent.content) {
+        case MarkdownContent.Document -> Unit
+        case MarkdownContent.BlockQuote -> Unit
+        case MarkdownContent.FootnoteDefinition(_) -> Unit
+        case MarkdownContent.ListItem(val task) -> requireMarkdown(
+            task == None || parent.children[0L] !== left,
+            "Remove the task checkbox before wrapping its first paragraph"
+        )
+        else -> throw IllegalArgumentException(Some("This container cannot wrap Markdown blocks"))
+    }
+    val begin = mdWrapIndex(parent.children, left)
+    val end = mdWrapIndex(parent.children, right)
+    requireMarkdown(begin <= end, "Markdown blocks must follow source order")
+    return Array<MarkdownNode>(end - begin + 1L) { index -> parent.children[begin + index] }
+}
+
+internal fun mdWrapIndex(nodes: Array<MarkdownNode>, node: MarkdownNode): Long {
+    var low = 0L
+    var high = nodes.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (nodes[middle].range.start < node.range.start)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    requireMarkdown(low < nodes.size && nodes[low] === node, "Markdown block is not a child")
+    return low
+}
+
+private fun MarkdownTransformBuilder.mdWrapLines(
+    first: MarkdownNode,
+    last: MarkdownNode,
+    marker: String,
+    continuation: String,
+    leading: String
+) {
+    val start = mdNodeLine(snapshot, first)
+    val end = snapshot.lineAt(MarkdownPosition(last.range.end - 1L))
+    val ancestors = mdWrapAncestors(parsed, first)
+    val outer = mdListPrefix(parsed, first)
+    replace(MarkdownRange(first.range.start, first.range.start), leading + marker)
+    for (line in start + 1L .. end) {
+        val range = snapshot.lineRange(line)
+        val prefix = mdWrapPrefix(snapshot, ancestors, range)
+        replace(
+            MarkdownRange(range.start, prefix.end),
+            outer + continuation + " ".repeat(prefix.carry)
+        )
+    }
+}
+
+/** Adjacent siblings must not become lazy continuation lines of a new container. */
+internal fun MarkdownTransformBuilder.mdWrapBefore(first: MarkdownNode): String {
+    val parent = parsed.parent(first.id)!!
+    val start = mdWrapIndex(parent.children, first)
+    val prefix = mdListPrefix(parsed, first)
+    val newline = mdLocalNewline(snapshot, first.range.start)
+    if (start > 0L && !mdListSeparated(snapshot, parent.children[start - 1L], first)) {
+        val at = snapshot.positionOfLine(mdNodeLine(snapshot, first)).byteOffset
+        if (at == first.range.start)
+            return prefix + newline
+        replace(MarkdownRange(at, at), prefix + newline)
+    }
+    return ""
+}
+
+internal fun MarkdownTransformBuilder.mdWrapFollowing(last: MarkdownNode) {
+    val parent = parsed.parent(last.id)!!
+    val end = mdWrapIndex(parent.children, last)
+    val prefix = mdListPrefix(parsed, last)
+    val newline = mdLocalNewline(snapshot, last.range.start)
+    if (
+        end +
+            1L <
+            parent.children.size &&
+            !mdListSeparated(snapshot, last, parent.children[end + 1L])
+    )
+        replace(MarkdownRange(last.range.end, last.range.end), prefix + newline)
+}

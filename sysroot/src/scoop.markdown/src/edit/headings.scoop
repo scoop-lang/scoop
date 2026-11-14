@@ -89,6 +89,14 @@ public fun MarkdownTransformBuilder.setParagraph(id: MarkdownNodeId) {
     when (node.content) {
         case MarkdownContent.Paragraph(_) -> return
         case MarkdownContent.Heading(_, val style, val body) -> {
+            val parent = parsed.parent(node.id)!!
+            val index = mdWrapIndex(parent.children, node)
+            if (index > 0L && mdListWasParagraph(parent.children[index - 1L])) {
+                val leading = mdWrapBefore(node)
+                if (leading != "")
+                    replace(MarkdownRange(node.range.start, node.range.start), leading)
+            }
+            mdWrapFollowing(node)
             if (style == MarkdownHeadingStyle.Setext) {
                 val marker = node.markers[0L]
                 val line = snapshot.lineAt(MarkdownPosition(marker.start))

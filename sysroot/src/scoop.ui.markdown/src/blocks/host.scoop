@@ -1,0 +1,245 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.window.*
+
+/** Reuses the current projection's syntax; status queries never trigger a region parse. */
+internal class MdBlockControls {
+    val state = state(MdBlockValues())
+    private var syntax: MarkdownSyntax? = None
+    private var selected: MarkdownSelection? = None
+    private var context: MdBlockContext? = None
+
+    fun update(host: MarkdownRichHost) {
+        if (host.readOnly || !host.preview.options.enabled || host.ownsOtherComposition()) {
+            publish(MdBlockValues())
+            syntax = None
+            return
+        }
+        val presentation = host.preview.presentation
+        val current: MarkdownSyntax? =
+            when (presentation) {
+                case Some(val value) -> when (value.regions) {
+                    case Some(val rows) -> Some(rows.syntax)
+                    case None -> Some(value.base.source)
+                }
+                case None -> when (host.preview.controller.current) {
+                    case Some(val model) -> Some(model.source)
+                    case None -> None
+                }
+            }
+        when (current) {
+            case Some(_) -> Unit
+            case None -> {
+                publish(MdBlockValues())
+                syntax = None
+                return
+            }
+        }
+        val tree = current!!
+        val changes = host.local?.changes
+        val selection = host.editor.selection
+        val mapped =
+            if (tree.snapshot === host.editor.snapshot)
+                selection
+            else
+                when (changes) {
+                    case Some(val value) -> {
+                        val currentPresentation =
+                            when (presentation) {
+                                case Some(val projected) -> projected.changes.snapshot ===
+                                    host.editor.snapshot
+                                case None -> false
+                            }
+                        if (!currentPresentation) {
+                            publish(MdBlockValues())
+                            syntax = None
+                            return
+                        }
+                        val anchor =
+                            value.backward(
+                                MarkdownAnchor(selection.anchor, selection.anchorBias),
+                                tree.snapshot
+                            )
+                        val cursor =
+                            value.backward(
+                                MarkdownAnchor(selection.cursor, selection.cursorBias),
+                                tree.snapshot
+                            )
+                        MarkdownSelection(
+                            anchor.position,
+                            cursor.position,
+                            anchor.bias,
+                            cursor.bias
+                        )
+                    }
+                    case None -> {
+                        publish(MdBlockValues())
+                        syntax = None
+                        return
+                    }
+                }
+        when (syntax) {
+            case Some(val previous) -> if (previous === tree) {
+                if (selected == Some(mapped))
+                    return
+                when (context) {
+                    case Some(val cached) -> if (
+                        cached.blocks.size ==
+                            1L &&
+                            cached.blocks[0L] ===
+                            cached.first &&
+                            cached.selection.collapsed ==
+                            mapped.collapsed &&
+                            cached.first ===
+                            mdCommandLeaf(tree, mapped.range.start, MarkdownBias.After) &&
+                            cached.last ===
+                            mdCommandLeaf(
+                                tree,
+                                mapped.range.end,
+                                if (mapped.collapsed)
+                                    MarkdownBias.After
+                                else
+                                    MarkdownBias.Before
+                            )
+                    )
+                        return
+                    case None -> Unit
+                }
+            }
+            case None -> Unit
+        }
+        val next = MdBlockContext(tree, mapped)
+        val sameSyntax =
+            when (syntax) {
+                case Some(val previous) -> previous === tree;
+                case None -> false
+            }
+        val previousList =
+            if (!sameSyntax)
+                None
+            else
+                when (context) {
+                    case Some(val cached) -> when ((cached.list, next.list)) {
+                        case(Some(val old), Some(val current)) -> if (old === current)
+                            Some(state.value)
+                        else
+                            None
+                        else -> None
+                    }
+                    case None -> None
+                }
+        syntax = Some(tree)
+        selected = Some(mapped)
+        context = Some(next)
+        publish(next.values(previousList))
+    }
+
+    private fun publish(values: MdBlockValues) {
+        if (state.value != values)
+            state.value = values
+    }
+}
+
+internal fun mdExecuteBlock(host: MarkdownRichHost, command: MarkdownBlockCommand): Boolean {
+    if (
+        host.readOnly ||
+            !host.preview.options.enabled ||
+            !host.area.scope.isInputAllowed ||
+            host.ownsOtherComposition()
+    )
+        return false
+    val local = host.local ?: return false
+    val selection = host.editor.selection
+    val syntax = local.syntax(selection) ?: return false
+    val prepared =
+        try {
+            mdPrepareBlockCommand(syntax, selection, command) ?: return false
+        } catch (failure: IllegalArgumentException) {
+            return false
+        }
+    host.perform {
+        host.editor.acceptComposition()
+        try {
+            host.editor.apply(prepared.change, prepared.selection, prepared.reversed)
+        } finally {
+            if (host.editor.snapshot === prepared.syntax.snapshot)
+                local.prepared(prepared.syntax)
+            host.retire()
+        }
+    }
+    host.preferredX = None
+    if (command == MarkdownBlockCommand.CodeBlock) {
+        val from =
+            prepared.change.map(
+                MarkdownAnchor(MarkdownPosition(selection.range.start), MarkdownBias.Before)
+            ).position
+        val code = mdCommandCode(prepared.syntax, from)
+        when (code) {
+            case Some(val node) -> {
+                val at =
+                    when (node.content) {
+                        case MarkdownContent.CodeBlock(_, _, val body) -> body.sourceAt(
+                            MarkdownPosition(0L)
+                        ).byteOffset
+                        else -> node.range.start
+                    }
+                host.editor.setSelection(
+                    MarkdownSelection(MarkdownPosition(at), MarkdownPosition(at))
+                )
+                host.preview.openSource(node.range)
+            }
+            case None -> host.preview.reveal(host.editor.selection.cursor)
+        }
+    } else
+        host.preview.reveal(host.editor.selection.cursor)
+    return true
+}
+
+private fun mdCommandCode(syntax: MarkdownSyntax, start: MarkdownPosition): MarkdownNode? {
+    val selected =
+        mdCommandAncestor(
+            syntax,
+            syntax.nodeAt(start),
+            {
+                node -> when (node.content) {
+                    case MarkdownContent.CodeBlock(_, _, _) -> true
+                    else -> false
+                }
+            },
+            start.byteOffset
+        )
+    when (selected) {
+        case Some(_) -> return selected;
+        case None -> Unit
+    }
+    for (node in syntax.nodes()) {
+        if (node.range.end <= start.byteOffset)
+            continue
+        when (node.content) {
+            case MarkdownContent.CodeBlock(_, _, _) -> return Some(node)
+            else -> Unit
+        }
+    }
+    return None
+}
+
+internal fun mdRichBlockKey(host: MarkdownRichHost, key: KeyEvent): Boolean {
+    for (level in 0 .. 6) {
+        val chord =
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character(level.toString())),
+                ShortcutModifiers(primary = true)
+            )
+        if (chord.matches(key))
+            return key.isRepeat ||
+                host.executeBlock(
+                    if (level == 0)
+                        MarkdownBlockCommand.Paragraph
+                    else
+                        MarkdownBlockCommand.Heading(level)
+                )
+    }
+    return false
+}

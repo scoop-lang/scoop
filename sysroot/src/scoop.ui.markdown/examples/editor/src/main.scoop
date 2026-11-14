@@ -95,6 +95,7 @@ private class EditorWindow(
                     )
                 }
                 item(markdownFormattingToolbar(owner.view))
+                item(markdownBlockToolbar(owner.view))
                 item(
                     markdownEditor(
                         owner.view,

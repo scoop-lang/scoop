@@ -1,0 +1,34 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownBlockExampleTests {
+    @Test
+    fun aHeadlessConsumerWrapsAndConvertsBlocksWithoutUiResources() {
+        val original = "alpha **bold**\n\nbeta\n\nTail\n"
+        val document = MarkdownDocument.fromText(original)
+        val syntax = document.parse()
+        val prepared =
+            syntax.prepareTransform {
+                wrapBlockQuote(syntax.root.children[0L].id, syntax.root.children[1L].id)
+            }
+        assertEquals(original, document.toMarkdown())
+        prepared.applyTo(document)
+        val quoted = document.parse()
+        val quote = quoted.root.children[0L]
+        assertEquals(2L, quote.children.size)
+        document.transform(quoted) {
+            setFencedCode(quote.children[0L].id, quote.children[1L].id, "scoop")
+        }
+        val converted = document.parse().root.children[0L].children[0L]
+        when (converted.content) {
+            case MarkdownContent.CodeBlock(_, val info, val body) -> {
+                assertEquals("scoop", info.text)
+                assertEquals("alpha **bold**\n\nbeta\n", body.text)
+            }
+            else -> fail(Some("Expected a quoted fenced code block"))
+        }
+    }
+}

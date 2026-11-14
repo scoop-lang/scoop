@@ -46,6 +46,7 @@ public class MarkdownRichHost public constructor(
     internal var caretVisible = true
     internal var changed: (MarkdownChange) -> Unit = { _ -> Unit }
     private val styles = state(MdRichStyles())
+    private val blocks = MdBlockControls()
     private var subscription = editor.document.observe { change -> sourceChanged(change) }
     internal val blink =
         scope.createDeadline {
@@ -108,6 +109,7 @@ public class MarkdownRichHost public constructor(
         val next = mdRichStyleValues(this)
         if (next != styles.value)
             styles.value = next
+        blocks.update(this)
     }
 
     public fun update(
@@ -262,6 +264,18 @@ public class MarkdownRichHost public constructor(
             else
                 mdRichPaste(this, Some(command))
         }
+    }
+
+    public fun blockState(command: MarkdownBlockCommand): MarkdownStyleState {
+        checkOpen()
+        return blocks.state.value.value(command)
+    }
+
+    public fun executeBlock(command: MarkdownBlockCommand): Boolean {
+        checkOpen()
+        editor.checkEdit()
+        refresh()
+        return mdExecuteBlock(this, command)
     }
 
     public fun toggleStyle(style: MarkdownInlineStyle): Boolean {

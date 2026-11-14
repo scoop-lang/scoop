@@ -1,0 +1,209 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdCommandLeaf(syntax: MarkdownSyntax, at: Long, bias: MarkdownBias): MarkdownNode {
+    var node = syntax.nodeAt(MarkdownPosition(at), bias)
+    if (bias == MarkdownBias.After) {
+        val previous = mdCommandLeaf(syntax, at, MarkdownBias.Before)
+        val emptyItem =
+            when (previous.content) {
+                case MarkdownContent.ListItem(_) -> previous.children.size == 0L
+                case MarkdownContent.BlockQuote -> previous.children.size == 0L
+                else -> false
+            }
+        if (
+            emptyItem &&
+                previous.range.end ==
+                at &&
+                syntax.snapshot.lineAt(MarkdownPosition(previous.range.start)) ==
+                syntax.snapshot.lineAt(MarkdownPosition(at))
+        )
+            return previous
+    }
+    when (node.content) {
+        case MarkdownContent.TableRow(_) -> {
+            if (bias == MarkdownBias.After) {
+                val previous = mdCommandLeaf(syntax, at, MarkdownBias.Before)
+                when (previous.content) {
+                    case MarkdownContent.TableCell(_, _) -> when (syntax.parent(previous.id)) {
+                        case Some(val row) -> if (row === node)
+                            return previous
+                        case None -> Unit
+                    }
+                    else -> Unit
+                }
+            }
+        }
+        else -> Unit
+    }
+    while (true) {
+        when (node.content) {
+            case MarkdownContent.Text(_) -> Unit
+            case MarkdownContent.CodeSpan(_) -> Unit
+            case MarkdownContent.Emphasis -> Unit
+            case MarkdownContent.Strong -> Unit
+            case MarkdownContent.Strikethrough -> Unit
+            case MarkdownContent.Link(_) -> Unit
+            case MarkdownContent.Image(_) -> Unit
+            case MarkdownContent.HtmlInline(_) -> Unit
+            case MarkdownContent.SoftBreak -> Unit
+            case MarkdownContent.HardBreak -> Unit
+            case MarkdownContent.FootnoteReference(_) -> Unit
+            case MarkdownContent.Extension(val value) -> {
+                if (value.location != MarkdownExtensionLocation.Inline)
+                    return node
+            }
+            else -> return node
+        }
+        node = syntax.parent(node.id) ?: return node
+    }
+}
+
+internal fun mdCommandSiblings(
+    syntax: MarkdownSyntax,
+    first: MarkdownNode,
+    last: MarkdownNode
+): Array<MarkdownNode> {
+    if (first === last)
+        return if (first === syntax.root)
+            first.children
+        else
+            [first]
+    var common = first
+    while (true) {
+        var other: MarkdownNode? = Some(last)
+        while (true) {
+            val value = other ?: break
+            if (value === common) {
+                val selected = ArrayList<MarkdownNode>()
+                var low = 0L
+                var high = common.children.size
+                while (low < high) {
+                    val middle = low + (high - low) / 2L
+                    if (common.children[middle].range.end <= first.range.start)
+                        low = middle + 1L
+                    else
+                        high = middle
+                }
+                while (
+                    low < common.children.size && common.children[low].range.start < last.range.end
+                ) {
+                    selected.add(common.children[low])
+                    low += 1L
+                }
+                return selected.toArray()
+            }
+            other = syntax.parent(value.id)
+        }
+        common = syntax.parent(common.id) ?: return []
+    }
+}
+
+internal fun mdCommandLeaves(blocks: Array<MarkdownNode>, selection: MarkdownRange): Array<
+    MarkdownNode
+> {
+    val pending = ArrayList<MarkdownNode>()
+    for (node in blocks)
+        pending.add(node)
+    val leaves = ArrayList<MarkdownNode>()
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L)
+        if (
+            !selection.isEmpty &&
+                (node.range.end <= selection.start || node.range.start >= selection.end)
+        )
+            continue
+        when (node.content) {
+            case MarkdownContent.ListBlock(_) -> for (child in node.children)
+                pending.add(child)
+            case MarkdownContent.ListItem(_) -> for (child in node.children)
+                pending.add(child)
+            case MarkdownContent.BlockQuote -> for (child in node.children)
+                pending.add(child)
+            case MarkdownContent.FootnoteDefinition(_) -> for (child in node.children)
+                pending.add(child)
+            else -> leaves.add(node)
+        }
+    }
+    return leaves.toArray()
+}
+
+internal fun mdCommandAncestor(
+    syntax: MarkdownSyntax,
+    first: MarkdownNode,
+    matches: (MarkdownNode) -> Boolean,
+    end: Long
+): MarkdownNode? {
+    var node = first
+    while (true) {
+        if (matches(node) && end <= node.range.end)
+            return Some(node)
+        node = syntax.parent(node.id) ?: return None
+    }
+}
+
+internal fun mdCommandIndex(nodes: Array<MarkdownNode>, node: MarkdownNode): Long {
+    var low = 0L
+    var high = nodes.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (nodes[middle].range.start < node.range.start)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return low
+}
+
+internal fun mdCommandAll(nodes: Array<MarkdownNode>, matches: (MarkdownNode) -> Boolean): Boolean {
+    for (node in nodes)
+        if (!matches(node))
+            return false
+    return true
+}
+
+internal fun mdCommandLevel(node: MarkdownNode): Int =
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> 0
+        case MarkdownContent.Heading(val level, _, _) -> level
+        else -> -1
+    }
+
+internal fun mdCommandTaskFirst(syntax: MarkdownSyntax, node: MarkdownNode): Boolean {
+    val parent = syntax.parent(node.id) ?: return false
+    return when (parent.content) {
+        case MarkdownContent.ListItem(Some(_)) -> parent.children[0L] === node
+        else -> false
+    }
+}
+
+internal fun mdCommandCanWrap(syntax: MarkdownSyntax, blocks: Array<MarkdownNode>): Boolean {
+    if (blocks.size == 0L)
+        return false
+    val first = blocks[0L]
+    val parent = syntax.parent(first.id) ?: return false
+    return when (parent.content) {
+        case MarkdownContent.Document -> true
+        case MarkdownContent.BlockQuote -> true
+        case MarkdownContent.FootnoteDefinition(_) -> true
+        case MarkdownContent.ListItem(_) -> !mdCommandTaskFirst(syntax, first)
+        else -> false
+    }
+}
+
+internal fun mdCommandTaskState(list: MarkdownNode): MarkdownStyleState {
+    var tasks = 0L
+    for (node in list.children)
+        when (node.content) {
+            case MarkdownContent.ListItem(Some(_)) -> tasks += 1L
+            else -> Unit
+        }
+    return if (tasks == 0L)
+        MarkdownStyleState.Off
+    else
+        if (tasks == list.children.size)
+            MarkdownStyleState.On
+        else
+            MarkdownStyleState.Mixed
+}

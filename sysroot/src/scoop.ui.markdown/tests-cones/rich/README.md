@@ -8,6 +8,8 @@
 
 `MarkdownTargetWindowTests` 通过真实 Tab／Space 打开 Link／Image 面板，在原生输入字段中修改 URI、标题与图片替代文字，验证单次撤销、取消、焦点恢复、文档变化后的草稿拒绝、只读状态和原生组合结束后的目标编辑。
 
+`MarkdownBlockWindowTests` 验证标题快捷键、真实列表／表格菜单、菜单关闭后的焦点恢复、块命令接受中文组合、分步撤销、列表类型和层级、空表格行／列中的原生输入、对齐与删除后定位、只读／源码模式拒绝，以及插入代码后直接进入局部源码。
+
 富文本用例同时验证真实系统剪贴板的 text/plain／text/markdown、独立多块粘贴、一次撤销、显式纯文本／Markdown／TSV、存在但为空的格式和只读命令。测试保存并恢复原剪贴板的全部项目与格式。
 
 从仓库根运行：
@@ -34,6 +36,6 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-局部源码、格式或链接／图片用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests` 或 `MarkdownTargetWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。窗口用例按独立进程串行运行，避免争用原生焦点。
+局部源码、格式、链接／图片或块操作用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests` 或 `MarkdownBlockWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。窗口用例按独立进程串行运行，避免争用原生焦点。
 
 示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现所选用例的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在相同事件目录的 stdout／stderr 文件。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。

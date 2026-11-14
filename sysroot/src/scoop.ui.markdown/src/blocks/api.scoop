@@ -1,0 +1,41 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/**
+ * Explicit rich block actions. InsertTable takes rows then columns, including the header row.
+ * InsertTableRow(true) and InsertTableColumn(true) insert before the current row or column.
+ */
+public enum MarkdownBlockCommand {
+    Paragraph, Heading(Int), Quote, Unquote,
+    BulletList, OrderedList, TaskList, Indent, Outdent, RemoveList, RenumberList,
+    CodeBlock, InsertThematicBreak, InsertTable(Long, Long),
+    InsertTableRow(Boolean), RemoveTableRow,
+    InsertTableColumn(Boolean), RemoveTableColumn, AlignTableColumn(MarkdownAlignment)
+}
+
+public fun MarkdownEditorViewState.blockState(command: MarkdownBlockCommand): MarkdownStyleState {
+    if (
+        mode ==
+            MarkdownEditorMode.Source ||
+            (mode == MarkdownEditorMode.SideBySide && rightReadOnly)
+    )
+        return MarkdownStyleState.Unavailable
+    return formattingHost.value?.blockState(command) ?: MarkdownStyleState.Unavailable
+}
+
+public fun MarkdownEditorViewState.executeBlock(command: MarkdownBlockCommand): Boolean {
+    checkMutation()
+    if (
+        mode ==
+            MarkdownEditorMode.Source ||
+            (mode == MarkdownEditorMode.SideBySide && rightReadOnly)
+    )
+        return false
+    val host = formattingHost.value ?: return false
+    if (!host.executeBlock(command))
+        return false
+    if (command != MarkdownBlockCommand.CodeBlock)
+        requestFocus(MarkdownEditorPane.Rich)
+    return true
+}

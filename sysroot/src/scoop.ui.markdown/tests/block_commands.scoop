@@ -1,0 +1,320 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.window.*
+import scoop.text.*
+
+private class MdCommandFixture(source: String, selection: MarkdownSelection): Closeable {
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selection)
+    val model =
+        MarkdownParsedDocument(
+            editor.document.parse(MarkdownProfile.Editor),
+            None,
+            MarkdownParseOptions()
+        )
+    val local = MdRichRegionState(model, selection)
+    private val changes = editor.document.observe { change -> assertTrue(local.advance(change)) }
+    fun syntax(): ParsedMarkdownRegion = local.syntax(editor.selection)!!
+    fun status(command: MarkdownBlockCommand): MarkdownStyleState =
+        MdBlockContext(syntax(), editor.selection).values().value(command)
+    fun apply(command: MarkdownBlockCommand): MdRichStructureEdit {
+        val edit =
+            mdPrepareBlockCommand(syntax(), editor.selection, command) ?:
+                fail(Some("Block command was unavailable"))
+        editor.apply(edit.change, edit.selection, edit.reversed)
+        local.prepared(edit.syntax)
+        return edit
+    }
+    fun select(start: Long, end: Long = start) {
+        editor.setSelection(MarkdownSelection(MarkdownPosition(start), MarkdownPosition(end)))
+    }
+    fun source(): String = editor.document.toMarkdown()
+    public override fun close() {
+        changes.close();
+        editor.close()
+    }
+}
+
+@Test
+private class MarkdownBlockCommandTests {
+    @Test
+    fun `empty list items keep task constraints and existing code opens without changing source`() {
+        MdCommandFixture(
+            "- \n",
+            MarkdownSelection(MarkdownPosition(2L), MarkdownPosition(2L))
+        ).use {
+            fixture ->
+            fixture.apply(MarkdownBlockCommand.TaskList)
+            assertTrue(fixture.source().startsWith("- [ ] "), Some(fixture.source()))
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.CodeBlock)
+            )
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.Heading(2))
+            )
+            fixture.apply(MarkdownBlockCommand.TaskList)
+            assertFalse(fixture.source().contains("[ ]"))
+        }
+        MdCommandFixture(
+            "```scoop\ncode\n```\n",
+            MarkdownSelection(MarkdownPosition(10L), MarkdownPosition(10L))
+        ).use {
+            fixture ->
+            assertEquals(MarkdownStyleState.On, fixture.status(MarkdownBlockCommand.CodeBlock))
+            val edit = fixture.apply(MarkdownBlockCommand.CodeBlock)
+            assertFalse(edit.change.changed)
+            assertFalse(fixture.editor.canUndo)
+        }
+    }
+
+    @Test
+    fun `paragraph conversion preserves its neighbors and heading selection excludes later descendants`() {
+        MdCommandFixture(
+            "Before\n# Middle\nAfter\n",
+            MarkdownSelection(MarkdownPosition(11L), MarkdownPosition(11L))
+        ).use {
+            fixture ->
+            fixture.apply(MarkdownBlockCommand.Paragraph)
+            assertEquals("Before\n\nMiddle\n\nAfter\n", fixture.source())
+            assertEquals(10L, fixture.editor.selection.cursor.byteOffset)
+        }
+        val source = "- first\n- second\n\n  untouched\n\nTail\n"
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(3L), MarkdownPosition(13L))
+        ).use {
+            fixture ->
+            fixture.apply(MarkdownBlockCommand.Heading(2))
+            assertTrue(fixture.source().contains("- ## first"))
+            assertTrue(fixture.source().contains("- ## second"))
+            assertTrue(fixture.source().endsWith("\n  untouched\n\nTail\n"))
+        }
+    }
+
+    @Test
+    fun `heading and paragraph commands preserve reverse semantic selection and history`() {
+        val source = "ab**CD**\n\nef\n\nTail\n"
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(12L), MarkdownPosition(1L))
+        ).use {
+            fixture ->
+            assertEquals(MarkdownStyleState.Off, fixture.status(MarkdownBlockCommand.Heading(3)))
+            fixture.apply(MarkdownBlockCommand.Heading(3))
+            assertEquals("### ab**CD**\n\n### ef\n\nTail\n", fixture.source())
+            assertTrue(
+                fixture.editor.selection.anchor.byteOffset >
+                    fixture.editor.selection.cursor.byteOffset
+            )
+            assertEquals(MarkdownStyleState.On, fixture.status(MarkdownBlockCommand.Heading(3)))
+            val heading = fixture.source()
+            fixture.apply(MarkdownBlockCommand.Paragraph)
+            assertEquals(source, fixture.source())
+            assertTrue(fixture.editor.undo())
+            assertEquals(heading, fixture.source())
+            assertTrue(fixture.editor.undo())
+            assertEquals(source, fixture.source())
+        }
+    }
+
+    @Test
+    fun `list quote and task commands operate through one local region without a background parse`() {
+        val source = "alpha\n\nbeta\n\nTail\n"
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(10L))
+        ).use {
+            fixture ->
+            fixture.apply(MarkdownBlockCommand.BulletList)
+            assertEquals(MarkdownStyleState.On, fixture.status(MarkdownBlockCommand.BulletList))
+            assertTrue(fixture.source().contains("- alpha\n\n- beta"))
+            fixture.apply(MarkdownBlockCommand.TaskList)
+            assertEquals(MarkdownStyleState.On, fixture.status(MarkdownBlockCommand.TaskList))
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.Heading(2))
+            )
+            fixture.apply(MarkdownBlockCommand.TaskList)
+            assertFalse(fixture.source().contains("[ ]"))
+            fixture.apply(MarkdownBlockCommand.OrderedList)
+            assertTrue(fixture.source().contains("1. alpha"))
+            assertTrue(fixture.source().contains("2. beta"))
+            fixture.select(fixture.source().byteLength - "beta\n\nTail\n".byteLength + 1L)
+            fixture.apply(MarkdownBlockCommand.Indent)
+            fixture.apply(MarkdownBlockCommand.Outdent)
+            fixture.apply(MarkdownBlockCommand.RemoveList)
+            assertTrue(fixture.source().contains("\nbeta\n"))
+            fixture.apply(MarkdownBlockCommand.Quote)
+            assertEquals(MarkdownStyleState.On, fixture.status(MarkdownBlockCommand.Quote))
+            fixture.apply(MarkdownBlockCommand.Unquote)
+            assertTrue(fixture.source().endsWith("beta\n\nTail\n"))
+            assertSame(fixture.model.snapshot, fixture.local.base.snapshot)
+        }
+    }
+
+    @Test
+    fun `table edits locate new and surviving cells and preserve other content`() {
+        val source =
+            "> | h1 | h2 |\r\n> | --- | :---: |\r\n> | __a__ | b |\r\n> | c | d |\r\n\r\nTail\r\n"
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(42L), MarkdownPosition(42L))
+        ).use {
+            fixture ->
+            val context = MdBlockContext(fixture.syntax(), fixture.editor.selection)
+            assertEquals(1L, context.rowIndex)
+            fixture.apply(MarkdownBlockCommand.InsertTableRow(false))
+            assertEquals(2L, MdBlockContext(fixture.syntax(), fixture.editor.selection).rowIndex)
+            assertEquals(
+                0L,
+                fixture.syntax().inlineContentAt(fixture.editor.selection.cursor)!!.text.byteLength
+            )
+            val content = fixture.syntax().inlineContentAt(fixture.editor.selection.cursor)!!
+            fixture.editor.apply(content.replaceText(MarkdownRange(0L, 0L), "new"))
+            assertEquals(2L, MdBlockContext(fixture.syntax(), fixture.editor.selection).rowIndex)
+            fixture.apply(MarkdownBlockCommand.InsertTableColumn(true))
+            assertEquals(
+                3L,
+                MdBlockContext(fixture.syntax(), fixture.editor.selection).table!!.children[
+                    0L
+                ].children.size
+            )
+            fixture.apply(MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Right))
+            assertEquals(
+                MarkdownStyleState.On,
+                fixture.status(MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Right))
+            )
+            fixture.apply(MarkdownBlockCommand.RemoveTableColumn)
+            fixture.apply(MarkdownBlockCommand.RemoveTableRow)
+            assertEquals(
+                "c",
+                fixture.syntax().inlineContentAt(fixture.editor.selection.cursor)!!.text.text
+            )
+            assertTrue(fixture.source().contains("__a__"))
+            assertTrue(fixture.source().endsWith("\r\n\r\nTail\r\n"))
+            for (index in 0L ..< 6L)
+                assertTrue(fixture.editor.undo())
+            assertEquals(source, fixture.source())
+        }
+    }
+
+    @Test
+    fun `table header and final column cannot be removed and cross cell selection is unavailable`() {
+        val source = "|a|b|\n|-|-|\n|c|d|\n"
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(1L))
+        ).use {
+            fixture ->
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.RemoveTableRow)
+            )
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.InsertTableRow(true))
+            )
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.Heading(2))
+            )
+            fixture.select(1L, 4L)
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.RemoveTableColumn)
+            )
+            fixture.select(1L)
+            fixture.apply(MarkdownBlockCommand.RemoveTableColumn)
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.RemoveTableColumn)
+            )
+            assertEquals(
+                "b",
+                fixture.syntax().inlineContentAt(fixture.editor.selection.cursor)!!.text.text
+            )
+        }
+    }
+
+    @Test
+    fun `empty and blank-line insertion leave unrelated blocks intact`() {
+        for (
+            command in [
+                MarkdownBlockCommand.Heading(2),
+                MarkdownBlockCommand.BulletList,
+                MarkdownBlockCommand.OrderedList,
+                MarkdownBlockCommand.TaskList,
+                MarkdownBlockCommand.Quote,
+                MarkdownBlockCommand.CodeBlock,
+                MarkdownBlockCommand.InsertTable(2L, 2L),
+                MarkdownBlockCommand.InsertThematicBreak
+            ]
+        ) {
+            MdCommandFixture(
+                "",
+                MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+            ).use {
+                fixture ->
+                assertFalse(fixture.status(command) == MarkdownStyleState.Unavailable)
+                fixture.apply(command)
+                assertTrue(fixture.source().byteLength > 0L)
+                assertTrue(fixture.editor.undo())
+                assertEquals("", fixture.source())
+            }
+        }
+        MdCommandFixture(
+            "First\n\n\nLast\n",
+            MarkdownSelection(MarkdownPosition(7L), MarkdownPosition(7L))
+        ).use {
+            fixture ->
+            fixture.apply(MarkdownBlockCommand.Heading(2))
+            assertTrue(fixture.source().startsWith("First\n\n"))
+            assertTrue(fixture.source().endsWith("Last\n"))
+            assertEquals(
+                MarkdownStyleState.Unavailable,
+                fixture.status(MarkdownBlockCommand.InsertTable(0L, 2L))
+            )
+        }
+    }
+
+    @Test
+    fun `code and rule conversion use one transaction and retain selection surroundings`() {
+        val source = "__ab__ &amp;\n\ncd\n\nTail\n"
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(3L), MarkdownPosition(3L))
+        ).use {
+            fixture ->
+            fixture.apply(MarkdownBlockCommand.CodeBlock)
+            assertTrue(fixture.source().startsWith("```\n__ab__ &amp;\n```\n"))
+            assertTrue(fixture.editor.undo())
+            assertEquals(source, fixture.source())
+            fixture.select(3L, 4L)
+            fixture.apply(MarkdownBlockCommand.InsertThematicBreak)
+            assertTrue(fixture.source().endsWith("cd\n\nTail\n"))
+            assertTrue(fixture.source().contains("***"))
+            assertTrue(fixture.editor.undo())
+            assertEquals(source, fixture.source())
+        }
+    }
+
+    @Test
+    fun `large document block commands retain a local parse and exact undo`() {
+        val source = "标题中文 abc\n\n".repeat(60000L)
+        MdCommandFixture(
+            source,
+            MarkdownSelection(MarkdownPosition(12L), MarkdownPosition(12L))
+        ).use {
+            fixture ->
+            val edit = fixture.apply(MarkdownBlockCommand.Heading(2))
+            assertTrue(source.byteLength > 1024L * 1024L)
+            assertTrue(edit.syntax.root.range.byteLength < 256L)
+            assertTrue(edit.change.replacements[0L].range.byteLength < 128L)
+            assertTrue(fixture.editor.undo())
+            assertEquals(source, fixture.source())
+        }
+    }
+}

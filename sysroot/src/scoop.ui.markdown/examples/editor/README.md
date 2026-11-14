@@ -4,6 +4,8 @@
 
 模式栏下方使用公开的 `markdownFormattingToolbar`，提供粗体、斜体、删除线与行内代码；对应快捷键为 Cmd-B、Cmd-I、Cmd-Shift-X、Cmd-E。格式操作支持跨块选区；无选区时控制后续键入，不产生空标记。按钮显示混合状态，纯源码模式或右侧只读时禁用。Link／Image 打开文字／替代文字、URI 和标题面板，可插入、修改或移除当前目标；Cancel 不改变文档。图片 URI 相对当前文件解析，编辑器沿用本地图片适配展示，文件保存／上传由宿主应用提供。
 
+块工具栏提供 Block、List 和 Table 菜单：可转换标题／段落，增减引用，改变列表类型和层级，插入代码块、分隔线与表格，并增删表格行列、设置列对齐。Cmd-0／1…6 对应段落／标题；菜单操作后可以继续输入，修改使用同一撤销历史。新增代码块直接进入局部源码编辑。
+
 ```sh
 ~/.scoop/bin/scoop --sysroot ~/.scoop run sysroot/src/scoop.ui.markdown/examples/editor --release -- /absolute/path/document.md
 ```
