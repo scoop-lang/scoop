@@ -186,8 +186,10 @@ private class NavigationWindowProbe(
                 assertEquals(editableHeading(2L), position())
                 next { navigation.goTo(MarkdownPosition(0L)) }
             }
-            case 12 -> next { mdNativeClick(window!!, 236.0, 58.0) }
-            case 13 -> {
+            // Locating the TOC enters its source; Escape restores the clickable entries.
+            case 12 -> next { key(53, "\u{1b}") }
+            case 13 -> next { mdNativeClick(window!!, 236.0, 58.0) }
+            case 14 -> {
                 // A TOC entry navigates without opening its local-source editor.
                 assertEquals(editableHeading(0L), position())
                 assertTrue(view.richFocus.isFocusActive)
@@ -195,8 +197,8 @@ private class NavigationWindowProbe(
                 assertFalse(editor.canUndo)
                 next { view.setMode(MarkdownEditorMode.Source) }
             }
-            case 14 -> next { navigation.goToHeading(1L) }
-            case 15 -> {
+            case 15 -> next { navigation.goToHeading(1L) }
+            case 16 -> {
                 assertEquals(heading(1L), position())
                 assertTrue(view.sourceFocus.isFocusActive)
                 next {
@@ -204,19 +206,19 @@ private class NavigationWindowProbe(
                     locked.value = true
                 }
             }
-            case 16 -> next { view.requestFocus(MarkdownEditorPane.Rich) }
-            case 17 -> next { navigation.goToHeading(1L) }
-            case 18 -> next { mdNativeClick(window!!, 536.0, 58.0) }
-            case 19 -> {
+            case 17 -> next { view.requestFocus(MarkdownEditorPane.Rich) }
+            case 18 -> next { navigation.goToHeading(1L) }
+            case 19 -> next { mdNativeClick(window!!, 536.0, 58.0) }
+            case 20 -> {
                 assertEquals(heading(0L), position())
                 assertTrue(view.richFocus.isFocusActive)
                 next { navigation.goBack() }
             }
-            case 20 -> {
+            case 21 -> {
                 assertEquals(heading(1L), position())
                 next { navigation.goToLink("#last") }
             }
-            case 21 -> {
+            case 22 -> {
                 assertEquals(heading(2L), position())
                 assertEquals(original, editor.document.toMarkdown())
                 assertFalse(editor.canUndo)
@@ -226,11 +228,11 @@ private class NavigationWindowProbe(
                     assertEquals(3L, navigation.latest!!.headings.size)
                 }
             }
-            case 22 -> {
+            case 23 -> {
                 assertEquals(4L, navigation.current!!.headings.size)
                 next { assertTrue(navigation.goToLink("#new")) }
             }
-            case 23 -> {
+            case 24 -> {
                 assertEquals(MarkdownPosition(0L), position())
                 next {
                     val content = "# Start\n\n" + "Paragraph 中文.\n\n".repeat(60000L) + "# End\n"
@@ -238,26 +240,26 @@ private class NavigationWindowProbe(
                     view.setMode(MarkdownEditorMode.Source)
                 }
             }
-            case 24 -> {
+            case 25 -> {
                 assertTrue(editor.snapshot.byteLength > 1024L * 1024L)
                 assertFalse(navigation.canGoBack)
                 last = heading(1L)
                 next { navigation.goToHeading(1L) }
             }
-            case 25 -> {
+            case 26 -> {
                 assertEquals(last, position())
                 assertTrue(view.sourceScroll.offset.y > 10000.0)
                 next { view.setMode(MarkdownEditorMode.Wysiwyg) }
             }
-            case 26 -> next { navigation.goToHeading(0L) }
-            case 27 -> next { navigation.goToHeading(1L) }
-            case 28 -> {
+            case 27 -> next { navigation.goToHeading(0L) }
+            case 28 -> next { navigation.goToHeading(1L) }
+            case 29 -> {
                 assertEquals(last, position())
                 assertTrue(view.richScroll.offset.y > 10000.0)
                 assertFalse(editor.canUndo)
                 next { mounted.value = false }
             }
-            case 29 -> {
+            case 30 -> {
                 assertFalse(editor.isClosed)
                 assertFalse(parser.isClosed)
                 assertFalse(navigation.isClosed)

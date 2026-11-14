@@ -12,7 +12,12 @@ internal class MdBlockControls {
     private var context: MdBlockContext? = None
 
     fun update(host: MarkdownRichHost) {
-        if (host.readOnly || !host.preview.options.enabled || host.ownsOtherComposition()) {
+        if (
+            host.readOnly ||
+                host.editingSource ||
+                !host.preview.options.enabled ||
+                host.ownsOtherComposition()
+        ) {
             publish(MdBlockValues())
             syntax = None
             return
@@ -145,6 +150,7 @@ internal class MdBlockControls {
 internal fun mdExecuteBlock(host: MarkdownRichHost, command: MarkdownBlockCommand): Boolean {
     if (
         host.readOnly ||
+            host.editingSource ||
             !host.preview.options.enabled ||
             !host.area.scope.isInputAllowed ||
             host.ownsOtherComposition()

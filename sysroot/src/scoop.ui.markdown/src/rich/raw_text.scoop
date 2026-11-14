@@ -1,0 +1,110 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdRawLiteral(
+    builder: MdDisplayTextBuilder,
+    snapshot: MarkdownSnapshot,
+    range: MarkdownRange,
+    highlights: MarkdownCodeHighlights?
+) {
+    val text = snapshot.read(range)
+    val spans = mdCodeSourceLine(highlights, snapshot, range)
+    var offset = 0L
+    for (span in spans) {
+        if (offset < span.range.start)
+            builder.append(
+                mdDisplaySlice(text, offset, span.range.start),
+                MarkdownRange(range.start + offset, range.start + span.range.start),
+                true,
+                MdDisplayFlags(code = true)
+            )
+        builder.append(
+            mdDisplaySlice(text, span.range.start, span.range.end),
+            MarkdownRange(range.start + span.range.start, range.start + span.range.end),
+            true,
+            MdDisplayFlags(code = true, syntax = Some(span.kind))
+        )
+        offset = span.range.end
+    }
+    if (offset < text.byteLength)
+        builder.append(
+            mdDisplaySlice(text, offset, text.byteLength),
+            MarkdownRange(range.start + offset, range.end),
+            true,
+            MdDisplayFlags(code = true)
+        )
+}
+
+internal fun mdRawAppendDisplay(
+    builder: MdDisplayTextBuilder,
+    text: MdDisplayText,
+    clip: MarkdownRange,
+    snapshot: MarkdownSnapshot,
+    map: (MarkdownPosition, MarkdownBias) -> MarkdownPosition
+) {
+    var run = 0L
+    for (span in text.spans) {
+        if (span.text.isEmpty)
+            continue
+        val begin = map(MarkdownPosition(span.source.start), MarkdownBias.Before).byteOffset
+        val end = map(MarkdownPosition(span.source.end), MarkdownBias.After).byteOffset
+        if (end <= clip.start || begin >= clip.end)
+            continue
+        val a =
+            if (begin < clip.start)
+                clip.start
+            else
+                begin
+        val b =
+            if (end > clip.end)
+                clip.end
+            else
+                end
+        val literal = span.literal && end - begin == span.text.byteLength
+        val first =
+            if (literal)
+                span.text.start + a - begin
+            else
+                span.text.start
+        val last =
+            if (literal)
+                span.text.start + b - begin
+            else
+                span.text.end
+        while (run + 1L < text.runs.size && text.runs[run].range.end <= first)
+            run += 1L
+        val style =
+            if (text.runs.size > 0L)
+                Some(text.runs[run])
+            else
+                None
+        val action =
+            when (style?.action ?: None) {
+                case Some(MdDisplayAction.Source(val range)) -> Some(
+                    MdDisplayAction.Source(
+                        MarkdownRange(
+                            map(MarkdownPosition(range.start), MarkdownBias.Before).byteOffset,
+                            map(MarkdownPosition(range.end), MarkdownBias.After).byteOffset
+                        )
+                    )
+                )
+                case val other -> other
+            }
+        val partial = !literal && (a != begin || b != end || span.literal)
+        builder.append(
+            if (partial)
+                snapshot.read(MarkdownRange(a, b))
+            else
+                mdDisplaySlice(text.text, first, last),
+            MarkdownRange(a, b),
+            literal || partial,
+            style?.flags ?: MdDisplayFlags(),
+            action,
+            if (partial)
+                None
+            else
+                style?.objectValue ?: None
+        )
+    }
+}

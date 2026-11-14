@@ -1,0 +1,308 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.repeat
+import scoop.text.indexOf
+import scoop.window.*
+
+@Test
+private class MarkdownRawSourceTests {
+    @Test
+    fun visibleContainersOwnHiddenNestedExtensionEntry() {
+        val codeOptions = MarkdownParseOptions(MarkdownProfile(extensions = [mdBookDirectives()]))
+        val parsed =
+            MarkdownDocument.fromText("```text\n{{#include part.md}}\n```\n").parse(
+                codeOptions.profile
+            )
+        val model = MarkdownParsedDocument(parsed, None, codeOptions)
+        val inside = MarkdownPosition(12L)
+        val nested = model.sourceExtensions.at(inside)!!
+        assertEquals("mdbook", nested.name)
+        assertEquals(
+            "code",
+            mdVisibleExtension(
+                model.sourceExtensions,
+                nested,
+                model,
+                None,
+                inside,
+                MarkdownBias.After
+            ).name
+        )
+        val profile = MarkdownProfile(nodeExtensions = [OpaqueAltRule()])
+        val image = MarkdownDocument.fromText("![alternate](a.png)").parse(profile)
+        val imageModel = MarkdownParsedDocument(image, None, MarkdownParseOptions(profile))
+        val alt = imageModel.sourceExtensions.at(MarkdownPosition(3L))!!
+        assertEquals("alt", alt.name)
+        assertEquals(
+            "image",
+            mdVisibleExtension(
+                imageModel.sourceExtensions,
+                alt,
+                imageModel,
+                None,
+                MarkdownPosition(3L),
+                MarkdownBias.After
+            ).name
+        )
+    }
+
+    @Test
+    fun inlineSourceSharesItsParagraphAndPreservesNeighborStylesAndMappings() {
+        RawSourceFixture("前 **bold** ![图](uri) _后_").use {
+            fixture ->
+            val view = fixture.present()
+            val row = view.displayRow(0L)
+            val text = row.cells[0L]
+            assertEquals("前 bold ![图](uri) 后", text.text)
+            assertEquals(1L, view.count)
+            assertEquals(fixture.region.range!!, view.activeSourceRange)
+            var strong = false
+            var emphasis = false
+            for (run in text.runs) {
+                strong = strong || run.flags.strong
+                emphasis = emphasis || run.flags.emphasis
+            }
+            assertTrue(strong)
+            assertTrue(emphasis)
+            val first = "前 bold ".byteLength
+            assertEquals(
+                0L,
+                mdFrameColumn(
+                    fixture.model,
+                    Some(view),
+                    0L,
+                    MarkdownPosition(fixture.region.range!!.start + 1L),
+                    MarkdownBias.After
+                )
+            )
+            assertEquals(fixture.region.range!!.start, text.sourceAt(first).byteOffset)
+            assertEquals(first, text.textAt(fixture.region.range!!.start))
+            assertEquals("前 **bold** ![图](uri) _后_", fixture.editor.snapshot.toMarkdown())
+        }
+    }
+
+    @Test
+    fun rawCodeUsesOnlyHighlightsFromItsCurrentSnapshot() {
+        RawSourceFixture("```scoop\nval n = 1\n```\n").use {
+            fixture ->
+            val first = fixture.present().displayRow(1L).cells[0L]
+            var colored = false
+            for (run in first.runs)
+                colored = colored || run.flags.syntax != None
+            assertTrue(colored)
+            fixture.editor.replace(MarkdownRange(9L, 9L), "new ")
+            val pending = fixture.present().displayRow(1L).cells[0L]
+            for (run in pending.runs)
+                assertEquals(None, run.flags.syntax)
+            val current = fixture.present(true).displayRow(1L).cells[0L]
+            colored = false
+            for (run in current.runs)
+                colored = colored || run.flags.syntax != None
+            assertTrue(colored)
+        }
+    }
+
+    @Test
+    fun invalidSyntaxAndBackgroundReparsingDoNotDiscardTheEditingInterval() {
+        RawSourceFixture("left ![a](a.png) right").use {
+            fixture ->
+            fixture.editor.replace(fixture.region.range!!, "![broken](")
+            val range = fixture.region.range!!
+            assertEquals(
+                "left ![broken]( right",
+                fixture.present(true).displayRow(0L).cells[0L].text
+            )
+            assertEquals(range, fixture.region.range!!)
+            fixture.editor.undo()
+            assertEquals(
+                "left ![a](a.png) right",
+                fixture.present(true).displayRow(0L).cells[0L].text
+            )
+            fixture.editor.redo()
+            assertEquals(
+                "left ![broken]( right",
+                fixture.present(true).displayRow(0L).cells[0L].text
+            )
+        }
+        RawSourceFixture("![a](a.png)").use {
+            fixture ->
+            fixture.editor.replace(fixture.region.range!!, "---")
+            val view = fixture.present(true)
+            assertEquals("---", view.displayRow(0L).cells[0L].text)
+            assertTrue(
+                when (view.displayRow(0L).kind) {
+                    case MdDisplayKind.Paragraph -> true;
+                    else -> false
+                }
+            )
+            fixture.editor.replace(fixture.region.range!!, "")
+            assertEquals("", fixture.present(true).displayRow(0L).cells[0L].text)
+        }
+    }
+
+    @Test
+    fun sourceCompositionCancelsAndCommitsWithoutRichTextEscaping() {
+        RawSourceFixture("left ![a](a.png) right").use {
+            fixture ->
+            val original = fixture.editor.snapshot.toMarkdown()
+            fixture.editor.setSelection(
+                MarkdownSelection(
+                    MarkdownPosition(fixture.region.range!!.start),
+                    MarkdownPosition(fixture.region.range!!.end)
+                )
+            )
+            fixture.raw.input.synchronize()
+            fixture.batch(TextInputOperation.Preedit("ni", None, TextReplacement.CurrentSelection))
+            assertTrue(fixture.editor.isComposing)
+            assertEquals("left ni right", fixture.present(true).displayRow(0L).cells[0L].text)
+            fixture.editor.cancelComposition()
+            assertEquals(original, fixture.editor.snapshot.toMarkdown())
+            fixture.raw.input.synchronize()
+            fixture.batch(TextInputOperation.Preedit("图片", None, TextReplacement.CurrentSelection))
+            fixture.batch(
+                TextInputOperation.Commit("![**新**](new.png)", TextReplacement.CurrentSelection)
+            )
+            assertFalse(fixture.editor.isComposing)
+            assertEquals("left ![**新**](new.png) right", fixture.editor.snapshot.toMarkdown())
+            fixture.editor.undo()
+            assertEquals(original, fixture.editor.snapshot.toMarkdown())
+            fixture.editor.redo()
+            assertEquals("left ![**新**](new.png) right", fixture.editor.snapshot.toMarkdown())
+        }
+    }
+
+    @Test
+    fun blockSourceSplicesRowsAndKeepsFollowingPositionsAndFolds() {
+        RawSourceFixture("```scoop\none\ntwo\n```\n\nTail").use {
+            fixture ->
+            val before = fixture.present()
+            val raw = before.raw!!
+            assertEquals(5L, raw.rowCount)
+            assertEquals(6L, before.count)
+            assertEquals("```scoop", before.displayRow(0L).cells[0L].text)
+            assertEquals("", before.displayRow(4L).cells[0L].text)
+            val base = mdHeightRun(fixture.origin.count, 20.0)
+            val heights = raw.applyHeights(base, 10.0)
+            assertEquals(before.count, heights.count)
+            assertEquals(fixture.origin.count, raw.restoreHeights(heights, 20.0).count)
+            val tail = fixture.model.source.root.children[1L].range
+            val masked =
+                raw.foldHeights(
+                    heights,
+                    [MdFoldRows(fixture.origin.count - 1L, fixture.origin.count)],
+                    tail
+                )
+            assertEquals(0.0, masked.extent(masked.count - 1L))
+            assertTrue(masked.extent(0L) > 0.0)
+            val at = fixture.editor.snapshot.toMarkdown().indexOf("two")
+            fixture.editor.replace(MarkdownRange(at, at), "new\n")
+            val after = fixture.present()
+            assertEquals(7L, after.count)
+            val row = after.displayRow(after.count - 1L)
+            val current =
+                after.cellOriginal(
+                    after.count - 1L,
+                    0L,
+                    row.cells[0L].sourceAt(0L),
+                    MarkdownBias.After
+                )
+            assertEquals(
+                "Tail",
+                fixture.editor.snapshot.read(
+                    MarkdownRange(current.byteOffset, current.byteOffset + 4L)
+                )
+            )
+            assertEquals(after.count - 1L, after.rowAt(current, MarkdownBias.After))
+        }
+    }
+
+    @Test
+    fun aLargeCodeIslandDoesNotMaterializeEveryLineWhenTyping() {
+        val source =
+            "```text\n" +
+                "a document line with enough bytes for the large block\n".repeat(100000L) +
+                "```\n\nTail"
+        assertTrue(source.byteLength > 5L * 1024L * 1024L)
+        RawSourceFixture(source).use {
+            fixture ->
+            val view = fixture.present()
+            assertEquals(0L, view.raw!!.retainRows().rows.size)
+            val index = view.raw!!.rowCount - 3L
+            val row = view.displayRow(index)
+            assertEquals(1L, view.raw!!.retainRows().rows.size)
+            fixture.editor.replace(MarkdownRange(row.range.start, row.range.start), "x")
+            val changed = fixture.present()
+            assertEquals(0L, changed.raw!!.retainRows().rows.size)
+            assertEquals(
+                "xa document line with enough bytes for the large block",
+                changed.displayRow(index).cells[0L].text
+            )
+            assertEquals(1L, changed.raw!!.retainRows().rows.size)
+        }
+    }
+
+    @Test
+    fun externalChangesMoveTheIslandAndResetInvalidatesIt() {
+        RawSourceFixture("before\n\nleft ![a](a) after").use {
+            fixture ->
+            val old = fixture.region.range!!
+            fixture.editor.replace(MarkdownRange(0L, 0L), "prefix\n\n")
+            assertEquals(MarkdownRange(old.start + 8L, old.end + 8L), fixture.region.range!!)
+            val view = fixture.present(true)
+            assertEquals("left ![a](a) after", view.displayRow(view.raw!!.start).cells[0L].text)
+            fixture.editor.document.reset("reset")
+            assertEquals(None, fixture.region.range)
+        }
+    }
+}
+
+private class OpaqueAltRule: MarkdownNodeExtension {
+    public override val name = "alt"
+    public override fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm? =
+        when (input.parent) {
+            case Some(val parent) -> when (parent.content) {
+                case MarkdownContent.Image(_) -> Some(MarkdownExtensionForm.Inline)
+                else -> None
+            }
+            case None -> None
+        }
+}
+
+private class RawSourceFixture(source: String): Closeable {
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(source))
+    val options = MarkdownParseOptions()
+    val model = MarkdownParsedDocument(editor.document.parse(options.profile), None, options)
+    val span = model.sourceExtensions.spans[0L]
+    val region = MarkdownSourceRegion(editor, span.sourceRange)
+    val origin = MdRichPresentation(model, None, -1L, -1L, MdRichChanges(model.snapshot))
+    val raw = createRaw()
+    private val subscription = editor.document.observe { change -> raw.advance(change) }
+    private var latest = model
+
+    private fun createRaw(): MdRichRawState {
+        val at = MarkdownPosition(span.sourceRange.start)
+        editor.setSelection(MarkdownSelection(at, at))
+        return MdRichRawState(region, span.form, span.name, origin)
+    }
+    fun present(reparse: Boolean = false): MdRichPresentation {
+        if (reparse && latest.snapshot !== editor.snapshot)
+            latest = MarkdownParsedDocument(editor.document.parse(options.profile), None, options)
+        return raw.present(
+            if (reparse)
+                Some(latest)
+            else
+                None,
+            editor.selection
+        )
+    }
+    fun batch(operation: TextInputOperation) {
+        raw.input.apply(TextInputBatch(Some(raw.input.inputState.revision), [operation]))
+    }
+    public override fun close() {
+        subscription.close()
+        raw.close()
+        editor.close()
+    }
+}

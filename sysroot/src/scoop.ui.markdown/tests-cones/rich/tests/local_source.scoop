@@ -18,7 +18,7 @@ import scoop.window.*
 @Test
 private class MarkdownLocalSourceWindowTests {
     @Test
-    fun codeMathAndDirectivesUseOneNativeSourcePaneAndReturnToTheirPreview() {
+    fun codeMathAndDirectivesEditInPlaceAndReturnToRenderedContent() {
         @Unsafe
         {
             val clipboard = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
@@ -150,7 +150,7 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
         if (parsed.snapshot !== editor.snapshot)
             return false
         return if (source)
-            !view.richFocus.isFocusActive && (toolbar || locked.value || inputReady)
+            (toolbar || locked.value || inputReady)
         else
             view.richFocus.isFocusActive
     }
@@ -171,12 +171,13 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
         raw = editor.snapshot.read(node.range)
         suffix = editor.snapshot.read(MarkdownRange(node.range.end, editor.snapshot.byteLength))
         assertEquals(0L, node.range.start)
-        source = true
+        source = !locked.value
         mdNativeClick(window!!, 24.0, 28.0)
     }
 
     private fun checkNative() {
         assertEquals(MarkdownEditorMode.Wysiwyg, view.mode)
+        assertTrue(view.richFocus.isFocusActive)
         assertEquals(raw + suffix, editor.document.toMarkdown())
         assertTrue(mdLocalNativeDocument(window!!, editor, raw))
     }
@@ -193,7 +194,7 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
     private fun done(pointer: Boolean = false) {
         source = false
         if (pointer)
-            mdNativeClick(window!!, 24.0, 305.0)
+            mdNativeClick(window!!, 24.0, 402.0)
         else
             mdNativeKey(window!!, 53, "\u{1b}")
     }
@@ -320,7 +321,7 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
             case 30 -> next { open() }
             case 31 -> next { selectAll() }
             case 32 -> {
-                assertEquals(MarkdownRange(0L, raw.byteLength), editor.selection.range)
+                assertEquals(MarkdownRange(0L, editor.snapshot.byteLength), editor.selection.range)
                 next { mdNativeKey(window!!, 51, "\u{8}") }
             }
             case 33 -> {
@@ -435,7 +436,7 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
     }
 
     private fun focusInfo() {
-        mdNativeClick(window!!, 240.0, 310.0)
+        mdNativeClick(window!!, 240.0, 402.0)
     }
 
     private fun checkInfo(expected: String) {

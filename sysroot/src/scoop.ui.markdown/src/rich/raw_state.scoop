@@ -1,0 +1,319 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+/** The source interval survives reparsing, including temporarily invalid extension syntax. */
+internal class MdRichRawState(
+    val region: MarkdownSourceRegion,
+    val form: MarkdownExtensionForm,
+    val name: String,
+    private var origin: MdRichPresentation
+): Closeable {
+    val input = MarkdownSourceInput(region.editor, region = Some(region))
+    private var changes = origin.changes
+    private var projection: MdRichRawProjection? = None
+    private var previous: MdRawRowCache? = None
+    private var rendered: MdRichPresentation? = None
+
+    fun advance(change: MarkdownChange) {
+        if (change.kind == MarkdownChangeKind.Reset)
+            return
+        when (projection) {
+            case Some(val value) -> previous = Some(value.retainRows())
+            case None -> Unit
+        }
+        projection = None
+        changes = changes.append(change)
+    }
+
+    fun contains(selection: MarkdownSelection): Boolean =
+        when (region.range) {
+            case Some(val range) -> selection.range.start >=
+                range.start &&
+                selection.range.end <=
+                range.end
+            case None -> false
+        }
+
+    fun present(model: MarkdownParsedDocument?, selection: MarkdownSelection): MdRichPresentation {
+        when (model) {
+            case Some(val model) -> if (
+                model.snapshot === region.editor.snapshot && model !== origin.base
+            ) {
+                origin = MdRichPresentation(model, None, -1L, -1L, MdRichChanges(model.snapshot))
+                changes = origin.changes
+                projection = None
+                previous = None
+            }
+            case None -> Unit
+        }
+        val raw =
+            projection ?: MdRichRawProjection(origin, changes, region.range!!, form, name, previous)
+        projection = Some(raw)
+        val row = raw.rowAt(selection.cursor, selection.cursorBias)
+        when (rendered) {
+            case Some(val value) -> when (value.raw) {
+                case Some(val old) -> if (old === raw && value.rowIndex == row)
+                    return value
+                case None -> Unit
+            }
+            case None -> Unit
+        }
+        val result =
+            MdRichPresentation(origin.base, None, row, raw.cell, changes, origin.regions, Some(raw))
+        rendered = Some(result)
+        return result
+    }
+
+    public override fun close() {
+        try {
+            input.close()
+        } finally {
+            region.close()
+        }
+    }
+}
+
+internal fun mdRichExtensionAt(
+    host: MarkdownRichHost,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): MarkdownExtensionSpan? {
+    when (host.preview.controller.current) {
+        case Some(val model) -> return mdRichIndexedExtension(
+            host,
+            model.sourceExtensions,
+            position,
+            bias
+        )
+        case None -> Unit
+    }
+    val input = host.input
+    when (input) {
+        case Some(val input) -> if (
+            input.content.snapshot ===
+                host.editor.snapshot &&
+                mdRichContains(input.content, MarkdownSelection(position, position))
+        ) {
+            val changed =
+                when (host.extensionContent) {
+                    case Some(val old) -> old !== input.content
+                    case None -> true
+                }
+            if (changed) {
+                host.extensionContent = Some(input.content)
+                host.extensionIndex =
+                    when (input.content.inlineContent) {
+                        case Some(val content) -> Some(content.extensionIndex())
+                        case None -> input.content.region?.extensionIndex()
+                    }
+            }
+            return when (host.extensionIndex) {
+                case Some(val index) -> mdRichIndexedExtension(host, index, position, bias)
+                case None -> None
+            }
+        }
+        case None -> Unit
+    }
+    val syntax = host.local?.syntax(host.editor.selection) ?: None
+    return when (syntax) {
+        case Some(val syntax) -> mdRichIndexedExtension(
+            host,
+            syntax.extensionIndex(),
+            position,
+            bias
+        )
+        case None -> None
+    }
+}
+
+internal fun mdOpenRichSource(
+    host: MarkdownRichHost,
+    range: MarkdownRange,
+    selected: MarkdownExtensionSpan? = None
+): Boolean {
+    if (host.readOnly || !host.preview.options.enabled || host.closed)
+        return false
+    val editor = host.editor
+    editor.acceptComposition()
+    val prior = host.raw
+    when (prior) {
+        case Some(val active) -> if (active.region.range == Some(range))
+            return true
+        case None -> Unit
+    }
+    val origin =
+        when (host.preview.presentation) {
+            case Some(val current) -> if (
+                current.changes.snapshot === editor.snapshot && !host.editingSource
+            )
+                Some(current)
+            else
+                None
+            case None -> None
+        } ?:
+            when (host.preview.controller.current) {
+                case Some(val model) -> Some(
+                    MdRichPresentation(model, None, -1L, -1L, MdRichChanges(model.snapshot))
+                )
+                case None -> None
+            } ?:
+            return false
+    // Construct the checked interval before retiring the current input.
+    val region = MarkdownSourceRegion(editor, range)
+    val candidate =
+        when (selected) {
+            case Some(val span) -> Some(span)
+            case None -> mdRichExtensionAt(host, MarkdownPosition(range.start), MarkdownBias.After)
+        }
+    val matching =
+        when (candidate) {
+            case Some(val span) -> span.sourceRange == range
+            case None -> false
+        }
+    val row = origin.displayRow(origin.rowAt(MarkdownPosition(range.start), MarkdownBias.After))
+    val form =
+        if (matching)
+            candidate!!.form
+        else
+            when (row.kind) {
+                case MdDisplayKind.Paragraph -> MarkdownExtensionForm.Inline
+                case MdDisplayKind.Heading(_) -> MarkdownExtensionForm.Inline
+                case MdDisplayKind.Table(_, _) -> MarkdownExtensionForm.Inline
+                else -> MarkdownExtensionForm.Block
+            }
+    val name =
+        if (matching)
+            candidate!!.name
+        else
+            "Source"
+    host.retire()
+    host.input?.close()
+    host.input = None
+    host.raw?.close()
+    host.raw = None
+    editor.breakUndoGroup()
+    val selection = mdSourceSelection(range, editor.selection)
+    if (selection != editor.selection)
+        editor.setSelection(selection)
+    host.raw = Some(MdRichRawState(region, form, name, origin))
+    host.preview.folding?.reveal(MarkdownPosition(range.start))
+    host.preview.folding?.reveal(MarkdownPosition(range.end))
+    host.sourceEditingChanged(Some(region))
+    return true
+}
+
+internal fun mdFinishRichSource(host: MarkdownRichHost, moveOutside: Boolean) {
+    val active = host.raw ?: return
+    val range = active.region.range
+    host.retire()
+    active.close()
+    host.raw = None
+    host.preview.presentation = None
+    host.extensionContent = None
+    host.extensionIndex = None
+    host.editor.breakUndoGroup()
+    if (moveOutside)
+        when (range) {
+            case Some(val range) -> {
+                val cursor = host.editor.selection.cursor.byteOffset
+                val before = cursor - range.start < range.end - cursor
+                val position =
+                    MarkdownPosition(
+                        if (before)
+                            range.start
+                        else
+                            range.end
+                    )
+                val bias =
+                    if (before)
+                        MarkdownBias.Before
+                    else
+                        MarkdownBias.After
+                host.editor.setSelection(MarkdownSelection(position, position, bias, bias))
+            }
+            case None -> Unit
+        }
+    host.sourceEditingChanged(None)
+}
+
+internal fun mdRefreshRichSource(host: MarkdownRichHost): Boolean {
+    when (host.raw) {
+        case Some(val active) -> {
+            if (!active.contains(host.editor.selection) && !host.editor.isComposing) {
+                mdFinishRichSource(host, false)
+                return false
+            }
+            if (active.region.range == None) {
+                mdFinishRichSource(host, false)
+                return false
+            }
+            if (active.input.synchronize())
+                host.retire()
+            host.preview.presentation =
+                Some(active.present(host.preview.controller.current, host.editor.selection))
+            return true
+        }
+        case None -> Unit
+    }
+    if (
+        !host.area.isFocusActive ||
+            host.deferSourceActivation ||
+            !host.editor.selection.collapsed ||
+            host.editor.isComposing ||
+            !host.preview.options.enabled
+    )
+        return false
+    val selection = host.editor.selection
+    val span = mdRichExtensionAt(host, selection.cursor, selection.cursorBias) ?: return false
+    if (!mdOpenRichSource(host, span.sourceRange, Some(span)))
+        return false
+    host.preview.presentation =
+        Some(host.raw!!.present(host.preview.controller.current, host.editor.selection))
+    return true
+}
+
+/** Direction resolves which side owns an atomic object's shared caret boundary. */
+internal fun mdEnterRichSource(host: MarkdownRichHost, movement: TextMovement, extend: Boolean) {
+    if (
+        extend ||
+            !host.area.isFocusActive ||
+            !host.editor.selection.collapsed ||
+            host.editor.isComposing
+    )
+        return
+    val bias =
+        when (movement) {
+            case TextMovement.Backward -> MarkdownBias.Before
+            case TextMovement.Left -> MarkdownBias.Before
+            case TextMovement.Forward -> MarkdownBias.After
+            case TextMovement.Right -> MarkdownBias.After
+            else -> return
+        }
+    when (host.raw) {
+        case Some(val active) -> {
+            val range = active.region.range ?: return
+            val cursor = host.editor.selection.cursor
+            if (
+                bias ==
+                    MarkdownBias.Before &&
+                    cursor.byteOffset ==
+                    range.start ||
+                    bias ==
+                    MarkdownBias.After &&
+                    cursor.byteOffset ==
+                    range.end
+            ) {
+                mdFinishRichSource(host, false)
+                host.editor.setSelection(MarkdownSelection(cursor, cursor, bias, bias))
+                host.refresh()
+            } else
+                return
+        }
+        case None -> Unit
+    }
+    val span = mdRichExtensionAt(host, host.editor.selection.cursor, bias) ?: return
+    if (mdOpenRichSource(host, span.sourceRange, Some(span)))
+        host.refresh()
+}

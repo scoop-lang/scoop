@@ -12,6 +12,11 @@ internal fun mdClipboardCopy(
     host: MarkdownPreviewHost,
     command: MarkdownClipboardCommand? = None
 ): Boolean {
+    when (host.rich) {
+        case Some(val rich) -> if (rich.editingSource)
+            return mdRichRawClipboard(rich, command ?: MarkdownClipboardCommand.CopyMarkdown)
+        case None -> Unit
+    }
     val selection = host.editor.selection
     if (selection.collapsed)
         return true
@@ -55,6 +60,8 @@ internal fun mdRichPaste(
         return true
     if (host.ownsOtherComposition())
         return false
+    if (host.editingSource)
+        return mdRichRawClipboard(host, command ?: MarkdownClipboardCommand.PasteMarkdown)
     val clipboard = host.window.clipboard
     val markdown =
         if (

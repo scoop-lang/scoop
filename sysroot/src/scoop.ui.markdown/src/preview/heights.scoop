@@ -20,7 +20,19 @@ internal fun mdSyncPreviewHeights(
             case(None, None) -> true
             else -> false
         }
-    if (!same || !sameRegions) {
+    val raw = presentation?.raw ?: None
+    val sameRaw =
+        when ((host.heightRaw, raw)) {
+            case(Some(val old), Some(val next)) -> old === next
+            case(None, None) -> true
+            else -> false
+        }
+    if (!same || !sameRegions || !sameRaw) {
+        when (host.heightRaw) {
+            case Some(val previous) -> host.heights =
+                previous.restoreHeights(host.heights, estimate)
+            case None -> Unit
+        }
         when (host.heightRegions) {
             case Some(val previous) -> host.heights =
                 previous.restoreHeights(host.heights, estimate)
@@ -53,7 +65,12 @@ internal fun mdSyncPreviewHeights(
             case Some(val next) -> host.heights = next.applyHeights(host.heights, estimate)
             case None -> Unit
         }
+        when (raw) {
+            case Some(val next) -> host.heights = next.applyHeights(host.heights, estimate)
+            case None -> Unit
+        }
     }
     host.document = model
     host.heightRegions = regions
+    host.heightRaw = raw
 }

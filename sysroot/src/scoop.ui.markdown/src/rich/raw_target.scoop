@@ -1,0 +1,101 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Opaque displayed source or images own their descendants' caret entry. */
+internal fun mdVisibleExtension(
+    extensions: MarkdownExtensionIndex,
+    span: MarkdownExtensionSpan,
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): MarkdownExtensionSpan {
+    val snapshot = presentation?.changes?.snapshot ?: model.snapshot
+    if (snapshot !== extensions.snapshot)
+        return span
+    val index = mdFrameRowAt(model, presentation, position, bias)
+    val row = mdFrameRow(model, presentation, index)
+    when (row.sourceAction) {
+        case Some(val range) -> return mdOpaqueExtension(
+            extensions,
+            span,
+            mdFrameRowRange(model, presentation, index, range)
+        )
+        case None -> Unit
+    }
+    if (row.cells.size == 0L)
+        return span
+    val column = mdFrameColumn(model, presentation, index, position, bias)
+    val text = row.cells[column]
+    val at = mdFrameCellPosition(model, presentation, index, column, position, bias).byteOffset
+    for (run in text.runs) {
+        when (run.objectValue) {
+            case None -> continue;
+            case Some(_) -> Unit
+        }
+        val first = text.sourceAt(run.range.start, MarkdownBias.After)
+        val last = text.sourceAt(run.range.end, MarkdownBias.Before)
+        if (
+            at <
+                first.byteOffset ||
+                at >
+                last.byteOffset ||
+                at ==
+                first.byteOffset &&
+                bias ==
+                MarkdownBias.Before ||
+                at ==
+                last.byteOffset &&
+                bias ==
+                MarkdownBias.After
+        )
+            continue
+        return mdOpaqueExtension(
+            extensions,
+            span,
+            MarkdownRange(
+                mdFrameCellOriginal(
+                    model,
+                    presentation,
+                    index,
+                    column,
+                    first,
+                    MarkdownBias.Before
+                ).byteOffset,
+                mdFrameCellOriginal(
+                    model,
+                    presentation,
+                    index,
+                    column,
+                    last,
+                    MarkdownBias.After
+                ).byteOffset
+            )
+        )
+    }
+    return span
+}
+
+private fun mdOpaqueExtension(
+    extensions: MarkdownExtensionIndex,
+    selected: MarkdownExtensionSpan,
+    range: MarkdownRange
+): MarkdownExtensionSpan {
+    for (span in extensions.intersect(range))
+        if (span.sourceRange == range)
+            return span
+    return selected
+}
+
+internal fun mdRichIndexedExtension(
+    host: MarkdownRichHost,
+    extensions: MarkdownExtensionIndex,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): MarkdownExtensionSpan? {
+    val span = extensions.at(position, bias) ?: return None
+    val presentation = host.preview.presentation
+    val model = presentation?.base ?: host.preview.controller.current ?: return Some(span)
+    return Some(mdVisibleExtension(extensions, span, model, presentation, position, bias))
+}

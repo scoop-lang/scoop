@@ -128,6 +128,15 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
 
     fun focused(pane: MarkdownEditorPane, active: Boolean) {
         if (!closed && active) {
+            if (pane == MarkdownEditorPane.Source)
+                when (rich) {
+                    case Some(val preview) -> when (preview.rich) {
+                        case Some(val host) -> if (host.editingSource)
+                            host.perform { mdFinishRichSource(host, false) }
+                        case None -> Unit
+                    }
+                    case None -> Unit
+                }
             state.focused(pane)
             mdSearchAvailability(props)
         }

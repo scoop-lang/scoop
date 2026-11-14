@@ -7,8 +7,14 @@ import scoop.math.min
 import scoop.window.*
 
 internal fun mdRichDelete(host: MarkdownRichHost, deletion: TextDeletion): MarkdownRange? {
-    val input = host.input ?: return None
-    val selected = input.inputState.selection.range
+    val input = host.input
+    val selected =
+        if (host.editingSource)
+            host.editor.selection.range
+        else {
+            val value = (input ?: return None).inputState.selection.range
+            MarkdownRange(value.start, value.end)
+        }
     if (selected.start != selected.end)
         return Some(MarkdownRange(selected.start, selected.end))
     if (deletion == TextDeletion.Backward || deletion == TextDeletion.Forward) {
@@ -61,8 +67,8 @@ internal fun mdRichDelete(host: MarkdownRichHost, deletion: TextDeletion): Markd
                         )
                     Some(
                         MarkdownRange(
-                            input.content.text.textAt(firstSource, MarkdownBias.After).byteOffset,
-                            input.content.text.textAt(lastSource, MarkdownBias.Before).byteOffset
+                            mdRichDeleteOffset(host, firstSource, MarkdownBias.After),
+                            mdRichDeleteOffset(host, lastSource, MarkdownBias.Before)
                         )
                     )
                 } else
@@ -86,12 +92,23 @@ internal fun mdRichDelete(host: MarkdownRichHost, deletion: TextDeletion): Markd
         }
     val destination = mdRichMove(host, movement)
     if (
-        !mdRichContains(
-            input.content,
-            MarkdownSelection(destination.position, destination.position)
-        )
+        !host.editingSource &&
+            !mdRichContains(
+                input!!.content,
+                MarkdownSelection(destination.position, destination.position)
+            )
     )
         return None
-    val offset = input.content.text.textAt(destination.position).byteOffset
+    val offset = mdRichDeleteOffset(host, destination.position, MarkdownBias.After)
     return Some(MarkdownRange(min(offset, selected.start), max(offset, selected.end)))
 }
+
+private fun mdRichDeleteOffset(
+    host: MarkdownRichHost,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): Long =
+    if (host.editingSource)
+        position.byteOffset
+    else
+        host.input!!.content.text.textAt(position, bias).byteOffset

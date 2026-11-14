@@ -188,7 +188,7 @@ public class MarkdownPreviewMeasurement internal constructor(
         val original = mdFrameCellOriginal(model, presentation, index, selectedCell, source, bias)
         val range =
             if (presentation?.isActive(index, selectedCell) ?: false)
-                presentation!!.content!!.sourceRange
+                presentation!!.activeSourceRange
             else
                 mdFrameRowRange(model, presentation, index, measured.row.range)
         return Some(

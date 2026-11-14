@@ -95,7 +95,10 @@ private fun mdDisplayInlineNodes(
                     case MarkdownInlinePresentation.Image(val value) -> {
                         val action =
                             when (current.content) {
-                                case MarkdownContent.Image(_) -> item.action
+                                case MarkdownContent.Image(_) -> when (item.action) {
+                                    case Some(val action) -> Some(action)
+                                    case None -> Some(MdDisplayAction.Source(current.range))
+                                }
                                 else -> Some(MdDisplayAction.Source(current.range))
                             }
                         builder.append(

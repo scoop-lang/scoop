@@ -1,0 +1,117 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.TextAffinity
+import scoop.markdown.*
+import scoop.window.*
+
+internal fun mdRichRawCommand(host: MarkdownRichHost, command: TextEditCommand): Boolean {
+    val active = host.raw ?: return false
+    val editor = host.editor
+    val limit = active.region.range ?: return false
+    when (command) {
+        case Move(_, _) -> return false
+        case Copy -> return mdRichRawClipboard(host, MarkdownClipboardCommand.CopyMarkdown)
+        case Cut -> {
+            if (!editor.selection.collapsed) {
+                mdRichRawClipboard(host, MarkdownClipboardCommand.CopyMarkdown)
+                host.perform { editor.replaceSelection("") }
+            }
+        }
+        case Paste -> return mdRichRawClipboard(host, MarkdownClipboardCommand.PasteMarkdown)
+        case Delete(val deletion) -> {
+            val value = mdRichDelete(host, deletion) ?: return false
+            val range =
+                MarkdownRange(
+                    if (value.start < limit.start)
+                        limit.start
+                    else
+                        value.start,
+                    if (value.end > limit.end)
+                        limit.end
+                    else
+                        value.end
+                )
+            val kind =
+                when (deletion) {
+                    case Backward -> MarkdownEditKind.Backspace
+                    case Forward -> MarkdownEditKind.Delete
+                    else -> MarkdownEditKind.Separate
+                }
+            host.perform { editor.replace(range, "", kind) }
+        }
+        case SelectAll -> host.perform {
+            editor.setSelection(
+                MarkdownSelection(MarkdownPosition(limit.start), MarkdownPosition(limit.end))
+            )
+        }
+        case Undo -> host.perform { editor.undo() }
+        case Redo -> host.perform { editor.redo() }
+        case Cancel -> if (editor.isComposing)
+            host.perform { editor.cancelComposition() }
+        else
+            host.finishSource()
+        case InsertNewline -> {
+            val insertion =
+                mdSourceNewline(
+                    editor.snapshot,
+                    editor.selection,
+                    limit,
+                    MarkdownSourceOptions(autoPairs = false, autoFences = false),
+                    None
+                )
+            host.perform { editor.apply(insertion.change, insertion.caret) }
+        }
+        case InsertTab -> host.perform {
+            if (
+                editor.snapshot.lineAt(editor.selection.anchor) !=
+                    editor.snapshot.lineAt(editor.selection.cursor)
+            )
+                mdIndentSource(editor, 4, false, limit)
+            else
+                editor.replaceSelection("\t")
+        }
+        case InsertBacktab -> host.perform { mdIndentSource(editor, 4, true, limit) }
+    }
+    host.cursorAffinity = TextAffinity.Downstream
+    host.preferredX = None
+    return true
+}
+
+internal fun mdRichRawClipboard(
+    host: MarkdownRichHost,
+    command: MarkdownClipboardCommand
+): Boolean {
+    val editor = host.editor
+    if (host.ownsOtherComposition())
+        return false
+    when (command) {
+        case CopyText -> if (!editor.selection.collapsed)
+            host.window.clipboard.writeText(editor.snapshot.read(editor.selection.range))
+        case CopyMarkdown -> if (!editor.selection.collapsed) {
+            val source = editor.snapshot.read(editor.selection.range)
+            host.window.clipboard.writeTexts(
+                [ClipboardText("text/plain", source), ClipboardText("text/markdown", source)]
+            )
+        }
+        case PasteMarkdown -> {
+            val text =
+                host.window.clipboard.readText("text/markdown") ?:
+                    host.window.clipboard.readText() ?:
+                    return true
+            host.perform {
+                editor.acceptComposition();
+                editor.replaceSelection(text)
+            }
+        }
+        case PasteText -> {
+            val text = host.window.clipboard.readText() ?: return true
+            host.perform {
+                editor.acceptComposition();
+                editor.replaceSelection(text)
+            }
+        }
+        case PasteHtml -> return false
+        case PasteTableTsv -> return false
+    }
+    return true
+}

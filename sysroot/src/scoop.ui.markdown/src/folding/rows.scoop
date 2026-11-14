@@ -90,9 +90,12 @@ internal fun mdPreviewFoldHeights(
             )
         val rows = model.display.hiddenRows(expanded)
         result =
-            when (presentation?.regions ?: None) {
-                case Some(val local) -> local.foldHeights(result, rows, range)
-                case None -> mdMaskFoldRows(result, rows)
+            when (presentation?.raw ?: None) {
+                case Some(val raw) -> raw.foldHeights(result, rows, range)
+                case None -> when (presentation?.regions ?: None) {
+                    case Some(val local) -> local.foldHeights(result, rows, range)
+                    case None -> mdMaskFoldRows(result, rows)
+                }
             }
         covered = range.end
     }

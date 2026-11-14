@@ -35,6 +35,16 @@ public class MarkdownRichHost public constructor(
     internal val editor: MarkdownEditorState get() = preview.editor
     internal val window: Window get() = scope.nativeWindow
     internal var input: MarkdownRichInput? = None
+    internal var raw: MdRichRawState? = None
+    internal var extensionContent: MarkdownTextContent? = None
+    internal var extensionIndex: MarkdownExtensionIndex? = None
+    internal var deferSourceActivation = false
+    internal var sourceEditingChanged: (MarkdownSourceRegion?) -> Unit = { _ -> Unit }
+    internal val editingSource: Boolean get() =
+        when (raw) {
+            case Some(_) -> true;
+            case None -> false
+        }
     internal var local: MdRichRegionState? = None
     internal var readOnly = readOnly
     internal var closed = false
@@ -65,7 +75,33 @@ public class MarkdownRichHost public constructor(
     public val isClosed: Boolean get() = closed
     public val nativeInputState: TextInputState? get() {
         checkOpen();
-        return input?.inputState
+        return when (raw) {
+            case Some(val active) -> Some(active.input.inputState)
+            case None -> input?.inputState
+        }
+    }
+    /** The active source island, sharing this host's native input area and document history. */
+    public val sourceRegion: MarkdownSourceRegion? get() {
+        checkOpen();
+        return raw?.region
+    }
+
+    /** Opens the original bytes in place. A current projection is required. */
+    public fun editSource(range: MarkdownRange): Boolean {
+        checkOpen()
+        try {
+            return mdOpenRichSource(this, range)
+        } finally {
+            refresh()
+            invalidate()
+            publishNative()
+        }
+    }
+
+    /** Accepts this source composition and restores the rendered view at the outer caret edge. */
+    public fun finishSource() {
+        checkOpen()
+        perform { mdFinishRichSource(this, true) }
     }
     public val measurement: MarkdownPreviewMeasurement? get() {
         checkOpen();
@@ -86,6 +122,7 @@ public class MarkdownRichHost public constructor(
     private fun sourceChanged(change: MarkdownChange) {
         if (closed)
             return
+        raw?.advance(change)
         when (local) {
             case Some(val state) -> if (!state.advance(change))
                 local = None
@@ -97,9 +134,12 @@ public class MarkdownRichHost public constructor(
 
     internal fun ownsOtherComposition(): Boolean =
         when (editor.composition) {
-            case Some(val active) -> when (input) {
-                case Some(val current) -> active.owner !== current.compositionOwner
-                case None -> true
+            case Some(val active) -> when (raw) {
+                case Some(val current) -> active.owner !== current.input.compositionOwner
+                case None -> when (input) {
+                    case Some(val current) -> active.owner !== current.compositionOwner
+                    case None -> true
+                }
             }
             case None -> false
         }
@@ -121,7 +161,7 @@ public class MarkdownRichHost public constructor(
         fonts: FontCollection? = None,
         onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
         onOpenLink: (String) -> Unit = { _ -> Unit },
-        onSource: (MarkdownRange) -> Unit = { _ -> Unit },
+        onSource: ((MarkdownRange) -> Unit)? = None,
         images: MarkdownImageController? = None,
         documentUri: String = "",
         searchResult: MarkdownSearchResult? = None,
@@ -130,6 +170,7 @@ public class MarkdownRichHost public constructor(
         checkOpen()
         val rebound = controller !== preview.controller
         if (rebound || readOnly != this.readOnly || options.enabled != preview.options.enabled) {
+            mdFinishRichSource(this, false)
             retire()
             input?.close()
             input = None
@@ -145,7 +186,12 @@ public class MarkdownRichHost public constructor(
             focus,
             fonts,
             onOpenLink,
-            onSource,
+            onSource ?:
+                {
+                    range ->
+                    editSource(range);
+                    Unit
+                },
             images,
             documentUri,
             searchResult,
@@ -319,7 +365,7 @@ public class MarkdownRichHost public constructor(
     internal fun invalidate() {
         if (closed || !scope.isMounted)
             return
-        area.setCaret(None, input?.inputState?.revision)
+        area.setCaret(None, nativeInputState?.revision)
         caretVisible = true
         blink.cancel()
         scope.requestLayout()
@@ -341,18 +387,25 @@ public class MarkdownRichHost public constructor(
                 ownsOtherComposition()
         )
             return
-        val active = input ?: return
         val connection = connection ?: return
-        if (active.content.snapshot !== editor.snapshot)
-            return
         val rect = area.visibleCaretBounds ?: Rect(0.0, 0.0, 0.0, 0.0)
-        window.publishTextInputState(
-            connection,
-            active.snapshot(
-                LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))
-            ),
-            origin
-        )
+        val caret =
+            LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))
+        val state =
+            when (raw) {
+                case Some(val active) -> {
+                    if (active.input.documentRevision != editor.snapshot.revision)
+                        return
+                    active.input.snapshot(caret)
+                }
+                case None -> {
+                    val active = input ?: return
+                    if (active.content.snapshot !== editor.snapshot)
+                        return
+                    active.snapshot(caret)
+                }
+            }
+        window.publishTextInputState(connection, state, origin)
     }
 
     internal fun scheduleBlink() {
@@ -374,6 +427,8 @@ public class MarkdownRichHost public constructor(
         var failure: Throwable? = None
         failure = mdCleanup(failure) { subscription.close() }
         failure = mdCleanup(failure) { input?.close() }
+        failure = mdCleanup(failure) { raw?.close() }
+        failure = mdCleanup(failure) { sourceEditingChanged(None) }
         failure = mdCleanup(failure) { blink.close() }
         failure = mdCleanup(failure) { preview.close() }
         mdThrow(failure)

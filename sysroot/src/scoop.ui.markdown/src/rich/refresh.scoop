@@ -6,6 +6,7 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
     if (host.closed)
         return
     if (host.readOnly) {
+        mdFinishRichSource(host, false)
         host.input?.close()
         host.input = None
         host.local = None
@@ -28,6 +29,8 @@ internal fun mdRefreshRich(host: MarkdownRichHost) {
         }
         case None -> Unit
     }
+    if (mdRefreshRichSource(host))
+        return
     val previous = host.input
     val usable =
         when (previous) {

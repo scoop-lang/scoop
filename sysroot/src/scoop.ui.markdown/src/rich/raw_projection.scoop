@@ -1,0 +1,448 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.markdown.*
+
+internal class MdRawCachedRow(val index: Long, val row: MdDisplayRow)
+
+internal class MdRawRowCache(
+    val snapshot: MarkdownSnapshot,
+    val firstLine: Long,
+    val rows: Array<MdRawCachedRow>
+)
+
+/** One source island over an immutable display. Block rows are materialized only on demand. */
+internal class MdRichRawProjection(
+    val origin: MdRichPresentation,
+    val changes: MdRichChanges,
+    val range: MarkdownRange,
+    val form: MarkdownExtensionForm,
+    val name: String,
+    private val previous: MdRawRowCache? = None
+) {
+    val snapshot = changes.snapshot
+    private val sourceSnapshot = origin.changes.snapshot
+    private val oldStart = backward(MarkdownPosition(range.start), MarkdownBias.Before)
+    private val oldEnd = backward(MarkdownPosition(range.end), MarkdownBias.After)
+    val start = origin.rowAt(oldStart, MarkdownBias.After)
+    private val lastIndex = origin.rowAt(oldEnd, MarkdownBias.Before)
+    val end =
+        if (lastIndex < start)
+            start + 1L
+        else
+            lastIndex + 1L
+    private val first = origin.displayRow(start)
+    private val last = origin.displayRow(end - 1L)
+    val cell =
+        if (first.cells.size == 0L)
+            0L
+        else
+            mdFrameColumn(origin.base, Some(origin), start, oldStart, MarkdownBias.After)
+    val firstLine = snapshot.lineAt(MarkdownPosition(range.start))
+    val rowCount =
+        if (form == MarkdownExtensionForm.Inline)
+            1L
+        else
+            snapshot.lineAt(MarkdownPosition(range.end)) - firstLine + 1L
+    val count = origin.count - (end - start) + rowCount
+    private val cache = HashMap<Long, MdDisplayRow>()
+    private val cached = ArrayList<MdRawCachedRow>()
+    val outerRange: MarkdownRange = outsideRange()
+
+    private fun outsideRange(): MarkdownRange {
+        if (form == MarkdownExtensionForm.Block)
+            return range
+        val begin =
+            if (first.cells.size == 0L)
+                range.start
+            else
+                original(
+                    start,
+                    cell,
+                    MarkdownPosition(first.cells[cell].sourceRange.start),
+                    MarkdownBias.Before
+                ).byteOffset
+        val finish =
+            if (last.cells.size == 0L)
+                range.end
+            else
+                original(
+                    end - 1L,
+                    lastCell(),
+                    MarkdownPosition(last.cells[lastCell()].sourceRange.end),
+                    MarkdownBias.After
+                ).byteOffset
+        return MarkdownRange(
+            if (begin < range.start)
+                begin
+            else
+                range.start,
+            if (finish > range.end)
+                finish
+            else
+                range.end
+        )
+    }
+
+    fun retainRows(): MdRawRowCache = MdRawRowCache(snapshot, firstLine, cached.toArray())
+    fun isRaw(index: Long): Boolean = index >= start && index < start + rowCount
+    fun isRawCell(index: Long, column: Long): Boolean =
+        isRaw(index) && (form == MarkdownExtensionForm.Block || column == cell)
+    fun sourceIndex(index: Long): Long =
+        if (index < start)
+            index
+        else
+            index + end - start - rowCount
+    fun displayIndex(index: Long): Long =
+        if (index < start)
+            index
+        else
+            index + rowCount - (end - start)
+
+    fun forward(position: MarkdownPosition, bias: MarkdownBias): MarkdownPosition =
+        changes.forward(MarkdownAnchor(position, bias), sourceSnapshot).position
+    fun backward(position: MarkdownPosition, bias: MarkdownBias): MarkdownPosition =
+        changes.backward(MarkdownAnchor(position, bias), sourceSnapshot).position
+
+    private fun original(
+        index: Long,
+        column: Long,
+        position: MarkdownPosition,
+        bias: MarkdownBias
+    ): MarkdownPosition = forward(origin.cellOriginal(index, column, position, bias), bias)
+
+    fun row(index: Long): MdDisplayRow {
+        if (!isRaw(index))
+            return origin.displayRow(sourceIndex(index))
+        val offset = index - start
+        when (cache[offset]) {
+            case Some(val value) -> return value;
+            case None -> Unit
+        }
+        var result =
+            if (form == MarkdownExtensionForm.Inline)
+                inlineRow()
+            else
+                blockRow(offset)
+        val old = previous
+        when (old) {
+            case Some(val old) -> {
+                val oldIndex =
+                    if (form == MarkdownExtensionForm.Inline)
+                        0L
+                    else {
+                        val point =
+                            changes.backward(
+                                MarkdownAnchor(MarkdownPosition(result.range.start)),
+                                old.snapshot
+                            ).position
+                        old.snapshot.lineAt(point) - old.firstLine
+                    }
+                for (entry in old.rows)
+                    if (entry.index == oldIndex && mdDisplaySame(result, entry.row)) {
+                        result =
+                            MdDisplayRow(
+                                result.node,
+                                result.range,
+                                result.kind,
+                                result.indent,
+                                result.quotes,
+                                result.markers,
+                                result.cells,
+                                entry.row.key,
+                                None
+                            )
+                        break
+                    }
+            }
+            case None -> Unit
+        }
+        cache[offset] = result
+        cached.add(MdRawCachedRow(offset, result))
+        return result
+    }
+
+    private fun lastCell(): Long =
+        if (cell < last.cells.size)
+            cell
+        else
+            last.cells.size - 1L
+
+    private fun inlineRow(): MdDisplayRow {
+        val builder = MdDisplayTextBuilder(outerRange)
+        if (first.cells.size > 0L)
+            mdRawAppendDisplay(
+                builder,
+                first.cells[cell],
+                MarkdownRange(outerRange.start, range.start),
+                snapshot,
+                { position, bias -> original(start, cell, position, bias) }
+            )
+        mdRawLiteral(builder, snapshot, range, Some(origin.base.sourceHighlights))
+        if (last.cells.size > 0L)
+            mdRawAppendDisplay(
+                builder,
+                last.cells[lastCell()],
+                MarkdownRange(range.end, outerRange.end),
+                snapshot,
+                { position, bias -> original(end - 1L, lastCell(), position, bias) }
+            )
+        val active = builder.finish()
+        val cells =
+            Array<MdDisplayText>(
+                if (first.cells.size == 0L)
+                    1L
+                else
+                    first.cells.size
+            ) {
+                column -> if (column == cell)
+                    active
+                else {
+                    val text = first.cells[column]
+                    val area =
+                        MarkdownRange(
+                            original(
+                                start,
+                                column,
+                                MarkdownPosition(text.sourceRange.start),
+                                MarkdownBias.Before
+                            ).byteOffset,
+                            original(
+                                start,
+                                column,
+                                MarkdownPosition(text.sourceRange.end),
+                                MarkdownBias.After
+                            ).byteOffset
+                        )
+                    val other = MdDisplayTextBuilder(area)
+                    mdRawAppendDisplay(
+                        other,
+                        text,
+                        area,
+                        snapshot,
+                        { position, bias -> original(start, column, position, bias) }
+                    )
+                    other.finish()
+                }
+            }
+        val kind =
+            when (first.kind) {
+                case MdDisplayKind.Paragraph -> first.kind
+                case MdDisplayKind.Heading(_) -> first.kind
+                case MdDisplayKind.Table(_, _) -> first.kind
+                else -> MdDisplayKind.Paragraph
+            }
+        val beginning = origin.rowRange(start, first.range)
+        val ending = origin.rowRange(end - 1L, last.range)
+        val rowRange =
+            MarkdownRange(
+                forward(MarkdownPosition(beginning.start), MarkdownBias.Before).byteOffset,
+                forward(MarkdownPosition(ending.end), MarkdownBias.After).byteOffset
+            )
+        return MdDisplayRow(
+            first.node,
+            rowRange,
+            kind,
+            first.indent,
+            first.quotes,
+            first.markers,
+            cells,
+            MdDisplayKey(start),
+            None
+        )
+    }
+
+    private fun blockRow(index: Long): MdDisplayRow {
+        val line = snapshot.lineRange(firstLine + index)
+        val whole = snapshot.lineRange(firstLine + index, true)
+        val begin =
+            if (index == 0L)
+                range.start
+            else
+                line.start
+        val finish =
+            if (line.end < range.end)
+                line.end
+            else
+                range.end
+        val next =
+            if (whole.end < range.end)
+                whole.end
+            else
+                range.end
+        val visible =
+            MarkdownRange(
+                begin,
+                if (finish < begin)
+                    begin
+                else
+                    finish
+            )
+        val source = MarkdownRange(begin, next)
+        val builder = MdDisplayTextBuilder(source)
+        mdRawLiteral(builder, snapshot, visible, Some(origin.base.sourceHighlights))
+        return MdDisplayRow(
+            first.node,
+            source,
+            MdDisplayKind.Source(name, index == 0L, index + 1L == rowCount),
+            first.indent,
+            first.quotes,
+            if (index == 0L)
+                first.markers
+            else
+                [],
+            [builder.finish()],
+            MdDisplayKey(start + index),
+            None
+        )
+    }
+
+    fun rowAt(position: MarkdownPosition, bias: MarkdownBias): Long {
+        if (position.byteOffset >= outerRange.start && position.byteOffset <= outerRange.end) {
+            if (form == MarkdownExtensionForm.Inline)
+                return start
+            val line = snapshot.lineAt(position) - firstLine
+            return start +
+                (
+                    if (line < 0L)
+                        0L
+                    else
+                        if (line >= rowCount)
+                            rowCount - 1L
+                        else
+                            line
+                )
+        }
+        val index = origin.rowAt(backward(position, bias), bias)
+        return if (index >= start && index < end)
+            start
+        else
+            displayIndex(index)
+    }
+
+    fun rowForKey(key: MdDisplayKey): Long? {
+        for (entry in cached)
+            if (entry.row.key === key)
+                return Some(start + entry.index)
+        val old = origin.rowForKey(key) ?: return None
+        return if (old >= start && old < end)
+            None
+        else
+            Some(displayIndex(old))
+    }
+
+    fun isLocal(index: Long, column: Long): Boolean =
+        if (isRaw(index))
+            true
+        else
+            origin.isLocal(sourceIndex(index), column)
+    fun isLocalRow(row: MdDisplayRow, column: Long): Boolean {
+        for (entry in cached)
+            if (entry.row === row)
+                return true
+        return origin.isLocalRow(row, column)
+    }
+    fun cellPosition(
+        index: Long,
+        column: Long,
+        position: MarkdownPosition,
+        bias: MarkdownBias
+    ): MarkdownPosition =
+        if (isRaw(index))
+            position
+        else
+            origin.cellPosition(sourceIndex(index), column, backward(position, bias), bias)
+    fun cellOriginal(
+        index: Long,
+        column: Long,
+        position: MarkdownPosition,
+        bias: MarkdownBias
+    ): MarkdownPosition =
+        if (isRaw(index))
+            position
+        else
+            original(sourceIndex(index), column, position, bias)
+    fun rowRange(index: Long, value: MarkdownRange): MarkdownRange {
+        if (isRaw(index))
+            return value
+        val source = origin.rowRange(sourceIndex(index), value)
+        return MarkdownRange(
+            forward(MarkdownPosition(source.start), MarkdownBias.Before).byteOffset,
+            forward(MarkdownPosition(source.end), MarkdownBias.After).byteOffset
+        )
+    }
+
+    fun applyHeights(heights: MdHeights, estimate: Double): MdHeights =
+        heights.replace(start, end, rowCount, estimate)
+    fun restoreHeights(heights: MdHeights, estimate: Double): MdHeights =
+        heights.replace(start, start + rowCount, end - start, estimate)
+
+    fun foldHeights(
+        heights: MdHeights,
+        baseRows: Array<MdFoldRows>,
+        source: MarkdownRange
+    ): MdHeights {
+        // Evaluate the existing sparse projection, then map its masked runs through this splice.
+        val before = mdHeightRun(origin.count, 1.0)
+        val masked =
+            when (origin.regions) {
+                case Some(val rows) -> rows.foldHeights(
+                    before,
+                    baseRows,
+                    MarkdownRange(
+                        backward(MarkdownPosition(source.start), MarkdownBias.Before).byteOffset,
+                        backward(MarkdownPosition(source.end), MarkdownBias.After).byteOffset
+                    )
+                )
+                case None -> mdMaskFoldRows(before, baseRows)
+            }
+        return mdRawMaskHeights(heights, masked, this)
+    }
+}
+
+private fun mdRawMaskHeights(
+    heights: MdHeights,
+    masked: MdHeights,
+    raw: MdRichRawProjection
+): MdHeights {
+    var result = heights
+    val pending = ArrayList<(MdHeights, Long)>()
+    pending.add((masked, 0L))
+    while (pending.size > 0L) {
+        val entry = pending.removeAt(pending.size - 1L)
+        if (entry._1.visibleCount == entry._1.count)
+            continue
+        when (entry._1.kind) {
+            case MdHeightKind.Branch(val left, val right) -> {
+                pending.add((right, entry._2 + left.count))
+                pending.add((left, entry._2))
+            }
+            case MdHeightKind.Run(val count, _) -> {
+                val end = entry._2 + count
+                if (entry._2 < raw.start) {
+                    val finish =
+                        if (end < raw.start)
+                            end
+                        else
+                            raw.start
+                    result = result.replace(entry._2, finish, finish - entry._2, 0.0)
+                }
+                if (end > raw.end) {
+                    val begin =
+                        if (entry._2 > raw.end)
+                            entry._2
+                        else
+                            raw.end
+                    result =
+                        result.replace(
+                            raw.displayIndex(begin),
+                            raw.displayIndex(end),
+                            end - begin,
+                            0.0
+                        )
+                }
+            }
+        }
+    }
+    return result
+}

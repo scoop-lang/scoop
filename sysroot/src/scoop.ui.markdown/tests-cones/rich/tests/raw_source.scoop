@@ -1,0 +1,291 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownInPlaceSourceWindowTests {
+    @Test
+    fun cursorEntryCompositionInvalidSyntaxAndExitShareTheRichNativeInputArea() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = InPlaceSourceProbe(workers, app.proxy())
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> app.run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.field!!.isClosed)
+            assertFalse(probe.editor.isClosed)
+        } catch (failure: Throwable) {
+            println("In-place source step " + probe.step.value.toString())
+            throw failure
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class InPlaceSourceProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "left ![a](a.png) right\n\n```scoop\nval n = 1\n```\n\nlast"
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val step = state(0)
+    val locked = state(false)
+    var field: MarkdownRichHost? = None
+    private var window: Window? = None
+    private var frames: FrameProbe? = None
+    private var waiting = false
+    private var inputReady = false
+    private var presentations = 0L
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown in-place source verification"
+                            size = LogicalSize(640.0, 420.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> InPlaceSourceRoot(this, scope) })
+                native.createDeadline {
+                    fail(Some("In-place source timeout at " + step.value.toString()))
+                }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val value)) -> when (value) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val host = field ?: return false
+        val frame = frames!!.snapshot()
+        return native.isFocused &&
+            !native.isOccluded &&
+            !frame.required &&
+            frame.presentations >
+            presentations &&
+            host.area.isFocusActive &&
+            (locked.value || inputReady) &&
+            host.measurement?.sourceRevision ==
+            Some(Some(editor.snapshot.revision)) &&
+            when (parser.current) {
+                case Some(_) -> true;
+                case None -> false
+            }
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+
+    private fun select(start: Long, end: Long = start, bias: MarkdownBias = MarkdownBias.After) {
+        editor.setSelection(
+            MarkdownSelection(MarkdownPosition(start), MarkdownPosition(end), bias, bias)
+        )
+    }
+
+    private fun source(active: Boolean) {
+        assertTrue(field!!.area.isFocusActive)
+        assertEquals(
+            active,
+            when (field!!.sourceRegion) {
+                case Some(_) -> true;
+                case None -> false
+            }
+        )
+        if (active) {
+            val range = field!!.sourceRegion!!.range!!
+            val input = field!!.nativeInputState!!
+            assertEquals(editor.snapshot.read(range), input.surroundingText)
+            assertEquals(editor.selection.cursor.byteOffset - range.start, input.selection.cursor)
+            assertTrue(
+                when (field!!.caret(editor.selection.cursor, editor.selection.cursorBias)) {
+                    case Some(_) -> true;
+                    case None -> false
+                }
+            )
+        }
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> next { select(5L, bias = MarkdownBias.Before) }
+            case 1 -> {
+                source(false)
+                next { mdNativeKey(window!!, 124, "\u{f703}") }
+            }
+            case 2 -> {
+                source(true)
+                assertEquals(MarkdownRange(5L, 16L), field!!.sourceRegion!!.range!!)
+                assertEquals(MarkdownPosition(6L), editor.selection.cursor)
+                next { assertEquals(0, mdNativeText(window!!, "ni", 1, 2L)) }
+            }
+            case 3 -> {
+                source(true)
+                assertTrue(editor.isComposing)
+                next { mdNativeKey(window!!, 53, "\u{1b}") }
+            }
+            case 4 -> {
+                source(true)
+                assertFalse(editor.isComposing)
+                assertEquals(original, editor.snapshot.toMarkdown())
+                next { mdNativeKey(window!!, 53, "\u{1b}") }
+            }
+            case 5 -> {
+                source(false)
+                next { select(16L, bias = MarkdownBias.Before) }
+            }
+            case 6 -> {
+                source(true)
+                next { select(5L, 16L) }
+            }
+            case 7 -> next { assertEquals(0, mdNativeText(window!!, "![broken](")) }
+            case 8 -> {
+                source(true)
+                assertEquals("![broken](", field!!.nativeInputState!!.surroundingText)
+                assertEquals(
+                    0L,
+                    parser.current!!.sourceExtensions.intersect(field!!.sourceRegion!!.range!!).size
+                )
+                next { mdNativeKey(window!!, 6, "z", 8) }
+            }
+            case 9 -> {
+                source(true)
+                assertEquals(original, editor.snapshot.toMarkdown())
+                next { select(editor.snapshot.byteLength) }
+            }
+            case 10 -> {
+                source(false)
+                next { select(original.indexOf("val n") + 4L) }
+            }
+            case 11 -> {
+                source(true)
+                assertEquals(
+                    "```scoop\nval n = 1\n```\n",
+                    field!!.nativeInputState!!.surroundingText
+                )
+                next { assertEquals(0, mdNativeText(window!!, "**")) }
+            }
+            case 12 -> {
+                source(true)
+                assertTrue(editor.snapshot.toMarkdown().contains("val **n = 1"))
+                next { mdNativeKey(window!!, 6, "z", 8) }
+            }
+            case 13 -> {
+                source(true)
+                assertEquals(original, editor.snapshot.toMarkdown())
+                next { field!!.finishSource() }
+            }
+            case 14 -> {
+                source(false)
+                next {
+                    locked.value = true;
+                    select(7L)
+                }
+            }
+            case 15 -> {
+                source(false)
+                assertEquals(original, editor.snapshot.toMarkdown())
+                next { locked.value = false }
+            }
+            case 16 -> {
+                source(true)
+                next { select(editor.snapshot.byteLength) }
+            }
+            case 17 -> {
+                source(false)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected in-place source step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class InPlaceSourceRoot(val probe: InPlaceSourceProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        probe.parser.status
+        probe.editor.selection
+        probe.editor.markedRange
+        probe.locked.value
+        return element(probe.step.value, { step, scope -> InPlaceSourceField(probe, step, scope) })
+    }
+}
+
+private class InPlaceSourceField(
+    val probe: InPlaceSourceProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+):
+Element<MarkdownPreviewMeasurement>(scope) {
+    private val style = MarkdownPreviewStyle()
+    private val host = scope.resource { MarkdownRichHost(scope, probe.parser, style) }
+    public override fun onMount() {
+        probe.field = Some(host)
+        update()
+        probe.parser.start()
+        host.focus.handle.requestFocus()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(probe.parser, style, readOnly = probe.locked.value)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPreviewMeasurement
+    > {
+        val result = host.measure(context, constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownPreviewMeasurement) {
+        host.scene(context, layout)
+    }
+}

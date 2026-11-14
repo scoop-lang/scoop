@@ -6,7 +6,6 @@ import scoop.ui.*
 import scoop.window.Utf8Range
 
 internal fun MarkdownRichHost.sceneInput(context: SceneContext, frame: MarkdownPreviewMeasurement) {
-    val active = input
     val current =
         !readOnly &&
             frame.sourceRevision ==
@@ -19,7 +18,7 @@ internal fun MarkdownRichHost.sceneInput(context: SceneContext, frame: MarkdownP
             frame.caret(editor.selection.cursor, editor.selection.cursorBias)
         else
             None
-    area.setCaret(caret, active?.inputState?.revision)
+    area.setCaret(caret, nativeInputState?.revision)
     if (!current || !area.isFocusActive)
         return
     val color = preview.style.text.color
@@ -32,25 +31,33 @@ internal fun MarkdownRichHost.sceneInput(context: SceneContext, frame: MarkdownP
         }
     val marked = frame.marked ?: return
     val local = frame.presentation ?: return
-    val row = frame.row(local.rowIndex) ?: return
-    val cell = row.resource.cells[local.cellIndex]
-    val text = row.row.cells[local.cellIndex]
-    val start = text.textAt(marked.start, MarkdownBias.Before)
-    val end = text.textAt(marked.end, MarkdownBias.After)
-    val boxes = cell.text.layout.selection(cell.text.display.displayRange(Utf8Range(start, end)))
-    val left = frame.contentX + cell.origin.x
-    val top = frame.padding + frame.heights.prefix(row.index) + cell.origin.y
-    context.draw {
-        paint -> for (box in boxes)
-            paint.canvas.drawRect(
-                Rect(
-                    left + box.rect.x,
-                    top + box.rect.y + box.rect.height - 1.0,
-                    box.rect.width,
-                    1.0
-                ),
-                Paint(color)
-            )
+    for (row in frame.rows) {
+        for (column in 0L ..< row.row.cells.size) {
+            if (!local.isActive(row.index, column))
+                continue
+            val cell = row.resource.cells[column]
+            val text = row.row.cells[column]
+            if (text.sourceRange.end <= marked.start || text.sourceRange.start >= marked.end)
+                continue
+            val start = text.textAt(marked.start, MarkdownBias.Before)
+            val end = text.textAt(marked.end, MarkdownBias.After)
+            val boxes =
+                cell.text.layout.selection(cell.text.display.displayRange(Utf8Range(start, end)))
+            val left = frame.contentX + cell.origin.x
+            val top = frame.padding + frame.heights.prefix(row.index) + cell.origin.y
+            context.draw {
+                paint -> for (box in boxes)
+                    paint.canvas.drawRect(
+                        Rect(
+                            left + box.rect.x,
+                            top + box.rect.y + box.rect.height - 1.0,
+                            box.rect.width,
+                            1.0
+                        ),
+                        Paint(color)
+                    )
+            }
+        }
     }
 }
 

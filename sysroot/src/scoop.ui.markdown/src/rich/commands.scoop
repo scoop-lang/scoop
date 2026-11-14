@@ -8,8 +8,14 @@ import scoop.window.*
 internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Boolean {
     host.refresh()
     val editor = host.editor
+    if (host.editingSource)
+        when (command) {
+            case Move(_, _) -> Unit
+            else -> return mdRichRawCommand(host, command)
+        }
     when (command) {
         case Move(val movement, val extend) -> {
+            mdEnterRichSource(host, movement, extend)
             when (mdPresentationModel(host.preview.presentation, host.preview.controller.current)) {
                 case Some(_) -> Unit
                 case None -> return false

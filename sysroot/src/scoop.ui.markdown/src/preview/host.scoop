@@ -41,6 +41,7 @@ public class MarkdownPreviewHost public constructor(
     internal var presentation: MdRichPresentation? = None
     internal var searchResult: MarkdownSearchResult? = None
     internal var heightRegions: MdRichRegionRows? = None
+    internal var heightRaw: MdRichRawProjection? = None
     internal var rich: MarkdownRichHost? = None
     internal var heights = mdHeightRun(0L, mdPreviewEstimate(initialStyle, initialOptions))
     internal var folding: MarkdownFoldingController? = None

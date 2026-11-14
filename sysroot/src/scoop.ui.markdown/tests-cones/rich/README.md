@@ -2,7 +2,9 @@
 
 本 Cone 使用 `scoop.test`，在一个真实窗口中验证行内与跨块富文本输入、中文 IME 组合及取消、剪切／粘贴／删除、整篇替换与统一历史、连续 Enter／输入／边界合并、列表层级、表格新增行及跨单元格输入、RTL 导航、只读切换、空文件输入和大文档的活动行排版。覆盖待后台解析时立即全选、回到单段输入，以及末块为代码时的整篇编辑。测试只在窗口获得系统焦点、输入连接启用、对应布局已接受后执行下一步；超时会报告当前步骤及焦点状态。
 
-`MarkdownLocalSourceWindowTests` 通过公开 `markdownEditor` 点击代码、Mermaid、块／行内公式及 mdBook 指令，验证局部源码的全选、中文组合取消、修改与撤销重做、未闭合指令修复、Done／Escape 返回、Reset 关闭面板及只读。所有编辑共用原文档与历史，并保留区间外源码。 代码工具栏还验证 Copy code、Language / info 字段的原生组合、组合期间外部正文修改、Enter 与 Apply、未知语言、冲突围栏切换、一次撤销及恢复源码焦点；同时核对当前快照高亮。此用例也保存并恢复原系统剪贴板。
+`MarkdownInPlaceSourceWindowTests` 验证光标沿原子对象边界进入／离开、原位输入几何、中文组合取消、临时损坏图片语法、撤销、代码正文的字面输入及只读切换；全程使用同一个富文本原生输入区。
+
+`MarkdownLocalSourceWindowTests` 通过公开 `markdownEditor` 点击代码、Mermaid、块／行内公式及 mdBook 指令，验证局部源码的全选、中文组合取消、修改与撤销重做、未闭合指令修复、Done／Escape 返回、Reset 释放活动范围及只读。所有编辑共用原文档与历史，并保留区间外源码。 代码工具栏还验证 Copy code、Language / info 字段的原生组合、组合期间外部正文修改、Enter 与 Apply、未知语言、冲突围栏切换、一次撤销及恢复源码焦点；同时核对当前快照高亮。此用例也保存并恢复原系统剪贴板。
 
 `MarkdownFormattingWindowTests` 验证公开格式工具栏的真实按钮点击、粗体／斜体／删除线／代码快捷键、跨块反向选区和混合状态、折叠光标后续中文／emoji 输入、组合取消与接受、退出代码后的换行、不可表示的表格代码转换拒绝、键盘操作工具栏、统一撤销重做、模式切换、只读以及卸载后的格式命令状态。
 
@@ -42,7 +44,7 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-局部源码、格式、链接／图片、块操作、查找、导航与折叠用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 、`MarkdownSearchBackgroundTests`、`MarkdownNavigationWindowTests`、`MarkdownNavigationStateTests` 或 `MarkdownFoldingWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
+局部源码、格式、链接／图片、块操作、查找、导航与折叠用例使用同一应用包，把筛选器分别改为 `MarkdownInPlaceSourceWindowTests`、`MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 、`MarkdownSearchBackgroundTests`、`MarkdownNavigationWindowTests`、`MarkdownNavigationStateTests` 或 `MarkdownFoldingWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
 
 `MarkdownFoldingWindowTests` 验证源码／富文本折叠按钮、键盘越过隐藏内容、正反删除先展开、嵌套标题状态、中文组合保护、修改头部与旧范围拒绝、只读导航、跨折叠全选剪切及统一撤销、搜索／程序化光标自动展开。大文档阶段从两栏 Host 的实际 measurement 检查可见行数量和滚动范围，确认折叠后仅测量少量可见行；关闭后的借用资源仍可用。
 

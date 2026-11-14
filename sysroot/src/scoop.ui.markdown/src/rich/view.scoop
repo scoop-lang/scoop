@@ -84,14 +84,11 @@ private class MdRichComponent(val props: Props<MdRichProps>, scope: ComponentSco
         return column {
             alignment = CrossAlignment.Stretch
             item(content) {
-                grow = 2.0
+                grow = 1.0
                 basis = FlexBasis.Fixed(0.0)
             }
             when (local) {
-                case Some(val value) -> item(mdLocalSourceView(input, value, session)) {
-                    grow = 1.0
-                    basis = FlexBasis.Fixed(0.0)
-                }
+                case Some(val value) -> item(mdCodeSourceActions(input, value, session))
                 case None -> Unit
             }
         }
@@ -126,6 +123,7 @@ private class MdRichElement(
     }
     public override fun update(): UiInvalidation {
         val value = props.value
+        source.attach(host)
         source.bind(value.controller.editor, value.controller.current)
         val requestedFocus = value.focus
         source.returnFocus = requestedFocus.handle ?: source.richFocus
@@ -143,17 +141,16 @@ private class MdRichElement(
             value.fonts,
             value.changed,
             value.openLink,
-            {
+            Some {
                 range ->
                 value.folding?.reveal(MarkdownPosition(range.start))
                 value.folding?.reveal(MarkdownPosition(range.end))
                 when (value.source) {
                     case Some(val handler) -> handler(range)
-                    case None -> source.open(
-                        value.controller.editor,
-                        range,
-                        value.controller.current
-                    )
+                    case None -> {
+                        host.editSource(range);
+                        Unit
+                    }
                 }
             },
             value.images,
@@ -168,6 +165,7 @@ private class MdRichElement(
     }
     public override fun onUnmount() {
         props.value.mount?.detach(host.preview)
+        source.detach(host)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         MarkdownPreviewMeasurement

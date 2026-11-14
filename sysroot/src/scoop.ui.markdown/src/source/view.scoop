@@ -15,7 +15,6 @@ internal class MdSourceProps(
     val mount: MdEditorMount? = None,
     val region: MarkdownSourceRegion? = None,
     val exitSource: (() -> Unit)? = None,
-    val localSource: MdRichSourceSession? = None,
     val highlights: MarkdownCodeHighlights? = None,
     val searchResult: MarkdownSearchResult? = None,
     val folding: MarkdownFoldingController? = None,
@@ -106,7 +105,6 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
             input.syntax
         )
         input.mount?.attach(host)
-        input.localSource?.attach(host)
         when (input.folding) {
             case Some(val value) -> if (!value.isClosed && !value.parser.isClosed)
                 value.parser.start()
@@ -116,7 +114,6 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
     }
     public override fun onUnmount() {
         props.value.mount?.detach(host)
-        props.value.localSource?.detach(host)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         MarkdownSourceMeasurement

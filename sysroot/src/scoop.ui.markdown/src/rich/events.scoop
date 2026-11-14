@@ -28,6 +28,7 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
             }
             case TextInput(val input) -> mdRichNative(host, input)
             case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.deferSourceActivation = false
                 host.preview.drag = None
                 host.preview.pressed = None
             }
@@ -63,6 +64,7 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                     return
                 }
                 val hit = host.hitTest(point) ?: return
+                host.deferSourceActivation = true
                 host.area.requestFocus(FocusOrigin.Pointer)
                 if (!pointer.state.modifiers.shift) {
                     when (hit.action) {
@@ -100,6 +102,7 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                 host.preview.pressed = Some(hit)
                 host.preview.moved = pointer.state.modifiers.shift
             } else {
+                host.deferSourceActivation = false
                 val hit = host.preview.pressed
                 host.preview.drag = None
                 host.preview.pressed = None
@@ -112,9 +115,10 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                                     host.preview.openSource(value.sourceRange)
                                 else
                                     when (value.action) {
-                                        case Some(
-                                            MdDisplayAction.Source(_)
-                                        ) -> host.preview.activate(value)
+                                        case Some(MdDisplayAction.Source(_)) -> mdRichSourceHit(
+                                            host,
+                                            value
+                                        )
                                         else -> Unit
                                     }
                             }
@@ -122,6 +126,8 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
                     }
                     case None -> Unit
                 }
+                if (!host.preview.moved)
+                    host.perform { Unit }
             }
             context.consume()
         }
@@ -150,6 +156,26 @@ internal fun mdRichEvent(host: MarkdownRichHost, context: RoutedEventContext, ev
         )
         else -> Unit
     }
+}
+
+private fun mdRichSourceHit(host: MarkdownRichHost, hit: MarkdownPreviewHit) {
+    val snapshot = hit.presentation?.changes?.snapshot ?: hit.document.snapshot
+    if (snapshot !== host.editor.snapshot)
+        return
+    val source =
+        when (hit.action) {
+            case Some(MdDisplayAction.Source(val range)) -> range
+            else -> return
+        }
+    val range =
+        when (hit.presentation) {
+            case Some(val view) -> {
+                val row = view.rowForKey(hit.blockKey) ?: return
+                view.cellRange(row, hit.cellIndex, source)
+            }
+            case None -> mdPreviewOriginalRange(hit.document, source)
+        }
+    host.preview.openSource(range)
 }
 
 private fun mdRichNative(host: MarkdownRichHost, event: TextInputEvent) {
@@ -185,11 +211,20 @@ private fun mdRichNative(host: MarkdownRichHost, event: TextInputEvent) {
                 case None -> Unit
             }
             host.refresh()
-            val input = host.input ?: return
+            val raw = host.raw
+            val input = host.input
+            if (!host.editingSource)
+                when (input) {
+                    case None -> return;
+                    case Some(_) -> Unit
+                }
             var invalid = false
             val prepared =
                 try {
-                    input.prepare(batch)
+                    when (raw) {
+                        case Some(val active) -> active.input.prepare(batch)
+                        case None -> input!!.prepare(batch)
+                    }
                 }
                 catch (error: IllegalArgumentException) {
                     invalid = true;
@@ -206,7 +241,12 @@ private fun mdRichNative(host: MarkdownRichHost, event: TextInputEvent) {
                 return
             }
             when (prepared) {
-                case Some(val value) -> host.perform(batch.origin) { input.publish(value) }
+                case Some(val value) -> host.perform(batch.origin) {
+                    when (raw) {
+                        case Some(val active) -> active.input.publish(value)
+                        case None -> input!!.publish(value)
+                    }
+                }
                 case None -> host.publishNative(batch.origin)
             }
         }
