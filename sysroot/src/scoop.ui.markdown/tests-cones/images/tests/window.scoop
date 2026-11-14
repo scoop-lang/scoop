@@ -78,7 +78,11 @@ internal class ImageWindowProbe(
             workers,
             proxy,
             MarkdownParseOptions(
-                MarkdownProfile(math = true, extensions = [ImageSyntax(), mdBookDirectives()]),
+                MarkdownProfile(
+                    math = true,
+                    extensions = [ImageSyntax(), mdBookDirectives()],
+                    nodeExtensions = [markdownCodeExtension("mermaid")]
+                ),
                 Some(MarkdownExpansionOptions(files.mainUri, files, [mdBookProcessor()]))
             )
         )

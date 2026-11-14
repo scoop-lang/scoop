@@ -22,8 +22,9 @@ internal fun mdDisplayFlags(
 internal fun mdDisplayInlines(
     node: MarkdownNode,
     footnotes: HashMap<String, (Long, MarkdownRange)>,
+    extensions: MarkdownExtensionIndex,
     range: MarkdownRange = node.range
-): MdDisplayText = mdDisplayInlineNodes(node.children, footnotes, range, false)
+): MdDisplayText = mdDisplayInlineNodes(node.children, footnotes, range, false, extensions)
 
 internal fun mdDisplayEditable(content: MarkdownInlineContent): MdDisplayText {
     val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
@@ -32,14 +33,21 @@ internal fun mdDisplayEditable(content: MarkdownInlineContent): MdDisplayText {
             MarkdownPosition(content.text.byteLength),
             MarkdownBias.Before
         ).byteOffset
-    return mdDisplayInlineNodes(content.nodes, HashMap(), MarkdownRange(first, last), true)
+    return mdDisplayInlineNodes(
+        content.nodes,
+        HashMap(),
+        MarkdownRange(first, last),
+        true,
+        content.extensionIndex()
+    )
 }
 
 private fun mdDisplayInlineNodes(
     nodes: Array<MarkdownNode>,
     footnotes: HashMap<String, (Long, MarkdownRange)>,
     range: MarkdownRange,
-    editable: Boolean
+    editable: Boolean,
+    extensions: MarkdownExtensionIndex
 ): MdDisplayText {
     val builder = MdDisplayTextBuilder(range)
     val pending = ArrayList<MdInlineFrame>()
@@ -90,7 +98,13 @@ private fun mdDisplayInlineNodes(
                 false,
                 item.flags,
                 item.action,
-                Some(MdDisplayObject.Image(target, mdDisplayAlternate(current)))
+                Some(
+                    MdDisplayObject.Image(
+                        target,
+                        mdDisplayAlternate(current),
+                        extensions.forNode(current.id)!!.name
+                    )
+                )
             )
             case MarkdownContent.Extension(val value) ->
             builder.append(
@@ -211,7 +225,7 @@ internal fun mdDisplayAlternate(node: MarkdownNode): String {
 internal fun mdDisplayObjectText(value: MdDisplayObject): String =
     when (value) {
         case MdDisplayObject.Source(val text) -> text
-        case MdDisplayObject.Image(val target, val alternate) ->
+        case MdDisplayObject.Image(val target, val alternate, _) ->
         if (alternate == "")
             target.destination.text
         else

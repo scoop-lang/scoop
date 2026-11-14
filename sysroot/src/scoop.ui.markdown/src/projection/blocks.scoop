@@ -21,10 +21,10 @@ internal class MdProjectionFootnote(val label: String, val number: Long, val nod
 internal fun mdProjectMarkdown(
     parsed: ParsedMarkdown,
     previous: MdDisplayDocument? = None,
-    imageCodeLanguages: List<String> = ["mermaid"],
-    imageExtensions: List<String> = ["math"],
+    imageExtensions: List<String> = ["mermaid", "math"],
     highlights: MarkdownCodeHighlights? = None,
-    navigation: MarkdownNavigation? = None
+    navigation: MarkdownNavigation? = None,
+    extensions: MarkdownExtensionIndex = parsed.extensionIndex()
 ): MdDisplayDocument {
     val notes =
         Array<MdProjectionFootnote>(parsed.footnotes.size) {
@@ -34,12 +34,12 @@ internal fun mdProjectMarkdown(
         }
     return MdBlockProjection(
         parsed,
-        imageCodeLanguages,
         imageExtensions,
         notes,
         HashMap(),
         highlights,
-        Some(navigation ?: parsed.navigation())
+        Some(navigation ?: parsed.navigation()),
+        extensions
     ).build(previous)
 }
 
@@ -63,29 +63,26 @@ internal fun mdProjectRegion(
         }
     return MdBlockProjection(
         parsed,
-        options.imageCodeLanguages,
         options.imageExtensions,
         definitions.toArray(),
-        notes
+        notes,
+        extensions = parsed.extensionIndex()
     ).build(None)
 }
 
 private class MdBlockProjection(
     val parsed: MarkdownSyntax,
-    imageCodeLanguages: List<String>,
     imageExtensions: List<String>,
     val notes: Array<MdProjectionFootnote>,
     val footnotes: HashMap<String, (Long, MarkdownRange)>,
     val highlights: MarkdownCodeHighlights? = None,
-    val navigation: MarkdownNavigation? = None
+    val navigation: MarkdownNavigation? = None,
+    val extensions: MarkdownExtensionIndex
 ) {
     val rows = ArrayList<MdDisplayRow>()
     val pending = ArrayList<MdBlockFrame>()
-    val imageCode = HashSet<String>()
     val imageExtension = HashSet<String>()
     init {
-        for (language in imageCodeLanguages)
-            imageCode.add(language)
         for (name in imageExtensions)
             imageExtension.add(name)
     }
@@ -183,21 +180,41 @@ private class MdBlockProjection(
             val node = entry.node
             val context = entry.context
             when (node.content) {
-                case MarkdownContent.Paragraph(_) ->
-                add(
-                    node,
-                    node.range,
-                    MdDisplayKind.Paragraph,
-                    context,
-                    [mdDisplayInlines(node, footnotes)]
-                )
+                case MarkdownContent.Paragraph(_) -> {
+                    val standalone = standaloneImage(node)
+                    when (standalone) {
+                        case Some(val span) -> {
+                            when (span.node.content) {
+                                case MarkdownContent.Image(val target) -> image(
+                                    span.node,
+                                    context,
+                                    MdDisplayObject.Image(
+                                        target,
+                                        mdDisplayAlternate(span.node),
+                                        span.name
+                                    )
+                                )
+                                else -> throw IllegalStateException(
+                                    Some("Expected an indexed image")
+                                )
+                            }
+                        }
+                        case None -> add(
+                            node,
+                            node.range,
+                            MdDisplayKind.Paragraph,
+                            context,
+                            [mdDisplayInlines(node, footnotes, extensions)]
+                        )
+                    }
+                }
                 case MarkdownContent.Heading(val level, _, _) ->
                 add(
                     node,
                     node.range,
                     MdDisplayKind.Heading(level),
                     context,
-                    [mdDisplayInlines(node, footnotes)]
+                    [mdDisplayInlines(node, footnotes, extensions)]
                 )
                 case MarkdownContent.BlockQuote ->
                 children(
@@ -252,12 +269,16 @@ private class MdBlockProjection(
                 case MarkdownContent.ThematicBreak ->
                 add(node, node.range, MdDisplayKind.Rule, context, [])
                 case MarkdownContent.CodeBlock(_, val info, val body) -> {
-                    val language = mdCodeLanguage(info.text)
-                    if (imageCode.contains(language))
+                    val span = extensions.forNode(node.id)!!
+                    if (imageExtension.contains(span.name))
                         image(
                             node,
                             context,
-                            MdDisplayObject.Block(MarkdownImageKind.Code(language), body, info.text)
+                            MdDisplayObject.Block(
+                                MarkdownImageKind.Extension(span.name),
+                                body,
+                                info.text
+                            )
                         )
                     else
                         lines(node, body, context, info.text, false, highlights?.tokens(node) ?: [])
@@ -274,7 +295,7 @@ private class MdBlockProjection(
                             case None -> Unit
                         }
                     }
-                    if (imageExtension.contains(value.name))
+                    if (imageExtension.contains(extensions.forNode(node.id)!!.name))
                         image(node, context, MdDisplayObject.Extension(value))
                     else
                         lines(node, value.source, context, value.name, true)
@@ -286,6 +307,19 @@ private class MdBlockProjection(
                 else -> children(node, context)
             }
         }
+    }
+
+    private fun standaloneImage(node: MarkdownNode): MarkdownExtensionSpan? {
+        for (child in node.children)
+            when (child.content) {
+                case MarkdownContent.Image(_) -> {
+                    val span = extensions.forNode(child.id)!!
+                    if (span.form == MarkdownExtensionForm.Block)
+                        return Some(span)
+                }
+                else -> Unit
+            }
+        return None
     }
 
     private fun toc(node: MarkdownNode, context: MdDisplayContext, navigation: MarkdownNavigation) {
@@ -416,7 +450,7 @@ private class MdBlockProjection(
             val cells =
                 Array<MdDisplayText>(alignments.size) {
                     at -> if (at < row.children.size)
-                        mdDisplayInlines(row.children[at], footnotes)
+                        mdDisplayInlines(row.children[at], footnotes, extensions)
                     else
                         MdDisplayTextBuilder(MarkdownRange(row.range.end, row.range.end)).finish()
                 }

@@ -53,7 +53,7 @@ private class MarkdownProjectionTests {
         assertEquals("flowchart LR\n A --> B\n", mdDisplayObjectText(text.runs[0L].objectValue!!))
         when (text.runs[0L].objectValue) {
             case Some(MdDisplayObject.Block(val kind, val body, val info)) -> {
-                assertEquals(MarkdownImageKind.Code("mermaid"), kind)
+                assertEquals(MarkdownImageKind.Extension("mermaid"), kind)
                 assertEquals("flowchart LR\n A --> B\n", body.text)
                 assertEquals("mermaid title", info)
             }
@@ -65,7 +65,7 @@ private class MarkdownProjectionTests {
                 else -> false
             }
         )
-        val raw = mdProjectMarkdown(parsed, imageCodeLanguages = [], imageExtensions = [])
+        val raw = mdProjectMarkdown(parsed, imageExtensions = [])
         assertTrue(raw.rows.size > projected.rows.size)
         assertEquals("flowchart LR", raw.rows[0L].cells[0L].text)
         assertEquals(source, snapshot.toMarkdown())

@@ -4,24 +4,22 @@ import scoop.graphics.*
 import scoop.markdown.MarkdownAttribute
 
 public enum MarkdownImageKind: Equals<MarkdownImageKind>, Hash {
-    Resource, Code(String), Extension(String)
+    Resource, Extension(String)
 
     public override operator fun equals(other: MarkdownImageKind): Boolean =
         when ((this, other)) {
             case(Resource, Resource) -> true
-            case(Code(val a), Code(val b)) -> a == b
             case(Extension(val a), Extension(val b)) -> a == b
             else -> false
         }
     public override fun hash(): Long =
         when (this) {
             case Resource -> 0L
-            case Code(val value) -> value.hash().xor(1L)
             case Extension(val value) -> value.hash().xor(2L)
         }
 }
 
-/** Complete rendering inputs; source is a URI for Resource and a body for other kinds. */
+/** Complete rendering inputs; source is the selected node's image destination or semantic body. */
 public class MarkdownImageRequest public constructor(
     public val kind: MarkdownImageKind,
     public val source: String,

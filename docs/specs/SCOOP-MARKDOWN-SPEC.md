@@ -220,7 +220,7 @@ replaceImage 支持折叠插入和非空替换，alternate、URI 和 title 按�
 
 ## 9. 扩展语法
 
-`MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关及有序的 `MarkdownExtension` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注；mdBook 指令由调用方显式注册。配置及扩展的解析行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与注册对象及顺序，不以扩展名称猜测两个不同处理器等价。
+`MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关，以及有序的语法 `extensions` 和标准节点 `nodeExtensions` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注，并注册 Mermaid 围栏的节点匹配；mdBook 指令由调用方显式注册。配置及扩展的行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与两类注册对象及顺序，不以扩展名称猜测两个不同处理器等价。
 
 `MarkdownExtension` 提供 name、非空 trigger、locations 和 parse。locations 分别选择 Inline、Block 和 Code；Block 只接管已经确定的整个段落输入，不能跨 CommonMark 容器边界，跨容器展开交给后续 processor。Code 明确启用代码块正文中的匹配，不影响 code span 或 HTML。Inline 在代码、普通转义和 HTML 词法之外匹配；相同 trigger 按 profile 注册顺序选择第一个成功结果，固定公式语法优先于自定义匹配。名称重复和保留的内置名称冲突是配置错误。
 
@@ -231,6 +231,22 @@ replaceImage 支持折叠插入和非空替换，alternate、URI 和 title 按�
 front matter 只在文件起始处（可在 UTF-8 BOM 之后）识别独占行的 `---`，结束标记为独占行的 `---` 或 `...`。它产生 front-matter Extension，body 保存 YAML 源码，不在本层解释 YAML 值。未关闭的块公式或 front matter 持续到所在容器／文件结束，closed 为 false，并带有范围诊断；未闭合的行内公式保留为普通文字。`ParsedMarkdown.diagnostics` 为该快照的派生诊断，不导致源文本丢失或解析失败。
 
 `mdBookDirectives()` 是首个普通自定义注册，识别 `{{#command arguments}}`。它可用于行内、独立段落及明确启用的代码块正文；command 与 arguments 作为属性保存。没有注册时它仍是普通源文本。注册只识别语法，include 内容处理有独立入口；不能因为它位于代码围栏内而隐式解释其他已注册扩展。
+
+### 9.1 标准节点匹配与统一扩展片段
+
+`MarkdownNodeExtension` 提供非空 name 和 `match(input): MarkdownExtensionForm?`。输入包含 snapshot、标准 node 及其语法 parent；匹配不得执行 I/O、改变配置或文档。规则按注册顺序选择首个成功结果，同一名称可由多条节点规则共用。匹配只建立视图，不替换原节点；已有 Extension 节点直接使用自身名称与语义。未命中的 Image 默认使用 image／Inline，CodeBlock 使用 code／Block，其他节点不产生扩展片段。
+
+节点规则作用于块或行内内容，不直接匹配 Document、引用定义、TableRow 或 TableCell 等文档／网格结构；其中的内容节点照常参与识别。形态须与语法位置一致，独占段落的 Image 可以从 Inline 提升为 Block。引用定义的映射保留在实际使用点的语义数据中。
+
+`markdownCodeExtension(language, name = language)` 只匹配相应语言的围栏代码，保留完整 info 与映射正文；缩进代码不被当作带语言的围栏。`markdownImageExtension(standaloneBlock = false, name = "image")` 匹配 Image；开启 standaloneBlock 时，仅在图片是段落中唯一非空白内容时返回 Block，其余返回 Inline。这两项均为普通节点规则，显式规则先于默认回退。
+
+`MarkdownExtensionSpan` 保存 snapshot、原始 node、name、Inline／Block 的 form、closed 和最近的扩展父节点身份。sourceRange 为原始 node.range，含定界符或围栏。语义数据从 node.content 与 children 读取：图片 alt、目标、title 和引用 label／定义处映射保持原样，不合成为一个 body；使用点的范围不包含远处引用定义。代码和自定义语法同样复用原有映射。Code 只表示允许在代码正文识别指令的上下文，对应的子片段使用 Inline 形态，不增加第三种展示形态。非空片段必须相互分离或完整包含，匹配结果与实际语法位置冲突时报告参数错误。
+
+### 9.2 扩展索引与快照
+
+`MarkdownSyntax.extensionIndex()` 和 `MarkdownInlineContent.extensionIndex()` 显式构造不可变 `MarkdownExtensionIndex`，供完整文档、局部树和连续行内编辑共用。索引持有 snapshot 与源码顺序的 spans；`forNode(id)` 按节点身份查询，未收录或其他解析的身份返回 None，不能按相同 ordinal 混用。`at(position, bias)` 返回包含位置的最内层片段：起点仅归 After，终点仅归 Before。`intersect(range)` 按源码顺序返回与非空范围相交的片段，包括父子片段；空范围返回空数组。位置与范围必须是本 snapshot 的合法 UTF-8 边界，区域外合法查询返回空结果。
+
+索引构建不物化整个源字符串。查询在有序兄弟范围中二分并沿嵌套关系访问，工作量随匹配结果和嵌套深度增长，不扫描其余片段。源码变化后旧索引继续只属于旧快照；调用方在新的完整／局部语法上重新建立索引。未变化的相同解析结果可复用索引，活动源码编辑区域另随差量维护，不将旧片段直接用于修改新正文。构建索引不要求 renderer，也不执行内容展开。
 
 ## 10. 脚注
 

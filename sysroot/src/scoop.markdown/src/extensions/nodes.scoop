@@ -1,0 +1,122 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** The two positions in Markdown flow; code-body recognition is a separate syntax context. */
+public enum MarkdownExtensionForm {
+    Inline, Block
+}
+
+/** Read-only syntax input for a node rule; the parent is the immediate syntax parent. */
+public class MarkdownNodeExtensionInput internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val node: MarkdownNode,
+    public val parent: MarkdownNode?
+)
+
+/** Selects an extension for existing syntax without reparsing it or accessing resources. */
+public interface MarkdownNodeExtension {
+    public val name: String
+    public fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm?
+}
+
+/** Matches a fenced code language; the extension name may differ from that language. */
+public fun markdownCodeExtension(language: String, name: String = language): MarkdownNodeExtension =
+    MdCodeExtension(language, name)
+
+/** Promotes only a paragraph's sole non-whitespace image when standaloneBlock is enabled. */
+public fun markdownImageExtension(
+    standaloneBlock: Boolean = false,
+    name: String = "image"
+): MarkdownNodeExtension = MdImageExtension(standaloneBlock, name)
+
+private class MdCodeExtension(
+    private val language: String,
+    public override val name: String
+): MarkdownNodeExtension {
+    init {
+        requireMarkdown(language != "", "Markdown code extension language is empty")
+        requireMarkdown(name != "", "Markdown node extension name is empty")
+        for (character in language)
+            requireMarkdown(
+                character != ' ' && character != '\t' && character != '\r' && character != '\n',
+                "Markdown code extension language must be one word"
+            )
+    }
+
+    public override fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm? {
+        when (input.node.content) {
+            case MarkdownContent.CodeBlock(val fence, val info, _) -> {
+                if (fence == None)
+                    return None
+                val word = StringBuilder()
+                for (character in info.text) {
+                    if (
+                        character ==
+                            ' ' ||
+                            character ==
+                            '\t' ||
+                            character ==
+                            '\r' ||
+                            character ==
+                            '\n'
+                    )
+                        break
+                    word.append(character)
+                }
+                if (word.toString() == language)
+                    return Some(MarkdownExtensionForm.Block)
+            }
+            else -> Unit
+        }
+        return None
+    }
+}
+
+private class MdImageExtension(
+    private val standaloneBlock: Boolean,
+    public override val name: String
+): MarkdownNodeExtension {
+    init {
+        requireMarkdown(name != "", "Markdown node extension name is empty")
+    }
+
+    public override fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm? =
+        when (input.node.content) {
+            case MarkdownContent.Image(_) -> Some(
+                if (standaloneBlock && mdStandaloneImage(input))
+                    MarkdownExtensionForm.Block
+                else
+                    MarkdownExtensionForm.Inline
+            )
+            else -> None
+        }
+}
+
+internal fun mdStandaloneImage(input: MarkdownNodeExtensionInput): Boolean {
+    when (input.node.content) {
+        case MarkdownContent.Image(_) -> Unit
+        else -> return false
+    }
+    val parent = input.parent ?: return false
+    when (parent.content) {
+        case MarkdownContent.Paragraph(_) -> Unit
+        else -> return false
+    }
+    for (child in parent.children) {
+        if (child === input.node)
+            continue
+        when (child.content) {
+            case MarkdownContent.Text(val text) -> {
+                if (text.text.trim() != "")
+                    return false
+            }
+            else -> return false
+        }
+    }
+    return true
+}
+
+internal class MdRegisteredNodeExtension(val handler: MarkdownNodeExtension) {
+    val name = handler.name
+}

@@ -30,7 +30,9 @@ internal class ImageQueueCase(
                 }
             )
         }
-        first.snapshot(MarkdownImageRequest(MarkdownImageKind.Code("absent"), "x", "", 300.0)).use {
+        first.snapshot(
+            MarkdownImageRequest(MarkdownImageKind.Extension("absent"), "x", "", 300.0)
+        ).use {
             snapshot -> assertTrue(
                 when (snapshot.status) {
                     case MarkdownImageStatus.MissingRenderer -> true;

@@ -18,11 +18,9 @@ public class MarkdownExpansionOptions public constructor(
 public class MarkdownParseOptions public constructor(
     public val profile: MarkdownProfile = MarkdownProfile.Editor,
     public val expansion: MarkdownExpansionOptions? = None,
-    imageCodeLanguages: List<String> = ["mermaid"],
-    imageExtensions: List<String> = ["math"],
+    imageExtensions: List<String> = ["mermaid", "math"],
     public val codeHighlighter: MarkdownCodeHighlighter? = Some(MarkdownDefaultCodeHighlighter())
 ) {
-    public val imageCodeLanguages: Array<String> = imageCodeLanguages.toArray()
     public val imageExtensions: Array<String> = imageExtensions.toArray()
 }
 
@@ -33,6 +31,13 @@ public class MarkdownParsedDocument internal constructor(
     public val options: MarkdownParseOptions,
     previous: MarkdownParsedDocument? = None
 ) {
+    public val sourceExtensions: MarkdownExtensionIndex =
+        mdExtensionIndexFor(source, previous, false)
+    public val previewExtensions: MarkdownExtensionIndex =
+        if (preview === source)
+            sourceExtensions
+        else
+            mdExtensionIndexFor(preview, previous, true)
     public val sourceNavigation: MarkdownNavigation =
         mdNavigationIndex(source, previous?.sourceNavigation)
     public val sourceFolds: MarkdownFoldIndex =
@@ -55,10 +60,10 @@ public class MarkdownParsedDocument internal constructor(
         mdProjectMarkdown(
             preview,
             previous?.display,
-            options.imageCodeLanguages,
             options.imageExtensions,
             Some(previewHighlights),
-            Some(previewNavigation)
+            Some(previewNavigation),
+            previewExtensions
         )
     public val preview: ParsedMarkdown get() =
         when (processed) {
@@ -71,6 +76,29 @@ public class MarkdownParsedDocument internal constructor(
             case Some(val result) -> result.diagnostics
             case None -> source.diagnostics
         }
+}
+
+private fun mdExtensionIndexFor(
+    parsed: ParsedMarkdown,
+    previous: MarkdownParsedDocument?,
+    preview: Boolean
+): MarkdownExtensionIndex {
+    when (previous) {
+        case Some(val value) -> {
+            val old =
+                if (preview)
+                    value.preview
+                else
+                    value.source
+            if (old === parsed)
+                return if (preview)
+                    value.previewExtensions
+                else
+                    value.sourceExtensions
+        }
+        case None -> Unit
+    }
+    return parsed.extensionIndex()
 }
 
 private fun mdNavigationIndex(

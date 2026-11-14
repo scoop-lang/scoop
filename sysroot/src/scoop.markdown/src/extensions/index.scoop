@@ -1,0 +1,173 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+import scoop.collections.sortWith
+import scoop.comparisons.comparatorOf
+
+private class MdNodeExtensionFrame(val node: MarkdownNode, val parent: MarkdownNode?)
+
+private class MdExtensionDraft(
+    val node: MarkdownNode,
+    val name: String,
+    val form: MarkdownExtensionForm,
+    val closed: Boolean
+) {
+    var parent = -1L
+    val children = ArrayList<Long>()
+}
+
+internal fun mdExtensionIndex(
+    snapshot: MarkdownSnapshot,
+    profile: MarkdownProfile,
+    root: MarkdownNode
+): MarkdownExtensionIndex {
+    val found = ArrayList<MdExtensionDraft>()
+    val pending = ArrayList<MdNodeExtensionFrame>()
+    pending.add(MdNodeExtensionFrame(root, None))
+    while (pending.size > 0L) {
+        val frame = pending.removeAt(pending.size - 1L)
+        when (val selected = mdSelectExtension(snapshot, profile, frame)) {
+            case Some(val entry) -> {
+                requireMarkdown(!entry.node.range.isEmpty, "Markdown extension source is empty")
+                found.add(entry)
+            }
+            case None -> Unit
+        }
+        var child = frame.node.children.size
+        while (child > 0L) {
+            child -= 1L
+            pending.add(MdNodeExtensionFrame(frame.node.children[child], Some(frame.node)))
+        }
+    }
+    found.sortWith(
+        comparatorOf<MdExtensionDraft> {
+            a, b ->
+            val start = a.node.range.start.compareTo(b.node.range.start)
+            val end = b.node.range.end.compareTo(a.node.range.end)
+            if (start != 0)
+                start
+            else
+                if (end != 0)
+                    end
+                else
+                    a.node.id.ordinal.compareTo(b.node.id.ordinal)
+        }
+    )
+    val stack = ArrayList<Long>()
+    val roots = ArrayList<Long>()
+    val byNode = HashMap<Long, Long>()
+    for (index in 0L ..< found.size) {
+        val entry = found[index]
+        while (
+            stack.size >
+                0L &&
+                found[stack[stack.size - 1L]].node.range.end <=
+                entry.node.range.start
+        )
+            stack.removeAt(stack.size - 1L)
+        if (stack.size == 0L)
+            roots.add(index)
+        else {
+            val parent = stack[stack.size - 1L]
+            requireMarkdown(
+                entry.node.range.end <= found[parent].node.range.end,
+                "Markdown extension ranges must not cross"
+            )
+            entry.parent = parent
+            found[parent].children.add(index)
+        }
+        byNode[entry.node.id.ordinal] = index
+        stack.add(index)
+    }
+    return MarkdownExtensionIndex(
+        snapshot,
+        Array<MarkdownExtensionSpan>(found.size) {
+            index ->
+            val entry = found[index]
+            MarkdownExtensionSpan(
+                snapshot,
+                entry.node,
+                entry.name,
+                entry.form,
+                entry.closed,
+                if (entry.parent < 0L)
+                    None
+                else
+                    Some(found[entry.parent].node.id)
+            )
+        },
+        roots.toArray(),
+        Array<Array<Long>>(found.size) { index -> found[index].children.toArray() },
+        byNode
+    )
+}
+
+private fun mdSelectExtension(
+    snapshot: MarkdownSnapshot,
+    profile: MarkdownProfile,
+    frame: MdNodeExtensionFrame
+): MdExtensionDraft? {
+    val node = frame.node
+    when (node.content) {
+        case MarkdownContent.Extension(val value) -> return Some(
+            MdExtensionDraft(
+                node,
+                value.name,
+                if (value.location == MarkdownExtensionLocation.Block)
+                    MarkdownExtensionForm.Block
+                else
+                    MarkdownExtensionForm.Inline,
+                value.closed
+            )
+        )
+        else -> Unit
+    }
+    val natural = mdExtensionFlow(node.content) ?: return None
+    val input = MarkdownNodeExtensionInput(snapshot, node, frame.parent)
+    val closed =
+        when (node.content) {
+            case MarkdownContent.CodeBlock(val fence, _, _) -> fence?.closed ?: true
+            else -> true
+        }
+    for (entry in profile.registeredNodes) {
+        val form = entry.handler.match(input) ?: continue
+        requireMarkdown(
+            form == natural || (form == MarkdownExtensionForm.Block && mdStandaloneImage(input)),
+            "Markdown node extension form conflicts with its syntax position"
+        )
+        return Some(MdExtensionDraft(node, entry.name, form, closed))
+    }
+    return when (node.content) {
+        case MarkdownContent.Image(_) -> Some(MdExtensionDraft(node, "image", natural, true))
+        case MarkdownContent.CodeBlock(_, _, _) -> Some(
+            MdExtensionDraft(node, "code", natural, closed)
+        )
+        else -> None
+    }
+}
+
+private fun mdExtensionFlow(content: MarkdownContent): MarkdownExtensionForm? =
+    when (content) {
+        case MarkdownContent.Paragraph(_) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.Heading(_, _, _) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.BlockQuote -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.ListBlock(_) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.ListItem(_) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.ThematicBreak -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.CodeBlock(_, _, _) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.HtmlBlock(_) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.Table(_) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.FootnoteDefinition(_) -> Some(MarkdownExtensionForm.Block)
+        case MarkdownContent.Text(_) -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.CodeSpan(_) -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.Emphasis -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.Strong -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.Strikethrough -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.Link(_) -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.Image(_) -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.HtmlInline(_) -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.SoftBreak -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.HardBreak -> Some(MarkdownExtensionForm.Inline)
+        case MarkdownContent.FootnoteReference(_) -> Some(MarkdownExtensionForm.Inline)
+        else -> None
+    }

@@ -1,0 +1,173 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownExtensionProjectionTests {
+    @Test
+    fun codeImagesUseDocumentRulesAndExtensionNames() {
+        val source =
+            "```diagram config\nfirst\n```\n\n```mermaid\nsecond\n```\n\n```text\nthird\n```\n"
+        val profile = MarkdownProfile(nodeExtensions = [markdownCodeExtension("diagram", "custom")])
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        val options = MarkdownParseOptions(profile, imageExtensions = ["custom", "mermaid"])
+        val model = MarkdownParsedDocument(parsed, None, options)
+        assertEquals(3L, model.display.rows.size)
+        assertTrue(
+            when (model.display.rows[0L].kind) {
+                case MdDisplayKind.ImageBlock -> true
+                else -> false
+            }
+        )
+        val input = mdPreviewImageInput(model.display.rows[0L].cells[0L].runs[0L].objectValue!!)!!
+        assertEquals(MarkdownImageKind.Extension("custom"), input.kind)
+        assertEquals("first\n", input.body.text)
+        assertEquals("diagram config", input.info)
+        assertEquals("code", model.sourceExtensions.spans[1L].name)
+        assertEquals("second", model.display.rows[1L].cells[0L].text)
+        assertTrue(
+            when (model.display.rows[1L].kind) {
+                case MdDisplayKind.Code(_, _, _) -> true
+                else -> false
+            }
+        )
+        val raw = mdProjectMarkdown(parsed, imageExtensions = [])
+        assertEquals("first", raw.rows[0L].cells[0L].text)
+        assertEquals(source, model.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun standaloneAndInlineImagesShareTheSelectedRendererName() {
+        val profile =
+            MarkdownProfile(
+                nodeExtensions = [markdownImageExtension(standaloneBlock = true, name = "hero")]
+            )
+        val parsed = MarkdownDocument.fromText("![one](a.png)\n\ntext ![two](b.png)").parse(profile)
+        val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions(profile))
+        assertTrue(
+            when (model.display.rows[0L].kind) {
+                case MdDisplayKind.ImageBlock -> true
+                else -> false
+            }
+        )
+        assertTrue(
+            when (model.display.rows[1L].kind) {
+                case MdDisplayKind.Paragraph -> true
+                else -> false
+            }
+        )
+        val first = model.display.rows[0L].cells[0L].runs[0L].objectValue!!
+        assertEquals(MarkdownImageKind.Extension("hero"), mdPreviewImageInput(first)!!.kind)
+        assertEquals("a.png", mdPreviewImageInput(first)!!.body.text)
+        var inlineFound = false
+        for (run in model.display.rows[1L].cells[0L].runs)
+            when (run.objectValue) {
+                case Some(val value) -> {
+                    val input = mdPreviewImageInput(value)!!
+                    assertEquals(MarkdownImageKind.Extension("hero"), input.kind)
+                    assertEquals("b.png", input.body.text)
+                    inlineFound = true
+                }
+                case None -> Unit
+            }
+        assertTrue(inlineFound)
+        val normal = mdProjectMarkdown(MarkdownDocument.fromText("![x](normal.png)").parse())
+        assertEquals(
+            MarkdownImageKind.Resource,
+            mdPreviewImageInput(normal.rows[0L].cells[0L].runs[0L].objectValue!!)!!.kind
+        )
+    }
+
+    @Test
+    fun preparedInlineProjectionKeepsTheCurrentRuleAndSourceMapping() {
+        val profile =
+            MarkdownProfile(
+                nodeExtensions = [markdownImageExtension(standaloneBlock = true, name = "hero")]
+            )
+        val parsed = MarkdownDocument.fromText("![x](a.png)").parse(profile)
+        val before = parsed.inlineContent(parsed.root.children[0L].id)
+        val edit = before.replaceText(MarkdownRange(0L, 0L), "雪")
+        val display = mdDisplayEditable(edit.after)
+        assertEquals("雪\u{fffc}", display.text)
+        var found = false
+        for (run in display.runs)
+            when (run.objectValue) {
+                case Some(val value) -> {
+                    assertEquals(
+                        MarkdownImageKind.Extension("hero"),
+                        mdPreviewImageInput(value)!!.kind
+                    )
+                    found = true
+                }
+                case None -> Unit
+            }
+        assertTrue(found)
+        assertEquals(MarkdownPosition(3L), display.sourceAt(3L))
+        assertEquals(MarkdownExtensionForm.Inline, edit.after.extensionIndex().spans[0L].form)
+    }
+
+    @Test
+    fun identicalSyntaxReusesIndexesButAnotherParseCannotReuseNodeIdentities() {
+        val options = MarkdownParseOptions()
+        val parsed = MarkdownDocument.fromText("![x](a)").parse(options.profile)
+        val first = MarkdownParsedDocument(parsed, None, options)
+        val second = MarkdownParsedDocument(parsed, None, options, Some(first))
+        assertSame(first.sourceExtensions, first.previewExtensions)
+        assertSame(first.sourceExtensions, second.sourceExtensions)
+        val reparsed = parseMarkdown(parsed.snapshot, options.profile)
+        val third = MarkdownParsedDocument(reparsed, None, options, Some(second))
+        assertFalse(third.sourceExtensions === second.sourceExtensions)
+        assertTrue(
+            when (third.sourceExtensions.forNode(first.sourceExtensions.spans[0L].node.id)) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+    }
+
+    @Test
+    fun expandedImagesUseADistinctIndexAndKeepGeneratedOrigins() {
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val source = MarkdownDocument.fromText("{{#include child.md}}\n").snapshot()
+        val result =
+            MarkdownProcessingSession(ExtensionProjectionResource(), [mdBookProcessor()]).process(
+                source,
+                "book/root.md",
+                profile
+            )
+        val model =
+            MarkdownParsedDocument(result.sourceParsed, Some(result), MarkdownParseOptions(profile))
+        assertFalse(model.sourceExtensions === model.previewExtensions)
+        assertEquals("mdbook", model.sourceExtensions.spans[0L].name)
+        val image = model.previewExtensions.spans[0L]
+        assertEquals("image", image.name)
+        assertSame(result.expanded.snapshot, image.snapshot)
+        val origins = result.sourceMap.origins(image.sourceRange)
+        assertTrue(origins.size > 0L)
+        assertEquals("{{#include child.md}}\n", model.snapshot.toMarkdown())
+        when (image.node.content) {
+            case MarkdownContent.Image(val target) -> assertEquals(
+                "relative.png",
+                target.destination.text
+            )
+            else -> fail(Some("Expected expanded image"))
+        }
+    }
+}
+
+private class ExtensionProjectionResource: MarkdownResourceResolver {
+    public override fun resolve(baseUri: String, reference: String): String {
+        assertEquals("book/root.md", baseUri)
+        assertEquals("child.md", reference)
+        return "book/child.md"
+    }
+    public override fun version(uri: String): String? {
+        assertEquals("book/child.md", uri)
+        return Some("1")
+    }
+    public override fun read(uri: String): MarkdownResourceData {
+        assertEquals("book/child.md", uri)
+        return MarkdownResourceData("![child](relative.png)\n", "1")
+    }
+}

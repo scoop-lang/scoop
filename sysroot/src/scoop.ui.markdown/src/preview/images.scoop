@@ -47,12 +47,36 @@ internal class MdPreviewImages(val entries: Array<MdPreviewImageEntry>): Closeab
     }
 }
 
-private class MdPreviewImageInput(
+internal class MdPreviewImageInput(
     val kind: MarkdownImageKind,
     val body: MarkdownText,
     val info: String = "",
     val attributes: Array<MarkdownAttribute> = []
 )
+
+internal fun mdPreviewImageInput(value: MdDisplayObject): MdPreviewImageInput? =
+    when (value) {
+        case MdDisplayObject.Source(_) -> None
+        case MdDisplayObject.Image(val target, _, val name) -> Some(
+            MdPreviewImageInput(
+                if (name == "image")
+                    MarkdownImageKind.Resource
+                else
+                    MarkdownImageKind.Extension(name),
+                target.destination
+            )
+        )
+        case MdDisplayObject.Extension(val extension) -> Some(
+            MdPreviewImageInput(
+                MarkdownImageKind.Extension(extension.name),
+                extension.body,
+                attributes = extension.attributes
+            )
+        )
+        case MdDisplayObject.Block(val kind, val body, val info) -> Some(
+            MdPreviewImageInput(kind, body, info)
+        )
+    }
 
 internal fun mdPreviewColumnWidth(
     row: MdDisplayRow,
@@ -94,24 +118,7 @@ internal fun mdPreviewImages(
             val text = row.cells[cell]
             for (run in 0L ..< text.runs.size) {
                 val objectValue = text.runs[run].objectValue ?: continue
-                val input =
-                    when (objectValue) {
-                        case MdDisplayObject.Source(_) -> continue
-                        case MdDisplayObject.Image(val target, _) -> MdPreviewImageInput(
-                            MarkdownImageKind.Resource,
-                            target.destination
-                        )
-                        case MdDisplayObject.Extension(val value) -> MdPreviewImageInput(
-                            MarkdownImageKind.Extension(value.name),
-                            value.body,
-                            attributes = value.attributes
-                        )
-                        case MdDisplayObject.Block(
-                            val kind,
-                            val body,
-                            val info
-                        ) -> MdPreviewImageInput(kind, body, info)
-                    }
+                val input = mdPreviewImageInput(objectValue) ?: continue
                 val request =
                     MarkdownImageRequest(
                         input.kind,

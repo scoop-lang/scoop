@@ -1,6 +1,6 @@
 # 独立 Markdown 文档库设计
 
-日期：2026-11-15。状态：实现已暂停，本次更新扩展设计，进度见 [实施记录](PROGRESS.md)。本文定义独立的 `scoop.markdown` Cone；编辑器见 [Markdown 编辑器设计](../ui/markdown/DESIGN.md)。文中的名称和签名是拟议 API，不代表当前 sysroot 已提供。
+日期：2026-11-15。状态：按核心功能与扩展框架的范围继续实施，进度见 [实施记录](PROGRESS.md)。本文定义独立的 `scoop.markdown` Cone；编辑器见 [Markdown 编辑器设计](../ui/markdown/DESIGN.md)。已交付 API 以[规范](../specs/SCOOP-MARKDOWN-SPEC.md)和库声明为准，本文还包含后续实现的设计要求。
 
 ## 1. 目标与分层
 
@@ -211,7 +211,7 @@ doc.writeTo(writer)
 
 #### 6.1.2 统一片段与源码索引
 
-以下是拟议数据合同，实际名称和签名随实施写入规范：
+片段与索引的公共接口已写入[规范 §9.1–9.2](../specs/SCOOP-MARKDOWN-SPEC.md#91-标准节点匹配与统一扩展片段)，遵守以下数据合同：
 
 | 片段信息 | 合同 |
 | --- | --- |
@@ -224,7 +224,7 @@ doc.writeTo(writer)
 
 图片尤其不能简化为一个正文字符串：alt、URI 与 title 位于不同源位置，alt 可以包含行内结构；引用式图片的 URI／title 可以来自别处的定义。片段的 `sourceRange` 只表示当前图片使用点，引用定义通过语义依赖和各自映射关联。编辑当前图片不因此吞入定义到使用点之间的整段文档。代码正文去除容器前缀后的文本同样保留原始映射。
 
-`MarkdownExtensionIndex` 随匹配的解析结果建立，按位置返回包含它的片段，按范围返回相交片段，并可由节点查询。嵌套时返回关系明确的候选，由 UI 选择当前可见的最内层入口。查询使用有序范围／嵌套索引，不在光标移动或每一帧扫描全文，也不物化完整 String。
+`MarkdownSyntax.extensionIndex()` 与 `MarkdownInlineContent.extensionIndex()` 显式建立 `MarkdownExtensionIndex`，供完整文档、局部语法和连续行内编辑使用。`at(position, bias)` 返回包含位置的最内层片段，`intersect(range)` 返回源码顺序的相交片段，`forNode(id)` 查询当前树中的节点。嵌套关系通过片段的 parent 保留，由 UI 选择当前可见的入口。查询使用有序范围／嵌套索引，不在光标移动或每一帧扫描全文，也不物化完整 String。
 
 索引只说明所属快照的语法，不能直接把旧范围用于新正文。文档差量可推进未变化片段的位置；受影响部分需重新识别。编辑器中已激活的源码区域另用 `MarkdownAnchor` 随差量维护，不能因解析暂时不再识别该扩展就丢失输入，交互规则见[编辑器设计 §8.2](../ui/markdown/DESIGN.md#82-源码与显示的交互)。
 
@@ -236,7 +236,7 @@ doc.writeTo(writer)
 
 当前 `MarkdownExtensionLocation.Code` 是明确允许在代码正文匹配指令的语法上下文，不是第三种展示形态。例如 fence 内的 mdBook include 只有显式启用才识别，其他代码中的 `$` 或花括号保持普通代码。这样的子片段仍复用 Inline／Block 形态与来源映射；正文按代码或 Markdown 展开由处理上下文决定。
 
-当前实现已有标准 Image／CodeBlock、映射文本和自定义匹配基础，但自定义 Block 主要接管 CommonMark 之后已确定的整个段落。标准节点的统一路由、片段索引及上述多行块接入点属于本次设计要求，尚未交付；不能用单段落后处理代替它们。
+标准节点路由通过 `MarkdownProfile.nodeExtensions` 与 `MarkdownNodeExtension.match` 实现，和已有语法扩展共用 `MarkdownExtensionSpan`／`MarkdownExtensionIndex`。图片与语言围栏提供普通规则工厂，仍消费原有节点和源码映射。自定义 Block 当前主要接管 CommonMark 之后已确定的整个段落；上述多行块接入点仍待实现，不能用单段落后处理代替。
 
 语法识别不要求内容处理或图像渲染。`MarkdownProcessor` 提供可选的展开，renderer 位于 UI／应用适配层；没有 renderer 的 headless 程序仍可查询图片、代码与自定义扩展，处理或生成原始 Markdown。不新增动态插件装载、脚本权限或编译器插件机制。
 

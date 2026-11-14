@@ -1,0 +1,113 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+/** One occurrence in an immutable source snapshot; semantic data remains on the original node. */
+public class MarkdownExtensionSpan internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val node: MarkdownNode,
+    public val name: String,
+    public val form: MarkdownExtensionForm,
+    public val closed: Boolean,
+    public val parent: MarkdownNodeId?
+) {
+    public val sourceRange: MarkdownRange get() = node.range
+}
+
+/** Source-ordered extension occurrences, independent of rendering and resource access. */
+public class MarkdownExtensionIndex internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val spans: Array<MarkdownExtensionSpan>,
+    private val roots: Array<Long>,
+    private val children: Array<Array<Long>>,
+    private val byNode: HashMap<Long, Long>
+) {
+    /** Returns None for a non-extension or an identity belonging to another syntax tree. */
+    public fun forNode(id: MarkdownNodeId): MarkdownExtensionSpan? {
+        val index = byNode[id.ordinal] ?: return None
+        val span = spans[index]
+        return if (span.node.id === id)
+            Some(span)
+        else
+            None
+    }
+
+    /** Returns the innermost occurrence; start belongs to After and end belongs to Before. */
+    public fun at(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownExtensionSpan? {
+        snapshot.checkPosition(position.byteOffset)
+        var group = roots
+        var found: MarkdownExtensionSpan? = None
+        while (group.size > 0L) {
+            val next = firstEndingAt(group, position.byteOffset, bias)
+            if (next == group.size)
+                return found
+            val index = group[next]
+            val span = spans[index]
+            if (
+                span.sourceRange.start >
+                    position.byteOffset ||
+                    (span.sourceRange.start == position.byteOffset && bias == MarkdownBias.Before)
+            )
+                return found
+            found = Some(span)
+            group = children[index]
+        }
+        return found
+    }
+
+    /** Returns all intersecting occurrences in source preorder; an empty range has no hits. */
+    public fun intersect(range: MarkdownRange): Array<MarkdownExtensionSpan> {
+        snapshot.checkRange(range)
+        val result = ArrayList<MarkdownExtensionSpan>()
+        if (range.isEmpty)
+            return result.toArray()
+        val pending = ArrayList<Long>()
+        addIntersecting(roots, range, pending)
+        while (pending.size > 0L) {
+            val index = pending.removeAt(pending.size - 1L)
+            result.add(spans[index])
+            addIntersecting(children[index], range, pending)
+        }
+        return result.toArray()
+    }
+
+    private fun firstEndingAt(group: Array<Long>, position: Long, bias: MarkdownBias): Long {
+        var low = 0L
+        var high = group.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            val end = spans[group[middle]].sourceRange.end
+            if (end < position || (end == position && bias == MarkdownBias.After))
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return low
+    }
+
+    private fun addIntersecting(
+        group: Array<Long>,
+        range: MarkdownRange,
+        pending: ArrayList<Long>
+    ) {
+        val first = firstEndingAt(group, range.start, MarkdownBias.After)
+        var end = first
+        while (end < group.size && spans[group[end]].sourceRange.start < range.end)
+            end += 1L
+        while (end > first) {
+            end -= 1L
+            pending.add(group[end])
+        }
+    }
+}
+
+/** Builds an explicit index over this complete or regional syntax without copying source text. */
+public fun MarkdownSyntax.extensionIndex(): MarkdownExtensionIndex =
+    mdExtensionIndex(snapshot, profile, root)
+
+/** Indexes the current prepared inline tree, including edits not yet parsed as a full document. */
+public fun MarkdownInlineContent.extensionIndex(): MarkdownExtensionIndex =
+    mdExtensionIndex(snapshot, profile, node)

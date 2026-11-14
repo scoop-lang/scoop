@@ -12,7 +12,7 @@ public class MarkdownMermaidImageRenderer public constructor(
     private val toolVersion: String,
     private val timeout: Duration = Duration.seconds(30L)
 ): MarkdownImageRenderer {
-    public override val kind = MarkdownImageKind.Code("mermaid")
+    public override val kind = MarkdownImageKind.Extension("mermaid")
     public override fun version(request: MarkdownImageRequest): String? = Some(toolVersion)
     public override fun render(request: MarkdownImageRequest): MarkdownImageData {
         val folder = createTempDirectory(prefix = "scoop-mermaid-")

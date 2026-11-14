@@ -6,6 +6,28 @@ import scoop.test.*
 @Test
 private class MarkdownExtensionExampleTests {
     @Test
+    fun aConsumerSharesNodeAndSyntaxExtensionsWithoutAnyRenderer() {
+        val profile =
+            MarkdownProfile(
+                extensions = [ConsumerTag()],
+                nodeExtensions =
+                    [ConsumerCodeRule(), markdownImageExtension(standaloneBlock = true)]
+            )
+        val source = "@tag(雪)\n\n![alt](asset.png)\n\n```diagram\nA --> B\n```\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse(profile)
+        val index = parsed.extensionIndex()
+        assertEquals(3L, index.spans.size)
+        assertEquals("consumer-tag", index.spans[0L].name)
+        assertEquals(MarkdownExtensionForm.Block, index.spans[1L].form)
+        val diagram = index.spans[2L]
+        assertEquals("consumer-diagram", diagram.name)
+        assertSame(diagram, index.at(MarkdownPosition(diagram.sourceRange.start + 1L))!!)
+        assertSame(diagram, index.forNode(diagram.node.id)!!)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
     fun `a headless consumer supplies custom syntax beside formulas and directives`() {
         val profile =
             MarkdownProfile(
@@ -33,6 +55,19 @@ private class MarkdownExtensionExampleTests {
         assertEquals(1L, parsed.footnotes.size)
         assertEquals(source, document.toMarkdown())
     }
+}
+
+private class ConsumerCodeRule: MarkdownNodeExtension {
+    public override val name: String = "consumer-diagram"
+    public override fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm? =
+        when (input.node.content) {
+            case MarkdownContent.CodeBlock(_, val info, _) ->
+            if (info.text == "diagram")
+                Some(MarkdownExtensionForm.Block)
+            else
+                None
+            else -> None
+        }
 }
 
 private class ConsumerTag: MarkdownExtension {

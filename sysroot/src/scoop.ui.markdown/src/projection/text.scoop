@@ -16,7 +16,7 @@ internal enum MdDisplayAction {
 }
 
 internal enum MdDisplayObject {
-    Image(MarkdownLinkTarget, String), Extension(MarkdownExtensionValue),
+    Image(MarkdownLinkTarget, String, String), Extension(MarkdownExtensionValue),
     Block(MarkdownImageKind, MarkdownText, String), Source(String)
 }
 

@@ -114,7 +114,6 @@ private fun mdImageFailureMessage(failure: Throwable): String {
 private fun mdPreviewObjectLabel(value: MdDisplayObject): String =
     when (value) {
         case MdDisplayObject.Block(val kind, _, _) -> when (kind) {
-            case MarkdownImageKind.Code(val language) -> language
             case MarkdownImageKind.Extension(val name) -> name
             case MarkdownImageKind.Resource -> "Image"
         }

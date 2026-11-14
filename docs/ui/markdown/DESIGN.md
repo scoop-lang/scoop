@@ -1,6 +1,6 @@
 # Markdown 编辑器设计
 
-日期：2026-11-15。状态：实现已暂停，本次更新扩展设计，进度见[文档库实施记录](../../markdown/PROGRESS.md)。独立文档模型、解析、结构化处理与生成见 [`scoop.markdown` 设计](../../markdown/DESIGN.md)。本文定义 `scoop.ui.markdown`；文中的接口均为拟议 API。
+日期：2026-11-15。状态：按核心功能与扩展框架的范围继续实施，进度见[文档库实施记录](../../markdown/PROGRESS.md)。独立文档模型、解析、结构化处理与生成见 [`scoop.markdown` 设计](../../markdown/DESIGN.md)。本文定义 `scoop.ui.markdown`；已交付接口以[规范](../../specs/SCOOP-UI-MARKDOWN-SPEC.md)和库声明为准，后续设计随相应批次落实。
 
 ## 1. 目标与已确认取舍
 
@@ -271,7 +271,7 @@ document 的内容 revision 与 native 输入快照的 revision 分开：选择�
 
 解析和内容处理仍属于独立 `scoop.markdown` Cone。标准节点匹配和新增语法识别统一输出片段，详见[文档设计 §6.1](../../markdown/DESIGN.md#61-按具体语法接入)；标准 `CodeBlock`／`Image` 保留原节点，UI 不再自行按语言或正则扫描源码以决定扩展边界。`MarkdownProcessor` 可返回带来源映射的派生 Markdown；`MarkdownExtensionLocation.Code` 只表示允许在代码正文识别指令的语法上下文。无 UI 程序不依赖展示适配。
 
-当前 `MarkdownImageRenderer`／`MarkdownImageRequest.inlineContent`、行内对象与原生代码视图可作为实现基础，尚不是上述统一公共入口。后续按这两种合同归一并复用现有图像渲染器；正式签名随对应实现批次写入规范，不另建通用组件或脚本插件框架。
+`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 已分别提供原始与派生语法的索引，图片、代码与既有扩展投影消费识别结果。`MarkdownParseOptions.imageExtensions` 只选择已识别的扩展名称采用图像展示，Mermaid 的语言匹配由文档 profile 负责；`MarkdownImageKind.Extension(name)` 统一图像适配的名称。`MarkdownImageRenderer`／`MarkdownImageRequest.inlineContent`、行内对象与原生代码视图仍是两种展示合同的实现基础，统一公共展示入口和光标自动源码编辑继续实施，不另建通用组件或脚本插件框架。
 
 后台工作只处理普通数据，不访问 View、Canvas、TextLayout 或 UI State。图像路径返回编码字节、逻辑尺寸、基线和替代文字，owner 线程按 graphics 合同创建与释放资源。原生文本路径沿既有 Paragraph／TextLayout 所有权合同。异步结果仅在实际内容、配置和资源依赖仍适用时发布；卸载后不更新已关闭组件。
 
@@ -386,7 +386,7 @@ scoop.ui.markdown
 
 大文档测量从 A 开始，B 起每批保留相关回归；不把全文 String 和单 Paragraph 实现一直留到最后再优化。A 中发现必须修改 graphics.text 的实际问题，先更新该规范与当前批次，再依赖新增能力。
 
-恢复实现后的顺序是：完成核心编辑的剩余问题与必要组合验证；在文档 Cone 补齐标准节点路由、统一片段索引与块解析接入点；让现有图像／原生代码／指令投影消费片段，增加统一的光标激活状态与 Inline 原位源码投影；完成本机大文档验收。已有点击打开局部源码面和图像适配可复用，但不能据此将自动进入／离开或统一接口记为已完成。新的具体扩展在这一范围交付后独立安排。本次只更新设计，实现保持暂停。
+实现已恢复，按完整大项验证后提交、推送并合并远端 main。标准节点路由、统一片段索引及既有投影接入完成后，继续补齐块解析接入点、统一展示合同、光标激活状态与 Inline 原位源码投影，再完成核心编辑剩余问题、必要组合与本机大文档验收。已有点击打开局部源码面和图像适配可复用，但不能据此将自动进入／离开或统一接口记为已完成。新的具体扩展在这一范围交付后独立安排。
 
 ### 11.2 必要测试
 

@@ -10,9 +10,13 @@
 
 外部命令使用 `scoop.platform.process.command(Path)` 构造；可执行文件路径应明确，参数经 argv 传递。toolVersion 标识这份固定的工具与配置；更换工具或配置时使用新版本和新适配器。固定配置的 refresh 直接复用成功图片；本地文件适配通过文件时间与尺寸检查更新。普通库使用不自动下载工具。Mermaid 和 MathJax 的语法支持由配置的工具版本决定。
 
-`MarkdownParseOptions.imageCodeLanguages` 默认包含 `mermaid`，`imageExtensions` 默认包含 `math`。注册其他块图像时同时把对应语言或扩展名称加入名单。未在名单中的块继续按源码行显示；行内扩展始终保留原子对象。块的整个源范围包含围栏／分隔符，渲染输入只包含语义正文。
+扩展识别在文档 profile 中完成，`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 暴露原始与派生语法的索引。默认 Editor profile 用 `markdownCodeExtension("mermaid")` 识别围栏；自定义 profile 应显式加入所需的 nodeExtensions。`MarkdownParseOptions.imageExtensions` 默认包含 mermaid 与 math，只选择已识别的块采用图像展示；其他代码继续按行显示。
 
-自定义 renderer 声明一个 `MarkdownImageKind.Resource`、`Code(language)` 或 `Extension(name)`，实现：
+例如将 `diagram` 围栏交给名为 custom 的 renderer，需要在文档 profile 注册 `markdownCodeExtension("diagram", "custom")`，将 custom 加入 imageExtensions，并提供 `MarkdownImageKind.Extension("custom")` 的适配。代码语言、语法扩展与渲染器名称不再依靠 UI 自行扫描来关联。块的完整源范围仍包含围栏／分隔符，渲染输入使用语义正文和完整 info。
+
+`markdownImageExtension(standaloneBlock = true)` 使独占段落的图片按 Block 排版；其余图片保持 Inline。默认 image 名称使用普通 Resource，指定其他名称时使用对应 Extension(name) renderer，输入仍是图片目标 URI。连续行内编辑也使用当前局部树上的规则和索引，不套用旧节点偏移。
+
+自定义 renderer 声明 `MarkdownImageKind.Resource` 或 `Extension(name)`，实现：
 
 ```scoop
 interface MarkdownImageRenderer {

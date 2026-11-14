@@ -225,10 +225,10 @@ private fun mdDisplaySameObject(a: MdDisplayObject?, b: MdDisplayObject?): Boole
         case(None, None) -> true
         case(Some(MdDisplayObject.Source(val x)), Some(MdDisplayObject.Source(val y))) -> x == y
         case(
-            Some(MdDisplayObject.Image(val x, val xa)),
-            Some(MdDisplayObject.Image(val y, val ya))
+            Some(MdDisplayObject.Image(val x, val xa, val xn)),
+            Some(MdDisplayObject.Image(val y, val ya, val yn))
         ) ->
-        xa == ya && x.destination.text == y.destination.text
+        xn == yn && xa == ya && x.destination.text == y.destination.text
         case(Some(MdDisplayObject.Extension(val x)), Some(MdDisplayObject.Extension(val y))) ->
         x.name == y.name && x.source.text == y.source.text
         case(

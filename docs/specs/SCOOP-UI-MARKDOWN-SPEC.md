@@ -126,7 +126,7 @@ close 幂等地取消订阅、清空排队请求及交付引用，结束自己�
 
 ## 8. 图片与扩展图像
 
-`MarkdownImageKind` 区分普通资源、指定语言的代码块及指定名称的扩展。`MarkdownParseOptions.imageCodeLanguages`／`imageExtensions` 明确哪些块投影为图像块，默认包括 Mermaid 代码与 math 扩展；其他代码仍按实际行虚拟化，front matter 仍保留源码表示。行内图片和扩展沿既有原子对象投影。图像块保留完整节点／正文映射，展示和保存分别处理，不把渲染结果写成原文中的图片链接。
+`MarkdownParsedDocument.sourceExtensions`／`previewExtensions` 保存原始与派生语法的扩展索引；相同语法复用同一索引，局部和行内投影使用对应当前内容的索引。标准节点匹配属于文档 profile，UI 不再以另一份语言名单识别扩展。`MarkdownImageKind` 区分普通 Resource 和按名称的 Extension；Mermaid 围栏与自定义语法都使用 Extension(name)。`MarkdownParseOptions.imageExtensions` 仅选择哪些已识别的块由图像适配展示，默认包含 mermaid 与 math；其他代码继续按行虚拟化，front matter 保留源码表示。行内图片和扩展沿原子对象投影，独占段落且匹配为 Block 的图片使用图像块。图片的默认 image 名称消费普通资源，其他名称可选对应图像 renderer。所有图像保留完整节点／正文映射，展示与保存分别处理。
 
 应用提供普通 `MarkdownImageRenderer`，每个实例注册一种 kind。`version(request)` 查询当前资源／配置版本，`render(request)` 返回复制或不可变的 PNG／JPEG 字节及实际版本；版本查询先于内容读取或工具执行。请求只包含渲染所需的源码、信息字符串、扩展 attributes、文档 URI、宽度、比例、字号、颜色和行内／块模式，不借用 UI、Canvas 或原生图形对象。方法由借用 executor 的 blocking 队列串行执行，不保证固定 OS 线程；Markdown 解析仍使用普通工作队列。
 

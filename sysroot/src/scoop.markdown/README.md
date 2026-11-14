@@ -1,6 +1,6 @@
 # scoop.markdown
 
-纯 Scoop 的独立 Markdown 文档库，不依赖 UI、window、graphics 或 native Markdown 后端。完整语法与编辑器按[设计](../../../docs/markdown/DESIGN.md)实施，已验证范围见[实施记录](../../../docs/markdown/PROGRESS.md)。
+纯 Scoop 的独立 Markdown 文档库，不依赖 UI、window、graphics 或 native Markdown 后端。核心文档与扩展框架按[设计](../../../docs/markdown/DESIGN.md)实施，已验证范围见[实施记录](../../../docs/markdown/PROGRESS.md)。
 
 当前源码模型支持持久化快照、UTF-8 范围、CR／LF／CRLF 行索引、原子多范围替换、位置映射、逆向修改和内容订阅：
 
@@ -49,6 +49,24 @@ val parsed = document.parse(profile)
 ```
 
 `mdBookDirectives()` 只识别 `{{#command arguments}}`，同时支持行内、独立段落和代码块正文。解析不会读取 include 文件或启动渲染工具。自定义实现提供 name、trigger、locations 和 parse，输入及返回范围均采用该映射片段中的 UTF-8 字节坐标；完整用法见[无 UI 扩展示例](examples/source/tests/extensions.scoop)。Block 注册只能接管一个完整段落，不能跨 CommonMark 容器；代码块正文必须单独启用，code span 和 HTML 保持自己的词法。未注册的内容仍按普通 Markdown 解析，配置变化应使用新的 profile／扩展实例。解析在调用线程执行；UI 的全文解析与局部结构命令可能并发使用同一 profile，语法扩展应使用不可变配置或同步自己的内部状态。资源处理器与渲染器仍由宿主管理调用。
+
+标准节点通过 `MarkdownProfile.nodeExtensions` 匹配扩展，复用 Image／CodeBlock 的原始结构；新增语法继续使用 `extensions`。两种入口统一产生带有 snapshot、原节点、完整 sourceRange、name、Inline／Block form 与 closed 的 `MarkdownExtensionSpan`：
+
+```scoop
+val profile = MarkdownProfile(nodeExtensions = [
+    markdownCodeExtension("mermaid"),
+    markdownImageExtension(standaloneBlock = true)
+])
+val parsed = document.parse(profile)
+val extensions = parsed.extensionIndex()
+for (span in extensions.spans) {
+    println(span.name)
+}
+```
+
+`MarkdownNodeExtension.match` 接收 snapshot、node 和语法 parent，返回允许的展示形态或 None；按配置顺序取首个匹配。内置回退将 Image 识别为 image／Inline、CodeBlock 识别为 code／Block。`MarkdownProfile.Editor` 注册 Mermaid 围栏，自定义 profile 若需要该匹配也须显式注册。独占段落的图片可以提升为 Block，含文字、链接或标题中的图片保持 Inline。
+
+`MarkdownSyntax.extensionIndex()` 支持完整与局部语法，`MarkdownInlineContent.extensionIndex()` 支持尚未做全文解析的准备后内容。`at(position, bias)` 找最内层片段，起点归 After、终点归 Before；`intersect(range)` 返回相交父子片段，空范围无结果；`forNode(id)` 按真实身份查询，其他解析的 id 不会按相同序号混用。索引只属于原快照；源码变化后在当前语法上重建或复用未变化解析的索引。查询不扫描其余扩展或复制全文。图片目标、title、引用定义的来源与 alt 子节点直接从 span.node 读取，无需 renderer。
 
 内容展开使用独立的 `MarkdownProcessingSession`。应用实现 `MarkdownResourceResolver` 的路径解析、版本查询和读取后，可以显式处理同一个不可变 snapshot：
 

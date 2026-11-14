@@ -1,0 +1,183 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.repeat
+
+@Test
+private class MarkdownExtensionIndexTests {
+    @Test
+    fun nestedCodeDirectivesUseOneIndexAndBiasedBoundaries() {
+        val profile = MarkdownProfile(math = true, extensions = [mdBookDirectives()])
+        val source = "Use $x$ {{#include a.md}}.\n\n```rust\n{{#include a.rs}}\n```\n"
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        val index = parsed.extensionIndex()
+        assertEquals(4L, index.spans.size)
+        assertEquals("math", index.spans[0L].name)
+        assertEquals("mdbook", index.spans[1L].name)
+        val code = index.spans[2L]
+        val directive = index.spans[3L]
+        assertEquals("code", code.name)
+        assertEquals(MarkdownExtensionForm.Inline, directive.form)
+        assertSame(code.node.id, directive.parent!!)
+        assertSame(directive, index.forNode(directive.node.id)!!)
+        val start = MarkdownPosition(directive.sourceRange.start)
+        val end = MarkdownPosition(directive.sourceRange.end)
+        assertSame(code, index.at(start, MarkdownBias.Before)!!)
+        assertSame(directive, index.at(start, MarkdownBias.After)!!)
+        assertSame(directive, index.at(end, MarkdownBias.Before)!!)
+        assertSame(code, index.at(end, MarkdownBias.After)!!)
+        val hits = index.intersect(directive.sourceRange)
+        assertEquals(2L, hits.size)
+        assertSame(code, hits[0L])
+        assertSame(directive, hits[1L])
+        assertEquals(0L, index.intersect(MarkdownRange(start.byteOffset, start.byteOffset)).size)
+        assertEquals(4L, index.intersect(MarkdownRange(0L, parsed.snapshot.byteLength)).size)
+    }
+
+    @Test
+    fun emptyInputsInvalidUtf8PositionsAndForeignIdentitiesStayDistinct() {
+        val empty = MarkdownDocument.fromText("").parse().extensionIndex()
+        assertEquals(0L, empty.spans.size)
+        assertTrue(
+            when (empty.at(MarkdownPosition(0L))) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        val document = MarkdownDocument.fromText("雪![x](a)")
+        val parsed = document.parse()
+        val index = parsed.extensionIndex()
+        val image = index.spans[0L]
+        assertTrue(
+            when (index.at(MarkdownPosition(image.sourceRange.start), MarkdownBias.Before)) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        assertSame(image, index.at(MarkdownPosition(image.sourceRange.end), MarkdownBias.Before)!!)
+        assertTrue(
+            when (index.at(MarkdownPosition(image.sourceRange.end), MarkdownBias.After)) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        assertTrue(
+            when (index.forNode(parsed.root.id)) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        val other = parseMarkdown(parsed.snapshot).extensionIndex().spans[0L]
+        assertTrue(
+            when (index.forNode(other.node.id)) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        assertFailsWith<IllegalArgumentException> { index.at(MarkdownPosition(1L)) }
+        assertFailsWith<IllegalArgumentException> { index.intersect(MarkdownRange(-1L, 0L)) }
+        assertFailsWith<IllegalArgumentException> {
+            index.intersect(MarkdownRange(0L, document.snapshot().byteLength + 1L))
+        }
+    }
+
+    @Test
+    fun regionalIndexesKeepGlobalCoordinatesAndExternalReferenceMappings() {
+        val document =
+            MarkdownDocument.fromText("Title\n\nIntro\n\n![x][id]\n\nAfter\n\n[id]: remote.png\n")
+        val parsed = document.parse()
+        val original = parsed.extensionIndex().spans[0L]
+        val region = parsed.region(original.sourceRange)
+        val local = region.parse().extensionIndex()
+        assertEquals(1L, local.spans.size)
+        assertEquals(original.sourceRange, local.spans[0L].sourceRange)
+        assertTrue(
+            when (local.at(MarkdownPosition(0L))) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        val change = document.replace(original.sourceRange, "![new][id]")
+        val updated = region.after(change).parse().extensionIndex()
+        val image = updated.spans[0L]
+        assertEquals(original.sourceRange.start, image.sourceRange.start)
+        assertEquals("![new][id]", updated.snapshot.read(image.sourceRange))
+        when (image.node.content) {
+            case MarkdownContent.Image(val target) -> assertEquals(
+                "remote.png",
+                updated.snapshot.read(target.destinationRange!!)
+            )
+            else -> fail(Some("Expected regional reference image"))
+        }
+        assertEquals("![x][id]", local.snapshot.read(local.spans[0L].sourceRange))
+    }
+
+    @Test
+    fun preparedInlineEditsReclassifyImagesWithoutAFullDocumentParse() {
+        val profile =
+            MarkdownProfile(nodeExtensions = [markdownImageExtension(standaloneBlock = true)])
+        val document = MarkdownDocument.fromText("![x](a)")
+        val parsed = document.parse(profile)
+        val content = parsed.inlineContent(parsed.root.children[0L].id)
+        assertEquals(MarkdownExtensionForm.Block, content.extensionIndex().spans[0L].form)
+        val edit = content.replaceText(MarkdownRange(0L, 0L), "雪")
+        val updated = edit.after.extensionIndex()
+        assertSame(edit.change.after, updated.snapshot)
+        assertEquals(MarkdownExtensionForm.Inline, updated.spans[0L].form)
+        assertEquals("![x](a)", updated.snapshot.read(updated.spans[0L].sourceRange))
+        assertEquals("![x](a)", document.toMarkdown())
+        edit.applyTo(document)
+        assertEquals("雪![x](a)", document.toMarkdown())
+    }
+
+    @Test
+    fun nestedImagesKeepContainmentWithoutRecursiveIndexQueries() {
+        val depth = 512L
+        val parsed =
+            MarkdownDocument.fromText("![".repeat(depth) + "x" + "](a)".repeat(depth)).parse()
+        val index = parsed.extensionIndex()
+        assertEquals(depth, index.spans.size)
+        val point = depth * 2L
+        assertSame(index.spans[depth - 1L], index.at(MarkdownPosition(point))!!)
+        val hits = index.intersect(MarkdownRange(point, point + 1L))
+        assertEquals(depth, hits.size)
+        for (at in 1L ..< hits.size)
+            assertSame(hits[at - 1L].node.id, hits[at].parent!!)
+    }
+
+    @Test
+    fun largeDocumentQueriesDoNotRepeatNodeMatching() {
+        val rule = CountingImageNodeRule()
+        val profile = MarkdownProfile(nodeExtensions = [rule])
+        val source =
+            "A normal paragraph with enough text to keep this sample representative.\n\n![picture](asset.png)\n\n".repeat(
+                14000L
+            )
+        val parsed = MarkdownDocument.fromText(source).parse(profile)
+        assertTrue(parsed.snapshot.byteLength > 1048576L)
+        val index = parsed.extensionIndex()
+        assertEquals(14000L, index.spans.size)
+        val calls = rule.calls
+        assertTrue(calls > 14000L)
+        var position = 0L
+        while (position < index.spans.size) {
+            val span = index.spans[position]
+            assertSame(span, index.at(MarkdownPosition(span.sourceRange.start + 1L))!!)
+            val hits = index.intersect(span.sourceRange)
+            assertEquals(1L, hits.size)
+            assertSame(span, hits[0L])
+            position += 7L
+        }
+        assertEquals(calls, rule.calls)
+    }
+}
+
+private class CountingImageNodeRule: MarkdownNodeExtension {
+    public override val name = "image"
+    val delegate = markdownImageExtension()
+    var calls = 0L
+    public override fun match(input: MarkdownNodeExtensionInput): MarkdownExtensionForm? {
+        calls += 1L
+        return delegate.match(input)
+    }
+}

@@ -66,7 +66,13 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
             editor,
             workers,
             proxy,
-            MarkdownParseOptions(MarkdownProfile(math = true, extensions = [mdBookDirectives()]))
+            MarkdownParseOptions(
+                MarkdownProfile(
+                    math = true,
+                    extensions = [mdBookDirectives()],
+                    nodeExtensions = [markdownCodeExtension("mermaid")]
+                )
+            )
         )
     val step = state(0)
     val locked = state(false)
