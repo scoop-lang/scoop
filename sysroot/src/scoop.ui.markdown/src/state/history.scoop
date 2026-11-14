@@ -2,7 +2,7 @@ package scoop.ui.markdown
 
 import scoop.markdown.*
 
-/** Only modified text is retained; consecutive typing stores pieces until an actual replay. */
+/** Only modified text is retained; merged entries materialize strings only during replay. */
 internal class MdHistoryEntry(
     val before: MarkdownSelection,
     var after: MarkdownSelection,
@@ -10,6 +10,20 @@ internal class MdHistoryEntry(
     val original: Array<MarkdownReplacement>,
     val inverse: Array<MarkdownReplacement>
 ) {
+    private val typing =
+        if (
+            kind ==
+                MarkdownEditKind.Typing &&
+                before.collapsed &&
+                after.collapsed &&
+                original.size ==
+                1L &&
+                inverse.size ==
+                1L
+        )
+            Some(MdTypingHistory(original[0L].range, original[0L].text, inverse[0L].text))
+        else
+            None
     private val pieces = ArrayList<String>()
     private var start =
         if (original.size == 1L)
@@ -24,22 +38,13 @@ internal class MdHistoryEntry(
             1L &&
             before.collapsed &&
             after.collapsed &&
-            (
-                (kind == MarkdownEditKind.Typing && original[0L].range.isEmpty) ||
-                    (
-                        (kind == MarkdownEditKind.Backspace || kind == MarkdownEditKind.Delete) &&
-                            original[0L].text ==
-                            ""
-                    )
-            )
+            (kind == MarkdownEditKind.Backspace || kind == MarkdownEditKind.Delete) &&
+            original[0L].text ==
+            ""
 
     init {
         if (simple) {
-            val text =
-                if (kind == MarkdownEditKind.Typing)
-                    original[0L].text
-                else
-                    inverse[0L].text
+            val text = inverse[0L].text
             pieces.add(text)
             length = text.byteLength
         }
@@ -53,8 +58,7 @@ internal class MdHistoryEntry(
         nextKind: MarkdownEditKind
     ): Boolean {
         if (
-            !simple ||
-                kind !=
+            kind !=
                 nextKind ||
                 previous !=
                 after ||
@@ -67,13 +71,18 @@ internal class MdHistoryEntry(
         )
             return false
         val replacement = replacements[0L]
-        when (kind) {
-            case MarkdownEditKind.Typing -> {
-                if (!replacement.range.isEmpty || replacement.range.start != start + length)
+        when (typing) {
+            case Some(val value) -> {
+                if (!value.merge(replacement))
                     return false
-                pieces.add(replacement.text)
-                length += replacement.text.byteLength
+                after = next
+                return true
             }
+            case None -> if (!simple)
+                return false
+        }
+        when (kind) {
+            case MarkdownEditKind.Typing -> return false
             case MarkdownEditKind.Backspace -> {
                 if (replacement.text != "" || replacement.range.end != start)
                     return false
@@ -96,13 +105,16 @@ internal class MdHistoryEntry(
     }
 
     fun replacements(undo: Boolean): Array<MarkdownReplacement> {
+        when (typing) {
+            case Some(val value) -> return value.replacements(undo)
+            case None -> Unit
+        }
         if (!simple)
             return if (undo)
                 inverse
             else
                 original
-        val inserting = (kind == MarkdownEditKind.Typing) != undo
-        if (!inserting)
+        if (!undo)
             return [MarkdownReplacement(MarkdownRange(start, start + length), "")]
         val text = StringBuilder()
         if (kind == MarkdownEditKind.Backspace) {

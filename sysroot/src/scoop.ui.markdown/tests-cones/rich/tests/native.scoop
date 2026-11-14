@@ -67,3 +67,28 @@ internal fun mdNativeDocument(window: Window, host: MarkdownRichHost): Boolean {
         }
     }
 }
+
+internal fun mdNativeClick(window: Window, x: Double, y: Double) {
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            assertEquals(0, nativeEditorPointer(view, x, y, true, 1, false))
+            assertEquals(0, nativeEditorPointer(view, x, y, false, 1, false))
+        }
+    }
+}
+
+internal fun mdNativeKey(window: Window, code: Int, text: String, flags: Int = 0) {
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    assertEquals(0, nativeEditorKey(view, code, bytes, length, flags))
+                }
+            }
+        }
+    }
+}

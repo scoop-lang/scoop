@@ -1,0 +1,226 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownTextStyleTests {
+    @Test
+    fun styleQueriesDistinguishMixedBoundariesAndAtomicBlocks() {
+        val document = MarkdownDocument.fromText("**ab** cd\n\n*ef*\n\n```text\nraw\n```\n")
+        val content = mdWholeText(document)
+        val strong = MarkdownInlineStyle.Strong
+        assertEquals(
+            MarkdownStyleState.Mixed,
+            content.styleState(MarkdownRange(0L, content.text.byteLength), strong)
+        )
+        assertEquals(MarkdownStyleState.On, content.styleState(MarkdownRange(0L, 2L), strong))
+        assertEquals(MarkdownStyleState.Off, content.styleState(MarkdownRange(2L, 5L), strong))
+        assertEquals(
+            MarkdownStyleState.On,
+            content.styleState(MarkdownRange(2L, 2L), strong, MarkdownBias.Before)
+        )
+        assertEquals(
+            MarkdownStyleState.Off,
+            content.styleState(MarkdownRange(2L, 2L), strong, MarkdownBias.After)
+        )
+        assertEquals(
+            MarkdownStyleState.Unavailable,
+            content.styleState(MarkdownRange(5L, 6L), strong)
+        )
+        assertEquals(
+            MarkdownStyleState.Unavailable,
+            content.styleState(
+                MarkdownRange(content.text.byteLength - 3L, content.text.byteLength),
+                strong
+            )
+        )
+        val empty = mdWholeText(MarkdownDocument.fromText(""))
+        assertEquals(MarkdownStyleState.Off, empty.styleState(MarkdownRange(0L, 0L), strong))
+        assertTrue(content.profile.strikethrough)
+        assertEquals(0L, document.revision)
+    }
+
+    @Test
+    fun partialCrossBlockFormattingPreservesNestedStylesContainersAndCrLf() {
+        val source = "Keep\r\n\r\n## ab *cd*\r\n\r\n> ef **gh**\r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val before = mdWholeText(document)
+        val range = MarkdownRange("Keep\na".byteLength, "Keep\nab cd\ne".byteLength)
+        val edit = before.setStyle(range, MarkdownInlineStyle.Strong, true)
+        assertEquals(source, document.toMarkdown())
+        assertEquals(before.text.text, edit.after.text.text)
+        assertEquals(MarkdownRange(range.end, range.end), edit.insertedRange)
+        edit.applyTo(document)
+        assertEquals(
+            "<p>Keep</p>\n<h2>a<strong>b <em>cd</em></strong></h2>\n" +
+                "<blockquote>\n<p><strong>e</strong>f <strong>gh</strong></p>\n</blockquote>\n<p>Tail</p>\n",
+            mdTestHtml(document.parse())
+        )
+        assertTrue(document.toMarkdown().startsWith("Keep\r\n\r\n## "))
+        assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
+        assertEquals(
+            range.start,
+            edit.after.text.textAt(MarkdownPosition(edit.selection.start)).byteOffset
+        )
+        assertEquals(
+            range.end,
+            edit.after.text.textAt(
+                MarkdownPosition(edit.selection.end),
+                MarkdownBias.Before
+            ).byteOffset
+        )
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun formattingSpansTaskItemsAndTableCellsWithoutChangingAtomicSource() {
+        val code = "```mermaid\nflowchart LR\n A --> B\n```\n"
+        val directive = "{{#include page.md}}\n"
+        val source =
+            "- [x] a\n- [ ] b\n\n" +
+                code +
+                "\n| H | K |\n| - | - |\n| c | d |\n\n" +
+                directive +
+                "\nTail &amp;\n"
+        val document = MarkdownDocument.fromText(source)
+        val profile = MarkdownProfile(extensions = [mdBookDirectives()])
+        val initial = document.parse(profile).textContent(MarkdownRange(0L, source.byteLength))
+        val end = "a\nb\n\u{fffc}\nH\tK\nc".byteLength
+        val edit = initial.setStyle(MarkdownRange(0L, end), MarkdownInlineStyle.Emphasis, true)
+        edit.applyTo(document)
+        assertEquals(initial.text.text, edit.after.text.text)
+        assertTrue(document.toMarkdown().contains(code))
+        assertTrue(document.toMarkdown().contains(directive))
+        assertTrue(document.toMarkdown().endsWith("\nTail &amp;\n"))
+        val parsed = document.parse(profile)
+        val list = parsed.root.children[0L]
+        assertEquals(2L, list.children.size)
+        when ((list.children[0L].content, list.children[1L].content)) {
+            case(
+                MarkdownContent.ListItem(Some(val first)),
+                MarkdownContent.ListItem(Some(val last))
+            ) -> {
+                assertTrue(first)
+                assertFalse(last)
+            }
+            else -> fail(Some("Formatting must retain both task states"))
+        }
+        val table = parsed.root.children[2L]
+        assertEquals(2L, table.children.size)
+        assertEquals(2L, table.children[1L].children.size)
+        val cells = table.children[1L].children
+        assertTrue(
+            when (cells[0L].children[0L].content) {
+                case MarkdownContent.Emphasis -> true
+                else -> false
+            }
+        )
+        assertTrue(
+            when (cells[1L].children[0L].content) {
+                case MarkdownContent.Text(val value) -> value.text == "d"
+                else -> false
+            }
+        )
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun removingOneStyleAcrossContainersKeepsTheOtherStyleAndGrid() {
+        val source = "- **ab**\n- ***cd***\n\n| **E** | **F** |\n| - | - |\n"
+        val document = MarkdownDocument.fromText(source)
+        val before = mdWholeText(document)
+        val edit =
+            before.setStyle(
+                MarkdownRange(0L, before.text.byteLength),
+                MarkdownInlineStyle.Strong,
+                false
+            )
+        edit.applyTo(document)
+        val html = mdTestHtml(document.parse())
+        assertFalse(html.contains("<strong>"))
+        assertTrue(html.contains("<em>cd</em>"))
+        assertEquals(before.text.text, edit.after.text.text)
+        assertEquals(2L, document.parse().root.children.size)
+        mdTextUndo(document, edit.change, source)
+    }
+
+    @Test
+    fun insertionAndMultipleStylesPrepareOneTransactionAndRestoreExactSource() {
+        val source = "ab\n\ncd"
+        val document = MarkdownDocument.fromText(source)
+        val initial = mdWholeText(document)
+        val edit =
+            initial.edit {
+                replaceText(MarkdownRange(1L, 4L), "中文")
+                val inserted = insertedRange
+                setStyle(inserted, MarkdownInlineStyle.Strong, true)
+                setStyle(inserted, MarkdownInlineStyle.Emphasis, true)
+                assertEquals(inserted, insertedRange)
+                select(inserted)
+            }
+        assertEquals(source, document.toMarkdown())
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = document.observe { change -> changes.add(change) }
+        edit.applyTo(document)
+        assertEquals(1L, changes.size)
+        assertEquals("<p>a<strong><em>中文</em></strong>d</p>\n", mdTestHtml(document.parse()))
+        assertEquals("a中文d", edit.after.text.text)
+        val restored = edit.after.edit { restore(initial) }
+        restored.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+        subscription.close()
+    }
+
+    @Test
+    fun noOpAndInvalidFormatBatchesDoNotPublish() {
+        val source = "**中文**\n\n**ab**"
+        val document = MarkdownDocument.fromText(source)
+        val current = mdWholeText(document)
+        val same =
+            current.setStyle(
+                MarkdownRange(0L, current.text.byteLength),
+                MarkdownInlineStyle.Strong,
+                true
+            )
+        assertFalse(same.applyTo(document).changed)
+        assertEquals(0L, document.revision)
+        assertFailsWith<IllegalArgumentException> {
+            current.edit {
+                setStyle(MarkdownRange(0L, 3L), MarkdownInlineStyle.Emphasis, true)
+                setStyle(MarkdownRange(0L, 1L), MarkdownInlineStyle.Strong, true)
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            current.setStyle(MarkdownRange(0L, 0L), MarkdownInlineStyle.Strong, true)
+        }
+        val plain =
+            document.parse(MarkdownProfile(strikethrough = false))
+            .textContent(MarkdownRange(0L, source.byteLength))
+        assertFailsWith<IllegalArgumentException> {
+            plain.setStyle(MarkdownRange(0L, 3L), MarkdownInlineStyle.Strikethrough, true)
+        }
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun largeDocumentsFormatOnlyTheirSelectedLocalBlocks() {
+        val prefix = "中文 paragraph with **bold**.\n\n".repeat(40000L)
+        val document = MarkdownDocument.fromText(prefix + "ab\n\ncd\n\nTail\n")
+        val content =
+            document.parse().textContent(
+                MarkdownRange(prefix.byteLength + 1L, prefix.byteLength + 5L)
+            )
+        assertTrue(document.snapshot().byteLength > 1048576L)
+        assertTrue(content.sourceRange.byteLength < 256L)
+        val start = content.text.textAt(MarkdownPosition(prefix.byteLength + 1L)).byteOffset
+        val end = content.text.textAt(MarkdownPosition(prefix.byteLength + 5L)).byteOffset
+        val edit = content.setStyle(MarkdownRange(start, end), MarkdownInlineStyle.Strong, true)
+        edit.applyTo(document)
+        for (replacement in edit.change.replacements)
+            assertTrue(replacement.range.start >= prefix.byteLength)
+        assertEquals(prefix, document.snapshot().read(MarkdownRange(0L, prefix.byteLength)))
+        assertEquals(content.text.text, edit.after.text.text)
+        assertTrue(document.toMarkdown().endsWith("\n\nTail\n"))
+    }
+}

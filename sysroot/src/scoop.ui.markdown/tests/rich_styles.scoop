@@ -1,0 +1,235 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.window.*
+
+private fun styleContent(editor: MarkdownEditorState): MarkdownTextContent =
+    editor.document.parse(MarkdownProfile.Editor).textContent(editor.selection.range)
+
+private fun styleCommit(input: MarkdownRichInput, text: String) {
+    input.apply(
+        TextInputBatch(
+            Some(input.inputState.revision),
+            [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)]
+        )
+    )
+}
+
+private fun stylePreedit(input: MarkdownRichInput, text: String) {
+    input.apply(
+        TextInputBatch(
+            Some(input.inputState.revision),
+            [TextInputOperation.Preedit(text, None, TextReplacement.CurrentSelection)]
+        )
+    )
+}
+
+@Test
+private class MarkdownRichStyleTests {
+    @Test
+    fun collapsedStyleChangesWaitForTypingAndShareOneUndoGroup() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val input = MarkdownRichInput(editor, styleContent(editor))
+        assertFalse(input.setStyle(MarkdownInlineStyle.Strong, true))
+        assertEquals(MarkdownStyleState.On, input.styleState(MarkdownInlineStyle.Strong))
+        assertEquals("", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        styleCommit(input, "中")
+        styleCommit(input, "文")
+        styleCommit(input, "😀")
+        assertEquals("中文😀", input.inputState.surroundingText)
+        assertEquals("**中文😀**", editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertTrue(input.synchronize(styleContent(editor)))
+        assertEquals(MarkdownStyleState.Off, input.styleState(MarkdownInlineStyle.Strong))
+        assertTrue(editor.redo())
+        assertEquals("**中文😀**", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun typingCanLeaveAnExistingStyleAndSelectionMovesClearOverrides() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("**ab** tail"), mdCaret(4L))
+        val input = MarkdownRichInput(editor, styleContent(editor))
+        assertFalse(input.setStyle(MarkdownInlineStyle.Strong, false))
+        styleCommit(input, "X")
+        assertEquals("abX tail", input.content.text.text)
+        assertEquals(
+            MarkdownStyleState.Off,
+            input.content.styleState(MarkdownRange(2L, 3L), MarkdownInlineStyle.Strong)
+        )
+        input.setStyle(MarkdownInlineStyle.Emphasis, true)
+        styleCommit(input, "Y")
+        assertEquals(
+            MarkdownStyleState.On,
+            input.content.styleState(MarkdownRange(3L, 4L), MarkdownInlineStyle.Emphasis)
+        )
+        assertEquals(
+            MarkdownStyleState.Off,
+            input.content.styleState(MarkdownRange(3L, 4L), MarkdownInlineStyle.Strong)
+        )
+        editor.setSelection(mdCaret(2L))
+        input.synchronize()
+        assertEquals(MarkdownStyleState.On, input.styleState(MarkdownInlineStyle.Strong))
+        assertEquals(MarkdownStyleState.Off, input.styleState(MarkdownInlineStyle.Emphasis))
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun crossBlockFormattingPreservesReverseSelectionAndSharedHistory() {
+        val original = "__ab__\n\n_cd_\n\nTail"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+        val content = editor.document.parse().textContent(MarkdownRange(0L, original.byteLength))
+        val selected =
+            MarkdownSelection(
+                content.text.sourceAt(MarkdownPosition(4L), MarkdownBias.Before),
+                content.text.sourceAt(MarkdownPosition(1L), MarkdownBias.After),
+                MarkdownBias.Before,
+                MarkdownBias.After
+            )
+        editor.setSelection(selected)
+        val input = MarkdownRichInput(editor, content)
+        assertEquals(MarkdownStyleState.Mixed, input.styleState(MarkdownInlineStyle.Strong))
+        assertTrue(input.setStyle(MarkdownInlineStyle.Strong, true))
+        val changed = editor.document.toMarkdown()
+        assertEquals(Utf8Selection(4L, 1L), input.inputState.selection)
+        assertEquals("ab\ncd\nTail", input.inputState.surroundingText)
+        assertEquals(MarkdownStyleState.On, input.styleState(MarkdownInlineStyle.Strong))
+        assertTrue(editor.undo())
+        assertEquals(original, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        input.synchronize(styleContent(editor))
+        assertTrue(editor.redo())
+        assertEquals(changed, editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun pendingStylesSurviveCompositionCancellationAndFormattingAcceptsComposition() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("Start"), mdCaret(5L))
+        val input = MarkdownRichInput(editor, styleContent(editor))
+        input.setStyle(MarkdownInlineStyle.Strong, true)
+        stylePreedit(input, "ni")
+        stylePreedit(input, "你好😀")
+        assertTrue(editor.isComposing)
+        assertEquals(Some(Utf8Range(5L, 15L)), input.inputState.markedRange)
+        assertEquals("Start你好😀", input.inputState.surroundingText)
+        assertTrue(editor.cancelComposition())
+        assertEquals("Start", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertEquals(MarkdownStyleState.On, input.styleState(MarkdownInlineStyle.Strong))
+        stylePreedit(input, "ni")
+        assertTrue(input.setStyle(MarkdownInlineStyle.Emphasis, true))
+        assertFalse(editor.isComposing)
+        assertEquals(None, input.inputState.markedRange)
+        assertTrue(editor.canUndo)
+        val accepted = editor.document.toMarkdown()
+        assertEquals("Startni", input.content.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            input.content.styleState(MarkdownRange(5L, 7L), MarkdownInlineStyle.Strong)
+        )
+        styleCommit(input, "好")
+        assertEquals("Startni好", input.inputState.surroundingText)
+        assertEquals(
+            MarkdownStyleState.On,
+            input.content.styleState(MarkdownRange(7L, 10L), MarkdownInlineStyle.Emphasis)
+        )
+        assertTrue(editor.undo())
+        assertEquals(accepted, editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("Start", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun styledTypingCoalescesSourceRewritesAndRestoresOriginalBytes() {
+        val original = "Head\r\n\r\nStart\r\n\r\nTail\r\n"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(original), mdCaret(13L))
+        val input = MarkdownRichInput(editor, styleContent(editor))
+        input.setStyle(MarkdownInlineStyle.Strong, true)
+        styleCommit(input, "ni")
+        styleCommit(input, "好")
+        styleCommit(input, "😀")
+        val changed = editor.document.toMarkdown()
+        val selected = editor.selection
+        assertEquals("Startni好😀", input.content.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            input.content.styleState(MarkdownRange(5L, 14L), MarkdownInlineStyle.Strong)
+        )
+        assertTrue(editor.undo())
+        assertEquals(original, editor.document.toMarkdown())
+        assertEquals(mdCaret(13L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals(changed, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun failedBatchesAndUnavailableProfileStylesPreserveTypingState() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        val input = MarkdownRichInput(editor, styleContent(editor))
+        input.setStyle(MarkdownInlineStyle.Strong, true)
+        val revision = input.inputState.revision
+        assertFailsWith<IllegalArgumentException> {
+            input.apply(
+                TextInputBatch(
+                    Some(revision),
+                    [
+                        TextInputOperation.Commit("中文", TextReplacement.CurrentSelection),
+                        TextInputOperation.Commit("bad", TextReplacement.Range(Utf8Range(1L, 2L)))
+                    ]
+                )
+            )
+        }
+        assertEquals(revision, input.inputState.revision)
+        assertEquals("", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertEquals(MarkdownStyleState.On, input.styleState(MarkdownInlineStyle.Strong))
+        styleCommit(input, "ok")
+        assertEquals("**ok**", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+
+        val plain = MarkdownEditorState(MarkdownDocument.fromText("x"), mdCaret(1L))
+        val content =
+            plain.document.parse(MarkdownProfile(strikethrough = false))
+            .textContent(plain.selection.range)
+        val disabled = MarkdownRichInput(plain, content)
+        stylePreedit(disabled, "ni")
+        val before = plain.snapshot
+        assertFailsWith<IllegalArgumentException> {
+            disabled.setStyle(MarkdownInlineStyle.Strikethrough, true)
+        }
+        assertSame(before, plain.snapshot)
+        assertTrue(plain.isComposing)
+        plain.cancelComposition()
+        disabled.close()
+        plain.close()
+    }
+
+    @Test
+    fun externalChangesDiscardPendingStylesWhenTheCurrentContentIsRebound() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("ab"), mdCaret(2L))
+        val input = MarkdownRichInput(editor, styleContent(editor))
+        input.setStyle(MarkdownInlineStyle.Strong, true)
+        editor.document.replace(MarkdownRange(0L, 0L), "X")
+        assertTrue(input.synchronize(styleContent(editor)))
+        assertEquals(MarkdownStyleState.Off, input.styleState(MarkdownInlineStyle.Strong))
+        styleCommit(input, "c")
+        assertEquals("Xabc", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+}

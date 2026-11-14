@@ -1,0 +1,42 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Keeps only the changed source span, including delimiters introduced by rich typing. */
+internal class MdTypingHistory(
+    private val range: MarkdownRange,
+    text: String,
+    private val removed: String
+) {
+    private var current = MarkdownDocument.fromText(text).snapshot()
+
+    fun merge(replacement: MarkdownReplacement): Boolean {
+        val selected = replacement.range
+        if (selected.start < range.start || selected.end > range.start + current.byteLength)
+            return false
+        current =
+            current.prepare(
+                MarkdownEdit(
+                    current.revision,
+                    [
+                        MarkdownReplacement(
+                            MarkdownRange(selected.start - range.start, selected.end - range.start),
+                            replacement.text
+                        )
+                    ]
+                )
+            ).after
+        return true
+    }
+
+    fun replacements(undo: Boolean): Array<MarkdownReplacement> =
+        if (undo)
+            [
+                MarkdownReplacement(
+                    MarkdownRange(range.start, range.start + current.byteLength),
+                    removed
+                )
+            ]
+        else
+            [MarkdownReplacement(range, current.toMarkdown())]
+}

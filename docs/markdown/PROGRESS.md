@@ -278,3 +278,15 @@ API 生成与 textContent／replaceText／restore 查询通过；规范、设计
 使用 ~/.scoop 完成 fmt、受影响 Cone 的 check --tests --release。UI 库 89 项全量通过，补齐显示行复用的源码入口后 8 项投影定向回归通过。原生源码窗口 52 步通过，约 2.06 秒；局部源码窗口 35 步通过，约 1.00 秒；原有富文本 47 步回归通过，约 2.82 秒；三模式 29 步回归通过，约 3.60 秒。全部使用 scoop test 程序、scoop bundle 与 Launch Services，并核对 begin／end／complete 和空 failures。源码首轮测试在撤销退休连接后过早注入文字，补充连接与布局交接后通过；局部源码首轮发现后台行复用丢失入口范围，修复及回归后通过。
 
 API 生成及 MarkdownSourceRegion／MarkdownSourceInput／markdownSourceEditor 查询通过，规范、设计、README、原生测试复现说明及编程导航同步。本批无编译器、runtime 或系统库变更。原始日志、临时应用包和 API 站点核对后清理，保留正常构建缓存。跨块格式化、Markdown 片段粘贴、代码语言选择／高亮、查找替换与最终大文档性能验收继续实施。
+
+## C：选区格式与后续输入样式
+
+文档 Cone 新增 MarkdownStyleState，以及 MarkdownTextContent／edit builder 的跨块 setStyle 与 styleState。粗体、斜体和删除线按相交行内块一次准备，保留显示选区、容器、表格网格、原子扩展与区外源码；批次给新文字加格式时保留 insertedRange。格式状态区分 Off／On／Mixed／Unavailable，跳过纯空白和结构分隔，独立程序可直接消费。
+
+MarkdownRichInput 支持折叠光标的后续输入样式，不预先写入空标记；格式命令接受当前组合，组合取消恢复原始源码并保留待输入样式。RichHost 与 viewState 提供格式命令和可追踪状态，Primary-B／I／Shift-X 分别切换粗体／斜体／删除线。可选 markdownFormattingToolbar 已接入三模式示例，显示混合状态、尊重只读与纯源码模式，并在点击后恢复富文本焦点。连续键入引入格式定界符或邻接转义时，历史复用文档分块文本保存已修改片段，仍可一次撤销；不逐键复制全文或拼接累计字符串。
+
+使用 ~/.scoop 完成受影响 Cone 的 fmt 与 check --tests --release，文档库 191 项、UI 库 96 项、独立无 UI consumer 16 项全量通过。UI 首轮发现新建格式定界符会拆开连续输入历史，修复后补充非空原文的精确恢复并全量通过；另一项误锁定等价实体拼写的断言改为核对语义与已接受快照。超过 1 MiB 的 40,000 段样本只格式化小于 256 字节的局部上下文，包含完整解析的测试约 0.43 秒，不作为交互延迟指标。
+
+原生格式窗口 35 步通过，约 1.97 秒；局部源码 35 步回归通过，约 0.97 秒；原有富文本 47 步通过，约 2.76 秒；三模式 29 步通过，约 3.40 秒。全部使用 scoop test 生成程序、scoop bundle 与 Launch Services，核对 begin／end／complete 和空 failures；覆盖真实快捷键、按钮点击、反向跨块选择、连续中文／emoji、组合接受与取消、只读、模式切换和卸载。
+
+API 生成及 MarkdownStyleState／MarkdownTextContent.setStyle／styleState、MarkdownRichInput.setStyle、MarkdownEditorViewState.toggleStyle 和 markdownFormattingToolbar 查询通过。规范、设计、README、消费示例、原生复现说明及编程导航（含本机工具链副本）同步。本批无编译器、runtime 或系统库修改；临时日志、应用包与 API 站点核对后清理，正常缓存保留。行内代码转换、Markdown 片段粘贴、代码语言选择／高亮、链接和图片操作、查找替换及最终 1／5 MiB 性能验收继续实施。

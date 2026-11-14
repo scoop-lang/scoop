@@ -42,6 +42,7 @@ private class MdRichPreparation(
     composition: MdRichComposition?,
     private val kind: MarkdownEditKind
 ) {
+    private val styles = owner.typingStyles
     private val before = composition?.before ?: owner.content
     private val historyBefore = composition?.selection ?: owner.editor.selection
     private var baseline = composition?.baseline
@@ -93,6 +94,7 @@ private class MdRichPreparation(
                             text,
                             selected.cursorBias
                         )
+                        styles.apply(builder)
                         current =
                             mdRichReplacedInput(
                                 prior,
@@ -113,6 +115,7 @@ private class MdRichPreparation(
                         text,
                         selected.cursorBias
                     )
+                    styles.apply(builder)
                     current =
                         mdRichReplacedInput(
                             prior,

@@ -1,0 +1,64 @@
+package scoop.markdown
+
+internal fun mdTextSetStyle(
+    content: MarkdownTextContent,
+    range: MarkdownRange,
+    style: MarkdownInlineStyle,
+    enabled: Boolean
+): MarkdownTextEdit {
+    mdTextCheckRange(content, range)
+    requireMarkdown(!range.isEmpty, "Text styling needs a nonempty text range")
+    requireMarkdown(
+        style != MarkdownInlineStyle.Strikethrough || content.profile.strikethrough,
+        "Strikethrough requires a profile with strikethrough enabled"
+    )
+    return when (content.context) {
+        case Inline(val value) -> {
+            val edit = value.setStyle(range, style, enabled)
+            MarkdownTextEdit(
+                edit.change,
+                edit.selection,
+                MarkdownRange(range.end, range.end),
+                MarkdownTextContent(MdTextContext.Inline(edit.after), content.origin)
+            )
+        }
+        case Blocks(val value) -> {
+            val replacements = ArrayList<MarkdownReplacement>()
+            for (block in value.blocks) {
+                if (block.start >= range.end)
+                    break
+                if (block.end <= range.start)
+                    continue
+                val inline = block.inline ?: continue
+                val selected =
+                    MarkdownRange(
+                        mdTextBlockOffset(block, range.start),
+                        mdTextBlockOffset(block, range.end)
+                    )
+                val edit = inline.setStyle(selected, style, enabled)
+                for (replacement in edit.change.replacements)
+                    replacements.add(replacement)
+            }
+            val change =
+                content.snapshot.prepare(
+                    MarkdownEdit(content.snapshot.revision, replacements.toArray())
+                )
+            val after =
+                if (replacements.size == 0L)
+                    content
+                else
+                    MarkdownTextContent(
+                        MdTextContext.Blocks(
+                            MdBlockText(value.syntax.region.after(change).parse())
+                        ),
+                        content.origin
+                    )
+            MarkdownTextEdit(
+                change,
+                mdInlineSelection(after.text, range),
+                MarkdownRange(range.end, range.end),
+                after
+            )
+        }
+    }
+}

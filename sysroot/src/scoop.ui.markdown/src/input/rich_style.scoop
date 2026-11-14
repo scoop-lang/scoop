@@ -1,0 +1,60 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal struct MdTypingStyles(
+    val emphasis: Boolean? = None,
+    val strong: Boolean? = None,
+    val strike: Boolean? = None
+) {
+    fun value(style: MarkdownInlineStyle): Boolean? =
+        when (style) {
+            case Emphasis -> emphasis
+            case Strong -> strong
+            case Strikethrough -> strike
+        }
+
+    fun withStyle(style: MarkdownInlineStyle, enabled: Boolean): MdTypingStyles =
+        when (style) {
+            case Emphasis -> MdTypingStyles(Some(enabled), strong, strike)
+            case Strong -> MdTypingStyles(emphasis, Some(enabled), strike)
+            case Strikethrough -> MdTypingStyles(emphasis, strong, Some(enabled))
+        }
+
+    fun apply(builder: MarkdownTextEditBuilder) {
+        val range = builder.insertedRange
+        if (range.isEmpty)
+            return
+        for (
+            style in [
+                MarkdownInlineStyle.Emphasis,
+                MarkdownInlineStyle.Strong,
+                MarkdownInlineStyle.Strikethrough
+            ]
+        )
+            when (value(style)) {
+                case Some(val enabled) -> builder.setStyle(range, style, enabled)
+                case None -> Unit
+            }
+    }
+}
+
+internal fun mdRichInputStyle(
+    input: MarkdownRichInput,
+    style: MarkdownInlineStyle
+): MarkdownStyleState {
+    val range = input.inputState.selection.range
+    if (range.start == range.end)
+        when (input.typingStyles.value(style)) {
+            case Some(val enabled) -> return if (enabled)
+                MarkdownStyleState.On
+            else
+                MarkdownStyleState.Off
+            case None -> Unit
+        }
+    return input.content.styleState(
+        MarkdownRange(range.start, range.end),
+        style,
+        input.editor.selection.cursorBias
+    )
+}

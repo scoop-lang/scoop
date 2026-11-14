@@ -1,0 +1,138 @@
+package scoop.markdown
+
+import scoop.text.isBlank
+
+/** Unavailable means the selection contains no inline content that can carry this style. */
+public enum MarkdownStyleState {
+    Unavailable, Off, On, Mixed
+}
+
+internal class MdStyleCount {
+    private var count = 0L
+    private var enabled = 0L
+    val state: MarkdownStyleState get() =
+        if (count == 0L)
+            MarkdownStyleState.Unavailable
+        else
+            if (enabled == 0L)
+                MarkdownStyleState.Off
+            else
+                if (enabled == count)
+                    MarkdownStyleState.On
+                else
+                    MarkdownStyleState.Mixed
+
+    fun add(value: Boolean) {
+        count += 1L
+        if (value)
+            enabled += 1L
+    }
+
+    fun add(value: MdStyleCount) {
+        count += value.count
+        enabled += value.enabled
+    }
+}
+
+internal fun mdInlineStyleCount(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    style: MarkdownInlineStyle,
+    bias: MarkdownBias
+): MdStyleCount {
+    val result = MdStyleCount()
+    val flag = mdInlineStyleFlag(style)
+    if (range.isEmpty) {
+        val index = mdInlineUnitAt(content, range.start, bias)
+        result.add(index >= 0L && content.model.units[index].flags.and(flag) != 0)
+        return result
+    }
+    var offset = 0L
+    for (unit in content.model.units) {
+        val next = offset + unit.text.byteLength
+        if (offset >= range.end)
+            break
+        if (
+            next >
+                range.start &&
+                unit.kind !=
+                MdInlineUnitKind.SoftBreak &&
+                unit.kind !=
+                MdInlineUnitKind.HardBreak
+        ) {
+            val selected =
+                if (offset >= range.start && next <= range.end)
+                    unit.text
+                else
+                    mdBytesText(
+                        unit.text.toByteArray(),
+                        if (range.start > offset)
+                            range.start - offset
+                        else
+                            0L,
+                        if (range.end < next)
+                            range.end - offset
+                        else
+                            unit.text.byteLength
+                    )
+            if (!selected.isBlank())
+                result.add(unit.flags.and(flag) != 0)
+        }
+        offset = next
+    }
+    return result
+}
+
+internal fun mdTextStyleCount(
+    content: MarkdownTextContent,
+    range: MarkdownRange,
+    style: MarkdownInlineStyle,
+    bias: MarkdownBias
+): MdStyleCount {
+    mdTextCheckRange(content, range)
+    return when (content.context) {
+        case Inline(val value) -> mdInlineStyleCount(value, range, style, bias)
+        case Blocks(val value) -> {
+            val result = MdStyleCount()
+            if (range.isEmpty) {
+                val at = value.at(range.start)
+                if (at >= 0L) {
+                    val block = value.blocks[at]
+                    when (block.inline) {
+                        case Some(val inline) -> {
+                            val offset = mdTextBlockOffset(block, range.start)
+                            result.add(
+                                mdInlineStyleCount(
+                                    inline,
+                                    MarkdownRange(offset, offset),
+                                    style,
+                                    bias
+                                )
+                            )
+                        }
+                        case None -> Unit
+                    }
+                }
+            } else
+                for (block in value.blocks) {
+                    if (block.start >= range.end)
+                        break
+                    if (block.end <= range.start)
+                        continue
+                    val inline = block.inline ?: continue
+                    result.add(
+                        mdInlineStyleCount(
+                            inline,
+                            MarkdownRange(
+                                mdTextBlockOffset(block, range.start),
+                                mdTextBlockOffset(block, range.end)
+                            ),
+                            style,
+                            bias
+                        )
+                    )
+                }
+            result
+        }
+    }
+}

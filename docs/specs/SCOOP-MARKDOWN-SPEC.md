@@ -116,7 +116,9 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 
 `setStyle(range, style, enabled)` 对非空显示范围设置／移除粗体、强调或删除线，保留其他样式与链接。删除或格式操作跨越行内结构时，重建该行内块内需要的结构；块外原文、引用定义、标题标记、任务标记、列表／引用前缀及换行风格保持。单个文字叶片或代码 span 内的普通修改走局部替换，保留外围定界符；若边缘物理字符的空白／标点类别变化会影响定界匹配，同样沿结构重建路径处理。隐式依赖 label 的链接变更后使用保留目标与标题的显式链接。显式结构修改可规范化受影响行内块的格式写法，不成为普通保存或模式切换时的全文格式化。
 
-两种操作都只准备 `MarkdownInlineEdit`，包含文档身份、原始 revision、普通 MarkdownEdit、编辑后源码选区及 `after: MarkdownInlineContent`。change 是包含正反差量的完整准备结果，尚未因此发布；after.snapshot 是同一 change.after 不可变源快照，after.text 是局部显示映射；它可继续准备后续输入，文档尚未因此发布修改。applyTo 要求文档仍处于准备使用的源快照，直接发布同一事务准备结果；不重复读取或应用已准备的修改。源码差量取实际变化的公共前后缀之外部分，保持标量边界。更新的映射通过当前块的行内解析生成，复用原解析提供的链接／脚注上下文，不为一次行内操作重新解析整篇文档。参数错误或不可表达的代码单元格沿既有参数错误处理，准备失败不发布。
+`styleState(range, style, bias)` 查询相同显示坐标内的格式，返回 MarkdownStyleState 的 Off、On、Mixed 或 Unavailable。非空选择忽略纯空白和行内换行；没有可格式化内容时为 Unavailable。折叠选择使用 bias 指定的一侧，空行内内容为 Off，查询不插入空定界符。行内对象保留其外围格式；代码块、扩展块及跨块分隔符不参与统计。公开 profile 提供该内容采用的解析配置。
+
+`replaceText` 和 `setStyle` 都只准备 `MarkdownInlineEdit`，包含文档身份、原始 revision、普通 MarkdownEdit、编辑后源码选区及 `after: MarkdownInlineContent`。change 是包含正反差量的完整准备结果，尚未因此发布；after.snapshot 是同一 change.after 不可变源快照，after.text 是局部显示映射；它可继续准备后续输入，文档尚未因此发布修改。applyTo 要求文档仍处于准备使用的源快照，直接发布同一事务准备结果；不重复读取或应用已准备的修改。源码差量取实际变化的公共前后缀之外部分，保持标量边界。更新的映射通过当前块的行内解析生成，复用原解析提供的链接／脚注上下文，不为一次行内操作重新解析整篇文档。参数错误或不可表达的代码单元格沿既有参数错误处理，准备失败不发布。
 
 `content.edit { ... }` 按顺序准备一个行内编辑批次，builder 的 content 始终指向本批当前的局部内容。replaceText／setStyle 消费当前显示坐标，select 设置最终显示选区；整批只有一个对原文档的源码事务和一次内容 revision。restore 可以恢复从同一行内区域保留的内容快照，供组合取消恢复确切源码；其他文档或其他区域的内容不能充当该恢复基线。中间快照共享原文档未变化的源树，不建立另一份文档或历史，不向观察者发布。
 
@@ -162,7 +164,9 @@ MarkdownTextContent 提供 snapshot、sourceRange、text，以及可用时的 in
 
 replaceText 返回 `MarkdownTextEdit`，含一次准备好的 change、结果源码 selection、结果显示坐标中的 insertedRange 和 after 内容；insertedRange 标识实际插入的文字，供输入法组合区和相对选区使用。保留表格／容器边界时，结果显示文本可以仍含结构分隔符，调用方须使用 after 的映射，不能仅以插入字节数推算全部端点。删除后只剩空标题或空列表项时，零长度显示文本映射到标记之后的真实插入点。跨块操作只解析其当前区域，普通单段输入继续使用局部行内解析。
 
-`content.edit { ... }` 顺序消费当前显示坐标，支持 replaceText、select 和 restore；整个批次只准备一次对外 change，失败不发布。restore 只接受同一输入上下文保留的快照，恢复其确切源码和选区，不要求它仍是一个段落；用于跨块输入法取消。连续中间快照共享源树，批次结束时只比较该上下文涉及的源码范围。公开准备结果按 §4 的精确快照规则发布，逆向事务恢复原始字节。
+`content.edit { ... }` 顺序消费当前显示坐标，支持 replaceText、setStyle、select 和 restore；整个批次只准备一次对外 change，失败不发布。restore 只接受同一输入上下文保留的快照，恢复其确切源码和选区，不要求它仍是一个段落；用于跨块输入法取消。连续中间快照共享源树，批次结束时只比较该上下文涉及的源码范围。公开准备结果按 §4 的精确快照规则发布，逆向事务恢复原始字节。
+
+MarkdownTextContent 及其 edit builder 也支持 setStyle；styleState 使用同一选区规则汇总各行内块。跨段落、标题、列表项和表格单元格的格式操作分别修改选中的行内文字，合成一次源码事务，保留表格网格、容器标记、代码／扩展等原子块和区外原文。操作保留显示文字与选区范围，after 提供当前区域，独立格式操作的 insertedRange 是选区末尾的空范围。批次内 setStyle 不改变已有 insertedRange，便于在同一事务中为新输入文字设置格式。
 
 ## 9. 扩展语法
 

@@ -22,6 +22,8 @@ public class MarkdownRichInput public constructor(
         TextInputState(content.text.text, mdRichNativeSelection(content, editor.selection))
     private var observedInput = editor.inputRevision
     private var closed = false
+    internal var typingStyles = MdTypingStyles()
+    private var styledSelection = editor.selection
 
     public constructor(editor: MarkdownEditorState, content: MarkdownInlineContent): this(
         editor,
@@ -53,6 +55,38 @@ public class MarkdownRichInput public constructor(
     public val inputState: TextInputState get() {
         checkRead();
         return input
+    }
+
+    public fun styleState(style: MarkdownInlineStyle): MarkdownStyleState =
+        mdRichInputStyle(this, style)
+
+    /** True means the host must retire its native connection before publishing the new mapping. */
+    public fun setStyle(style: MarkdownInlineStyle, enabled: Boolean): Boolean {
+        checkRead()
+        editor.checkEdit()
+        checkOwner()
+        if (style == MarkdownInlineStyle.Strikethrough && !current.profile.strikethrough)
+            throw IllegalArgumentException(
+                Some("Strikethrough requires a profile with strikethrough enabled")
+            )
+        val composing = editor.isComposing
+        editor.acceptComposition()
+        val relocated = synchronize()
+        editor.breakUndoGroup()
+        val selected = input.selection.range
+        if (selected.start == selected.end) {
+            typingStyles = typingStyles.withStyle(style, enabled)
+            return composing || relocated
+        }
+        val edit = current.setStyle(MarkdownRange(selected.start, selected.end), style, enabled)
+        val reversed = input.selection.anchor > input.selection.cursor
+        try {
+            editor.apply(edit.change, edit.selection, reversed)
+        } finally {
+            if (editor.snapshot === edit.after.snapshot)
+                synchronize(edit.after)
+        }
+        return true
     }
 
     public fun snapshot(caret: LogicalRect): TextInputState {
@@ -101,9 +135,12 @@ public class MarkdownRichInput public constructor(
                 mdRichNativeSelection(next, editor.selection),
                 revision = input.revision + 1L
             )
+        if (next.snapshot !== current.snapshot || styledSelection != editor.selection)
+            typingStyles = MdTypingStyles()
         current = next
         input = updated
         observedInput = editor.inputRevision
+        styledSelection = editor.selection
         return relocate
     }
 
@@ -139,6 +176,7 @@ public class MarkdownRichInput public constructor(
                 current = prepared.rich!!.after
                 input = prepared.current
                 observedInput = editor.inputRevision
+                styledSelection = editor.selection
             }
         }
     }

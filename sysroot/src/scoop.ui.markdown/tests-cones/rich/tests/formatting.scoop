@@ -1,0 +1,361 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownFormattingWindowTests {
+    @Test
+    fun toolbarShortcutsAndTypingStylesShareTheNativeSelectionAndHistory() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1
+                blocking { threads = 1 }
+            }
+        val probe = FormattingProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+        } catch (error: Throwable) {
+            println("Formatting window step " + probe.step.value.toString())
+            throw error
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class FormattingProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val editor =
+        MarkdownEditorState(
+            MarkdownDocument.fromText("__ab__\n\ncd\n\nTail\n"),
+            MarkdownSelection(MarkdownPosition(9L), MarkdownPosition(3L))
+        )
+    val view = MarkdownEditorViewState(editor)
+    val parser =
+        MarkdownParseController(
+            editor,
+            workers,
+            proxy,
+            MarkdownParseOptions(MarkdownProfile.Editor)
+        )
+    val step = state(0)
+    val mounted = state(true)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var inputReady = false
+    var source = false
+    var waiting = false
+    var presentations = 0L
+    var both = ""
+    var italic = ""
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown formatting verification"
+                            size = LogicalSize(640.0, 420.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> FormattingRoot(this, scope) })
+                native.createDeadline {
+                    println(
+                        "richFocus=" +
+                            view.richFocus.isFocusActive.toString() +
+                            ", sourceFocus=" +
+                            view.sourceFocus.isFocusActive.toString() +
+                            ", input=" +
+                            inputReady.toString()
+                    )
+                    fail(Some("Formatting timeout at " + step.value.toString()))
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val value)) -> when (value) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                presentations
+        )
+            return false
+        if (!mounted.value)
+            return true
+        return (
+            if (source)
+                view.sourceFocus.isFocusActive
+            else
+                view.richFocus.isFocusActive
+        ) &&
+            (inputReady || view.rightReadOnly)
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+
+    private fun key(code: Int, text: String, flags: Int = 0) {
+        mdNativeKey(window!!, code, text, flags)
+    }
+
+    private fun style(style: MarkdownInlineStyle, expected: MarkdownStyleState) {
+        assertEquals(expected, view.styleState(style))
+    }
+
+    private fun text(expected: String) {
+        val parsed = editor.document.parse(MarkdownProfile.Editor)
+        assertEquals(
+            expected,
+            parsed.textContent(MarkdownRange(0L, editor.snapshot.byteLength)).text.text
+        )
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Mixed)
+                next { key(11, "b", 8) }
+            }
+            case 1 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                assertTrue(editor.selection.anchor.byteOffset > editor.selection.cursor.byteOffset)
+                text("ab\ncd\nTail")
+                next { key(34, "i", 8) }
+            }
+            case 2 -> {
+                style(MarkdownInlineStyle.Emphasis, MarkdownStyleState.On)
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                both = editor.document.toMarkdown()
+                next { key(11, "b", 8) }
+            }
+            case 3 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Off)
+                style(MarkdownInlineStyle.Emphasis, MarkdownStyleState.On)
+                italic = editor.document.toMarkdown()
+                next { key(6, "z", 8) }
+            }
+            case 4 -> {
+                assertEquals(both, editor.document.toMarkdown())
+                next { key(6, "z", 9) }
+            }
+            case 5 -> {
+                assertEquals(italic, editor.document.toMarkdown())
+                next { key(7, "x", 9) }
+            }
+            case 6 -> {
+                style(MarkdownInlineStyle.Strikethrough, MarkdownStyleState.On)
+                next { key(6, "z", 8) }
+            }
+            case 7 -> {
+                style(MarkdownInlineStyle.Strikethrough, MarkdownStyleState.Off)
+                next { mdNativeClick(window!!, 20.0, 14.0) }
+            }
+            case 8 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                assertTrue(view.richFocus.isFocusActive)
+                next { editor.document.reset("") }
+            }
+            case 9 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Off)
+                next { key(11, "b", 8) }
+            }
+            case 10 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                assertEquals("", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next { assertEquals(0, mdNativeText(window!!, "中")) }
+            }
+            case 11 -> {
+                text("中")
+                next { assertEquals(0, mdNativeText(window!!, "文😀")) }
+            }
+            case 12 -> {
+                text("中文😀")
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                next { key(6, "z", 8) }
+            }
+            case 13 -> {
+                assertEquals("", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next { key(6, "z", 9) }
+            }
+            case 14 -> {
+                text("中文😀")
+                next {
+                    source = true;
+                    view.setMode(MarkdownEditorMode.Source)
+                }
+            }
+            case 15 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Unavailable)
+                assertFalse(view.toggleStyle(MarkdownInlineStyle.Strong))
+                next {
+                    source = false
+                    view.setMode(MarkdownEditorMode.SideBySide)
+                    view.requestFocus(MarkdownEditorPane.Rich)
+                }
+            }
+            case 16 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                next { view.setRightReadOnly(true) }
+            }
+            case 17 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Unavailable)
+                assertFalse(view.setStyle(MarkdownInlineStyle.Strong, false))
+                next { key(11, "b", 8) }
+            }
+            case 18 -> {
+                text("中文😀")
+                next { view.setRightReadOnly(false) }
+            }
+            case 19 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                next {
+                    editor.document.reset("plain")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(5L), MarkdownPosition(5L))
+                    )
+                }
+            }
+            case 20 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Off)
+                next { key(11, "b", 8) }
+            }
+            case 21 -> next { assertEquals(0, mdNativeText(window!!, "ni", 1, 2L)) }
+            case 22 -> {
+                assertTrue(editor.isComposing)
+                text("plainni")
+                next { key(53, "\u{1b}") }
+            }
+            case 23 -> {
+                assertEquals("plain", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.On)
+                next { assertEquals(0, mdNativeText(window!!, "ni", 1, 2L)) }
+            }
+            case 24 -> next { key(34, "i", 8) }
+            case 25 -> {
+                assertFalse(editor.isComposing)
+                style(MarkdownInlineStyle.Emphasis, MarkdownStyleState.On)
+                next { assertEquals(0, mdNativeText(window!!, "好")) }
+            }
+            case 26 -> {
+                text("plainni好")
+                next { key(6, "z", 8) }
+            }
+            case 27 -> {
+                text("plainni")
+                next { key(6, "z", 8) }
+            }
+            case 28 -> {
+                assertEquals("plain", editor.document.toMarkdown())
+                next {
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(5L))
+                    )
+                }
+            }
+            case 29 -> next { assertTrue(view.setStyle(MarkdownInlineStyle.Strikethrough, true)) }
+            case 30 -> {
+                style(MarkdownInlineStyle.Strikethrough, MarkdownStyleState.On)
+                next {
+                    source = true;
+                    view.setMode(MarkdownEditorMode.Source)
+                }
+            }
+            case 31 -> next { key(6, "z", 8) }
+            case 32 -> {
+                assertEquals("plain", editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next {
+                    source = false;
+                    view.setMode(MarkdownEditorMode.Wysiwyg)
+                }
+            }
+            case 33 -> next { mounted.value = false }
+            case 34 -> {
+                style(MarkdownInlineStyle.Strong, MarkdownStyleState.Unavailable)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected formatting step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class FormattingRoot(val probe: FormattingProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Rich)
+    }
+
+    public override fun render(): View {
+        val current = probe
+        current.step.value
+        return column {
+            alignment = CrossAlignment.Stretch
+            if (current.mounted.value) {
+                item(markdownFormattingToolbar(current.view))
+                item(markdownEditor(current.view, current.parser)) {
+                    grow = 1.0
+                    basis = FlexBasis.Fixed(0.0)
+                }
+            }
+        }
+    }
+}

@@ -45,6 +45,7 @@ public class MarkdownRichHost public constructor(
     internal var cursorAffinity = TextAffinity.Downstream
     internal var caretVisible = true
     internal var changed: (MarkdownChange) -> Unit = { _ -> Unit }
+    private val styles = state(MdRichStyles())
     private var subscription = editor.document.observe { change -> sourceChanged(change) }
     internal val blink =
         scope.createDeadline {
@@ -104,6 +105,9 @@ public class MarkdownRichHost public constructor(
 
     internal fun refresh() {
         mdRefreshRich(this)
+        val next = mdRichStyleValues(this)
+        if (next != styles.value)
+            styles.value = next
     }
 
     public fun update(
@@ -174,32 +178,29 @@ public class MarkdownRichHost public constructor(
 
     public fun setStyle(style: MarkdownInlineStyle, enabled: Boolean): Boolean {
         checkOpen()
-        if (readOnly || !preview.options.enabled)
-            return false
         refresh()
-        val active = input ?: return false
-        val content = active.content.inlineContent ?: return false
-        if (!mdRichContains(content, editor.selection) || editor.selection.collapsed)
+        return applyStyle(style, enabled)
+    }
+
+    public fun toggleStyle(style: MarkdownInlineStyle): Boolean {
+        checkOpen()
+        refresh()
+        return applyStyle(style, styles.value.value(style) != MarkdownStyleState.On)
+    }
+
+    /** Observable formatting from the current input, safe to read while rendering controls. */
+    public fun styleState(style: MarkdownInlineStyle): MarkdownStyleState {
+        checkOpen()
+        return styles.value.value(style)
+    }
+
+    private fun applyStyle(style: MarkdownInlineStyle, enabled: Boolean): Boolean {
+        if (styles.value.value(style) == MarkdownStyleState.Unavailable)
             return false
-        val range =
-            MarkdownRange(
-                content.text.textAt(
-                    MarkdownPosition(editor.selection.range.start),
-                    MarkdownBias.After
-                ).byteOffset,
-                content.text.textAt(
-                    MarkdownPosition(editor.selection.range.end),
-                    MarkdownBias.Before
-                ).byteOffset
-            )
+        val active = input ?: return false
         perform {
-            val edit = content.setStyle(range, style, enabled)
-            editor.apply(
-                edit,
-                active.inputState.selection.anchor > active.inputState.selection.cursor
-            )
-            active.synchronize(edit.after)
-            retire()
+            if (active.setStyle(style, enabled))
+                retire()
         }
         return true
     }

@@ -24,6 +24,8 @@
 
 一次源事务保存正反替换及前后选区，普通程序化修改和结构命令形成单独历史项。输入种类 `Typing`／`Backspace`／`Delete` 仅在连续位置、折叠选区和相同种类时合并；选区移动、显式 breakUndoGroup、格式命令和 undo／redo 结束合并。合并只收集实际插入／删除的片段，不按每次按键重新拼接整个历史字符串。
 
+富文本首次键入可以同时加入格式定界符或改写邻接转义；后续键入落在这段已修改源码内部时仍合并为一次撤销。历史只增量保存该替换片段及原始被替换文字，复用文档 Cone 的分块文本能力，不为连续按键复制全文或累计拼接字符串。跨出已修改源码范围、跨块操作及显式边界仍结束合并。
+
 undo／redo 各通过一次源码事务恢复整个历史项，并恢复相应方向与偏向的选区。新编辑清除重做分支。Reset 表示整体重载，清空历史并将选区端点收敛到新文档中的合法位置；普通外部 Edit 形成可撤销的独立项。
 
 `markSaved(revision)` 记录宿主已成功写出的本文件 revision；较旧的保存完成不把后续输入标成已保存。`isDirty` 按当前文档 revision 与保存 revision 比较。保存前先接受组合，再固定 snapshot；文件与异步 I/O 由宿主管理，状态不隐式写磁盘。
@@ -45,6 +47,8 @@ undo／redo 各通过一次源码事务恢复整个历史项，并恢复相应�
 ### 4.1 富文本输入片段
 
 `MarkdownRichInput(editor, content)` 借用同一编辑状态和当前快照上的 MarkdownTextContent，也接受单个 MarkdownInlineContent。它将文档 Cone 提供的单段或多块显示文字接入 TextInputState；公开 content 使用 MarkdownTextContent，单段结构从 content.inlineContent 读取。格式定界符不进入原生 surroundingText，图片与扩展保留 U+FFFC 原子；sourceRange 仍是文档 Cone 提供的源码上下文范围。初始源码选区须位于该上下文；跨段选区和整篇选择使用带真实文字及块分隔映射的多块上下文。它不拥有窗口、排版或另一份文档。
+
+RichInput.setStyle 接受当前组合后修改选区格式；非空选择沿文档 Cone 的跨块 setStyle 发布一个单独历史项并保留方向。折叠选择只设置后续输入的格式覆盖，不修改 Markdown 或创建空历史；连续文字和预编辑在同一准备事务中应用覆盖，取消组合仍恢复确切原文。显式移动选择、其他来源的文档变化、输入片段关闭或模式切换结束覆盖。styleState 反映当前输入选择及覆盖；不支持的 profile 格式在修改前拒绝。setStyle 返回 true 表示宿主须退休旧原生映射，false 表示仅改变后续输入格式。
 
 apply 依次校验原生批次并准备行内语义操作，最终只发布一次源码事务；content 立即成为该事务的 after，连续输入不等待全文解析。普通文字继承选区／光标侧样式；原生 marked、方向选区和 caret 均从当前显示映射转换为源码坐标。代码 span 换行及 NUL 沿文档 Cone 的文字规范化规则处理，并把转换后的实际文字与选择返回原生快照。取消组合保存并恢复原始行内源码，包括定界符、实体、容器换行、空标题间隔及缺失表格单元格的分隔符。
 
@@ -142,6 +146,8 @@ Mermaid 适配只向配置好的 mmdc 传递单个 fence body，经 argv 和临�
 富文本取得焦点时，若折叠的源码光标位于当前标题／段落的外围隐藏标记，将它收敛到该区域最近的显示文字边界；未聚焦视图不因此移动共享选区。跨块选择保持原文范围，不截成单个行内区域。
 
 活动区域直接投影 MarkdownInlineContent.nodes，原子对象与 native U+FFFC 对齐；源码标记、HTML 和脚注的内部修改继续由源码定位入口承担。普通文字输入、行内选择与格式修改立即生成局部显示。后台解析尚未完成时，已确定的其他行继续使用原来的布局和源映射，通过实际源码差量换算到当前位置；活动单元格使用新映射。只替换活动行的投影和排版，不按键遍历或重建整篇显示数组。
+
+MarkdownRichHost.setStyle／toggleStyle 支持单段、跨块和折叠选区；styleState 提供可观察的当前格式状态，不在 render 中修改输入。Primary+B、Primary+I、Primary+Shift+X 分别切换粗体、斜体和删除线；On 时移除，Off 或 Mixed 时应用，重复按键不反复切换。只读、禁用或无可编辑内容时命令不修改文档。MarkdownEditorViewState 提供相同的命令入口，并在工具栏操作后恢复富文本焦点；源码模式不执行这些富文本命令。markdownFormattingToolbar 是可选的普通 View，复用 UI 组件按钮与宿主 ThemeSource，显示当前、混合及不可用状态；它不拥有第二份选区或历史。
 
 MarkdownPreviewMeasurement.sourceRevision 表示实际显示／命中使用的源版本；parsed 可仍是后台的基线解析。测量持有自己的局部投影、已布局行和图像，试测与丢弃帧不替换已接受几何。选区、marked 与 native revision 一起固定；当前内容或输入 revision 不匹配时清除候选窗几何，不发布旧布局。活动行即使滚到视口之外仍保留原生输入所需排版。
 

@@ -6,6 +6,25 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun aHeadlessConsumerFormatsAcrossBlocksAndQueriesTheResult() {
+        val document = MarkdownDocument.fromText("ab\n\ncd\n\nTail\n")
+        val current = document.parse().textContent(MarkdownRange(1L, 5L))
+        val range = MarkdownRange(1L, 4L)
+        assertEquals(MarkdownStyleState.Off, current.styleState(range, MarkdownInlineStyle.Strong))
+        val edit = current.setStyle(range, MarkdownInlineStyle.Strong, true)
+        assertEquals(0L, document.revision)
+        edit.applyTo(document)
+        assertEquals("ab\ncd\nTail", edit.after.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            edit.after.styleState(range, MarkdownInlineStyle.Strong)
+        )
+        val restored = edit.after.edit { restore(current) }
+        restored.applyTo(document)
+        assertEquals("ab\n\ncd\n\nTail\n", document.toMarkdown())
+    }
+
+    @Test
     fun aHeadlessConsumerReplacesAndRestoresTextAcrossBlocks() {
         val source = "ab\n\ncd\n\nTail\n"
         val document = MarkdownDocument.fromText(source)

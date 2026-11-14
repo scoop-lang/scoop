@@ -94,6 +94,7 @@ private class EditorWindow(
                         { owner.view.setSynchronizeScroll(!owner.view.synchronizeScroll) }
                     )
                 }
+                item(markdownFormattingToolbar(owner.view))
                 item(
                     markdownEditor(
                         owner.view,

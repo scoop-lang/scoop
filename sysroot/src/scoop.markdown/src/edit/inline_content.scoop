@@ -16,7 +16,7 @@ public class MarkdownInlineEdit internal constructor(
 /** Editable semantic text of one paragraph, heading or table cell, without UI resources. */
 public class MarkdownInlineContent internal constructor(
     public val snapshot: MarkdownSnapshot,
-    internal val profile: MarkdownProfile,
+    public val profile: MarkdownProfile,
     internal val node: MarkdownNode,
     internal val placement: MdInlinePlacement,
     internal val model: MdInlineModel
@@ -42,6 +42,15 @@ public class MarkdownInlineContent internal constructor(
         style: MarkdownInlineStyle,
         enabled: Boolean
     ): MarkdownInlineEdit = mdInlineSetStyle(this, range, style, enabled)
+
+    public fun styleState(
+        range: MarkdownRange,
+        style: MarkdownInlineStyle,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownStyleState {
+        mdInlineCheckRange(this, range)
+        return mdInlineStyleCount(this, range, style, bias).state
+    }
 }
 
 public fun MarkdownSyntax.inlineContent(id: MarkdownNodeId): MarkdownInlineContent {

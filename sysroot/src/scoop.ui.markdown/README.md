@@ -41,6 +41,8 @@ editor.close()
 
 `MarkdownRichInput(editor, parsed.inlineContent(nodeId))` 将当前段落、标题或单元格的显示文字接入同一原生输入协议；跨块选区可传入 `parsed.textContent(editor.selection.range)`。公开 content 为 `MarkdownTextContent`，通过 content.inlineContent 读取可用的单段结构。连续单段输入直接使用更新后的内容，不等待后台全文解析；多块上下文按源码顺序提供真实文字、块分隔和原子对象。输入的 UTF-8 范围逐项校验，整批只发布一次准备好的源码快照，结构保留后的光标与组合区使用文档库返回的新映射。
 
+`input.setStyle(style, enabled)` 对非空显示选区执行一次跨块格式事务，并保留选择方向；折叠光标只改变后续输入样式，不立即生成标记或历史。它先接受当前组合；后续预编辑可取消，连续提交仍按普通键入分组。外部文档修改、实际移动选区或重新创建输入片段清除显式样式覆盖。`input.styleState(style)` 包含此覆盖；setStyle 返回 true 时，自绘宿主须退休旧原生连接后使用新映射。
+
 源码和富文本共享唯一组合与历史，跨块取消可恢复原始定界符、实体、已删除的块及定向选区。剪切、粘贴、删除及整篇选择后的键入使用相同路径。跨块替换结束原来的键入分组；组合结束并收敛到单段后，宿主退休旧连接并切回单段输入。外部修改后通过 `synchronize(newContent)` 提供新解析的区域；返回 true 时退休旧原生连接。字体、图片与窗口仍由视图管理。
 
 `isComposing`／`markedRange` 反映即时预编辑；重复 Preedit 不逐条入历史，Commit／ClearPreedit／`acceptComposition()` 接受为一个历史项。空 Preedit 或 `cancelComposition()` 恢复组合前正文与选区。选择、格式命令和外部 Edit 接受组合；Reset 放弃它。undo／redo 遇到活动组合先取消，下一次再操作历史。保存前调用 `acceptComposition()` 再固定文档 snapshot。
@@ -65,7 +67,7 @@ editor.close()
 
 自绘组合可使用 `MarkdownPreviewHost.measure`／`scene`；LayoutResult 负责关闭每次独立测量。`measurement.parsed` 表明实际显示的解析，`hitTest` 同时提供原文／预览位置与生成内容标记；`caret` 和 `reveal` 接受原文位置。旧解析等待更新时仍可显示，但不会被用作当前源码命中。表格按实际行虚拟化，代码按实际行虚拟化，普通段落保持完整 shaping。图片及扩展图像使用原子对象与原始范围；点击仍可定位源码。
 
-`markdownRichEditor(controller, readOnly = false)` 返回原生富文本 View；`MarkdownRichHost` 用于自绘 Element，使用同一套预览样式、布局参数、字体与图像控制器。段落、标题和单元格中的普通文字可直接输入、选择、复制／粘贴和修改样式；`setStyle` 接受当前行内选区。方向键使用真实文字排版，连续键入和组合不等待全文解析。readOnly 保留选择与复制。Enter 拆分段落／标题并延续列表，空项退出一级；边界 Backspace／Delete 合并同容器相邻段落。列表 Tab／Shift-Tab 调整层级，表格 Tab／Shift-Tab 按单元格导航，末格 Tab 或末行 Enter 新增正文行。表格中的 TSV 粘贴按矩形写入，跨块普通文字替换保留未选内容和容器边界。
+`markdownRichEditor(controller, readOnly = false)` 返回原生富文本 View；`MarkdownRichHost` 用于自绘 Element，使用同一套预览样式、布局参数、字体与图像控制器。段落、标题和单元格中的普通文字可直接输入、选择、复制／粘贴和修改样式；`setStyle`／`toggleStyle` 支持当前跨块选区及折叠光标的后续输入，`styleState` 可用于状态展示。Primary-B、Primary-I、Primary-Shift-X 分别切换粗体、斜体与删除线，混合选区切为全部启用。方向键使用真实文字排版，连续键入和组合不等待全文解析。readOnly 保留选择与复制。Enter 拆分段落／标题并延续列表，空项退出一级；边界 Backspace／Delete 合并同容器相邻段落。列表 Tab／Shift-Tab 调整层级，表格 Tab／Shift-Tab 按单元格导航，末格 Tab 或末行 Enter 新增正文行。表格中的 TSV 粘贴按矩形写入，跨块普通文字替换保留未选内容和容器边界。
 
 富文本 View 默认在当前栏内打开代码、公式、Mermaid、HTML 或自定义扩展的局部源码面，保留完整围栏及指令。临时未闭合的输入仍能编辑，解析及图像展示使用同一文档的新快照。Done 按钮或无组合时的 Escape 关闭面板并返回富文本焦点；组合期间 Escape 先取消组合。只读配置同样作用于局部面。显式提供 `onSource` 时交由应用展示；直接使用 MarkdownRichHost 的自绘宿主继续通过该回调组合自己的局部视图。
 
@@ -75,6 +77,8 @@ editor.close()
 
 `MarkdownEditorViewState(editor, mode = MarkdownEditorMode.Wysiwyg)` 配合 `markdownEditor(viewState, controller)` 提供三模式组件。`setMode` 切换视图并保留正文／历史；`setRightReadOnly` 可将双栏右侧设为只读；`setSynchronizeScroll` 控制按源码锚点的双向滚动，`setSourceFraction` 调整分栏比例。两侧的 ScrollState 和 FocusHandle 独立稳定，模式和纯布局设置不重复序列化文档；整次修改只触发一次组合控件的 `onChanged`。
 
+`markdownFormattingToolbar(viewState)` 是可选的普通 View，提供粗体、斜体与删除线按钮，沿用应用的 `ThemeSource`。viewState 的 `styleState`、`setStyle` 和 `toggleStyle` 也可供应用自建工具栏；操作成功后返回富文本焦点。纯源码模式、只读或未挂载富文本时为 Unavailable，命令不修改文档；混合格式以 Mixed 展示。独立富文本编辑组件本身仍只依赖显式样式，不要求主题上下文。
+
 默认不抢焦点；显式 `requestFocus(MarkdownEditorPane.Source)` 可在挂载前请求可见栏。显式 `showSource(range)` 把当前范围起点定位到源码栏，必要时从 Wysiwyg 转双栏；默认扩展点击使用上述局部源码面并保留当前模式。`MarkdownEditorOptions` 统一配置整体只读、两栏最小宽度及各自布局参数。一个 viewState 只能绑定一个控件；多个 viewState 可以共享同一 editor。所有 Host 的可选 `initialScroll` 允许自绘宿主保留滚动状态，viewport 与原生资源仍随 Host 关闭。
 
-[三模式示例](examples/editor/README.md) 提供模式、只读、同步开关、撤销／重做和 Cmd-S 保存；[预览示例](examples/preview/README.md) 和[源码示例](examples/source-editor/README.md) 展示单独使用。本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引、显示映射和后台解析；`tests-cones/source`、`tests-cones/preview`、[富文本原生测试](tests-cones/rich/README.md) 和[三模式原生测试](tests-cones/editor/README.md) 使用本机窗口验证大文档、滚动、几何、输入与资源释放。完整功能和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。
+[三模式示例](examples/editor/README.md) 提供模式、格式工具栏、只读、同步开关、撤销／重做和 Cmd-S 保存；[预览示例](examples/preview/README.md) 和[源码示例](examples/source-editor/README.md) 展示单独使用。本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引、显示映射和后台解析；`tests-cones/source`、`tests-cones/preview`、[富文本原生测试](tests-cones/rich/README.md) 和[三模式原生测试](tests-cones/editor/README.md) 使用本机窗口验证大文档、滚动、几何、输入与资源释放。完整功能和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。

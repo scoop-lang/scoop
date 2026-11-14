@@ -36,6 +36,7 @@ public class MarkdownEditorViewState public constructor(
         )
     internal val sizes = state(mdEditorSizes(sourceFraction))
     internal var mounted: MdEditorMount? = None
+    private val formattingHost = state<MarkdownRichHost?>(None)
     internal var pendingFocus: MarkdownEditorPane? = None
     public val sourceScroll = ScrollState()
     public val richScroll = ScrollState()
@@ -121,6 +122,55 @@ public class MarkdownEditorViewState public constructor(
         requestFocus(MarkdownEditorPane.Source)
     }
 
+    public fun styleState(style: MarkdownInlineStyle): MarkdownStyleState {
+        if (
+            mode ==
+                MarkdownEditorMode.Source ||
+                (mode == MarkdownEditorMode.SideBySide && rightReadOnly)
+        )
+            return MarkdownStyleState.Unavailable
+        return formattingHost.value?.styleState(style) ?: MarkdownStyleState.Unavailable
+    }
+
+    public fun setStyle(style: MarkdownInlineStyle, enabled: Boolean): Boolean {
+        checkMutation()
+        if (styleState(style) == MarkdownStyleState.Unavailable)
+            return false
+        val host = formattingHost.value ?: return false
+        if (!host.setStyle(style, enabled))
+            return false
+        requestFocus(MarkdownEditorPane.Rich)
+        return true
+    }
+
+    public fun toggleStyle(style: MarkdownInlineStyle): Boolean {
+        checkMutation()
+        if (styleState(style) == MarkdownStyleState.Unavailable)
+            return false
+        val host = formattingHost.value ?: return false
+        if (!host.toggleStyle(style))
+            return false
+        requestFocus(MarkdownEditorPane.Rich)
+        return true
+    }
+
+    internal fun attachFormatting(host: MarkdownRichHost) {
+        when (formattingHost.value) {
+            case Some(val current) -> if (current === host)
+                return
+            case None -> Unit
+        }
+        formattingHost.value = Some(host)
+    }
+
+    internal fun detachFormatting(host: MarkdownRichHost) {
+        when (formattingHost.value) {
+            case Some(val current) -> if (current === host)
+                formattingHost.value = None
+            case None -> Unit
+        }
+    }
+
     internal fun focused(pane: MarkdownEditorPane) {
         if (active.value != pane)
             active.value = pane
@@ -142,8 +192,13 @@ public class MarkdownEditorViewState public constructor(
 
     internal fun unbind(mount: MdEditorMount) {
         when (mounted) {
-            case Some(val current) -> if (current === mount)
+            case Some(val current) -> if (current === mount) {
                 mounted = None
+                when (formattingHost.value) {
+                    case Some(_) -> formattingHost.value = None
+                    case None -> Unit
+                }
+            }
             case None -> Unit
         }
     }

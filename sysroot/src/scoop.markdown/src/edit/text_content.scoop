@@ -11,6 +11,11 @@ public class MarkdownTextContent internal constructor(
     internal val context: MdTextContext,
     internal val origin: MdTextOrigin = MdTextOrigin()
 ) {
+    public val profile: MarkdownProfile get() =
+        when (context) {
+            case Inline(val value) -> value.profile
+            case Blocks(val value) -> value.syntax.profile
+        }
     public val snapshot: MarkdownSnapshot get() =
         when (context) {
             case Inline(val value) -> value.snapshot
@@ -64,6 +69,18 @@ public class MarkdownTextContent internal constructor(
         builder.configure()
         return builder.finish()
     }
+
+    public fun setStyle(
+        range: MarkdownRange,
+        style: MarkdownInlineStyle,
+        enabled: Boolean
+    ): MarkdownTextEdit = mdTextSetStyle(this, range, style, enabled)
+
+    public fun styleState(
+        range: MarkdownRange,
+        style: MarkdownInlineStyle,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownStyleState = mdTextStyleCount(this, range, style, bias).state
 }
 
 /** A prepared semantic transaction with source selection and displayed insertion coordinates. */

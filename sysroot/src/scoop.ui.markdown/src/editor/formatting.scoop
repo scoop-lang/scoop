@@ -1,0 +1,51 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+private class MdFormattingProps(val editor: MarkdownEditorViewState, val fonts: FontCollection?)
+
+/** Optional formatting controls using the application's ordinary UI component theme. */
+public fun markdownFormattingToolbar(
+    state: MarkdownEditorViewState,
+    fonts: FontCollection? = None
+): View = component(MdFormattingProps(state, fonts), { props, scope -> MdFormatting(props, scope) })
+
+private class MdFormatting(val props: Props<MdFormattingProps>, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val input = props.value
+        return row {
+            spacing = 4.0
+            for (
+                format in [
+                    MarkdownInlineStyle.Strong,
+                    MarkdownInlineStyle.Emphasis,
+                    MarkdownInlineStyle.Strikethrough
+                ]
+            ) {
+                val status = input.editor.styleState(format)
+                val label =
+                    when (format) {
+                        case Strong -> "Bold"
+                        case Emphasis -> "Italic"
+                        case Strikethrough -> "Strikethrough"
+                    }
+                button(label, { input.editor.toggleStyle(format) }) {
+                    enabled = status != MarkdownStyleState.Unavailable
+                    fonts = input.fonts
+                    size = ButtonSize.Sm
+                    variant =
+                        when (status) {
+                            case On -> ButtonVariant.Secondary
+                            case Mixed -> ButtonVariant.Outline
+                            else -> ButtonVariant.Ghost
+                        }
+                }
+            }
+        }
+    }
+}

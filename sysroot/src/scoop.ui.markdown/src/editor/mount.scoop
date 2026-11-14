@@ -65,6 +65,11 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
     }
 
     fun attach(host: MarkdownPreviewHost) {
+        state.bind(this)
+        when (host.rich) {
+            case Some(val editor) -> state.attachFormatting(editor)
+            case None -> Unit
+        }
         when (rich) {
             case Some(val current) -> if (current === host) {
                 requestFocus();
@@ -72,7 +77,6 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
             }
             case None -> Unit
         }
-        state.bind(this)
         richIntent?.close()
         rich = Some(host)
         host.editorMount = Some(this)
@@ -100,6 +104,10 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
     fun detach(host: MarkdownPreviewHost) {
         when (rich) {
             case Some(val current) -> if (current === host) {
+                when (host.rich) {
+                    case Some(val editor) -> state.detachFormatting(editor)
+                    case None -> Unit
+                }
                 richIntent?.close();
                 richIntent = None;
                 rich = None

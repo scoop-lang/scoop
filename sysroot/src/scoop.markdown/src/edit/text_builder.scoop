@@ -25,6 +25,12 @@ public class MarkdownTextEditBuilder internal constructor(private val base: Mark
         selected = range
     }
 
+    public fun setStyle(range: MarkdownRange, style: MarkdownInlineStyle, enabled: Boolean) {
+        val edit = current.setStyle(range, style, enabled)
+        current = edit.after
+        selected = range
+    }
+
     /** Restores the exact source of this same context, including removed blocks and delimiters. */
     public fun restore(
         saved: MarkdownTextContent,
