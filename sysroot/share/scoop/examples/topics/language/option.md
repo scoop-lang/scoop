@@ -29,4 +29,6 @@ fallback
 
 ## 常见误用
 
+程序末尾的 `when` 把缺失值视为已处理的无操作分支，写成 `case None -> Unit`，因此不增加输出。`()` 与 `Unit` 等价，也可独立用作无操作语句。
+
 不要写 `if (name != null)`；Scoop 不提供这种 null 判空或 Option 判空智能转换。需要值时用 case 解构，不要假设检查过 None 后变量本身就变成 String。

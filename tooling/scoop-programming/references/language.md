@@ -16,6 +16,8 @@ fun greeting(name: String?): String =
 
 `?.` 产生可选结果，`?:` 提供缺失分支；`!!` 会在缺失时抛出异常，只在实际业务保证存在时使用。`Option` 不变，`T??` 是嵌套两层；安全调用不自动展平原本已经可选的返回值。使用有结果的 `when` 时处理所有变体。更多示例：`language/option`、`language/enum`。
 
+已处理但无需动作的语句分支可写 `case None -> Unit`；`Unit` 与 `()` 是等价的无操作语句。这不允许将任意普通值表达式当作独立语句。
+
 ## 值类型、引用与能力
 
 - `struct Point(val x: Int, val y: Int)` 是不可变值，存储字段只能用 `val`。更新写 `point.{x: 8}`，产生副本；不使用 Kotlin 的 `data class` 或 `.copy(x = 8)`。
