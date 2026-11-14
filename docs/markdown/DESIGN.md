@@ -14,6 +14,8 @@
 
 首期不因每一种语法增加一个 Cone。数学公式、Mermaid fence 的识别，以及 mdBook 风格指令的公共基础，都可以在无 UI 程序里使用。具体外部工具和图像解码不进入文档层的必需依赖。
 
+扩展展示分为 Inline 与 Block，由 UI Cone 定义各自的布局合同；文档层继续保存语法、内容、参数与源码范围。同一内容可有行内和块展示方式，已有 CodeBlock／Image 不需要另建语法树。除已请求的适配外，不要求逐个内置 Typora 的额外语法；应用沿现有语法与内容处理接口扩展。
+
 ```mermaid
 flowchart LR
     Source[Markdown 源码] --> Document[scoop.markdown / MarkdownDocument]
