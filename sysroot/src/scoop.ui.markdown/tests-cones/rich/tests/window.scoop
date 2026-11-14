@@ -10,6 +10,8 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.*
+import scoop.tests.window.saveNativeClipboard
+import scoop.tests.window.restoreNativeClipboard
 import scoop.text.*
 import scoop.time.Duration
 import scoop.ui.*
@@ -20,30 +22,38 @@ import scoop.window.*
 private class MarkdownRichWindowTests {
     @Test
     fun nativeRichTextKeepsSemanticInputHistoryAndVirtualizedFramesTogether() {
-        val app = Application()
-        val workers =
-            multiThreadExecutor {
-                workers = 1;
-                blocking { threads = 1 }
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
+            try {
+                val app = Application()
+                val workers =
+                    multiThreadExecutor {
+                        workers = 1;
+                        blocking { threads = 1 }
+                    }
+                val probe = RichProbe(workers, app.proxy())
+                try {
+                    UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                        host -> app.run(host)
+                    }
+                    assertTrue(probe.finished)
+                    assertTrue(probe.discarded)
+                    assertTrue(probe.field!!.isClosed)
+                    assertFalse(probe.editor.isClosed)
+                    assertFalse(probe.parser.isClosed)
+                    assertFalse(probe.fonts.isClosed)
+                } catch (error: Throwable) {
+                    println("Rich window test step " + probe.step.value.toString())
+                    reportRichFailure(error)
+                    throw error
+                } finally {
+                    probe.close()
+                    workers.close()
+                }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
             }
-        val probe = RichProbe(workers, app.proxy())
-        try {
-            UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> app.run(host)
-            }
-            assertTrue(probe.finished)
-            assertTrue(probe.discarded)
-            assertTrue(probe.field!!.isClosed)
-            assertFalse(probe.editor.isClosed)
-            assertFalse(probe.parser.isClosed)
-            assertFalse(probe.fonts.isClosed)
-        } catch (error: Throwable) {
-            println("Rich window test step " + probe.step.value.toString())
-            reportRichFailure(error)
-            throw error
-        } finally {
-            probe.close()
-            workers.close()
         }
     }
 }
@@ -471,7 +481,10 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 assertMultiJoin("a")
                 next {
                     assertTrue(host.execute(TextEditCommand.Undo))
-                    native.clipboard.writeText("P")
+                    native.clipboard.writeTexts(
+                        [ClipboardText("text/plain", "P"), ClipboardText("text/markdown", "**P**")]
+                    )
+                    assertEquals(Some("**P**"), native.clipboard.readText("text/markdown"))
                     assertTrue(host.execute(TextEditCommand.Paste))
                 }
             }

@@ -40,19 +40,25 @@ static void clipboard_read(GObject *object, GAsyncResult *result,
   else
     read->done = true;
 }
-SWClipboardText scoop_window_clipboard_read(void) {
+SWClipboardText scoop_window_clipboard_read(const uint8_t *type_bytes,
+                                            int64_t type_length) {
   SWApplication *app = sw_application;
   if (app->error)
     return (SWClipboardText){.error = -3};
   // Keep the byte length so the shared layer can reject embedded NUL.
-  static const char *formats[] = {"text/plain;charset=utf-8", "text/plain",
-                                  NULL};
+  char *mime = strndup((const char *)type_bytes, type_length);
+  if (!mime)
+    return (SWClipboardText){.error = ENOMEM};
+  bool plain = strcmp(mime, "text/plain") == 0;
+  const char *formats[] = {plain ? "text/plain;charset=utf-8" : mime,
+                           plain ? "text/plain" : NULL, NULL};
   SWClipboardRead read = {.bytes = g_byte_array_new()};
   gdk_clipboard_read_async(gdk_display_get_clipboard(app->display), formats,
                            G_PRIORITY_DEFAULT, NULL, clipboard_read, &read);
   // GTK signals enqueue events; owner handlers and borrowed fd watches wait.
   while (!read.done)
     g_main_context_iteration(app->main_context, TRUE);
+  free(mime);
   gdk_gl_context_clear_current();
   g_clear_object(&read.stream);
   SWClipboardText result = {0};
@@ -74,15 +80,52 @@ SWClipboardText scoop_window_clipboard_read(void) {
   g_byte_array_unref(read.bytes);
   return result;
 }
-int64_t scoop_window_clipboard_write(const uint8_t *text, int64_t length) {
-  SWApplication *app = sw_application;
-  if (app->error)
-    return -3;
-  char *copy = strndup((const char *)text, length);
-  if (!copy)
+SWResult scoop_window_clipboard_create(void) {
+  return (SWResult){g_ptr_array_new_with_free_func(g_object_unref), 0};
+}
+
+int64_t scoop_window_clipboard_add(void *writer, const uint8_t *type_bytes,
+                                   int64_t type_length, const uint8_t *text,
+                                   int64_t length) {
+  char *mime = strndup((const char *)type_bytes, type_length);
+  if (!mime)
     return ENOMEM;
-  gdk_clipboard_set_text(gdk_display_get_clipboard(app->display), copy);
-  free(copy);
+  GdkContentProvider *provider;
+  if (strcmp(mime, "text/plain") == 0) {
+    char *copy = strndup((const char *)text, length);
+    if (!copy) {
+      free(mime);
+      return ENOMEM;
+    }
+    provider = gdk_content_provider_new_typed(G_TYPE_STRING, copy);
+    free(copy);
+  } else {
+    GBytes *bytes = g_bytes_new(text, length);
+    provider = gdk_content_provider_new_for_bytes(mime, bytes);
+    g_bytes_unref(bytes);
+  }
+  free(mime);
+  if (!provider)
+    return EIO;
+  g_ptr_array_add(writer, provider);
   return 0;
 }
+
+int64_t scoop_window_clipboard_write(void *writer, SWApplication *app) {
+  if (app->error)
+    return -3;
+  GPtrArray *providers = writer;
+  // The union owns the references supplied to it; the writer keeps its own.
+  for (guint index = 0; index < providers->len; ++index)
+    g_object_ref(g_ptr_array_index(providers, index));
+  GdkContentProvider *combined = gdk_content_provider_new_union(
+      (GdkContentProvider **)providers->pdata, providers->len);
+  gboolean written = gdk_clipboard_set_content(
+      gdk_display_get_clipboard(app->display), combined);
+  g_object_unref(combined);
+  return written ? 0 : EIO;
+}
+
+void scoop_window_clipboard_destroy(void *writer) { g_ptr_array_unref(writer); }
+
 void scoop_window_clipboard_release(uint8_t *bytes) { free(bytes); }

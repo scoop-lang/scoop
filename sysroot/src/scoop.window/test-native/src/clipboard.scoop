@@ -32,3 +32,79 @@ public fun setNativeClipboardNonText(): Int
 /** Makes the next native writeObjects call fail once, without changing production code. */
 @Extern(name = "scoop_window_test_clipboard_fail_write")
 public fun failNextNativeClipboardWrite(): Int
+
+/** Writes an actual pasteboard type with unmodified bytes, including malformed UTF-8. */
+public fun setNativeClipboardData(nativeType: String, data: Array<Byte>): Int {
+    @Unsafe
+    {
+        return nativeType.withUtf8Bytes {
+            typeBytes,
+            typeLength -> @Unsafe
+            {
+                return@withUtf8Bytes data.withDataPointer {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withDataPointer nativeClipboardData(
+                            typeBytes,
+                            typeLength,
+                            bytes.cast<UInt8>(),
+                            length
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Checks bytes under a platform type without the public media type mapping. */
+public fun nativeClipboardDataMatches(nativeType: String, text: String): Int {
+    @Unsafe
+    {
+        return nativeType.withUtf8Bytes {
+            typeBytes,
+            typeLength -> @Unsafe
+            {
+                return@withUtf8Bytes text.withUtf8Bytes {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeClipboardMatches(
+                            typeBytes,
+                            typeLength,
+                            bytes,
+                            length
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+public fun nativeClipboardItemCount(): Long {
+    @Unsafe
+    {
+        return nativeClipboardCount()
+    }
+}
+
+@Extern(name = "scoop_window_test_clipboard_data")
+private fun nativeClipboardData(
+    nativeType: Ptr<UInt8>,
+    typeLength: Long,
+    bytes: Ptr<UInt8>,
+    length: Long
+): Int
+
+@Extern(name = "scoop_window_test_clipboard_matches")
+private fun nativeClipboardMatches(
+    nativeType: Ptr<UInt8>,
+    typeLength: Long,
+    bytes: Ptr<UInt8>,
+    length: Long
+): Int
+
+@Extern(name = "scoop_window_test_clipboard_count")
+private fun nativeClipboardCount(): Long

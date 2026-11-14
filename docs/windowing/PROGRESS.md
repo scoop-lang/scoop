@@ -17,6 +17,16 @@
 
 每批完成后先格式化／lint，再运行相应测试，提交并推送分支，检查并合并远端 main。原始日志与临时验收产物保存在仓库外；本文只记录范围、结果与实际限制。
 
+## 多格式文本剪贴板
+
+为 Markdown 编辑器增加 `ClipboardText`、`Clipboard.writeTexts` 和带媒体类型的 `readText`，同一系统项目可以同时提供纯文本、Markdown、HTML 及自定义文本表示。共享层统一 MIME 规范化、重复格式、NUL、换行和 owner 合同；全部参数先检查，native 准备完成后发布。macOS 使用有效 UTI，Linux 使用 GDK MIME provider，Windows 使用 Unicode 纯文本及 MIME 注册格式；私有 bridge 共用一份 Scoop 声明。
+
+使用 ~/.scoop 完成 Scoop fmt、check --tests --release 和 native clang-format／警告检查。macOS 的 1 项原生 ClipboardTest 通过，包含既有生命周期／线程场景及四组新场景：多个表示和标准 UTI 互通、自定义 MIME、格式缺失与空文本、失败不误报成功、UTF-8／NUL、换行、超过 1 MiB 的中文／emoji Markdown。测试共用正式单次 Application，并保存恢复原系统剪贴板的全部项目和格式。MIME 名称直接作为 UTI 的测试假设已按 AppKit 实际合同修正。
+
+公共规范、README、编程导航及 ClipboardText／readText／writeTexts API 查询同步。安装源码与 ~/.scoop 中的窗口、surface、UI、组件、样式及桌面适配共 14 个实际依赖 Cone 已按顺序重建。Windows 写入改用应用已有的隐藏宿主窗口，修正空 HWND 导致 SetClipboardData 失败的旧实现；其接口与 Linux 一并更新，本批按任务范围只验收 macOS，不计为跨平台运行通过。
+
+安装 API 文档严格生成与查询通过；本机 scoop.ui README 遗留的仓库相对链接已按发布规则改为仓库 URL。Markdown 消费者的多表示读写、剪切粘贴与大文档原生输入回归见[Markdown 实施记录](../markdown/PROGRESS.md#cmarkdown-片段的系统剪贴板前置能力)。
+
 ## Windows 阶段
 
 ### 1. COFF import 选择

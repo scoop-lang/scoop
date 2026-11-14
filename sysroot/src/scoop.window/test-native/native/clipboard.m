@@ -96,3 +96,48 @@ int32_t scoop_window_test_clipboard_nontext(void) {
     }
   }
 }
+
+int32_t scoop_window_test_clipboard_data(const uint8_t *type_bytes,
+                                         int64_t type_length,
+                                         const uint8_t *bytes, int64_t length) {
+  @autoreleasepool {
+    @try {
+      NSString *type = [[NSString alloc] initWithBytes:type_bytes
+                                                length:(NSUInteger)type_length
+                                              encoding:NSUTF8StringEncoding];
+      NSData *data = [NSData dataWithBytes:bytes length:(NSUInteger)length];
+      NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
+      if (!type || ![item setData:data forType:type])
+        return 1;
+      NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+      [pasteboard clearContents];
+      return [pasteboard writeObjects:@[ item ]] ? 0 : 2;
+    } @catch (NSException *exception) {
+      return 3;
+    }
+  }
+}
+
+int32_t scoop_window_test_clipboard_matches(const uint8_t *type_bytes,
+                                            int64_t type_length,
+                                            const uint8_t *bytes,
+                                            int64_t length) {
+  @autoreleasepool {
+    @try {
+      NSString *type = [[NSString alloc] initWithBytes:type_bytes
+                                                length:(NSUInteger)type_length
+                                              encoding:NSUTF8StringEncoding];
+      NSData *actual = [NSPasteboard.generalPasteboard dataForType:type];
+      NSData *expected = [NSData dataWithBytes:bytes length:(NSUInteger)length];
+      return actual && [actual isEqualToData:expected] ? 0 : 1;
+    } @catch (NSException *exception) {
+      return 2;
+    }
+  }
+}
+
+int64_t scoop_window_test_clipboard_count(void) {
+  @autoreleasepool {
+    return (int64_t)NSPasteboard.generalPasteboard.pasteboardItems.count;
+  }
+}

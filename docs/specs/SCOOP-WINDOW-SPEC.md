@@ -38,13 +38,17 @@ WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只
 
 回调沿同一业务派发入口恢复 run／附着 I/O Context，异常按普通 handler 失败开始完整关闭。窗口进入 Closing 时立即关闭其登记，取消未调用的快照；应用退出同样撤销全部排期。登记不取得 native window lease，不延迟窗口销毁。首批用于 UI 基础交互中的离屏动画完成和后续编辑定时工作，按该批次先验证 macOS aarch64，其余目标留到对应验收。
 
-### 2.2 GUI 纯文本剪贴板
+### 2.2 GUI 文本剪贴板
 
-公共 `ActiveApplication.clipboard` 和 `Window.clipboard` 取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 替换剪贴板当前内容。两者保留非 BMP 字符与组合序列，不做 Unicode 规范化；CRLF 和独立 CR 统一为 LF，由后端处理原生行尾。写入在修改剪贴板之前以 IllegalArgumentException 拒绝内嵌 U+0000；读取到属于文本内容的 NUL 时抛出 WindowException(Unsupported)，不能截短。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
+公共 `ActiveApplication.clipboard` 和 `Window.clipboard` 取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(mediaType: String = "text/plain"): String?` 读取指定文本格式；没有该格式返回 None，已有空文本返回 Some("")。`writeText(text: String)` 以标准纯文本替换剪贴板当前内容；`writeTexts(representations: List<ClipboardText>)` 同时提供同一项内容的多个文本表示，ClipboardText 包含 mediaType 和 text。调用方可提供所见纯文本及 `text/markdown` 源片段，接收方按自己的格式优先级读取，不将普通文字猜测成 Markdown。
 
-取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不提供终端 OSC52、富文档格式、历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
+mediaType 是无参数的具体 `text/<subtype>` MIME 名称，按 ASCII 小写规范化；空 subtype、通配符、非 ASCII、空白或参数报 IllegalArgumentException。writeTexts 要求非空列表且规范化后没有重复格式，在接触原生剪贴板之前检查所有格式和正文。所有表示采用 Unicode 文本，保留非 BMP 字符与组合序列，不做 Unicode 规范化。text/plain 的 CRLF 和独立 CR 统一为 LF，由后端处理原生行尾；其他文本格式保留实际换行。写入在修改剪贴板之前以 IllegalArgumentException 拒绝内嵌 U+0000；读取到属于文本内容的 NUL 时抛出 WindowException(Unsupported)，不能截短。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
 
-公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入；Linux 通过第 12 节的原生 selection 协议接入；Windows 后端后续实现同一入口。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
+取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不解析 Markdown／HTML，不提供终端 OSC52、剪贴板历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
+
+公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入，纯文本使用标准字符串类型，其他 MIME 经 UniformTypeIdentifiers 映射为有效 UTI；Linux 使用 GdkClipboard 的 MIME 格式；Windows 纯文本使用 CF_UNICODETEXT，其他文本使用 MIME 名称注册的 UTF-8 文本格式。多个表示先在 native 临时对象中准备，再替换系统剪贴板；不存在进程私有的内容回退。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
+
+Windows 写入使用应用已有的隐藏宿主窗口取得 clipboard owner，不使用空 HWND 执行 EmptyClipboard／SetClipboardData；因此该入口无需依赖仍存活的业务窗口。
 
 ### 2.3 窗口活动状态观察
 
@@ -275,7 +279,7 @@ GTK 不提供的窗口控制明确返回 Unsupported，包括内容保护、背�
 
 物理键使用 Linux evdev 编码，未知物理键为 NativeKeyCode.LinuxEvdev，未知逻辑键保留 XkbKeysym。逻辑键和布局来自 GDK 键盘事件，普通组合键与输入法使用 GtkIMContext；正文只经 TextInputBatch 交付一次。失焦取消组合和鼠标序列，并补发已经交付按下键的 synthetic release。重复键和指针滚动节奏由 GTK 处理，不另起重复计时器。输入保留原生接收边界的 Observed 单调时间。
 
-纯文本剪贴板使用 GdkClipboard，读取实际所有者的内容，不以本地副本伪造成功。GtkIMContext 的 commit、preedit 与 delete-surrounding 接入已有编辑批次；surrounding、selection 与 caret 只使用匹配连接／revision 的已发布快照。GTK 仅提供其实际输入法能力，Scoop 不重写 XIM 或 Wayland text-input 协议。
+文本剪贴板使用 GdkClipboard 的 MIME 表示，读取实际所有者的内容，不以本地副本伪造成功。多个文本表示由同一个 content provider 提供，纯文本同时使用 GDK 的标准字符串转换。GtkIMContext 的 commit、preedit 与 delete-surrounding 接入已有编辑批次；surrounding、selection 与 caret 只使用匹配连接／revision 的已发布快照。GTK 仅提供其实际输入法能力，Scoop 不重写 XIM 或 Wayland text-input 协议。
 
 Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 GtkWindow 与可挂载渲染 widget 的内容容器。它们是借用对象，lease 保活窗口与显示连接；需要原始 GDK／X11／Wayland 对象的调用方通过 GTK 公共接口取得，不能绕过 GTK 向其 surface 单独提交 EGL buffer。renderer 先卸载内容 widget 和帧回调，再释放 lease。macOS AppKit 和 Windows Win32 的句柄及实现不变。
 

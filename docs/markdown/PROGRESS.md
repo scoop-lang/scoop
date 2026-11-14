@@ -290,3 +290,11 @@ MarkdownRichInput 支持折叠光标的后续输入样式，不预先写入空�
 原生格式窗口 35 步通过，约 1.97 秒；局部源码 35 步回归通过，约 0.97 秒；原有富文本 47 步通过，约 2.76 秒；三模式 29 步通过，约 3.40 秒。全部使用 scoop test 生成程序、scoop bundle 与 Launch Services，核对 begin／end／complete 和空 failures；覆盖真实快捷键、按钮点击、反向跨块选择、连续中文／emoji、组合接受与取消、只读、模式切换和卸载。
 
 API 生成及 MarkdownStyleState／MarkdownTextContent.setStyle／styleState、MarkdownRichInput.setStyle、MarkdownEditorViewState.toggleStyle 和 markdownFormattingToolbar 查询通过。规范、设计、README、消费示例、原生复现说明及编程导航（含本机工具链副本）同步。本批无编译器、runtime 或系统库修改；临时日志、应用包与 API 站点核对后清理，正常缓存保留。行内代码转换、Markdown 片段粘贴、代码语言选择／高亮、链接和图片操作、查找替换及最终 1／5 MiB 性能验收继续实施。
+
+## C：Markdown 片段的系统剪贴板前置能力
+
+片段复制需要同时向其他应用提供所见纯文本和可解析 Markdown，原来的窗口剪贴板仅支持纯文本。已在 scoop.window 补齐 ClipboardText、writeTexts 与按媒体类型读取，先完成原生多格式、UTF-8／NUL、失败与大文本验收，再用 ~/.scoop 重建受影响的 14 个 Cone。具体合同与平台边界见[窗口实施记录](../windowing/PROGRESS.md#多格式文本剪贴板)。
+
+Markdown 富文本原生测试直接消费安装库的新 API，并保存恢复原系统剪贴板全部格式。Markdown 文档片段的独立导出、保留结构的插入及相应编辑器命令继续在文档／UI Cone 中实施；本批的多格式传输不计为这些编辑操作已经完成。
+
+使用 ~/.scoop 完成 fmt、受影响测试 Cone 的 check --tests --release，UI 库 16 个容器、96 项 release 测试全部通过。原生富文本窗口 47 步通过，约 2.98 秒，包含安装库多表示读写、默认纯文本粘贴、剪切与撤销，以及超过 1 MiB 文档的原生输入／IME／虚拟化回归。程序由 scoop test 生成，经 scoop bundle 与 Launch Services 启动；begin／end／complete 完整，failures 为空。此批修正系统库缺口，没有新增编译器或 runtime 变更。

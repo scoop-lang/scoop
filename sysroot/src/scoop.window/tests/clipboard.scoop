@@ -27,6 +27,12 @@ private class ClipboardTest {
                 )
                 assertFailsWith<WindowException> { handler.application!!.clipboard }
                 assertFailsWith<WindowException> { handler.window!!.clipboard }
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> {
+                        handler.clipboard!!.writeTexts([ClipboardText("text/markdown", "late")])
+                    }.kind
+                )
             } finally {
                 assertEquals(0, restoreNativeClipboard(saved))
             }
@@ -75,10 +81,19 @@ private class ClipboardHandler: ApplicationHandler {
                 )
                 value.writeText("after failure")
                 assertEquals(Some("after failure"), value.readText())
+                val formats = ClipboardFormatsChecks(value)
+                formats.oneSystemItemProvidesPlainMarkdownAndHtmlRepresentations()
+                formats.invalidRepresentationsLeaveEveryExistingFormatUntouched()
+                formats.nativeTypesInvalidUtf8AndWriteFailureUseTheRealClipboard()
+                formats.largeUnicodeMarkdownAndPlainTextRemainIndependent()
                 val worker =
                     Thread.start {
                         assertFailsWith<IllegalStateException> { value.readText() }
                         assertFailsWith<IllegalStateException> { value.writeText("wrong thread") }
+                        assertFailsWith<IllegalStateException> { value.readText("text/markdown") }
+                        assertFailsWith<IllegalStateException> {
+                            value.writeTexts([ClipboardText("text/markdown", "wrong thread")])
+                        }
                         assertFailsWith<IllegalStateException> { application.clipboard }
                     }
                 worker.join()

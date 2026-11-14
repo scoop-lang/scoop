@@ -1,0 +1,93 @@
+package scoop.window
+
+internal fun platformReadClipboard(mediaType: String): String? {
+    @Unsafe
+    {
+        val result =
+            mediaType.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeClipboardRead(bytes, length)
+                }
+            }
+        try {
+            checkNativeStatus(result.error, "read clipboard")
+            return when (result.bytes) {
+                case Some(val bytes) -> {
+                    try {
+                        Some(String.fromUtf8(bytes, result.length))
+                    } catch (error: CharacterCodingException) {
+                        throw WindowException("read clipboard", WindowErrorKind.NativeFailure)
+                    }
+                }
+                case None -> None
+            }
+        } finally {
+            nativeClipboardRelease(result.bytes)
+        }
+    }
+}
+
+internal fun platformWriteClipboard(application: Ptr<Unit>, representations: List<ClipboardText>) {
+    @Unsafe
+    {
+        val writer = created(nativeClipboardCreate(), "prepare clipboard")
+        try {
+            for (representation in representations) {
+                representation.mediaType.withUtf8Bytes {
+                    typeBytes,
+                    typeLength -> @Unsafe
+                    {
+                        representation.text.withUtf8Bytes {
+                            bytes,
+                            length -> @Unsafe
+                            {
+                                checkNativeStatus(
+                                    nativeClipboardAdd(
+                                        writer,
+                                        typeBytes,
+                                        typeLength,
+                                        bytes,
+                                        length
+                                    ),
+                                    "prepare clipboard"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            checkNativeStatus(nativeClipboardWrite(writer, application), "write clipboard")
+        } finally {
+            nativeClipboardDestroy(writer)
+        }
+    }
+}
+
+@CLayout
+private struct NativeClipboardText(val bytes: Ptr<UInt8>?, val length: Long, val error: Long)
+
+@Extern(name = "scoop_window_clipboard_read")
+private fun nativeClipboardRead(mediaType: Ptr<UInt8>, length: Long): NativeClipboardText
+
+@Extern(name = "scoop_window_clipboard_release")
+private fun nativeClipboardRelease(bytes: Ptr<UInt8>?)
+
+@Extern(name = "scoop_window_clipboard_create")
+private fun nativeClipboardCreate(): NativeCreateResult
+
+@Extern(name = "scoop_window_clipboard_add")
+private fun nativeClipboardAdd(
+    writer: Ptr<Unit>,
+    mediaType: Ptr<UInt8>,
+    typeLength: Long,
+    bytes: Ptr<UInt8>,
+    length: Long
+): Long
+
+@Extern(name = "scoop_window_clipboard_write")
+private fun nativeClipboardWrite(writer: Ptr<Unit>, application: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_clipboard_destroy")
+private fun nativeClipboardDestroy(writer: Ptr<Unit>)
