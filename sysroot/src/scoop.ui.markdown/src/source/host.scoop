@@ -29,6 +29,7 @@ public class MarkdownSourceHost public constructor(
     internal var closed = false
     internal var region = initialRegion
     internal var highlights = initialHighlights
+    internal var searchResult: MarkdownSearchResult? = None
     internal var input =
         MarkdownSourceInput(initialState, initialOptions.inputContextBytes, initialRegion)
     internal val fonts: FontCollection get() = suppliedFonts ?: scope.defaultFonts
@@ -140,7 +141,8 @@ public class MarkdownSourceHost public constructor(
         fonts: FontCollection? = None,
         region: MarkdownSourceRegion? = None,
         onExit: (() -> Unit)? = None,
-        highlights: MarkdownCodeHighlights? = None
+        highlights: MarkdownCodeHighlights? = None,
+        searchResult: MarkdownSearchResult? = None
     ) {
         checkOpen()
         state.checkEdit()
@@ -209,6 +211,7 @@ public class MarkdownSourceHost public constructor(
         changed = onChanged
         exitSource = onExit
         this.highlights = highlights
+        this.searchResult = searchResult
         area.scope.enabled = active
         area.textInput = active && !options.readOnly
         if (!ownsOtherComposition()) {

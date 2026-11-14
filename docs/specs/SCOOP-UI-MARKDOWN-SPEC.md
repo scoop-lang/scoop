@@ -184,3 +184,15 @@ Enter 拆分段落／标题，保留两侧样式、所在引用和列表语义�
 默认复制和剪切同时写入 `text/plain` 与 `text/markdown`：富文本的前者使用所见文本，后者使用原始文档语义片段，生成内容保留原指令。源码面两种表示均为原选区源码。写入成功后才删除剪切选区。默认粘贴优先使用存在的 `text/markdown`，在富文本面调用文档 Cone 的 replaceMarkdown，在源码面原样插入；缺失时按字面文本粘贴 `text/plain`。存在但为空的格式仍是有效内容，不回退到其他格式。一次粘贴作为一个独立撤销项，复用返回的局部解析；组合先接受，禁止使用另一输入面正在持有的组合。
 
 `MarkdownClipboardCommand` 提供 CopyText、CopyMarkdown、PasteText、PasteMarkdown 和 PasteTableTsv；RichHost、SourceHost 与 EditorViewState 的 `executeClipboard` 可供菜单／工具栏使用，不要求按钮点击后输入面仍拥有焦点。CopyMarkdown 将源码同时作为普通文本提供，PasteMarkdown 也可把普通文本显式解释为 Markdown，PasteText 始终忽略 Markdown 表示。源码面的 PasteTableTsv 返回 false。只读保留复制，禁用粘贴；禁用组件不执行命令。ViewState 路由到当前栏并在成功后恢复该栏焦点。HTML 导入另行实现，此阶段不把 HTML 格式作为 Markdown 解析。
+
+## 11. 全文查找替换
+
+`MarkdownSearchController(viewState, executor, proxy)` 为同一三模式视图维护查询、结果、当前匹配及原生字段状态，借用视图和 executor。configure 发起后台源码搜索，可显式 selectFirst；next(backwards) 循环导航，show(replace)／hide 控制可选查找栏。单个正在执行的任务与最新待处理请求共存，owner 发布时核对实际请求、查询和 snapshot 身份。文档变化立即废弃旧替换范围；查找栏关闭时不因正文键入继续全文搜索。选区、caret、保存状态与高亮颜色变化不重新搜索。
+
+`markdownSearchBar(controller)` 复用原生 Input，提供查询、大小写／整词／正则选项、计数、前后导航，以及单次／全部替换。`markdownEditor(..., search = Some(controller))` 绑定其快捷键和结果高亮，controller 必须属于相同 viewState；独立源码／富文本／预览 View 和 Host 可传 searchResult。Primary-F 打开查找，Primary-Alt-F 打开替换，Primary-G／Shift-G 导航；替换组合使用 F 的物理键位，避免 Option 改变逻辑字符。查找字段 Enter／Shift-Enter 导航，Escape 在字段组合已经结束时关闭并返回原活动栏。查询字段的输入和撤销属于普通字段状态，不进入文档历史；查找结果定位保留字段焦点。
+
+搜索范围是原始 Markdown，包括定界符、链接目标、代码与自定义指令。结果不搜索派生 include 的外部内容；高亮沿已有源码／显示映射绘制，虚拟视口只查询相交匹配，零宽结果显示细线。背景结果过期时不对新正文绘制旧范围。匹配选择以真实源码坐标保存，定位允许目标尚未挂载或完整解析尚未就绪，不隐式切换编辑模式。
+
+replaceCurrent 和 replaceAll 只在当前结果仍匹配文档、目标视图已挂载且可编辑时执行。方法先准备文档 Cone 的替换事务，再接受文档组合并通过共享 editor 一次发布；全部替换只有一个撤销项，保留方向选区。单次替换后从插入结束位置继续搜索，跳过刚插入内容；空变化仍前进至下一个旧匹配。正则查找栏启用捕获模板，普通文本替换按字面处理；无效模式或模板在栏内显示错误，正文不部分修改。整体只读、活动栏只读或禁用时仍保留允许的查找，替换禁用。
+
+关闭 controller 取消待处理与未发布结果、释放订阅，正在执行的纯搜索可以结束但不再发布。借用的文档、视图和 executor 仍由宿主关闭；一个查找栏独占该 controller 的原生字段。

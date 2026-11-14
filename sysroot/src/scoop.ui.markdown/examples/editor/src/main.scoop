@@ -30,6 +30,8 @@ private class EditorWindow(
     private val images =
         scope.resource { MarkdownImageController(workers, scope.application.proxy(), renderers) }
     private val view = MarkdownEditorViewState(editor, MarkdownEditorMode.SideBySide)
+    private val search =
+        scope.resource { MarkdownSearchController(view, workers, scope.application.proxy()) }
     private val message = state("")
 
     public override fun onMount() {
@@ -96,12 +98,14 @@ private class EditorWindow(
                 }
                 item(markdownFormattingToolbar(owner.view))
                 item(markdownBlockToolbar(owner.view))
+                item(markdownSearchBar(owner.search))
                 item(
                     markdownEditor(
                         owner.view,
                         owner.parser,
                         images = Some(owner.images),
                         documentUri = owner.documentUri,
+                        search = Some(owner.search),
                         onOpenLink = { destination -> owner.message.value = destination }
                     )
                 ) {

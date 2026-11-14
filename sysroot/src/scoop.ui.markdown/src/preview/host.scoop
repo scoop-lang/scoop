@@ -39,6 +39,7 @@ public class MarkdownPreviewHost public constructor(
     internal var closed = false
     internal var document: MarkdownParsedDocument? = None
     internal var presentation: MdRichPresentation? = None
+    internal var searchResult: MarkdownSearchResult? = None
     internal var heightRegions: MdRichRegionRows? = None
     internal var rich: MarkdownRichHost? = None
     internal var heights = mdHeightRun(0L, mdPreviewEstimate(initialStyle, initialOptions))
@@ -123,7 +124,8 @@ public class MarkdownPreviewHost public constructor(
         onOpenLink: (String) -> Unit = { _ -> Unit },
         onSource: (MarkdownRange) -> Unit = { _ -> Unit },
         images: MarkdownImageController? = None,
-        documentUri: String = ""
+        documentUri: String = "",
+        searchResult: MarkdownSearchResult? = None
     ) {
         checkOpen()
         controller.editor.checkEdit()
@@ -174,6 +176,7 @@ public class MarkdownPreviewHost public constructor(
             observeImages()
         }
         this.documentUri = documentUri
+        this.searchResult = searchResult
         this.options = options
         this.focus.options = focus
         suppliedFonts = fonts

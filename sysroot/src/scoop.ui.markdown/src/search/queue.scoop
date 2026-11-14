@@ -1,0 +1,144 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.platform.concurrent.Mutex
+import scoop.window.ApplicationProxy
+
+internal class MdSearchRequest(val snapshot: MarkdownSnapshot, val query: MarkdownSearchQuery)
+
+internal enum MdSearchOutcome {
+    Success(MarkdownSearchResult), Failure(Throwable)
+}
+
+internal class MdSearchCompletion(val request: MdSearchRequest, val outcome: MdSearchOutcome)
+
+private struct MdSearchNext(val request: MdSearchRequest?, val dispose: Boolean)
+
+/** Coalesces source/query changes and posts at most one owner-thread completion. */
+internal class MdSearchQueue(private val proxy: ApplicationProxy, private val deliver: () -> Unit) {
+    private val lock = Mutex()
+    private var closed = false
+    private var running = false
+    private var pending: MdSearchRequest? = None
+    private var wanted: MdSearchRequest? = None
+    private var completed: MdSearchCompletion? = None
+    private var posted = false
+
+    fun submit(request: MdSearchRequest): Boolean =
+        lock.withLock {
+            pending = Some(request)
+            wanted = Some(request)
+            completed = None
+            if (running)
+                return@withLock false
+            running = true
+            true
+        }
+
+    fun clear() {
+        lock.withLock {
+            pending = None
+            wanted = None
+            completed = None
+        }
+    }
+
+    fun startFailed() {
+        lock.withLock {
+            pending = None
+            wanted = None
+            running = false
+        }
+    }
+
+    fun run() {
+        while (true) {
+            val next =
+                lock.withLock {
+                    val request = pending
+                    pending = None
+                    if (
+                        closed ||
+                            when (request) {
+                                case None -> true;
+                                else -> false
+                            }
+                    ) {
+                        running = false
+                        MdSearchNext(None, closed)
+                    } else
+                        MdSearchNext(request, false)
+                }
+            val request =
+                when (next.request) {
+                    case Some(val value) -> value
+                    case None -> {
+                        if (next.dispose)
+                            lock.dispose()
+                        return
+                    }
+                }
+            val outcome =
+                try {
+                    MdSearchOutcome.Success(request.snapshot.search(request.query))
+                } catch (failure: Throwable) {
+                    MdSearchOutcome.Failure(failure)
+                }
+            val notify =
+                lock.withLock {
+                    if (
+                        closed ||
+                            when (wanted) {
+                                case Some(val value) -> value !== request
+                                case None -> true
+                            }
+                    )
+                        return@withLock false
+                    completed = Some(MdSearchCompletion(request, outcome))
+                    if (posted)
+                        return@withLock false
+                    posted = true
+                    true
+                }
+            if (notify && !proxy.post { _ -> deliver() })
+                lock.withLock {
+                    posted = false
+                    completed = None
+                }
+        }
+    }
+
+    fun receive(): MdSearchCompletion? =
+        lock.withLock {
+            posted = false
+            val result = completed
+            completed = None
+            result
+        }
+
+    fun close() {
+        val dispose =
+            lock.withLock {
+                closed = true
+                pending = None
+                wanted = None
+                completed = None
+                !running
+            }
+        if (dispose)
+            lock.dispose()
+    }
+}
+
+internal class MdSearchWork(
+    private val queue: MdSearchQueue,
+    private val task: ExecutorTask
+): CoroutineWork {
+    public override fun run() {
+        try {
+            queue.run()
+        } finally {
+            task.complete()
+        }
+    }
+}

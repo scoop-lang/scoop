@@ -1,0 +1,131 @@
+package scoop.markdown
+
+import scoop.regex.MatchResult
+
+/** Searches original Markdown; regex mode uses Unicode classes and multiline anchors. */
+public struct MarkdownSearchQuery(
+    val text: String,
+    val regularExpression: Boolean = false,
+    val caseSensitive: Boolean = false,
+    val wholeWord: Boolean = false
+)
+
+internal class MdSearchMatch(val range: MarkdownRange, val captures: MatchResult?)
+
+/** An immutable search over one source snapshot. All exposed positions are UTF-8 bytes. */
+public class MarkdownSearchResult internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val query: MarkdownSearchQuery,
+    private val matches: Array<MdSearchMatch>
+) {
+    public val count: Long get() = matches.size
+
+    public operator fun get(index: Long): MarkdownRange = matches[index].range
+
+    /** Finds a start at/after position, or strictly before it when backwards; wraps at either end. */
+    public fun next(position: MarkdownPosition, backwards: Boolean = false): Long? {
+        snapshot.checkPosition(position.byteOffset)
+        if (count == 0L)
+            return None
+        var low = 0L
+        var high = count
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (matches[middle].range.start < position.byteOffset)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return Some(
+            if (backwards)
+                if (low == 0L)
+                    count - 1L
+                else
+                    low - 1L
+            else
+                if (low == count)
+                    0L
+                else
+                    low
+        )
+    }
+
+    /** Lazily visits intersecting ranges, including zero-width matches at either endpoint. */
+    public fun intersecting(range: MarkdownRange): Iterable<MarkdownRange> {
+        snapshot.checkRange(range)
+        var low = 0L
+        var high = count
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (matches[middle].range.end < range.start)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return MdSearchRanges(this, range, low)
+    }
+
+    /** Prepares one source replacement. Template mode requires a regex query. */
+    public fun prepareReplace(
+        index: Long,
+        text: String,
+        template: Boolean = false
+    ): MarkdownChange =
+        snapshot.prepare(MarkdownEdit(snapshot.revision, [replacement(index, text, template)]))
+
+    /** Prepares all original matches as one transaction, without matching inserted text again. */
+    public fun prepareReplaceAll(text: String, template: Boolean = false): MarkdownChange {
+        requireMarkdown(
+            !template || query.regularExpression,
+            "Replacement templates require regex mode"
+        )
+        val edits =
+            Array<MarkdownReplacement>(count) { index -> replacement(index, text, template) }
+        return snapshot.prepare(MarkdownEdit(snapshot.revision, edits))
+    }
+
+    private fun replacement(index: Long, text: String, template: Boolean): MarkdownReplacement {
+        requireMarkdown(
+            !template || query.regularExpression,
+            "Replacement templates require regex mode"
+        )
+        val match = matches[index]
+        return MarkdownReplacement(
+            match.range,
+            if (template)
+                mdSearchTemplate(match.captures!!, text)
+            else
+                text
+        )
+    }
+}
+
+private class MdSearchRanges(
+    val result: MarkdownSearchResult,
+    val range: MarkdownRange,
+    val first: Long
+): Iterable<MarkdownRange> {
+    public override operator fun iterator(): Iterator<MarkdownRange> =
+        MdSearchRangeIterator(result, range, first)
+}
+
+private class MdSearchRangeIterator(
+    val result: MarkdownSearchResult,
+    val range: MarkdownRange,
+    var index: Long
+): Iterator<MarkdownRange> {
+    public override fun next(): MarkdownRange? {
+        while (index < result.count) {
+            val match = result[index]
+            if (match.start > range.end)
+                return None
+            index += 1L
+            if (
+                (match.isEmpty && match.start >= range.start && match.start <= range.end) ||
+                    (match.start < range.end && match.end > range.start)
+            )
+                return Some(match)
+        }
+        return None
+    }
+}

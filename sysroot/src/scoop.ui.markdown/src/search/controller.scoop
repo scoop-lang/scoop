@@ -1,0 +1,281 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.window.ApplicationProxy
+import scoop.window.Utf8Selection
+
+public enum MarkdownSearchState {
+    Idle, Pending(MarkdownSnapshot, MarkdownSearchQuery), Ready(MarkdownSearchResult),
+    Failed(MarkdownSnapshot, MarkdownSearchQuery, Throwable), Closed
+}
+
+internal struct MdSearchIntent(val position: MarkdownPosition, val backwards: Boolean)
+
+/** A view's native find/replace state, backed by source searches on the borrowed executor. */
+public class MarkdownSearchController public constructor(
+    public val view: MarkdownEditorViewState,
+    private val executor: CoroutineExecutor,
+    proxy: ApplicationProxy
+): Closeable {
+    private val storage = state<MarkdownSearchState>(MarkdownSearchState.Idle)
+    private val settings = state(MarkdownSearchQuery(""))
+    private val opened = state(false)
+    private val replacing = state(false)
+    private val picked = state<Long?>(None)
+    private var closed = false
+    private var requested: MdSearchRequest? = None
+    private var intent: MdSearchIntent? = None
+    private val queue = MdSearchQueue(proxy, { deliver() })
+    private val subscription = view.editor.document.observe { _ -> sourceChanged() }
+    internal val queryInput = TextEditorState()
+    internal val replacementInput = TextEditorState()
+    internal val queryFocus = FocusHandle()
+    internal var focusRequested = false
+    internal val message = state("")
+    internal val availability = state(false)
+
+    public val editor: MarkdownEditorState get() = view.editor
+    public val query: MarkdownSearchQuery get() = settings.value
+    public val status: MarkdownSearchState get() = storage.value
+    public val isVisible: Boolean get() = opened.value
+    public val replacementVisible: Boolean get() = replacing.value
+    public val isClosed: Boolean get() {
+        storage.value;
+        return closed
+    }
+    public val current: MarkdownSearchResult? get() =
+        when (storage.value) {
+            case MarkdownSearchState.Ready(val value) -> if (
+                !editor.isClosed && value.snapshot === editor.snapshot
+            )
+                Some(value)
+            else
+                None
+            else -> None
+        }
+    public val currentIndex: Long? get() {
+        val result = current ?: return None
+        val index = picked.value ?: return None
+        return if (index < result.count && result[index] == editor.selection.range)
+            Some(index)
+        else
+            None
+    }
+    public val canReplace: Boolean get() = mdSearchCanReplace(this)
+
+    public fun configure(query: MarkdownSearchQuery, selectFirst: Boolean = false) {
+        checkOpen()
+        if (queryInput.text != query.text)
+            queryInput.replaceAll(query.text)
+        if (
+            query ==
+                settings.value &&
+                when (status) {
+                    case MarkdownSearchState.Idle -> false;
+                    else -> true
+                }
+        ) {
+            return
+        }
+        settings.value = query
+        message.value = ""
+        request(
+            if (selectFirst)
+                Some(MdSearchIntent(MarkdownPosition(editor.selection.range.start), false))
+            else
+                None
+        )
+    }
+
+    public fun show(replace: Boolean = false) {
+        checkOpen()
+        editor.acceptComposition()
+        opened.value = true
+        replacing.value = replace
+        queryInput.setSelection(Utf8Selection(0L, queryInput.text.byteLength))
+        focusRequested = true
+        if (
+            when (current) {
+                case None -> true;
+                else -> false
+            }
+        )
+            request(None)
+        requestFieldFocus()
+    }
+
+    public fun hide() {
+        checkOpen()
+        opened.value = false
+        focusRequested = false
+        view.requestFocus(view.activePane)
+    }
+
+    public fun next(backwards: Boolean = false): Boolean {
+        checkOpen()
+        val result = current
+        when (result) {
+            case Some(val value) -> {
+                if (value.count == 0L)
+                    return false
+                val index = currentIndex
+                val next =
+                    when (index) {
+                        case Some(val at) -> if (backwards) {
+                            if (at == 0L)
+                                value.count - 1L
+                            else
+                                at - 1L
+                        } else {
+                            if (at + 1L == value.count)
+                                0L
+                            else
+                                at + 1L
+                        }
+                        case None -> value.next(editor.selection.cursor, backwards)!!
+                    }
+                select(value, next)
+                return true
+            }
+            case None -> {
+                if (query.text == "")
+                    return false
+                request(Some(MdSearchIntent(editor.selection.cursor, backwards)))
+                return true
+            }
+        }
+    }
+
+    public fun replaceCurrent(text: String, template: Boolean = false): Boolean =
+        mdReplaceSearchCurrent(this, text, template)
+
+    public fun replaceAll(text: String, template: Boolean = false): Boolean =
+        mdReplaceSearchAll(this, text, template)
+
+    internal fun requestFieldFocus() {
+        if (focusRequested && queryFocus.isAttached && queryFocus.requestFocus())
+            focusRequested = false
+    }
+
+    internal fun select(result: MarkdownSearchResult, index: Long) {
+        val range = result[index]
+        editor.setSelection(
+            MarkdownSelection(MarkdownPosition(range.start), MarkdownPosition(range.end))
+        )
+        picked.value = Some(index)
+        mdSearchReveal(view, MarkdownPosition(range.start))
+    }
+
+    internal fun afterReplace(position: MarkdownPosition) {
+        when (current) {
+            case Some(val value) -> when (value.next(position)) {
+                case Some(val at) -> select(value, at)
+                case None -> Unit
+            }
+            case None -> when (status) {
+                case MarkdownSearchState.Pending(_, _) -> intent =
+                    Some(MdSearchIntent(position, false))
+                else -> request(Some(MdSearchIntent(position, false)))
+            }
+        }
+    }
+
+    private fun sourceChanged() {
+        if (opened.value)
+            request(None)
+        else {
+            requested = None
+            intent = None
+            picked.value = None
+            queue.clear()
+            storage.value = MarkdownSearchState.Idle
+        }
+    }
+
+    private fun request(navigate: MdSearchIntent?) {
+        val request = MdSearchRequest(editor.snapshot, query)
+        requested = Some(request)
+        intent = navigate
+        picked.value = None
+        if (query.text == "") {
+            queue.clear()
+            storage.value = MarkdownSearchState.Ready(editor.snapshot.search(query))
+            return
+        }
+        storage.value = MarkdownSearchState.Pending(request.snapshot, request.query)
+        if (!queue.submit(request))
+            return
+        try {
+            val task = executor.registerTask(None)
+            try {
+                task.dispatch(MdSearchWork(queue, task))
+            } catch (failure: Throwable) {
+                task.complete()
+                throw failure
+            }
+        } catch (failure: Throwable) {
+            queue.startFailed()
+            storage.value = MarkdownSearchState.Failed(request.snapshot, request.query, failure)
+        }
+    }
+
+    private fun deliver() {
+        storage.checkMutation()
+        if (closed)
+            return
+        if (editor.isClosed) {
+            close();
+            return
+        }
+        val completion = queue.receive() ?: return
+        val active = requested ?: return
+        if (
+            completion.request !==
+                active ||
+                editor.snapshot !==
+                active.snapshot ||
+                query !=
+                active.query
+        )
+            return
+        val navigation = intent
+        intent = None
+        when (completion.outcome) {
+            case MdSearchOutcome.Success(val result) -> {
+                storage.value = MarkdownSearchState.Ready(result)
+                when (navigation) {
+                    case Some(val value) -> when (result.next(value.position, value.backwards)) {
+                        case Some(val at) -> select(result, at)
+                        case None -> Unit
+                    }
+                    case None -> Unit
+                }
+            }
+            case MdSearchOutcome.Failure(val failure) -> storage.value =
+                MarkdownSearchState.Failed(active.snapshot, active.query, failure)
+        }
+    }
+
+    internal fun checkOpen() {
+        storage.checkMutation()
+        if (closed)
+            throw IllegalStateException(Some("Markdown search controller is closed"))
+        editor.checkEdit()
+    }
+
+    public override fun close() {
+        storage.checkMutation()
+        if (closed)
+            return
+        closed = true
+        subscription.close()
+        requested = None
+        intent = None
+        picked.value = None
+        opened.value = false
+        queue.close()
+        storage.value = MarkdownSearchState.Closed
+    }
+}

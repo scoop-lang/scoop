@@ -10,6 +10,10 @@
 
 `MarkdownBlockWindowTests` 验证标题快捷键、真实列表／表格菜单、菜单关闭后的焦点恢复、块命令接受中文组合、分步撤销、列表类型和层级、空表格行／列中的原生输入、对齐与删除后定位、只读／源码模式拒绝，以及插入代码后直接进入局部源码。
 
+`MarkdownSearchWindowTests` 验证查找字段的原生组合和取消、逐字查询、Enter／Shift-Enter 与 Cmd-G 前后跳转、隐藏后继续查找、替换字段的输入及 Replace all 按钮、共享撤销／重做、正则捕获、错误表达式与模板、三模式和只读切换。超过 1 MiB 的文档检查源码／富文本两侧到末尾匹配的实际滚动，卸载后禁止替换并保留借用资源。
+
+`MarkdownSearchBackgroundTests` 使用独立 Application 进程，不创建窗口。通过实际 worker 队列阻塞检查连续查询的合并、旧结果退休、当前文档身份、失败后的恢复、隐藏后的废弃，以及后台工作尚未结束时关闭 controller。它与其他原生用例分别启动，遵守一进程一次 Application 的合同。
+
 富文本用例同时验证真实系统剪贴板的 text/plain／text/markdown、独立多块粘贴、一次撤销、显式纯文本／Markdown／TSV、存在但为空的格式和只读命令。测试保存并恢复原剪贴板的全部项目与格式。
 
 从仓库根运行：
@@ -36,6 +40,6 @@ open -n -W \
 cat /tmp/scoop-markdown-rich-events/events.jsonl
 ```
 
-局部源码、格式、链接／图片或块操作用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests` 或 `MarkdownBlockWindowTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。窗口用例按独立进程串行运行，避免争用原生焦点。
+局部源码、格式、链接／图片、块操作及查找用例使用同一应用包，把筛选器分别改为 `MarkdownLocalSourceWindowTests`、`MarkdownFormattingWindowTests`、`MarkdownTargetWindowTests`、`MarkdownBlockWindowTests`、`MarkdownSearchWindowTests` 或 `MarkdownSearchBackgroundTests`，并各设一个空的 `SCOOP_TEST_RUN_DIR`。原生用例按独立进程串行运行，避免争用原生焦点和重复创建 Application。
 
 示例路径用于 aarch64-apple-darwin；使用其他本机 target 或 `--target-dir` 时按实际构建输出调整。事件输出沿 `scoop.test` 的既有协议：必须出现所选用例的 begin、带空 failures 的 end 和最终 complete；单独的 `open` 退出成功不能证明测试通过。失败详情同时保存在相同事件目录的 stdout／stderr 文件。核对后清理本轮 `/tmp/scoop-markdown-rich-app` 和 `/tmp/scoop-markdown-rich-events`，保留正常 Cone 构建缓存。

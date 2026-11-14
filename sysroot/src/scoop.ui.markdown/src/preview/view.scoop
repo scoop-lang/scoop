@@ -2,6 +2,7 @@ package scoop.ui.markdown
 
 import scoop.graphics.text.FontCollection
 import scoop.markdown.MarkdownRange
+import scoop.markdown.MarkdownSearchResult
 import scoop.ui.*
 
 private class MdPreviewProps(
@@ -13,7 +14,8 @@ private class MdPreviewProps(
     val openLink: (String) -> Unit,
     val source: (MarkdownRange) -> Unit,
     val images: MarkdownImageController?,
-    val documentUri: String
+    val documentUri: String,
+    val searchResult: MarkdownSearchResult?
 )
 
 public fun markdownPreview(
@@ -25,7 +27,8 @@ public fun markdownPreview(
     onOpenLink: (String) -> Unit = { _ -> Unit },
     onSource: (MarkdownRange) -> Unit = { _ -> Unit },
     images: MarkdownImageController? = None,
-    documentUri: String = ""
+    documentUri: String = "",
+    searchResult: MarkdownSearchResult? = None
 ): View =
     component(
         MdPreviewProps(
@@ -37,7 +40,8 @@ public fun markdownPreview(
             onOpenLink,
             onSource,
             images,
-            documentUri
+            documentUri,
+            searchResult
         ),
         { props, scope -> MdPreviewComponent(props, scope) }
     )
@@ -81,7 +85,8 @@ private class MdPreviewElement(val props: Props<MdPreviewProps>, scope: Componen
             input.openLink,
             input.source,
             input.images,
-            input.documentUri
+            input.documentUri,
+            input.searchResult
         )
         if (!input.controller.isClosed)
             input.controller.start()

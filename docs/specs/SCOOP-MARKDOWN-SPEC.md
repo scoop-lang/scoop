@@ -246,6 +246,16 @@ session 先比较输入文档身份、revision、base URI、profile 和已用资
 
 anchor 用 `ANCHOR: name`／`ANCHOR_END: name` 成对标记，允许注释中的标记和嵌套；anchor 选中的正文忽略所有 anchor 标记行，整文件和行号选择仍按原样范围处理。重复同名的完整区段按文件顺序连接；缺失、未配对或错误关闭报告诊断。路径相对包含指令的文件解析，嵌套 include 保留自己的 URI。普通 Markdown、表格与围栏上下文均使用 §11 的派生重解析和来源合同；不以简单别名宣称兼容 rustdoc_include 的隐藏行行为。
 
-## 13. 后续结构与处理
+## 13. 源码搜索与替换
+
+`MarkdownSnapshot.search(MarkdownSearchQuery)` 显式搜索该不可变快照的完整 Markdown 原文，不解析或展开指令。query 包含 text、regularExpression、caseSensitive 和 wholeWord；默认普通文本、不区分大小写、不限定整词。空查询返回空结果，显式正则零宽模式仍正常匹配。匹配复用 scoop.regex 的 PCRE2 Unicode 规则，正则模式默认启用 Multiline；整词限制使用 Unicode `\w` 的两侧边界，不隐式规范化 Unicode 或换行。语法／匹配错误沿 regex 的既有异常报告。
+
+`MarkdownSearchResult` 保存原 snapshot、query 和有序匹配范围，count 返回匹配数量，索引查询返回源码 UTF-8 字节范围。next(position, backwards) 循环查找起点不早于位置的下一项，反向查找起点严格早于位置的一项；无匹配返回 None。intersecting(range) 只遍历相交匹配，零宽匹配包含落在范围端点上的位置，供虚拟视口按需查询。扫描在同一次遍历中换算标量／字节坐标，不逐匹配从全文开头重新计数。
+
+prepareReplace(index, text, template) 和 prepareReplaceAll(text, template) 返回普通 MarkdownChange，不立即修改文档；发布时检查原快照身份。默认替换文本按字面使用。显式 template 只适用于正则查询，支持 `$0`、`$1` 等编号、`${name}` 命名捕获和 `$$` 字面美元符号；未参与的已声明捕获为空，非法引用／语法在准备时失败，反斜杠按字面保留。全部替换消费本次搜索的原有匹配，不继续搜索新插入内容，并合成一次有序源码事务；零宽匹配遵循 regex 迭代的前进规则，逆向事务恢复原字节。
+
+搜索是显式全文操作，可在调用方工作线程上运行；正则成本取决于表达式，源码字节坐标换算随扫描位置单调推进。它不改变普通编辑、解析和保存路径，也不成为逐键全文复制的前置步骤。
+
+## 14. 后续结构与处理
 
 后续结构修改与跨修改的节点身份复用继续按设计增补。普通解析结果里的身份不构成跨独立解析的匹配猜测。保存、修改与解析各自有明确边界，parse 不成为读取快照或源码输入的隐式副作用；公式与 Mermaid 的图像工具不参与 headless 文档的解析／生成合法性。

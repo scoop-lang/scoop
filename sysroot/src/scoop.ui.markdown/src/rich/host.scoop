@@ -123,7 +123,8 @@ public class MarkdownRichHost public constructor(
         onOpenLink: (String) -> Unit = { _ -> Unit },
         onSource: (MarkdownRange) -> Unit = { _ -> Unit },
         images: MarkdownImageController? = None,
-        documentUri: String = ""
+        documentUri: String = "",
+        searchResult: MarkdownSearchResult? = None
     ) {
         checkOpen()
         val rebound = controller !== preview.controller
@@ -145,7 +146,8 @@ public class MarkdownRichHost public constructor(
             onOpenLink,
             onSource,
             images,
-            documentUri
+            documentUri,
+            searchResult
         )
         if (rebound)
             subscription = editor.document.observe { change -> sourceChanged(change) }

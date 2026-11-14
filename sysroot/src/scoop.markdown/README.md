@@ -168,3 +168,19 @@ prepared.applyTo(document)
 `syntax.replaceMarkdown(sourceRange, markdown)` 解析片段并准备 `MarkdownFragmentEdit`，包含 change、结果源码 selection 和 `after: ParsedMarkdownRegion`。用 `edit.applyTo(document)` 发布；after.snapshot 与 change.after 相同，后续局部编辑可直接复用。单段保留两侧格式，多段继承容器，表格矩形保留格式并按需增长；脚注冲突一起改名。表格中的普通多段保留行内换行，无法放入单元格的块结构保留为源码字面文字。此接口使用源码 UTF-8 坐标，区别于 replaceText 的显示坐标；不执行文件 I/O，不持有 UI 或独立撤销历史。
 
 [无 UI 消费示例](examples/source/tests/fragments.scoop) 展示跨文档复制、准备、一次发布和精确恢复。对大文档使用 `parsed.region(range).parse()` 获取局部语法；片段只读取自身和需要的区外定义。
+
+## 源码查找替换
+
+`snapshot.search(MarkdownSearchQuery(text, regularExpression, caseSensitive, wholeWord))` 显式搜索整份原始 Markdown，返回绑定该快照的 `MarkdownSearchResult`。默认按字面、不区分大小写；正则使用 scoop.regex 的 Unicode 规则和多行锚点，整词边界使用 Unicode `\w`。包括围栏、链接目标与自定义指令，不展开 include。空查询返回空结果；正则的显式零宽匹配仍可导航和替换。搜索不会改变或格式化正文。
+
+结果的 `count`、索引访问、`next(position, backwards)` 和 `intersecting(range)` 均使用源码 UTF-8 字节坐标。next 循环导航，相交查询先二分定位再惰性遍历，适合虚拟视口高亮。`prepareReplace`／`prepareReplaceAll` 返回一个准备好的 MarkdownChange；替换全部基于原匹配集合，不重新搜索插入文字。applyTo 检查当前快照，旧结果不能写入已经变化的文档。
+
+```scoop
+val document = MarkdownDocument.fromText("[Read](old.md)\n\n{{#include old.md}}\n")
+val matches = document.snapshot().search(MarkdownSearchQuery("old.md"))
+val change = matches.prepareReplaceAll("new.md")
+change.applyTo(document)
+document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+```
+
+`template = true` 只用于正则查询，支持 `$0`、`$1`…、`${name}` 和 `$$`；未参与匹配的有效捕获组为空串，无效引用在发布前抛错，反斜杠按字面保留。普通替换不解释模板。搜索是显式的全文操作，可在线程上使用不可变 snapshot；它不进入普通源码修改路径。完整跨 Cone 用法见 [examples/source/tests/search.scoop](examples/source/tests/search.scoop)。

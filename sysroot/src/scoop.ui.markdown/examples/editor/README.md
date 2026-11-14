@@ -6,6 +6,8 @@
 
 块工具栏提供 Block、List 和 Table 菜单：可转换标题／段落，增减引用，改变列表类型和层级，插入代码块、分隔线与表格，并增删表格行列、设置列对齐。Cmd-0／1…6 对应段落／标题；菜单操作后可以继续输入，修改使用同一撤销历史。新增代码块直接进入局部源码编辑。
 
+Find／Replace 或 Cmd-F／Cmd-Alt-F 打开原生全文查找栏，提供大小写、整词和正则选项。查询字段 Enter／Shift-Enter、Cmd-G／Cmd-Shift-G 前后跳转；Escape 在组合结束后返回编辑区域。Replace 修改当前匹配，Replace all 一次修改所有匹配并共用文档撤销；只读栏禁用替换。正则替换支持 `$1`、`${name}`、`$$`。搜索包含原始 Markdown 的标记和目标 URI，不展开外部 include；高亮与滚动使用同一源码映射。
+
 ```sh
 ~/.scoop/bin/scoop --sysroot ~/.scoop run sysroot/src/scoop.ui.markdown/examples/editor --release -- /absolute/path/document.md
 ```

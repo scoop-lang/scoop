@@ -93,7 +93,8 @@ public class MarkdownSourceMeasurement internal constructor(
     internal val requestRevision: ULong,
     internal val padding: Double,
     internal val cursorAffinity: TextAffinity,
-    ownership: MdSourceRows? = None
+    ownership: MdSourceRows? = None,
+    internal val searchResult: MarkdownSearchResult? = None
 ): Closeable {
     private val owner = ownership ?: MdSourceRows(rows)
     private var closed = false
@@ -120,7 +121,8 @@ public class MarkdownSourceMeasurement internal constructor(
             requestRevision,
             padding,
             cursorAffinity,
-            Some(owner.retain())
+            Some(owner.retain()),
+            searchResult
         )
     }
     internal fun line(index: Long): MdSourceLine? {

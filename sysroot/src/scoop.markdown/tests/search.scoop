@@ -1,0 +1,149 @@
+package scoop.markdown
+
+import scoop.collections.*
+import scoop.regex.*
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownSearchTests {
+    @Test
+    fun `literal searches use source bytes and explicit Unicode case and word rules`() {
+        val source = "# Cat cat catty 猫cat\r\n中👩‍💻 é é\u{0} CAT\n"
+        val snapshot = MarkdownDocument.fromText(source).snapshot()
+        val found = snapshot.search(MarkdownSearchQuery("cat"))
+        assertEquals(5L, found.count)
+        assertEquals(MarkdownRange(2L, 5L), found[0L])
+        assertEquals(3L, snapshot.search(MarkdownSearchQuery("cat", caseSensitive = true)).count)
+        val words = snapshot.search(MarkdownSearchQuery("cat", wholeWord = true))
+        assertEquals(3L, words.count)
+        assertEquals("CAT", snapshot.read(words[2L]))
+        assertEquals(1L, snapshot.search(MarkdownSearchQuery("é")).count)
+        assertEquals(1L, snapshot.search(MarkdownSearchQuery("é")).count)
+        assertEquals(1L, snapshot.search(MarkdownSearchQuery("\u{0}")).count)
+        val newline = snapshot.search(MarkdownSearchQuery("\r\n中"))
+        assertEquals("\r\n中", snapshot.read(newline[0L]))
+        assertEquals(source, snapshot.toMarkdown())
+    }
+
+    @Test
+    fun `regex captures and anchors preserve complete input context and replacement spelling`() {
+        val original = "ID:雪=12\r\nID:猫=7\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val found =
+            document.snapshot().search(
+                MarkdownSearchQuery("(?<=ID:)(?<name>[^=]+)=(?<n>[0-9]+)", regularExpression = true)
+            )
+        assertEquals(2L, found.count)
+        assertEquals(3L, found[0L].start)
+        val change = found.prepareReplaceAll("${n}:$1:$$\\path", true)
+        assertEquals(original, document.toMarkdown())
+        change.applyTo(document)
+        assertEquals("ID:12:雪:$\\path\r\nID:7:猫:$\\path\r\nTail\r\n", document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+        val lines =
+            document.snapshot().search(MarkdownSearchQuery("^ID:", regularExpression = true))
+        assertEquals(2L, lines.count)
+        val outside =
+            MarkdownDocument.fromText("xy").snapshot().search(
+                MarkdownSearchQuery("(?<=(?<before>x))y", regularExpression = true)
+            )
+        assertEquals("xx", outside.prepareReplace(0L, "${before}", true).after.toMarkdown())
+    }
+
+    @Test
+    fun `zero width matches advance and all replacements use the original set`() {
+        val document = MarkdownDocument.fromText("a中文")
+        val found =
+            document.snapshot().search(MarkdownSearchQuery("(?=a)|a|$", regularExpression = true))
+        assertEquals(3L, found.count)
+        assertEquals(MarkdownRange(0L, 0L), found[0L])
+        assertEquals(MarkdownRange(0L, 1L), found[1L])
+        assertEquals(MarkdownRange(7L, 7L), found[2L])
+        val change = found.prepareReplaceAll("-")
+        change.applyTo(document)
+        assertEquals("--中文-", document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals("a中文", document.toMarkdown())
+        assertEquals(
+            0L,
+            document.snapshot().search(MarkdownSearchQuery("", regularExpression = true)).count
+        )
+        val all = document.snapshot().search(MarkdownSearchQuery("a"))
+        assertEquals("aa中文", all.prepareReplaceAll("aa").after.toMarkdown())
+    }
+
+    @Test
+    fun `navigation and visible range queries include boundaries without scanning every match`() {
+        val snapshot = MarkdownDocument.fromText("猫 x 猫 x").snapshot()
+        val found = snapshot.search(MarkdownSearchQuery("猫|$", regularExpression = true))
+        assertEquals(Some(0L), found.next(MarkdownPosition(0L)))
+        assertEquals(Some(2L), found.next(MarkdownPosition(0L), true))
+        assertEquals(Some(1L), found.next(MarkdownPosition(3L)))
+        assertEquals(Some(2L), found.next(MarkdownPosition(snapshot.byteLength)))
+        val visible = found.intersecting(MarkdownRange(3L, snapshot.byteLength)).toList()
+        assertEquals(2L, visible.size)
+        assertEquals(MarkdownRange(snapshot.byteLength, snapshot.byteLength), visible[1L])
+        assertFailsWith<IllegalArgumentException> { found.next(MarkdownPosition(1L)) }
+        assertFailsWith<IllegalArgumentException> { found.intersecting(MarkdownRange(5L, 3L)) }
+        assertEquals(
+            None,
+            snapshot.search(MarkdownSearchQuery("absent")).next(MarkdownPosition(0L))
+        )
+    }
+
+    @Test
+    fun `templates handle unparticipating groups and reject invalid references atomically`() {
+        val document = MarkdownDocument.fromText("ab a")
+        val found =
+            document.snapshot().search(
+                MarkdownSearchQuery("(?<letter>a)(b)?", regularExpression = true)
+            )
+        assertEquals(
+            "b:a:ab::$ :a:a::$",
+            found.prepareReplaceAll("$2:${letter}:$0::$$", true).after.toMarkdown()
+        )
+        for (replacement in ["$", "$90", "${missing}", "${", "${}", "$x"])
+            assertFailsWith<IllegalArgumentException> { found.prepareReplaceAll(replacement, true) }
+        assertEquals("$1 $1", found.prepareReplaceAll("$1").after.toMarkdown())
+        assertEquals(0L, document.revision)
+        assertFailsWith<RegexSyntaxException> {
+            document.snapshot().search(MarkdownSearchQuery("(", regularExpression = true))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.snapshot().search(MarkdownSearchQuery("a")).prepareReplace(0L, "$0", true)
+        }
+        assertEquals("ab a", document.toMarkdown())
+    }
+
+    @Test
+    fun `prepared replacements reject foreign or changed documents and preserve old results`() {
+        val document = MarkdownDocument.fromText("雪 雪")
+        val found = document.snapshot().search(MarkdownSearchQuery("雪"))
+        val change = found.prepareReplace(1L, "猫")
+        assertFailsWith<IllegalStateException> { change.applyTo(MarkdownDocument.fromText("雪 雪")) }
+        document.replace(MarkdownRange(0L, 0L), "先")
+        assertFailsWith<IllegalStateException> { change.applyTo(document) }
+        assertEquals("先雪 雪", document.toMarkdown())
+        assertEquals("雪 雪", found.snapshot.toMarkdown())
+        assertEquals("雪 猫", change.after.toMarkdown())
+    }
+
+    @Test
+    fun `five MiB search crosses source chunks and prepares sparse reversible replacements`() {
+        val block = "Long paragraph body ".repeat(40L) + "目标中文\r\n\r\n"
+        val source = block.repeat(6600L)
+        val document = MarkdownDocument.fromText(source)
+        assertTrue(source.byteLength > 5L * 1024L * 1024L)
+        val found = document.snapshot().search(MarkdownSearchQuery("目标中文\r\n\r\nLong"))
+        assertEquals(6599L, found.count)
+        val changed = found.prepareReplaceAll("新值\r\n\r\nLong")
+        assertEquals(6599L, changed.replacements.size)
+        assertTrue(changed.replacements[0L].range.byteLength < 32L)
+        changed.applyTo(document)
+        assertTrue(document.toMarkdown().endsWith("目标中文\r\n\r\n"))
+        document.apply(MarkdownEdit(document.revision, changed.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+}

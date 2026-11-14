@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.FontCollection
 import scoop.markdown.*
 import scoop.surface.FocusVisibility
+import scoop.surface.ShortcutScope
 import scoop.ui.*
 import scoop.ui.component.resizable
 
@@ -18,7 +19,8 @@ internal class MdEditorProps(
     val openLink: (String) -> Unit,
     val source: ((MarkdownRange) -> Unit)?,
     val images: MarkdownImageController?,
-    val documentUri: String
+    val documentUri: String,
+    val search: MarkdownSearchController? = None
 )
 
 /** Three native editing modes over one borrowed document, selection and undo history. */
@@ -33,11 +35,17 @@ public fun markdownEditor(
     onOpenLink: (String) -> Unit = { _ -> Unit },
     onSource: ((MarkdownRange) -> Unit)? = None,
     images: MarkdownImageController? = None,
-    documentUri: String = ""
+    documentUri: String = "",
+    search: MarkdownSearchController? = None
 ): View {
     options.check()
     if (state.editor !== controller.editor)
         throw IllegalArgumentException(Some("Markdown editor and parser must share the same state"))
+    when (search) {
+        case Some(val value) -> if (value.view !== state)
+            throw IllegalArgumentException(Some("Markdown search must belong to this view state"))
+        case None -> Unit
+    }
     return component(
         MdEditorProps(
             state,
@@ -50,7 +58,8 @@ public fun markdownEditor(
             onOpenLink,
             onSource,
             images,
-            documentUri
+            documentUri,
+            search
         ),
         { props, scope -> MdEditorComponent(props, scope) }
     )
@@ -77,6 +86,11 @@ private class MdEditorComponent(val props: Props<MdEditorProps>, scope: Componen
         val mode = state.mode
         val rightReadOnly = state.rightReadOnly
         state.synchronizeScroll
+        val searchResult =
+            if (input.search?.isVisible == Some(true))
+                input.search?.current ?: None
+            else
+                None
         val panes =
             resizable(state.sizes.binding()) {
                 withHandle = true
@@ -96,7 +110,8 @@ private class MdEditorComponent(val props: Props<MdEditorProps>, scope: Componen
                                 ),
                                 { _ -> Unit },
                                 Some(owner),
-                                highlights = input.controller.current?.sourceHighlights
+                                highlights = input.controller.current?.sourceHighlights,
+                                searchResult = searchResult
                             )
                         )
                     ) {
@@ -126,7 +141,8 @@ private class MdEditorComponent(val props: Props<MdEditorProps>, scope: Componen
                                 input.source,
                                 input.images,
                                 input.documentUri,
-                                Some(owner)
+                                Some(owner),
+                                searchResult
                             )
                         )
                     ) {
@@ -149,11 +165,13 @@ private class MdEditorComponent(val props: Props<MdEditorProps>, scope: Componen
 private class MdEditorShell(val props: Props<MdEditorShellProps>, scope: ComponentScope): Element<
     Unit
 >(scope) {
+    private val shortcuts = scope.resource { ShortcutScope(scope.input) }
     public override fun onMount() {
         update()
     }
     public override fun update(): UiInvalidation {
         props.value.mount.update(props.value.input)
+        shortcuts.bindings = mdSearchBindings(props.value.input.search, false)
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

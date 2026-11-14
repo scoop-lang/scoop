@@ -1,0 +1,189 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.concurrent.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownSearchBackgroundTests {
+    @Test
+    fun searchesCoalesceWhileQueuedAndPublishOnlyCurrentQueryAndSnapshot() {
+        val application = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val gate = MdSearchTestGate()
+        val closing = MdSearchTestGate()
+        val probe = MdSearchProbe(workers, application.proxy(), gate, closing)
+        try {
+            application.run(probe)
+            assertTrue(probe.finished)
+            assertTrue(probe.search.isClosed)
+            closing.release()
+            workers.requestShutdown()
+            workers.join()
+            assertTrue(workers.isTerminated)
+            assertFalse(probe.editor.isClosed)
+        } finally {
+            gate.release()
+            closing.release()
+            workers.close()
+            probe.close()
+            gate.close()
+            closing.close()
+        }
+    }
+}
+
+private class MdSearchGateWork(val gate: MdSearchTestGate, val task: ExecutorTask): CoroutineWork {
+    public override fun run() {
+        try {
+            gate.enter()
+        } finally {
+            task.complete()
+        }
+    }
+}
+
+private class MdSearchProbe(
+    val workers: CoroutineExecutor,
+    proxy: ApplicationProxy,
+    val gate: MdSearchTestGate,
+    val closing: MdSearchTestGate
+): ApplicationHandler, Closeable {
+    val editor =
+        MarkdownEditorState(MarkdownDocument.fromText("before " + "text 中文\n".repeat(10000L)))
+    val view = MarkdownEditorViewState(editor)
+    val search = MarkdownSearchController(view, workers, proxy)
+    val original = editor.snapshot
+    var finished = false
+    private var step = 0
+    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(20L)
+
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case ApplicationEvent.Resumed -> {
+                val task = workers.registerTask(None)
+                task.dispatch(MdSearchGateWork(gate, task))
+                gate.waitUntilEntered()
+                search.show()
+                search.configure(MarkdownSearchQuery("(", regularExpression = true), true)
+                editor.document.reset("latest 中文 latest")
+                for (index in 0L ..< 200L)
+                    search.configure(MarkdownSearchQuery("unused" + index.toString()))
+                search.configure(MarkdownSearchQuery("latest"), true)
+                assertEquals(None, search.current?.count)
+                assertFalse(search.canReplace)
+                gate.release()
+                step = 1
+                active.setControlFlow(ControlFlow.WaitUntil(deadline))
+            }
+            case ApplicationEvent.AboutToWait -> advance(active)
+            case ApplicationEvent.NewEvents(StartCause.Deadline) -> fail(
+                Some("Search test timed out at " + step.toString())
+            )
+            else -> Unit
+        }
+    }
+
+    private fun advance(active: ActiveApplication) {
+        if (step == 1) {
+            val current = search.current ?: return
+            assertSame(editor.snapshot, current.snapshot)
+            assertEquals(2L, current.count)
+            assertEquals(Some(0L), search.currentIndex)
+            assertTrue(search.next())
+            assertEquals(Some(1L), search.currentIndex)
+            assertTrue(search.next())
+            assertEquals(Some(0L), search.currentIndex)
+            assertTrue(search.next(true))
+            assertEquals(Some(1L), search.currentIndex)
+            assertTrue(original.toMarkdown().startsWith("before "))
+            editor.markSaved(editor.snapshot.revision)
+            assertSame(current, search.current!!)
+            search.configure(MarkdownSearchQuery("(", regularExpression = true))
+            step = 2
+        } else
+            if (step == 2) {
+                when (search.status) {
+                    case MarkdownSearchState.Failed(_, _, _) -> {
+                        assertFalse(search.replaceAll("bad"))
+                        assertEquals("latest 中文 latest", editor.document.toMarkdown())
+                        search.configure(MarkdownSearchQuery("中文"), true)
+                        step = 3
+                    }
+                    else -> Unit
+                }
+            } else
+                if (step == 3) {
+                    val current = search.current ?: return
+                    assertEquals(1L, current.count)
+                    assertEquals("中文", editor.snapshot.read(editor.selection.range))
+                    search.hide()
+                    editor.replaceSelection("猫")
+                    assertEquals(None, search.current?.count)
+                    assertTrue(
+                        when (search.status) {
+                            case MarkdownSearchState.Idle -> true;
+                            else -> false
+                        }
+                    )
+                    val task = workers.registerTask(None)
+                    task.dispatch(MdSearchGateWork(closing, task))
+                    closing.waitUntilEntered()
+                    search.configure(MarkdownSearchQuery("latest"))
+                    search.close()
+                    assertTrue(search.isClosed)
+                    assertFailsWith<IllegalStateException> {
+                        search.configure(MarkdownSearchQuery("x"))
+                    }
+                    finished = true
+                    active.requestExit()
+                }
+    }
+
+    public override fun close() {
+        search.close()
+        editor.close()
+    }
+}
+
+private class MdSearchTestGate: Closeable {
+    private val lock = Mutex()
+    private val condition = ConditionVariable(lock)
+    private var entered = false
+    private var allowed = false
+
+    fun enter() {
+        lock.withLock {
+            entered = true
+            condition.broadcast()
+            while (!allowed)
+                assertTrue(condition.await(Duration.seconds(10L)))
+        }
+    }
+    fun waitUntilEntered() {
+        lock.withLock {
+            while (!entered)
+                assertTrue(condition.await(Duration.seconds(10L)))
+        }
+    }
+    fun release() {
+        lock.withLock {
+            allowed = true
+            condition.broadcast()
+        }
+    }
+    public override fun close() {
+        condition.dispose()
+        lock.dispose()
+    }
+}

@@ -1,0 +1,68 @@
+package scoop.markdown
+
+import scoop.collections.*
+import scoop.regex.*
+
+/** Performs an explicit full-source search without parsing or changing the snapshot. */
+public fun MarkdownSnapshot.search(query: MarkdownSearchQuery): MarkdownSearchResult {
+    if (query.text == "")
+        return MarkdownSearchResult(this, query, [])
+    val pattern =
+        if (query.regularExpression)
+            query.text
+        else
+            Regex.escape(query.text)
+    val whole =
+        if (query.wholeWord)
+            "(?<!\\w)(?:" + pattern + ")(?!\\w)"
+        else
+            pattern
+    val options = HashSet<RegexOption>()
+    if (!query.caseSensitive)
+        options.add(RegexOption.IgnoreCase)
+    if (query.regularExpression)
+        options.add(RegexOption.Multiline)
+    val source = toMarkdown()
+    val bytes = source.toByteArray()
+    val output = ArrayList<MdSearchMatch>()
+    Regex(whole, options).use {
+        regex ->
+        var scalar = 0L
+        var offset = 0L
+        for (match in regex.findAll(source)) {
+            while (scalar < match.range.start) {
+                offset += mdSearchScalarWidth(bytes[offset])
+                scalar += 1L
+            }
+            val first = offset
+            while (scalar < match.range.endExclusive) {
+                offset += mdSearchScalarWidth(bytes[offset])
+                scalar += 1L
+            }
+            output.add(
+                MdSearchMatch(
+                    MarkdownRange(first, offset),
+                    if (query.regularExpression)
+                        Some(match)
+                    else
+                        None
+                )
+            )
+        }
+    }
+    return MarkdownSearchResult(this, query, output.toArray())
+}
+
+private fun mdSearchScalarWidth(byte: Byte): Long {
+    val value = byte.toInt().and(255)
+    return if (value < 128)
+        1L
+    else
+        if (value < 224)
+            2L
+        else
+            if (value < 240)
+                3L
+            else
+                4L
+}

@@ -1,0 +1,395 @@
+package scoop.tests.markdown.rich
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownSearchWindowTests {
+    @Test
+    fun nativeFindReplaceNavigationAndModeChangesShareSourceAndHistory() {
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1
+                blocking { threads = 1 }
+            }
+        val probe = SearchWindowProbe(workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.parser.isClosed)
+            assertFalse(probe.search.isClosed)
+        } catch (failure: Throwable) {
+            println("Search window step " + probe.step.value.toString())
+            println("query=" + probe.search.query.text)
+            println(
+                "selection=" +
+                    probe.editor.selection.range.start.toString() +
+                    ":" +
+                    probe.editor.selection.range.end.toString()
+            )
+            throw failure
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+private class SearchWindowProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "中 __cat__\r\n\r\ncat and catty\r\n\r\n[cat](cat.md)\r\n\r\n尾巴\r\n"
+    val once = "中 __cat__\r\n\r\n狗 and catty\r\n\r\n[cat](cat.md)\r\n\r\n尾巴\r\n"
+    val all = "中 __狗__\r\n\r\n狗 and 狗ty\r\n\r\n[狗](狗.md)\r\n\r\n尾巴\r\n"
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val view = MarkdownEditorViewState(editor)
+    val parser =
+        MarkdownParseController(
+            editor,
+            workers,
+            proxy,
+            MarkdownParseOptions(MarkdownProfile.Editor)
+        )
+    val search = MarkdownSearchController(view, workers, proxy)
+    val step = state(0)
+    val mounted = state(true)
+    val locked = state(false)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var waiting = false
+    var presentations = 0L
+    var first = 0L
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown search verification"
+                            size = LogicalSize(760.0, 520.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> SearchWindowRoot(this, scope) })
+                native.createDeadline {
+                    fail(Some("Search timeout at " + step.value.toString()))
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                presentations
+        )
+            return false
+        if (!mounted.value)
+            return true
+        val parsed = parser.current ?: return false
+        if (parsed.snapshot !== editor.snapshot)
+            return false
+        return when (search.status) {
+            case MarkdownSearchState.Pending(_, _) -> false
+            else -> true
+        }
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        presentations = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+    }
+    private fun key(code: Int, text: String = "", flags: Int = 0) {
+        mdNativeKey(window!!, code, text, flags)
+    }
+    private fun text(value: String) {
+        assertEquals(0, mdNativeText(window!!, value))
+    }
+    private fun tabs(count: Long) {
+        for (index in 0L ..< count)
+            key(48, "\t")
+    }
+    private fun source(): String = editor.document.toMarkdown()
+    private fun selected(): String = editor.snapshot.read(editor.selection.range)
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> next { key(3, "f", 8) }
+            case 1 -> {
+                assertTrue(search.isVisible)
+                next { assertEquals(0, mdNativeText(window!!, "zh", 1, 2L)) }
+            }
+            case 2 -> {
+                assertEquals("zh", search.query.text)
+                assertEquals(original, source())
+                next { key(53, "\u{1b}") }
+            }
+            case 3 -> {
+                assertTrue(search.isVisible)
+                assertEquals("", search.query.text)
+                next { text("中") }
+            }
+            case 4 -> {
+                assertEquals(1L, search.current!!.count)
+                assertEquals("中", selected())
+                next { key(0, "a", 8) }
+            }
+            case 5 -> next { text("c") }
+            case 6 -> {
+                assertEquals(5L, search.current!!.count)
+                first = editor.selection.range.start
+                next { text("at") }
+            }
+            case 7 -> {
+                assertEquals("cat", search.query.text)
+                assertEquals(first, editor.selection.range.start)
+                assertEquals(Some(0L), search.currentIndex)
+                next { key(36, "\r") }
+            }
+            case 8 -> {
+                assertEquals(Some(1L), search.currentIndex)
+                next { key(36, "\r", 1) }
+            }
+            case 9 -> {
+                assertEquals(Some(0L), search.currentIndex)
+                next { key(5, "g", 8) }
+            }
+            case 10 -> {
+                assertEquals(Some(1L), search.currentIndex)
+                next { key(5, "g", 9) }
+            }
+            case 11 -> {
+                assertEquals(Some(0L), search.currentIndex)
+                next { key(53, "\u{1b}") }
+            }
+            case 12 -> {
+                assertFalse(search.isVisible)
+                assertTrue(view.richFocus.isFocusActive)
+                assertEquals(original, source())
+                assertFalse(editor.canUndo)
+                next { key(5, "g", 8) }
+            }
+            case 13 -> {
+                assertEquals(Some(1L), search.currentIndex)
+                next { key(3, "f", 12) }
+            }
+            case 14 -> {
+                assertTrue(search.replacementVisible)
+                next { tabs(7L) }
+            }
+            case 15 -> next { text("狗") }
+            case 16 -> next { key(36, "\r") }
+            case 17 -> {
+                assertEquals(once, source())
+                assertEquals(4L, search.current!!.count)
+                next { search.hide() }
+            }
+            case 18 -> next { key(6, "z", 8) }
+            case 19 -> {
+                assertEquals(original, source())
+                assertFalse(editor.canUndo)
+                next { key(6, "z", 9) }
+            }
+            case 20 -> {
+                assertEquals(once, source())
+                next { key(3, "f", 12) }
+            }
+            case 21 -> {
+                assertEquals(None, search.currentIndex)
+                next { tabs(8L) }
+            }
+            case 22 -> next { key(49, " ") }
+            case 23 -> {
+                assertEquals(all, source())
+                assertEquals(0L, search.current!!.count)
+                next { search.hide() }
+            }
+            case 24 -> next { key(6, "z", 8) }
+            case 25 -> {
+                assertEquals(once, source())
+                next { key(6, "z", 8) }
+            }
+            case 26 -> {
+                assertEquals(original, source())
+                assertFalse(editor.canUndo)
+                next {
+                    view.setMode(MarkdownEditorMode.SideBySide)
+                    view.requestFocus(MarkdownEditorPane.Source)
+                }
+            }
+            case 27 -> next { key(3, "f", 8) }
+            case 28 -> next {
+                search.configure(
+                    MarkdownSearchQuery("(?<word>cat)", regularExpression = true, wholeWord = true),
+                    true
+                )
+            }
+            case 29 -> {
+                assertEquals(3L, search.current!!.count)
+                assertFailsWith<IllegalArgumentException> { search.replaceAll("${missing}", true) }
+                assertEquals(original, source())
+                next {
+                    assertTrue(search.replaceAll("${word}-${word}", true))
+                    search.hide()
+                }
+            }
+            case 30 -> {
+                assertEquals(
+                    "中 __cat__\r\n\r\ncat-cat and catty\r\n\r\n" +
+                        "[cat-cat](cat-cat.md)\r\n\r\n尾巴\r\n",
+                    source()
+                )
+                next { key(6, "z", 8) }
+            }
+            case 31 -> {
+                assertEquals(original, source())
+                next {
+                    locked.value = true;
+                    search.show(true)
+                }
+            }
+            case 32 -> {
+                assertFalse(search.canReplace)
+                assertFalse(search.replaceAll("bad"))
+                next {
+                    locked.value = false
+                    view.setRightReadOnly(true)
+                    view.requestFocus(MarkdownEditorPane.Rich)
+                }
+            }
+            case 33 -> {
+                assertFalse(search.canReplace)
+                assertFalse(search.replaceAll("bad"))
+                next { view.requestFocus(MarkdownEditorPane.Source) }
+            }
+            case 34 -> {
+                assertTrue(search.canReplace)
+                next {
+                    view.setMode(MarkdownEditorMode.Source)
+                    search.configure(MarkdownSearchQuery("(", regularExpression = true))
+                    search.show()
+                }
+            }
+            case 35 -> {
+                assertTrue(
+                    when (search.status) {
+                        case MarkdownSearchState.Failed(_, _, _) -> true
+                        else -> false
+                    }
+                )
+                assertEquals(None, search.current?.count)
+                assertEquals(original, source())
+                next { search.configure(MarkdownSearchQuery("尾巴"), true) }
+            }
+            case 36 -> {
+                assertEquals("尾巴", selected())
+                next {
+                    editor.document.reset(
+                        "body 中 **plain** text\r\n\r\n".repeat(50000L) + "last NEEDLE\r\n"
+                    )
+                    search.configure(MarkdownSearchQuery("NEEDLE"), true)
+                }
+            }
+            case 37 -> {
+                assertTrue(editor.snapshot.byteLength > 1024L * 1024L)
+                assertEquals("NEEDLE", selected())
+                assertTrue(view.sourceScroll.offset.y > 10000.0)
+                next {
+                    view.setMode(MarkdownEditorMode.SideBySide)
+                    view.requestFocus(MarkdownEditorPane.Rich)
+                }
+            }
+            case 38 -> next {
+                search.show();
+                assertTrue(search.next())
+            }
+            case 39 -> {
+                assertEquals("NEEDLE", selected())
+                assertTrue(view.richScroll.offset.y > 10000.0)
+                assertFalse(editor.canUndo)
+                next { mounted.value = false }
+            }
+            case 40 -> {
+                assertFalse(search.canReplace)
+                assertFalse(search.replaceAll("bad"))
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected search step"))
+        }
+    }
+
+    public override fun close() {
+        frames?.close()
+        search.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class SearchWindowRoot(val probe: SearchWindowProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        probe.view.requestFocus(MarkdownEditorPane.Rich)
+    }
+    public override fun render(): View {
+        val current = probe
+        current.step.value
+        return column {
+            alignment = CrossAlignment.Stretch
+            if (current.mounted.value) {
+                item(markdownSearchBar(current.search))
+                item(
+                    markdownEditor(
+                        current.view,
+                        current.parser,
+                        options = MarkdownEditorOptions(readOnly = current.locked.value),
+                        search = Some(current.search)
+                    )
+                ) {
+                    grow = 1.0
+                    basis = FlexBasis.Fixed(0.0)
+                }
+            }
+        }
+    }
+}

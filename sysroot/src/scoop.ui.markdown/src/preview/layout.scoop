@@ -287,7 +287,12 @@ internal fun mdMeasurePreview(
             pass.reused,
             presentation = presentation,
             inputRevision = host.editor.inputRevision,
-            marked = host.editor.markedRange
+            marked = host.editor.markedRange,
+            searchResult =
+                mdCurrentSearch(
+                    host.searchResult,
+                    presentation?.changes?.snapshot ?: active.snapshot
+                )
         )
     } catch (failure: Throwable) {
         pass.close()

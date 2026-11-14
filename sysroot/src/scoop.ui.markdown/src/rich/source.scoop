@@ -117,7 +117,8 @@ internal fun mdLocalSourceView(
                     region = Some(region),
                     exitSource = Some { session.finish() },
                     localSource = Some(session),
-                    highlights = input.controller.current?.sourceHighlights
+                    highlights = input.controller.current?.sourceHighlights,
+                    searchResult = input.searchResult
                 )
             )
         ) {

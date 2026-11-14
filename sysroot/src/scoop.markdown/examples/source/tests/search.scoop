@@ -1,0 +1,19 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownSearchExampleTests {
+    @Test
+    fun aHeadlessConsumerSearchesSourceAndPublishesOneReversibleReplacement() {
+        val document = MarkdownDocument.fromText("# Book\n\n{{#include old.md}}\n\nold.md\n")
+        val found = document.snapshot().search(MarkdownSearchQuery("old.md"))
+        assertEquals(2L, found.count)
+        val change = found.prepareReplaceAll("new.md")
+        change.applyTo(document)
+        assertEquals("# Book\n\n{{#include new.md}}\n\nnew.md\n", document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals("# Book\n\n{{#include old.md}}\n\nold.md\n", document.toMarkdown())
+    }
+}

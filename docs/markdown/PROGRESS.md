@@ -355,3 +355,15 @@ RichHost／viewState 的 blockState、executeBlock 接收 MarkdownBlockCommand�
 最终原生窗口串行通过：块操作 42 步约 1.63 秒，富文本 61 步约 2.99 秒，格式 56 步约 1.94 秒，链接／图片 35 步约 1.87 秒，局部源码 54 步约 1.39 秒。程序由 scoop test 构建，经 scoop bundle 和 Launch Services 启动；每项 begin／end／complete 完整且 failures 为空。覆盖真实快捷键、列表／表格菜单、中文组合、空行／列中的继续输入、对齐和删除定位、一次撤销、只读／源码模式拒绝及现有大文档、焦点和卸载回归。
 
 公开 API 严格生成及 MarkdownBlockCommand、markdownBlockToolbar、wrapBlockQuote、executeBlock 查询通过；规范、设计、README、消费示例、原生复现说明及编程导航（含安装副本）同步。本批没有编译器、runtime 或系统库修改。原始日志、临时应用包及 API 站点核对后清理，保留正常构建缓存。查找替换、文档导航、源码辅助、HTML 导入与最终 1／5 MiB 综合性能验收继续实施。
+
+## C：全文源码查找与原生替换（2026-11-15）
+
+文档 Cone 提供 MarkdownSearchQuery、snapshot.search 和 MarkdownSearchResult，复用 scoop.regex，支持字面／正则、大小写、Unicode 整词、循环导航和按范围惰性查询。结果保存实际快照身份与 UTF-8 范围，prepareReplace／prepareReplaceAll 生成普通 MarkdownChange；正则捕获模板在准备时展开，全部替换只消费原匹配集合，精确 inverse 保留原始换行与指令。搜索不依赖解析或 UI，不展开 include。
+
+MarkdownSearchController 借用 viewState／executor／proxy，合并后台查询，废弃变化后的替换范围；隐藏后正文键入不继续全文扫描。markdownSearchBar 与三模式组件接入原生字段、大小写／整词／正则选项、计数、快捷键及可见范围高亮，查询字段保持独立历史。替换遵守活动栏只读，经共享 editor 一次发布；全部替换独立撤销。验收修正 Shift-Enter 的单行字段路由，并用明确的物理 F 键绑定替换组合，处理 macOS Option 改变逻辑字符的行为。后台测试独立启动 Application，遵守一进程一次主循环的合同。
+
+使用 ~/.scoop 完成 fmt、相关 check --tests --release 与编辑器示例 check。新增文档搜索 7 项通过，文档库当前 238 项分批通过；UI 库 127 项全量通过，无 UI consumer 19 项全量通过。超过 5 MiB 的源码完成跨分块搜索、6,599 处稀疏替换和精确恢复，整项测试约 241 毫秒；此数值包含准备、发布和撤销，不是交互延迟基线。原生后台查询测试通过约 131 毫秒，覆盖连续 200 次配置、过期结果、失败恢复及运行中关闭。
+
+最终原生窗口串行通过：查找替换 41 步约 1.65 秒，富文本 61 步约 3.01 秒，格式 56 步约 2.44 秒，链接／图片 35 步约 1.93 秒，局部源码 54 步约 1.39 秒，块操作 42 步约 1.60 秒。查找用例覆盖真实中文组合取消、逐字输入、正反导航、替换字段与按钮、统一撤销重做、模板错误、三模式只读及超过 1 MiB 文档末尾在两侧的实际滚动。程序由 scoop test 构建，经 scoop bundle 与 Launch Services 启动；各项 begin／end／complete 完整且 failures 为空。
+
+API 严格生成及 search、prepareReplaceAll、MarkdownSearchController、markdownSearchBar 查询通过；规范、设计、README、消费示例、原生复现说明与编程导航同步。本批没有编译器、runtime 或系统库修改。原始日志、临时应用包及 API 站点核对后清理，正常构建缓存保留。文档导航、源码辅助、HTML 导入与最终 1／5 MiB 综合性能验收继续实施。

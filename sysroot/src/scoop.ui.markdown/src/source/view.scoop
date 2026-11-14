@@ -2,6 +2,7 @@ package scoop.ui.markdown
 
 import scoop.graphics.text.FontCollection
 import scoop.markdown.MarkdownChange
+import scoop.markdown.MarkdownSearchResult
 import scoop.ui.*
 
 internal class MdSourceProps(
@@ -15,7 +16,8 @@ internal class MdSourceProps(
     val region: MarkdownSourceRegion? = None,
     val exitSource: (() -> Unit)? = None,
     val localSource: MdRichSourceSession? = None,
-    val highlights: MarkdownCodeHighlights? = None
+    val highlights: MarkdownCodeHighlights? = None,
+    val searchResult: MarkdownSearchResult? = None
 )
 
 /** Source view for a shared Markdown editor state; its mount owns native and layout resources. */
@@ -28,7 +30,8 @@ public fun markdownSourceEditor(
     onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
     region: MarkdownSourceRegion? = None,
     onExit: (() -> Unit)? = None,
-    highlights: MarkdownCodeHighlights? = None
+    highlights: MarkdownCodeHighlights? = None,
+    searchResult: MarkdownSearchResult? = None
 ): View =
     mdSourceEditor(
         MdSourceProps(
@@ -40,7 +43,8 @@ public fun markdownSourceEditor(
             onChanged,
             region = region,
             exitSource = onExit,
-            highlights = highlights
+            highlights = highlights,
+            searchResult = searchResult
         )
     )
 
@@ -89,7 +93,8 @@ private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentS
             input.fonts,
             input.region,
             input.exitSource,
-            input.highlights
+            input.highlights,
+            input.searchResult
         )
         input.mount?.attach(host)
         input.localSource?.attach(host)

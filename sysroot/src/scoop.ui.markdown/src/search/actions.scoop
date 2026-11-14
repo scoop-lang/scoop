@@ -1,0 +1,177 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.surface.*
+import scoop.window.*
+
+internal fun mdSearchCanReplace(search: MarkdownSearchController): Boolean =
+    !search.isClosed && search.availability.value && (search.current?.count ?: 0L) > 0L
+
+internal fun mdSearchAvailability(props: MdEditorProps) {
+    val search = props.search ?: return
+    val state = props.state
+    val source =
+        state.mode ==
+            MarkdownEditorMode.Source ||
+            (
+                state.mode ==
+                    MarkdownEditorMode.SideBySide &&
+                    state.activePane ==
+                    MarkdownEditorPane.Source
+            )
+    val allowed =
+        !props.options.readOnly &&
+            if (source)
+                props.options.source.enabled && !props.options.source.readOnly
+            else
+                props.options.rich.enabled &&
+                    !(state.mode == MarkdownEditorMode.SideBySide && state.rightReadOnly)
+    if (search.availability.value != allowed)
+        search.availability.value = allowed
+}
+
+internal fun mdReplaceSearchCurrent(
+    search: MarkdownSearchController,
+    text: String,
+    template: Boolean
+): Boolean {
+    search.checkOpen()
+    if (!search.canReplace)
+        return false
+    val result = search.current!!
+    val index = search.currentIndex ?: return false
+    val change = result.prepareReplace(index, text, template)
+    if (!change.changed) {
+        search.next()
+        return true
+    }
+    val after =
+        change.map(MarkdownAnchor(MarkdownPosition(result[index].end), MarkdownBias.After)).position
+    search.editor.acceptComposition()
+    search.editor.apply(change, MarkdownRange(after.byteOffset, after.byteOffset))
+    search.afterReplace(after)
+    return true
+}
+
+internal fun mdReplaceSearchAll(
+    search: MarkdownSearchController,
+    text: String,
+    template: Boolean
+): Boolean {
+    search.checkOpen()
+    if (!search.canReplace)
+        return false
+    val result = search.current!!
+    val change = result.prepareReplaceAll(text, template)
+    val selection = search.editor.selection.map(change)
+    search.editor.acceptComposition()
+    search.editor.apply(
+        change,
+        selection.range,
+        selection.anchor.byteOffset > selection.cursor.byteOffset
+    )
+    mdSearchReveal(search.view, selection.cursor)
+    return true
+}
+
+internal fun mdSearchReveal(view: MarkdownEditorViewState, position: MarkdownPosition) {
+    val mount = view.mounted ?: return
+    val anchor = MdScrollAnchor(MarkdownAnchor(position, MarkdownBias.Before), 0.0)
+    if (
+        view.mode ==
+            MarkdownEditorMode.Source ||
+            (
+                view.mode ==
+                    MarkdownEditorMode.SideBySide &&
+                    view.activePane ==
+                    MarkdownEditorPane.Source
+            )
+    )
+        mount.source?.alignViewport(anchor)
+    else
+        mount.rich?.alignViewport(anchor)
+}
+
+internal fun mdSearchBindings(search: MarkdownSearchController?, field: Boolean): Array<
+    ShortcutBinding
+> {
+    val value = search ?: return []
+    val bindings = ArrayList<ShortcutBinding>()
+    for (replace in [false, true])
+        bindings.add(
+            shortcutBinding(
+                ShortcutChord(
+                    // Option can change the logical character; the replace chord is positional.
+                    if (replace)
+                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyF))
+                    else
+                        ShortcutKey.Logical(LogicalKey.Character("f")),
+                    ShortcutModifiers(primary = true, alt = replace)
+                ),
+                { value.show(replace) }
+            ) { canExecute = { !value.isClosed } }
+        )
+    for (backwards in [false, true])
+        bindings.add(
+            shortcutBinding(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("g")),
+                    ShortcutModifiers(primary = true, shift = backwards)
+                ),
+                { value.next(backwards) }
+            ) {
+                canExecute = { !value.isClosed && value.query.text != "" };
+                allowRepeat = true
+            }
+        )
+    if (field) {
+        bindings.add(
+            shortcutBinding(
+                ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Escape))),
+                { value.hide() }
+            ) {
+                canExecute =
+                    {
+                        !value.isClosed &&
+                            value.isVisible &&
+                            !value.queryInput.isComposing &&
+                            !value.replacementInput.isComposing
+                    }
+            }
+        )
+    }
+    return bindings.toArray()
+}
+
+/** The query field gives Shift-Enter a command before its single-line newline default. */
+internal fun mdSearchFieldKey(
+    search: MarkdownSearchController,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (
+        context.phase !=
+            RoutedPhase.Capture ||
+            search.isClosed ||
+            !search.isVisible ||
+            !search.queryFocus.isFocusActive ||
+            search.queryInput.isComposing
+    )
+        return
+    val key =
+        when (event) {
+            case Keyboard(val value) -> value
+            else -> return
+        }
+    if (key.state != ElementState.Pressed || key.synthetic)
+        return
+    val previous =
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)),
+            ShortcutModifiers(shift = true)
+        )
+    if (previous.matches(key)) {
+        context.consume()
+        search.next(true)
+    }
+}

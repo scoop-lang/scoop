@@ -1,0 +1,63 @@
+package scoop.markdown
+
+import scoop.regex.MatchResult
+
+/** The editor's explicit $number / ${name} / $$ syntax; backslashes remain literal. */
+internal fun mdSearchTemplate(match: MatchResult, template: String): String {
+    val bytes = template.toByteArray()
+    val output = StringBuilder()
+    var index = 0L
+    var copied = 0L
+    while (index < bytes.size) {
+        if (bytes[index].toInt() != 36) {
+            index += 1L
+            continue
+        }
+        output.append(mdSearchTemplateSlice(bytes, copied, index))
+        index += 1L
+        requireMarkdown(index < bytes.size, "A replacement dollar sign needs a capture or $$")
+        val first = bytes[index].toInt()
+        if (first == 36) {
+            output.append('$')
+            index += 1L
+        } else
+            if (first == 123) {
+                val start = index + 1L
+                index = start
+                while (index < bytes.size && bytes[index].toInt() != 125)
+                    index += 1L
+                requireMarkdown(
+                    index < bytes.size && index > start,
+                    "Unclosed or empty replacement capture"
+                )
+                val name = mdSearchTemplateSlice(bytes, start, index)
+                output.append(match.groups[name]?.value ?: "")
+                index += 1L
+            } else {
+                requireMarkdown(
+                    first >= 48 && first <= 57,
+                    "Use $number, ${name}, or $$ in a replacement"
+                )
+                var number = 0L
+                while (index < bytes.size) {
+                    val digit = bytes[index].toInt() - 48
+                    if (digit < 0 || digit > 9)
+                        break
+                    requireMarkdown(
+                        number <= (Long.MAX_VALUE - digit.toLong()) / 10L,
+                        "Replacement capture number is too large"
+                    )
+                    number = number * 10L + digit.toLong()
+                    index += 1L
+                }
+                requireMarkdown(number < match.groups.size, "Unknown replacement capture number")
+                output.append(match.groups[number]?.value ?: "")
+            }
+        copied = index
+    }
+    output.append(mdSearchTemplateSlice(bytes, copied, bytes.size))
+    return output.toString()
+}
+
+private fun mdSearchTemplateSlice(bytes: Array<Byte>, start: Long, end: Long): String =
+    String.fromUtf8(Array<Byte>(end - start) { index -> bytes[start + index] })

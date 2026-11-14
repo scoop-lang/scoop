@@ -1,0 +1,269 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Point
+import scoop.graphics.text.FontCollection
+import scoop.markdown.*
+import scoop.surface.FrameSubmission
+import scoop.surface.ShortcutScope
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.input as searchInput
+
+private class MdSearchBarProps(val controller: MarkdownSearchController, val fonts: FontCollection?)
+
+/** Optional native find/replace controls; the controller's fields belong to one mounted bar. */
+public fun markdownSearchBar(
+    controller: MarkdownSearchController,
+    fonts: FontCollection? = None
+): View =
+    component(MdSearchBarProps(controller, fonts), { props, scope -> MdSearchBar(props, scope) })
+
+private class MdSearchBar(val props: Props<MdSearchBarProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private fun option(label: String, selected: Boolean, query: MarkdownSearchQuery): View {
+        val options = props.value
+        return button(
+            label,
+            {
+                options.controller.configure(query, true)
+                options.controller.queryFocus.requestFocus()
+            }
+        ) {
+            size = ButtonSize.Sm
+            variant =
+                if (selected)
+                    ButtonVariant.Secondary
+                else
+                    ButtonVariant.Ghost
+            fonts = options.fonts
+        }
+    }
+
+    private fun replace(all: Boolean) {
+        val search = props.value.controller
+        search.message.value = ""
+        try {
+            val changed =
+                if (all)
+                    search.replaceAll(search.replacementInput.text, search.query.regularExpression)
+                else
+                    search.replaceCurrent(
+                        search.replacementInput.text,
+                        search.query.regularExpression
+                    )
+            if (!changed)
+                search.message.value = "Select a current match in an editable pane."
+        } catch (failure: IllegalArgumentException) {
+            search.message.value = failure.message ?: "Invalid replacement."
+        }
+    }
+
+    public override fun render(): View {
+        val owner = this
+        val options = props.value
+        val search = options.controller
+        val query = search.query
+        val error =
+            when (search.status) {
+                case MarkdownSearchState.Failed(_, _, val failure) -> when (failure as? Exception) {
+                    case Some(val value) -> value.message ?: "Search failed."
+                    case None -> "Search failed."
+                }
+                else -> search.message.value
+            }
+        val content =
+            column {
+                alignment = CrossAlignment.Stretch
+                spacing = 4.0
+                if (!search.isVisible) {
+                    row {
+                        spacing = 4.0
+                        button("Find", { search.show() }) {
+                            enabled = !search.isClosed;
+                            size = ButtonSize.Sm;
+                            fonts = options.fonts
+                        }
+                        button("Replace", { search.show(true) }) {
+                            enabled = !search.isClosed;
+                            size = ButtonSize.Sm;
+                            fonts = options.fonts
+                        }
+                    }
+                } else {
+                    row {
+                        spacing = 4.0
+                        alignment = CrossAlignment.Center
+                        item(
+                            searchInput(search.queryInput) {
+                                placeholder = "Find in Markdown"
+                                fonts = options.fonts
+                                invalid =
+                                    when (search.status) {
+                                        case MarkdownSearchState.Failed(_, _, _) -> true
+                                        else -> false
+                                    }
+                                focus = FocusOptions(Some(search.queryFocus))
+                                onEdited =
+                                    {
+                                        field -> search.configure(
+                                            MarkdownSearchQuery(
+                                                field.text,
+                                                query.regularExpression,
+                                                query.caseSensitive,
+                                                query.wholeWord
+                                            ),
+                                            true
+                                        )
+                                    }
+                                onSubmit = { _ -> search.next() }
+                            }
+                        ) {
+                            grow = 1.0;
+                            basis = FlexBasis.Fixed(0.0)
+                        }
+                        label(
+                            when (search.status) {
+                                case MarkdownSearchState.Pending(_, _) -> "Searching…"
+                                case MarkdownSearchState.Ready(val result) ->
+                                ((search.currentIndex ?: -1L) + 1L).toString() +
+                                    " / " +
+                                    result.count.toString()
+                                else -> "0 / 0"
+                            }
+                        ) { fonts = options.fonts }
+                        button(
+                            "Previous",
+                            {
+                                search.next(true);
+                                search.queryFocus.requestFocus()
+                            }
+                        ) {
+                            enabled = (search.current?.count ?: 0L) > 0L;
+                            size = ButtonSize.Sm;
+                            fonts = options.fonts
+                        }
+                        button(
+                            "Next",
+                            {
+                                search.next();
+                                search.queryFocus.requestFocus()
+                            }
+                        ) {
+                            enabled = (search.current?.count ?: 0L) > 0L;
+                            size = ButtonSize.Sm;
+                            fonts = options.fonts
+                        }
+                        button("Close", { search.hide() }) {
+                            size = ButtonSize.Sm;
+                            fonts = options.fonts
+                        }
+                    }
+                    row {
+                        spacing = 4.0
+                        item(
+                            owner.option(
+                                "Aa",
+                                query.caseSensitive,
+                                MarkdownSearchQuery(
+                                    query.text,
+                                    query.regularExpression,
+                                    !query.caseSensitive,
+                                    query.wholeWord
+                                )
+                            )
+                        )
+                        item(
+                            owner.option(
+                                "Word",
+                                query.wholeWord,
+                                MarkdownSearchQuery(
+                                    query.text,
+                                    query.regularExpression,
+                                    query.caseSensitive,
+                                    !query.wholeWord
+                                )
+                            )
+                        )
+                        item(
+                            owner.option(
+                                "Regex",
+                                query.regularExpression,
+                                MarkdownSearchQuery(
+                                    query.text,
+                                    !query.regularExpression,
+                                    query.caseSensitive,
+                                    query.wholeWord
+                                )
+                            )
+                        )
+                        if (!search.replacementVisible)
+                            button("Replace…", { search.show(true) }) {
+                                size = ButtonSize.Sm;
+                                fonts = options.fonts
+                            }
+                    }
+                    if (search.replacementVisible)
+                        row {
+                            spacing = 4.0
+                            item(
+                                searchInput(search.replacementInput) {
+                                    placeholder =
+                                        if (query.regularExpression)
+                                            "Replace with ($1, ${name}, $$)"
+                                        else
+                                            "Replace with literal text"
+                                    fonts = options.fonts
+                                    onSubmit = { _ -> owner.replace(false) }
+                                }
+                            ) {
+                                grow = 1.0;
+                                basis = FlexBasis.Fixed(0.0)
+                            }
+                            button("Replace", { owner.replace(false) }) {
+                                enabled = search.canReplace && search.currentIndex != None;
+                                size = ButtonSize.Sm;
+                                fonts = options.fonts
+                            }
+                            button("Replace all", { owner.replace(true) }) {
+                                enabled = search.canReplace;
+                                size = ButtonSize.Sm;
+                                fonts = options.fonts
+                            }
+                        }
+                    if (error != "")
+                        label(error) { fonts = options.fonts }
+                }
+            }
+        return element(options, { props, scope -> MdSearchBarShell(props, scope) }, [content])
+    }
+}
+
+private class MdSearchBarShell(val props: Props<MdSearchBarProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val shortcuts = scope.resource { ShortcutScope(scope.input) }
+    public override fun onMount() {
+        scope.input.captureHandler =
+            { context, event -> mdSearchFieldKey(props.value.controller, context, event) }
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        shortcuts.bindings = mdSearchBindings(Some(props.value.controller), true)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val metrics = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(metrics, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        context.onFrameComplete {
+            completion -> if (scope.isMounted && completion.submission != FrameSubmission.Discarded)
+                props.value.controller.requestFieldFocus()
+        }
+    }
+}

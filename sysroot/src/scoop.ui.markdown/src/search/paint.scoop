@@ -1,0 +1,141 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.ui.text.TextDisplay
+import scoop.window.Utf8Range
+
+internal fun mdCurrentSearch(
+    result: MarkdownSearchResult?,
+    snapshot: MarkdownSnapshot
+): MarkdownSearchResult? =
+    when (result) {
+        case Some(val value) -> if (value.snapshot === snapshot)
+            Some(value)
+        else
+            None
+        case None -> None
+    }
+
+internal fun mdPaintSourceSearch(
+    context: SceneContext,
+    row: MdSourceLine,
+    result: MarkdownSearchResult?,
+    color: Color
+) {
+    val search = result ?: return
+    for (range in search.intersecting(row.fullRange)) {
+        val first = min(row.range.end, max(row.range.start, range.start)) - row.range.start
+        val last = min(row.range.end, max(row.range.start, range.end)) - row.range.start
+        mdPaintSearchRange(
+            context,
+            row.layout,
+            row.display,
+            Utf8Range(first, last),
+            range.isEmpty,
+            color
+        )
+    }
+}
+
+internal fun mdPaintPreviewSearch(
+    context: SceneContext,
+    measured: MdPreviewMeasuredRow,
+    index: Long,
+    frame: MarkdownPreviewMeasurement,
+    color: Color
+) {
+    val search = frame.searchResult ?: return
+    val model = frame.document ?: return
+    val cell = measured.resource.cells[index]
+    val text = measured.row.cells[index]
+    val start =
+        mdFrameCellOriginal(
+            model,
+            frame.presentation,
+            measured.index,
+            index,
+            MarkdownPosition(text.sourceRange.start),
+            MarkdownBias.Before
+        ).byteOffset
+    val end =
+        mdFrameCellOriginal(
+            model,
+            frame.presentation,
+            measured.index,
+            index,
+            MarkdownPosition(text.sourceRange.end),
+            MarkdownBias.After
+        ).byteOffset
+    for (range in search.intersecting(MarkdownRange(min(start, end), max(start, end)))) {
+        val a =
+            mdFrameCellPosition(
+                model,
+                frame.presentation,
+                measured.index,
+                index,
+                MarkdownPosition(range.start),
+                MarkdownBias.Before
+            ).byteOffset
+        val b =
+            mdFrameCellPosition(
+                model,
+                frame.presentation,
+                measured.index,
+                index,
+                MarkdownPosition(range.end),
+                MarkdownBias.After
+            ).byteOffset
+        val first = min(text.sourceRange.end, max(text.sourceRange.start, a))
+        val last = min(text.sourceRange.end, max(text.sourceRange.start, b))
+        mdPaintSearchRange(
+            context,
+            cell.text.layout,
+            cell.text.display,
+            Utf8Range(
+                text.textAt(first, MarkdownBias.Before),
+                text.textAt(last, MarkdownBias.After)
+            ),
+            range.isEmpty,
+            color
+        )
+    }
+}
+
+private fun mdPaintSearchRange(
+    context: SceneContext,
+    layout: TextLayout,
+    display: TextDisplay,
+    range: Utf8Range,
+    zero: Boolean,
+    color: Color
+) {
+    val bounds = display.displayRange(range)
+    if (bounds.start == bounds.end) {
+        val caret = layout.caret(TextPosition(bounds.start)) ?: return
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(
+                    caret.x,
+                    caret.y,
+                    if (zero)
+                        1.0
+                    else
+                        4.0,
+                    caret.height
+                ),
+                Paint(color)
+            )
+        }
+    } else {
+        val boxes = layout.selection(bounds)
+        context.draw {
+            paint -> for (box in boxes)
+                paint.canvas.drawRect(box.rect, Paint(color))
+        }
+    }
+}

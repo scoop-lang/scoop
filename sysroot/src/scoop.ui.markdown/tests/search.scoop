@@ -1,0 +1,28 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownSearchEditorTests {
+    @Test
+    fun sourceMatchesShareHistoryAndOldHighlightsNeverApplyToNewSnapshots() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("中 **word**\n\nword\n"))
+        try {
+            val found = editor.snapshot.search(MarkdownSearchQuery("word"))
+            assertSame(found, mdCurrentSearch(Some(found), editor.snapshot)!!)
+            val change = found.prepareReplaceAll("词")
+            editor.apply(change, MarkdownRange(0L, 0L))
+            assertEquals(None, mdCurrentSearch(Some(found), editor.snapshot)?.count)
+            assertEquals("中 **词**\n\n词\n", editor.document.toMarkdown())
+            assertTrue(editor.undo())
+            assertEquals(found.snapshot.toMarkdown(), editor.document.toMarkdown())
+            assertFalse(editor.canUndo)
+            assertEquals(None, mdCurrentSearch(Some(found), editor.snapshot)?.count)
+            assertTrue(editor.redo())
+            assertEquals("中 **词**\n\n词\n", editor.document.toMarkdown())
+        } finally {
+            editor.close()
+        }
+    }
+}

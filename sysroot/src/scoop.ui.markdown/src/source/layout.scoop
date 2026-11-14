@@ -168,7 +168,8 @@ internal fun mdMeasureSource(
             scroll,
             host.scroll.requestRevision,
             padding,
-            host.cursorAffinity
+            host.cursorAffinity,
+            searchResult = mdCurrentSearch(host.searchResult, snapshot)
         )
     } catch (error: Throwable) {
         pass.close();
@@ -238,6 +239,7 @@ internal fun mdSceneSource(
                     content.withState {
                         line ->
                         line.translate(frame.padding, top)
+                        mdPaintSourceSearch(line, row, frame.searchResult, style.searchMatch)
                         val selection = frame.selection.range
                         val first = max(selection.start, row.range.start)
                         val last = min(selection.end, row.range.end)

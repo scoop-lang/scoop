@@ -101,6 +101,14 @@ RichHost 和 viewState 提供 `setCode`／`toggleCode`／`codeState`，Primary-E
 
 块命令先准备当前局部结构，接受本输入面的组合后作为一个事务发布；菜单关闭后恢复输入焦点，源码模式、只读、不相容结构和未挂载状态返回 false。查询状态读取已有投影，普通键入不触发同步区域解析；在同一块内移动光标、对同一列表查询时复用结构状态。标题转段落保留前后独立块，源码选区与撤销方向沿统一历史处理。
 
+## 全文查找替换
+
+`MarkdownSearchController(viewState, executor, proxy)` 借用同一视图状态和后台 executor。`configure(query, selectFirst)` 发起源码搜索，`current` 只返回仍匹配当前文档的结果，`currentIndex` 对应真实源码选区。后台请求保留正在执行的一项与最新待处理请求，过期结果不覆盖当前查询；正文改变立即废弃旧替换范围，关闭查找栏后不随键入继续全文搜索。
+
+把 controller 传给 `markdownSearchBar(controller)` 和 `markdownEditor(..., search = Some(controller))`，即可使用原生查找／替换字段、大小写／整词／正则选项、结果计数及可见范围高亮。Primary-F 打开查找，Primary-Alt-F（F 的物理键位）打开替换，Primary-G／Shift-G 前后导航；查询字段的 Enter／Shift-Enter 导航，Escape 在组合结束后关闭并返回活动栏。查找字段使用自己的原生输入和撤销状态，结果定位保留字段焦点。源码、富文本、双栏及局部源码共享原文档坐标；单独的 View／Host 可传 `searchResult`，样式的 `searchMatch` 设置颜色。
+
+`show(replace)`／`hide()`、`next(backwards)`、`replaceCurrent(text, template)` 和 `replaceAll(text, template)` 可用于应用菜单。替换只在当前视图已挂载且活动栏可编辑时执行，经共享 editor 发布；全部替换是一个撤销项，单次替换后从插入末尾继续导航。正则字段启用捕获模板，无效表达式或模板在栏内显示错误。搜索的是原始 Markdown，包括标记、URI 与指令；不搜索 include 派生内容。调用方关闭 controller，它不关闭借用的编辑状态或 executor。示例在 ComponentScope 中用 resource 管理其生命周期。
+
 ## 剪贴板格式
 
 默认复制／剪切同时写入所见 `text/plain` 和语义 `text/markdown`；源码面两者均为原选区。默认粘贴优先读取存在的 Markdown 格式，富文本面按文档 Cone 的 replaceMarkdown 插入，源码面原样插入；缺失时将普通文本按字面文字插入。一次粘贴独立撤销，先接受当前组合，剪切先成功写剪贴板再删除。生成内容的 Markdown 表示保留原指令。HTML 导入尚未接入。

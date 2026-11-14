@@ -363,6 +363,13 @@ private fun mdPaintPreviewRow(
             }
         }
     }
+    for (index in 0L ..< resource.cells.size)
+        context.withState {
+            content ->
+            val origin = resource.cells[index].origin
+            content.translate(origin.x, origin.y)
+            mdPaintPreviewSearch(content, measured, index, frame, style.searchMatch)
+        }
     for (label in resource.labels)
         context.drawTextLayout(label.key, label.layout, 0L, label.origin)
 }

@@ -49,7 +49,8 @@ public class MarkdownPreviewMeasurement internal constructor(
     ownership: MdPreviewRows? = None,
     internal val presentation: MdRichPresentation? = None,
     internal val inputRevision: Long = -1L,
-    internal val marked: MarkdownRange? = None
+    internal val marked: MarkdownRange? = None,
+    internal val searchResult: MarkdownSearchResult? = None
 ): Closeable {
     private val owner = ownership ?: MdPreviewRows(rows)
     private var closed = false
@@ -80,7 +81,8 @@ public class MarkdownPreviewMeasurement internal constructor(
             Some(owner.retain()),
             presentation,
             inputRevision,
-            marked
+            marked,
+            searchResult
         )
     }
 

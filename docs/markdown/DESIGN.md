@@ -128,6 +128,12 @@ markdownDocument(configure): MarkdownDocument
 - `setCode`／`codeState` 独立处理代码 span，跨块时保留换行、容器与原子对象；replaceText 的可选 code 控制新文字模式，在规范化前生效。行内 setLink／removeLink 修改显示选区的链接归属，replaceImage 插入或替换一个映射对象，生成直接目标并保留共享定义。所有操作准备普通源码事务，独立文档 Cone 不读取图像资源。
 - 用户输入使语法变为暂时不完整时仍保存输入；结构化命令只能作用于当前能可靠识别的部分。
 
+### 4.3 全文源码搜索
+
+`MarkdownSearchQuery` 表达字面／正则、大小写及整词选项；`snapshot.search(query)` 显式扫描原始 Markdown，不需要语法树或 UI。复用 scoop.regex 的 Unicode 匹配，正则默认多行锚点；结果只公开 UTF-8 源码范围，支持循环导航和先二分定位的相交迭代。零宽匹配沿正则引擎的前进规则处理，空查询返回空结果。
+
+`MarkdownSearchResult` 保留被搜索的不可变 snapshot；`prepareReplace`／`prepareReplaceAll` 将原匹配集合变成普通 MarkdownChange，沿现有检查和发布边界应用，提供精确 inverse。正则捕获模板在准备阶段展开，普通替换按字面处理。搜索作为显式全文工作可由调用方放到后台，UI 接入复用这份结果和文档事务，不另设内容副本或历史。
+
 ## 5. 从结构生成 Markdown
 
 生成器提供 document／block／inline builder，使用普通 Scoop receiver DSL。生成器是无 UI API，不复用 `StyledText` 或组件描述。

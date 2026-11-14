@@ -17,7 +17,8 @@ internal class MdRichProps(
     val source: ((MarkdownRange) -> Unit)?,
     val images: MarkdownImageController?,
     val documentUri: String,
-    val mount: MdEditorMount? = None
+    val mount: MdEditorMount? = None,
+    val searchResult: MarkdownSearchResult? = None
 )
 
 public fun markdownRichEditor(
@@ -31,7 +32,8 @@ public fun markdownRichEditor(
     onOpenLink: (String) -> Unit = { _ -> Unit },
     onSource: ((MarkdownRange) -> Unit)? = None,
     images: MarkdownImageController? = None,
-    documentUri: String = ""
+    documentUri: String = "",
+    searchResult: MarkdownSearchResult? = None
 ): View =
     mdRichEditor(
         MdRichProps(
@@ -45,7 +47,8 @@ public fun markdownRichEditor(
             onOpenLink,
             onSource,
             images,
-            documentUri
+            documentUri,
+            searchResult = searchResult
         )
     )
 
@@ -147,7 +150,8 @@ private class MdRichElement(
                 }
             },
             value.images,
-            value.documentUri
+            value.documentUri,
+            value.searchResult
         )
         value.mount?.attach(host.preview)
         if (!value.controller.isClosed)

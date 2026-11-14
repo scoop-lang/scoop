@@ -21,7 +21,16 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
 
     fun update(input: MdEditorProps) {
         state.bind(this)
+        when (props.search) {
+            case Some(val previous) -> when (input.search) {
+                case Some(val current) -> if (previous !== current)
+                    previous.availability.value = false
+                case None -> previous.availability.value = false
+            }
+            case None -> Unit
+        }
         props = input
+        mdSearchAvailability(input)
         when (changed) {
             case None -> changed =
                 Some(state.editor.document.observe { change -> props.changed(change) })
@@ -118,8 +127,10 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
     }
 
     fun focused(pane: MarkdownEditorPane, active: Boolean) {
-        if (!closed && active)
+        if (!closed && active) {
             state.focused(pane)
+            mdSearchAvailability(props)
+        }
     }
 
     fun requestFocus() {
@@ -234,6 +245,10 @@ internal class MdEditorMount(var props: MdEditorProps): Closeable {
         if (closed)
             return
         closed = true
+        when (props.search) {
+            case Some(val search) -> search.availability.value = false
+            case None -> Unit
+        }
         sourceIntent?.close();
         sourceIntent = None
         richIntent?.close();
