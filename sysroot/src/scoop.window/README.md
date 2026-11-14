@@ -2,7 +2,7 @@
 
 面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
+库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板。控件、文档布局、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
 
 ## 依赖与入口
 
@@ -80,7 +80,19 @@ macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏
 
 ## 文本输入
 
-macOS／Linux 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。读写把 CRLF／CR 归一为 LF；写入包含 NUL 的文本抛出 IllegalArgumentException，读取包含 NUL 的原生文本报告 Unsupported。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
+`ActiveApplication.clipboard`／`Window.clipboard` 提供系统文本剪贴板：`readText(mediaType = "text/plain")` 返回 `String?`，没有该格式为 None，已有空文本为 Some("")；`writeText(text)` 替换为标准纯文本。`writeTexts` 同时发布同一项内容的多个文本表示，例如所见文字和可继续编辑的 Markdown：
+
+```scoop
+application.clipboard.writeTexts([
+    ClipboardText("text/plain", "中文标题"),
+    ClipboardText("text/markdown", "**中文标题**")
+])
+val markdown = application.clipboard.readText("text/markdown")
+```
+
+媒体类型使用无参数的具体 `text/<subtype>` MIME 名称，按 ASCII 小写归一；列表不能为空，格式不能重复。标准纯文本读写把 CRLF／CR 归一为 LF，Markdown／HTML 等其他文本格式保留换行。所有表示禁止内嵌 NUL；写入参数错误在接触剪贴板前报告，读取含 NUL 的原生文本为 Unsupported，非法 UTF-8 或原生写入失败为 NativeFailure。库不解析 Markdown 或 HTML。macOS 使用标准 pasteboard 类型与 MIME 映射，Linux 使用 GDK MIME 表示，Windows 使用 Unicode 纯文本和按 MIME 名称注册的 UTF-8 文本。
+
+操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在全部表示写入成功后再删除选区；原生写入失败不承诺系统无法提供的回滚。macOS 的剪贴板测试保存并恢复原有全部项目和格式，覆盖原生类型互通、失败、Unicode 与超过 1 MiB 的 Markdown。
 
 文本输入默认禁用 IME；普通可打印键仍通过 `TextInputEvent.Edit` 交付。调用 `setImeAllowed(true)` 接入平台输入法，`setImeCursorArea` 发布候选窗矩形，坐标为内容区逻辑坐标。Enabled／Disabled 表示窗口的 IME 接入开关变化，重复设置相同值不重复发事件。
 

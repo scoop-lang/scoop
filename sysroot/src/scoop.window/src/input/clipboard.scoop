@@ -1,17 +1,45 @@
 package scoop.window
 
-/** Unicode clipboard text with shared lifetime and newline semantics. */
+import scoop.text.lowercaseAscii
+import scoop.text.startsWith
+import scoop.text.contains
+import scoop.collections.HashSet
+
+/** One Unicode representation of a clipboard item, identified by a text MIME type. */
+public struct ClipboardText(val mediaType: String, val text: String)
+
+/** System clipboard text with shared ownership and standard media type mapping. */
 public class Clipboard internal constructor(private val owner: ApplicationOwner) {
-    public fun readText(): String? {
+    /** Reads a text representation; absence and an existing empty string are distinct. */
+    public fun readText(mediaType: String = "text/plain"): String? {
         checkActive("read clipboard")
-        return when (platformReadClipboard()) {
-            case Some(val text) -> Some(clipboardText(text, false))
+        val type = clipboardMediaType(mediaType)
+        return when (platformReadClipboard(type)) {
+            case Some(val text) -> Some(clipboardText(text, false, type == "text/plain"))
             case None -> None
         }
     }
+
     public fun writeText(text: String) {
+        writeTexts([ClipboardText("text/plain", text)])
+    }
+
+    /** Publishes all representations of one item after validating the complete input. */
+    public fun writeTexts(representations: List<ClipboardText>) {
         checkActive("write clipboard")
-        platformWriteClipboard(clipboardText(text, true))
+        if (representations.size == 0L)
+            throw IllegalArgumentException(Some("clipboard representations must not be empty"))
+        val values = ArrayList<ClipboardText>()
+        val types = HashSet<String>()
+        for (representation in representations) {
+            val type = clipboardMediaType(representation.mediaType)
+            if (!types.add(type))
+                throw IllegalArgumentException(Some("duplicate clipboard text media type"))
+            values.add(
+                ClipboardText(type, clipboardText(representation.text, true, type == "text/plain"))
+            )
+        }
+        platformWriteClipboard(owner.native!!, values)
     }
     internal fun checkActive(operation: String) {
         owner.checkThread()
@@ -34,7 +62,26 @@ public val Window.clipboard: Clipboard get() {
     return value
 }
 
-private fun clipboardText(text: String, writing: Boolean): String {
+private fun clipboardMediaType(mediaType: String): String {
+    val value = mediaType.lowercaseAscii()
+    if (!value.startsWith("text/") || value.byteLength <= 5L)
+        throw IllegalArgumentException(Some("clipboard text requires a concrete text MIME type"))
+    var index = 0L
+    for (character in value) {
+        if (index >= 5L) {
+            val code = character.code
+            val letterOrDigit = (code >= 97 && code <= 122) || (code >= 48 && code <= 57)
+            if (!letterOrDigit && (index == 5L || !"!#$&^_.+-".contains(character.toString())))
+                throw IllegalArgumentException(
+                    Some("clipboard text MIME type cannot contain parameters or wildcards")
+                )
+        }
+        index += 1L
+    }
+    return value
+}
+
+private fun clipboardText(text: String, writing: Boolean, normalizeLines: Boolean): String {
     var hasCarriageReturn = false
     for (character in text) {
         if (character.code == 0) {
@@ -45,7 +92,7 @@ private fun clipboardText(text: String, writing: Boolean): String {
         if (character.code == 13)
             hasCarriageReturn = true
     }
-    if (!hasCarriageReturn)
+    if (!normalizeLines || !hasCarriageReturn)
         return text
     val result = StringBuilder(text.byteLength)
     var carriage = false
