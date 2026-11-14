@@ -1,0 +1,62 @@
+package scoop.markdown
+
+internal fun mdFragmentTable(
+    writer: MdMarkdownExporter,
+    syntax: MarkdownSyntax,
+    node: MarkdownNode,
+    alignments: Array<MarkdownAlignment>,
+    range: MarkdownRange
+): MdWriteBlock {
+    var firstColumn = alignments.size
+    var lastColumn = -1L
+    var firstRow = node.children.size
+    var lastRow = -1L
+    var rowIndex = mdFragmentFirst(node.children, range.start)
+    while (rowIndex < node.children.size && node.children[rowIndex].range.start < range.end) {
+        val row = node.children[rowIndex]
+        for (column in 0L ..< row.children.size) {
+            val cell = row.children[column]
+            if (cell.range.end <= range.start || cell.range.start >= range.end)
+                continue
+            if (column < firstColumn)
+                firstColumn = column
+            if (column > lastColumn)
+                lastColumn = column
+            if (rowIndex < firstRow)
+                firstRow = rowIndex
+            if (rowIndex > lastRow)
+                lastRow = rowIndex
+        }
+        rowIndex += 1L
+    }
+    if (lastColumn < 0L) {
+        firstColumn = 0L
+        lastColumn = alignments.size - 1L
+        firstRow = 0L
+        lastRow = 0L
+    }
+    val width = lastColumn - firstColumn + 1L
+    val columnStart = firstColumn
+    val rows = ArrayList<Array<Array<MdWriteInline>>>()
+    if (firstRow > 0L)
+        rows.add(Array<Array<MdWriteInline>>(width) { _ -> [] })
+    for (index in firstRow .. lastRow) {
+        val row = node.children[index]
+        rows.add(
+            Array<Array<MdWriteInline>>(width) {
+                column ->
+                val cell = row.children[columnStart + column]
+                val source =
+                    if (cell.range.end <= range.start || cell.range.start >= range.end)
+                        ""
+                    else
+                        mdInlineUnitsWrite(writer.units(syntax.inlineContent(cell.id), range), true)
+                [MdWriteInline.Raw(source)]
+            }
+        )
+    }
+    return MdWriteBlock.Table(
+        Array<MarkdownAlignment>(width) { at -> alignments[columnStart + at] },
+        rows.toArray()
+    )
+}

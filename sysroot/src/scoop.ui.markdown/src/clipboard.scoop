@@ -1,0 +1,140 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+/** Explicit clipboard formats for menus and toolbars; ordinary Copy/Paste choose both/preferred formats. */
+public enum MarkdownClipboardCommand {
+    CopyText, CopyMarkdown, PasteText, PasteMarkdown, PasteTableTsv
+}
+
+internal fun mdClipboardCopy(
+    host: MarkdownPreviewHost,
+    command: MarkdownClipboardCommand? = None
+): Boolean {
+    val selection = host.editor.selection
+    if (selection.collapsed)
+        return true
+    val model = mdPresentationModel(host.presentation, host.controller.current) ?: return false
+    val state = host.rich?.local ?: None
+    val local = state?.syntax(selection) ?: None
+    val syntax: MarkdownSyntax =
+        when (local) {
+            case Some(val value) -> value;
+            case None -> model.source
+        }
+    if (syntax.snapshot !== host.editor.snapshot)
+        return false
+    val plain = mdPreviewSelectedText(model, selection.range, host.presentation)
+    val clipboard = host.scope.application.clipboard
+    if (command == Some(MarkdownClipboardCommand.CopyText))
+        clipboard.writeText(plain)
+    else {
+        val markdown = syntax.exportMarkdown(selection.range)
+        clipboard.writeTexts(
+            [
+                ClipboardText(
+                    "text/plain",
+                    if (command == Some(MarkdownClipboardCommand.CopyMarkdown))
+                        markdown
+                    else
+                        plain
+                ),
+                ClipboardText("text/markdown", markdown)
+            ]
+        )
+    }
+    return true
+}
+
+internal fun mdRichPaste(
+    host: MarkdownRichHost,
+    command: MarkdownClipboardCommand? = None
+): Boolean {
+    if (host.readOnly)
+        return true
+    if (host.ownsOtherComposition())
+        return false
+    val clipboard = host.window.clipboard
+    val markdown =
+        if (
+            command ==
+                Some(MarkdownClipboardCommand.PasteText) ||
+                command ==
+                Some(MarkdownClipboardCommand.PasteTableTsv)
+        )
+            None
+        else
+            clipboard.readText("text/markdown")
+    val selected = markdown ?: clipboard.readText() ?: return true
+    host.perform { host.editor.acceptComposition() }
+    val state = host.local ?: return false
+    val syntax = state.syntax(host.editor.selection) ?: return false
+    if (command == Some(MarkdownClipboardCommand.PasteTableTsv)) {
+        val edit = mdRichTablePaste(syntax, host.editor.selection, selected) ?: return false
+        mdRichStructure(host, edit)
+    } else
+        if (markdown != None || command == Some(MarkdownClipboardCommand.PasteMarkdown)) {
+            val edit = syntax.replaceMarkdown(host.editor.selection.range, selected)
+            mdRichStructure(host, MdRichStructureEdit(edit.change, edit.after, edit.selection))
+        } else {
+            val input = host.input ?: return false
+            host.perform {
+                input.command(
+                    [TextInputOperation.Commit(selected, TextReplacement.CurrentSelection)],
+                    MarkdownEditKind.Separate
+                )
+            }
+        }
+    return true
+}
+
+internal fun mdSourceClipboard(
+    host: MarkdownSourceHost,
+    command: MarkdownClipboardCommand
+): Boolean {
+    val state = host.current
+    val range = state.selection.range
+    when (command) {
+        case CopyText -> if (!range.isEmpty)
+            host.window.clipboard.writeText(state.snapshot.read(range))
+        case CopyMarkdown -> mdSourceCopy(host)
+        case PasteTableTsv -> return false
+        case PasteMarkdown -> return mdSourcePaste(host, false)
+        case PasteText -> return mdSourcePaste(host, true)
+    }
+    return true
+}
+
+internal fun mdSourceCopy(host: MarkdownSourceHost) {
+    val range = host.current.selection.range
+    if (range.isEmpty)
+        return
+    val source = host.current.snapshot.read(range)
+    host.window.clipboard.writeTexts(
+        [ClipboardText("text/plain", source), ClipboardText("text/markdown", source)]
+    )
+}
+
+internal fun mdSourcePaste(host: MarkdownSourceHost, plain: Boolean): Boolean {
+    if (host.options.readOnly)
+        return true
+    if (host.ownsOtherComposition())
+        return false
+    val selected =
+        (
+            if (plain)
+                None
+            else
+                host.window.clipboard.readText("text/markdown")
+        ) ?:
+            host.window.clipboard.readText() ?:
+            return true
+    host.perform(
+        {
+            host.current.acceptComposition();
+            host.current.replaceSelection(selected)
+        }
+    )
+    return true
+}

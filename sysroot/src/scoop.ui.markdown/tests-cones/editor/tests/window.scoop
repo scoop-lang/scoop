@@ -8,6 +8,8 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
+import scoop.tests.window.saveNativeClipboard
+import scoop.tests.window.restoreNativeClipboard
 import scoop.tests.textfonts.*
 import scoop.text.*
 import scoop.time.Duration
@@ -21,35 +23,43 @@ import scoop.window.*
 private class MarkdownEditorWindowTests {
     @Test
     fun threeNativeModesShareInputHistoryAndSourceAnchoredScrolling() {
-        val app = Application()
-        val workers =
-            multiThreadExecutor {
-                workers = 1;
-                blocking { threads = 1 }
-            }
-        val probe = EditorProbe(workers, app.proxy())
-        try {
-            context(ThemeSource(shadcnTheme())) {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> app.run(host)
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
+            try {
+                val app = Application()
+                val workers =
+                    multiThreadExecutor {
+                        workers = 1;
+                        blocking { threads = 1 }
+                    }
+                val probe = EditorProbe(workers, app.proxy())
+                try {
+                    context(ThemeSource(shadcnTheme())) {
+                        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                            host -> app.run(host)
+                        }
+                    }
+                    assertTrue(probe.finished)
+                    assertTrue(probe.discarded)
+                    assertFalse(probe.view.value.sourceScroll.isAttached)
+                    assertFalse(probe.view.value.richScroll.isAttached)
+                    assertFalse(probe.view.value.richFocus.isAttached)
+                    assertFalse(probe.editor.isClosed)
+                    assertFalse(probe.parser.isClosed)
+                    assertFalse(probe.fonts.isClosed)
+                    assertEquals(probe.documentChanges, probe.viewChanges)
+                } catch (error: Throwable) {
+                    println("Three-mode test step " + probe.step.value.toString())
+                    reportEditorFailure(error)
+                    throw error
+                } finally {
+                    probe.close();
+                    workers.close()
                 }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
             }
-            assertTrue(probe.finished)
-            assertTrue(probe.discarded)
-            assertFalse(probe.view.value.sourceScroll.isAttached)
-            assertFalse(probe.view.value.richScroll.isAttached)
-            assertFalse(probe.view.value.richFocus.isAttached)
-            assertFalse(probe.editor.isClosed)
-            assertFalse(probe.parser.isClosed)
-            assertFalse(probe.fonts.isClosed)
-            assertEquals(probe.documentChanges, probe.viewChanges)
-        } catch (error: Throwable) {
-            println("Three-mode test step " + probe.step.value.toString())
-            reportEditorFailure(error)
-            throw error
-        } finally {
-            probe.close();
-            workers.close()
         }
     }
 }
@@ -356,7 +366,52 @@ internal class EditorProbe(workers: CoroutineExecutor, proxy: ApplicationProxy):
                     expectedPane = MarkdownEditorPane.Rich
                 }
             }
-            case 28 -> {
+            case 28 -> next {
+                editor.document.reset("**base**\n\nend")
+                editor.setSelection(MarkdownSelection(MarkdownPosition(2L), MarkdownPosition(6L)))
+            }
+            case 29 -> {
+                assertTrue(state.executeClipboard(MarkdownClipboardCommand.CopyMarkdown))
+                assertEquals(Some("**base**"), native.clipboard.readText())
+                next { mode(MarkdownEditorMode.Source, MarkdownEditorPane.Source) }
+            }
+            case 30 -> next {
+                editor.setSelection(MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L)))
+                assertTrue(state.executeClipboard(MarkdownClipboardCommand.PasteMarkdown))
+            }
+            case 31 -> {
+                assertEquals("**base****base**\n\nend", editor.document.toMarkdown())
+                next {
+                    assertTrue(editor.undo())
+                    native.clipboard.writeTexts(
+                        [
+                            ClipboardText("text/plain", "[raw]"),
+                            ClipboardText("text/markdown", "# heading")
+                        ]
+                    )
+                    assertTrue(state.executeClipboard(MarkdownClipboardCommand.PasteText))
+                }
+            }
+            case 32 -> {
+                assertEquals("[raw]**base**\n\nend", editor.document.toMarkdown())
+                next {
+                    assertTrue(editor.undo())
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(8L))
+                    )
+                    assertTrue(state.executeClipboard(MarkdownClipboardCommand.CopyText))
+                    assertEquals(Some("**base**"), native.clipboard.readText())
+                    assertEquals(None, native.clipboard.readText("text/markdown"))
+                    assertFalse(state.executeClipboard(MarkdownClipboardCommand.PasteTableTsv))
+                    mode(MarkdownEditorMode.Wysiwyg, MarkdownEditorPane.Rich)
+                }
+            }
+            case 33 -> next {
+                assertTrue(state.executeClipboard(MarkdownClipboardCommand.PasteMarkdown))
+            }
+            case 34 -> {
+                val parsed = editor.document.parse()
+                assertEquals("base", parsed.inlineContent(parsed.root.children[0L].id).text.text)
                 assertEquals(viewChanges, documentChanges)
                 finished = true
                 active.requestExit()

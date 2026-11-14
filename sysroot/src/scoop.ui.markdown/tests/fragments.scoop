@@ -1,0 +1,47 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownFragmentHistoryTests {
+    @Test
+    fun `fragment paste restores source and reversed selection in one undo`() {
+        val source = "__ab__\n\ncd\n\nTail"
+        val selection = MarkdownSelection(MarkdownPosition(9L), MarkdownPosition(3L))
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selection)
+        val edit =
+            editor.document.parse().replaceMarkdown(selection.range, "**one**\n\n## two\n\nlast")
+        editor.apply(edit.change, edit.selection)
+        val written = editor.document.toMarkdown()
+        val caret = editor.selection
+        assertSame(edit.after.snapshot, editor.snapshot)
+        assertTrue(editor.undo())
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selection, editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals(written, editor.document.toMarkdown())
+        assertEquals(caret, editor.selection)
+        assertFailsWith<IllegalStateException> { editor.apply(edit.change, edit.selection) }
+        assertEquals(written, editor.document.toMarkdown())
+        editor.close()
+    }
+
+    @Test
+    fun `paste is separated from preceding and following ordinary typing`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+        editor.replaceSelection("abc", MarkdownEditKind.Typing)
+        val edit = editor.document.parse().replaceMarkdown(editor.selection.range, "**X**")
+        editor.apply(edit.change, edit.selection)
+        val pasted = editor.document.toMarkdown()
+        editor.replaceSelection("tail", MarkdownEditKind.Typing)
+        assertTrue(editor.undo())
+        assertEquals(pasted, editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("abc", editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("", editor.document.toMarkdown())
+        editor.close()
+    }
+}

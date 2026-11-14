@@ -152,3 +152,11 @@ prepared.applyTo(document)
 ~/.scoop/bin/scoop --sysroot ~/.scoop test sysroot/src/scoop.markdown --release
 ~/.scoop/bin/scoop --sysroot ~/.scoop test sysroot/src/scoop.markdown/examples/source --release
 ```
+
+## Markdown 片段
+
+`syntax.exportMarkdown(sourceRange)` 把源文档中的选择导出为独立 Markdown：部分粗体、行内代码和链接会补齐结构，引用式链接／图片转为直接目标，脚注补上有效定义。跨块选择保留列表、引用和表格；代码、公式、Mermaid 及自定义指令保留源码，不读取资源或调用渲染器。整篇选择原样返回，任意源码原样裁切仍用 snapshot.read。
+
+`syntax.replaceMarkdown(sourceRange, markdown)` 解析片段并准备 `MarkdownFragmentEdit`，包含 change、结果源码 selection 和 `after: ParsedMarkdownRegion`。用 `edit.applyTo(document)` 发布；after.snapshot 与 change.after 相同，后续局部编辑可直接复用。单段保留两侧格式，多段继承容器，表格矩形保留格式并按需增长；脚注冲突一起改名。表格中的普通多段保留行内换行，无法放入单元格的块结构保留为源码字面文字。此接口使用源码 UTF-8 坐标，区别于 replaceText 的显示坐标；不执行文件 I/O，不持有 UI 或独立撤销历史。
+
+[无 UI 消费示例](examples/source/tests/fragments.scoop) 展示跨文档复制、准备、一次发布和精确恢复。对大文档使用 `parsed.region(range).parse()` 获取局部语法；片段只读取自身和需要的区外定义。

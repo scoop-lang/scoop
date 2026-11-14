@@ -1,0 +1,165 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdFragmentIntoTable(
+    syntax: ParsedMarkdownRegion,
+    content: MarkdownInlineContent,
+    position: MarkdownPosition,
+    input: MdFragmentInput
+): MarkdownFragmentEdit {
+    val cell = content.placement.cell!!
+    val table = syntax.parent(cell.row.id)!!
+    var row = 0L
+    while (table.children[row] !== cell.row)
+        row += 1L
+    val sourceTable =
+        if (input.blocks.size == 1L)
+            when (input.blocks[0L].content) {
+                case MarkdownContent.Table(_) -> Some(input.blocks[0L])
+                else -> None
+            }
+        else
+            None
+    var finalRow = row
+    val startRow = row
+    var finalColumn = cell.column
+    var cursor = 0L
+    val change =
+        when (sourceTable) {
+            case Some(val source) -> {
+                val values =
+                    Array<List<String>>(source.children.size) {
+                        line ->
+                        val children = source.children[line].children
+                        Array<String>(children.size) {
+                            column -> mdInlineUnitsWrite(
+                                mdFragmentNodeUnits(input, children[column]),
+                                true
+                            )
+                        }
+                    }
+                finalRow += source.children.size - 1L
+                finalColumn += source.children[0L].children.size - 1L
+                cursor =
+                    input.syntax.inlineContent(
+                        source.children[source.children.size - 1L].children[
+                            source.children[0L].children.size - 1L
+                        ].id
+                    ).text.byteLength
+                syntax.prepareTransform {
+                    mdSetTableMatrix(table.id, startRow, cell.column, values, true)
+                }
+            }
+            case None -> {
+                val added = ArrayList<MdInlineUnit>()
+                for (node in input.blocks) {
+                    if (added.size > 0L)
+                        added.add(MdInlineUnit(MdInlineUnitKind.Text, "\n", 0, None))
+                    when (node.content) {
+                        case MarkdownContent.Paragraph(_) -> for (
+                            unit in mdFragmentNodeUnits(input, node)
+                        )
+                            added.add(mdFragmentCellUnit(unit))
+                        case MarkdownContent.Heading(_, _, _) -> for (
+                            unit in mdFragmentNodeUnits(input, node)
+                        )
+                            added.add(mdFragmentCellUnit(unit))
+                        else -> added.add(
+                            MdInlineUnit(
+                                MdInlineUnitKind.Text,
+                                mdFragmentNodeSource(input, node),
+                                0,
+                                None
+                            )
+                        )
+                    }
+                }
+                val offset = content.text.textAt(position, MarkdownBias.After).byteOffset
+                val units = added.toArray()
+                cursor = offset + mdFragmentUnitsLength(units)
+                val source =
+                    mdInlineBlockSource(
+                        content,
+                        mdInlineUnitsWrite(
+                            mdFragmentConcat(
+                                mdInlineUnitsSlice(content.model.units, 0L, offset),
+                                units,
+                                mdInlineUnitsSlice(
+                                    content.model.units,
+                                    offset,
+                                    content.text.byteLength
+                                )
+                            ),
+                            true
+                        )
+                    )
+                syntax.snapshot.prepare(
+                    MarkdownEdit(
+                        syntax.revision,
+                        mdInlineDifference(syntax.snapshot, source.range, source.source)
+                    )
+                )
+            }
+        }
+    val after = syntax.region.after(change).parse()
+    var nextTable = after.nodeAt(MarkdownPosition(table.range.start))
+    while (true) {
+        when (nextTable.content) {
+            case MarkdownContent.Table(_) -> break
+            else -> nextTable = after.parent(nextTable.id)!!
+        }
+    }
+    val text = after.inlineContent(nextTable.children[finalRow].children[finalColumn].id).text
+    val caret =
+        text.sourceAt(
+            MarkdownPosition(cursor),
+            if (cursor == 0L)
+                MarkdownBias.After
+            else
+                MarkdownBias.Before
+        ).byteOffset
+    val result = MarkdownFragmentEdit(change, MarkdownRange(caret, caret), after)
+    if (input.footer == "")
+        return result
+    val prefix = mdListPrefix(after, nextTable)
+    val newline = mdLocalNewline(after.snapshot, nextTable.range.start)
+    val at = nextTable.range.end
+    val leading =
+        if (mdNodeEnding(after.snapshot, nextTable) == "")
+            newline + prefix + newline + prefix
+        else
+            prefix + newline + prefix
+    val source =
+        leading +
+            mdBlockBody(input.footer, at + leading.byteLength, newline, prefix).source +
+            newline +
+            prefix +
+            newline
+    val footer = after.prepareTransform { replaceSource(MarkdownRange(at, at), source) }
+    return mdFragmentCombine(
+        change,
+        MarkdownFragmentEdit(footer, result.selection, after.region.after(footer).parse())
+    )
+}
+
+private fun mdFragmentCellUnit(unit: MdInlineUnit): MdInlineUnit =
+    when (unit.kind) {
+        case MdInlineUnitKind.SoftBreak -> MdInlineUnit(
+            MdInlineUnitKind.Text,
+            " ",
+            unit.flags,
+            unit.link
+        )
+        case MdInlineUnitKind.HardBreak -> MdInlineUnit(
+            MdInlineUnitKind.Text,
+            "\n",
+            unit.flags,
+            unit.link
+        )
+        case MdInlineUnitKind.Object -> if (unit.raw.contains("\n") || unit.raw.contains("\r"))
+            MdInlineUnit(MdInlineUnitKind.Text, unit.raw, unit.flags, unit.link)
+        else
+            unit
+        else -> unit
+    }

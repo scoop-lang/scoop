@@ -7,6 +7,16 @@ public fun MarkdownTransformBuilder.setTableCells(
     column: Long,
     values: List<List<String>>
 ) {
+    mdSetTableMatrix(id, row, column, values, false)
+}
+
+internal fun MarkdownTransformBuilder.mdSetTableMatrix(
+    id: MarkdownNodeId,
+    row: Long,
+    column: Long,
+    values: List<List<String>>,
+    source: Boolean
+) {
     val table = parsed.node(id)
     val columns = mdTableColumns(table)
     requireMarkdown(
@@ -27,7 +37,10 @@ public fun MarkdownTransformBuilder.setTableCells(
         requireMarkdown(line.size == width, "Markdown table matrix must be rectangular")
         encoded.add(
             Array<String>(width) {
-                at -> mdWriteInlines([MdWriteInline.Literal(line[at])], true, true)
+                at -> if (source)
+                    line[at]
+                else
+                    mdWriteInlines([MdWriteInline.Literal(line[at])], true, true)
             }
         )
     }

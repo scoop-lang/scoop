@@ -111,6 +111,8 @@
 
 粗体、斜体与删除线通过 `MarkdownRichInput.setStyle` 作用于非空跨块选区；折叠光标只保存后续键入的显式样式，实际输入时与文字合为同一事务。设置样式先接受组合，移动选区或外部修改后清除覆盖；组合取消保留待输入样式。`MarkdownRichHost` 与 `MarkdownEditorViewState` 提供 setStyle／toggleStyle 和可追踪的 styleState；可选 `markdownFormattingToolbar` 使用同一命令并返回富文本焦点。Primary-B／I／Shift-X 分别对应这三种样式，Mixed 切为全部启用；源码模式、只读和未挂载时禁用。行内代码转换仍按功能表单独实施。
 
+普通复制／剪切同时提供所见 text/plain 与语义 text/markdown，原指令的生成显示不会取代被复制的源码。富文本粘贴以独立 Markdown 片段为优先，源码面直接插入原文；仅有纯文本时保持字面含义。MarkdownClipboardCommand 的显式纯文本、Markdown 和 TSV 命令供 Host／ViewState 的菜单入口使用；一次粘贴复用 MarkdownFragmentEdit.after 并进入单一历史项，详见编辑器规范。HTML 导入继续单独实施。
+
 ### 5.4 输入片段与全文文档分开
 
 现有 window 发布入口会复制完整 `surroundingText`。Markdown 宿主向原生连接提供当前输入片段的快照与映射，覆盖活动选区、marked range 和必要上下文；全局导航、跨块选区和历史仍由文档级宿主处理。

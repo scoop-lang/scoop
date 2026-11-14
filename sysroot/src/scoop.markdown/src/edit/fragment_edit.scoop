@@ -1,0 +1,162 @@
+package scoop.markdown
+
+/** A semantic paste prepared against one immutable source snapshot. */
+public class MarkdownFragmentEdit internal constructor(
+    public val change: MarkdownChange,
+    public val selection: MarkdownRange,
+    public val after: ParsedMarkdownRegion
+) {
+    public fun applyTo(document: MarkdownDocument): MarkdownChange = change.applyTo(document)
+}
+
+/** Replaces a source selection with independently parsed Markdown structure. */
+public fun MarkdownSyntax.replaceMarkdown(
+    range: MarkdownRange,
+    markdown: String
+): MarkdownFragmentEdit {
+    mdFragmentCheckRange(this, range)
+    val syntax = this
+    val region =
+        if (syntax is ParsedMarkdownRegion)
+            syntax
+        else
+            if (syntax is ParsedMarkdown)
+                syntax.region(range).parse()
+            else
+                throw IllegalArgumentException(
+                    Some("Markdown paste requires complete or region syntax")
+                )
+    var current = region
+    var cursor = range.start
+    var deletion: MarkdownChange? = None
+    var insertion: MarkdownInlineContent? = None
+    if (!range.isEmpty) {
+        val original = region.inlineContentAt(MarkdownPosition(range.start))
+        val content =
+            when (original) {
+                case Some(val value) -> if (
+                    range.start >=
+                        value.node.range.start &&
+                        range.end <=
+                        value.node.range.end &&
+                        range !=
+                        MarkdownRange(0L, snapshot.byteLength)
+                )
+                    value.editableText()
+                else
+                    region.textContent(range)
+                case None -> region.textContent(range)
+            }
+        val selected =
+            MarkdownRange(
+                content.text.textAt(MarkdownPosition(range.start), MarkdownBias.Before).byteOffset,
+                content.text.textAt(MarkdownPosition(range.end), MarkdownBias.After).byteOffset
+            )
+        val removed = content.replaceText(selected, "")
+        deletion = Some(removed.change)
+        current = region.region.after(removed.change).parse()
+        cursor = removed.selection.end
+        when (original) {
+            case Some(val value) -> insertion = mdFragmentCellAfter(current, value, removed.change)
+            case None -> Unit
+        }
+    }
+    val result =
+        if (markdown == "")
+            MarkdownFragmentEdit(
+                current.snapshot.prepare(MarkdownEdit(current.revision, [])),
+                MarkdownRange(cursor, cursor),
+                current
+            )
+        else
+            mdFragmentInsert(
+                current,
+                MarkdownPosition(cursor),
+                mdFragmentInput(current, markdown),
+                insertion
+            )
+    return when (deletion) {
+        case Some(val change) -> mdFragmentCombine(change, result)
+        case None -> result
+    }
+}
+
+/** Empty cells may trim their source position past the deletion caret; retain the actual grid slot. */
+private fun mdFragmentCellAfter(
+    syntax: ParsedMarkdownRegion,
+    before: MarkdownInlineContent,
+    change: MarkdownChange
+): MarkdownInlineContent? {
+    val cell = before.placement.cell ?: return None
+    val position =
+        change.map(
+            MarkdownAnchor(MarkdownPosition(cell.row.range.start), MarkdownBias.Before)
+        ).position
+    var node = syntax.nodeAt(position)
+    while (true) {
+        when (node.content) {
+            case MarkdownContent.TableRow(_) -> return if (cell.column < node.children.size)
+                Some(syntax.inlineContent(node.children[cell.column].id))
+            else
+                None
+            else -> node = syntax.parent(node.id) ?: return None
+        }
+    }
+}
+
+/** Combines private preparation steps using only the source intervals that actually changed. */
+internal fun mdFragmentCombine(
+    first: MarkdownChange,
+    result: MarkdownFragmentEdit
+): MarkdownFragmentEdit {
+    if (!first.changed)
+        return result
+    var start = first.replacements[0L].range.start
+    var end = first.replacements[first.replacements.size - 1L].range.end
+    for (entry in result.change.replacements) {
+        val left =
+            first.mapBack(
+                MarkdownAnchor(MarkdownPosition(entry.range.start), MarkdownBias.Before)
+            ).position.byteOffset
+        val right =
+            first.mapBack(
+                MarkdownAnchor(MarkdownPosition(entry.range.end), MarkdownBias.After)
+            ).position.byteOffset
+        if (left < start)
+            start = left
+        if (right > end)
+            end = right
+    }
+    val left =
+        result.change.map(
+            first.map(MarkdownAnchor(MarkdownPosition(start), MarkdownBias.Before))
+        ).position.byteOffset
+    val right =
+        result.change.map(
+            first.map(MarkdownAnchor(MarkdownPosition(end), MarkdownBias.After))
+        ).position.byteOffset
+    val change =
+        first.before.prepare(
+            MarkdownEdit(
+                first.beforeRevision,
+                mdInlineDifference(
+                    first.before,
+                    MarkdownRange(start, end),
+                    result.change.after.read(MarkdownRange(left, right))
+                )
+            )
+        )
+    val old = result.after.region
+    val rebound =
+        result.after.rebind(
+            MarkdownRegion(
+                change.after,
+                old.range,
+                old.profile,
+                old.definitions,
+                old.definitionBoundary,
+                old.definitionShift
+            )
+        )
+    return MarkdownFragmentEdit(change, result.selection, rebound)
+}

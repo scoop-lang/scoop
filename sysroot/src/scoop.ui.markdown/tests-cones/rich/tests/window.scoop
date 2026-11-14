@@ -135,7 +135,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                     fail(Some("Rich test timeout at " + step.value.toString()))
                 }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
             }
-            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 43) {
+            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 57) {
                 when (input) {
                     case Enabled(_) -> inputReady = true
                     case Disabled(_) -> inputReady = false
@@ -149,7 +149,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 }
                 if (
                     step.value >=
-                        43 &&
+                        57 &&
                         publicFocus.isAttached &&
                         !publicFocus.hasFocus &&
                         !publicFocus.isPending
@@ -172,7 +172,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
     private fun ready(): Boolean {
         if (!window!!.isFocused || window!!.isOccluded || frames!!.snapshot().required)
             return false
-        if (step.value >= 43)
+        if (step.value >= 57)
             return publicFocus.isFocusActive &&
                 inputReady &&
                 frames!!.snapshot().presentations >
@@ -538,23 +538,141 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 assertTrue(mdNativeDocument(native, host))
                 next { assertTrue(host.execute(TextEditCommand.Cancel)) }
             }
-            case 42 -> {
+            case 42 -> next {
+                editor.document.reset("**ab**\n\ntail")
+                select(2L, 4L)
+            }
+            case 43 -> {
+                assertTrue(host.execute(TextEditCommand.Copy))
+                assertEquals(Some("ab"), native.clipboard.readText())
+                assertEquals(Some("**ab**"), native.clipboard.readText("text/markdown"))
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.CopyText))
+                assertEquals(None, native.clipboard.readText("text/markdown"))
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.CopyMarkdown))
+                assertEquals(Some("**ab**"), native.clipboard.readText())
+                next {
+                    native.clipboard.writeTexts(
+                        [
+                            ClipboardText("text/plain", "ignored"),
+                            ClipboardText("text/markdown", "one\n\n## Title\n\nlast")
+                        ]
+                    )
+                    assertTrue(host.execute(TextEditCommand.Paste))
+                }
+            }
+            case 44 -> {
+                val parsed = editor.document.parse()
+                assertEquals(4L, parsed.root.children.size)
+                assertEquals("last", parsed.inlineContent(parsed.root.children[2L].id).text.text)
+                assertTrue(mdNativeDocument(native, host))
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    assertEquals("**ab**\n\ntail", editor.document.toMarkdown())
+                    assertFalse(editor.canUndo)
+                    native.clipboard.writeTexts(
+                        [
+                            ClipboardText("text/plain", "*plain*"),
+                            ClipboardText("text/markdown", "**bold**")
+                        ]
+                    )
+                }
+            }
+            case 45 -> next {
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.PasteText))
+            }
+            case 46 -> {
+                val parsed = editor.document.parse()
+                assertEquals("*plain*", parsed.inlineContent(parsed.root.children[0L].id).text.text)
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    native.clipboard.writeText("**raw**")
+                }
+            }
+            case 47 -> next {
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.PasteMarkdown))
+            }
+            case 48 -> {
+                val parsed = editor.document.parse()
+                val inline = parsed.inlineContent(parsed.root.children[0L].id)
+                assertEquals("raw", inline.text.text)
+                assertEquals(
+                    MarkdownStyleState.On,
+                    inline.styleState(MarkdownRange(0L, 3L), MarkdownInlineStyle.Strong)
+                )
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    native.clipboard.writeTexts(
+                        [ClipboardText("text/plain", "ignored"), ClipboardText("text/markdown", "")]
+                    )
+                }
+            }
+            case 49 -> next { assertTrue(host.execute(TextEditCommand.Paste)) }
+            case 50 -> {
+                assertFalse(editor.document.toMarkdown().contains("ignored"))
+                next {
+                    editor.document.reset(multiTable)
+                    val parsed = editor.document.parse()
+                    val range = parsed.root.children[0L].children[1L].children[1L].range
+                    select(range.start, range.end)
+                }
+            }
+            case 51 -> next {
+                native.clipboard.writeText("X\tY\nZ\tW")
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.PasteTableTsv))
+            }
+            case 52 -> {
+                val parsed = editor.document.parse()
+                assertEquals(3L, parsed.root.children[0L].children.size)
+                assertEquals(3L, parsed.root.children[0L].children[0L].children.size)
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    assertEquals(multiTable, editor.document.toMarkdown())
+                    native.clipboard.writeTexts(
+                        [
+                            ClipboardText("text/plain", "x\ty"),
+                            ClipboardText("text/markdown", "| **x** | y |\n|---|---|")
+                        ]
+                    )
+                }
+            }
+            case 53 -> next { assertTrue(host.execute(TextEditCommand.Paste)) }
+            case 54 -> {
+                val parsed = editor.document.parse()
+                val inline =
+                    parsed.inlineContent(parsed.root.children[0L].children[1L].children[1L].id)
+                assertEquals("x", inline.text.text)
+                assertEquals(
+                    MarkdownStyleState.On,
+                    inline.styleState(MarkdownRange(0L, 1L), MarkdownInlineStyle.Strong)
+                )
+                next {
+                    assertTrue(host.execute(TextEditCommand.Undo))
+                    readOnly.value = true;
+                    select(2L, 4L)
+                }
+            }
+            case 55 -> {
+                assertTrue(host.executeClipboard(MarkdownClipboardCommand.CopyMarkdown))
+                assertFalse(host.executeClipboard(MarkdownClipboardCommand.PasteText))
+                next { readOnly.value = false }
+            }
+            case 56 -> {
                 assertEquals(multiTable, editor.document.toMarkdown())
                 next {
                     editor.document.reset("# Public\n\n__text__")
                     select(12L)
                 }
             }
-            case 43 -> {
+            case 57 -> {
                 assertTrue(host.isClosed)
                 next { assertEquals(0, mdNativeText(native, "X")) }
             }
-            case 44 -> {
+            case 58 -> {
                 assertEquals("# Public\n\n__Xtext__", editor.document.toMarkdown())
                 next { editor.document.reset("") }
             }
-            case 45 -> next { assertEquals(0, mdNativeText(native, "# new")) }
-            case 46 -> {
+            case 59 -> next { assertEquals(0, mdNativeText(native, "# new")) }
+            case 60 -> {
                 assertEquals("\\# new", editor.document.toMarkdown())
                 finished = true
                 active.requestExit()
@@ -576,7 +694,7 @@ private class RichRoot(val probe: RichProbe, scope: ComponentScope): Component(s
         probe.scope = Some(scope)
     }
     public override fun render(): View {
-        if (probe.step.value >= 43)
+        if (probe.step.value >= 57)
             return markdownRichEditor(
                 probe.parser,
                 Some(probe.style),

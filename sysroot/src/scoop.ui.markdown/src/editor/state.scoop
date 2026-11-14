@@ -154,6 +154,31 @@ public class MarkdownEditorViewState public constructor(
         return true
     }
 
+    public fun executeClipboard(command: MarkdownClipboardCommand): Boolean {
+        checkMutation()
+        val mount = mounted ?: return false
+        val pane = activePane
+        val executed =
+            if (pane == MarkdownEditorPane.Source)
+                mount.source?.executeClipboard(command) ?: false
+            else
+                if (
+                    mode ==
+                        MarkdownEditorMode.SideBySide &&
+                        rightReadOnly &&
+                        command !=
+                        MarkdownClipboardCommand.CopyText &&
+                        command !=
+                        MarkdownClipboardCommand.CopyMarkdown
+                )
+                    false
+                else
+                    formattingHost.value?.executeClipboard(command) ?: false
+        if (executed)
+            requestFocus(pane)
+        return executed
+    }
+
     internal fun attachFormatting(host: MarkdownRichHost) {
         when (formattingHost.value) {
             case Some(val current) -> if (current === host)

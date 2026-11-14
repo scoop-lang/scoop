@@ -1,0 +1,209 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdFragmentInsert(
+    syntax: ParsedMarkdownRegion,
+    position: MarkdownPosition,
+    input: MdFragmentInput,
+    insertion: MarkdownInlineContent? = None
+): MarkdownFragmentEdit {
+    val content =
+        when (insertion) {
+            case Some(_) -> insertion;
+            case None -> syntax.inlineContentAt(position)
+        }
+    when (content) {
+        case Some(val inline) -> return if (inline.placement.table)
+            mdFragmentIntoTable(syntax, inline, position, input)
+        else
+            mdFragmentIntoInline(syntax, inline, position, input)
+        case None -> Unit
+    }
+    // Existing object insertion provides a real empty paragraph on the chosen side.
+    val surrounding = syntax.textContent(MarkdownRange(position.byteOffset, position.byteOffset))
+    val at = surrounding.text.textAt(position, MarkdownBias.After).byteOffset
+    val empty = surrounding.replaceText(MarkdownRange(at, at), "")
+    val after = syntax.region.after(empty.change).parse()
+    val inline =
+        after.inlineContentAt(MarkdownPosition(empty.selection.end)) ?:
+            throw IllegalArgumentException(
+                Some("Markdown paste has no editable insertion boundary")
+            )
+    return mdFragmentCombine(
+        empty.change,
+        mdFragmentIntoInline(after, inline, MarkdownPosition(empty.selection.end), input)
+    )
+}
+
+/** Accumulates one local block replacement and a cursor before suffix text. */
+private class MdFragmentBody {
+    val output = StringBuilder()
+    var size = 0L
+    var count = 0L
+    var caret = 0L
+    var displayOffset: Long? = None
+    var blankCaret = false
+
+    fun add(source: String): Long {
+        if (count > 0L) {
+            output.append("\n\n")
+            size += 2L
+        }
+        val start = size
+        output.append(source)
+        size += source.byteLength
+        count += 1L
+        return start
+    }
+
+    fun inline(units: Array<MdInlineUnit>, kind: MarkdownContent, cursor: Long) {
+        val heading =
+            when (kind) {
+                case MarkdownContent.Heading(val level, _, _) -> "#".repeat(level.toLong()) + " "
+                else -> ""
+            }
+        val normalized =
+            if (heading == "")
+                units
+            else
+                mdBlockAtxUnits(units)
+        caret = add(heading + mdInlineUnitsWrite(normalized, false)) + heading.byteLength
+        displayOffset = Some(cursor)
+        blankCaret = normalized.size == 0L
+    }
+}
+
+private fun mdFragmentParagraph(node: MarkdownNode): Boolean =
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> true
+        else -> false
+    }
+
+private fun mdFragmentIntoInline(
+    syntax: ParsedMarkdownRegion,
+    content: MarkdownInlineContent,
+    position: MarkdownPosition,
+    input: MdFragmentInput
+): MarkdownFragmentEdit {
+    val offset = content.text.textAt(position, MarkdownBias.After).byteOffset
+    val left = mdInlineUnitsSlice(content.model.units, 0L, offset)
+    val right = mdInlineUnitsSlice(content.model.units, offset, content.text.byteLength)
+    val body = MdFragmentBody()
+    val blocks = input.blocks
+    val paragraph = MarkdownContent.Paragraph(MarkdownText("", [], 0L))
+    if (blocks.size == 0L) {
+        body.inline(mdFragmentConcat(left, right), content.node.content, offset)
+    } else {
+        var first = 0L
+        if (mdFragmentParagraph(blocks[0L])) {
+            val added = mdFragmentNodeUnits(input, blocks[0L])
+            body.inline(
+                mdFragmentConcat(
+                    left,
+                    added,
+                    if (blocks.size == 1L)
+                        right
+                    else
+                        []
+                ),
+                content.node.content,
+                offset + mdFragmentUnitsLength(added)
+            )
+            first = 1L
+        } else
+            if (left.size > 0L) {
+                body.inline(left, content.node.content, offset)
+            }
+        for (index in first ..< blocks.size) {
+            val node = blocks[index]
+            if (index + 1L == blocks.size && mdFragmentParagraph(node)) {
+                val added = mdFragmentNodeUnits(input, node)
+                body.inline(mdFragmentConcat(added, right), paragraph, mdFragmentUnitsLength(added))
+            } else {
+                val start = body.add(mdFragmentNodeSource(input, node))
+                body.displayOffset = None
+                body.blankCaret = false
+                var leaf = node
+                while (leaf.children.size > 0L) {
+                    when (leaf.content) {
+                        case MarkdownContent.Paragraph(_) -> break
+                        case MarkdownContent.Heading(_, _, _) -> break
+                        case MarkdownContent.TableCell(_, _) -> break
+                        else -> leaf = leaf.children[leaf.children.size - 1L]
+                    }
+                }
+                val editable =
+                    when (leaf.content) {
+                        case MarkdownContent.Paragraph(_) -> true
+                        case MarkdownContent.Heading(_, _, _) -> true
+                        case MarkdownContent.TableCell(_, _) -> true
+                        else -> false
+                    }
+                if (editable) {
+                    val text = input.syntax.inlineContent(leaf.id).text
+                    body.caret =
+                        start +
+                            text.sourceAt(
+                                MarkdownPosition(text.byteLength),
+                                MarkdownBias.Before
+                            ).byteOffset -
+                            node.range.start
+                } else {
+                    body.caret = body.size
+                    body.blankCaret = true
+                }
+            }
+        }
+        if (!mdFragmentParagraph(blocks[blocks.size - 1L]) && (right.size > 0L || body.blankCaret))
+            body.inline(right, paragraph, 0L)
+    }
+    if (input.footer != "")
+        body.add(input.footer)
+    val leading = content.placement.leading
+    val generated =
+        mdBlockBody(
+            leading + body.output.toString(),
+            content.node.range.start,
+            content.placement.newline,
+            content.placement.prefix
+        )
+    val ending = mdNodeEnding(syntax.snapshot, content.node)
+    val trailing =
+        ending +
+            if (content.node.id === content.placement.origin)
+                mdBlockFollowingGap(syntax, content.node, content.placement.prefix)
+            else
+                ""
+    val change =
+        syntax.snapshot.prepare(
+            MarkdownEdit(
+                syntax.revision,
+                mdInlineDifference(syntax.snapshot, content.node.range, generated.source + trailing)
+            )
+        )
+    val after = syntax.region.after(change).parse()
+    val logical = leading.byteLength + body.caret
+    var cursor =
+        if (body.blankCaret && logical == generated.input.byteLength)
+            content.node.range.start + generated.source.byteLength
+        else
+            generated.input.sourceAt(MarkdownPosition(logical), MarkdownBias.After).byteOffset
+    when (body.displayOffset) {
+        case Some(val value) -> {
+            val active =
+                after.inlineContentAt(MarkdownPosition(cursor)) ?:
+                    throw IllegalArgumentException(Some("Markdown paste lost its editable block"))
+            cursor =
+                active.text.sourceAt(
+                    MarkdownPosition(value),
+                    if (value == 0L)
+                        MarkdownBias.After
+                    else
+                        MarkdownBias.Before
+                ).byteOffset
+        }
+        case None -> Unit
+    }
+    return MarkdownFragmentEdit(change, MarkdownRange(cursor, cursor), after)
+}

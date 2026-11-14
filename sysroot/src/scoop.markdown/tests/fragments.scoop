@@ -1,0 +1,365 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownFragmentTests {
+    @Test
+    fun `selection of closing markup does not consume the next block boundary`() {
+        val source = "**base**\n\nend"
+        val document = MarkdownDocument.fromText(source)
+        val edit = document.parse().replaceMarkdown(MarkdownRange(0L, 8L), "**base**")
+        edit.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+        assertFalse(edit.change.changed)
+        assertSame(edit.after.snapshot, document.snapshot())
+        val heading = MarkdownDocument.fromText("## title")
+        heading.parse().replaceMarkdown(MarkdownRange(0L, 8L), "plain").applyTo(heading)
+        assertEquals("plain", heading.toMarkdown())
+    }
+
+    @Test
+    fun `empty documents and empty list items accept paragraphs and atomic blocks`() {
+        for (source in ["", "- ", "> ", "- [ ] "]) {
+            val document = MarkdownDocument.fromText(source)
+            val at = source.byteLength
+            val edit = document.parse().replaceMarkdown(MarkdownRange(at, at), "**text**")
+            edit.applyTo(document)
+            assertEquals(
+                "text",
+                edit.after.inlineContentAt(MarkdownPosition(edit.selection.end))!!.text.text
+            )
+            fragmentUndo(document, edit)
+            assertEquals(source, document.toMarkdown())
+        }
+        val document = MarkdownDocument.fromText("")
+        val edit = document.parse().replaceMarkdown(MarkdownRange(0L, 0L), "```\ncode\n```")
+        edit.applyTo(document)
+        assertEquals(
+            "",
+            edit.after.inlineContentAt(MarkdownPosition(edit.selection.end))!!.text.text
+        )
+    }
+
+    @Test
+    fun `extensions and fenced diagrams export source without expanding resources`() {
+        val profile = MarkdownProfile(math = true, extensions = [mdBookDirectives()])
+        val parsed =
+            MarkdownDocument.fromText(
+                "{{#include missing.md}}\n\n```mermaid\ngraph LR; A-->B\n```\n\n$x^2$\n\nend"
+            ).parse(profile)
+        val directive = parsed.exportMarkdown(parsed.root.children[0L].range)
+        assertTrue(directive.contains("{{#include missing.md}}"))
+        val code = parsed.root.children[1L]
+        val diagram =
+            parsed.exportMarkdown(MarkdownRange(code.range.start + 12L, code.range.end - 4L))
+        assertTrue(diagram.contains("```mermaid"))
+        val target = MarkdownDocument.fromText("before\n\nend")
+        val edit = target.parse(profile).replaceMarkdown(MarkdownRange(6L, 6L), directive)
+        edit.applyTo(target)
+        assertTrue(target.toMarkdown().contains("{{#include missing.md}}"))
+        assertTrue(target.toMarkdown().endsWith("end"))
+    }
+
+    @Test
+    fun `footnotes pasted into cells keep their definitions outside the grid`() {
+        val document = MarkdownDocument.fromText("| A | B |\n|---|---|\n| c | d |\n\nend")
+        val parsed = document.parse(MarkdownProfile.Editor)
+        val cell = parsed.root.children[0L].children[1L].children[0L]
+        val edit = parsed.replaceMarkdown(cell.range, "note[^x]\n\n[^x]: detail")
+        edit.applyTo(document)
+        val after = document.parse(MarkdownProfile.Editor)
+        assertEquals(2L, after.root.children[0L].children.size)
+        assertEquals(1L, after.footnotes.size)
+        assertEquals(
+            "detail",
+            after.inlineContent(after.footnoteDefinition("x")!!.children[0L].id).text.text
+        )
+        assertTrue(document.toMarkdown().endsWith("end"))
+        fragmentUndo(document, edit)
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun `a caret in an originally empty table cell accepts a semantic fragment`() {
+        val document = MarkdownDocument.fromText("| A | B |\n|---|---|\n|   |   |")
+        val parsed = document.parse()
+        val cell = parsed.inlineContent(parsed.root.children[0L].children[1L].children[1L].id)
+        val cursor = cell.text.sourceAt(MarkdownPosition(0L)).byteOffset
+        val edit = parsed.replaceMarkdown(MarkdownRange(cursor, cursor), "**one**\n\n*two*")
+        edit.applyTo(document)
+        val table = edit.after.root.children[0L]
+        assertEquals(2L, table.children.size)
+        assertEquals(
+            "one\ntwo",
+            edit.after.inlineContent(table.children[1L].children[1L].id).text.text
+        )
+    }
+
+    @Test
+    fun `partial inline export closes styles and resolves reference targets`() {
+        val parsed =
+            MarkdownDocument.fromText(
+                "**中文abc** [label][r] ![alt][r]\n\n[r]: /url \"Title\"\n"
+            ).parse()
+        val selected = parsed.exportMarkdown(MarkdownRange(5L, 11L))
+        val fragment = MarkdownDocument.fromText(selected).parse()
+        val content = fragment.inlineContent(fragment.root.children[0L].id)
+        assertEquals("文abc", content.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            content.styleState(
+                MarkdownRange(0L, content.text.byteLength),
+                MarkdownInlineStyle.Strong
+            )
+        )
+        val complete = parsed.exportMarkdown(parsed.root.children[0L].range)
+        val portable = MarkdownDocument.fromText(complete).parse()
+        var targets = 0L
+        for (node in portable.nodes())
+            when (node.content) {
+                case MarkdownContent.Link(val target) -> {
+                    assertEquals("/url", target.destination.text);
+                    targets += 1L
+                }
+                case MarkdownContent.Image(val target) -> {
+                    assertEquals("Title", target.title.text);
+                    targets += 1L
+                }
+                else -> Unit
+            }
+        assertEquals(2L, targets)
+    }
+
+    @Test
+    fun `whole source and empty selection are exact and invalid scalar boundaries fail`() {
+        val source = "__中文__\r\n\r\n[r]: /url\r\n"
+        val parsed = MarkdownDocument.fromText(source).parse()
+        assertEquals(source, parsed.exportMarkdown(parsed.root.range))
+        assertEquals("", parsed.exportMarkdown(MarkdownRange(2L, 2L)))
+        assertFailsWith<IllegalArgumentException> { parsed.exportMarkdown(MarkdownRange(3L, 5L)) }
+        assertFailsWith<IllegalArgumentException> {
+            parsed.replaceMarkdown(MarkdownRange(3L, 5L), "a")
+        }
+    }
+
+    @Test
+    fun `block export keeps nested tasks and selected table rectangle`() {
+        val parsed =
+            MarkdownDocument.fromText(
+                "- [x] **first**\n- [ ] second\n\n| a | b |\n|---|---|\n| c | d |\n\nend"
+            ).parse()
+        val list =
+            MarkdownDocument.fromText(parsed.exportMarkdown(parsed.root.children[0L].range)).parse()
+        when (list.root.children[0L].children[0L].content) {
+            case MarkdownContent.ListItem(val checked) -> assertEquals(Some(true), checked)
+            else -> fail(Some("Expected task item"))
+        }
+        val table = parsed.root.children[1L]
+        val cell = table.children[1L].children[1L]
+        // Include the row terminator so this is a table selection rather than inline text.
+        val copied = parsed.exportMarkdown(MarkdownRange(cell.range.start, table.range.end))
+        val result = MarkdownDocument.fromText(copied).parse()
+        val selected = result.root.children[0L]
+        assertEquals(2L, selected.children.size)
+        assertEquals(1L, selected.children[0L].children.size)
+        assertEquals("", result.inlineContent(selected.children[0L].children[0L].id).text.text)
+        assertEquals("d", result.inlineContent(selected.children[1L].children[0L].id).text.text)
+    }
+
+    @Test
+    fun `regional export follows external footnote definitions once including cycles`() {
+        val source =
+            "body[^a]\n\n" + "padding\n\n".repeat(100L) + "> [^a]: first[^b]\n\n[^b]: back[^a]\n"
+        val parsed = MarkdownDocument.fromText(source).parse(MarkdownProfile.Editor)
+        val range = MarkdownRange(0L, 8L)
+        val region = parsed.region(range).parse()
+        assertTrue(region.root.range.end < 100L)
+        val result =
+            MarkdownDocument.fromText(region.exportMarkdown(range)).parse(MarkdownProfile.Editor)
+        assertEquals(2L, result.footnotes.size)
+        assertEquals(
+            "first\u{fffc}",
+            result.inlineContent(result.footnoteDefinition("a")!!.children[0L].id).text.text
+        )
+    }
+
+    @Test
+    fun `single paragraph paste keeps both sides and the incoming styles`() {
+        val document = MarkdownDocument.fromText("__ab cd__\n\nkeep &amp; spelling\n")
+        val parsed = document.parse()
+        val edit = parsed.replaceMarkdown(MarkdownRange(4L, 5L), "*中文* [x](/u)")
+        assertEquals("__ab cd__\n\nkeep &amp; spelling\n", document.toMarkdown())
+        edit.applyTo(document)
+        assertSame(document.snapshot(), edit.after.snapshot)
+        val content = edit.after.inlineContent(edit.after.root.children[0L].id)
+        assertEquals("ab中文 xcd", content.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            content.styleState(MarkdownRange(2L, 8L), MarkdownInlineStyle.Emphasis)
+        )
+        assertEquals(
+            MarkdownStyleState.Off,
+            content.styleState(MarkdownRange(2L, 8L), MarkdownInlineStyle.Strong)
+        )
+        assertEquals(10L, content.text.textAt(MarkdownPosition(edit.selection.end)).byteOffset)
+        assertTrue(document.toMarkdown().endsWith("keep &amp; spelling\n"))
+        fragmentUndo(document, edit)
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun `multiblock paste stays in quote list containers with CRLF`() {
+        val source = "- > **ab**\r\n  > tail\r\n- end\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val edit =
+            document.parse().replaceMarkdown(MarkdownRange(7L, 7L), "one\n\n## title\n\nlast")
+        edit.applyTo(document)
+        val list = edit.after.root.children[0L]
+        assertEquals(2L, list.children.size)
+        val quote = list.children[0L].children[0L]
+        assertEquals(3L, quote.children.size)
+        assertEquals("aone", edit.after.inlineContent(quote.children[0L].id).text.text)
+        assertEquals("lastb tail", edit.after.inlineContent(quote.children[2L].id).text.text)
+        assertTrue(document.toMarkdown().contains("\r\n  > ## title\r\n"))
+        assertTrue(document.toMarkdown().endsWith("- end\r\n"))
+        fragmentUndo(document, edit)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `atomic final block provides an editable caret and remains source syntax`() {
+        val document = MarkdownDocument.fromText("before\n\nafter")
+        val edit =
+            document.parse(MarkdownProfile.Editor).replaceMarkdown(
+                MarkdownRange(6L, 6L),
+                "```mermaid\ngraph LR; A-->B\n```"
+            )
+        edit.applyTo(document)
+        assertTrue(document.toMarkdown().contains("```mermaid\ngraph LR; A-->B\n```"))
+        val content = edit.after.inlineContentAt(MarkdownPosition(edit.selection.end))!!
+        val typed = content.replaceText(MarkdownRange(0L, 0L), "next")
+        typed.applyTo(document)
+        assertTrue(document.toMarkdown().contains("next"))
+        assertTrue(document.toMarkdown().endsWith("after"))
+    }
+
+    @Test
+    fun `paste at an object boundary preserves the object`() {
+        val document = MarkdownDocument.fromText("```\ncode\n```\n\nend")
+        val edit = document.parse().replaceMarkdown(MarkdownRange(0L, 0L), "**prefix**")
+        edit.applyTo(document)
+        assertTrue(document.toMarkdown().contains("code"))
+        assertEquals("prefix", edit.after.inlineContent(edit.after.root.children[0L].id).text.text)
+    }
+
+    @Test
+    fun `cross container replacement is one reversible transaction`() {
+        val source = "- **ab**\n\n> *cd*\n\nend"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val edit = parsed.replaceMarkdown(MarkdownRange(5L, 14L), "**new**\n\nnext")
+        edit.applyTo(document)
+        assertTrue(document.toMarkdown().endsWith("end"))
+        assertEquals(1L, document.revision - parsed.revision)
+        fragmentUndo(document, edit)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `footnote collisions rename references and definitions together`() {
+        val document = MarkdownDocument.fromText("base[^x]\n\n[^x]: original\n")
+        val edit =
+            document.parse(MarkdownProfile.Editor).replaceMarkdown(
+                MarkdownRange(4L, 4L),
+                "new[^x]\n\n[^x]: incoming[^y]\n\n[^y]: child\n"
+            )
+        edit.applyTo(document)
+        val after = document.parse(MarkdownProfile.Editor)
+        assertEquals(3L, after.footnotes.size)
+        assertEquals(
+            "original",
+            after.inlineContent(after.footnoteDefinition("x")!!.children[0L].id).text.text
+        )
+        assertEquals(
+            "incoming\u{fffc}",
+            after.inlineContent(after.footnoteDefinition("md-copy-1")!!.children[0L].id).text.text
+        )
+        fragmentUndo(document, edit)
+        assertEquals("base[^x]\n\n[^x]: original\n", document.toMarkdown())
+    }
+
+    @Test
+    fun `table paste preserves inline formatting and grows the grid`() {
+        val document = MarkdownDocument.fromText("| A | B |\n|---|---|\n| c | d |\n\nend")
+        val parsed = document.parse()
+        val cell = parsed.root.children[0L].children[1L].children[1L]
+        val edit =
+            parsed.replaceMarkdown(
+                MarkdownRange(cell.range.start, cell.range.end),
+                "| **x** | *y* |\n|---|---|\n| z | q |"
+            )
+        edit.applyTo(document)
+        val table = edit.after.root.children[0L]
+        assertEquals(3L, table.children.size)
+        assertEquals(3L, table.children[0L].children.size)
+        val strong = edit.after.inlineContent(table.children[1L].children[1L].id)
+        assertEquals("x", strong.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            strong.styleState(MarkdownRange(0L, 1L), MarkdownInlineStyle.Strong)
+        )
+        assertEquals(
+            "q",
+            edit.after.inlineContentAt(MarkdownPosition(edit.selection.end))!!.text.text
+        )
+        assertTrue(document.toMarkdown().endsWith("end"))
+        fragmentUndo(document, edit)
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun `paragraph and block pastes in cells never break the table grid`() {
+        for (source in ["**one**\n\n*two*", "```\ncode\n```", "- one\n- two"]) {
+            val document = MarkdownDocument.fromText("| A | B |\n|---|---|\n| c | d |")
+            val parsed = document.parse()
+            val cell = parsed.root.children[0L].children[1L].children[0L]
+            val edit = parsed.replaceMarkdown(cell.range, source)
+            edit.applyTo(document)
+            val table = edit.after.root.children[0L]
+            assertEquals(2L, table.children.size)
+            assertEquals(2L, table.children[1L].children.size)
+            assertTrue(
+                edit.after.inlineContent(table.children[1L].children[0L].id).text.text.contains(
+                    "\n"
+                )
+            )
+            assertEquals(
+                "d",
+                edit.after.inlineContent(table.children[1L].children[1L].id).text.text
+            )
+        }
+    }
+
+    @Test
+    fun `large document regional paste stays local and stale results cannot publish`() {
+        val document = MarkdownDocument.fromText("paragraph **中文**\n\n".repeat(60000L))
+        val parsed = document.parse()
+        val start = parsed.root.children[30000L].range.start + 2L
+        val edit =
+            parsed.region(MarkdownRange(start, start)).parse().replaceMarkdown(
+                MarkdownRange(start, start),
+                "**x**\n\ny"
+            )
+        assertTrue(document.snapshot().byteLength > 1048576L)
+        assertTrue(edit.after.root.range.byteLength < 256L)
+        assertTrue(edit.change.replacements[0L].range.byteLength < 128L)
+        document.replace(MarkdownRange(0L, 0L), "changed")
+        assertFailsWith<IllegalStateException> { edit.applyTo(document) }
+    }
+}
+
+private fun fragmentUndo(document: MarkdownDocument, edit: MarkdownFragmentEdit) {
+    document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+}

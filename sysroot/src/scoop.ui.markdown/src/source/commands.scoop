@@ -56,25 +56,18 @@ internal fun mdSourceCommand(host: MarkdownSourceHost, command: TextEditCommand)
         case Copy -> {
             val range = state.selection.range
             if (!range.isEmpty)
-                host.window.clipboard.writeText(state.snapshot.read(range))
+                mdSourceCopy(host)
         }
         case Cut -> {
             if (host.options.readOnly)
                 return true
             val range = state.selection.range
             if (!range.isEmpty) {
-                host.window.clipboard.writeText(state.snapshot.read(range))
+                mdSourceCopy(host)
                 host.perform({ state.replaceSelection("") })
             }
         }
-        case Paste -> {
-            if (host.options.readOnly)
-                return true
-            when (host.window.clipboard.readText()) {
-                case Some(val text) -> host.perform({ state.replaceSelection(text) })
-                case None -> Unit
-            }
-        }
+        case Paste -> return mdSourcePaste(host, false)
         case Delete(val deletion) -> {
             if (host.options.readOnly)
                 return true

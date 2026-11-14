@@ -6,11 +6,13 @@
 
 `MarkdownFormattingWindowTests` 验证公开格式工具栏的真实按钮点击、粗体／斜体／删除线快捷键、跨块反向选区和混合状态、折叠光标后续中文／emoji 输入、组合取消与接受、统一撤销重做、模式切换、只读以及卸载后的格式命令状态。
 
+富文本用例同时验证真实系统剪贴板的 text/plain／text/markdown、独立多块粘贴、一次撤销、显式纯文本／Markdown／TSV、存在但为空的格式和只读命令。测试保存并恢复原剪贴板的全部项目与格式。
+
 从仓库根运行：
 
 ```sh
 ~/.scoop/bin/scoop --sysroot ~/.scoop check sysroot/src/scoop.ui.markdown/tests-cones/rich --tests --release
-~/.scoop/bin/scoop --sysroot ~/.scoop test sysroot/src/scoop.ui.markdown/tests-cones/rich --release
+~/.scoop/bin/scoop --sysroot ~/.scoop test sysroot/src/scoop.ui.markdown/tests-cones/rich --release --filter MarkdownRichWindowTests
 ```
 
 macOS 从后台宿主启动裸程序时可能不接受激活请求。此时可以把同一份 `scoop test` 生成的程序打包成标准应用，经 Launch Services 启动。`Bundle.toml` 仅提供本地测试应用的 metadata，不修改测试入口或焦点要求：

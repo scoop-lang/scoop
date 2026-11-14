@@ -1,0 +1,92 @@
+package scoop.markdown
+
+import scoop.collections.*
+import scoop.text.*
+
+internal class MdFragmentInput(
+    val syntax: ParsedMarkdown,
+    val blocks: Array<MarkdownNode>,
+    val footer: String
+)
+
+internal fun mdFragmentInput(target: MarkdownSyntax, markdown: String): MdFragmentInput {
+    val parsed = MarkdownDocument.fromText(markdown).parse(target.profile)
+    val occupied = HashSet<String>()
+    for (entry in mdFragmentDefinitions(target))
+        when (entry.target) {
+            case None -> occupied.add(entry.label);
+            case Some(_) -> Unit
+        }
+    val incoming = HashSet<String>()
+    for (entry in parsed.definitions)
+        when (entry.target) {
+            case None -> incoming.add(entry.label);
+            case Some(_) -> Unit
+        }
+    val renamed = HashMap<String, String>()
+    var sequence = 1L
+    for (label in incoming) {
+        if (!occupied.contains(label))
+            continue
+        var name = "md-copy-" + sequence.toString()
+        while (occupied.contains(name) || incoming.contains(name)) {
+            sequence += 1L
+            name = "md-copy-" + sequence.toString()
+        }
+        renamed[label] = name
+        occupied.add(name)
+    }
+    val exporter = MdMarkdownExporter(parsed, renamed)
+    val portable = exporter.finish(exporter.blocks(parsed, parsed.root.children, parsed.root.range))
+    val syntax = MarkdownDocument.fromText(portable).parse(target.profile)
+    val blocks = ArrayList<MarkdownNode>()
+    val definitions = ArrayList<MdWriteBlock>()
+    for (node in syntax.root.children)
+        when (node.content) {
+            case MarkdownContent.FootnoteDefinition(_) -> definitions.add(
+                MdWriteBlock.Raw(syntax.snapshot.read(node.range))
+            )
+            case MarkdownContent.ReferenceDefinition(_, _) -> definitions.add(
+                MdWriteBlock.Raw(syntax.snapshot.read(node.range))
+            )
+            else -> blocks.add(node)
+        }
+    return MdFragmentInput(
+        syntax,
+        blocks.toArray(),
+        mdWriteBlocks(definitions.toArray(), MarkdownWriteOptions(finalNewline = false))
+    )
+}
+
+internal fun mdFragmentNodeUnits(input: MdFragmentInput, node: MarkdownNode): Array<MdInlineUnit> =
+    input.syntax.inlineContent(node.id).model.units
+
+internal fun mdFragmentNodeSource(input: MdFragmentInput, node: MarkdownNode): String {
+    val bytes = mdWriteNewlines(input.syntax.snapshot.read(node.range)).toByteArray()
+    var end = bytes.size
+    while (end > 0L && bytes[end - 1L].toInt() == 10)
+        end -= 1L
+    return mdBytesText(bytes, 0L, end)
+}
+
+internal fun mdFragmentUnitsLength(units: Array<MdInlineUnit>): Long {
+    var size = 0L
+    for (unit in units)
+        size += unit.text.byteLength
+    return size
+}
+
+internal fun mdFragmentConcat(
+    a: Array<MdInlineUnit>,
+    b: Array<MdInlineUnit>,
+    c: Array<MdInlineUnit> = []
+): Array<MdInlineUnit> =
+    Array<MdInlineUnit>(a.size + b.size + c.size) {
+        index -> if (index < a.size)
+            a[index]
+        else
+            if (index < a.size + b.size)
+                b[index - a.size]
+            else
+                c[index - a.size - b.size]
+    }

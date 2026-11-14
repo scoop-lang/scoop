@@ -78,13 +78,14 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
             host.preferredX = result.preferredX
             host.preview.reveal(result.position)
         }
-        case Copy -> return mdPreviewCommand(host.preview, command)
+        case Copy -> return mdClipboardCopy(host.preview)
         case Cut -> {
             if (host.readOnly)
                 return true
             val input = host.input ?: return false
             if (!editor.selection.collapsed) {
-                mdPreviewCommand(host.preview, TextEditCommand.Copy)
+                if (!mdClipboardCopy(host.preview))
+                    return false
                 host.perform {
                     input.command(
                         [TextInputOperation.Commit("", TextReplacement.CurrentSelection)],
@@ -93,39 +94,7 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
                 }
             }
         }
-        case Paste -> {
-            if (host.readOnly)
-                return true
-            val input = host.input ?: return false
-            when (host.window.clipboard.readText()) {
-                case Some(val text) -> {
-                    val syntax =
-                        if (text.contains("\t"))
-                            host.local?.syntax(editor.selection) ?: None
-                        else
-                            None
-                    val tableEdit =
-                        when (syntax) {
-                            case Some(val current) -> mdRichTablePaste(
-                                current,
-                                editor.selection,
-                                text
-                            )
-                            case None -> None
-                        }
-                    when (tableEdit) {
-                        case Some(val edit) -> mdRichStructure(host, edit)
-                        case None -> host.perform {
-                            input.command(
-                                [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)],
-                                MarkdownEditKind.Separate
-                            )
-                        }
-                    }
-                }
-                case None -> Unit
-            }
-        }
+        case Paste -> return mdRichPaste(host)
         case Delete(val deletion) -> {
             if (host.readOnly)
                 return true

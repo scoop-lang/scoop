@@ -1,0 +1,81 @@
+package scoop.markdown
+
+import scoop.comparisons.comparatorOf
+import scoop.collections.sortWith
+
+internal class MdFragmentFootnote(val syntax: MarkdownSyntax, val node: MarkdownNode)
+
+internal fun mdFragmentDefinitions(syntax: MarkdownSyntax): Array<MdRegionDefinition> {
+    if (syntax is ParsedMarkdown)
+        return syntax.definitions
+    val entries = ArrayList<MdRegionDefinition>()
+    if (syntax is ParsedMarkdownRegion) {
+        val region = syntax.region
+        for (entry in region.definitions)
+            entries.add(
+                if (entry.range.start >= region.definitionBoundary)
+                    entry.shift(region.definitionShift)
+                else
+                    entry
+            )
+    }
+    for (entry in mdRegionDefinitions(syntax.root))
+        entries.add(entry)
+    entries.sortWith(
+        comparatorOf<MdRegionDefinition> {
+            left,
+            right -> left.range.start.compareTo(right.range.start)
+        }
+    )
+    return entries.toArray()
+}
+
+/** Reads only a required external definition, including its real first-line container prefix. */
+internal fun mdFragmentFootnote(
+    syntax: MarkdownSyntax,
+    label: String,
+    entries: Array<MdRegionDefinition>
+): MdFragmentFootnote {
+    if (syntax is ParsedMarkdown) {
+        when (syntax.footnoteDefinition(label)) {
+            case Some(val node) -> return MdFragmentFootnote(syntax, node)
+            case None -> Unit
+        }
+    }
+    for (entry in entries) {
+        if (entry.label != label)
+            continue
+        when (entry.target) {
+            case Some(_) -> continue;
+            case None -> Unit
+        }
+        var owner = syntax
+        if (
+            entry.range.start < syntax.root.range.start || entry.range.end > syntax.root.range.end
+        ) {
+            val start =
+                syntax.snapshot.positionOfLine(
+                    syntax.snapshot.lineAt(MarkdownPosition(entry.range.start))
+                ).byteOffset
+            val range = MarkdownRange(start, entry.range.end)
+            val outside = ArrayList<MdRegionDefinition>()
+            for (other in entries)
+                if (other.range.end <= range.start || other.range.start >= range.end)
+                    outside.add(other)
+            owner =
+                MarkdownRegion(syntax.snapshot, range, syntax.profile, outside.toArray()).parse()
+        }
+        var node = owner.nodeAt(MarkdownPosition(entry.range.start))
+        while (true) {
+            when (node.content) {
+                case MarkdownContent.FootnoteDefinition(val name) -> {
+                    if (name == label)
+                        return MdFragmentFootnote(owner, node)
+                }
+                else -> Unit
+            }
+            node = owner.parent(node.id) ?: break
+        }
+    }
+    throw IllegalArgumentException(Some("Markdown fragment footnote has no definition"))
+}

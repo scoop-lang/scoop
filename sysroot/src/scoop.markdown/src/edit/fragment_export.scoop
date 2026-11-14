@@ -1,0 +1,273 @@
+package scoop.markdown
+
+import scoop.collections.*
+import scoop.text.*
+
+/** Exports a self-contained semantic selection, using source UTF-8 coordinates. */
+public fun MarkdownSyntax.exportMarkdown(range: MarkdownRange): String {
+    mdFragmentCheckRange(this, range)
+    if (range.isEmpty)
+        return ""
+    if (range == MarkdownRange(0L, snapshot.byteLength))
+        return snapshot.toMarkdown()
+    val writer = MdMarkdownExporter(this)
+    val inline = inlineContentAt(MarkdownPosition(range.start))
+    val body =
+        when (inline) {
+            case Some(val value) -> {
+                val first = value.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
+                val last =
+                    value.text.sourceAt(
+                        MarkdownPosition(value.text.byteLength),
+                        MarkdownBias.Before
+                    ).byteOffset
+                if (range.start >= first && range.end <= last)
+                    mdInlineUnitsWrite(writer.units(value, range), false)
+                else
+                    writer.blocks(this, root.children, range)
+            }
+            case None -> writer.blocks(this, root.children, range)
+        }
+    return writer.finish(body)
+}
+
+internal fun mdFragmentCheckRange(syntax: MarkdownSyntax, range: MarkdownRange) {
+    syntax.snapshot.checkRange(range)
+    requireMarkdown(
+        range.start >= syntax.root.range.start && range.end <= syntax.root.range.end,
+        "Markdown fragment selection is outside its syntax region"
+    )
+}
+
+/** Uses the existing writer and inline model; processors and resource resolvers are not called. */
+internal class MdMarkdownExporter(
+    val syntax: MarkdownSyntax,
+    val renamed: HashMap<String, String> = HashMap<String, String>()
+) {
+    private val requested = ArrayList<String>()
+    private val requestedSet = HashSet<String>()
+    private val footnoteSources = HashMap<String, MdFragmentFootnote>()
+    private var definitions: Array<MdRegionDefinition>? = None
+    private val options = MarkdownWriteOptions(finalNewline = false)
+
+    fun definitionEntries(): Array<MdRegionDefinition> {
+        when (definitions) {
+            case Some(val entries) -> return entries
+            case None -> Unit
+        }
+        val entries = mdFragmentDefinitions(syntax)
+        definitions = Some(entries)
+        return entries
+    }
+
+    fun footnote(label: String): MdFragmentFootnote {
+        when (footnoteSources[label]) {
+            case Some(val value) -> return value
+            case None -> Unit
+        }
+        val value = mdFragmentFootnote(syntax, label, definitionEntries())
+        footnoteSources[label] = value
+        return value
+    }
+
+    fun requestFootnote(label: String) {
+        if (requestedSet.add(label))
+            requested.add(label)
+    }
+
+    fun footnoteToken(label: String): String {
+        requestFootnote(label)
+        when (renamed[label]) {
+            case Some(val name) -> return "[^" + name + "]"
+            case None -> Unit
+        }
+        val value = footnote(label)
+        val marker = value.syntax.snapshot.read(value.node.markers[0L]).toByteArray()
+        return mdBytesText(marker, 0L, marker.size - 1L)
+    }
+
+    fun units(content: MarkdownInlineContent, range: MarkdownRange): Array<MdInlineUnit> {
+        val start =
+            content.text.textAt(MarkdownPosition(range.start), MarkdownBias.Before).byteOffset
+        val end = content.text.textAt(MarkdownPosition(range.end), MarkdownBias.After).byteOffset
+        val selected = mdInlineUnitsSlice(content.model.units, start, end)
+        return Array<MdInlineUnit>(selected.size) {
+            index ->
+            val unit = selected[index]
+            var raw = unit.raw
+            when (unit.node?.content) {
+                case Some(MarkdownContent.Image(val target)) -> raw =
+                    mdWriteInlines(
+                        [
+                            MdWriteInline.Image(
+                                mdFragmentAlternate(unit.node!!),
+                                target.destination.text,
+                                target.title.text
+                            )
+                        ]
+                    )
+                case Some(MarkdownContent.HtmlInline(val text)) -> raw = text.text
+                case Some(MarkdownContent.Extension(val extension)) -> raw = extension.source.text
+                case Some(MarkdownContent.FootnoteReference(val label)) -> raw =
+                    footnoteToken(label)
+                else -> Unit
+            }
+            MdInlineUnit(unit.kind, unit.text, unit.flags, unit.link, unit.node, raw)
+        }
+    }
+
+    fun blocks(owner: MarkdownSyntax, nodes: Array<MarkdownNode>, range: MarkdownRange): String {
+        return mdWriteBlocks(collectBlocks(owner, nodes, range), options)
+    }
+
+    fun collectBlocks(
+        owner: MarkdownSyntax,
+        nodes: Array<MarkdownNode>,
+        range: MarkdownRange
+    ): Array<MdWriteBlock> {
+        val values = ArrayList<MdWriteBlock>()
+        var index = mdFragmentFirst(nodes, range.start)
+        while (index < nodes.size && nodes[index].range.start < range.end) {
+            val node = nodes[index]
+            when (block(owner, node, range)) {
+                case Some(val value) -> values.add(value)
+                case None -> Unit
+            }
+            index += 1L
+        }
+        return values.toArray()
+    }
+
+    fun block(owner: MarkdownSyntax, node: MarkdownNode, range: MarkdownRange): MdWriteBlock? =
+        when (node.content) {
+            case MarkdownContent.Paragraph(_) -> Some(
+                MdWriteBlock.Paragraph(
+                    [
+                        MdWriteInline.Raw(
+                            mdInlineUnitsWrite(units(owner.inlineContent(node.id), range), false)
+                        )
+                    ]
+                )
+            )
+            case MarkdownContent.Heading(val level, _, _) -> Some(
+                MdWriteBlock.Heading(
+                    level,
+                    [
+                        MdWriteInline.Raw(
+                            mdInlineUnitsWrite(
+                                mdBlockAtxUnits(units(owner.inlineContent(node.id), range)),
+                                false
+                            )
+                        )
+                    ]
+                )
+            )
+            case MarkdownContent.BlockQuote -> Some(
+                MdWriteBlock.Quote(collectBlocks(owner, node.children, range))
+            )
+            case MarkdownContent.ListBlock(val info) -> {
+                val items = ArrayList<MdWriteItem>()
+                val first = mdFragmentFirst(node.children, range.start)
+                var index = first
+                while (index < node.children.size && node.children[index].range.start < range.end) {
+                    val item = node.children[index]
+                    var checked =
+                        when (item.content) {
+                            case MarkdownContent.ListItem(val value) -> value
+                            else -> None
+                        }
+                    val children = collectBlocks(owner, item.children, range)
+                    if (children.size > 0L)
+                        when (children[0L]) {
+                            case MdWriteBlock.Paragraph(_) -> Unit
+                            else -> checked = None
+                        }
+                    items.add(MdWriteItem(children, checked))
+                    index += 1L
+                }
+                val start =
+                    if (first > 999999999L - info.start)
+                        999999999L
+                    else
+                        info.start + first
+                Some(MdWriteBlock.ListBlock(info.ordered, start, info.tight, items.toArray()))
+            }
+            case MarkdownContent.CodeBlock(_, val info, val body) -> Some(
+                MdWriteBlock.Fence(info.text, body.text)
+            )
+            case MarkdownContent.HtmlBlock(val body) -> Some(MdWriteBlock.Raw(body.text))
+            case MarkdownContent.Extension(val value) -> Some(MdWriteBlock.Raw(value.source.text))
+            case MarkdownContent.ThematicBreak -> Some(MdWriteBlock.ThematicBreak)
+            case MarkdownContent.Table(val alignments) -> Some(
+                mdFragmentTable(this, owner, node, alignments, range)
+            )
+            case MarkdownContent.ReferenceDefinition(val label, val target) -> Some(
+                MdWriteBlock.Raw(
+                    "[" +
+                        label +
+                        "]: <" +
+                        mdWriteQuoted(target.destination.text) +
+                        ">" +
+                        if (target.title.text == "")
+                            ""
+                        else
+                            " \"" + mdWriteQuoted(target.title.text) + "\""
+                )
+            )
+            case MarkdownContent.FootnoteDefinition(val label) -> {
+                requestFootnote(label)
+                None
+            }
+            else -> throw IllegalArgumentException(
+                Some("Markdown fragment export requires block syntax")
+            )
+        }
+
+    fun finish(body: String): String {
+        val output = StringBuilder().append(body)
+        var index = 0L
+        var wrote = body != ""
+        while (index < requested.size) {
+            val label = requested[index]
+            val value = footnote(label)
+            val content = blocks(value.syntax, value.node.children, value.node.range)
+            val marker =
+                when (renamed[label]) {
+                    case Some(val name) -> "[^" + name + "]:"
+                    case None -> value.syntax.snapshot.read(value.node.markers[0L])
+                }
+            if (wrote)
+                output.append("\n\n")
+            output.append(mdWritePrefix(content, marker + " ", "    "))
+            wrote = true
+            index += 1L
+        }
+        return output.toString()
+    }
+}
+
+internal fun mdFragmentFirst(nodes: Array<MarkdownNode>, start: Long): Long {
+    var low = 0L
+    var high = nodes.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (nodes[middle].range.end <= start)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return low
+}
+
+private fun mdFragmentAlternate(node: MarkdownNode): String {
+    val result = StringBuilder()
+    for (child in MdNodes(node))
+        when (child.content) {
+            case MarkdownContent.Text(val value) -> result.append(value.text)
+            case MarkdownContent.CodeSpan(val value) -> result.append(value.text)
+            case MarkdownContent.SoftBreak -> result.append(' ')
+            case MarkdownContent.HardBreak -> result.append('\n')
+            else -> Unit
+        }
+    return result.toString()
+}

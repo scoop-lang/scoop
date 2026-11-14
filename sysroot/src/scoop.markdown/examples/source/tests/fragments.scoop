@@ -1,0 +1,26 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownFragmentExampleTests {
+    @Test
+    fun aHeadlessConsumerCopiesSemanticMarkdownAndAppliesOnePreparedPaste() {
+        val original = MarkdownDocument.fromText("**abcd**\n\nsource")
+        val copied = original.parse().exportMarkdown(MarkdownRange(3L, 5L))
+        val document = MarkdownDocument.fromText("prefix suffix")
+        val edit = document.parse().replaceMarkdown(MarkdownRange(7L, 7L), copied)
+        assertEquals("prefix suffix", document.toMarkdown())
+        edit.applyTo(document)
+        assertSame(edit.change.after, edit.after.snapshot)
+        val inline = edit.after.inlineContent(edit.after.root.children[0L].id)
+        assertEquals("prefix bcsuffix", inline.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            inline.styleState(MarkdownRange(7L, 9L), MarkdownInlineStyle.Strong)
+        )
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals("prefix suffix", document.toMarkdown())
+    }
+}

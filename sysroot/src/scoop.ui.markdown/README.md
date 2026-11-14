@@ -82,3 +82,9 @@ editor.close()
 默认不抢焦点；显式 `requestFocus(MarkdownEditorPane.Source)` 可在挂载前请求可见栏。显式 `showSource(range)` 把当前范围起点定位到源码栏，必要时从 Wysiwyg 转双栏；默认扩展点击使用上述局部源码面并保留当前模式。`MarkdownEditorOptions` 统一配置整体只读、两栏最小宽度及各自布局参数。一个 viewState 只能绑定一个控件；多个 viewState 可以共享同一 editor。所有 Host 的可选 `initialScroll` 允许自绘宿主保留滚动状态，viewport 与原生资源仍随 Host 关闭。
 
 [三模式示例](examples/editor/README.md) 提供模式、格式工具栏、只读、同步开关、撤销／重做和 Cmd-S 保存；[预览示例](examples/preview/README.md) 和[源码示例](examples/source-editor/README.md) 展示单独使用。本机验证使用 `scoop check ... --tests --release` 与 `scoop test ... --release`。库内测试覆盖状态、历史、输入批次、组合、高度索引、显示映射和后台解析；`tests-cones/source`、`tests-cones/preview`、[富文本原生测试](tests-cones/rich/README.md) 和[三模式原生测试](tests-cones/editor/README.md) 使用本机窗口验证大文档、滚动、几何、输入与资源释放。完整功能和性能结果以[实施记录](../../../docs/markdown/PROGRESS.md)为准。
+
+## 剪贴板格式
+
+默认复制／剪切同时写入所见 `text/plain` 和语义 `text/markdown`；源码面两者均为原选区。默认粘贴优先读取存在的 Markdown 格式，富文本面按文档 Cone 的 replaceMarkdown 插入，源码面原样插入；缺失时将普通文本按字面文字插入。一次粘贴独立撤销，先接受当前组合，剪切先成功写剪贴板再删除。生成内容的 Markdown 表示保留原指令。HTML 导入尚未接入。
+
+`MarkdownRichHost.executeClipboard`、`MarkdownSourceHost.executeClipboard` 和 `MarkdownEditorViewState.executeClipboard` 接受 `MarkdownClipboardCommand.CopyText / CopyMarkdown / PasteText / PasteMarkdown / PasteTableTsv`，可直接由菜单或工具栏调用。CopyMarkdown 同时将源码作为纯文本提供；PasteText 忽略 Markdown 格式；PasteMarkdown 可显式解析纯文本；PasteTableTsv 只在富文本表格中执行矩形操作，默认粘贴不猜测 Tab 内容。只读保留复制，禁用修改；禁用组件或未挂载的 ViewState 返回 false。ViewState 按活动栏路由，成功后恢复该栏焦点。

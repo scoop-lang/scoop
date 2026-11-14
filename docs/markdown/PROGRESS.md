@@ -298,3 +298,17 @@ API 生成及 MarkdownStyleState／MarkdownTextContent.setStyle／styleState、M
 Markdown 富文本原生测试直接消费安装库的新 API，并保存恢复原系统剪贴板全部格式。Markdown 文档片段的独立导出、保留结构的插入及相应编辑器命令继续在文档／UI Cone 中实施；本批的多格式传输不计为这些编辑操作已经完成。
 
 使用 ~/.scoop 完成 fmt、受影响测试 Cone 的 check --tests --release，UI 库 16 个容器、96 项 release 测试全部通过。原生富文本窗口 47 步通过，约 2.98 秒，包含安装库多表示读写、默认纯文本粘贴、剪切与撤销，以及超过 1 MiB 文档的原生输入／IME／虚拟化回归。程序由 scoop test 生成，经 scoop bundle 与 Launch Services 启动；begin／end／complete 完整，failures 为空。此批修正系统库缺口，没有新增编译器或 runtime 变更。
+
+## C：Markdown 片段与多格式剪贴板
+
+文档 Cone 提供 MarkdownSyntax.exportMarkdown／replaceMarkdown，两个接口均使用源码 UTF-8 坐标。局部导出补齐样式、直接链接／图片目标和传递脚注定义，保留列表、引用、表格及代码／扩展源码；整篇选择保留原始字节。插入保留两侧内容，继承容器、按矩形写表格，脚注冲突一并改名。MarkdownFragmentEdit 带一次 change、结果 selection 和已准备的局部 after；发布复用同一快照，精确撤销，未引入 UI 依赖或第二份历史。
+
+UI 默认复制／剪切同时提供所见 text/plain 与语义 text/markdown，生成内容保留原指令；默认粘贴优先 Markdown，源码面原样插入，普通文本按字面编辑。Host／ViewState 的 executeClipboard 提供 CopyText、CopyMarkdown、PasteText、PasteMarkdown、PasteTableTsv；TSV 为显式矩形命令，菜单按当前栏路由并返回焦点。剪切先成功写出再删除，一次粘贴独立撤销；只读保留复制。
+
+使用 ~/.scoop 完成受影响 Cone 的 fmt 与 check --tests --release。文档库 208 项全量通过，修正源码关闭标记边界后新增一项并回归全部 18 项片段测试，当前 209 项分批通过；UI 库 98 项全量通过，最终修复后 2 项片段历史回归通过；无 UI consumer 17 项全量通过。超过 1 MiB、60,000 段的样本只修改小于 128 字节的范围，局部解析小于 256 字节；包含完整解析的测试约 0.48 秒，不作为交互延迟基线。
+
+验证修正了删除后空单元格裁剪引起的粘贴落点、空输入位置的节点归属，以及从源码模式选择关闭标记时误合并下一段的问题。脚注循环、区外定义、名称冲突、单元格内脚注、原子末块、空文档／列表／表格、CRLF 容器、格式和精确恢复均有 Scoop 行为测试。
+
+最终富文本原生窗口 61 步通过，约 3.23 秒；三模式窗口 35 步通过，约 3.55 秒。使用 scoop test 生成程序、scoop bundle 与 Launch Services，核对 begin／end／complete 和空 failures。覆盖实际剪贴板多表示、纯文本／Markdown／TSV、空格式、只读、模式路由、一次撤销、输入连接退休及既有大文档／IME 场景；两个测试保存恢复原系统剪贴板。首次富文本运行在撤销后尚未接受新上下文时执行下一命令，拆为两个已就绪帧后通过；三模式发现的标记边界缺陷已修复并用最终代码复验。
+
+API 严格生成与 exportMarkdown／replaceMarkdown／MarkdownFragmentEdit／executeClipboard 查询通过；规范、设计、README、无 UI 示例、原生复现说明和编程导航（含安装副本）同步。本批没有编译器、runtime 或系统库变更。原始日志、临时应用包及 API 站点核对后清理，正常缓存保留。HTML 导入、行内代码转换、代码语言选择／高亮、链接和图片操作、查找替换及最终大文档性能验收继续实施。

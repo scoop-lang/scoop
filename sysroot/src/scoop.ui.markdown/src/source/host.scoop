@@ -258,6 +258,21 @@ public class MarkdownSourceHost public constructor(
             return None
         return frame.hit(point)
     }
+
+    public fun executeClipboard(command: MarkdownClipboardCommand): Boolean {
+        checkOpen()
+        current.checkEdit()
+        if (!active || !area.scope.isInputAllowed)
+            return false
+        when (command) {
+            case CopyText -> Unit
+            case CopyMarkdown -> Unit
+            else -> if (options.readOnly)
+                return false
+        }
+        selectRegion()
+        return mdSourceClipboard(this, command)
+    }
     public fun caret(
         position: MarkdownPosition,
         bias: MarkdownBias = MarkdownBias.After,

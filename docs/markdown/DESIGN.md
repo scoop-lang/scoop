@@ -42,6 +42,8 @@ flowchart LR
 
 文件编码转换属于 IO 适配。文档层接收合法 UTF-8，不隐式替换非法输入或做 Unicode normalization；若应用需要读入其他编码，先使用字符集库。BOM、换行及末尾换行的保留策略由输入／输出选项明确指定，默认保留已读入内容。
 
+语义片段使用 `MarkdownSyntax.exportMarkdown(sourceRange)` 和 `replaceMarkdown(sourceRange, markdown)`，适用于无 UI 消费者。导出只规范化所选片段，补齐样式、引用目标与脚注；插入复用现有删除规则、容器和表格写入，冲突脚注一起重命名。准备结果 MarkdownFragmentEdit 带单次 change、源码 selection 和已解析的局部 after；发布边界不重复解析。具体可用行为以 [片段规范](../specs/SCOOP-MARKDOWN-SPEC.md#86-markdown-片段导出与插入)为准。
+
 ## 3. 公共数据模型
 
 ### 3.1 文档、快照与解析结果

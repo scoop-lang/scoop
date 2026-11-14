@@ -115,21 +115,7 @@ internal fun mdPreviewCommand(host: MarkdownPreviewHost, command: TextEditComman
             host.scope.requestLayout()
             true
         }
-        case TextEditCommand.Copy -> {
-            val model = mdPresentationModel(host.presentation, host.controller.current)
-            if (!host.editor.selection.collapsed)
-                when (model) {
-                    case Some(val document) -> host.scope.application.clipboard.writeText(
-                        mdPreviewSelectedText(
-                            document,
-                            host.editor.selection.range,
-                            host.presentation
-                        )
-                    )
-                    case None -> Unit
-                }
-            true
-        }
+        case TextEditCommand.Copy -> mdClipboardCopy(host)
         else -> false
     }
 

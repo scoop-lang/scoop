@@ -182,6 +182,22 @@ public class MarkdownRichHost public constructor(
         return applyStyle(style, enabled)
     }
 
+    public fun executeClipboard(command: MarkdownClipboardCommand): Boolean {
+        checkOpen()
+        editor.checkEdit()
+        if (!preview.options.enabled || !area.scope.isInputAllowed)
+            return false
+        refresh()
+        return when (command) {
+            case CopyText -> mdClipboardCopy(preview, Some(command))
+            case CopyMarkdown -> mdClipboardCopy(preview, Some(command))
+            else -> if (readOnly)
+                false
+            else
+                mdRichPaste(this, Some(command))
+        }
+    }
+
     public fun toggleStyle(style: MarkdownInlineStyle): Boolean {
         checkOpen()
         refresh()
