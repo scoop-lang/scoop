@@ -1,0 +1,332 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.window.*
+
+private fun richContent(editor: MarkdownEditorState): MarkdownInlineContent {
+    val parsed = editor.document.parse(MarkdownProfile.Editor)
+    return parsed.inlineContent(parsed.root.children[0L].id)
+}
+
+private fun richBatch(input: MarkdownRichInput, operations: List<TextInputOperation>): Boolean =
+    input.apply(TextInputBatch(Some(input.inputState.revision), operations))
+
+private fun richCommit(text: String): TextInputOperation =
+    TextInputOperation.Commit(text, TextReplacement.CurrentSelection)
+
+private fun richPreedit(text: String): TextInputOperation =
+    TextInputOperation.Preedit(text, None, TextReplacement.CurrentSelection)
+
+@Test
+private class MarkdownRichInputTests {
+    @Test
+    fun `continuous rich typing retains styles and one shared undo group without reparsing`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("__ab__ tail"), mdCaret(3L))
+        val input = MarkdownRichInput(editor, richContent(editor))
+        assertEquals("ab tail", input.inputState.surroundingText)
+        richBatch(input, [richCommit("中")])
+        richBatch(input, [richCommit("😀")])
+        richBatch(input, [richCommit("文")])
+        assertEquals("__a中😀文b__ tail", editor.document.toMarkdown())
+        assertEquals("a中😀文b tail", input.content.text.text)
+        assertTrue(input.content.snapshot === editor.snapshot)
+        assertFalse(input.synchronize())
+        assertTrue(editor.undo())
+        assertEquals("__ab__ tail", editor.document.toMarkdown())
+        assertFalse(editor.canUndo)
+        assertFailsWith<IllegalStateException> { input.synchronize() }
+        assertTrue(input.synchronize(richContent(editor)))
+        assertTrue(editor.redo())
+        assertEquals("__a中😀文b__ tail", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `composition cancellation restores exact entity spelling markers and directional selection`() {
+        val source = "__A &amp; B__\r\n\r\nTail"
+        val selected =
+            MarkdownSelection(
+                MarkdownPosition(10L),
+                MarkdownPosition(2L),
+                MarkdownBias.Before,
+                MarkdownBias.After
+            )
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selected)
+        val input = MarkdownRichInput(editor, richContent(editor))
+        richBatch(input, [richPreedit("nihao")])
+        richBatch(input, [richPreedit("你好😀")])
+        assertTrue(editor.isComposing)
+        assertFalse(input.synchronize(richContent(editor)))
+        assertTrue(editor.cancelComposition())
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        assertEquals("A & B", input.inputState.surroundingText)
+        assertFalse(editor.canUndo)
+        assertFalse(editor.isComposing)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `commit and next preedit form separate histories within one source publication`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("**old**"),
+                MarkdownSelection(MarkdownPosition(2L), MarkdownPosition(5L))
+            )
+        val input = MarkdownRichInput(editor, richContent(editor))
+        richBatch(input, [richPreedit("ni")])
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = editor.document.observe { change -> changes.add(change) }
+        richBatch(input, [richCommit("你"), richPreedit("hao")])
+        assertEquals(1L, changes.size)
+        assertEquals("**你hao**", editor.document.toMarkdown())
+        assertEquals(Some(MarkdownRange(5L, 8L)), editor.markedRange)
+        assertTrue(editor.undo())
+        assertEquals("**你**", editor.document.toMarkdown())
+        assertFalse(editor.isComposing)
+        assertTrue(editor.undo())
+        assertEquals("**old**", editor.document.toMarkdown())
+        assertTrue(editor.redo())
+        assertEquals("**你**", editor.document.toMarkdown())
+        subscription.close()
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `native batch validation is atomic across styles Unicode and cancellation`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("ab **中** cd"), mdCaret(0L))
+        val input = MarkdownRichInput(editor, richContent(editor))
+        val revision = input.inputState.revision
+        assertFailsWith<IllegalArgumentException> {
+            richBatch(
+                input,
+                [
+                    richCommit("!"),
+                    TextInputOperation.Commit("bad", TextReplacement.Range(Utf8Range(5L, 6L)))
+                ]
+            )
+        }
+        assertEquals("ab **中** cd", editor.document.toMarkdown())
+        assertEquals(revision, input.inputState.revision)
+        assertFalse(editor.canUndo)
+        richBatch(input, [richPreedit("long")])
+        assertFailsWith<IllegalStateException> {
+            richBatch(
+                input,
+                [
+                    richPreedit(""),
+                    TextInputOperation.Commit("!", TextReplacement.Range(Utf8Range(0L, 0L)))
+                ]
+            )
+        }
+        assertEquals("longab 中 cd", input.inputState.surroundingText)
+        assertTrue(editor.isComposing)
+        richBatch(input, [richPreedit(""), richCommit("new")])
+        assertEquals("newab **中** cd", editor.document.toMarkdown())
+        assertFailsWith<IllegalStateException> {
+            input.apply(TextInputBatch(Some(revision), [richCommit("x")]))
+        }
+        editor.undo()
+        assertEquals("ab **中** cd", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `native surrounding deletion preserves selected formatted text and its direction`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("甲**乙**丙"),
+                MarkdownSelection(MarkdownPosition(8L), MarkdownPosition(5L))
+            )
+        val input = MarkdownRichInput(editor, richContent(editor))
+        richBatch(input, [TextInputOperation.DeleteSurrounding(3L, 3L)])
+        assertEquals("**乙**", editor.document.toMarkdown())
+        assertEquals("乙", input.inputState.surroundingText)
+        assertEquals(Utf8Selection(3L, 0L), input.inputState.selection)
+        editor.undo()
+        assertEquals("甲**乙**丙", editor.document.toMarkdown())
+        assertEquals(
+            MarkdownSelection(MarkdownPosition(8L), MarkdownPosition(5L)),
+            editor.selection
+        )
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `native preedit selection follows code newline and NUL normalization`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("`ab`"),
+                MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(3L))
+            )
+        val input = MarkdownRichInput(editor, richContent(editor))
+        richBatch(
+            input,
+            [
+                TextInputOperation.Preedit(
+                    "a\r\n中\u{0}",
+                    Some(Utf8Selection(3L, 7L)),
+                    TextReplacement.CurrentSelection
+                )
+            ]
+        )
+        assertEquals("a 中\u{fffd}", input.inputState.surroundingText)
+        assertEquals(Utf8Selection(2L, 8L), input.inputState.selection)
+        assertEquals(Some(Utf8Range(0L, 8L)), input.inputState.markedRange)
+        assertEquals(Some(MarkdownRange(1L, 9L)), editor.markedRange)
+        richBatch(input, [TextInputOperation.ClearPreedit])
+        assertFalse(editor.isComposing)
+        assertTrue(editor.undo())
+        assertEquals("`ab`", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `source and rich fragments share one composition owner and history`() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("**a**"), mdCaret(3L))
+        val rich = MarkdownRichInput(editor, richContent(editor))
+        val source = MarkdownSourceInput(editor)
+        richBatch(rich, [richPreedit("中")])
+        assertFailsWith<IllegalStateException> { source.synchronize() }
+        editor.acceptComposition()
+        assertTrue(source.synchronize())
+        source.apply(TextInputBatch(Some(source.inputState.revision), [richPreedit("文")]))
+        assertFailsWith<IllegalStateException> { rich.synchronize(richContent(editor)) }
+        source.close()
+        assertFalse(editor.isComposing)
+        assertEquals("**a中文**", editor.document.toMarkdown())
+        assertTrue(rich.synchronize(richContent(editor)))
+        editor.undo()
+        assertEquals("**a中**", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("**a**", editor.document.toMarkdown())
+        rich.close()
+        editor.close()
+    }
+
+    @Test
+    fun `external edits accept rich composition while resets discard stale mappings`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("**a** tail"),
+                MarkdownSelection(
+                    MarkdownPosition(3L),
+                    MarkdownPosition(3L),
+                    MarkdownBias.Before,
+                    MarkdownBias.Before
+                )
+            )
+        val input = MarkdownRichInput(editor, richContent(editor))
+        richBatch(input, [richPreedit("中")])
+        editor.document.replace(
+            MarkdownRange(editor.snapshot.byteLength, editor.snapshot.byteLength),
+            "!"
+        )
+        assertFalse(editor.isComposing)
+        assertTrue(editor.undo())
+        assertEquals("**a中** tail", editor.document.toMarkdown())
+        assertTrue(editor.undo())
+        assertEquals("**a** tail", editor.document.toMarkdown())
+        input.synchronize(richContent(editor))
+        richBatch(input, [richPreedit("文")])
+        editor.document.reset("reload")
+        assertFalse(editor.isComposing)
+        assertFalse(editor.canUndo)
+        assertFailsWith<IllegalStateException> { richBatch(input, [richCommit("stale")]) }
+        input.synchronize(richContent(editor))
+        assertEquals("reload", input.inputState.surroundingText)
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `rich insertion at a style boundary follows the explicit source affinity`() {
+        for (bias in [MarkdownBias.Before, MarkdownBias.After]) {
+            val editor =
+                MarkdownEditorState(
+                    MarkdownDocument.fromText("**a** tail"),
+                    MarkdownSelection(MarkdownPosition(3L), MarkdownPosition(3L), bias, bias)
+                )
+            val input = MarkdownRichInput(editor, richContent(editor))
+            richBatch(input, [richCommit("X")])
+            assertEquals("aX tail", input.inputState.surroundingText)
+            val parsed = editor.document.parse()
+            val strong = parsed.root.children[0L].children[0L]
+            when (strong.content) {
+                case MarkdownContent.Strong -> Unit
+                else -> fail(Some("Original strong style must remain"))
+            }
+            when (strong.children[0L].content) {
+                case MarkdownContent.Text(val text) -> assertEquals(
+                    if (bias == MarkdownBias.Before)
+                        "aX"
+                    else
+                        "a",
+                    text.text
+                )
+                else -> fail(Some("Expected strong text"))
+            }
+            editor.undo()
+            assertEquals("**a** tail", editor.document.toMarkdown())
+            input.close()
+            editor.close()
+        }
+    }
+
+    @Test
+    fun `no-source-change compositions retire native revisions and observer errors retain published input`() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("**雪**"),
+                MarkdownSelection(MarkdownPosition(2L), MarkdownPosition(5L))
+            )
+        val input = MarkdownRichInput(editor, richContent(editor))
+        richBatch(input, [richPreedit("雪")])
+        assertEquals(0L, editor.document.revision)
+        assertTrue(editor.acceptComposition())
+        assertFalse(editor.canUndo)
+        assertFailsWith<IllegalStateException> { richBatch(input, [richCommit("x")]) }
+        assertFalse(input.synchronize())
+        assertEquals(None, input.inputState.markedRange)
+        val subscription =
+            editor.document.observe { _ -> throw IllegalStateException(Some("observer")) }
+        assertFailsWith<IllegalStateException> { richBatch(input, [richPreedit("ni")]) }
+        assertEquals("雪ni", input.inputState.surroundingText)
+        assertTrue(input.content.snapshot === editor.snapshot)
+        assertTrue(editor.isComposing)
+        subscription.close()
+        richBatch(input, [richCommit("你")])
+        assertEquals("**雪你**", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals("**雪**", editor.document.toMarkdown())
+        input.close()
+        editor.close()
+    }
+
+    @Test
+    fun `missing table cell composition cancels added separators exactly`() {
+        val source = "| a | b | c |\r\n| --- | --- | --- |\r\n| x |\r\n"
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source))
+        val parsed = editor.document.parse()
+        val content = parsed.inlineContent(parsed.root.children[0L].children[1L].children[2L].id)
+        val position = content.text.sourceAt(MarkdownPosition(0L))
+        editor.setSelection(MarkdownSelection(position, position))
+        val input = MarkdownRichInput(editor, content)
+        richBatch(input, [richPreedit("ni")])
+        richBatch(input, [richPreedit("中|文")])
+        assertEquals("中|文", input.inputState.surroundingText)
+        assertTrue(editor.cancelComposition())
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals("", input.inputState.surroundingText)
+        assertFalse(editor.canUndo)
+        input.close()
+        editor.close()
+    }
+}

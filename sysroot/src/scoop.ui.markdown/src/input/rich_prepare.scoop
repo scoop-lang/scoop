@@ -1,0 +1,172 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+internal fun mdPrepareRichInput(
+    owner: MarkdownRichInput,
+    previous: TextInputState,
+    batch: TextInputBatch
+): MdInputPublication? {
+    when (batch.baseRevision) {
+        case Some(val revision) -> if (revision != previous.revision)
+            throw IllegalStateException(Some("Stale Markdown input revision"))
+        case None -> Unit
+    }
+    if (batch.operations.size == 0L)
+        return None
+    if (previous.revision == 9223372036854775807L)
+        throw IllegalArgumentException(Some("Markdown input revision overflow"))
+    val composition =
+        when (owner.editor.composition) {
+            case Some(val active) -> {
+                if (active is MdRichComposition)
+                    Some(active)
+                else
+                    throw IllegalStateException(
+                        Some("Another Markdown input fragment owns the composition")
+                    )
+            }
+            case None -> None
+        }
+    val prepared = MdRichPreparation(owner, previous, batch, composition)
+    val edit = owner.content.edit { prepared.apply(this) }
+    return Some(prepared.finish(edit))
+}
+
+private class MdRichPreparation(
+    private val owner: MarkdownRichInput,
+    private val previous: TextInputState,
+    private val batch: TextInputBatch,
+    composition: MdRichComposition?
+) {
+    private val before = composition?.before ?: owner.content
+    private val historyBefore = composition?.selection ?: owner.editor.selection
+    private var baseline = composition?.baseline
+    private var baselineContent = composition?.before
+    private var baselineSelection = historyBefore
+    private var current = mdInputVersion(previous, 0L)
+    private var selected = owner.editor.selection
+    private var restored = false
+    private var boundary = batch.operations.size != 1L || previous.markedRange != None
+    fun apply(builder: MarkdownInlineEditBuilder) {
+        for (operation in batch.operations) {
+            if (restored && mdExplicitInputRange(operation))
+                throw IllegalStateException(
+                    Some("Native range predates Markdown composition cancellation")
+                )
+            val prior = current
+            val applied = prior.apply(TextInputBatch(None, [operation]))
+            when (operation) {
+                case Preedit(val text, _, val replacement) -> {
+                    boundary = true
+                    val range = mdNativeRange(prior, replacement)
+                    if (text.byteLength == 0L && baseline != None) {
+                        val saved = baseline!!
+                        builder.restore(
+                            baselineContent!!,
+                            MarkdownRange(saved.selection.range.start, saved.selection.range.end)
+                        )
+                        restored = restored || prior.surroundingText != saved.surroundingText
+                        current = mdInputVersion(saved, applied.revision)
+                        selected = baselineSelection
+                        baseline = None
+                        baselineContent = None
+                    } else {
+                        if (text.byteLength > 0L && baseline == None) {
+                            baseline = Some(prior)
+                            baselineContent = Some(builder.content)
+                            baselineSelection = selected
+                        }
+                        builder.replaceText(
+                            MarkdownRange(range.start, range.end),
+                            text,
+                            selected.cursorBias
+                        )
+                        current =
+                            mdRichReplacedInput(prior, applied, builder.content, range, text, true)
+                        selected = mdRichSelection(builder.content, current.selection)
+                    }
+                }
+                case Commit(val text, val replacement) -> {
+                    val range = mdNativeRange(prior, replacement)
+                    builder.replaceText(
+                        MarkdownRange(range.start, range.end),
+                        text,
+                        selected.cursorBias
+                    )
+                    current =
+                        mdRichReplacedInput(prior, applied, builder.content, range, text, false)
+                    selected = mdRichSelection(builder.content, current.selection)
+                    baseline = None
+                    baselineContent = None
+                }
+                case ClearPreedit -> {
+                    boundary = true
+                    baseline = None
+                    baselineContent = None
+                    current = applied
+                }
+                case DeleteSurrounding(val left, val right) -> {
+                    val range = prior.selection.range
+                    builder.replaceText(MarkdownRange(range.end, range.end + right), "")
+                    builder.replaceText(MarkdownRange(range.start - left, range.start), "")
+                    boundary = true
+                    baseline = None
+                    baselineContent = None
+                    current =
+                        TextInputState(
+                            builder.content.text.text,
+                            applied.selection,
+                            caretRect = applied.caretRect,
+                            revision = applied.revision
+                        )
+                    selected = mdRichSelection(builder.content, current.selection)
+                }
+            }
+        }
+        builder.select(MarkdownRange(current.selection.range.start, current.selection.range.end))
+    }
+
+    fun finish(edit: MarkdownInlineEdit): MdInputPublication {
+        val committed = baselineContent ?: edit.after
+        val history =
+            if (!owner.editor.isComposing && baseline == None)
+                mdRichDelta(edit.change)
+            else
+                mdRichDifference(before, committed)
+        val next = mdInputVersion(current, previous.revision + 1L)
+        val active: MdEditorComposition? =
+            when (baseline) {
+                case Some(val saved) -> Some(
+                    MdRichComposition(
+                        owner.compositionOwner,
+                        saved,
+                        baselineContent!!,
+                        baselineSelection,
+                        next,
+                        edit.after
+                    )
+                )
+                case None -> None
+            }
+        return MdInputPublication(
+            next,
+            mdRichDelta(edit.change),
+            history,
+            historyBefore,
+            if (baseline == None)
+                selected
+            else
+                baselineSelection,
+            selected,
+            active,
+            boundary,
+            if (boundary)
+                MarkdownEditKind.Separate
+            else
+                MarkdownEditKind.Typing,
+            Some(edit)
+        )
+    }
+}

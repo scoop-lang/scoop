@@ -1,0 +1,145 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.text.*
+import scoop.window.*
+
+internal fun mdRichNativeSelection(
+    content: MarkdownInlineContent,
+    selection: MarkdownSelection
+): Utf8Selection {
+    val text = content.text
+    val first = text.sourceAt(MarkdownPosition(0L), MarkdownBias.Before).byteOffset
+    val last = text.sourceAt(MarkdownPosition(text.byteLength), MarkdownBias.After).byteOffset
+    if (selection.range.start < first || selection.range.end > last)
+        throw IllegalArgumentException(Some("Rich Markdown selection is outside its inline text"))
+    return Utf8Selection(
+        text.textAt(selection.anchor, selection.anchorBias).byteOffset,
+        text.textAt(selection.cursor, selection.cursorBias).byteOffset
+    )
+}
+
+internal fun mdRichSelection(
+    content: MarkdownInlineContent,
+    selection: Utf8Selection
+): MarkdownSelection {
+    val text = content.text
+    if (selection.anchor == selection.cursor) {
+        val bias =
+            if (selection.cursor == 0L)
+                MarkdownBias.After
+            else
+                MarkdownBias.Before
+        val position = text.sourceAt(MarkdownPosition(selection.cursor), bias)
+        return MarkdownSelection(position, position, bias, bias)
+    }
+    val reversed = selection.anchor > selection.cursor
+    val a =
+        if (reversed)
+            MarkdownBias.Before
+        else
+            MarkdownBias.After
+    val c =
+        if (reversed)
+            MarkdownBias.After
+        else
+            MarkdownBias.Before
+    return MarkdownSelection(
+        text.sourceAt(MarkdownPosition(selection.anchor), a),
+        text.sourceAt(MarkdownPosition(selection.cursor), c),
+        a,
+        c
+    )
+}
+
+internal fun mdRichMarked(content: MarkdownInlineContent, marked: Utf8Range?): MarkdownRange? =
+    when (marked) {
+        case Some(val range) -> Some(
+            MarkdownRange(
+                content.text.sourceAt(MarkdownPosition(range.start), MarkdownBias.After).byteOffset,
+                content.text.sourceAt(MarkdownPosition(range.end), MarkdownBias.Before).byteOffset
+            )
+        )
+        case None -> None
+    }
+
+private fun mdRichNormalize(text: String, code: Boolean): String {
+    val plain = text.replace("\u{0}", "\u{fffd}")
+    return if (code)
+        plain.replace("\r\n", "\n").replace("\r", "\n").replace("\n", " ")
+    else
+        plain
+}
+
+/** The document's literal/code normalization is reflected in native preedit endpoints. */
+private fun mdRichInsertedSelection(
+    raw: String,
+    inserted: String,
+    selection: Utf8Selection
+): Utf8Selection {
+    if (raw == inserted)
+        return selection
+    val code = mdRichNormalize(raw, false) != inserted
+    if (mdRichNormalize(raw, code) != inserted)
+        throw IllegalStateException(
+            Some("Inline edit changed the native replacement's display text")
+        )
+    return Utf8Selection(
+        mdRichNormalize(raw.utf8Slice(Utf8Range(0L, selection.anchor)), code).byteLength,
+        mdRichNormalize(raw.utf8Slice(Utf8Range(0L, selection.cursor)), code).byteLength
+    )
+}
+
+internal fun mdRichReplacedInput(
+    before: TextInputState,
+    applied: TextInputState,
+    content: MarkdownInlineContent,
+    range: Utf8Range,
+    raw: String,
+    preedit: Boolean
+): TextInputState {
+    val text = content.text.text
+    val length = text.byteLength - before.surroundingText.byteLength + range.end - range.start
+    val inserted = text.utf8Slice(Utf8Range(range.start, range.start + length))
+    val relative =
+        Utf8Selection(
+            applied.selection.anchor - range.start,
+            applied.selection.cursor - range.start
+        )
+    val selection = mdRichInsertedSelection(raw, inserted, relative)
+    return TextInputState(
+        text,
+        Utf8Selection(range.start + selection.anchor, range.start + selection.cursor),
+        if (preedit && length > 0L)
+            Some(Utf8Range(range.start, range.start + length))
+        else
+            None,
+        applied.caretRect,
+        applied.revision
+    )
+}
+
+internal fun mdRichDelta(change: MarkdownChange): MdInputDelta =
+    MdInputDelta(change.replacements, change.inverseReplacements)
+
+internal fun mdRichDifference(
+    before: MarkdownInlineContent,
+    after: MarkdownInlineContent
+): MdInputDelta {
+    if (before === after)
+        return MdInputDelta([], [])
+    return mdRichDelta(before.edit { restore(after) }.change)
+}
+
+internal class MdRichComposition(
+    public override val owner: MdCompositionOwner,
+    val baseline: TextInputState,
+    val before: MarkdownInlineContent,
+    public override val selection: MarkdownSelection,
+    val current: TextInputState,
+    val after: MarkdownInlineContent
+): MdEditorComposition {
+    public override val marked: MarkdownRange? get() = mdRichMarked(after, current.markedRange)
+    public override fun delta(snapshot: MarkdownSnapshot): MdInputDelta =
+        mdRichDifference(before, after)
+}

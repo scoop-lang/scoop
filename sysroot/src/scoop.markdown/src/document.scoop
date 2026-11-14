@@ -32,6 +32,15 @@ public class MarkdownDocument private constructor(private var current: MarkdownS
         return publish(prepareMarkdownEdit(current, edit, MarkdownChangeKind.Edit))
     }
 
+    internal fun applyPrepared(change: MarkdownChange): MarkdownChange {
+        checkMutation()
+        if (current !== change.before)
+            throw IllegalStateException(
+                Some("Prepared Markdown edit requires its original source snapshot")
+            )
+        return publish(change)
+    }
+
     public fun replace(range: MarkdownRange, text: String): MarkdownChange =
         apply(MarkdownEdit(revision, [MarkdownReplacement(range, text)]))
 

@@ -50,6 +50,7 @@ public class MarkdownSourceInput public constructor(
     public val editor: MarkdownEditorState,
     public val contextBytes: Long = 4096L
 ): Closeable {
+    internal val compositionOwner = MdCompositionOwner { cancelForState() }
     private var fragment = mdSourceFragment(editor, contextBytes, 0L, true)
     private var sourceRevision = editor.snapshot.revision
     private var observedInput = editor.inputRevision
@@ -88,7 +89,7 @@ public class MarkdownSourceInput public constructor(
 
     private fun checkOwner() {
         when (editor.composition) {
-            case Some(val active) -> if (active.owner !== this)
+            case Some(val active) -> if (active.owner !== compositionOwner)
                 throw IllegalStateException(
                     Some("Another Markdown input fragment owns the composition")
                 )
@@ -194,7 +195,7 @@ public class MarkdownSourceInput public constructor(
         if (!editor.isClosed) {
             editor.checkEdit()
             when (editor.composition) {
-                case Some(val active) -> if (active.owner === this)
+                case Some(val active) -> if (active.owner === compositionOwner)
                     editor.acceptComposition()
                 case None -> Unit
             }

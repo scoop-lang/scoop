@@ -12,18 +12,17 @@ private class MarkdownEditingExampleTests {
         val inline = parsed.inlineContent(parsed.root.children[0L].id)
         val edit = inline.replaceText(MarkdownRange(6L, 11L), "Scoop")
         edit.applyTo(document)
-        assertEquals("Hello Scoop", edit.text.text)
-        assertEquals(11L, edit.text.textAt(MarkdownPosition(edit.selection.end)).byteOffset)
-        val after = document.parse()
+        assertEquals("Hello Scoop", edit.after.text.text)
+        assertEquals(11L, edit.after.text.textAt(MarkdownPosition(edit.selection.end)).byteOffset)
         val formatted =
-            after.inlineContent(after.root.children[0L].id).setStyle(
-                MarkdownRange(0L, 5L),
-                MarkdownInlineStyle.Emphasis,
-                true
-            )
+            edit.after.edit {
+                setStyle(MarkdownRange(0L, 5L), MarkdownInlineStyle.Emphasis, true)
+                select(MarkdownRange(0L, 5L))
+            }
         val change = formatted.applyTo(document)
         assertTrue(change.changed)
-        assertEquals("Hello Scoop", formatted.text.text)
+        assertEquals("Hello Scoop", formatted.after.text.text)
+        assertTrue(document.snapshot() === formatted.after.snapshot)
     }
 
     @Test

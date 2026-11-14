@@ -155,6 +155,31 @@ internal fun mdFreeze(
     profile: MarkdownProfile,
     root: MdBuildNode
 ): ParsedMarkdown {
+    val nodes = mdFreezeNodes(root)
+    val diagnostics = ArrayList<MarkdownDiagnostic>()
+    for (node in nodes)
+        when (node.extension) {
+            case Some(val value) -> if (!value.closed)
+                diagnostics.add(
+                    MarkdownDiagnostic(
+                        MarkdownRange(node.start, node.end),
+                        "Unclosed Markdown extension: " + value.name
+                    )
+                )
+            case None -> Unit
+        }
+    return ParsedMarkdown(
+        snapshot,
+        profile,
+        root.frozen!!,
+        Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! },
+        Array<Long>(nodes.size) { i -> nodes[i].parent?.ordinal ?: -1L },
+        diagnostics.toArray()
+    )
+}
+
+/** Freezes either a complete document or the private tree of an editable inline fragment. */
+internal fun mdFreezeNodes(root: MdBuildNode): Array<MdBuildNode> {
     val nodes = ArrayList<MdBuildNode>()
     val stack = ArrayList<MdBuildNode>()
     stack.add(root)
@@ -191,24 +216,5 @@ internal fun mdFreeze(
                 )
             )
     }
-    val diagnostics = ArrayList<MarkdownDiagnostic>()
-    for (node in nodes)
-        when (node.extension) {
-            case Some(val value) -> if (!value.closed)
-                diagnostics.add(
-                    MarkdownDiagnostic(
-                        MarkdownRange(node.start, node.end),
-                        "Unclosed Markdown extension: " + value.name
-                    )
-                )
-            case None -> Unit
-        }
-    return ParsedMarkdown(
-        snapshot,
-        profile,
-        root.frozen!!,
-        Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! },
-        Array<Long>(nodes.size) { i -> nodes[i].parent?.ordinal ?: -1L },
-        diagnostics.toArray()
-    )
+    return nodes.toArray()
 }

@@ -1,0 +1,89 @@
+package scoop.markdown
+
+/** Sequential semantic edits prepared as one source transaction on the original snapshot. */
+public class MarkdownInlineEditBuilder internal constructor(
+    private val base: MarkdownInlineContent
+) {
+    private var current = base
+    private var selected = MarkdownRange(0L, 0L)
+    public val content: MarkdownInlineContent get() = current
+    public val selection: MarkdownRange get() = selected
+
+    public fun replaceText(
+        range: MarkdownRange,
+        text: String,
+        bias: MarkdownBias = MarkdownBias.After
+    ) {
+        accept(current.replaceText(range, text, bias))
+    }
+
+    public fun setStyle(range: MarkdownRange, style: MarkdownInlineStyle, enabled: Boolean) {
+        accept(current.setStyle(range, style, enabled))
+    }
+
+    public fun select(range: MarkdownRange) {
+        mdInlineCheckRange(current, range)
+        selected = range
+    }
+
+    /** Restores exact source and mappings captured from this editable region. */
+    public fun restore(
+        saved: MarkdownInlineContent,
+        selection: MarkdownRange = MarkdownRange(0L, 0L)
+    ) {
+        requireMarkdown(
+            saved.snapshot.documentId ===
+                current.snapshot.documentId &&
+                saved.placement.origin ===
+                current.placement.origin &&
+                saved.sourceRange.start ==
+                current.sourceRange.start,
+            "Inline restore requires content from the same document region"
+        )
+        mdInlineCheckRange(saved, selection)
+        val replacements =
+            mdInlineDifference(
+                current.snapshot,
+                current.sourceRange,
+                saved.snapshot.read(saved.sourceRange)
+            )
+        val change =
+            prepareMarkdownEdit(
+                current.snapshot,
+                MarkdownEdit(current.snapshot.revision, replacements),
+                MarkdownChangeKind.Edit
+            )
+        current = mdInlineRebind(saved, change.after)
+        selected = selection
+    }
+
+    private fun accept(edit: MarkdownInlineEdit) {
+        current = edit.after
+        val text = current.text
+        val start =
+            text.textAt(MarkdownPosition(edit.selection.start), MarkdownBias.After).byteOffset
+        val end =
+            if (edit.selection.isEmpty)
+                start
+            else
+                text.textAt(MarkdownPosition(edit.selection.end), MarkdownBias.Before).byteOffset
+        selected = MarkdownRange(start, end)
+    }
+
+    internal fun finish(): MarkdownInlineEdit {
+        val replacements =
+            mdInlineDifference(
+                base.snapshot,
+                base.sourceRange,
+                current.snapshot.read(current.sourceRange)
+            )
+        val change =
+            prepareMarkdownEdit(
+                base.snapshot,
+                MarkdownEdit(base.snapshot.revision, replacements),
+                MarkdownChangeKind.Edit
+            )
+        val after = mdInlineRebind(current, change.after)
+        return MarkdownInlineEdit(change, mdInlineSelection(after.text, selected), after)
+    }
+}

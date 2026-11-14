@@ -1,0 +1,77 @@
+package scoop.markdown
+
+internal class MdInlineCell(val row: MarkdownNode, val column: Long)
+
+/** Stable container facts are separate from the fragment's newly parsed inline nodes. */
+internal class MdInlinePlacement(
+    val origin: MarkdownNodeId,
+    val scope: MarkdownRange,
+    val newline: String,
+    val prefix: String,
+    val table: Boolean,
+    val cell: MdInlineCell? = None,
+    val leading: String = "",
+    val trailing: String = ""
+) {
+    fun after(change: MarkdownChange): MdInlinePlacement {
+        if (!change.changed)
+            return this
+        return MdInlinePlacement(
+            origin,
+            MarkdownRange(
+                change.map(
+                    MarkdownAnchor(MarkdownPosition(scope.start), MarkdownBias.Before)
+                ).position.byteOffset,
+                change.map(
+                    MarkdownAnchor(MarkdownPosition(scope.end), MarkdownBias.After)
+                ).position.byteOffset
+            ),
+            newline,
+            prefix,
+            table
+        )
+    }
+}
+
+internal fun mdInlinePlacement(parsed: ParsedMarkdown, node: MarkdownNode): MdInlinePlacement {
+    var scope = node.range
+    var cell: MdInlineCell? = None
+    var leading = ""
+    var trailing = ""
+    val source = mdInlineSource(node)
+    when (node.content) {
+        case MarkdownContent.TableCell(_, _) -> {
+            val row = parsed.parent(node.id)!!
+            var column = 0L
+            while (row.children[column] !== node)
+                column += 1L
+            cell = Some(MdInlineCell(row, column))
+            scope = row.range
+        }
+        case MarkdownContent.Heading(_, MarkdownHeadingStyle.Atx, _) -> {
+            if (source.byteLength == 0L) {
+                if (mdInlineRange(source).start == node.markers[0L].end)
+                    leading = " "
+                if (node.markers.size > 1L)
+                    trailing = " "
+            }
+        }
+        else -> Unit
+    }
+    return MdInlinePlacement(
+        node.id,
+        scope,
+        mdLocalNewline(parsed.snapshot, node.range.start),
+        mdContinuationPrefix(parsed.snapshot, node),
+        mdInTable(parsed, node),
+        cell,
+        leading,
+        trailing
+    )
+}
+
+internal fun mdInlineRebind(
+    content: MarkdownInlineContent,
+    snapshot: MarkdownSnapshot
+): MarkdownInlineContent =
+    MarkdownInlineContent(snapshot, content.profile, content.node, content.placement, content.model)

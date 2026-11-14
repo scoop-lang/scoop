@@ -41,7 +41,7 @@ public class MarkdownEditorState public constructor(
     internal val storage = state(mdEditorInitial(document, selection))
     internal val history = MdHistory()
     private var pending: MdPendingEdit? = None
-    internal var composition: MdSourceComposition? = None
+    internal var composition: MdEditorComposition? = None
     private var closed = false
     private val subscription = document.observe { change -> changed(change) }
 
@@ -92,7 +92,7 @@ public class MarkdownEditorState public constructor(
         val previous = storage.value
         mdCheckSelection(previous.snapshot, selection)
         history.breakGroup()
-        val accepted = mdEndSourceComposition(this, previous.snapshot, previous.selection)
+        val accepted = mdEndComposition(this, previous.snapshot, previous.selection)
         if (previous.selection == selection && !accepted)
             return false
         mdPublishEditorValue(this, previous.snapshot, selection, previous.savedRevision)
@@ -121,7 +121,7 @@ public class MarkdownEditorState public constructor(
             if (!change.changed) {
                 val previous = storage.value
                 val after = mdCaret(range.start + text.byteLength)
-                val accepted = mdEndSourceComposition(this, previous.snapshot, previous.selection)
+                val accepted = mdEndComposition(this, previous.snapshot, previous.selection)
                 if (after != previous.selection || accepted) {
                     history.breakGroup()
                     mdPublishEditorValue(this, previous.snapshot, after, previous.savedRevision)
@@ -184,7 +184,7 @@ public class MarkdownEditorState public constructor(
             val change = edit.applyTo(document)
             if (!change.changed) {
                 val previous = storage.value
-                val accepted = mdEndSourceComposition(this, previous.snapshot, previous.selection)
+                val accepted = mdEndComposition(this, previous.snapshot, previous.selection)
                 if (after != previous.selection || accepted) {
                     history.breakGroup()
                     mdPublishEditorValue(this, previous.snapshot, after, previous.savedRevision)
@@ -252,7 +252,7 @@ public class MarkdownEditorState public constructor(
     public fun acceptComposition(): Boolean {
         checkEdit()
         val previous = storage.value
-        if (!mdEndSourceComposition(this, previous.snapshot, previous.selection))
+        if (!mdEndComposition(this, previous.snapshot, previous.selection))
             return false
         mdPublishEditorValue(this, previous.snapshot, previous.selection, previous.savedRevision)
         return true
@@ -261,7 +261,7 @@ public class MarkdownEditorState public constructor(
     public fun cancelComposition(): Boolean {
         checkEdit()
         val active = composition ?: return false
-        return active.owner.cancelForState()
+        return active.owner.cancel()
     }
 
     internal fun publishInput(prepared: MdInputPublication): Boolean {
@@ -270,9 +270,14 @@ public class MarkdownEditorState public constructor(
             Some(MdPendingEdit(prepared.kind, Some(prepared.selection), input = Some(prepared)))
         try {
             val change =
-                document.apply(MarkdownEdit(document.revision, prepared.source.replacements))
+                when (prepared.inline) {
+                    case Some(val inline) -> inline.applyTo(document)
+                    case None -> document.apply(
+                        MarkdownEdit(document.revision, prepared.source.replacements)
+                    )
+                }
             if (!change.changed)
-                mdPublishSourceInput(this, change.after, prepared)
+                mdPublishEditorInput(this, change.after, prepared)
             return true
         } finally {
             pending = None
@@ -284,7 +289,7 @@ public class MarkdownEditorState public constructor(
         val previous = storage.value
         when (pending?.input ?: None) {
             case Some(val prepared) -> {
-                mdPublishSourceInput(this, change.after, prepared);
+                mdPublishEditorInput(this, change.after, prepared);
                 return
             }
             case None -> Unit
@@ -300,7 +305,7 @@ public class MarkdownEditorState public constructor(
                     previous.selection.cursorBias
                 )
             } else {
-                mdEndSourceComposition(this, change.before, previous.selection)
+                mdEndComposition(this, change.before, previous.selection)
                 val intent = pending ?: MdPendingEdit(MarkdownEditKind.Separate, None)
                 val after = intent.after ?: previous.selection.map(change)
                 when (intent.replay) {

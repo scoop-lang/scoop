@@ -2,27 +2,33 @@ package scoop.markdown
 
 /** A prepared source transaction and its selection in the resulting source coordinates. */
 public class MarkdownInlineEdit internal constructor(
-    public val documentId: MarkdownDocumentId,
-    public val edit: MarkdownEdit,
+    public val change: MarkdownChange,
     public val selection: MarkdownRange,
-    public val text: MarkdownText
+    public val after: MarkdownInlineContent
 ) {
+    public val documentId: MarkdownDocumentId get() = change.before.documentId
+    public val edit: MarkdownEdit = MarkdownEdit(change.beforeRevision, change.replacements)
     public fun applyTo(document: MarkdownDocument): MarkdownChange {
-        if (document.documentId !== documentId)
-            throw IllegalStateException(
-                Some("Inline edit belongs to a different Markdown document")
-            )
-        return document.apply(edit)
+        return document.applyPrepared(change)
     }
 }
 
 /** Editable semantic text of one paragraph, heading or table cell, without UI resources. */
 public class MarkdownInlineContent internal constructor(
-    internal val parsed: ParsedMarkdown,
+    public val snapshot: MarkdownSnapshot,
+    internal val profile: MarkdownProfile,
     internal val node: MarkdownNode,
+    internal val placement: MdInlinePlacement,
     internal val model: MdInlineModel
 ) {
     public val text: MarkdownText get() = model.text
+    public val sourceRange: MarkdownRange get() = placement.scope
+
+    public fun edit(configure: MarkdownInlineEditBuilder.() -> Unit): MarkdownInlineEdit {
+        val builder = MarkdownInlineEditBuilder(this)
+        builder.configure()
+        return builder.finish()
+    }
 
     public fun replaceText(
         range: MarkdownRange,
@@ -40,7 +46,13 @@ public class MarkdownInlineContent internal constructor(
 public fun ParsedMarkdown.inlineContent(id: MarkdownNodeId): MarkdownInlineContent {
     val node = node(id)
     val source = mdInlineSource(node)
-    return MarkdownInlineContent(this, node, mdInlineModel(this, node, source.emptyPosition))
+    return MarkdownInlineContent(
+        snapshot,
+        profile,
+        node,
+        mdInlinePlacement(this, node),
+        mdInlineModel(snapshot, node, source.emptyPosition)
+    )
 }
 
 internal enum MdInlineUnitKind {
@@ -75,7 +87,11 @@ private fun mdUnitChildren(
     }
 }
 
-private fun mdInlineModel(parsed: ParsedMarkdown, root: MarkdownNode, empty: Long): MdInlineModel {
+internal fun mdInlineModel(
+    snapshot: MarkdownSnapshot,
+    root: MarkdownNode,
+    empty: Long
+): MdInlineModel {
     val text = MdTextBuilder()
     val units = ArrayList<MdInlineUnit>()
     val pending = ArrayList<MdInlineUnitFrame>()
@@ -134,7 +150,7 @@ private fun mdInlineModel(parsed: ParsedMarkdown, root: MarkdownNode, empty: Lon
                 frame.flags,
                 frame.link,
                 Some(node),
-                parsed.snapshot.read(node.range)
+                snapshot.read(node.range)
             )
         )
     }

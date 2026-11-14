@@ -1,0 +1,159 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+private fun batchInline(document: MarkdownDocument): MarkdownInlineContent {
+    val parsed = document.parse(MarkdownProfile.Editor)
+    return parsed.inlineContent(
+        mdTestFind(parsed) {
+            node -> when (node.content) {
+                case MarkdownContent.Heading(_, _, _) -> true
+                case MarkdownContent.Paragraph(_) -> true
+                else -> false
+            }
+        }.id
+    )
+}
+
+@Test
+private class MarkdownInlineBatchTests {
+    @Test
+    fun `prepared content continues before full parsing and publishes only on its original snapshot`() {
+        val source = "> ## __A &amp; B__ ##\r\n>\r\n> Tail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val first = batchInline(document).replaceText(MarkdownRange(2L, 3L), "😀")
+        val second = first.after.replaceText(MarkdownRange(6L, 6L), "中文")
+        assertEquals("A 😀中文 B", second.after.text.text)
+        assertEquals(source, document.toMarkdown())
+        assertFailsWith<IllegalStateException> { second.applyTo(document) }
+        assertTrue(first.applyTo(document).after === first.after.snapshot)
+        assertTrue(second.applyTo(document).after === second.after.snapshot)
+        assertEquals(2L, document.revision)
+        assertEquals(second.after.text.text, batchInline(document).text.text)
+        assertTrue(document.toMarkdown().endsWith("__ ##\r\n>\r\n> Tail\r\n"))
+        assertFailsWith<IllegalStateException> { first.applyTo(document) }
+    }
+
+    @Test
+    fun `sequential replacement formatting and code editing publish one revision and exact inverse`() {
+        val source = "# __ab__ `xy` [z][ref] ##\n\n[ref]: /here\n"
+        val document = MarkdownDocument.fromText(source)
+        val content = batchInline(document)
+        val changes = ArrayList<MarkdownChange>()
+        val subscription = document.observe { change -> changes.add(change) }
+        val edit =
+            content.edit {
+                replaceText(MarkdownRange(1L, 1L), "😀")
+                assertEquals("a😀b xy z", this.content.text.text)
+                setStyle(MarkdownRange(0L, 1L), MarkdownInlineStyle.Emphasis, true)
+                replaceText(MarkdownRange(7L, 9L), "p`q")
+                select(MarkdownRange(1L, 5L))
+            }
+        assertEquals(0L, changes.size)
+        assertEquals(0L, document.revision)
+        assertEquals("a😀b p`q z", edit.after.text.text)
+        val change = edit.applyTo(document)
+        assertEquals(1L, changes.size)
+        assertEquals(1L, document.revision)
+        assertTrue(document.snapshot() === edit.after.snapshot)
+        assertEquals(edit.after.text.text, batchInline(document).text.text)
+        assertEquals(1L, edit.after.text.textAt(MarkdownPosition(edit.selection.start)).byteOffset)
+        assertEquals(5L, edit.after.text.textAt(MarkdownPosition(edit.selection.end)).byteOffset)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+        subscription.close()
+    }
+
+    @Test
+    fun `restore cancels delimiter normalization and a net unchanged batch keeps the original snapshot`() {
+        val source = "__A &amp; B__\r\n\r\nTail"
+        val document = MarkdownDocument.fromText(source)
+        val initial = batchInline(document)
+        val same =
+            initial.edit {
+                replaceText(MarkdownRange(0L, 5L), "temporary")
+                setStyle(MarkdownRange(0L, 9L), MarkdownInlineStyle.Emphasis, true)
+                restore(initial, MarkdownRange(2L, 3L))
+            }
+        assertFalse(same.change.changed)
+        assertTrue(same.after.snapshot === document.snapshot())
+        assertFalse(same.applyTo(document).changed)
+        assertEquals(source, document.toMarkdown())
+        val next = same.after.replaceText(MarkdownRange(3L, 3L), "中")
+        next.applyTo(document)
+        val restored = next.after.edit { restore(initial) }
+        restored.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+        assertEquals(2L, document.revision)
+    }
+
+    @Test
+    fun `empty headings preserve their insertion context across edits and exact restoration`() {
+        val source = "# ##\r\n\r\nTail"
+        val document = MarkdownDocument.fromText(source)
+        val initial = batchInline(document)
+        val edit =
+            initial.edit {
+                replaceText(MarkdownRange(0L, 0L), "中")
+                setStyle(MarkdownRange(0L, 3L), MarkdownInlineStyle.Strong, true)
+                replaceText(MarkdownRange(3L, 3L), "文", MarkdownBias.Before)
+            }
+        edit.applyTo(document)
+        assertEquals("# **中文** ##\r\n\r\nTail", document.toMarkdown())
+        assertEquals("中文", batchInline(document).text.text)
+        edit.after.edit { restore(initial) }.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `missing table cells keep the entire row in scope through continuation and restore`() {
+        val source = "| a | b | c |\r\n| --- | --- | --- |\r\n| x |\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val row = parsed.root.children[0L].children[1L]
+        val initial = parsed.inlineContent(row.children[2L].id)
+        assertEquals(row.range, initial.sourceRange)
+        val first = initial.replaceText(MarkdownRange(0L, 0L), "y|z")
+        first.applyTo(document)
+        val next =
+            first.after.edit {
+                replaceText(MarkdownRange(3L, 3L), "😀")
+                setStyle(MarkdownRange(0L, 1L), MarkdownInlineStyle.Strong, true)
+            }
+        next.applyTo(document)
+        val after = document.parse()
+        assertEquals(
+            "y|z😀",
+            after.inlineContent(after.root.children[0L].children[1L].children[2L].id).text.text
+        )
+        next.after.edit { restore(initial) }.applyTo(document)
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `batch failures and foreign regions cannot publish partial changes`() {
+        val document = MarkdownDocument.fromText("one\n\ntwo")
+        val parsed = document.parse()
+        val first = parsed.inlineContent(parsed.root.children[0L].id)
+        val other = parsed.inlineContent(parsed.root.children[1L].id)
+        assertFailsWith<IllegalArgumentException> { first.edit { restore(other) } }
+        assertFailsWith<IllegalArgumentException> {
+            first.edit { restore(batchInline(MarkdownDocument.fromText("one"))) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            first.edit {
+                replaceText(MarkdownRange(0L, 1L), "中")
+                replaceText(MarkdownRange(1L, 2L), "bad")
+            }
+        }
+        assertEquals("one\n\ntwo", document.toMarkdown())
+        assertEquals(0L, document.revision)
+        val left = first.replaceText(MarkdownRange(0L, 1L), "A")
+        val right = first.replaceText(MarkdownRange(0L, 1L), "B")
+        val continuation = right.after.replaceText(MarkdownRange(1L, 1L), "C")
+        left.applyTo(document)
+        assertFailsWith<IllegalStateException> { continuation.applyTo(document) }
+        assertEquals("Ane\n\ntwo", document.toMarkdown())
+    }
+}

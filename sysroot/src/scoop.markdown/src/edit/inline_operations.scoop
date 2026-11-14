@@ -65,7 +65,7 @@ private fun mdInlineLeafEdit(
                     return None
                 encoded
             }
-            case MdInlineUnitKind.Code -> mdWriteCode(replacement, mdInTable(content.parsed, node))
+            case MdInlineUnitKind.Code -> mdWriteCode(replacement, content.placement.table)
             else -> return None
         }
     return Some(
@@ -137,7 +137,7 @@ internal fun mdInlineReplace(
         )
     for (part in mdInlineUnitsSlice(content.model.units, range.end, content.text.byteLength))
         units.add(part)
-    val source = mdInlineUnitsWrite(units.toArray(), mdInTable(content.parsed, content.node))
+    val source = mdInlineUnitsWrite(units.toArray(), content.placement.table)
     return mdInlinePrepared(
         content,
         mdInlineBlockSource(content, source),
@@ -154,7 +154,7 @@ internal fun mdInlineSetStyle(
     mdInlineCheckRange(content, range)
     requireMarkdown(!range.isEmpty, "Inline styling needs a nonempty text range")
     requireMarkdown(
-        style != MarkdownInlineStyle.Strikethrough || content.parsed.profile.strikethrough,
+        style != MarkdownInlineStyle.Strikethrough || content.profile.strikethrough,
         "Strikethrough requires a profile with strikethrough enabled"
     )
     val flag = mdInlineStyleFlag(style)
@@ -175,6 +175,6 @@ internal fun mdInlineSetStyle(
         units.add(part)
     if (!changed)
         return mdInlineNoChange(content, range)
-    val source = mdInlineUnitsWrite(units.toArray(), mdInTable(content.parsed, content.node))
+    val source = mdInlineUnitsWrite(units.toArray(), content.placement.table)
     return mdInlinePrepared(content, mdInlineBlockSource(content, source), range)
 }

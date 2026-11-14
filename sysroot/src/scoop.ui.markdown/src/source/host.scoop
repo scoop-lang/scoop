@@ -177,7 +177,7 @@ public class MarkdownSourceHost public constructor(
 
     internal fun ownsOtherComposition(): Boolean =
         when (current.composition) {
-            case Some(val active) -> active.owner !== input
+            case Some(val active) -> active.owner !== input.compositionOwner
             case None -> false
         }
 

@@ -2,6 +2,15 @@ package scoop.ui.markdown
 
 import scoop.markdown.*
 
+internal class MdCompositionOwner(val cancel: () -> Boolean)
+
+internal interface MdEditorComposition {
+    val owner: MdCompositionOwner
+    val selection: MarkdownSelection
+    val marked: MarkdownRange?
+    fun delta(snapshot: MarkdownSnapshot): MdInputDelta
+}
+
 internal fun mdPublishEditorValue(
     editor: MarkdownEditorState,
     snapshot: MarkdownSnapshot,
@@ -27,17 +36,13 @@ internal fun mdPublishEditorValue(
 }
 
 /** Ends a composition before an ordinary edit is added to the shared history. */
-internal fun mdEndSourceComposition(
+internal fun mdEndComposition(
     editor: MarkdownEditorState,
     snapshot: MarkdownSnapshot,
     selection: MarkdownSelection
 ): Boolean {
     val active = editor.composition ?: return false
-    val text =
-        snapshot.read(
-            MarkdownRange(active.start, active.start + active.current.surroundingText.byteLength)
-        )
-    val delta = mdInputDelta(active.baseline.surroundingText, text, active.spans, active.start)
+    val delta = active.delta(snapshot)
     editor.history.breakGroup()
     editor.history.appendEdits(
         delta.replacements,
@@ -51,7 +56,7 @@ internal fun mdEndSourceComposition(
     return true
 }
 
-internal fun mdPublishSourceInput(
+internal fun mdPublishEditorInput(
     editor: MarkdownEditorState,
     snapshot: MarkdownSnapshot,
     prepared: MdInputPublication

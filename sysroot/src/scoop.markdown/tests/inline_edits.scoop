@@ -21,7 +21,7 @@ private fun assertInlineResult(
     expected: String
 ) {
     prepared.applyTo(document)
-    assertEquals(expected, prepared.text.text)
+    assertEquals(expected, prepared.after.text.text)
     assertEquals(expected, firstInline(document.parse()).text.text, Some(document.toMarkdown()))
     document.snapshot().checkRange(prepared.selection)
 }
@@ -64,7 +64,7 @@ private class MarkdownInlineEditTests {
         assertEquals(0L, document.revision)
         assertEquals(source, document.toMarkdown())
         val change = prepared.applyTo(document)
-        assertEquals("A 😀 中文 other", prepared.text.text)
+        assertEquals("A 😀 中文 other", prepared.after.text.text)
         assertTrue(document.toMarkdown().startsWith("__"))
         assertTrue(document.toMarkdown().endsWith("__ [other](keep)\r\n\r\nTail  \r\n"))
         assertTrue(change.replacements[0L].range.start >= 2L)
@@ -73,7 +73,10 @@ private class MarkdownInlineEditTests {
             "<p><strong>A 😀 中文</strong> <a href=\"keep\">other</a></p>\n<p>Tail</p>\n",
             mdTestHtml(document.parse())
         )
-        assertEquals(6L, prepared.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset)
+        assertEquals(
+            6L,
+            prepared.after.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset
+        )
         document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
         assertEquals(source, document.toMarkdown())
         assertEquals("A & 中文 other", content.text.text)
@@ -130,9 +133,12 @@ private class MarkdownInlineEditTests {
         assertTrue(document.toMarkdown().endsWith("\n\nUntouched &amp; bytes\r\n"))
         assertEquals(
             1L,
-            prepared.text.textAt(MarkdownPosition(prepared.selection.start)).byteOffset
+            prepared.after.text.textAt(MarkdownPosition(prepared.selection.start)).byteOffset
         )
-        assertEquals(6L, prepared.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset)
+        assertEquals(
+            6L,
+            prepared.after.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset
+        )
     }
 
     @Test
@@ -171,7 +177,7 @@ private class MarkdownInlineEditTests {
         val empty = all.replaceText(MarkdownRange(0L, all.text.byteLength), "")
         empty.applyTo(document)
         assertEquals("", document.toMarkdown())
-        assertEquals("", empty.text.text)
+        assertEquals("", empty.after.text.text)
         assertEquals(MarkdownRange(0L, 0L), empty.selection)
     }
 
@@ -220,7 +226,7 @@ private class MarkdownInlineEditTests {
         assertEquals("<p>before <code>a`| 😀b</code> after</p>\n", mdTestHtml(document.parse()))
         assertEquals(
             "before a`| 😀".byteLength,
-            prepared.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset
+            prepared.after.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset
         )
     }
 
@@ -230,11 +236,11 @@ private class MarkdownInlineEditTests {
         val content = firstInline(document.parse(MarkdownProfile.Editor))
         val prepared = content.replaceText(MarkdownRange(2L, 5L), "image")
         prepared.applyTo(document)
-        assertEquals("A image \u{fffc} \u{fffc} Z", prepared.text.text)
+        assertEquals("A image \u{fffc} \u{fffc} Z", prepared.after.text.text)
         assertTrue(document.toMarkdown().contains("$x$"))
         assertTrue(document.toMarkdown().contains("<u>"))
         assertEquals(
-            prepared.text.text,
+            prepared.after.text.text,
             firstInline(document.parse(MarkdownProfile.Editor)).text.text
         )
     }
@@ -254,7 +260,7 @@ private class MarkdownInlineEditTests {
             "x|😀",
             current.inlineContent(current.root.children[0L].children[1L].children[2L].id).text.text
         )
-        assertEquals("x|😀", prepared.text.text)
+        assertEquals("x|😀", prepared.after.text.text)
         assertTrue(document.toMarkdown().startsWith("| a | b | c |\r\n| - | - | - |\r\n"))
         assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
         val code = MarkdownDocument.fromText("| `x` |\n| - |")
@@ -266,7 +272,7 @@ private class MarkdownInlineEditTests {
         assertEquals(0L, code.revision)
         val changed = inline.replaceText(MarkdownRange(0L, 1L), "y|z")
         changed.applyTo(code)
-        assertEquals("y|z", changed.text.text)
+        assertEquals("y|z", changed.after.text.text)
         val codeAfter = code.parse()
         assertEquals(
             "y|z",
@@ -328,7 +334,7 @@ private class MarkdownInlineEditTests {
                 MarkdownBias.Before
             )
         val change = prepared.applyTo(document)
-        assertEquals("last😀", prepared.text.text)
+        assertEquals("last😀", prepared.after.text.text)
         assertTrue(change.replacements[0L].range.start >= prefix.byteLength)
         assertEquals(prefix, document.snapshot().read(MarkdownRange(0L, prefix.byteLength)))
         assertTrue(document.snapshot().byteLength > 1048576L)
@@ -427,8 +433,8 @@ private class MarkdownInlineEditTests {
         val parsed = document.parse(profile)
         val prepared = firstInline(parsed).replaceText(MarkdownRange(0L, 1L), "ab")
         prepared.applyTo(document)
-        assertEquals("ab \u{fffc} \u{fffc}\u{fffc}", prepared.text.text)
+        assertEquals("ab \u{fffc} \u{fffc}\u{fffc}", prepared.after.text.text)
         assertTrue(document.toMarkdown().endsWith(suffix))
-        assertEquals(prepared.text.text, firstInline(document.parse(profile)).text.text)
+        assertEquals(prepared.after.text.text, firstInline(document.parse(profile)).text.text)
     }
 }

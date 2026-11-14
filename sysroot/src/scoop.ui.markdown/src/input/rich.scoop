@@ -1,0 +1,150 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.window.*
+
+private fun mdCheckRichContent(editor: MarkdownEditorState, content: MarkdownInlineContent) {
+    editor.checkEdit()
+    if (content.snapshot !== editor.snapshot)
+        throw IllegalStateException(
+            Some("Rich Markdown input requires the current document snapshot")
+        )
+}
+
+/** Native semantic text for one inline region; the mounted host owns the input connection. */
+public class MarkdownRichInput public constructor(
+    public val editor: MarkdownEditorState,
+    content: MarkdownInlineContent
+): Closeable {
+    internal val compositionOwner = MdCompositionOwner { cancelForState() }
+    private var current = content
+    private var input =
+        TextInputState(content.text.text, mdRichNativeSelection(content, editor.selection))
+    private var observedInput = editor.inputRevision
+    private var closed = false
+
+    init {
+        mdCheckRichContent(editor, content)
+    }
+
+    private fun checkRead() {
+        editor.snapshot
+        if (closed)
+            throw IllegalStateException(Some("Markdown rich input fragment is closed"))
+    }
+
+    public val content: MarkdownInlineContent get() {
+        checkRead();
+        return current
+    }
+    public val sourceRange: MarkdownRange get() {
+        checkRead();
+        return current.sourceRange
+    }
+    public val documentRevision: Long get() {
+        checkRead();
+        return current.snapshot.revision
+    }
+    public val inputState: TextInputState get() {
+        checkRead();
+        return input
+    }
+
+    public fun snapshot(caret: LogicalRect): TextInputState {
+        checkRead()
+        return TextInputState(
+            input.surroundingText,
+            input.selection,
+            input.markedRange,
+            caret,
+            input.revision
+        )
+    }
+
+    private fun checkOwner() {
+        when (editor.composition) {
+            case Some(val active) -> if (active.owner !== compositionOwner)
+                throw IllegalStateException(
+                    Some("Another Markdown input fragment owns the composition")
+                )
+            case None -> Unit
+        }
+    }
+
+    /** Returns true when the caller must retire the native connection before using new mappings. */
+    public fun synchronize(): Boolean = synchronize(current)
+
+    public fun synchronize(content: MarkdownInlineContent): Boolean {
+        checkRead()
+        editor.checkEdit()
+        checkOwner()
+        if (editor.isComposing)
+            return false
+        val next = content
+        mdCheckRichContent(editor, next)
+        val relocate = next !== current
+        if (!relocate && observedInput == editor.inputRevision)
+            return false
+        if (input.revision == 9223372036854775807L)
+            throw IllegalArgumentException(Some("Markdown input revision overflow"))
+        val updated =
+            TextInputState(
+                next.text.text,
+                mdRichNativeSelection(next, editor.selection),
+                revision = input.revision + 1L
+            )
+        current = next
+        input = updated
+        observedInput = editor.inputRevision
+        return relocate
+    }
+
+    internal fun prepare(batch: TextInputBatch): MdInputPublication? {
+        checkRead()
+        editor.checkEdit()
+        checkOwner()
+        if (current.snapshot !== editor.snapshot || observedInput != editor.inputRevision)
+            throw IllegalStateException(Some("Markdown rich input fragment needs synchronization"))
+        return mdPrepareRichInput(this, input, batch)
+    }
+
+    public fun apply(batch: TextInputBatch): Boolean {
+        val prepared = prepare(batch) ?: return false
+        return publish(prepared)
+    }
+
+    internal fun publish(prepared: MdInputPublication): Boolean {
+        try {
+            return editor.publishInput(prepared)
+        }
+        finally {
+            if (prepared.published) {
+                current = prepared.inline!!.after
+                input = prepared.current
+                observedInput = editor.inputRevision
+            }
+        }
+    }
+
+    internal fun cancelForState(): Boolean =
+        apply(
+            TextInputBatch(
+                Some(input.revision),
+                [TextInputOperation.Preedit("", None, TextReplacement.CurrentSelection)]
+            )
+        )
+
+    public override fun close() {
+        if (closed)
+            return
+        if (!editor.isClosed) {
+            editor.checkEdit()
+            when (editor.composition) {
+                case Some(val active) -> if (active.owner === compositionOwner)
+                    editor.acceptComposition()
+                case None -> Unit
+            }
+        }
+        closed = true
+    }
+}
