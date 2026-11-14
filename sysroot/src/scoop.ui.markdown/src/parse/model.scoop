@@ -19,7 +19,8 @@ public class MarkdownParseOptions public constructor(
     public val profile: MarkdownProfile = MarkdownProfile.Editor,
     public val expansion: MarkdownExpansionOptions? = None,
     imageCodeLanguages: List<String> = ["mermaid"],
-    imageExtensions: List<String> = ["math"]
+    imageExtensions: List<String> = ["math"],
+    public val codeHighlighter: MarkdownCodeHighlighter? = Some(MarkdownDefaultCodeHighlighter())
 ) {
     public val imageCodeLanguages: Array<String> = imageCodeLanguages.toArray()
     public val imageExtensions: Array<String> = imageExtensions.toArray()
@@ -30,14 +31,22 @@ public class MarkdownParsedDocument internal constructor(
     public val source: ParsedMarkdown,
     public val processed: ProcessedMarkdown?,
     public val options: MarkdownParseOptions,
-    previousDisplay: MdDisplayDocument? = None
+    previous: MarkdownParsedDocument? = None
 ) {
-    internal val display =
+    public val sourceHighlights: MarkdownCodeHighlights =
+        mdHighlightCode(source, options.codeHighlighter, previous?.sourceHighlights)
+    public val previewHighlights: MarkdownCodeHighlights =
+        if (preview === source)
+            sourceHighlights
+        else
+            mdHighlightCode(preview, options.codeHighlighter, previous?.previewHighlights)
+    internal val display: MdDisplayDocument =
         mdProjectMarkdown(
             preview,
-            previousDisplay,
+            previous?.display,
             options.imageCodeLanguages,
-            options.imageExtensions
+            options.imageExtensions,
+            Some(previewHighlights)
         )
     public val preview: ParsedMarkdown get() =
         when (processed) {
@@ -115,7 +124,7 @@ internal class MdParseEngine {
                         result.sourceParsed,
                         Some(result),
                         request.options,
-                        previous?.display
+                        previous
                     )
                 }
                 case None -> {
@@ -137,7 +146,7 @@ internal class MdParseEngine {
                         parseMarkdown(request.snapshot, request.options.profile),
                         None,
                         request.options,
-                        previous?.display
+                        previous
                     )
                 }
             }

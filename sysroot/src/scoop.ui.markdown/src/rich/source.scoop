@@ -11,23 +11,30 @@ internal class MdRichSourceSession: Closeable {
     val sourceFocus = FocusHandle()
     val richFocus = FocusHandle()
     var returnFocus = richFocus
+    val code = MdCodeSourceState()
     private var pending = false
     private var mounted: MarkdownSourceHost? = None
 
-    fun bind(editor: MarkdownEditorState) {
+    fun bind(editor: MarkdownEditorState, model: MarkdownParsedDocument?) {
         when (current.value) {
-            case Some(val value) -> if (value.editor !== editor || value.range == None)
-                finish(value.editor === editor)
+            case Some(val value) -> {
+                if (value.editor !== editor || value.range == None)
+                    finish(value.editor === editor)
+                else
+                    code.synchronize(model, value)
+            }
             case None -> Unit
         }
     }
 
-    fun open(editor: MarkdownEditorState, range: MarkdownRange) {
+    fun open(editor: MarkdownEditorState, range: MarkdownRange, model: MarkdownParsedDocument?) {
         val next = MarkdownSourceRegion(editor, range)
         editor.acceptComposition()
         editor.breakUndoGroup()
         current.value?.close()
         current.value = Some(next)
+        code.reset()
+        code.synchronize(model, next)
         val selected = mdSourceSelection(range, editor.selection)
         if (selected != editor.selection)
             editor.setSelection(selected)
@@ -51,6 +58,15 @@ internal class MdRichSourceSession: Closeable {
         }
     }
 
+    fun focusSource() {
+        pending = true
+        when (mounted) {
+            case Some(val host) -> if (!host.isClosed)
+                attach(host)
+            case None -> Unit
+        }
+    }
+
     fun finish(focus: Boolean = true) {
         when (mounted) {
             case Some(val host) -> if (
@@ -63,6 +79,7 @@ internal class MdRichSourceSession: Closeable {
         }
         current.value?.close()
         current.value = None
+        code.reset()
         pending = false
         if (focus && returnFocus.isAttached)
             returnFocus.requestFocus()
@@ -81,7 +98,7 @@ internal fun mdLocalSourceView(
 ): View =
     column {
         alignment = CrossAlignment.Stretch
-        item(mdSourceDone(input, session))
+        item(mdCodeSourceActions(input, region, session))
         item(
             mdSourceEditor(
                 MdSourceProps(
@@ -99,7 +116,8 @@ internal fun mdLocalSourceView(
                     { _ -> Unit },
                     region = Some(region),
                     exitSource = Some { session.finish() },
-                    localSource = Some(session)
+                    localSource = Some(session),
+                    highlights = input.controller.current?.sourceHighlights
                 )
             )
         ) {

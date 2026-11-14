@@ -97,6 +97,8 @@ document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 
 `transform` 要求当前文档、当前 revision 的解析结果。同一批命令基于同一份原始坐标，按源码顺序准备后一次发布；冲突或错误参数不留下部分修改。除了标题／段落转换，还可以 replaceText、setInlineContent、wrapInline／unwrapInline、setLinkTarget、setReferenceDefinition、setTask，以及表格单元格、行列和矩形修改。节点未涉及的源片段继续保留原始写法，引用和列表的续行沿用本地前缀及换行。修改一个引用链接的 target 会生成独立 inline link；修改共享定义使用明确的 setReferenceDefinition。完整消费示例见 [editing.scoop](examples/source/tests/editing.scoop)，边界见[结构事务规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#8-结构事务)。
 
+`setCodeInfo(codeId, "scoop {title=example}")` 修改代码块的完整单行信息字段。已有围栏只改字段，正文、容器、换行和未闭合状态保留；含反引号的信息会选择足够长的波浪线围栏。缩进代码设置语言时转换为围栏代码，保持解析后的正文及列表／引用／脚注容器。相同解码字段不改原始拼写；多行字段或非代码节点在发布前失败，逆向事务恢复原始字节。
+
 表格的 header 是第 0 行。`setTableCell` 修改一个单元格，`insertTableRow`／`removeTableRow` 修改 body row；`insertTableColumn(id, index, alignment) { ... }` 用 inline builder 提供新 header，body 新列为空；`removeTableColumn` 至少保留一列，`setTableColumnAlignment` 只修改分隔行的目标冒号。列变化保留原有单元格源码，必要时补齐外侧竖线；GFM 原先忽略的多余 body 单元格继续留在可见列之后。
 
 `setTableCells(id, row, column, values)` 接受非空矩形的 `List<List<String>>`，把值作为普通文字写入；超出表格时追加必要行列。`pasteTableTsv` 使用同一路径，支持引号中的 Tab／换行和成对双引号，短行补空；非法引号不发布修改。空 TSV 清空一个单元格，一次末尾换行不生成额外空行。整次操作只有一个源码事务，其 inverseReplacements 可精确恢复原始文件。

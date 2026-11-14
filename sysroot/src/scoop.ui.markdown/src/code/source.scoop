@@ -1,0 +1,127 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.text.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+
+internal class MdCodeSelection(
+    val parsed: ParsedMarkdown,
+    val node: MarkdownNode,
+    val info: String,
+    val body: String
+)
+
+internal fun mdSourceCode(
+    model: MarkdownParsedDocument?,
+    region: MarkdownSourceRegion
+): MdCodeSelection? {
+    val parsed = model?.source ?: return None
+    val range = region.range ?: return None
+    if (parsed.snapshot !== region.editor.snapshot || range.isEmpty)
+        return None
+    val line = parsed.snapshot.lineRange(parsed.snapshot.lineAt(MarkdownPosition(range.start)))
+    val position =
+        if (line.end < range.end)
+            line.end
+        else
+            range.end
+    var node = parsed.nodeAt(MarkdownPosition(position), MarkdownBias.Before)
+    while (true) {
+        when (node.content) {
+            case MarkdownContent.CodeBlock(_, val info, val body) -> {
+                if (
+                    node.range.start <
+                        range.start ||
+                        node.range.end >
+                        range.end ||
+                        !parsed.snapshot.read(
+                            MarkdownRange(range.start, node.range.start)
+                        ).isBlank() ||
+                        !parsed.snapshot.read(MarkdownRange(node.range.end, range.end)).isBlank()
+                )
+                    return None
+                return Some(MdCodeSelection(parsed, node, info.text, body.text))
+            }
+            else -> Unit
+        }
+        node = parsed.parent(node.id) ?: return None
+    }
+}
+
+/** A field draft survives body edits; only an unchanged field follows external info edits. */
+internal class MdCodeSourceState {
+    val info = TextEditorState()
+    val visible = state(false)
+    val message = state("")
+    private var baseline: String? = None
+
+    fun reset() {
+        info.replaceAll("")
+        baseline = None
+        visible.value = false
+        message.value = ""
+    }
+
+    fun synchronize(model: MarkdownParsedDocument?, region: MarkdownSourceRegion) {
+        val parsed = model ?: return
+        if (parsed.snapshot !== region.editor.snapshot)
+            return
+        val selected = mdSourceCode(Some(parsed), region)
+        val nextVisible =
+            when (selected) {
+                case Some(_) -> true
+                case None -> false
+            }
+        if (visible.value != nextVisible)
+            visible.value = nextVisible
+        val code = selected ?: return
+        when (baseline) {
+            case None -> {
+                info.replaceAll(code.info)
+                baseline = Some(code.info)
+            }
+            case Some(val old) -> if (code.info != old) {
+                if (!info.isComposing && info.text == old) {
+                    info.replaceAll(code.info)
+                    baseline = Some(code.info)
+                    message.value = ""
+                } else {
+                    val changed = "Info changed in the source. Use Done, then reopen this block."
+                    if (message.value != changed)
+                        message.value = changed
+                }
+            }
+        }
+    }
+
+    fun current(input: MdRichProps, region: MarkdownSourceRegion): Boolean =
+        input.options.enabled &&
+            !input.readOnly &&
+            when (mdSourceCode(input.controller.current, region)) {
+                case Some(val code) -> baseline == Some(code.info)
+                case None -> false
+            }
+
+    fun apply(input: MdRichProps, region: MarkdownSourceRegion, session: MdRichSourceSession) {
+        if (!current(input, region))
+            return
+        val code = mdSourceCode(input.controller.current, region) ?: return
+        val editor = region.editor
+        val before = editor.snapshot
+        try {
+            // Keep accepted field composition text without copying its private undo history.
+            info.setSelection(info.selection)
+            val value = info.text
+            editor.acceptComposition()
+            editor.transform(code.parsed) { setCodeInfo(code.node.id, value) }
+            baseline = Some(value)
+            message.value = ""
+            session.focusSource()
+        } catch (failure: IllegalArgumentException) {
+            if (editor.snapshot !== before)
+                throw failure
+            message.value = failure.message ?: "The code info could not be changed."
+        }
+    }
+}

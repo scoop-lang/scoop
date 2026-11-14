@@ -1,0 +1,95 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun mdCodeDisplay(
+    builder: MdDisplayTextBuilder,
+    value: MarkdownText,
+    spans: Array<MarkdownCodeSpan>,
+    start: Long,
+    end: Long
+) {
+    var cursor = start
+    var index = mdCodeSpanAt(spans, start)
+    while (index < spans.size) {
+        val span = spans[index]
+        if (span.range.start >= end)
+            break
+        val a =
+            if (span.range.start < start)
+                start
+            else
+                span.range.start
+        val b =
+            if (span.range.end > end)
+                end
+            else
+                span.range.end
+        if (cursor < a)
+            builder.mapped(value, MdDisplayFlags(code = true), start = cursor, end = a)
+        builder.mapped(
+            value,
+            MdDisplayFlags(code = true, syntax = Some(span.kind)),
+            start = a,
+            end = b
+        )
+        cursor = b
+        index += 1L
+    }
+    if (cursor < end)
+        builder.mapped(value, MdDisplayFlags(code = true), start = cursor, end = end)
+}
+
+internal fun mdCodeSourceLine(
+    highlights: MarkdownCodeHighlights?,
+    snapshot: MarkdownSnapshot,
+    range: MarkdownRange
+): Array<MarkdownCodeSpan> {
+    val value = highlights ?: return []
+    if (value.snapshot !== snapshot)
+        return []
+    val spans = value.intersect(range)
+    return Array<MarkdownCodeSpan>(spans.size) {
+        index ->
+        val span = spans[index]
+        MarkdownCodeSpan(
+            MarkdownRange(span.range.start - range.start, span.range.end - range.start),
+            span.kind
+        )
+    }
+}
+
+internal fun mdCodeSameSpans(a: Array<MarkdownCodeSpan>, b: Array<MarkdownCodeSpan>): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}
+
+internal fun mdCodeStyledText(
+    display: TextDisplay,
+    base: TextStyle,
+    theme: MarkdownCodeTheme,
+    spans: Array<MarkdownCodeSpan>
+): StyledText =
+    styledText {
+        this.style = base
+        var cursor = 0L
+        for (item in spans) {
+            val range = display.displayRange(Utf8Range(item.range.start, item.range.end))
+            if (cursor < range.start)
+                text(mdDisplaySlice(display.text, cursor, range.start))
+            span {
+                style = spanStyle { color = Some(theme.color(item.kind)) }
+                text(mdDisplaySlice(display.text, range.start, range.end))
+            }
+            cursor = range.end
+        }
+        if (cursor < display.text.byteLength)
+            text(mdDisplaySlice(display.text, cursor, display.text.byteLength))
+    }

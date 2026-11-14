@@ -1,0 +1,123 @@
+package scoop.ui.markdown
+
+// Flat Prism-derived lexical rules; see licenses/prism.txt.
+
+internal fun mdCodeJson(): Array<MdCodeRule> =
+    [
+        MdCodeRule(MarkdownCodeKind.Comment, "/\\*[\\s\\S]*?(?:\\*/|\\z)|//[^\\r\\n]*"),
+        MdCodeRule(
+            MarkdownCodeKind.Property,
+            "\"(?:\\\\[\\s\\S]|[^\"\\\\\\r\\n])*(?:\"|(?=\\r?$))(?=\\s*:)"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.String,
+            "(?m)\"(?:\\\\[\\s\\S]|[^\"\\\\\\r\\n])*(?:\"|(?=\\r?$))"
+        ),
+        MdCodeRule(MarkdownCodeKind.Number, "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b"),
+        MdCodeRule(MarkdownCodeKind.Constant, "\\b(?:true|false|null)\\b"),
+        MdCodeRule(MarkdownCodeKind.Operator, ":")
+    ]
+
+internal fun mdCodeToml(): Array<MdCodeRule> =
+    [
+        MdCodeRule(MarkdownCodeKind.Comment, "#[^\\r\\n]*"),
+        MdCodeRule(MarkdownCodeKind.Type, "(?m)^[ \\t]*\\[\\[?[^\\r\\n\\]]+\\]\\]?"),
+        MdCodeRule(
+            MarkdownCodeKind.Property,
+            "(?:[\\w-]+|'[^'\\r\\n]*'|\"(?:\\\\.|[^\"\\\\\\r\\n])*\")(?:[ \\t]*\\.[ \\t]*(?:[\\w-]+|'[^'\\r\\n]*'|\"(?:\\\\.|[^\"\\\\\\r\\n])*\"))*(?=[ \\t]*=)"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.String,
+            "(?m)\"\"\"(?:\\\\[\\s\\S]|[^\\\\])*?(?:\"\"\"|\\z)|'''[\\s\\S]*?(?:'''|\\z)|'[^'\\r\\n]*(?:'|(?=\\r?$))|\"(?:(?:\\\\.)|[^\"\\\\\\r\\n])*(?:\"|(?=\\r?$))"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Number,
+            "\\b\\d{4}-\\d{2}-\\d{2}(?:[Tt ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[Zz]|[+-]\\d{2}:\\d{2})?)?|\\b\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?|[-+]?\\b(?:inf|nan)\\b|\\b(?:0[xX][\\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(?:\\.(?!\\.)[\\d_]*)?(?:[eE][+-]?[\\d_]+)?)(?:[uU]?[lLfFdD]?|[iu](?:8|16|32|64|128|size)|f(?:32|64))\\b"
+        ),
+        MdCodeRule(MarkdownCodeKind.Constant, "\\b(?:true|false)\\b"),
+        MdCodeRule(MarkdownCodeKind.Operator, "=")
+    ]
+
+internal fun mdCodeShell(): Array<MdCodeRule> =
+    [
+        MdCodeRule(MarkdownCodeKind.Comment, "(?<![\\w\\\\$\\x7b])#[^\\r\\n]*"),
+        MdCodeRule(
+            MarkdownCodeKind.String,
+            "(?m)<<-?[ \\t]*(?<quote>['\"]?)(?<tag>\\w+)\\k<quote>[^\\r\\n]*(?:\\r?\\n|\\r)[\\s\\S]*?(?:^[\\t]*\\k<tag>[ \\t]*(?=\\r?$)|\\z)|\\$?'(?:\\\\[\\s\\S]|[^'\\\\])*(?:'|\\z)|\"(?:\\\\[\\s\\S]|[^\"\\\\])*(?:\"|\\z)|`[^`]*(?:`|\\z)"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Keyword,
+            "(?<![\\w.-])(?:case|do|done|elif|else|esac|fi|for|function|if|in|select|then|until|while|break|continue|return|export|local|readonly|declare|unset|set|source)\\b"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Property,
+            "\\$(?:\\{[^}]*\\}|\\w+|[#?*!@$0-9-])|\\b\\w+(?=\\+?=)"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Function,
+            "(?<![\\w.-])(?:echo|printf|cd|pwd|read|test|exec|eval|command|alias|unalias|shift|trap|exit|git|scoop|cargo|cmake|ninja|make|python3?|node|npm|curl|cat|rg|sed|awk|find|ls|mkdir|cp|mv|rm|touch|tar|gzip|chmod|env|open|uv|bash|sh|zsh)(?![\\w.-])"
+        ),
+        MdCodeRule(MarkdownCodeKind.Number, "\\b\\d+(?:\\.\\d+)?\\b"),
+        MdCodeRule(MarkdownCodeKind.Operator, "[<>|&;=]+")
+    ]
+
+internal fun mdCodePython(): Array<MdCodeRule> =
+    [
+        MdCodeRule(MarkdownCodeKind.Comment, "#[^\\r\\n]*"),
+        MdCodeRule(
+            MarkdownCodeKind.String,
+            "(?im)(?:[rubf]{1,2})?(?:\"\"\"[\\s\\S]*?(?:\"\"\"|\\z)|'''[\\s\\S]*?(?:'''|\\z)|\"(?:\\\\[\\s\\S]|[^\"\\\\\\r\\n])*(?:\"|(?=\\r?$))|'(?:\\\\[\\s\\S]|[^'\\\\\\r\\n])*(?:'|(?=\\r?$)))"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Keyword,
+            "\\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield|match|case)\\b"
+        ),
+        MdCodeRule(MarkdownCodeKind.Constant, "\\b(?:True|False|None|Ellipsis|NotImplemented)\\b"),
+        MdCodeRule(
+            MarkdownCodeKind.Number,
+            "\\b(?:0[xX][\\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(?:\\.(?!\\.)[\\d_]*)?(?:[eE][+-]?[\\d_]+)?)(?:[uU]?[lLfFdD]?|[iu](?:8|16|32|64|128|size)|f(?:32|64))\\b"
+        ),
+        MdCodeRule(MarkdownCodeKind.Annotation, "@[\\w.]+"),
+        MdCodeRule(MarkdownCodeKind.Function, "(?:\\b[\\p{L}_][\\w]*|`[^`\\r\\n]+`)(?=\\s*\\()"),
+        MdCodeRule(MarkdownCodeKind.Type, "\\b[A-Z][\\w]*\\b"),
+        MdCodeRule(MarkdownCodeKind.Operator, "[+\\-*/%=!<>|&^~?:]+")
+    ]
+
+internal fun mdCodeYaml(): Array<MdCodeRule> =
+    [
+        MdCodeRule(MarkdownCodeKind.Comment, "(?<![^\\s])#[^\\r\\n]*"),
+        MdCodeRule(
+            MarkdownCodeKind.String,
+            "(?m)\"(?:\\\\[\\s\\S]|[^\"\\\\])*(?:\"|\\z)|'(?:''|[^'])*(?:'|\\z)|[|>][-+]?\\d?[ \\t]*(?:#[^\\r\\n]*)?\\r?\\n(?:[ \\t]+[^\\r\\n]*(?:\\r?\\n|$))*"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Property,
+            "(?m)(?:^[ \\t-]*|[{,][ \\t]*)\\K[^\\r\\n:{},[\\]]+?(?=[ \\t]*:(?:[ \\t\\r\\n]|$))"
+        ),
+        MdCodeRule(MarkdownCodeKind.Constant, "(?i)\\b(?:true|false|yes|no|on|off|null)\\b|~"),
+        MdCodeRule(
+            MarkdownCodeKind.Number,
+            "\\b(?:0[xX][\\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(?:\\.(?!\\.)[\\d_]*)?(?:[eE][+-]?[\\d_]+)?)(?:[uU]?[lLfFdD]?|[iu](?:8|16|32|64|128|size)|f(?:32|64))\\b"
+        ),
+        MdCodeRule(MarkdownCodeKind.Annotation, "[&*!][\\w:./-]+"),
+        MdCodeRule(MarkdownCodeKind.Operator, "[-?:]+")
+    ]
+
+internal fun mdCodeSql(): Array<MdCodeRule> =
+    [
+        MdCodeRule(MarkdownCodeKind.Comment, "--[^\\r\\n]*|/\\*[\\s\\S]*?(?:\\*/|\\z)"),
+        MdCodeRule(
+            MarkdownCodeKind.String,
+            "'(?:''|[^'])*(?:'|\\z)|\"(?:\"\"|[^\"])*(?:\"|\\z)|`[^`]*(?:`|\\z)"
+        ),
+        MdCodeRule(
+            MarkdownCodeKind.Keyword,
+            "(?i)\\b(?:select|from|where|as|and|or|not|in|is|like|between|exists|join|inner|left|right|outer|full|cross|on|using|group|by|having|order|asc|desc|limit|offset|union|all|distinct|insert|into|values|update|set|delete|create|alter|drop|table|view|index|database|primary|key|foreign|references|constraint|default|with|recursive|case|when|then|else|end|returning|begin|commit|rollback|int|integer|text|varchar|boolean|date|timestamp|count|sum|avg|min|max)\\b"
+        ),
+        MdCodeRule(MarkdownCodeKind.Constant, "(?i)\\b(?:null|true|false)\\b"),
+        MdCodeRule(
+            MarkdownCodeKind.Number,
+            "\\b(?:0[xX][\\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(?:\\.(?!\\.)[\\d_]*)?(?:[eE][+-]?[\\d_]+)?)(?:[uU]?[lLfFdD]?|[iu](?:8|16|32|64|128|size)|f(?:32|64))\\b"
+        ),
+        MdCodeRule(MarkdownCodeKind.Operator, "[+\\-*/%=!<>|&^~?:]+")
+    ]

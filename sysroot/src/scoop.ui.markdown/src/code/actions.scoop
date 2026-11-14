@@ -1,0 +1,59 @@
+package scoop.ui.markdown
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal fun mdCodeSourceActions(
+    input: MdRichProps,
+    region: MarkdownSourceRegion,
+    session: MdRichSourceSession
+): View {
+    val code = session.code
+    val available = code.visible.value
+    val active = code.current(input, region)
+    val copy =
+        input.options.enabled &&
+            when (mdSourceCode(input.controller.current, region)) {
+                case Some(_) -> true
+                case None -> false
+            }
+    return row {
+        alignment = CrossAlignment.Center
+        spacing = 4.0
+        item(mdSourceAction("Done", input.options.enabled, input.fonts, { _ -> session.finish() }))
+        if (available) {
+            item(mdCodeInfoField(input, region, session)) {
+                grow = 1.0
+                basis = FlexBasis.Fixed(0.0)
+            }
+            item(
+                mdSourceAction(
+                    "Apply",
+                    active,
+                    input.fonts,
+                    { _ -> code.apply(input, region, session) }
+                )
+            )
+            item(
+                mdSourceAction(
+                    "Copy code",
+                    copy,
+                    input.fonts,
+                    {
+                        scope ->
+                        val selected = mdSourceCode(input.controller.current, region)
+                        when (selected) {
+                            case Some(val value) -> {
+                                region.editor.acceptComposition()
+                                scope.nativeWindow.clipboard.writeText(value.body)
+                                session.focusSource()
+                            }
+                            case None -> Unit
+                        }
+                    }
+                )
+            )
+        }
+    }
+}

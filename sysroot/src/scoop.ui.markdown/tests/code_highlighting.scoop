@@ -1,0 +1,205 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+private fun mdHasCodeToken(
+    code: String,
+    spans: List<MarkdownCodeSpan>,
+    kind: MarkdownCodeKind,
+    text: String
+): Boolean {
+    for (span in spans)
+        if (span.kind == kind && mdDisplaySlice(code, span.range.start, span.range.end) == text)
+            return true
+    return false
+}
+
+@Test
+private class MarkdownCodeHighlightingTests {
+    @Test
+    fun bundledLanguagesAndAliasesHighlightActualLexemes() {
+        val cases: List<(String, String, MarkdownCodeKind, String)> =
+            [
+                ("Scoop", "val 雪 = 42L", MarkdownCodeKind.Keyword, "val"),
+                ("kt", "suspend fun run() = true", MarkdownCodeKind.Keyword, "suspend"),
+                (
+                    "c",
+                    "#include <stdio.h>\nint main() { return 0; }",
+                    MarkdownCodeKind.Annotation,
+                    "#include"
+                ),
+                ("cpp", "constexpr int size = 4;", MarkdownCodeKind.Keyword, "constexpr"),
+                ("rs", "pub fn run() -> i32 { 42 }", MarkdownCodeKind.Keyword, "pub"),
+                ("bash", "export NAME=雪\necho $NAME", MarkdownCodeKind.Property, "$NAME"),
+                ("toml", "[cone]\nname = \"雪\"\n", MarkdownCodeKind.Property, "name"),
+                ("json", "{\"雪\": true, \"size\": 42}", MarkdownCodeKind.Property, "\"雪\""),
+                ("py", "def run():\n    return None\n", MarkdownCodeKind.Keyword, "def"),
+                ("js", "const run = async () => 42;", MarkdownCodeKind.Keyword, "async"),
+                ("ts", "interface Item { name: string }", MarkdownCodeKind.Keyword, "interface"),
+                ("yml", "name: 雪\nenabled: true\n", MarkdownCodeKind.Property, "name"),
+                (
+                    "sql",
+                    "SELECT name FROM items WHERE size = 42;",
+                    MarkdownCodeKind.Keyword,
+                    "SELECT"
+                )
+            ]
+        val highlighter = MarkdownDefaultCodeHighlighter()
+        for (entry in cases) {
+            val spans = highlighter.highlight(entry._1, entry._2)
+            assertTrue(mdHasCodeToken(entry._2, spans, entry._3, entry._4), Some(entry._1))
+            var end = 0L
+            for (span in spans) {
+                assertTrue(span.range.start >= end && span.range.end > span.range.start)
+                mdDisplayCheckOffset(entry._2, span.range.start)
+                mdDisplayCheckOffset(entry._2, span.range.end)
+                end = span.range.end
+            }
+        }
+        assertEquals(0L, highlighter.highlight("unknown-custom-language", "val x = 42").size)
+        assertEquals(0L, highlighter.highlight("text", "val x = 42").size)
+    }
+
+    @Test
+    fun multilineRawStringsCommentsAndIncompleteInputKeepLexicalBoundaries() {
+        val highlighter = MarkdownDefaultCodeHighlighter()
+        val scoop = "val 雪 = \"\"\"\n// literal\n\"\"\"\n/* val ignored */\nval x = 42L\n"
+        val spans = highlighter.highlight("scoop", scoop)
+        assertTrue(
+            mdHasCodeToken(scoop, spans, MarkdownCodeKind.String, "\"\"\"\n// literal\n\"\"\"")
+        )
+        assertTrue(mdHasCodeToken(scoop, spans, MarkdownCodeKind.Comment, "/* val ignored */"))
+        assertTrue(mdHasCodeToken(scoop, spans, MarkdownCodeKind.Number, "42L"))
+        val rust = "/* outer /* inner */ end */\nlet a = r##\"x\"#中\"##;\n"
+        val raw = highlighter.highlight("rust", rust)
+        assertTrue(
+            mdHasCodeToken(rust, raw, MarkdownCodeKind.Comment, "/* outer /* inner */ end */")
+        )
+        assertTrue(mdHasCodeToken(rust, raw, MarkdownCodeKind.String, "r##\"x\"#中\"##"))
+        for (
+            text in ["\"unfinished", "\"unfinished\n", "/* unfinished\n中", "\"\"\"unfinished\n中"]
+        ) {
+            val incomplete = highlighter.highlight("scoop", text)
+            assertEquals(1L, incomplete.size, Some(text))
+            assertEquals(0L, incomplete[0L].range.start)
+        }
+    }
+
+    @Test
+    fun shellHereDocsAndTomlMultilineStringsDoNotColorTheirContentsAsCode() {
+        val highlighter = MarkdownDefaultCodeHighlighter()
+        val shell = "cat <<'EOF'\nif 中 # literal\nEOF\necho $NAME\n"
+        val spans = highlighter.highlight("sh", shell)
+        assertTrue(
+            mdHasCodeToken(shell, spans, MarkdownCodeKind.String, "<<'EOF'\nif 中 # literal\nEOF")
+        )
+        assertFalse(mdHasCodeToken(shell, spans, MarkdownCodeKind.Keyword, "if"))
+        assertTrue(mdHasCodeToken(shell, spans, MarkdownCodeKind.Property, "$NAME"))
+        val toml = "text = '''\n# literal\ntrue\n'''\nsize = 42\n"
+        assertTrue(
+            mdHasCodeToken(
+                toml,
+                highlighter.highlight("toml", toml),
+                MarkdownCodeKind.String,
+                "'''\n# literal\ntrue\n'''"
+            )
+        )
+    }
+}
+
+internal class MdCountingHighlighter: MarkdownCodeHighlighter {
+    var calls = 0L
+    var fail = false
+    public override fun highlight(language: String, code: String): List<MarkdownCodeSpan> {
+        calls += 1L
+        if (fail)
+            throw IllegalStateException(Some("Custom highlighter failed"))
+        return MarkdownDefaultCodeHighlighter().highlight(language, code)
+    }
+}
+
+private class MdBadCodeHighlighter(val kind: Int): MarkdownCodeHighlighter {
+    public override fun highlight(language: String, code: String): List<MarkdownCodeSpan> =
+        when (kind) {
+            case 0 -> [MarkdownCodeSpan(MarkdownRange(1L, 3L), MarkdownCodeKind.String)]
+            case 1 -> [MarkdownCodeSpan(MarkdownRange(0L, 1000L), MarkdownCodeKind.String)]
+            case 2 -> [
+                MarkdownCodeSpan(MarkdownRange(0L, 3L), MarkdownCodeKind.String),
+                MarkdownCodeSpan(MarkdownRange(0L, 3L), MarkdownCodeKind.Number)
+            ]
+            else -> [MarkdownCodeSpan(MarkdownRange(0L, 0L), MarkdownCodeKind.String)]
+        }
+}
+
+@Test
+private class MarkdownCodeCachingTests {
+    @Test
+    fun unchangedBlocksReuseTokensWhileOneBodyOrLanguageChangeIsRehighlighted() {
+        val provider = MdCountingHighlighter()
+        val options = MarkdownParseOptions(codeHighlighter = Some(provider))
+        val document =
+            MarkdownDocument.fromText(
+                "Head\n\n```scoop\nval a = 1\n```\n\n```scoop\nval b = 2\n```\n"
+            )
+        val engine = MdParseEngine()
+        val first = engine.parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(2L, provider.calls)
+        assertSame(first.sourceHighlights, first.previewHighlights)
+        document.replace(MarkdownRange(0L, 4L), "Longer head")
+        val moved = engine.parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(2L, provider.calls)
+        assertEquals(
+            first.sourceHighlights.spans[0L].range.start + 7L,
+            moved.sourceHighlights.spans[0L].range.start
+        )
+        val body = document.toMarkdown().indexOf("val b")
+        document.replace(MarkdownRange(body + 8L, body + 9L), "3")
+        val changed = engine.parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(3L, provider.calls)
+        val parsed = changed.source
+        document.transform(parsed) { setCodeInfo(parsed.root.children[1L].id, "unknown") }
+        engine.parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(4L, provider.calls)
+        val next = MdCountingHighlighter()
+        engine.parse(
+            MdParseRequest(document.snapshot(), MarkdownParseOptions(codeHighlighter = Some(next)))
+        )
+        assertEquals(2L, next.calls)
+    }
+
+    @Test
+    fun invalidCustomRangesAndFailuresOnlyDisableTheAffectedDecoration() {
+        val document = MarkdownDocument.fromText("```custom\n中\n```\n")
+        for (kind in 0 ..< 4) {
+            val model =
+                MarkdownParsedDocument(
+                    document.parse(),
+                    None,
+                    MarkdownParseOptions(codeHighlighter = Some(MdBadCodeHighlighter(kind)))
+                )
+            assertEquals(1L, model.sourceHighlights.diagnostics.size)
+            assertEquals(0L, model.sourceHighlights.spans.size)
+            assertEquals("中", model.display.rows[0L].cells[0L].text)
+            assertEquals("```custom\n中\n```\n", model.snapshot.toMarkdown())
+        }
+        val provider = MdCountingHighlighter()
+        provider.fail = true
+        val options = MarkdownParseOptions(codeHighlighter = Some(provider))
+        val before = MarkdownParsedDocument(document.parse(), None, options)
+        assertEquals(1L, before.sourceHighlights.diagnostics.size)
+        provider.fail = false
+        val after = MarkdownParsedDocument(document.parse(), None, options, Some(before))
+        assertEquals(2L, provider.calls)
+        assertEquals(0L, after.sourceHighlights.diagnostics.size)
+        val disabled =
+            MarkdownParsedDocument(
+                document.parse(),
+                None,
+                MarkdownParseOptions(codeHighlighter = None)
+            )
+        assertEquals(0L, disabled.sourceHighlights.spans.size)
+        assertEquals("中", disabled.display.rows[0L].cells[0L].text)
+    }
+}

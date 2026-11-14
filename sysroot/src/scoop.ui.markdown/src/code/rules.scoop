@@ -1,0 +1,44 @@
+package scoop.ui.markdown
+
+internal fun mdCodeRules(language: String): Array<MdCodeRule> {
+    if (language == "scoop")
+        return mdCodeCLike("scoop")
+    if (language == "kotlin" || language == "kt" || language == "kts")
+        return mdCodeCLike("kotlin")
+    if (
+        language ==
+            "c" ||
+            language ==
+            "h" ||
+            language ==
+            "cpp" ||
+            language ==
+            "c++" ||
+            language ==
+            "cc" ||
+            language ==
+            "cxx" ||
+            language ==
+            "hpp"
+    )
+        return mdCodeCLike("c")
+    if (language == "rust" || language == "rs")
+        return mdCodeCLike("rust")
+    if (
+        language == "javascript" || language == "js" || language == "typescript" || language == "ts"
+    )
+        return mdCodeCLike("javascript")
+    if (language == "sh" || language == "bash" || language == "shell" || language == "zsh")
+        return mdCodeShell()
+    if (language == "toml")
+        return mdCodeToml()
+    if (language == "json" || language == "jsonc" || language == "webmanifest")
+        return mdCodeJson()
+    if (language == "python" || language == "py")
+        return mdCodePython()
+    if (language == "yaml" || language == "yml")
+        return mdCodeYaml()
+    if (language == "sql")
+        return mdCodeSql()
+    return []
+}

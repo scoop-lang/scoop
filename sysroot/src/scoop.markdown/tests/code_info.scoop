@@ -1,0 +1,120 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.collections.*
+
+private fun mdCodeTestNode(parsed: ParsedMarkdown): MarkdownNode =
+    mdTestFind(parsed) {
+        node -> when (node.content) {
+            case MarkdownContent.CodeBlock(_, _, _) -> true
+            else -> false
+        }
+    }
+
+private fun mdCodeTestBody(node: MarkdownNode): String =
+    when (node.content) {
+        case MarkdownContent.CodeBlock(_, _, val body) -> body.text
+        else -> fail(Some("Expected code"))
+    }
+
+@Test
+private class MarkdownCodeInfoTests {
+    @Test
+    fun `fenced info changes preserve raw body delimiters and CRLF and undo exactly`() {
+        val original = "> - ```` old  \r\n>   a\t中 &amp;\r\n>   `````  \r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(original)
+        val parsed = document.parse()
+        val code = mdCodeTestNode(parsed)
+        val change = document.transform(parsed) { setCodeInfo(code.id, "scoop {title=demo}") }
+        assertEquals(
+            "> - ````scoop \\{title\\=demo\\}\r\n>   a\t中 &amp;\r\n>   `````  \r\n\r\nTail\r\n",
+            document.toMarkdown()
+        )
+        assertEquals(1L, change.replacements.size)
+        assertEquals(mdCodeTestBody(code), mdCodeTestBody(mdCodeTestNode(document.parse())))
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+    }
+
+    @Test
+    fun `backticks in info choose a safe fence and preserve incomplete blocks`() {
+        for (ending in ["```\n", ""]) {
+            val original = "```old\n~~~\nvalue\n" + ending
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse()
+            document.transform(parsed) { setCodeInfo(mdCodeTestNode(parsed).id, "custom `x`") }
+            val code = mdCodeTestNode(document.parse())
+            when (code.content) {
+                case MarkdownContent.CodeBlock(Some(val fence), val info, val body) -> {
+                    assertEquals("custom `x`", info.text)
+                    assertEquals("~~~\nvalue\n", body.text)
+                    assertEquals('~', fence.marker)
+                    assertEquals(4L, fence.length)
+                    assertEquals(ending != "", fence.closed)
+                }
+                else -> fail(Some("Expected fenced code"))
+            }
+        }
+    }
+
+    @Test
+    fun `indented conversion keeps code text and actual containers with tabs and CRLF`() {
+        for (
+            original in [
+                "    alpha\n    ```\n\nTail\n",
+                "\talpha\n\t  beta",
+                ">     alpha\r\n>     beta\r\n\r\nTail\r\n",
+                "-     alpha\n      beta\n\nTail\n",
+                "> -     alpha\n>       beta\n\nTail\n",
+                "- a\n\n      alpha\n      beta\n\nTail\n",
+                "> \t\talpha\n> \t\tbeta\n",
+                "[^n]: note\n\n        alpha\n        beta\n\nref [^n]\n"
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(original)
+            val parsed = document.parse(MarkdownProfile.Editor)
+            val code = mdCodeTestNode(parsed)
+            val change = document.transform(parsed) { setCodeInfo(code.id, "scoop") }
+            val after = document.parse(MarkdownProfile.Editor)
+            val updated = mdCodeTestNode(after)
+            assertEquals(mdCodeTestBody(code), mdCodeTestBody(updated), Some(document.toMarkdown()))
+            assertEquals(parsed.root.children.size, after.root.children.size, Some(original))
+            assertEquals(parsed.nodes().count(), after.nodes().count(), Some(document.toMarkdown()))
+            when (updated.content) {
+                case MarkdownContent.CodeBlock(Some(_), val info, _) -> assertEquals(
+                    "scoop",
+                    info.text
+                )
+                else -> fail(Some("Expected converted fenced code"))
+            }
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(original, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `equivalent decoded info is a no op and invalid info is atomic`() {
+        val document = MarkdownDocument.fromText("``` a&amp;b  \nbody\n```\n")
+        val parsed = document.parse()
+        val id = mdCodeTestNode(parsed).id
+        val unchanged = parsed.prepareTransform { setCodeInfo(id, "a&b") }
+        assertEquals(0L, unchanged.replacements.size)
+        for (info in ["a\nb", "a\rb"]) {
+            assertFailsWith<IllegalArgumentException> {
+                document.transform(parsed) { setCodeInfo(id, info) }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setCodeInfo(parsed.root.id, "scoop") }
+        }
+        assertEquals(0L, document.revision)
+        document.transform(parsed) { setCodeInfo(id, " custom & `language` ") }
+        when (mdCodeTestNode(document.parse()).content) {
+            case MarkdownContent.CodeBlock(_, val info, _) -> assertEquals(
+                " custom & `language` ",
+                info.text
+            )
+            else -> fail(Some("Expected code"))
+        }
+    }
+}

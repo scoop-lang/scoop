@@ -15,8 +15,9 @@ internal fun mdDisplayFlags(
     emphasis: Boolean = value.emphasis,
     strike: Boolean = value.strike,
     code: Boolean = value.code,
-    link: Boolean = value.link
-): MdDisplayFlags = MdDisplayFlags(strong, emphasis, strike, code, link)
+    link: Boolean = value.link,
+    syntax: MarkdownCodeKind? = value.syntax
+): MdDisplayFlags = MdDisplayFlags(strong, emphasis, strike, code, link, syntax)
 
 internal fun mdDisplayInlines(
     node: MarkdownNode,

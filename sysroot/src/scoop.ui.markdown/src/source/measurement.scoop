@@ -164,6 +164,8 @@ internal class MdSourceRow: Closeable {
     private var tabs = 0
     private var width: Double? = None
     private var style: TextStyle? = None
+    private var codeTheme: MarkdownCodeTheme? = None
+    private var codeSpans: Array<MarkdownCodeSpan> = []
     private var fonts: FontCollection? = None
     private var fontRevision = -1L
     private var content: StyledText? = None
@@ -180,6 +182,12 @@ internal class MdSourceRow: Closeable {
         val range = host.lineRange(index)
         val text = snapshot.read(range)
         val nextStyle = host.style.text
+        val nextSpans = mdCodeSourceLine(host.highlights, snapshot, range)
+        val sameTheme =
+            when (codeTheme) {
+                case Some(val value) -> value === host.style.codeTheme
+                case None -> false
+            }
         val nextFonts = host.fonts
         val sameStyle =
             when (style) {
@@ -204,16 +212,13 @@ internal class MdSourceRow: Closeable {
                     case None -> true
                 }
             ) ||
-                !sameStyle
+                !sameStyle ||
+                !sameTheme ||
+                !mdCodeSameSpans(codeSpans, nextSpans)
         ) {
-            val displayed = display!!.text
-            content =
-                Some(
-                    styledText {
-                        this.text(displayed);
-                        this.style = nextStyle
-                    }
-                )
+            content = Some(mdCodeStyledText(display!!, nextStyle, host.style.codeTheme, nextSpans))
+            codeSpans = nextSpans
+            codeTheme = Some(host.style.codeTheme)
             generation += 1L
         }
         if (this.width != width || !sameFonts || fontRevision != nextFonts.revision)

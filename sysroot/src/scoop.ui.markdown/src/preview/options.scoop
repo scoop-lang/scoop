@@ -20,7 +20,8 @@ public class MarkdownPreviewStyle public constructor(
     public val tableHeader: Color = Color(0.94, 0.95, 0.97),
     public val border: Color = Color(0.76, 0.78, 0.81),
     public val link: Color = Color(0.10, 0.34, 0.75),
-    public val selection: Color = Color(0.25, 0.48, 0.95, 0.25)
+    public val selection: Color = Color(0.25, 0.48, 0.95, 0.25),
+    public val codeTheme: MarkdownCodeTheme = MarkdownCodeTheme.Light
 )
 
 public struct MarkdownPreviewOptions(

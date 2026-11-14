@@ -12,4 +12,6 @@
 
 从后台宿主启动时，可用现有 `scoop bundle` 将 release 输出打包成 `Bundle.toml` 指定的 macOS app，再用 `open -n ... --args /absolute/path/document.md` 启动；应用参数仍传入同一 main。示例不自动安装图像工具。
 
-普通段落、标题和表格单元格支持富文本输入、跨块替换与格式操作，Enter／Tab 可操作列表和表格。点击代码、公式、Mermaid 或自定义指令可在当前栏打开局部源码面，Done／Escape 返回。其余功能与性能验收见[实施记录](../../../../../docs/markdown/PROGRESS.md)；源码栏可以编辑所有内容。点击链接由示例显示目标，实际打开行为由宿主决定。
+普通段落、标题和表格单元格支持富文本输入、跨块替换与格式操作，Enter／Tab 可操作列表和表格。点击代码、公式、Mermaid 或自定义指令可在当前栏打开局部源码面，Done／Escape 返回。代码面额外提供 Language / info、Apply 和 Copy code；Enter 也可提交完整信息字段，语言与属性均可编辑，复制只取代码正文，修改和撤销仍共享文档历史。代码高亮覆盖预览、源码和局部源码，未知语言显示原文；公式与 Mermaid 继续沿图像扩展展示。
+
+其余功能与性能验收见[实施记录](../../../../../docs/markdown/PROGRESS.md)；源码栏可以编辑所有内容。点击链接由示例显示目标，实际打开行为由宿主决定。

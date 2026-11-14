@@ -22,7 +22,8 @@ internal fun mdProjectMarkdown(
     parsed: ParsedMarkdown,
     previous: MdDisplayDocument? = None,
     imageCodeLanguages: List<String> = ["mermaid"],
-    imageExtensions: List<String> = ["math"]
+    imageExtensions: List<String> = ["math"],
+    highlights: MarkdownCodeHighlights? = None
 ): MdDisplayDocument {
     val notes =
         Array<MdProjectionFootnote>(parsed.footnotes.size) {
@@ -30,9 +31,14 @@ internal fun mdProjectMarkdown(
             val entry = parsed.footnotes[index]
             MdProjectionFootnote(entry.label, entry.number, parsed.node(entry.definition))
         }
-    return MdBlockProjection(parsed, imageCodeLanguages, imageExtensions, notes, HashMap()).build(
-        previous
-    )
+    return MdBlockProjection(
+        parsed,
+        imageCodeLanguages,
+        imageExtensions,
+        notes,
+        HashMap(),
+        highlights
+    ).build(previous)
 }
 
 internal fun mdProjectRegion(
@@ -67,7 +73,8 @@ private class MdBlockProjection(
     imageCodeLanguages: List<String>,
     imageExtensions: List<String>,
     val notes: Array<MdProjectionFootnote>,
-    val footnotes: HashMap<String, (Long, MarkdownRange)>
+    val footnotes: HashMap<String, (Long, MarkdownRange)>,
+    val highlights: MarkdownCodeHighlights? = None
 ) {
     val rows = ArrayList<MdDisplayRow>()
     val pending = ArrayList<MdBlockFrame>()
@@ -237,7 +244,7 @@ private class MdBlockProjection(
                 case MarkdownContent.ThematicBreak ->
                 add(node, node.range, MdDisplayKind.Rule, context, [])
                 case MarkdownContent.CodeBlock(_, val info, val body) -> {
-                    val language = mdDisplayCodeLanguage(info.text)
+                    val language = mdCodeLanguage(info.text)
                     if (imageCode.contains(language))
                         image(
                             node,
@@ -245,7 +252,7 @@ private class MdBlockProjection(
                             MdDisplayObject.Block(MarkdownImageKind.Code(language), body, info.text)
                         )
                     else
-                        lines(node, body, context, info.text, false)
+                        lines(node, body, context, info.text, false, highlights?.tokens(node) ?: [])
                 }
                 case MarkdownContent.HtmlBlock(val source) ->
                 lines(node, source, context, "HTML", true)
@@ -281,7 +288,8 @@ private class MdBlockProjection(
         value: MarkdownText,
         context: MdDisplayContext,
         label: String,
-        raw: Boolean
+        raw: Boolean,
+        tokens: Array<MarkdownCodeSpan> = []
     ) {
         val bytes = value.text.toByteArray()
         var start = 0L
@@ -309,7 +317,7 @@ private class MdBlockProjection(
                         value.sourceAt(MarkdownPosition(next), MarkdownBias.Before).byteOffset
                 )
             val builder = MdDisplayTextBuilder(range)
-            builder.mapped(value, MdDisplayFlags(code = true), start = start, end = end)
+            mdCodeDisplay(builder, value, tokens, start, end)
             add(
                 node,
                 range,
@@ -357,14 +365,4 @@ private class MdBlockProjection(
             add(row, range, MdDisplayKind.Table(alignments, header), context, cells)
         }
     }
-}
-
-private fun mdDisplayCodeLanguage(info: String): String {
-    val result = StringBuilder()
-    for (character in info) {
-        if (character == ' ' || character == '\t' || character == '\r' || character == '\n')
-            break
-        result.append(character)
-    }
-    return result.toString()
 }

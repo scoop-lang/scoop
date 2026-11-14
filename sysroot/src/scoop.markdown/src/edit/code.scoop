@@ -1,0 +1,93 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Changes the complete code info field without replacing the code body of a fenced block. */
+public fun MarkdownTransformBuilder.setCodeInfo(id: MarkdownNodeId, info: String) {
+    requireMarkdown(!info.contains("\n") && !info.contains("\r"), "Code info must be a single line")
+    val node = parsed.node(id)
+    when (node.content) {
+        case MarkdownContent.CodeBlock(val fence, val previous, val body) -> {
+            if (info == previous.text)
+                return
+            when (fence) {
+                case Some(val value) -> {
+                    val opening = node.markers[0L]
+                    val line = snapshot.lineRange(mdNodeLine(snapshot, node))
+                    replace(
+                        MarkdownRange(opening.end, line.end),
+                        mdWriteLiteral(info, info.startsWith(" "), info.endsWith(" "))
+                    )
+                    if (value.marker == '`' && info.contains("`")) {
+                        val length = mdWriteRun(body.text, '~') + 1L
+                        val marker =
+                            "~".repeat(
+                                if (length < 3L)
+                                    3L
+                                else
+                                    length
+                            )
+                        replace(opening, marker)
+                        if (value.closed)
+                            replace(node.markers[node.markers.size - 1L], marker)
+                    }
+                }
+                case None -> mdFenceIndentedCode(node, info, body)
+            }
+        }
+        else -> throw IllegalArgumentException(Some("setCodeInfo requires a code block"))
+    }
+}
+
+private fun MarkdownTransformBuilder.mdFenceIndentedCode(
+    node: MarkdownNode,
+    info: String,
+    body: MarkdownText
+) {
+    val lineStart = snapshot.positionOfLine(mdNodeLine(snapshot, node)).byteOffset
+    val prefix = snapshot.read(MarkdownRange(lineStart, node.range.start)).toByteArray()
+    var columns = 0L
+    for (byte in prefix)
+        columns += if (byte == 9.toByte())
+            4L - columns % 4L
+        else
+            1L
+    // An indented block may begin partway through a tab; the mapped body retains its remainder.
+    if (body.spans.size > 0L) {
+        val first = body.spans[0L]
+        if (
+            first.mapping ==
+                MarkdownTextMapping.Normalized &&
+                first.sourceRange.start ==
+                node.range.start &&
+                snapshot.read(first.sourceRange) ==
+                "\t"
+        )
+            columns += 4L - columns % 4L - first.textRange.byteLength
+    }
+    val target = columns - 4L
+    requireMarkdown(target >= 0L, "Indented code is missing its source indentation")
+    var offset = 0L
+    var column = 0L
+    while (offset < prefix.size && column < target) {
+        val next =
+            column +
+                if (prefix[offset] == 9.toByte())
+                    4L - column % 4L
+                else
+                    1L
+        if (next > target)
+            break
+        column = next
+        offset += 1L
+    }
+    val firstPrefix = " ".repeat(target - column)
+    val continuation = mdListPrefix(parsed, node)
+    val newline = mdLocalNewline(snapshot, node.range.start)
+    val generated = mdWriteFence(info, body.text)
+    val source = generated.replace("\n", newline + continuation)
+    replace(
+        MarkdownRange(lineStart + offset, node.range.end),
+        firstPrefix + source + mdNodeEnding(snapshot, node)
+    )
+}

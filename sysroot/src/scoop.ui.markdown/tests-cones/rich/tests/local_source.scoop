@@ -8,6 +8,7 @@ import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.window.*
 import scoop.time.Duration
+import scoop.text.*
 import scoop.ui.*
 import scoop.ui.markdown.*
 import scoop.ui.style.ThemeSource
@@ -18,6 +19,18 @@ import scoop.window.*
 private class MarkdownLocalSourceWindowTests {
     @Test
     fun codeMathAndDirectivesUseOneNativeSourcePaneAndReturnToTheirPreview() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
+            try {
+                verifyWindow()
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+
+    private fun verifyWindow() {
         val app = Application()
         val workers =
             multiThreadExecutor {
@@ -61,6 +74,8 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
     var frames: FrameProbe? = None
     var inputReady = false
     var source = false
+    var toolbar = false
+    var expectedCodeBody = "val x = 1\n"
     var waiting = false
     var presentations = 0L
     var raw = ""
@@ -129,7 +144,7 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
         if (parsed.snapshot !== editor.snapshot)
             return false
         return if (source)
-            !view.richFocus.isFocusActive && (locked.value || inputReady)
+            !view.richFocus.isFocusActive && (toolbar || locked.value || inputReady)
         else
             view.richFocus.isFocusActive
     }
@@ -172,7 +187,7 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
     private fun done(pointer: Boolean = false) {
         source = false
         if (pointer)
-            mdNativeClick(window!!, 24.0, 290.0)
+            mdNativeClick(window!!, 24.0, 305.0)
         else
             mdNativeKey(window!!, 53, "\u{1b}")
     }
@@ -309,10 +324,121 @@ private class LocalSourceProbe(workers: CoroutineExecutor, proxy: ApplicationPro
             case 34 -> {
                 assertEquals(MarkdownEditorMode.Wysiwyg, view.mode)
                 assertEquals(original, editor.document.toMarkdown())
+                next { locked.value = false }
+            }
+            case 35 -> next { open() }
+            case 36 -> {
+                checkNative()
+                assertTrue(parser.current!!.sourceHighlights.spans.size > 0L)
+                next {
+                    toolbar = true;
+                    focusInfo()
+                }
+            }
+            case 37 -> next {
+                mdNativeKey(window!!, 48, "\t")
+                mdNativeKey(window!!, 48, "\t")
+                mdNativeKey(window!!, 49, " ");
+                toolbar = false
+            }
+            case 38 -> {
+                val copied =
+                    window!!.clipboard.readText() ?: fail(Some("Copy code did not publish text"))
+                assertEquals("val x = 1\n", copied)
+                checkNative()
+                next { focusInfo() }
+            }
+            case 39 -> next { selectAll() }
+            case 40 -> {
+                assertTrue(mdCodeNativeField(window!!, "scoop", 0L, 5L))
+                next { assertEquals(0, mdNativeText(window!!, "rust", 1, 4L)) }
+            }
+            case 41 -> {
+                assertFalse(editor.isComposing)
+                assertEquals(original, editor.document.toMarkdown())
+                assertTrue(mdCodeNativeField(window!!, "rust", 4L, 4L, 0L, 4L))
+                next {
+                    expectedCodeBody = "val x = 2\n"
+                    raw = "```scoop\n" + expectedCodeBody + "```\n"
+                    val number = editor.document.toMarkdown().indexOf("1")
+                    editor.replace(MarkdownRange(number, number + 1L), "2")
+                }
+            }
+            case 42 -> {
+                assertFalse(editor.isComposing)
+                assertTrue(mdCodeNativeField(window!!, "rust", 4L, 4L, 0L, 4L))
+                next { assertEquals(0, mdNativeText(window!!, "rust")) }
+            }
+            case 43 -> next {
+                raw = "```rust\nval x = 2\n```\n"
+                mdNativeKey(window!!, 36, "\r")
+            }
+            case 44 -> {
+                checkNative()
+                checkInfo("rust")
+                next {
+                    raw = "```scoop\nval x = 2\n```\n";
+                    mdNativeKey(window!!, 6, "z", 8)
+                }
+            }
+            case 45 -> {
+                checkNative()
+                checkInfo("scoop")
+                next {
+                    raw = "```rust\nval x = 2\n```\n";
+                    mdNativeKey(window!!, 6, "z", 9)
+                }
+            }
+            case 46 -> {
+                checkNative()
+                checkInfo("rust")
+                next { focusInfo() }
+            }
+            case 47 -> next { selectAll() }
+            case 48 -> next { assertEquals(0, mdNativeText(window!!, "custom `hint`")) }
+            case 49 -> next {
+                toolbar = true;
+                mdNativeKey(window!!, 48, "\t")
+            }
+            case 50 -> next {
+                raw = "~~~custom \\`hint\\`\nval x = 2\n~~~\n"
+                mdNativeKey(window!!, 49, " ")
+                toolbar = false
+            }
+            case 51 -> {
+                checkNative()
+                checkInfo("custom `hint`")
+                assertEquals(0L, parser.current!!.sourceHighlights.spans.size)
+                next {
+                    raw = "```rust\nval x = 2\n```\n";
+                    mdNativeKey(window!!, 6, "z", 8)
+                }
+            }
+            case 52 -> {
+                checkNative()
+                checkInfo("rust")
+                next { done() }
+            }
+            case 53 -> {
+                checkInfo("rust")
                 finished = true
                 active.requestExit()
             }
             else -> fail(Some("Unexpected local source step"))
+        }
+    }
+
+    private fun focusInfo() {
+        mdNativeClick(window!!, 240.0, 310.0)
+    }
+
+    private fun checkInfo(expected: String) {
+        when (parser.current!!.source.root.children[0L].content) {
+            case MarkdownContent.CodeBlock(_, val info, val body) -> {
+                assertEquals(expected, info.text)
+                assertEquals(expectedCodeBody, body.text)
+            }
+            else -> fail(Some("Expected the edited code block"))
         }
     }
 
@@ -359,6 +485,35 @@ private fun mdLocalNativeDocument(
                         editor.selection.range.end,
                         editor.markedRange?.start ?: -1L,
                         editor.markedRange?.end ?: -1L
+                    )
+                }
+            }
+        }
+    }
+
+private fun mdCodeNativeField(
+    window: Window,
+    text: String,
+    start: Long,
+    end: Long,
+    markedStart: Long = -1L,
+    markedEnd: Long = -1L
+): Boolean =
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            return@mdNativeView text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorDocument(
+                        view,
+                        bytes,
+                        length,
+                        start,
+                        end,
+                        markedStart,
+                        markedEnd
                     )
                 }
             }

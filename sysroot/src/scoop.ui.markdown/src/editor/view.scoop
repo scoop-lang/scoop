@@ -95,7 +95,8 @@ private class MdEditorComponent(val props: Props<MdEditorProps>, scope: Componen
                                     visibility = FocusVisibility.Always
                                 ),
                                 { _ -> Unit },
-                                Some(owner)
+                                Some(owner),
+                                highlights = input.controller.current?.sourceHighlights
                             )
                         )
                     ) {

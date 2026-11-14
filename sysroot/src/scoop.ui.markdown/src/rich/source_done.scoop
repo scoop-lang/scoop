@@ -7,32 +7,41 @@ import scoop.math.min
 import scoop.ui.*
 import scoop.ui.text.*
 
-private class MdSourceDoneProps(
+private class MdSourceActionProps(
+    val label: String,
     val enabled: Boolean,
     val fonts: FontCollection?,
-    val session: MdRichSourceSession
+    val action: (ComponentScope) -> Unit
 )
 
 /** Uses the same explicit styling contract as the source view, without requiring a theme. */
-internal fun mdSourceDone(input: MdRichProps, session: MdRichSourceSession): View =
+internal fun mdSourceAction(
+    label: String,
+    enabled: Boolean,
+    fonts: FontCollection?,
+    action: (ComponentScope) -> Unit
+): View =
     element(
-        MdSourceDoneProps(input.options.enabled, input.fonts, session),
-        { props, scope -> MdSourceDone(props, scope) }
+        MdSourceActionProps(label, enabled, fonts, action),
+        { props, scope -> MdSourceAction(props, scope) }
     )
 
-private class MdSourceDone(val props: Props<MdSourceDoneProps>, scope: ComponentScope): Element<
+private fun mdSourceActionText(label: String): StyledText =
+    styledText {
+        text(label)
+        style = textStyle { fontSize = 14.0 }
+    }
+
+private class MdSourceAction(val props: Props<MdSourceActionProps>, scope: ComponentScope): Element<
     ParagraphMeasurement
 >(scope) {
     private val area = scope.createArea(focusable = true)
     private val focus = scope.focusTarget(area)
-    private val press = scope.press(area) { props.value.session.finish() }
+    private val press = scope.press(area) { props.value.action(scope) }
     private val paragraph = scope.resource { ParagraphHost() }
     private val key = PaintKey()
-    private val text =
-        styledText {
-            text("Done")
-            style = textStyle { fontSize = 14.0 }
-        }
+    private var text = mdSourceActionText(props.value.label)
+    private var label = props.value.label
     private var generation = 0L
 
     public override fun onMount() {
@@ -41,7 +50,11 @@ private class MdSourceDone(val props: Props<MdSourceDoneProps>, scope: Component
 
     public override fun update(): UiInvalidation {
         area.scope.enabled = props.value.enabled
-        press.update(PressOptions(enabled = props.value.enabled), { props.value.session.finish() })
+        press.update(PressOptions(enabled = props.value.enabled), { props.value.action(scope) })
+        if (label != props.value.label) {
+            label = props.value.label
+            text = mdSourceActionText(label)
+        }
         return UiInvalidation.Layout
     }
 
@@ -65,13 +78,7 @@ private class MdSourceDone(val props: Props<MdSourceDoneProps>, scope: Component
     }
 
     public override fun scene(context: SceneContext, layout: ParagraphMeasurement) {
-        val bounds =
-            Rect(
-                0.0,
-                0.0,
-                min(context.size.width, layout.layout.size.width + 16.0),
-                context.size.height
-            )
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area, bounds)
         val color =
             if (press.interaction.pressed || area.isFocusVisible)

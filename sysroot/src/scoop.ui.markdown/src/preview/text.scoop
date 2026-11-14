@@ -51,6 +51,10 @@ internal fun mdPreviewText(
                                 slant = Some(FontSlant.Italic)
                             if (run.flags.link)
                                 color = Some(style.link)
+                            when (run.flags.syntax) {
+                                case Some(val kind) -> color = Some(style.codeTheme.color(kind))
+                                case None -> Unit
+                            }
                             if (run.flags.code) {
                                 families = Some(style.code.families)
                                 fontSize = Some(style.code.fontSize)

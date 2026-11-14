@@ -7,7 +7,8 @@ internal struct MdDisplayFlags(
     val emphasis: Boolean = false,
     val strike: Boolean = false,
     val code: Boolean = false,
-    val link: Boolean = false
+    val link: Boolean = false,
+    val syntax: MarkdownCodeKind? = None
 )
 
 internal enum MdDisplayAction {

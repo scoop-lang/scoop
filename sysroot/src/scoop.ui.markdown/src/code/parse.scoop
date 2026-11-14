@@ -1,0 +1,195 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal class MdCodeBlock(
+    val node: MarkdownNode,
+    val language: String,
+    val body: MarkdownText,
+    val spans: Array<MarkdownCodeSpan> = [],
+    val successful: Boolean = false
+)
+
+/** Runs only with immutable parse inputs on the serialized background worker. */
+internal fun mdHighlightCode(
+    parsed: ParsedMarkdown,
+    provider: MarkdownCodeHighlighter?,
+    previous: MarkdownCodeHighlights?
+): MarkdownCodeHighlights {
+    val highlighter = provider ?: return MarkdownCodeHighlights(parsed.snapshot, [], [], [], None)
+    val inputs = ArrayList<MdCodeBlock>()
+    for (node in parsed.nodes())
+        when (node.content) {
+            case MarkdownContent.CodeBlock(_, val info, val body) ->
+            inputs.add(MdCodeBlock(node, mdCodeLanguage(info.text), body))
+            else -> Unit
+        }
+    val old =
+        when (previous) {
+            case Some(val value) -> when (value.highlighter) {
+                case Some(val prior) -> if (prior === highlighter)
+                    value.blocks
+                else
+                    []
+                case None -> []
+            }
+            case None -> []
+        }
+    var prefix = 0L
+    while (prefix < inputs.size && prefix < old.size && mdCodeSame(inputs[prefix], old[prefix]))
+        prefix += 1L
+    var suffix = 0L
+    while (
+        suffix <
+            inputs.size -
+            prefix &&
+            suffix <
+            old.size -
+            prefix &&
+            mdCodeSame(inputs[inputs.size - suffix - 1L], old[old.size - suffix - 1L])
+    )
+        suffix += 1L
+    val blocks = ArrayList<MdCodeBlock>()
+    val source = ArrayList<MarkdownCodeSpan>()
+    val diagnostics = ArrayList<MarkdownDiagnostic>()
+    for (index in 0L ..< inputs.size) {
+        val input = inputs[index]
+        val reused =
+            if (index < prefix)
+                Some(old[index])
+            else
+                if (index >= inputs.size - suffix)
+                    Some(old[old.size - inputs.size + index])
+                else
+                    None
+        val block =
+            when (reused) {
+                case Some(val value) -> MdCodeBlock(
+                    input.node,
+                    input.language,
+                    input.body,
+                    value.spans,
+                    true
+                )
+                case None -> {
+                    try {
+                        val spans = highlighter.highlight(input.language, input.body.text).toArray()
+                        mdCodeValidate(input.body.text, spans)
+                        MdCodeBlock(input.node, input.language, input.body, spans, true)
+                    } catch (failure: Throwable) {
+                        diagnostics.add(
+                            MarkdownDiagnostic(
+                                input.node.range,
+                                "Code highlighting failed for '" +
+                                    input.language +
+                                    "': " +
+                                    (
+                                        if (failure is Exception)
+                                            failure.message ?: "Highlighter failed"
+                                        else
+                                            "Highlighter failed"
+                                    )
+                            )
+                        )
+                        input
+                    }
+                }
+            }
+        blocks.add(block)
+        mdCodeMapSource(block, source)
+    }
+    return MarkdownCodeHighlights(
+        parsed.snapshot,
+        source.toArray(),
+        diagnostics.toArray(),
+        blocks.toArray(),
+        provider
+    )
+}
+
+private fun mdCodeSame(input: MdCodeBlock, old: MdCodeBlock): Boolean =
+    old.successful && input.language == old.language && input.body.text == old.body.text
+
+private fun mdCodeValidate(text: String, spans: Array<MarkdownCodeSpan>) {
+    var end = 0L
+    for (span in spans) {
+        if (span.range.start < end || span.range.end <= span.range.start)
+            throw IllegalArgumentException(
+                Some("Code highlight spans must be nonempty, ordered and nonoverlapping")
+            )
+        mdDisplayCheckOffset(text, span.range.start)
+        mdDisplayCheckOffset(text, span.range.end)
+        end = span.range.end
+    }
+}
+
+/** Split each token at mapped body boundaries so list and quote prefixes retain their own color. */
+private fun mdCodeMapSource(block: MdCodeBlock, output: ArrayList<MarkdownCodeSpan>) {
+    var index = 0L
+    for (span in block.spans) {
+        while (
+            index <
+                block.body.spans.size &&
+                block.body.spans[index].textRange.end <=
+                span.range.start
+        )
+            index += 1L
+        var cursor = index
+        while (cursor < block.body.spans.size) {
+            val mapped = block.body.spans[cursor]
+            if (mapped.textRange.start >= span.range.end)
+                break
+            val start =
+                if (span.range.start > mapped.textRange.start)
+                    span.range.start
+                else
+                    mapped.textRange.start
+            val end =
+                if (span.range.end < mapped.textRange.end)
+                    span.range.end
+                else
+                    mapped.textRange.end
+            val literal = mapped.mapping == MarkdownTextMapping.Literal
+            val a =
+                if (literal)
+                    mapped.sourceRange.start + start - mapped.textRange.start
+                else
+                    mapped.sourceRange.start
+            val b =
+                if (literal)
+                    mapped.sourceRange.start + end - mapped.textRange.start
+                else
+                    mapped.sourceRange.end
+            // Several display spans can share one normalized source tab; color it once.
+            val last =
+                if (output.size == 0L)
+                    0L
+                else
+                    output[output.size - 1L].range.end
+            val first =
+                if (a < last)
+                    last
+                else
+                    a
+            if (first < b)
+                output.add(MarkdownCodeSpan(MarkdownRange(first, b), span.kind))
+            cursor += 1L
+        }
+    }
+}
+
+internal fun MarkdownCodeHighlights.tokens(node: MarkdownNode): Array<MarkdownCodeSpan> {
+    var low = 0L
+    var high = blocks.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (blocks[middle].node.range.start < node.range.start)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return if (low < blocks.size && blocks[low].node.id === node.id)
+        blocks[low].spans
+    else
+        []
+}

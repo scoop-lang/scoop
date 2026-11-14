@@ -61,6 +61,12 @@ editor.close()
 
 `status` 是可追踪的 Idle／Pending／Ready／Failed／Closed 状态。`current` 只返回当前已完成的解析，`latest` 还可保留正在更新前的显示结果；过期结果不能用于结构编辑。`MarkdownParsedDocument.source` 是原文解析，`preview` 是可选的展开解析，`processed` 保留依赖、诊断与来源映射。结构修改使用 `source`，生成内容保持只读。
 
+代码高亮随同一次后台解析生成，默认 `MarkdownDefaultCodeHighlighter` 使用纯 Scoop 和 scoop.regex，覆盖 Scoop、Kotlin、C／C++、Rust、Shell、JSON、TOML、Python、JavaScript／TypeScript、YAML 和 SQL。它基于 [Prism 词法规则](src/code/README.md)，未知语言完整显示原文。`MarkdownParseOptions(codeHighlighter = None)` 关闭高亮；自定义 `MarkdownCodeHighlighter.highlight(language, code)` 返回有序、不重叠的 `MarkdownCodeSpan`，范围使用代码字符串的 UTF-8 字节，颜色类别为 `MarkdownCodeKind`。提供器只在串行后台工作中调用，须保持配置不可变或自行同步，不读 UI State；同一提供器下未改动代码块复用结果，失败或非法范围只使该块恢复普通文字。
+
+`parsed.sourceHighlights` 与 `previewHighlights` 分别绑定原始和展开快照，提供 spans、diagnostics 和 `intersect(range)`。无展开时它们共用同一结果。三模式与局部源码面自动借用当前原文高亮；独立源码视图传入 `markdownSourceEditor(editor, highlights = controller.current?.sourceHighlights)`，自绘宿主在 `update` 中传入 highlights。过期快照的颜色不套用到新正文。`MarkdownPreviewStyle.codeTheme` 与 `MarkdownSourceStyle.codeTheme` 接收 `MarkdownCodeTheme.Light`、`.Dark` 或自定义调色板，只改变颜色，保持文字、Tab 映射、选区和历史。
+
+局部代码源码面提供 Language / info 字段、Apply、Copy code 和 Done；Enter 同样提交完整信息，Copy code 仅复制解析后的正文。提交沿文档 Cone 的 setCodeInfo 进入共享历史，未知语言和属性允许原样编辑，撤销恢复原围栏与信息。后台解析等待只禁用 Apply，保留正文输入及语言字段中的原生组合；外部信息已变而草稿尚未提交时显示提示，防止覆盖新值。
+
 控制器最多执行一项后台解析、保存一份最新待处理快照和一个待交付结果；通过 ApplicationProxy 在 owner 发布，选区及保存状态变化不重解析。资源通知后显式 `refresh()`，配置变化用 `configure()`。处理器和 resolver 的方法由工作线程串行调用，其实现不应读写 UI State。语法扩展也会由局部结构编辑在 owner 调用；`MarkdownExtension.parse` 只处理输入，共用实例使用不可变配置或同步内部状态。处理错误进入对应请求的 Failed，下一次输入或刷新仍可恢复。
 
 关闭控制器会停止订阅及后续交付，不等待运行中的解析，不关闭借用的 editor／document／executor。应用在自己的退出收尾中 shutdown／join 线程池；投递被拒绝或应用关闭后丢弃消息，后台任务仍会完成登记和清理。`tests/parse.scoop` 在真实工作线程与原生应用消息循环中验证合并、过期结果、错误恢复、资源刷新和这条关闭路径。

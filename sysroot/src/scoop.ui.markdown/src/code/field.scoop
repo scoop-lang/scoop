@@ -1,0 +1,156 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.max
+import scoop.ui.*
+import scoop.ui.text.*
+
+private class MdCodeFieldProps(
+    val input: MdRichProps,
+    val region: MarkdownSourceRegion,
+    val session: MdRichSourceSession,
+    val message: String
+)
+
+internal fun mdCodeInfoField(
+    input: MdRichProps,
+    region: MarkdownSourceRegion,
+    session: MdRichSourceSession
+): View =
+    element(
+        MdCodeFieldProps(input, region, session, session.code.message.value),
+        { props, scope -> MdCodeField(props, scope) }
+    )
+
+private class MdCodeFieldLayout(
+    val caption: ParagraphMeasurement,
+    val body: TextEditMeasurement
+): Closeable {
+    val top: Double get() = caption.metrics.size.height + 6.0
+    public override fun close() {
+        caption.close()
+        body.close()
+    }
+}
+
+/** Reuses the UI text host for native IME, selection, clipboard, focus and horizontal scrolling. */
+private class MdCodeField(val props: Props<MdCodeFieldProps>, scope: ComponentScope): Element<
+    MdCodeFieldLayout
+>(scope) {
+    private val text =
+        textStyle {
+            fontSize = 13.0;
+            families = ["monospace"]
+        }
+    private val hint =
+        textStyle {
+            fontSize = 13.0;
+            color = Color(0.45, 0.48, 0.52)
+        }
+    private val caption = scope.resource { ParagraphHost() }
+    private val key = PaintKey()
+    private var generation = 0L
+    private val host =
+        scope.resource {
+            TextEditHost(scope, props.value.session.code.info, appearance(), options())
+        }
+
+    private fun appearance(): TextEditAppearance =
+        TextEditAppearance(props.value.input.fonts ?: scope.defaultFonts, text, hint)
+
+    private fun options(): TextEditOptions =
+        TextEditOptions(
+            wrap = false,
+            readOnly = props.value.input.readOnly,
+            enabled = props.value.input.options.enabled
+        )
+
+    public override fun onMount() {
+        update()
+    }
+
+    public override fun update(): UiInvalidation {
+        val value = props.value
+        host.update(
+            value.session.code.info,
+            appearance(),
+            options(),
+            placeholder = "Plain text or language and attributes",
+            onSubmit = { _ -> value.session.code.apply(value.input, value.region, value.session) }
+        )
+        return UiInvalidation.Layout
+    }
+
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MdCodeFieldLayout
+    > {
+        val value = props.value
+        val width = constraints.maxWidth ?: 240.0
+        val hintStyle = hint
+        val title =
+            caption.measure(
+                context,
+                Constraints(maxWidth = Some(max(0.0, width - 12.0))),
+                value.input.fonts ?: scope.defaultFonts,
+                styledText {
+                    text(
+                        if (value.message == "")
+                            "Language / info"
+                        else
+                            value.message
+                    )
+                    style = hintStyle
+                }
+            )
+        try {
+            val body =
+                host.measure(
+                    Constraints(
+                        minWidth = max(0.0, width - 12.0),
+                        maxWidth = Some(max(0.0, width - 12.0)),
+                        minHeight = 22.0,
+                        maxHeight = Some(22.0)
+                    )
+                )
+            val layout = MdCodeFieldLayout(title, body)
+            generation += 1L
+            return LayoutResult(
+                LayoutMetrics(
+                    constraints.constrain(Size(width, layout.top + body.metrics.size.height + 6.0))
+                ),
+                layout,
+                { layout.close() }
+            )
+        } catch (failure: Throwable) {
+            title.close()
+            throw failure
+        }
+    }
+
+    public override fun scene(context: SceneContext, layout: MdCodeFieldLayout) {
+        val bounds =
+            Rect(0.0, layout.top - 3.0, context.size.width, layout.body.metrics.size.height + 6.0)
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                bounds,
+                Paint(
+                    if (host.area.isFocusActive)
+                        Color(0.88, 0.93, 1.0)
+                    else
+                        Color(0.94, 0.95, 0.97)
+                )
+            )
+        }
+        context.withState {
+            title ->
+            title.translate(6.0, 0.0)
+            title.drawTextLayout(key, layout.caption.layout, generation)
+        }
+        context.withState {
+            body ->
+            body.translate(6.0, layout.top)
+            host.scene(body, layout.body)
+        }
+    }
+}

@@ -160,7 +160,7 @@ private class MarkdownRichStructureTests {
                     fixture.editor.document.parse(),
                     None,
                     MarkdownParseOptions(),
-                    Some(fixture.model.display)
+                    Some(fixture.model)
                 )
             assertTrue(
                 when (mdRichLocate(completed, local.content!!)) {

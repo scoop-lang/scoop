@@ -326,3 +326,20 @@ RichInput、RichHost 和 viewState 提供行内代码状态、命令和后续输
 最终原生格式窗口 56 步通过，约 2.60 秒；链接／图片窗口 35 步通过，约 1.94 秒；既有富文本 61 步回归通过，约 3.01 秒；局部源码 35 步回归通过，约 0.99 秒。全部通过 scoop test 构建、scoop bundle 与 Launch Services 启动独立进程，核对 begin／end／complete 和空 failures。覆盖真实快捷键和工具栏键盘导航、面板原生字段、一次撤销、取消、恢复焦点、草稿失效、只读，以及接受原生组合后退休连接并继续编辑；宿主最终拒绝路径和面板收尾也在这些窗口中验证。
 
 公开 API 生成及 setCode、MarkdownTargetDraft、canEditTarget、applyTarget、replaceImage 查询通过。规范、设计、库 README、编辑器示例、原生复现说明及编程导航（含本机工具链副本）同步。本批无编译器、runtime 或系统库修改；原始日志、临时应用包与 API 站点核对后清理，正常构建缓存保留。代码语言选择／高亮、其他块操作入口、查找替换和最终 1／5 MiB 综合性能验收继续实施。
+
+
+## C：代码块语言、信息字段与语法高亮
+
+文档 Cone 提供 setCodeInfo，编辑完整单行信息字段。已有围栏仅修改必要字段与冲突定界符，保留正文、容器、换行和未闭合状态；缩进代码可转换为安全围栏，处理列表、引用、脚注、Tab 与 CRLF。相同解码信息保留原拼写，逆向事务恢复精确源码。转换只替换实际代码缩进及节点内容，不改同一行的祖先标记。
+
+UI 增加 MarkdownCodeHighlighter／MarkdownCodeSpan／MarkdownCodeKind。默认纯 Scoop 实现复用 scoop.regex，以 Prism 的 MIT 词法规则为参考，覆盖 Scoop、Kotlin、C／C++、Rust、Shell、JSON、TOML、Python、JavaScript／TypeScript、YAML、SQL 及常见别名。它提供平坦词法颜色，字符串插值等细分语义可由宿主提供器扩展；未知语言仍显示完整原文。高亮仅在串行后台解析阶段调用，未变化代码块按提供器身份、语言和实际正文复用，接收结果时检查必要的 UTF-8 范围；失败仅产生该块诊断和普通文字回退。
+
+原始与展开文档各有绑定 snapshot 的 sourceHighlights／previewHighlights，无展开时共用结果。映射逐段避开列表／引用前缀，Tab 沿既有 TextDisplay 处理。预览、三模式源码和局部源码共用颜色数据，独立 Source View／Host 可传 highlights；过期结果不染色新正文。MarkdownCodeTheme 提供 Light、Dark 与自定义颜色，不改变文字、字体度量、选区或历史。
+
+局部代码面提供原生 Language / info 字段、Apply、Copy code 和 Done。Enter 与 Apply 提交普通文档事务；Copy code 仅复制正文；提交后恢复源码焦点。字段草稿在正文修改与后台解析期间保留，包括尚未提交的原生组合；等待只禁用结构提交。外部信息改变而草稿已编辑时显示冲突提示，不覆盖新信息。非代码扩展沿用局部源码面。
+
+使用 ~/.scoop 完成 fmt、相关 check --tests --release 和示例 check。文档库全量 223 项首轮 221 项通过，修正信息字段转义预期与脚注代码样例后，4 项代码信息回归全部通过；其余实现未变。UI 库 117 项全量通过，随后 10 项代码高亮／草稿回归全部通过；独立无 UI consumer 17 项通过。6,000 行中英混合代码的两次解析与投影测试约 64.5 毫秒，正文未变时高亮器仅调用一次；这不是键入延迟或最终 1／5 MiB 综合基线。
+
+最终局部源码原生窗口 54 步通过，约 1.48 秒；富文本 61 步约 3.07 秒、格式 56 步约 2.57 秒、链接／图片 35 步约 1.95 秒均通过。窗口以 scoop test 构建、scoop bundle 和 Launch Services 串行启动，核对 begin／end／complete 与空 failures，剪贴板恢复原内容。验收修复了未变化显示状态反复通知造成的布局等待，并确保后台更新不取消语言字段的 IME；源码 Shift-Tab 按既有取消缩进语义验证，工具栏从字段通过 Tab／Space 操作。
+
+公开 API 严格生成及 setCodeInfo、MarkdownCodeHighlighter、sourceHighlights 查询通过；规范、设计、README、编辑器说明、原生复现说明、Prism 许可及编程导航同步。本批没有编译器或 runtime 修改。原始日志、临时应用包和 API 站点在核对后清理，正常构建缓存保留。其他块操作入口、查找替换、文档导航与最终 1／5 MiB 综合性能验收继续实施。

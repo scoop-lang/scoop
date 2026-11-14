@@ -1,0 +1,47 @@
+package scoop.ui.markdown
+
+import scoop.graphics.Color
+
+/** Code decorations only change foreground colors, preserving caret and layout geometry. */
+public class MarkdownCodeTheme public constructor(
+    public val comment: Color = Color(0.39, 0.44, 0.49),
+    public val string: Color = Color(0.04, 0.39, 0.23),
+    public val keyword: Color = Color(0.54, 0.16, 0.62),
+    public val number: Color = Color(0.63, 0.30, 0.10),
+    public val type: Color = Color(0.03, 0.40, 0.49),
+    public val function: Color = Color(0.12, 0.30, 0.68),
+    public val property: Color = Color(0.48, 0.23, 0.10),
+    public val operatorColor: Color = Color(0.36, 0.37, 0.40),
+    public val constant: Color = Color(0.64, 0.20, 0.17),
+    public val annotation: Color = Color(0.45, 0.34, 0.05)
+) {
+    public fun color(kind: MarkdownCodeKind): Color =
+        when (kind) {
+            case MarkdownCodeKind.Comment -> comment
+            case MarkdownCodeKind.String -> string
+            case MarkdownCodeKind.Keyword -> keyword
+            case MarkdownCodeKind.Number -> number
+            case MarkdownCodeKind.Type -> type
+            case MarkdownCodeKind.Function -> function
+            case MarkdownCodeKind.Property -> property
+            case MarkdownCodeKind.Operator -> operatorColor
+            case MarkdownCodeKind.Constant -> constant
+            case MarkdownCodeKind.Annotation -> annotation
+        }
+    public companion object {
+        public val Light: MarkdownCodeTheme = MarkdownCodeTheme()
+        public val Dark: MarkdownCodeTheme =
+            MarkdownCodeTheme(
+                comment = Color(0.57, 0.64, 0.69),
+                string = Color(0.61, 0.81, 0.56),
+                keyword = Color(0.82, 0.60, 0.89),
+                number = Color(0.92, 0.69, 0.46),
+                type = Color(0.43, 0.80, 0.81),
+                function = Color(0.49, 0.72, 0.97),
+                property = Color(0.93, 0.73, 0.54),
+                operatorColor = Color(0.75, 0.78, 0.83),
+                constant = Color(0.97, 0.57, 0.53),
+                annotation = Color(0.87, 0.79, 0.48)
+            )
+    }
+}

@@ -192,6 +192,12 @@ MarkdownInlineContent 与其 builder 提供 `setLink(range, destination, title =
 
 replaceImage 支持折叠插入和非空替换，alternate、URI 和 title 按图片语法生成；结果选中完整的 U+FFFC 图片对象，源码 selection 指向新图片，after 可继续编辑。更新已有图片保留其外层格式和链接。URI 字符串由宿主提供，文档 Cone 不保存、上传、读取或检查图片资源。非法范围、参数或失败不发布文档。
 
+### 8.8 代码块信息修改
+
+`MarkdownTransformBuilder.setCodeInfo(id, info)` 修改代码块的完整 info 字段，info 必须为单行；语言名是其中第一个空白分隔的词。已是相同解码信息时不改源码。围栏代码只替换信息行的字段，保留正文、容器、换行和未闭合状态；新信息含反引号时将反引号围栏改为足够长的波浪线围栏，避免正文中的定界符提前关闭代码块。字段按既有生成器转义，不解释其中的属性或指令。
+
+缩进代码设置非空信息时转换为围栏代码，保留解析后的代码文字、所在列表／引用／脚注容器、当地换行风格与区外源码。必要的代码缩进和围栏采用规范化写法。所有修改通过同一个源码事务发布，逆向事务恢复原始字节；非代码节点、非法范围或多行信息在发布前失败。
+
 ## 9. 扩展语法
 
 `MarkdownProfile` 保存 GFM 开关、math／frontMatter／footnotes 开关及有序的 `MarkdownExtension` 注册。CommonMark 和 Gfm 保持原有语法，Editor 开启 GFM、公式、front matter 与脚注；mdBook 指令由调用方显式注册。配置及扩展的解析行为在 profile 生命周期中保持不变，改变配置时创建新 profile。解析缓存比较开关与注册对象及顺序，不以扩展名称猜测两个不同处理器等价。

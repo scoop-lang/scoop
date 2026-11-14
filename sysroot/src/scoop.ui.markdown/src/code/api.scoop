@@ -1,0 +1,79 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** Lexical decorations change colors only; they do not change code text or editing semantics. */
+public enum MarkdownCodeKind {
+    Comment, String, Keyword, Number, Type, Function, Property, Operator, Constant, Annotation
+}
+
+/** A nonempty UTF-8 range relative to the supplied code string. */
+public struct MarkdownCodeSpan(val range: MarkdownRange, val kind: MarkdownCodeKind)
+
+/** Called on serialized background parse work. Results must be ordered and nonoverlapping. */
+public interface MarkdownCodeHighlighter {
+    public fun highlight(language: String, code: String): List<MarkdownCodeSpan>
+}
+
+/** Immutable source decorations for exactly one snapshot, including code inside containers. */
+public class MarkdownCodeHighlights internal constructor(
+    public val snapshot: MarkdownSnapshot,
+    public val spans: Array<MarkdownCodeSpan>,
+    public val diagnostics: Array<MarkdownDiagnostic>,
+    internal val blocks: Array<MdCodeBlock>,
+    internal val highlighter: MarkdownCodeHighlighter?
+) {
+    /** Returns intersecting spans in absolute source coordinates, excluding out-of-range bytes. */
+    public fun intersect(range: MarkdownRange): Array<MarkdownCodeSpan> {
+        snapshot.chunks(range)
+        if (range.isEmpty)
+            return []
+        var index = mdCodeSpanAt(spans, range.start)
+        val result = ArrayList<MarkdownCodeSpan>()
+        while (index < spans.size) {
+            val span = spans[index]
+            if (span.range.start >= range.end)
+                break
+            result.add(
+                MarkdownCodeSpan(
+                    MarkdownRange(
+                        if (span.range.start < range.start)
+                            range.start
+                        else
+                            span.range.start,
+                        if (span.range.end > range.end)
+                            range.end
+                        else
+                            span.range.end
+                    ),
+                    span.kind
+                )
+            )
+            index += 1L
+        }
+        return result.toArray()
+    }
+}
+
+internal fun mdCodeSpanAt(spans: Array<MarkdownCodeSpan>, offset: Long): Long {
+    var low = 0L
+    var high = spans.size
+    while (low < high) {
+        val middle = low + (high - low) / 2L
+        if (spans[middle].range.end <= offset)
+            low = middle + 1L
+        else
+            high = middle
+    }
+    return low
+}
+
+internal fun mdCodeLanguage(info: String): String {
+    val output = StringBuilder()
+    for (character in info) {
+        if (character == ' ' || character == '\t' || character == '\r' || character == '\n')
+            break
+        output.append(character)
+    }
+    return output.toString()
+}

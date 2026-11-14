@@ -1,0 +1,179 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownCodeProjectionTests {
+    @Test
+    fun previewAndSourceShareTokensWithoutColoringQuotePrefixesOrSplittingUnicode() {
+        val source = "> ```scoop\r\n> val 雪 = 42L\r\n> \t// 中\r\n> ```\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val model = MarkdownParsedDocument(document.parse(), None, MarkdownParseOptions())
+        val highlights = model.sourceHighlights
+        assertEquals(0L, highlights.diagnostics.size)
+        assertTrue(highlights.spans.size > 0L)
+        for (span in highlights.spans)
+            assertFalse(document.snapshot().read(span.range).contains(">"))
+        val line = document.snapshot().lineRange(1L)
+        val tokens = highlights.intersect(line)
+        assertEquals("val", document.snapshot().read(tokens[0L].range))
+        assertEquals(MarkdownCodeKind.Keyword, tokens[0L].kind)
+        val display = model.display.rows[0L].cells[0L]
+        assertEquals("val 雪 = 42L", display.text)
+        assertEquals(Some(MarkdownCodeKind.Keyword), display.runs[0L].flags.syntax)
+        val position = display.sourceAt(display.runs[0L].range.start).byteOffset
+        assertEquals(tokens[0L].range.start, position)
+        val raw = document.snapshot().read(document.snapshot().lineRange(2L))
+        val projected = mdSourceDisplay(raw, 4)
+        val colors =
+            mdCodeSourceLine(
+                Some(highlights),
+                document.snapshot(),
+                document.snapshot().lineRange(2L)
+            )
+        val styled = mdCodeStyledText(projected, textStyle(), MarkdownCodeTheme.Dark, colors)
+        assertEquals(projected.text, styled.text)
+        assertTrue(styled.spans.size > 1L)
+        document.replace(MarkdownRange(0L, 0L), "Header\n\n")
+        assertEquals(
+            0L,
+            mdCodeSourceLine(
+                Some(highlights),
+                document.snapshot(),
+                document.snapshot().lineRange(3L)
+            ).size
+        )
+        assertEquals(0L, highlights.intersect(MarkdownRange(line.start + 2L, line.start + 2L)).size)
+        assertFailsWith<IllegalArgumentException> { highlights.intersect(MarkdownRange(0L, -1L)) }
+    }
+
+    @Test
+    fun expandedCodeHasSeparateSourceCoordinatesAndNeverDecoratesTheDirective() {
+        val options =
+            MarkdownParseOptions(
+                profile = MarkdownProfile(extensions = [mdBookDirectives()]),
+                expansion =
+                    Some(
+                        MarkdownExpansionOptions(
+                            "book/root.md",
+                            MdCodeIncludeResolver(),
+                            [mdBookProcessor()]
+                        )
+                    )
+            )
+        val document = MarkdownDocument.fromText("{{#include code.md}}\n")
+        val model = MdParseEngine().parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(0L, model.sourceHighlights.spans.size)
+        assertTrue(model.previewHighlights.spans.size > 0L)
+        assertSame(model.snapshot, model.sourceHighlights.snapshot)
+        assertSame(model.preview.snapshot, model.previewHighlights.snapshot)
+        assertEquals("val x = 42", model.display.rows[0L].cells[0L].text)
+        assertEquals(
+            Some(MarkdownCodeKind.Keyword),
+            model.display.rows[0L].cells[0L].runs[0L].flags.syntax
+        )
+    }
+
+    @Test
+    fun codeLinesRemainVirtualRowsAndAProseEditDoesNotRescanLargeCode() {
+        val provider = MdCountingHighlighter()
+        val options = MarkdownParseOptions(codeHighlighter = Some(provider))
+        val source = "Head\n\n```scoop\n" + "val entry = \"中\" // value\n".repeat(6000L) + "```\n"
+        val document = MarkdownDocument.fromText(source)
+        val engine = MdParseEngine()
+        val first = engine.parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(6001L, first.display.rows.size)
+        assertEquals(1L, provider.calls)
+        assertEquals(0L, first.sourceHighlights.diagnostics.size)
+        document.replace(MarkdownRange(0L, 4L), "New head")
+        val after = engine.parse(MdParseRequest(document.snapshot(), options))
+        assertEquals(1L, provider.calls)
+        assertSame(first.display.rows[100L].key, after.display.rows[100L].key)
+        assertEquals(first.sourceHighlights.spans.size, after.sourceHighlights.spans.size)
+    }
+}
+
+private class MdCodeIncludeResolver: MarkdownResourceResolver {
+    public override fun resolve(baseUri: String, reference: String): String = "book/" + reference
+    public override fun version(uri: String): String? = Some("1")
+    public override fun read(uri: String): MarkdownResourceData =
+        MarkdownResourceData("```scoop\nval x = 42\n```\n", "1")
+}
+
+@Test
+private class MarkdownCodeDraftTests {
+    @Test
+    fun bodyEditsRetainAnInfoDraftAndExternalInfoChangesCannotBeOverwrittenSilently() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("```scoop\nval x = 1\n```\n"))
+        val region = MarkdownSourceRegion(editor, MarkdownRange(0L, editor.snapshot.byteLength))
+        try {
+            val draft = MdCodeSourceState()
+            val options = MarkdownParseOptions()
+            draft.synchronize(
+                Some(MarkdownParsedDocument(editor.document.parse(), None, options)),
+                region
+            )
+            assertTrue(draft.visible.value)
+            assertEquals("scoop", draft.info.text)
+            draft.info.replaceAll("rust {title=example}")
+            editor.replace(MarkdownRange(16L, 17L), "2")
+            draft.synchronize(
+                Some(MarkdownParsedDocument(editor.document.parse(), None, options)),
+                region
+            )
+            assertEquals("rust {title=example}", draft.info.text)
+            assertEquals("", draft.message.value)
+            val parsed = editor.document.parse()
+            editor.transform(parsed) { setCodeInfo(parsed.root.children[0L].id, "kotlin") }
+            draft.synchronize(
+                Some(MarkdownParsedDocument(editor.document.parse(), None, options)),
+                region
+            )
+            assertEquals("rust {title=example}", draft.info.text)
+            assertTrue(draft.message.value.byteLength > 0L)
+            draft.reset()
+            draft.synchronize(
+                Some(MarkdownParsedDocument(editor.document.parse(), None, options)),
+                region
+            )
+            assertEquals("kotlin", draft.info.text)
+            val before = editor.document.parse()
+            editor.transform(before) { setCodeInfo(before.root.children[0L].id, "c") }
+            draft.synchronize(
+                Some(MarkdownParsedDocument(editor.document.parse(), None, options)),
+                region
+            )
+            assertEquals("c", draft.info.text)
+            assertEquals("", draft.message.value)
+        } finally {
+            region.close()
+            editor.close()
+        }
+    }
+
+    @Test
+    fun indentedCodeConversionKeepsTheLocalRegionUsableAcrossUndo() {
+        val editor = MarkdownEditorState(MarkdownDocument.fromText("> -     code\n>       more\n"))
+        val initial = editor.document.parse()
+        val node = initial.root.children[0L].children[0L].children[0L].children[0L]
+        val region = MarkdownSourceRegion(editor, node.range)
+        try {
+            editor.transform(initial) { setCodeInfo(node.id, "scoop") }
+            val current =
+                MarkdownParsedDocument(editor.document.parse(), None, MarkdownParseOptions())
+            assertEquals("scoop", mdSourceCode(Some(current), region)!!.info)
+            assertEquals("code\nmore\n", mdSourceCode(Some(current), region)!!.body)
+            editor.undo()
+            val undone =
+                MarkdownParsedDocument(editor.document.parse(), None, MarkdownParseOptions())
+            assertEquals("", mdSourceCode(Some(undone), region)!!.info)
+            assertEquals("> -     code\n>       more\n", editor.document.toMarkdown())
+        } finally {
+            region.close()
+            editor.close()
+        }
+    }
+}

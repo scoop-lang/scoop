@@ -1,0 +1,71 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.regex.*
+import scoop.text.*
+
+/** Flat lexical rules adapted from Prism. See licenses/prism.txt and src/code/README.md. */
+public class MarkdownDefaultCodeHighlighter public constructor(): MarkdownCodeHighlighter {
+    public override fun highlight(language: String, code: String): List<MarkdownCodeSpan> {
+        val rules = mdCodeRules(language.lowercaseAscii())
+        if (rules.size == 0L || code == "")
+            return []
+        val pattern = StringBuilder()
+        for (index in 0L ..< rules.size) {
+            if (index > 0L)
+                pattern.append('|')
+            pattern.append("(?<t").append(index).append('>').append(rules[index].pattern).append(
+                ')'
+            )
+        }
+        val result = ArrayList<MarkdownCodeSpan>()
+        val bytes = code.toByteArray()
+        Regex(pattern.toString()).use {
+            regex ->
+            var scalar = 0L
+            var byteOffset = 0L
+            for (match in regex.findAll(code)) {
+                while (scalar < match.range.start) {
+                    byteOffset += mdCodeScalarWidth(bytes[byteOffset])
+                    scalar += 1L
+                }
+                val start = byteOffset
+                while (scalar < match.range.endExclusive) {
+                    byteOffset += mdCodeScalarWidth(bytes[byteOffset])
+                    scalar += 1L
+                }
+                for (index in 0L ..< rules.size) {
+                    when (match.groups["t" + index.toString()]) {
+                        case Some(_) -> {
+                            result.add(
+                                MarkdownCodeSpan(
+                                    MarkdownRange(start, byteOffset),
+                                    rules[index].kind
+                                )
+                            )
+                            break
+                        }
+                        case None -> Unit
+                    }
+                }
+            }
+        }
+        return result.toArray()
+    }
+}
+
+private fun mdCodeScalarWidth(byte: Byte): Long {
+    val value = byte.toInt().and(255)
+    return if (value < 128)
+        1L
+    else
+        if (value < 224)
+            2L
+        else
+            if (value < 240)
+                3L
+            else
+                4L
+}
+
+internal class MdCodeRule(val kind: MarkdownCodeKind, val pattern: String)

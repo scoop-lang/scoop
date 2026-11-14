@@ -15,7 +15,8 @@ public class MarkdownSourceStyle public constructor(
     public val selection: Color = Color(0.25, 0.48, 0.95, 0.3),
     public val inactiveSelection: Color = Color(0.4, 0.4, 0.4, 0.2),
     public val caret: Color = Color.Black,
-    public val marked: Color = Color(0.2, 0.4, 0.8)
+    public val marked: Color = Color(0.2, 0.4, 0.8),
+    public val codeTheme: MarkdownCodeTheme = MarkdownCodeTheme.Light
 )
 
 public struct MarkdownSourceOptions(

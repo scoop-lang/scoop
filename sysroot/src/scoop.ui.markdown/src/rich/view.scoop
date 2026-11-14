@@ -119,7 +119,7 @@ private class MdRichElement(
     }
     public override fun update(): UiInvalidation {
         val value = props.value
-        source.bind(value.controller.editor)
+        source.bind(value.controller.editor, value.controller.current)
         val requestedFocus = value.focus
         source.returnFocus = requestedFocus.handle ?: source.richFocus
         host.update(
@@ -139,7 +139,11 @@ private class MdRichElement(
             {
                 range -> when (value.source) {
                     case Some(val handler) -> handler(range)
-                    case None -> source.open(value.controller.editor, range)
+                    case None -> source.open(
+                        value.controller.editor,
+                        range,
+                        value.controller.current
+                    )
                 }
             },
             value.images,
