@@ -21,12 +21,24 @@ public fun MarkdownTransformBuilder.setTableCell(
         "Markdown table cell is out of range"
     )
     val line = table.children[row]
-    val cell = line.children[column]
     val value = mdWriteInlines(mdCollectInlines(configure), true, true)
+    val source = mdTableCellWrite(snapshot, line, column, value)
+    replace(source.replacement.range, source.replacement.text)
+}
+
+internal class MdTableCellWrite(val replacement: MarkdownReplacement, val contentStart: Long)
+
+internal fun mdTableCellWrite(
+    snapshot: MarkdownSnapshot,
+    line: MarkdownNode,
+    column: Long,
+    value: String
+): MdTableCellWrite {
+    val cell = line.children[column]
     val input = mdSourceInput(snapshot, line.range).trim()
     val cells = mdTableCells(input)
     if (column < cells.size)
-        replace(cell.range, value)
+        return MdTableCellWrite(MarkdownReplacement(cell.range, value), cell.range.start)
     else {
         val output = StringBuilder()
         val last = input.size - 1L
@@ -35,14 +47,20 @@ public fun MarkdownTransformBuilder.setTableCell(
             slashes += 1L
         if (input.at(last) != 124 || slashes % 2L != 0L)
             output.append(" |")
+        var contentOffset = 0L
         for (index in cells.size .. column) {
             output.append(' ')
-            if (index == column)
+            if (index == column) {
+                contentOffset = output.toString().byteLength
                 output.append(value)
+            }
             output.append(" |")
         }
         val position = input.range(input.size, input.size).start
-        replace(MarkdownRange(position, position), output.toString())
+        return MdTableCellWrite(
+            MarkdownReplacement(MarkdownRange(position, position), output.toString()),
+            position + contentOffset
+        )
     }
 }
 

@@ -25,6 +25,8 @@ editor.close()
 
 选区使用 UTF-8 字节位置并保留方向与端点偏向。`replace`／`apply`／`transform` 都写入同一个借用文档；普通外部 Edit 也进入历史，Reset 清空历史。`Typing`／`Backspace`／`Delete` 只合并连续位置的同类输入，选区命令与结构事务结束合并。连续输入按片段保存历史，仅在 undo／redo 时拼接改动内容。
 
+文档库的 `parsed.inlineContent(nodeId).replaceText(...)`／`setStyle(...)` 返回准备好的 `MarkdownInlineEdit`。把结果交给 `editor.apply(prepared, reversed = false)`，源码差量与修改后的选区会进入同一个历史项；reversed 可保留反向选择。准备结果携带当前文档身份和 revision，不能应用到别的文档或新 revision。普通源码输入、语义命令与后续 undo／redo 共用历史。
+
 状态绑定创建线程，通过现有 `State` 参与 UI 读取追踪。编辑前检查 owner 和 UI 修改时机；关闭释放订阅与历史，不关闭文档。`markSaved(revision)` 只记录宿主实际保存完成的 revision；较旧的保存完成不会把后续修改标成已保存。
 
 `MarkdownSourceInput(editor, contextBytes = 4096L)` 为窗口输入准备局部 `TextInputState`，包含完整选区与左右上下文。`sourceRange` 明确片段与全文的坐标关系；`apply(TextInputBatch)` 先校验整个批次，再通过一次源码事务发布。它不持有窗口，宿主仍负责原生 connection／origin 和已接受帧的 caret 几何。`synchronize()` 返回 true 时必须退休旧连接后再发布新映射；组合期间不移动片段边界。

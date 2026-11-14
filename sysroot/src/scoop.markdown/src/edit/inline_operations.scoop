@@ -1,0 +1,180 @@
+package scoop.markdown
+
+import scoop.text.*
+
+private fun mdInlineImplicitLink(link: MdInlineLink?): Boolean =
+    when (link?.target?.style) {
+        case Some(MarkdownLinkStyle.Autolink) -> true
+        case Some(MarkdownLinkStyle.CollapsedReference) -> true
+        case Some(MarkdownLinkStyle.ShortcutReference) -> true
+        else -> false
+    }
+
+/** Delimiter flanking depends on physical source, including escapes and entity semicolons. */
+private fun mdInlineEdgesStable(before: String, after: String): Boolean {
+    val old = before.toCharArray()
+    val next = after.toCharArray()
+    val oldEdges = [old[0L].toString(), old[old.size - 1L].toString()]
+    val newEdges = [next[0L].toString(), next[next.size - 1L].toString()]
+    if (oldEdges[0L] == newEdges[0L] && oldEdges[1L] == newEdges[1L])
+        return true
+    val syntax = MdSyntax()
+    try {
+        for (index in 0L ..< 2L) {
+            if (oldEdges[index].isBlank() != newEdges[index].isBlank())
+                return false
+            if (syntax.isPunctuation(oldEdges[index]) != syntax.isPunctuation(newEdges[index]))
+                return false
+        }
+        return true
+    } finally {
+        syntax.close()
+    }
+}
+
+private fun mdInlineLeafEdit(
+    content: MarkdownInlineContent,
+    selected: MarkdownRange,
+    insertion: String,
+    unitIndex: Long,
+    caret: Long
+): MarkdownInlineEdit? {
+    if (unitIndex < 0L)
+        return None
+    val unit = content.model.units[unitIndex]
+    if (mdInlineImplicitLink(unit.link))
+        return None
+    var start = 0L
+    for (index in 0L ..< unitIndex)
+        start += content.model.units[index].text.byteLength
+    if (selected.start < start || selected.end > start + unit.text.byteLength)
+        return None
+    val node = unit.node ?: return None
+    val bytes = unit.text.toByteArray()
+    val replacement =
+        mdBytesText(bytes, 0L, selected.start - start) +
+            insertion +
+            mdBytesText(bytes, selected.end - start, bytes.size)
+    if (replacement == "")
+        return None
+    val source =
+        when (unit.kind) {
+            case MdInlineUnitKind.Text -> {
+                val encoded = mdWriteLiteral(replacement, false, false)
+                if (!mdInlineEdgesStable(unit.raw, encoded))
+                    return None
+                encoded
+            }
+            case MdInlineUnitKind.Code -> mdWriteCode(replacement, mdInTable(content.parsed, node))
+            else -> return None
+        }
+    return Some(
+        mdInlinePrepared(
+            content,
+            mdInlineLeafSource(content, node, source),
+            MarkdownRange(caret, caret)
+        )
+    )
+}
+
+internal fun mdInlineReplace(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    text: String,
+    bias: MarkdownBias
+): MarkdownInlineEdit {
+    mdInlineCheckRange(content, range)
+    val index =
+        mdInlineUnitAt(
+            content,
+            range.start,
+            if (range.isEmpty)
+                bias
+            else
+                MarkdownBias.After
+        )
+    val unit =
+        if (index >= 0L)
+            Some(content.model.units[index])
+        else
+            None
+    val code = unit?.kind == Some(MdInlineUnitKind.Code)
+    val inserted =
+        (
+            if (code)
+                mdWriteNewlines(text).replace("\n", " ")
+            else
+                text
+        ).replace("\u{0}", "\u{fffd}")
+    val caret = range.start + inserted.byteLength
+    if (mdBytesText(content.text.bytes, range.start, range.end) == inserted)
+        return mdInlineNoChange(
+            content,
+            MarkdownRange(caret, caret),
+            if (range.isEmpty)
+                bias
+            else
+                MarkdownBias.Before
+        )
+    when (mdInlineLeafEdit(content, range, inserted, index, caret)) {
+        case Some(val edit) -> return edit
+        case None -> Unit
+    }
+    val units = ArrayList<MdInlineUnit>()
+    for (part in mdInlineUnitsSlice(content.model.units, 0L, range.start))
+        units.add(part)
+    if (inserted != "")
+        units.add(
+            MdInlineUnit(
+                if (code)
+                    MdInlineUnitKind.Code
+                else
+                    MdInlineUnitKind.Text,
+                inserted,
+                unit?.flags ?: 0,
+                unit?.link ?: None
+            )
+        )
+    for (part in mdInlineUnitsSlice(content.model.units, range.end, content.text.byteLength))
+        units.add(part)
+    val source = mdInlineUnitsWrite(units.toArray(), mdInTable(content.parsed, content.node))
+    return mdInlinePrepared(
+        content,
+        mdInlineBlockSource(content, source),
+        MarkdownRange(caret, caret)
+    )
+}
+
+internal fun mdInlineSetStyle(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    style: MarkdownInlineStyle,
+    enabled: Boolean
+): MarkdownInlineEdit {
+    mdInlineCheckRange(content, range)
+    requireMarkdown(!range.isEmpty, "Inline styling needs a nonempty text range")
+    requireMarkdown(
+        style != MarkdownInlineStyle.Strikethrough || content.parsed.profile.strikethrough,
+        "Strikethrough requires a profile with strikethrough enabled"
+    )
+    val flag = mdInlineStyleFlag(style)
+    val units = ArrayList<MdInlineUnit>()
+    for (part in mdInlineUnitsSlice(content.model.units, 0L, range.start))
+        units.add(part)
+    var changed = false
+    for (part in mdInlineUnitsSlice(content.model.units, range.start, range.end)) {
+        val flags =
+            if (enabled)
+                part.flags.or(flag)
+            else
+                part.flags.and(flag.inv())
+        changed = changed || flags != part.flags
+        units.add(MdInlineUnit(part.kind, part.text, flags, part.link, part.node, part.raw))
+    }
+    for (part in mdInlineUnitsSlice(content.model.units, range.end, content.text.byteLength))
+        units.add(part)
+    if (!changed)
+        return mdInlineNoChange(content, range)
+    val source = mdInlineUnitsWrite(units.toArray(), mdInTable(content.parsed, content.node))
+    return mdInlinePrepared(content, mdInlineBlockSource(content, source), range)
+}

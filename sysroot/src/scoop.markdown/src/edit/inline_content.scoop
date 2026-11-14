@@ -1,0 +1,158 @@
+package scoop.markdown
+
+/** A prepared source transaction and its selection in the resulting source coordinates. */
+public class MarkdownInlineEdit internal constructor(
+    public val documentId: MarkdownDocumentId,
+    public val edit: MarkdownEdit,
+    public val selection: MarkdownRange,
+    public val text: MarkdownText
+) {
+    public fun applyTo(document: MarkdownDocument): MarkdownChange {
+        if (document.documentId !== documentId)
+            throw IllegalStateException(
+                Some("Inline edit belongs to a different Markdown document")
+            )
+        return document.apply(edit)
+    }
+}
+
+/** Editable semantic text of one paragraph, heading or table cell, without UI resources. */
+public class MarkdownInlineContent internal constructor(
+    internal val parsed: ParsedMarkdown,
+    internal val node: MarkdownNode,
+    internal val model: MdInlineModel
+) {
+    public val text: MarkdownText get() = model.text
+
+    public fun replaceText(
+        range: MarkdownRange,
+        text: String,
+        bias: MarkdownBias = MarkdownBias.After
+    ): MarkdownInlineEdit = mdInlineReplace(this, range, text, bias)
+
+    public fun setStyle(
+        range: MarkdownRange,
+        style: MarkdownInlineStyle,
+        enabled: Boolean
+    ): MarkdownInlineEdit = mdInlineSetStyle(this, range, style, enabled)
+}
+
+public fun ParsedMarkdown.inlineContent(id: MarkdownNodeId): MarkdownInlineContent {
+    val node = node(id)
+    val source = mdInlineSource(node)
+    return MarkdownInlineContent(this, node, mdInlineModel(this, node, source.emptyPosition))
+}
+
+internal enum MdInlineUnitKind {
+    Text, Code, SoftBreak, HardBreak, Object
+}
+
+internal class MdInlineLink(val id: MarkdownNodeId, val target: MarkdownLinkTarget)
+
+internal class MdInlineUnit(
+    val kind: MdInlineUnitKind,
+    val text: String,
+    val flags: Int,
+    val link: MdInlineLink?,
+    val node: MarkdownNode? = None,
+    val raw: String = ""
+)
+
+internal class MdInlineModel(val text: MarkdownText, val units: Array<MdInlineUnit>)
+
+private class MdInlineUnitFrame(val node: MarkdownNode, val flags: Int, val link: MdInlineLink?)
+
+private fun mdUnitChildren(
+    pending: ArrayList<MdInlineUnitFrame>,
+    node: MarkdownNode,
+    flags: Int,
+    link: MdInlineLink?
+) {
+    var index = node.children.size
+    while (index > 0L) {
+        index -= 1L
+        pending.add(MdInlineUnitFrame(node.children[index], flags, link))
+    }
+}
+
+private fun mdInlineModel(parsed: ParsedMarkdown, root: MarkdownNode, empty: Long): MdInlineModel {
+    val text = MdTextBuilder()
+    val units = ArrayList<MdInlineUnit>()
+    val pending = ArrayList<MdInlineUnitFrame>()
+    mdUnitChildren(pending, root, 0, None)
+    while (pending.size > 0L) {
+        val frame = pending.removeAt(pending.size - 1L)
+        val node = frame.node
+        var kind = MdInlineUnitKind.Object
+        var value = "\u{fffc}"
+        var mapped: MarkdownText? = None
+        when (node.content) {
+            case MarkdownContent.Text(val body) -> {
+                kind = MdInlineUnitKind.Text
+                value = body.text
+                mapped = Some(body)
+            }
+            case MarkdownContent.CodeSpan(val body) -> {
+                kind = MdInlineUnitKind.Code
+                value = body.text
+                mapped = Some(body)
+            }
+            case MarkdownContent.SoftBreak -> {
+                kind = MdInlineUnitKind.SoftBreak;
+                value = " "
+            }
+            case MarkdownContent.HardBreak -> {
+                kind = MdInlineUnitKind.HardBreak;
+                value = "\n"
+            }
+            case MarkdownContent.Emphasis -> {
+                mdUnitChildren(pending, node, frame.flags.or(1), frame.link);
+                continue
+            }
+            case MarkdownContent.Strong -> {
+                mdUnitChildren(pending, node, frame.flags.or(2), frame.link);
+                continue
+            }
+            case MarkdownContent.Strikethrough -> {
+                mdUnitChildren(pending, node, frame.flags.or(4), frame.link);
+                continue
+            }
+            case MarkdownContent.Link(val target) -> {
+                mdUnitChildren(pending, node, frame.flags, Some(MdInlineLink(node.id, target)))
+                continue
+            }
+            else -> Unit
+        }
+        when (mapped) {
+            case Some(val body) -> text.append(body)
+            case None -> text.add(value, node.range, MarkdownTextMapping.Normalized)
+        }
+        units.add(
+            MdInlineUnit(
+                kind,
+                value,
+                frame.flags,
+                frame.link,
+                Some(node),
+                parsed.snapshot.read(node.range)
+            )
+        )
+    }
+    return MdInlineModel(text.build(empty), units.toArray())
+}
+
+internal fun mdInlineCheckRange(content: MarkdownInlineContent, range: MarkdownRange) {
+    requireMarkdown(
+        range.start >= 0L && range.end >= range.start && range.end <= content.text.byteLength,
+        "Inline text range is outside its content"
+    )
+    content.text.sourceAt(MarkdownPosition(range.start))
+    content.text.sourceAt(MarkdownPosition(range.end))
+}
+
+internal fun mdInlineStyleFlag(style: MarkdownInlineStyle): Int =
+    when (style) {
+        case MarkdownInlineStyle.Emphasis -> 1
+        case MarkdownInlineStyle.Strong -> 2
+        case MarkdownInlineStyle.Strikethrough -> 4
+    }

@@ -1,0 +1,172 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdInlineUnitsSlice(units: Array<MdInlineUnit>, start: Long, end: Long): Array<
+    MdInlineUnit
+> {
+    val result = ArrayList<MdInlineUnit>()
+    var offset = 0L
+    for (unit in units) {
+        val a =
+            if (start > offset)
+                start
+            else
+                offset
+        val b =
+            if (end < offset + unit.text.byteLength)
+                end
+            else
+                offset + unit.text.byteLength
+        if (a < b) {
+            val bytes = unit.text.toByteArray()
+            result.add(
+                MdInlineUnit(
+                    unit.kind,
+                    mdBytesText(bytes, a - offset, b - offset),
+                    unit.flags,
+                    unit.link,
+                    unit.node,
+                    unit.raw
+                )
+            )
+        }
+        offset += unit.text.byteLength
+        if (offset >= end)
+            break
+    }
+    return result.toArray()
+}
+
+internal fun mdInlineUnitAt(
+    content: MarkdownInlineContent,
+    offset: Long,
+    bias: MarkdownBias
+): Long {
+    val units = content.model.units
+    var end = 0L
+    for (index in 0L ..< units.size) {
+        end += units[index].text.byteLength
+        if (offset < end || (offset == end && bias == MarkdownBias.Before))
+            return index
+    }
+    return units.size - 1L
+}
+
+private fun mdSameInlineLink(a: MdInlineLink?, b: MdInlineLink?): Boolean =
+    when ((a, b)) {
+        case(Some(val left), Some(val right)) -> left.id === right.id
+        case(None, None) -> true
+        else -> false
+    }
+
+private fun mdUnitsHaveBreak(unit: MdInlineUnit): Boolean =
+    when (unit.kind) {
+        case MdInlineUnitKind.SoftBreak -> true
+        case MdInlineUnitKind.HardBreak -> true
+        else -> false
+    }
+
+private fun mdUnitsLeaf(
+    units: Array<MdInlineUnit>,
+    index: Long,
+    first: Long,
+    last: Long
+): MdWriteInline {
+    val unit = units[index]
+    return when (unit.kind) {
+        case MdInlineUnitKind.Text -> MdWriteInline.Literal(unit.text)
+        case MdInlineUnitKind.Code -> MdWriteInline.Code(unit.text)
+        case MdInlineUnitKind.Object -> MdWriteInline.Raw(unit.raw)
+        case MdInlineUnitKind.SoftBreak -> if (
+            index == first || index + 1L == last || mdUnitsHaveBreak(units[index - 1L])
+        )
+            MdWriteInline.Literal(" ")
+        else
+            MdWriteInline.SoftBreak
+        case MdInlineUnitKind.HardBreak -> if (
+            index == first || index + 1L == last || mdUnitsHaveBreak(units[index - 1L])
+        )
+            MdWriteInline.Literal("\n")
+        else
+            MdWriteInline.HardBreak
+    }
+}
+
+/** There are only four grouping levels; nesting does not depend on the input tree depth. */
+private fun mdUnitsStyled(
+    units: Array<MdInlineUnit>,
+    start: Long,
+    end: Long,
+    level: Int,
+    startBoundary: Long,
+    endBoundary: Long
+): Array<MdWriteInline> {
+    val result = ArrayList<MdWriteInline>()
+    if (level == 3) {
+        for (index in start ..< end)
+            result.add(mdUnitsLeaf(units, index, startBoundary, endBoundary))
+        return result.toArray()
+    }
+    val flag =
+        if (level == 0)
+            2
+        else
+            if (level == 1)
+                1
+            else
+                4
+    var first = start
+    while (first < end) {
+        val enabled = units[first].flags.and(flag) != 0
+        var last = first + 1L
+        while (last < end && (units[last].flags.and(flag) != 0) == enabled)
+            last += 1L
+        val children = mdUnitsStyled(units, first, last, level + 1, startBoundary, endBoundary)
+        if (enabled)
+            result.add(
+                if (flag == 2)
+                    MdWriteInline.Strong(children)
+                else
+                    if (flag == 1)
+                        MdWriteInline.Emphasis(children)
+                    else
+                        MdWriteInline.Strike(children)
+            )
+        else
+            for (child in children)
+                result.add(child)
+        first = last
+    }
+    return result.toArray()
+}
+
+internal fun mdInlineUnitsWrite(incoming: Array<MdInlineUnit>, table: Boolean): String {
+    val normalized = ArrayList<MdInlineUnit>()
+    for (unit in incoming)
+        normalized.add(
+            if (mdUnitsHaveBreak(unit))
+                MdInlineUnit(unit.kind, unit.text, 0, unit.link, unit.node, unit.raw)
+            else
+                unit
+        )
+    val units = normalized.toArray()
+    val result = ArrayList<MdWriteInline>()
+    var first = 0L
+    while (first < units.size) {
+        val link = units[first].link
+        var last = first + 1L
+        while (last < units.size && mdSameInlineLink(link, units[last].link))
+            last += 1L
+        val children = mdUnitsStyled(units, first, last, 0, first, last)
+        when (link) {
+            case Some(val value) -> result.add(
+                MdWriteInline.Link(children, value.target.destination.text, value.target.title.text)
+            )
+            case None -> for (child in children)
+                result.add(child)
+        }
+        first = last
+    }
+    return mdWriteInlines(result.toArray(), false, table)
+}

@@ -1,0 +1,89 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+/** Rebuilds only the editable block's inline mapping; references retain their original targets. */
+internal fun mdInlineReparse(content: MarkdownInlineContent, source: MarkdownText): MarkdownText {
+    val references = HashMap<String, MarkdownLinkTarget>()
+    val footnotes = HashMap<String, MdBuildNode>()
+    for (unit in content.model.units) {
+        when (unit.link) {
+            case Some(val link) -> if (link.target.label != "")
+                references[link.target.label] = link.target
+            case None -> Unit
+        }
+        when (unit.node?.content) {
+            case Some(MarkdownContent.FootnoteReference(val label)) ->
+            footnotes[label] = MdBuildNode(MdKind.FootnoteDefinition, 0L, 0L)
+            else -> Unit
+        }
+    }
+    val range = mdInlineRange(source)
+    val root = MdBuildNode(MdKind.Paragraph, range.start, range.end)
+    root.ready = Some(source)
+    val syntax = MdSyntax()
+    try {
+        MdInlineParser(
+            root,
+            MdInput(source),
+            syntax,
+            content.parsed.profile,
+            references,
+            footnotes
+        ).parse()
+        mdMergeText(root)
+        if (content.parsed.profile.autolinks)
+            mdGfmAutolinks(root, syntax)
+        val text = MdTextBuilder()
+        val pending = ArrayList<MdBuildNode>()
+        pending.add(root)
+        while (pending.size > 0L) {
+            val current = pending.removeAt(pending.size - 1L)
+            when (current.kind) {
+                case MdKind.Text -> text.append(current.text)
+                case MdKind.CodeSpan -> text.append(current.text)
+                case MdKind.SoftBreak -> text.add(
+                    " ",
+                    MarkdownRange(current.start, current.end),
+                    MarkdownTextMapping.Normalized
+                )
+                case MdKind.HardBreak -> text.add(
+                    "\n",
+                    MarkdownRange(current.start, current.end),
+                    MarkdownTextMapping.Normalized
+                )
+                case MdKind.Image -> text.add(
+                    "\u{fffc}",
+                    MarkdownRange(current.start, current.end),
+                    MarkdownTextMapping.Normalized
+                )
+                case MdKind.InlineHtml -> text.add(
+                    "\u{fffc}",
+                    MarkdownRange(current.start, current.end),
+                    MarkdownTextMapping.Normalized
+                )
+                case MdKind.Extension -> text.add(
+                    "\u{fffc}",
+                    MarkdownRange(current.start, current.end),
+                    MarkdownTextMapping.Normalized
+                )
+                case MdKind.FootnoteReference -> text.add(
+                    "\u{fffc}",
+                    MarkdownRange(current.start, current.end),
+                    MarkdownTextMapping.Normalized
+                )
+                else -> {
+                    var child = current.last
+                    while (true) {
+                        val node = child ?: break
+                        pending.add(node)
+                        child = node.previous
+                    }
+                }
+            }
+        }
+        return text.build(source.emptyPosition)
+    } finally {
+        syntax.close()
+    }
+}

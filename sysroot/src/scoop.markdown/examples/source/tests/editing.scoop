@@ -6,6 +6,27 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun `public semantic edits expose their resulting source selection without UI`() {
+        val document = MarkdownDocument.fromText("Hello **world**")
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        val edit = inline.replaceText(MarkdownRange(6L, 11L), "Scoop")
+        edit.applyTo(document)
+        assertEquals("Hello Scoop", edit.text.text)
+        assertEquals(11L, edit.text.textAt(MarkdownPosition(edit.selection.end)).byteOffset)
+        val after = document.parse()
+        val formatted =
+            after.inlineContent(after.root.children[0L].id).setStyle(
+                MarkdownRange(0L, 5L),
+                MarkdownInlineStyle.Emphasis,
+                true
+            )
+        val change = formatted.applyTo(document)
+        assertTrue(change.changed)
+        assertEquals("Hello Scoop", formatted.text.text)
+    }
+
+    @Test
     fun `headless structure commands share source transactions and inverse edits`() {
         val source = "# Title ###\r\n\r\n[x][ref]\r\n\r\n[ref]: old\r\n"
         val document = MarkdownDocument.fromText(source)

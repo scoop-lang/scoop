@@ -1,0 +1,213 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal class MdInlineSourceEdit(
+    val range: MarkdownRange,
+    val source: String,
+    val input: MarkdownText
+)
+
+private fun mdShiftInlineText(value: MarkdownText, delta: Long): MarkdownText {
+    val result = MdTextBuilder()
+    for (span in value.spans)
+        result.add(
+            mdBytesText(value.bytes, span.textRange.start, span.textRange.end),
+            MarkdownRange(span.sourceRange.start + delta, span.sourceRange.end + delta),
+            span.mapping
+        )
+    return result.build(value.emptyPosition + delta)
+}
+
+private fun mdInlineTableInput(source: MarkdownText, table: Boolean): MarkdownText {
+    if (!table)
+        return source
+    val cells = mdTableCells(MdInput(source))
+    requireMarkdown(cells.size == 1L, "Inline table edit must remain within one cell")
+    return cells[0L]
+}
+
+/** Reuses existing container/CRLF mappings around a replacement in one inline leaf. */
+internal fun mdInlineLeafSource(
+    content: MarkdownInlineContent,
+    node: MarkdownNode,
+    source: String
+): MdInlineSourceEdit {
+    val original = mdInlineSource(content.node)
+    val start = original.textAt(MarkdownPosition(node.range.start), MarkdownBias.After).byteOffset
+    val end = original.textAt(MarkdownPosition(node.range.end), MarkdownBias.Before).byteOffset
+    val added = MdTextBuilder()
+    added.add(source, MarkdownRange(node.range.start, node.range.start + source.byteLength))
+    val result = MdTextBuilder()
+    result.append(mdTextSlice(original, 0L, start))
+    result.append(
+        mdInlineTableInput(added.build(node.range.start), mdInTable(content.parsed, node))
+    )
+    result.append(
+        mdShiftInlineText(
+            mdTextSlice(original, end, original.byteLength),
+            source.byteLength - node.range.byteLength
+        )
+    )
+    return MdInlineSourceEdit(node.range, source, result.build(original.emptyPosition))
+}
+
+/** New logical lines inherit the block's existing physical line ending and container prefix. */
+internal fun mdInlineBlockSource(
+    content: MarkdownInlineContent,
+    source: String
+): MdInlineSourceEdit {
+    val node = content.node
+    val original = mdInlineSource(node)
+    val range = mdInlineRange(original)
+    when (node.content) {
+        case MarkdownContent.TableCell(_, _) -> {
+            val row = content.parsed.parent(node.id)!!
+            var column = 0L
+            while (row.children[column] !== node)
+                column += 1L
+            val written = mdTableCellWrite(content.parsed.snapshot, row, column, source)
+            val mapped = MdTextBuilder()
+            mapped.add(
+                source,
+                MarkdownRange(written.contentStart, written.contentStart + source.byteLength)
+            )
+            return MdInlineSourceEdit(
+                written.replacement.range,
+                written.replacement.text,
+                mdInlineTableInput(mapped.build(written.contentStart), true)
+            )
+        }
+        else -> Unit
+    }
+    val newline = mdLocalNewline(content.parsed.snapshot, node.range.start)
+    val prefix = mdContinuationPrefix(content.parsed.snapshot, node)
+    var leading = ""
+    var trailing = ""
+    when (node.content) {
+        case MarkdownContent.Heading(_, MarkdownHeadingStyle.Atx, _) -> {
+            if (original.byteLength == 0L && source != "") {
+                if (range.start == node.markers[0L].end)
+                    leading = " "
+                if (node.markers.size > 1L)
+                    trailing = " "
+            }
+        }
+        else -> Unit
+    }
+    val output = StringBuilder().append(leading)
+    val mapped = MdTextBuilder()
+    val bytes = source.toByteArray()
+    var run = 0L
+    var offset = range.start + leading.byteLength
+    for (index in 0L ..< bytes.size) {
+        if (bytes[index].toInt().and(255) != 10)
+            continue
+        val body = mdBytesText(bytes, run, index)
+        output.append(body).append(newline).append(prefix)
+        mapped.add(body, MarkdownRange(offset, offset + body.byteLength))
+        offset += body.byteLength
+        mapped.add(
+            "\n",
+            MarkdownRange(offset, offset + newline.byteLength),
+            MarkdownTextMapping.Normalized
+        )
+        offset += newline.byteLength + prefix.byteLength
+        run = index + 1L
+    }
+    val body = mdBytesText(bytes, run, bytes.size)
+    output.append(body).append(trailing)
+    mapped.add(body, MarkdownRange(offset, offset + body.byteLength))
+    return MdInlineSourceEdit(
+        range,
+        output.toString(),
+        mdInlineTableInput(
+            mapped.build(range.start + leading.byteLength),
+            mdInTable(content.parsed, node)
+        )
+    )
+}
+
+/** One changed interval, trimmed only at scalar boundaries; source outside it stays untouched. */
+internal fun mdInlineDifference(
+    snapshot: MarkdownSnapshot,
+    range: MarkdownRange,
+    source: String
+): Array<MarkdownReplacement> {
+    val before = snapshot.read(range).toByteArray()
+    val after = source.toByteArray()
+    var prefix = 0L
+    while (prefix < before.size && prefix < after.size && before[prefix] == after[prefix])
+        prefix += 1L
+    if (prefix == before.size && prefix == after.size)
+        return []
+    while (prefix > 0L && prefix < after.size && markdownContinuation(after[prefix]))
+        prefix -= 1L
+    var oldEnd = before.size
+    var newEnd = after.size
+    while (oldEnd > prefix && newEnd > prefix && before[oldEnd - 1L] == after[newEnd - 1L]) {
+        oldEnd -= 1L;
+        newEnd -= 1L
+    }
+    while (newEnd < after.size && markdownContinuation(after[newEnd])) {
+        oldEnd += 1L;
+        newEnd += 1L
+    }
+    return [
+        MarkdownReplacement(
+            MarkdownRange(range.start + prefix, range.start + oldEnd),
+            mdBytesText(after, prefix, newEnd)
+        )
+    ]
+}
+
+internal fun mdInlineSelection(
+    text: MarkdownText,
+    range: MarkdownRange,
+    caretBias: MarkdownBias = MarkdownBias.Before
+): MarkdownRange {
+    if (range.isEmpty) {
+        val cursor =
+            text.sourceAt(
+                MarkdownPosition(range.start),
+                if (range.start == 0L)
+                    MarkdownBias.After
+                else
+                    caretBias
+            ).byteOffset
+        return MarkdownRange(cursor, cursor)
+    }
+    return MarkdownRange(
+        text.sourceAt(MarkdownPosition(range.start), MarkdownBias.After).byteOffset,
+        text.sourceAt(MarkdownPosition(range.end), MarkdownBias.Before).byteOffset
+    )
+}
+
+internal fun mdInlineNoChange(
+    content: MarkdownInlineContent,
+    range: MarkdownRange,
+    caretBias: MarkdownBias = MarkdownBias.Before
+): MarkdownInlineEdit =
+    MarkdownInlineEdit(
+        content.parsed.documentId,
+        MarkdownEdit(content.parsed.revision, []),
+        mdInlineSelection(content.text, range, caretBias),
+        content.text
+    )
+
+internal fun mdInlinePrepared(
+    content: MarkdownInlineContent,
+    source: MdInlineSourceEdit,
+    selected: MarkdownRange
+): MarkdownInlineEdit {
+    val text = mdInlineReparse(content, source.input)
+    return MarkdownInlineEdit(
+        content.parsed.documentId,
+        MarkdownEdit(
+            content.parsed.revision,
+            mdInlineDifference(content.parsed.snapshot, source.range, source.source)
+        ),
+        mdInlineSelection(text, selected),
+        text
+    )
+}

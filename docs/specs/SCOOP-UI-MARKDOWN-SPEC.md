@@ -12,6 +12,8 @@
 
 `MarkdownSelection` 保存两个源码 UTF-8 位置及各自的 Before／After 偏向，保留活动端方向。选区端点必须是当前文档中的标量边界；不把 Long 字节位置当作字符索引。范围与插入位置沿文档差量映射。源码输入可直接 replace／replaceSelection；批量替换使用 apply，结构修改使用 transform，均调用文档的已有事务。
 
+`apply(MarkdownInlineEdit, reversed, kind)` 接收文档 Cone 准备的行内语义修改，在发布同一个源码事务时采用其编辑后源码选区。reversed 保留选区方向；普通格式命令默认单独历史项。文档身份与 revision 必须匹配，错误准备结果不改变正文或历史；无正文变化时仍可更新选区并结束活动组合。
+
 状态以公开 State 读取追踪发布当前 snapshot、selection、canUndo、canRedo 与保存 revision。状态 API 先检查 UI 的修改时机，再准备与发布文档修改，不能先改文档、后因 State 禁止写入而留下部分 UI 状态。外部文档修改也必须发生在相同 owner 的正常编辑时机。
 
 ## 3. 统一历史

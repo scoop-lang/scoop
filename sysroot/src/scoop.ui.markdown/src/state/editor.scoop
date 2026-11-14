@@ -156,6 +156,46 @@ public class MarkdownEditorState public constructor(
         }
     }
 
+    /** Publishes a headless semantic edit with its resulting source selection in the same history entry. */
+    public fun apply(
+        edit: MarkdownInlineEdit,
+        reversed: Boolean = false,
+        kind: MarkdownEditKind = MarkdownEditKind.Separate
+    ): MarkdownChange {
+        checkEdit()
+        val range = edit.selection
+        val after =
+            MarkdownSelection(
+                MarkdownPosition(
+                    if (reversed)
+                        range.end
+                    else
+                        range.start
+                ),
+                MarkdownPosition(
+                    if (reversed)
+                        range.start
+                    else
+                        range.end
+                )
+            )
+        pending = Some(MdPendingEdit(kind, Some(after)))
+        try {
+            val change = edit.applyTo(document)
+            if (!change.changed) {
+                val previous = storage.value
+                val accepted = mdEndSourceComposition(this, previous.snapshot, previous.selection)
+                if (after != previous.selection || accepted) {
+                    history.breakGroup()
+                    mdPublishEditorValue(this, previous.snapshot, after, previous.savedRevision)
+                }
+            }
+            return change
+        } finally {
+            pending = None
+        }
+    }
+
     public fun undo(): Boolean {
         checkEdit()
         if (isComposing)

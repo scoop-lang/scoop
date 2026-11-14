@@ -1,0 +1,434 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+private fun firstInline(parsed: ParsedMarkdown): MarkdownInlineContent =
+    parsed.inlineContent(
+        mdTestFind(parsed) {
+            node -> when (node.content) {
+                case MarkdownContent.Paragraph(_) -> true
+                case MarkdownContent.Heading(_, _, _) -> true
+                case MarkdownContent.TableCell(_, _) -> true
+                else -> false
+            }
+        }.id
+    )
+
+private fun assertInlineResult(
+    document: MarkdownDocument,
+    prepared: MarkdownInlineEdit,
+    expected: String
+) {
+    prepared.applyTo(document)
+    assertEquals(expected, prepared.text.text)
+    assertEquals(expected, firstInline(document.parse()).text.text, Some(document.toMarkdown()))
+    document.snapshot().checkRange(prepared.selection)
+}
+
+@Test
+private class MarkdownInlineEditTests {
+    @Test
+    fun `semantic text maps markers entities code and atomic extension objects`() {
+        val parsed =
+            MarkdownDocument.fromText(
+                "**A &amp; 中文** `x` ![logo](image.png) $x$ <u>[^n]\n\n[^n]: note"
+            ).parse(MarkdownProfile.Editor)
+        val content = firstInline(parsed)
+        assertEquals("A & 中文 x \u{fffc} \u{fffc} \u{fffc}\u{fffc}", content.text.text)
+        assertEquals(2L, content.text.sourceAt(MarkdownPosition(0L)).byteOffset)
+        assertEquals(
+            "&amp;",
+            parsed.snapshot.read(
+                MarkdownRange(
+                    content.text.sourceAt(MarkdownPosition(2L)).byteOffset,
+                    content.text.sourceAt(MarkdownPosition(3L), MarkdownBias.Before).byteOffset
+                )
+            )
+        )
+        assertFailsWith<IllegalArgumentException> {
+            content.replaceText(MarkdownRange(5L, 5L), "x")
+        }
+        val objectAt = "A & 中文 x ".byteLength
+        assertFailsWith<IllegalArgumentException> {
+            content.replaceText(MarkdownRange(objectAt + 1L, objectAt + 3L), "x")
+        }
+    }
+
+    @Test
+    fun `ordinary leaf edits preserve surrounding syntax and undo exact bytes`() {
+        val source = "__A &amp; 中文__ [other](keep)\r\n\r\nTail  \r\n"
+        val document = MarkdownDocument.fromText(source)
+        val content = firstInline(document.parse())
+        val prepared = content.replaceText(MarkdownRange(2L, 3L), "😀")
+        assertEquals(0L, document.revision)
+        assertEquals(source, document.toMarkdown())
+        val change = prepared.applyTo(document)
+        assertEquals("A 😀 中文 other", prepared.text.text)
+        assertTrue(document.toMarkdown().startsWith("__"))
+        assertTrue(document.toMarkdown().endsWith("__ [other](keep)\r\n\r\nTail  \r\n"))
+        assertTrue(change.replacements[0L].range.start >= 2L)
+        assertTrue(change.replacements[0L].range.end <= "__A &amp; 中文".byteLength)
+        assertEquals(
+            "<p><strong>A 😀 中文</strong> <a href=\"keep\">other</a></p>\n<p>Tail</p>\n",
+            mdTestHtml(document.parse())
+        )
+        assertEquals(6L, prepared.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+        assertEquals("A & 中文 other", content.text.text)
+    }
+
+    @Test
+    fun `insertion affinity selects either side of a formatting boundary`() {
+        for (before in [true, false]) {
+            val document = MarkdownDocument.fromText("**a**b")
+            val content = firstInline(document.parse())
+            val prepared =
+                content.replaceText(
+                    MarkdownRange(1L, 1L),
+                    "X",
+                    if (before)
+                        MarkdownBias.Before
+                    else
+                        MarkdownBias.After
+                )
+            assertInlineResult(document, prepared, "aXb")
+            assertEquals(
+                if (before)
+                    "<p><strong>aX</strong>b</p>\n"
+                else
+                    "<p><strong>a</strong>Xb</p>\n",
+                mdTestHtml(document.parse())
+            )
+            val current =
+                document.parse().nodeAt(
+                    MarkdownPosition(prepared.selection.end),
+                    MarkdownBias.Before
+                )
+            when (current.content) {
+                case MarkdownContent.Text(val text) -> assertTrue(text.text.contains("X"))
+                else -> fail(Some("Insertion caret must remain in the edited text"))
+            }
+        }
+    }
+
+    @Test
+    fun `partial formatting spans text and nested emphasis without changing other blocks`() {
+        val document = MarkdownDocument.fromText("ab *cd* ef\n\nUntouched &amp; bytes\r\n")
+        val prepared =
+            firstInline(document.parse()).setStyle(
+                MarkdownRange(1L, 6L),
+                MarkdownInlineStyle.Strong,
+                true
+            )
+        assertInlineResult(document, prepared, "ab cd ef")
+        assertEquals(
+            "<p>a<strong>b <em>cd</em> </strong>ef</p>\n<p>Untouched &amp; bytes</p>\n",
+            mdTestHtml(document.parse())
+        )
+        assertTrue(document.toMarkdown().endsWith("\n\nUntouched &amp; bytes\r\n"))
+        assertEquals(
+            1L,
+            prepared.text.textAt(MarkdownPosition(prepared.selection.start)).byteOffset
+        )
+        assertEquals(6L, prepared.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset)
+    }
+
+    @Test
+    fun `removing a partial style retains the other nested style`() {
+        val document = MarkdownDocument.fromText("**a *bc* d**")
+        val prepared =
+            firstInline(document.parse()).setStyle(
+                MarkdownRange(2L, 3L),
+                MarkdownInlineStyle.Strong,
+                false
+            )
+        assertInlineResult(document, prepared, "a bc d")
+        assertEquals(
+            "<p><strong>a </strong><em>b</em><strong><em>c</em> d</strong></p>\n",
+            mdTestHtml(document.parse())
+        )
+    }
+
+    @Test
+    fun `cross-style replacement and deletion keep balanced Markdown`() {
+        val document = MarkdownDocument.fromText("one **two** *three* end")
+        assertInlineResult(
+            document,
+            firstInline(document.parse()).replaceText(MarkdownRange(2L, 11L), "X"),
+            "onXee end"
+        )
+        assertEquals("<p>onX<em>ee</em> end</p>\n", mdTestHtml(document.parse()))
+        val adjacent = MarkdownDocument.fromText("_a_ _b_")
+        assertInlineResult(
+            adjacent,
+            firstInline(adjacent.parse()).replaceText(MarkdownRange(1L, 2L), ""),
+            "ab"
+        )
+        assertEquals("<p><em>ab</em></p>\n", mdTestHtml(adjacent.parse()))
+        val all = firstInline(document.parse())
+        val empty = all.replaceText(MarkdownRange(0L, all.text.byteLength), "")
+        empty.applyTo(document)
+        assertEquals("", document.toMarkdown())
+        assertEquals("", empty.text.text)
+        assertEquals(MarkdownRange(0L, 0L), empty.selection)
+    }
+
+    @Test
+    fun `editing implicit link labels keeps destinations and shared definitions`() {
+        for (
+            source in [
+                "[alpha][]\n\n[alpha]: /target \"title\"",
+                "[alpha]\n\n[alpha]: /target \"title\"",
+                "<https://example.com>"
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val original =
+                when (parsed.root.children[0L].children[0L].content) {
+                    case MarkdownContent.Link(val target) -> target
+                    else -> throw IllegalStateException(Some("Expected link"))
+                }
+            val content = firstInline(parsed)
+            val prepared =
+                content.replaceText(MarkdownRange(0L, content.text.byteLength), "new label")
+            assertInlineResult(document, prepared, "new label")
+            val node = document.parse().root.children[0L].children[0L]
+            when (node.content) {
+                case MarkdownContent.Link(val target) -> {
+                    assertEquals(original.destination.text, target.destination.text)
+                    assertEquals(original.title.text, target.title.text)
+                }
+                else -> fail(Some("Edited label must remain a link"))
+            }
+            if (source.contains("[alpha]:"))
+                assertTrue(document.toMarkdown().endsWith("\n\n[alpha]: /target \"title\""))
+        }
+        val explicit = MarkdownDocument.fromText("[alpha][ref] and **rest**\n\n[ref]: /target")
+        val prepared = firstInline(explicit.parse()).replaceText(MarkdownRange(1L, 2L), "X")
+        assertInlineResult(explicit, prepared, "aXpha and rest")
+        assertTrue(explicit.toMarkdown().contains("][ref] and **rest**"))
+    }
+
+    @Test
+    fun `inline code chooses adequate delimiters and maps the resulting caret`() {
+        val document = MarkdownDocument.fromText("before `a b` after")
+        val prepared = firstInline(document.parse()).replaceText(MarkdownRange(8L, 9L), "`|\n😀")
+        assertInlineResult(document, prepared, "before a`| 😀b after")
+        assertEquals("<p>before <code>a`| 😀b</code> after</p>\n", mdTestHtml(document.parse()))
+        assertEquals(
+            "before a`| 😀".byteLength,
+            prepared.text.textAt(MarkdownPosition(prepared.selection.end)).byteOffset
+        )
+    }
+
+    @Test
+    fun `atomic objects can be replaced while other extensions retain source`() {
+        val document = MarkdownDocument.fromText("A ![logo](image.png) $x$ <u> Z")
+        val content = firstInline(document.parse(MarkdownProfile.Editor))
+        val prepared = content.replaceText(MarkdownRange(2L, 5L), "image")
+        prepared.applyTo(document)
+        assertEquals("A image \u{fffc} \u{fffc} Z", prepared.text.text)
+        assertTrue(document.toMarkdown().contains("$x$"))
+        assertTrue(document.toMarkdown().contains("<u>"))
+        assertEquals(
+            prepared.text.text,
+            firstInline(document.parse(MarkdownProfile.Editor)).text.text
+        )
+    }
+
+    @Test
+    fun `table edits escape pipes and materialize missing cells in their original row`() {
+        val source = "| a | b | c |\r\n| - | - | - |\r\n| one |\r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val cell = parsed.root.children[0L].children[1L].children[2L]
+        val prepared = parsed.inlineContent(cell.id).replaceText(MarkdownRange(0L, 0L), "x|😀")
+        prepared.applyTo(document)
+        val row = document.parse().root.children[0L].children[1L]
+        val current = document.parse()
+        assertEquals(3L, row.children.size)
+        assertEquals(
+            "x|😀",
+            current.inlineContent(current.root.children[0L].children[1L].children[2L].id).text.text
+        )
+        assertEquals("x|😀", prepared.text.text)
+        assertTrue(document.toMarkdown().startsWith("| a | b | c |\r\n| - | - | - |\r\n"))
+        assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
+        val code = MarkdownDocument.fromText("| `x` |\n| - |")
+        val tree = code.parse()
+        val inline = tree.inlineContent(tree.root.children[0L].children[0L].children[0L].id)
+        assertFailsWith<IllegalArgumentException> {
+            inline.replaceText(MarkdownRange(0L, 1L), "\\|")
+        }
+        assertEquals(0L, code.revision)
+        val changed = inline.replaceText(MarkdownRange(0L, 1L), "y|z")
+        changed.applyTo(code)
+        assertEquals("y|z", changed.text.text)
+        val codeAfter = code.parse()
+        assertEquals(
+            "y|z",
+            codeAfter.inlineContent(
+                codeAfter.root.children[0L].children[0L].children[0L].id
+            ).text.text
+        )
+    }
+
+    @Test
+    fun `empty headings and nested CRLF containers keep their block syntax`() {
+        for (source in ["#\r\n", "# ###\r\n"]) {
+            val document = MarkdownDocument.fromText(source)
+            val prepared = firstInline(document.parse()).replaceText(MarkdownRange(0L, 0L), "中文")
+            assertInlineResult(document, prepared, "中文")
+            assertEquals("<h1>中文</h1>\n", mdTestHtml(document.parse()))
+            assertTrue(document.toMarkdown().endsWith("\r\n"))
+        }
+        val document = MarkdownDocument.fromText("> - a **b**\r\n>   c\r\n\r\nTail\r\n")
+        val content = firstInline(document.parse())
+        val prepared = content.setStyle(MarkdownRange(0L, 3L), MarkdownInlineStyle.Emphasis, true)
+        assertInlineResult(document, prepared, "a b c")
+        assertTrue(document.toMarkdown().contains("\r\n>   "))
+        assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
+    }
+
+    @Test
+    fun `no-op stale foreign and invalid preparations do not publish`() {
+        val document = MarkdownDocument.fromText("**word**")
+        val content = firstInline(document.parse())
+        val same = content.setStyle(MarkdownRange(0L, 4L), MarkdownInlineStyle.Strong, true)
+        assertFalse(same.applyTo(document).changed)
+        assertEquals(0L, document.revision)
+        val prepared = content.replaceText(MarkdownRange(0L, 1L), "W")
+        assertFailsWith<IllegalStateException> {
+            prepared.applyTo(MarkdownDocument.fromText("**word**"))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            content.setStyle(MarkdownRange(0L, 0L), MarkdownInlineStyle.Strong, true)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            content.replaceText(MarkdownRange(0L, 5L), "x")
+        }
+        document.replace(MarkdownRange(2L, 3L), "a")
+        assertFailsWith<IllegalStateException> { prepared.applyTo(document) }
+        assertEquals("**aord**", document.toMarkdown())
+    }
+
+    @Test
+    fun `large documents retain all source outside the edited inline block`() {
+        val prefix = "中文 paragraph with **bold**.\n\n".repeat(40000L)
+        val document = MarkdownDocument.fromText(prefix + "**last**\n")
+        val parsed = document.parse()
+        val node = parsed.root.children[parsed.root.children.size - 1L]
+        val prepared =
+            parsed.inlineContent(node.id).replaceText(
+                MarkdownRange(4L, 4L),
+                "😀",
+                MarkdownBias.Before
+            )
+        val change = prepared.applyTo(document)
+        assertEquals("last😀", prepared.text.text)
+        assertTrue(change.replacements[0L].range.start >= prefix.byteLength)
+        assertEquals(prefix, document.snapshot().read(MarkdownRange(0L, prefix.byteLength)))
+        assertTrue(document.snapshot().byteLength > 1048576L)
+        assertEquals(prefix + "**last**\n", parsed.snapshot.toMarkdown())
+    }
+
+    @Test
+    fun `letters punctuation whitespace and Unicode retain formats beside ordinary words`() {
+        for (prefix in ["", "a"])
+            for (suffix in ["", "b"])
+                for (value in ["word", "😀", " ", "!", "中文", "a*b", "&", "<x>", "_"]) {
+                    val document = MarkdownDocument.fromText(prefix + "**x**" + suffix)
+                    val prepared =
+                        firstInline(document.parse()).replaceText(
+                            MarkdownRange(prefix.byteLength, prefix.byteLength + 1L),
+                            value
+                        )
+                    assertInlineResult(document, prepared, prefix + value + suffix)
+                    assertEquals(
+                        "<p>" +
+                            prefix +
+                            "<strong>" +
+                            mdTestEscape(value) +
+                            "</strong>" +
+                            suffix +
+                            "</p>\n",
+                        mdTestHtml(document.parse()),
+                        Some(document.toMarkdown())
+                    )
+                }
+    }
+
+    @Test
+    fun `format changes across soft and hard breaks retain their line semantics`() {
+        for (linked in [false, true])
+            for (hard in [false, true]) {
+                val body =
+                    "**a" +
+                        (
+                            if (hard)
+                                "\\\n"
+                            else
+                                "\n"
+                        ) +
+                        "b**"
+                val source =
+                    if (linked)
+                        "[" + body + "](url)"
+                    else
+                        body
+                val document = MarkdownDocument.fromText(source)
+                val prepared =
+                    firstInline(document.parse()).setStyle(
+                        MarkdownRange(0L, 1L),
+                        MarkdownInlineStyle.Strong,
+                        false
+                    )
+                assertInlineResult(
+                    document,
+                    prepared,
+                    if (hard)
+                        "a\nb"
+                    else
+                        "a b"
+                )
+                val rendered =
+                    "a" +
+                        (
+                            if (hard)
+                                "<br />\n"
+                            else
+                                "\n"
+                        ) +
+                        "<strong>b</strong>"
+                assertEquals(
+                    "<p>" +
+                        (
+                            if (linked)
+                                "<a href=\"url\">" + rendered + "</a>"
+                            else
+                                rendered
+                        ) +
+                        "</p>\n",
+                    mdTestHtml(document.parse()),
+                    Some(document.toMarkdown())
+                )
+            }
+    }
+
+    @Test
+    fun `local reparsing retains formula directive and footnote context`() {
+        val profile =
+            MarkdownProfile(math = true, footnotes = true, extensions = [mdBookDirectives()])
+        val suffix = " $x$ {{#include other.md}}[^n]\n\n[^n]: note"
+        val document = MarkdownDocument.fromText("**a**" + suffix)
+        val parsed = document.parse(profile)
+        val prepared = firstInline(parsed).replaceText(MarkdownRange(0L, 1L), "ab")
+        prepared.applyTo(document)
+        assertEquals("ab \u{fffc} \u{fffc}\u{fffc}", prepared.text.text)
+        assertTrue(document.toMarkdown().endsWith(suffix))
+        assertEquals(prepared.text.text, firstInline(document.parse(profile)).text.text)
+    }
+}

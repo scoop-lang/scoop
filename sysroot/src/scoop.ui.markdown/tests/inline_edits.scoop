@@ -1,0 +1,65 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownInlineEditorStateTests {
+    @Test
+    fun `semantic and source edits share history and restore selection direction`() {
+        val document = MarkdownDocument.fromText("ab *cd* ef")
+        val before = MarkdownSelection(MarkdownPosition(7L), MarkdownPosition(1L))
+        val editor = MarkdownEditorState(document, before)
+        val parsed = document.parse()
+        val format =
+            parsed.inlineContent(parsed.root.children[0L].id).setStyle(
+                MarkdownRange(1L, 5L),
+                MarkdownInlineStyle.Strong,
+                true
+            )
+        editor.apply(format, reversed = true)
+        val formatted = document.toMarkdown()
+        val selected = editor.selection
+        assertEquals(format.selection.end, selected.anchor.byteOffset)
+        assertEquals(format.selection.start, selected.cursor.byteOffset)
+        editor.replace(
+            MarkdownRange(document.snapshot().byteLength, document.snapshot().byteLength),
+            " tail"
+        )
+        assertTrue(editor.undo())
+        assertEquals(formatted, document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("ab *cd* ef", document.toMarkdown())
+        assertEquals(before, editor.selection)
+        assertTrue(editor.redo())
+        assertEquals(formatted, document.toMarkdown())
+        assertEquals(selected, editor.selection)
+        editor.close()
+    }
+
+    @Test
+    fun `foreign and stale semantic plans leave document and history unchanged`() {
+        val document = MarkdownDocument.fromText("**text**")
+        val editor = MarkdownEditorState(document)
+        val parsed = document.parse()
+        val edit =
+            parsed.inlineContent(parsed.root.children[0L].id).replaceText(
+                MarkdownRange(0L, 4L),
+                "new"
+            )
+        val other = MarkdownEditorState(MarkdownDocument.fromText("**text**"))
+        assertFailsWith<IllegalStateException> { other.apply(edit) }
+        assertFalse(other.canUndo)
+        editor.apply(edit)
+        assertEquals(edit.selection.end, editor.selection.cursor.byteOffset)
+        val after = document.toMarkdown()
+        assertFailsWith<IllegalStateException> { editor.apply(edit) }
+        assertEquals(after, document.toMarkdown())
+        editor.undo()
+        assertEquals("**text**", document.toMarkdown())
+        assertFalse(editor.canUndo)
+        other.close()
+        editor.close()
+    }
+}
