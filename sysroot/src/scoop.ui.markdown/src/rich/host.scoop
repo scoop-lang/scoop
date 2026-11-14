@@ -35,6 +35,7 @@ public class MarkdownRichHost public constructor(
     internal val editor: MarkdownEditorState get() = preview.editor
     internal val window: Window get() = scope.nativeWindow
     internal var input: MarkdownRichInput? = None
+    internal var local: MdRichRegionState? = None
     internal var readOnly = readOnly
     internal var closed = false
     internal var connection: TextInputConnection? = None
@@ -83,6 +84,11 @@ public class MarkdownRichHost public constructor(
     private fun sourceChanged(change: MarkdownChange) {
         if (closed)
             return
+        when (local) {
+            case Some(val state) -> if (!state.advance(change))
+                local = None
+            case None -> Unit
+        }
         invalidate()
         changed(change)
     }
@@ -97,88 +103,7 @@ public class MarkdownRichHost public constructor(
         }
 
     internal fun refresh() {
-        if (closed)
-            return
-        if (readOnly) {
-            input?.close()
-            input = None
-            preview.presentation = None
-            return
-        }
-        if (ownsOtherComposition())
-            return
-        val previous = input
-        val usable =
-            when (previous) {
-                case Some(val active) -> active.content.snapshot ===
-                    editor.snapshot &&
-                    mdRichContains(active.content, editor.selection)
-                case None -> false
-            }
-        if (!usable) {
-            when (previous) {
-                case Some(val active) -> {
-                    retire();
-                    active.close();
-                    input = None
-                }
-                case None -> Unit
-            }
-            when (preview.presentation) {
-                case Some(val local) -> if (local.content.snapshot !== editor.snapshot)
-                    preview.presentation = None
-                case None -> Unit
-            }
-            val current = preview.controller.current ?: return
-            val target = mdRichTarget(current, editor.selection, area.isFocusActive) ?: return
-            val selection = mdRichClamp(target.content, editor.selection)
-            if (selection != editor.selection)
-                editor.setSelection(selection)
-            input = Some(MarkdownRichInput(editor, target.content))
-            preview.presentation =
-                Some(
-                    MdRichPresentation(
-                        current,
-                        target.content,
-                        target.content,
-                        target.row,
-                        target.cell
-                    )
-                )
-        } else {
-            previous!!.synchronize()
-            val content = previous!!.content
-            val current = preview.controller.current
-            val local = preview.presentation
-            when (current) {
-                case Some(val model) -> {
-                    val same =
-                        when (local) {
-                            case Some(val old) -> old.base === model && old.content === content
-                            case None -> false
-                        }
-                    if (same)
-                        return
-                    val target = mdRichLocate(model, content) ?: return
-                    preview.presentation =
-                        Some(MdRichPresentation(model, content, content, target.row, target.cell))
-                }
-                case None -> when (local) {
-                    case Some(val display) -> if (display.content !== content)
-                        preview.presentation =
-                            Some(
-                                MdRichPresentation(
-                                    display.base,
-                                    display.before,
-                                    content,
-                                    display.rowIndex,
-                                    display.cellIndex
-                                )
-                            )
-                    case None -> Unit
-                }
-            }
-        }
+        mdRefreshRich(this)
     }
 
     public fun update(
@@ -201,6 +126,7 @@ public class MarkdownRichHost public constructor(
             input?.close()
             input = None
             preview.presentation = None
+            local = None
         }
         if (rebound)
             subscription.close()

@@ -6,6 +6,30 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun aHeadlessConsumerLocatesPreparedStructureBeforePublishing() {
+        val document = MarkdownDocument.fromText("| A | B |\n| --- | --- |\n")
+        val syntax = document.parse().region(MarkdownRange(0L, 0L)).parse()
+        val change =
+            syntax.prepareTransform {
+                insertTableRow(syntax.root.children[0L].id, 1L) {
+                    cell {};
+                    cell {}
+                }
+            }
+        val next = syntax.region.after(change).parse()
+        val cell = next.root.children[0L].children[1L].children[0L]
+        val at = next.inlineContent(cell.id).text.sourceAt(MarkdownPosition(0L))
+        assertEquals(0L, document.revision)
+        change.applyTo(document)
+        assertSame(next.snapshot, document.snapshot())
+        assertEquals("", next.inlineContentAt(at)!!.text.text)
+        val inverse =
+            document.snapshot().prepare(MarkdownEdit(document.revision, change.inverseReplacements))
+        inverse.applyTo(document)
+        assertEquals(syntax.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
     fun `a headless consumer advances local syntax on the original source snapshot`() {
         val document = MarkdownDocument.fromText("before\n\n# Title\n\nbody\n\nend\n")
         val complete = document.parse()

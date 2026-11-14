@@ -16,6 +16,8 @@
 
 `apply(MarkdownBlockEdit)` 将文档 Cone 准备的块拆分／合并与结果源码选区作为一个独立历史项发布，复用行内语义操作的组合接受、观察者通知、失败原子性和 undo／redo 路径。准备本身不更改 UI 状态；后台解析未匹配当前 revision 时不能用旧 ParsedMarkdown 发起结构命令。
 
+`apply(MarkdownChange, selection, reversed)` 发布准备好的源码事务和其 after 快照中的选区。结构命令可先用 `snapshot.prepare`／`syntax.prepareTransform` 准备差量，解析其局部结果并定位光标，再一次发布正文、历史和选区。结果选区的 UTF-8 边界及 before 快照身份必须有效；失败不发布。undo／redo 恢复命令前后的光标，不能在发布后另改选区来弥补缺失的历史信息。
+
 状态以公开 State 读取追踪发布当前 snapshot、selection、canUndo、canRedo 与保存 revision。状态 API 先检查 UI 的修改时机，再准备与发布文档修改，不能先改文档、后因 State 禁止写入而留下部分 UI 状态。外部文档修改也必须发生在相同 owner 的正常编辑时机。
 
 ## 3. 统一历史
@@ -66,9 +68,9 @@ apply 依次校验原生批次并准备行内语义操作，最终只发布一�
 
 `MarkdownParseController(editor, executor, proxy, options)` 借用同一个编辑状态、现有 `CoroutineExecutor` 和 `ApplicationProxy`。构造不启动后台任务，start／refresh 在正常 owner 回调中请求处理；start 幂等，refresh 还用于文件通知后的资源版本检查。options 包含固定 Markdown profile 和可选的资源展开配置；configure 使用新配置后请求新结果。调用方在应用层管理 executor 的 shutdown／join，不在组件卸载时等待全文解析结束。
 
-控制器以 Idle、Pending、Ready、Failed、Closed 表达完整状态。Pending 和 Failed 可携带上一份成功结果用于显示；只有 Ready 的 current 才能用于当前结构编辑。`MarkdownParsedDocument` 同时提供原始源码解析与可选的展开结果；生成内容展示使用派生解析，结构命令使用原始解析及其节点身份。无展开时只解析一次；有展开时复用处理器已经取得的原始解析，不为同一快照重复完整解析。
+控制器以 Idle、Pending、Ready、Failed、Closed 表达完整状态。Pending 和 Failed 可携带上一份成功结果用于显示；Ready 的 current 提供当前完整树；Pending 时结构命令可使用第 10 节已前进到当前快照的局部树。`MarkdownParsedDocument` 同时提供原始源码解析与可选的展开结果；生成内容展示使用派生解析，结构命令使用原始解析及其节点身份。无展开时只解析一次；有展开时复用处理器已经取得的原始解析，不为同一快照重复完整解析。
 
-文档差量先完成源码和历史发布，再将不可变 snapshot 入队，不在 UI 线程物化全文或调用 parser。控制器最多运行一项解析，并保留一份最新待处理请求；已有任务正常完成后直接继续最新请求，连续输入不会排队所有旧快照。profile、扩展和 resolver 被后台串行调用，调用方的实现须遵守这个线程归属，不读取 UI State。
+文档差量先完成源码和历史发布，再将不可变 snapshot 入队，不在 UI 线程物化或解析全文。控制器最多运行一项解析，并保留一份最新待处理请求；已有任务正常完成后直接继续最新请求，连续输入不会排队所有旧快照。处理器与 resolver 在后台串行调用，不读取 UI State。语法扩展 `MarkdownExtension.parse` 只匹配输入；它既可随全文解析在工作线程调用，也可随局部结构命令在 owner 调用，共用实例须使用不可变配置或自行同步内部状态。局部解析不做资源展开或外部工具调用。
 
 工作线程只处理值和只读快照。完成结果通过至多一个待执行消息回到 owner；后来的结果替换尚未交付的旧结果。发布时核对请求身份、文档 revision 与配置，过期成功或失败均不覆盖当前状态。选区、caret 和保存状态变化不触发解析。解析／扩展异常成为对应请求的 Failed；后续输入或 refresh 可继续处理。
 
@@ -136,3 +138,5 @@ MarkdownPreviewMeasurement.sourceRevision 表示实际显示／命中使用的�
 原生连接的 enabled／disabled、origin、过期批次及错误恢复沿源码视图合同处理。连续行内输入不重建连接，切换映射区域时先结束组合并退休旧连接。Unicode／双向文字导航使用同一已排版文字的 grapheme、单词和视觉 caret；复制所见文字与源码字节位置保持对应。原生富文本宿主与三模式组件通过同一状态继续接入文档级块操作。
 
 块命令使用完整解析中取得的 MarkdownRegion；区域沿正常文档差量前进，在命令需要结构时显式解析局部。区域中的整段／列表／表格可以改变显示行数，即时显示以局部行片段替换基线的对应范围，其余行保持共享。源码到显示行、反向命中、滚动高度与选区映射均使用该片段；不以同步全文解析衔接 Enter 后的输入。后台完整结果到达当前快照后收敛到完整投影。区外修改或无法保留区域边界的源码操作退休局部结构，保留用户输入与源锚点，等待当前完整结果。
+
+Enter 拆分段落／标题，保留两侧样式、所在引用和列表语义；空列表项退出一级，空白续行可立即继续输入。普通 Backspace／Delete 在段落边界合并同容器相邻段落／标题，光标位于拼接处。Tab／Shift-Tab 在列表中缩进／提升当前项；表格内按单元格前进／后退，末格 Tab 新增正文行，Enter 保持列并前往下一行，必要时新增行。仅导航不新增历史项；新增行与结果光标作为一次事务进入历史。表格中的含 Tab 剪贴板文本使用 `pasteTableTsv` 写入矩形，光标落在起始单元格新文字末尾。结构变化后仍使用真实 native 连接的退休与启用过程，不将旧连接范围解释为新段落位置。

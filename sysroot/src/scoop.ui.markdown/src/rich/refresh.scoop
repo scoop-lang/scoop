@@ -1,0 +1,125 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdRefreshRich(host: MarkdownRichHost) {
+    if (host.closed)
+        return
+    if (host.readOnly) {
+        host.input?.close()
+        host.input = None
+        host.local = None
+        host.preview.presentation = None
+        return
+    }
+    if (host.ownsOtherComposition())
+        return
+    val editor = host.editor
+    val ready = host.preview.controller.current
+    when (ready) {
+        case Some(val model) -> {
+            val same =
+                when (host.local) {
+                    case Some(val previous) -> previous.base === model
+                    case None -> false
+                }
+            if (!same)
+                host.local = Some(MdRichRegionState(model, editor.selection))
+        }
+        case None -> Unit
+    }
+    val local = host.local
+    val previous = host.input
+    val usable =
+        when (previous) {
+            case Some(val active) -> active.content.snapshot ===
+                editor.snapshot &&
+                mdRichContains(active.content, editor.selection)
+            case None -> false
+        }
+    if (usable) {
+        previous!!.synchronize()
+        val content = previous!!.content
+        val state = local ?: return
+        val display = host.preview.presentation
+        when (display) {
+            case Some(val value) -> if (
+                value.base ===
+                    state.base &&
+                    value.content ===
+                    content &&
+                    value.changes ===
+                    state.changes
+            )
+                return
+            case None -> Unit
+        }
+        val target =
+            state.locate(content) ?:
+                state.project(editor.selection, host.area.isFocusActive) ?:
+                return
+        host.preview.presentation =
+            Some(
+                MdRichPresentation(
+                    state.base,
+                    content,
+                    target.row,
+                    target.cell,
+                    state.changes,
+                    state.rows
+                )
+            )
+        return
+    }
+    when (previous) {
+        case Some(val active) -> {
+            host.retire()
+            active.close()
+            host.input = None
+        }
+        case None -> Unit
+    }
+    val kept = host.preview.presentation
+    host.preview.presentation =
+        when (kept) {
+            case Some(val value) -> if (value.content.snapshot === editor.snapshot)
+                Some(value)
+            else
+                None
+            case None -> None
+        }
+    val state = local ?: return
+    when (ready) {
+        case Some(_) -> state.select(editor.selection)
+        case None -> Unit
+    }
+    val target =
+        when (ready) {
+            case Some(val model) -> when (
+                mdRichTarget(model, editor.selection, host.area.isFocusActive)
+            ) {
+                case Some(val target) -> {
+                    state.rows = None;
+                    Some(target)
+                }
+                case None -> state.project(editor.selection, host.area.isFocusActive)
+            }
+            case None -> state.project(editor.selection, host.area.isFocusActive)
+        } ?:
+            return
+    val selection = mdRichClamp(target.content, editor.selection)
+    if (selection != editor.selection)
+        editor.setSelection(selection)
+    host.input = Some(MarkdownRichInput(editor, target.content))
+    host.preview.presentation =
+        Some(
+            MdRichPresentation(
+                state.base,
+                target.content,
+                target.row,
+                target.cell,
+                state.changes,
+                state.rows
+            )
+        )
+}

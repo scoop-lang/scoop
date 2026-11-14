@@ -2,6 +2,7 @@ package scoop.ui.markdown
 
 import scoop.graphics.text.TextAffinity
 import scoop.markdown.*
+import scoop.text.*
 import scoop.window.*
 
 internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Boolean {
@@ -97,11 +98,30 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
                 return true
             val input = host.input ?: return false
             when (host.window.clipboard.readText()) {
-                case Some(val text) -> host.perform {
-                    input.command(
-                        [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)],
-                        MarkdownEditKind.Separate
-                    )
+                case Some(val text) -> {
+                    val syntax =
+                        if (text.contains("\t"))
+                            host.local?.syntax(editor.selection) ?: None
+                        else
+                            None
+                    val tableEdit =
+                        when (syntax) {
+                            case Some(val current) -> mdRichTablePaste(
+                                current,
+                                editor.selection,
+                                text
+                            )
+                            case None -> None
+                        }
+                    when (tableEdit) {
+                        case Some(val edit) -> mdRichStructure(host, edit)
+                        case None -> host.perform {
+                            input.command(
+                                [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)],
+                                MarkdownEditKind.Separate
+                            )
+                        }
+                    }
                 }
                 case None -> Unit
             }
@@ -110,6 +130,39 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
             if (host.readOnly)
                 return true
             val input = host.input ?: return false
+            val selected = input.inputState.selection.range
+            val atBoundary =
+                selected.start ==
+                    selected.end &&
+                    (
+                        deletion ==
+                            TextDeletion.Backward &&
+                            selected.start ==
+                            0L ||
+                            deletion ==
+                            TextDeletion.Forward &&
+                            selected.end ==
+                            input.content.text.byteLength
+                    )
+            if (atBoundary) {
+                val syntax = host.local?.syntax(editor.selection) ?: None
+                val joined =
+                    when (syntax) {
+                        case Some(val current) -> mdRichJoin(
+                            current,
+                            editor.selection,
+                            deletion == TextDeletion.Backward
+                        )
+                        case None -> None
+                    }
+                when (joined) {
+                    case Some(val edit) -> {
+                        mdRichStructure(host, edit);
+                        return true
+                    }
+                    case None -> Unit
+                }
+            }
             val range = mdRichDelete(host, deletion) ?: return false
             val kind =
                 when (deletion) {
@@ -146,9 +199,22 @@ internal fun mdRichCommand(host: MarkdownRichHost, command: TextEditCommand): Bo
                 return false
             host.perform { editor.cancelComposition() }
         }
-        case InsertNewline -> return false
-        case InsertTab -> return false
-        case InsertBacktab -> return false
+        case InsertNewline -> {
+            if (host.readOnly)
+                return true
+            val state = host.local ?: return false
+            val syntax = state.syntax(editor.selection) ?: return false
+            val edit = mdRichNewline(syntax, editor.selection) ?: return false
+            mdRichStructure(host, edit)
+        }
+        case InsertTab -> {
+            if (!mdRichTab(host, false))
+                return false
+        }
+        case InsertBacktab -> {
+            if (!mdRichTab(host, true))
+                return false
+        }
     }
     when (command) {
         case Move(_, _) -> Unit

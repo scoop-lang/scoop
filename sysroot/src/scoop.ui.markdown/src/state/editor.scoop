@@ -172,6 +172,21 @@ public class MarkdownEditorState public constructor(
         }
     }
 
+    /** A source command can locate its caret in the prepared snapshot before publishing once. */
+    public fun apply(
+        change: MarkdownChange,
+        selection: MarkdownRange,
+        reversed: Boolean = false
+    ): MarkdownChange {
+        if (selection.start > selection.end)
+            throw IllegalArgumentException(Some("Prepared Markdown selection is reversed"))
+        change.after.read(MarkdownRange(selection.start, selection.start))
+        change.after.read(MarkdownRange(selection.end, selection.end))
+        return applySemantic(selection, reversed, MarkdownEditKind.Separate) {
+            change.applyTo(document)
+        }
+    }
+
     private fun applySemantic(
         range: MarkdownRange,
         reversed: Boolean,

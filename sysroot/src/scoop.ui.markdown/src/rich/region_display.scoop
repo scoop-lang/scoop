@@ -1,0 +1,87 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.markdown.*
+
+internal fun mdRichRegionDisplay(
+    base: MarkdownParsedDocument,
+    syntax: ParsedMarkdownRegion,
+    changes: MdRichChanges,
+    empty: MarkdownInlineContent?
+): MdDisplayDocument {
+    val notes = HashMap<String, (Long, MarkdownRange)>()
+    for (entry in base.preview.footnotes) {
+        val range = mdPreviewOriginalRange(base, base.preview.node(entry.definition).range)
+        notes[entry.label] =
+            (
+                entry.number,
+                MarkdownRange(
+                    changes.forward(
+                        MarkdownAnchor(MarkdownPosition(range.start), MarkdownBias.Before)
+                    ).position.byteOffset,
+                    changes.forward(
+                        MarkdownAnchor(MarkdownPosition(range.end), MarkdownBias.After)
+                    ).position.byteOffset
+                )
+            )
+    }
+    val display = mdProjectRegion(syntax, notes, base.options)
+    val content = empty ?: return display
+    if (content.text.byteLength > 0L)
+        return display
+    val at = content.text.sourceAt(MarkdownPosition(0L)).byteOffset
+    for (row in display.rows)
+        if (
+            row.node !==
+                syntax.root.id &&
+                row.cells.size >
+                0L &&
+                row.range.start <=
+                at &&
+                (row.range.end > at || row.range.isEmpty && row.range.start == at)
+        )
+            return display
+    val placeholder = display.rows.size == 1L && display.rows[0L].node === syntax.root.id
+    val rows = ArrayList<MdDisplayRow>()
+    if (!placeholder)
+        for (row in display.rows)
+            rows.add(row)
+    rows.add(mdRichEmptyRow(syntax, content))
+    return MdDisplayDocument(syntax, rows.toArray(), None)
+}
+
+private fun mdRichEmptyRow(syntax: MarkdownSyntax, content: MarkdownInlineContent): MdDisplayRow {
+    val at = content.text.sourceAt(MarkdownPosition(0L))
+    val ancestors = ArrayList<MarkdownNode>()
+    var node: MarkdownNode? = Some(syntax.nodeAt(at, MarkdownBias.Before))
+    while (true) {
+        val current = node ?: break
+        ancestors.add(current)
+        node = syntax.parent(current.id)
+    }
+    var indent = 0L
+    var quotes: MdDisplayQuote? = None
+    var index = ancestors.size
+    while (index > 0L) {
+        index -= 1L
+        when (ancestors[index].content) {
+            case MarkdownContent.BlockQuote -> {
+                quotes = Some(MdDisplayQuote(quotes, indent))
+                indent += 1L
+            }
+            case MarkdownContent.ListItem(_) -> indent += 1L
+            case MarkdownContent.FootnoteDefinition(_) -> indent += 1L
+            else -> Unit
+        }
+    }
+    return MdDisplayRow(
+        syntax.root.id,
+        MarkdownRange(at.byteOffset, at.byteOffset),
+        MdDisplayKind.Paragraph,
+        indent,
+        quotes,
+        [],
+        [mdDisplayEditable(content)],
+        MdDisplayKey(0L)
+    )
+}

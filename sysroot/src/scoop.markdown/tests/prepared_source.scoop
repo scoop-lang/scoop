@@ -1,0 +1,74 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownPreparedSourceTests {
+    @Test
+    fun sourceAndStructurePreparationDoNotPublishUntilTheirExactSnapshotIsApplied() {
+        val document = MarkdownDocument.fromText("# Title\n\nBody\n")
+        val original = document.snapshot()
+        val region = document.parse().region(MarkdownRange(0L, 7L))
+        val syntax = region.parse()
+        val change = syntax.prepareTransform { setHeading(syntax.root.children[0L].id, 2) }
+        assertSame(original, document.snapshot())
+        val result = region.after(change).parse()
+        assertEquals("Title", result.inlineContent(result.root.children[0L].id).text.text)
+        change.applyTo(document)
+        assertSame(result.snapshot, document.snapshot())
+        assertEquals("## Title\n\nBody\n", document.toMarkdown())
+        val restore =
+            document.snapshot().prepare(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertSame(change.after, document.snapshot())
+        restore.applyTo(document)
+        assertEquals(original.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun preparedBranchesWithTheSameRevisionCannotBePublishedOverEachOther() {
+        val document = MarkdownDocument.fromText("A")
+        val source = document.snapshot()
+        val first =
+            source.prepare(MarkdownEdit(0L, [MarkdownReplacement(MarkdownRange(0L, 1L), "B")]))
+        val other =
+            source.prepare(MarkdownEdit(0L, [MarkdownReplacement(MarkdownRange(0L, 1L), "C")]))
+        val next =
+            other.after.prepare(MarkdownEdit(1L, [MarkdownReplacement(MarkdownRange(0L, 1L), "D")]))
+        first.applyTo(document)
+        assertFailsWith<IllegalStateException> { next.applyTo(document) }
+        assertFailsWith<IllegalStateException> { other.applyTo(document) }
+        assertEquals("B", document.toMarkdown())
+        assertEquals("D", next.after.toMarkdown())
+    }
+
+    @Test
+    fun endOfFileAndQuotedBlankLinesProvideCorrectSemanticInsertionPoints() {
+        for (source in ["A", "# A", "- A", "- [x] ", "> A\n>\n> ", "> > "]) {
+            val document = MarkdownDocument.fromText(source)
+            val syntax = document.parse()
+            val end = MarkdownPosition(source.byteLength)
+            val content = syntax.inlineContentAt(end)!!
+            assertEquals(
+                end,
+                content.text.sourceAt(
+                    MarkdownPosition(content.text.byteLength),
+                    MarkdownBias.Before
+                )
+            )
+            val edit =
+                content.replaceText(
+                    MarkdownRange(content.text.byteLength, content.text.byteLength),
+                    "# 中"
+                )
+            edit.applyTo(document)
+            assertEquals(source, syntax.snapshot.toMarkdown())
+            assertEquals(
+                content.text.text + "# 中",
+                document.parse().inlineContentAt(MarkdownPosition(edit.selection.end))!!.text.text
+            )
+        }
+        val gap = MarkdownDocument.fromText("A\n\n").parse().inlineContentAt(MarkdownPosition(3L))!!
+        assertEquals("", gap.text.text)
+        assertEquals(MarkdownRange(3L, 3L), gap.sourceRange)
+    }
+}

@@ -1,0 +1,113 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+/** One editing neighborhood, advanced by real document transactions until parsing catches up. */
+internal class MdRichRegionState(val base: MarkdownParsedDocument, selection: MarkdownSelection) {
+    var changes = MdRichChanges(base.snapshot)
+    private var region: MarkdownRegion? = Some(base.source.region(selection.range))
+    private var origin = region!!.range
+    private var parsed: ParsedMarkdownRegion? = None
+    var rows: MdRichRegionRows? = None
+
+    fun advance(change: MarkdownChange): Boolean {
+        if (change.before !== changes.snapshot)
+            return false
+        changes = changes.append(change)
+        region =
+            when (region) {
+                case Some(val value) -> if (change.kind == MarkdownChangeKind.Reset)
+                    None
+                else {
+                    try {
+                        Some(value.after(change))
+                    }
+                    catch (failure: IllegalArgumentException) {
+                        None
+                    }
+                }
+                case None -> None
+            }
+        return true
+    }
+
+    fun select(selection: MarkdownSelection): Boolean {
+        val previous = region
+        val inside =
+            when (previous) {
+                case Some(val value) -> selection.range.start >=
+                    value.range.start &&
+                    selection.range.end <=
+                    value.range.end
+                case None -> false
+            }
+        if (!inside) {
+            if (changes.snapshot !== base.snapshot)
+                return false
+            val selected = base.source.region(selection.range)
+            region = Some(selected)
+            origin = selected.range
+            parsed = None
+            rows = None
+        }
+        return true
+    }
+
+    fun syntax(selection: MarkdownSelection): ParsedMarkdownRegion? {
+        if (!select(selection))
+            return None
+        val current = region ?: return None
+        when (parsed) {
+            case Some(val value) -> if (value.snapshot === changes.snapshot)
+                return Some(value)
+            case None -> Unit
+        }
+        val result = current.parse()
+        parsed = Some(result)
+        return Some(result)
+    }
+
+    fun prepared(syntax: ParsedMarkdownRegion) {
+        if (syntax.snapshot !== changes.snapshot)
+            throw IllegalStateException(
+                Some("Prepared Markdown region must match the published snapshot")
+            )
+        region = Some(syntax.region)
+        parsed = Some(syntax)
+        rows = None
+    }
+
+    fun project(selection: MarkdownSelection, allowMarkers: Boolean): MdRichTarget? {
+        val syntax = syntax(selection) ?: return None
+        val content = syntax.inlineContentAt(selection.cursor, selection.cursorBias) ?: return None
+        if (!mdRichContains(content, selection) && (!allowMarkers || !selection.collapsed))
+            return None
+        val display = MdRichRegionRows(base, origin, syntax, changes, Some(content))
+        rows = Some(display)
+        return mdRichRegionTarget(display, changes, content)
+    }
+
+    fun locate(content: MarkdownInlineContent): MdRichTarget? =
+        when (rows) {
+            case Some(val local) -> mdRichRegionTarget(local, changes, content)
+            case None -> mdRichLocate(base, content, changes)
+        }
+}
+
+private fun mdRichRegionTarget(
+    rows: MdRichRegionRows,
+    changes: MdRichChanges,
+    content: MarkdownInlineContent
+): MdRichTarget? {
+    val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
+    val point =
+        changes.backward(MarkdownAnchor(first, MarkdownBias.After), rows.syntax.snapshot).position
+    val index = rows.rowAt(point, MarkdownBias.After) ?: return None
+    val row = rows.row(index)
+    if (row.cells.size == 0L)
+        return None
+    var cell = 0L
+    while (cell + 1L < row.cells.size && row.cells[cell].sourceRange.end < point.byteOffset)
+        cell += 1L
+    return Some(MdRichTarget(content, index, cell))
+}

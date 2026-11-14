@@ -1,0 +1,228 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.graphics.text.TextAffinity
+
+/** The result is fully located before the single history transaction is published. */
+internal class MdRichStructureEdit(
+    val change: MarkdownChange,
+    val syntax: ParsedMarkdownRegion,
+    val selection: MarkdownRange,
+    val reversed: Boolean = false
+)
+
+internal fun mdRichStructure(host: MarkdownRichHost, edit: MdRichStructureEdit) {
+    host.perform {
+        host.editor.apply(edit.change, edit.selection, edit.reversed)
+        host.local!!.prepared(edit.syntax)
+    }
+    host.cursorAffinity = TextAffinity.Downstream
+    host.preferredX = None
+    host.preview.reveal(host.editor.selection.cursor)
+}
+
+internal fun mdRichBlockAt(
+    syntax: MarkdownSyntax,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): MarkdownNode? {
+    var node = syntax.nodeAt(position, bias)
+    while (true) {
+        when (node.content) {
+            case MarkdownContent.Paragraph(_) -> break
+            case MarkdownContent.Heading(_, _, _) -> break
+            case MarkdownContent.TableCell(_, _) -> break
+            case MarkdownContent.ListItem(_) -> {
+                if (node.children.size == 0L)
+                    break
+            }
+            else -> Unit
+        }
+        val parent = syntax.parent(node.id)
+        when (parent) {
+            case Some(val value) -> node = value
+            case None -> return if (bias == MarkdownBias.After)
+                mdRichBlockAt(syntax, position, MarkdownBias.Before)
+            else
+                None
+        }
+    }
+    return if (mdRichContains(syntax.inlineContent(node.id), MarkdownSelection(position, position)))
+        Some(node)
+    else
+        None
+}
+
+internal fun mdRichNewline(
+    syntax: ParsedMarkdownRegion,
+    selection: MarkdownSelection
+): MdRichStructureEdit? {
+    val content = syntax.inlineContentAt(selection.cursor, selection.cursorBias) ?: return None
+    if (!mdRichContains(content, selection))
+        return None
+    val block = mdRichBlockAt(syntax, selection.cursor, selection.cursorBias)
+    when (block) {
+        case Some(val node) -> {
+            when (node.content) {
+                case MarkdownContent.TableCell(_, _) -> return mdRichTableStep(
+                    syntax,
+                    node,
+                    false,
+                    true
+                )
+                else -> Unit
+            }
+            val range =
+                MarkdownRange(
+                    content.text.textAt(
+                        MarkdownPosition(selection.range.start),
+                        MarkdownBias.Before
+                    ).byteOffset,
+                    content.text.textAt(
+                        MarkdownPosition(selection.range.end),
+                        MarkdownBias.After
+                    ).byteOffset
+                )
+            val edit = syntax.splitBlock(node.id, range)
+            return Some(
+                MdRichStructureEdit(
+                    edit.change,
+                    syntax.region.after(edit.change).parse(),
+                    edit.selection
+                )
+            )
+        }
+        case None -> {
+            if (content.text.byteLength != 0L)
+                return None
+            val snapshot = syntax.snapshot
+            val line = snapshot.lineAt(selection.cursor)
+            val range = snapshot.lineRange(line)
+            val prefix = snapshot.read(range)
+            val newline = mdRichNewlineSource(snapshot, line)
+            val at = range.end
+            val text = newline + prefix
+            val change =
+                snapshot.prepare(
+                    MarkdownEdit(
+                        snapshot.revision,
+                        [MarkdownReplacement(MarkdownRange(at, at), text)]
+                    )
+                )
+            val caret = at + text.byteLength
+            return Some(
+                MdRichStructureEdit(
+                    change,
+                    syntax.region.after(change).parse(),
+                    MarkdownRange(caret, caret)
+                )
+            )
+        }
+    }
+}
+
+private fun mdRichNewlineSource(snapshot: MarkdownSnapshot, line: Long): String {
+    val range = snapshot.lineRange(line)
+    val end = snapshot.lineRange(line, true).end
+    if (end > range.end)
+        return snapshot.read(MarkdownRange(range.end, end))
+    if (line > 0L) {
+        val previous = snapshot.lineRange(line - 1L)
+        return snapshot.read(MarkdownRange(previous.end, range.start))
+    }
+    return "\n"
+}
+
+internal fun mdRichJoin(
+    syntax: ParsedMarkdownRegion,
+    selection: MarkdownSelection,
+    backward: Boolean
+): MdRichStructureEdit? {
+    if (!selection.collapsed)
+        return None
+    val block = mdRichBlockAt(syntax, selection.cursor, selection.cursorBias) ?: return None
+    if (!mdRichJoinable(block))
+        return None
+    val content = syntax.inlineContent(block.id)
+    val offset = content.text.textAt(selection.cursor, selection.cursorBias).byteOffset
+    if (
+        offset !=
+            if (backward)
+                0L
+            else
+                content.text.byteLength
+    )
+        return None
+    val parent = syntax.parent(block.id) ?: return None
+    var index = 0L
+    while (parent.children[index] !== block)
+        index += 1L
+    val neighbor =
+        if (backward)
+            index - 1L
+        else
+            index + 1L
+    if (neighbor < 0L || neighbor >= parent.children.size)
+        return None
+    val other = parent.children[neighbor]
+    if (!mdRichJoinable(other))
+        return None
+    val edit =
+        if (backward)
+            syntax.joinBlocks(other.id, block.id)
+        else
+            syntax.joinBlocks(block.id, other.id)
+    return Some(
+        MdRichStructureEdit(edit.change, syntax.region.after(edit.change).parse(), edit.selection)
+    )
+}
+
+private fun mdRichJoinable(node: MarkdownNode): Boolean =
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> true
+        case MarkdownContent.Heading(_, _, _) -> true
+        else -> false
+    }
+
+internal fun mdRichListTab(
+    syntax: ParsedMarkdownRegion,
+    selection: MarkdownSelection,
+    backward: Boolean
+): MdRichStructureEdit? {
+    var item = syntax.nodeAt(selection.cursor, selection.cursorBias)
+    while (true) {
+        when (item.content) {
+            case MarkdownContent.ListItem(_) -> break
+            else -> item = syntax.parent(item.id) ?: return None
+        }
+    }
+    if (selection.range.start < item.range.start || selection.range.end > item.range.end)
+        return None
+    if (!backward && syntax.parent(item.id)!!.children[0L] === item)
+        return None
+    val selected = item
+    val change =
+        syntax.prepareTransform {
+            if (backward)
+                outdentListItem(selected.id)
+            else
+                indentListItem(selected.id)
+        }
+    val after = syntax.region.after(change).parse()
+    val first =
+        change.map(
+            MarkdownAnchor(MarkdownPosition(selection.range.start), MarkdownBias.After)
+        ).position
+    val last =
+        change.map(
+            MarkdownAnchor(MarkdownPosition(selection.range.end), MarkdownBias.After)
+        ).position
+    return Some(
+        MdRichStructureEdit(
+            change,
+            after,
+            MarkdownRange(first.byteOffset, last.byteOffset),
+            selection.anchor.byteOffset > selection.cursor.byteOffset
+        )
+    )
+}

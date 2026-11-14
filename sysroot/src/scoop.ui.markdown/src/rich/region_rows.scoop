@@ -1,0 +1,244 @@
+package scoop.ui.markdown
+
+import scoop.collections.*
+import scoop.comparisons.comparatorOf
+import scoop.markdown.*
+
+internal class MdRichRowSplice(
+    val start: Long,
+    val end: Long,
+    val rows: Array<MdDisplayRow>,
+    val position: Long
+) {
+    val next: Long get() = position + rows.size
+    val shift: Long get() = next - end
+}
+
+/** Sparse replacements also retain footnote rows located outside normal source display order. */
+internal class MdRichRegionRows(
+    val base: MarkdownParsedDocument,
+    val origin: MarkdownRange,
+    val syntax: ParsedMarkdownRegion,
+    val changes: MdRichChanges,
+    empty: MarkdownInlineContent? = None
+) {
+    val display = mdRichRegionDisplay(base, syntax, changes, empty)
+    private val splices = mdRichRegionSplices(base, origin, display, changes)
+    private val byKey = HashMap<MdDisplayKey, Long>()
+    val count: Long =
+        base.display.rows.size +
+            if (splices.size == 0L)
+                0L
+            else
+                splices[splices.size - 1L].shift
+
+    init {
+        for (splice in splices)
+            for (index in 0L ..< splice.rows.size)
+                byKey[splice.rows[index].key] = splice.position + index
+    }
+
+    fun contains(key: MdDisplayKey): Boolean = byKey.containsKey(key)
+
+    fun row(index: Long): MdDisplayRow {
+        var low = 0L
+        var high = splices.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (splices[middle].position <= index)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        if (low == 0L)
+            return base.display.rows[index]
+        val splice = splices[low - 1L]
+        return if (index < splice.next)
+            splice.rows[index - splice.position]
+        else
+            base.display.rows[index - splice.shift]
+    }
+
+    fun rowForKey(key: MdDisplayKey): Long? {
+        when (byKey[key]) {
+            case Some(val index) -> return Some(index)
+            case None -> Unit
+        }
+        val index = base.display.rowForKey(key) ?: return None
+        val splice = atBase(index)
+        return when (splice) {
+            case Some(val value) -> if (index < value.end)
+                None
+            else
+                Some(index + value.shift)
+            case None -> Some(index)
+        }
+    }
+
+    fun baseIndex(index: Long): Long {
+        val splice = atBase(index) ?: return index
+        return if (index < splice.end) {
+            if (splice.position < count)
+                splice.position
+            else
+                count - 1L
+        } else
+            index + splice.shift
+    }
+
+    fun rowAt(position: MarkdownPosition, bias: MarkdownBias): Long? {
+        if (
+            position.byteOffset <
+                syntax.root.range.start ||
+                position.byteOffset >
+                syntax.root.range.end
+        )
+            return None
+        val index = display.rowAt(position, bias)
+        return byKey[display.rows[index].key]
+    }
+
+    fun restoreHeights(heights: MdHeights, estimate: Double): MdHeights {
+        var result = heights
+        var index = splices.size
+        while (index > 0L) {
+            index -= 1L
+            val splice = splices[index]
+            result =
+                result.replace(splice.position, splice.next, splice.end - splice.start, estimate)
+        }
+        return result
+    }
+
+    fun applyHeights(heights: MdHeights, estimate: Double): MdHeights {
+        var result = heights
+        for (splice in splices)
+            result =
+                result.replace(
+                    splice.position,
+                    splice.position + splice.end - splice.start,
+                    splice.rows.size,
+                    estimate
+                )
+        return result
+    }
+
+    private fun atBase(index: Long): MdRichRowSplice? {
+        var low = 0L
+        var high = splices.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (splices[middle].start <= index)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return if (low == 0L)
+            None
+        else
+            Some(splices[low - 1L])
+    }
+}
+
+private fun mdRichRegionSplices(
+    base: MarkdownParsedDocument,
+    origin: MarkdownRange,
+    display: MdDisplayDocument,
+    changes: MdRichChanges
+): Array<MdRichRowSplice> {
+    val expanded =
+        MarkdownRange(
+            mdPreviewExpanded(base, MarkdownPosition(origin.start), MarkdownBias.Before).byteOffset,
+            mdPreviewExpanded(base, MarkdownPosition(origin.end), MarkdownBias.After).byteOffset
+        )
+    val covered = HashSet<Long>()
+    val preserved = ArrayList<MarkdownRange>()
+    for (index in base.display.rowsInSourceRange(expanded)) {
+        val row = base.display.rows[index]
+        val range = mdPreviewOriginalRange(base, row.range)
+        if (mdRichGenerated(base, row.range) && !changes.touches(range)) {
+            var found = false
+            for (entry in preserved)
+                if (entry == range)
+                    found = true
+            if (!found)
+                preserved.add(range)
+        } else
+            covered.add(index)
+    }
+    val buckets = HashMap<Long, ArrayList<MdDisplayRow>>()
+    for (row in display.rows) {
+        val point =
+            changes.backward(
+                MarkdownAnchor(MarkdownPosition(row.range.start), MarkdownBias.Before)
+            ).position
+        var keep = false
+        for (range in preserved)
+            if (point.byteOffset >= range.start && point.byteOffset < range.end)
+                keep = true
+        if (keep)
+            continue
+        var index =
+            base.display.rowAt(
+                mdPreviewExpanded(base, point, MarkdownBias.Before),
+                MarkdownBias.Before
+            )
+        if (!covered.contains(index))
+            index =
+                base.display.rowAt(
+                    mdPreviewExpanded(base, point, MarkdownBias.After),
+                    MarkdownBias.After
+                )
+        if (!covered.contains(index))
+            throw IllegalStateException(Some("Local Markdown row is outside its source region"))
+        val rows = buckets[index] ?: ArrayList<MdDisplayRow>()
+        if (!buckets.containsKey(index))
+            buckets[index] = rows
+        rows.add(row)
+    }
+    val indices = ArrayList<Long>()
+    for (index in covered)
+        indices.add(index)
+    indices.sortWith(comparatorOf<Long> { a, b -> a.compareTo(b) })
+    val result = ArrayList<MdRichRowSplice>()
+    var at = 0L
+    var shift = 0L
+    while (at < indices.size) {
+        val start = indices[at]
+        var end = start
+        val rows = ArrayList<MdDisplayRow>()
+        while (at < indices.size && indices[at] == end) {
+            when (buckets[end]) {
+                case Some(val values) -> {
+                    values.sortWith(
+                        comparatorOf<MdDisplayRow> {
+                            a,
+                            b -> if (a.range.start != b.range.start)
+                                a.range.start.compareTo(b.range.start)
+                            else
+                                a.range.end.compareTo(b.range.end)
+                        }
+                    )
+                    for (row in values)
+                        rows.add(row)
+                }
+                case None -> Unit
+            }
+            at += 1L
+            end += 1L
+        }
+        result.add(MdRichRowSplice(start, end, rows.toArray(), start + shift))
+        shift += rows.size - (end - start)
+    }
+    return result.toArray()
+}
+
+private fun mdRichGenerated(base: MarkdownParsedDocument, range: MarkdownRange): Boolean {
+    val processed = base.processed ?: return false
+    for (entry in processed.sourceMap.origins(range))
+        when (entry.origin) {
+            case MarkdownSourceOrigin.Generated(_, _, _) -> return true
+            else -> Unit
+        }
+    return false
+}

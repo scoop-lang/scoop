@@ -16,22 +16,61 @@ private class MdDisplayContext(
 
 private class MdBlockFrame(val node: MarkdownNode, val context: MdDisplayContext)
 
+internal class MdProjectionFootnote(val label: String, val number: Long, val node: MarkdownNode)
+
 internal fun mdProjectMarkdown(
     parsed: ParsedMarkdown,
     previous: MdDisplayDocument? = None,
     imageCodeLanguages: List<String> = ["mermaid"],
     imageExtensions: List<String> = ["math"]
-): MdDisplayDocument =
-    MdBlockProjection(parsed, imageCodeLanguages, imageExtensions).build(previous)
+): MdDisplayDocument {
+    val notes =
+        Array<MdProjectionFootnote>(parsed.footnotes.size) {
+            index ->
+            val entry = parsed.footnotes[index]
+            MdProjectionFootnote(entry.label, entry.number, parsed.node(entry.definition))
+        }
+    return MdBlockProjection(parsed, imageCodeLanguages, imageExtensions, notes, HashMap()).build(
+        previous
+    )
+}
+
+internal fun mdProjectRegion(
+    parsed: ParsedMarkdownRegion,
+    notes: HashMap<String, (Long, MarkdownRange)>,
+    options: MarkdownParseOptions
+): MdDisplayDocument {
+    val definitions = ArrayList<MdProjectionFootnote>()
+    for (node in parsed.nodes())
+        when (node.content) {
+            case MarkdownContent.FootnoteDefinition(val label) -> {
+                when (notes[label]) {
+                    case Some(val entry) -> definitions.add(
+                        MdProjectionFootnote(label, entry._1, node)
+                    )
+                    case None -> Unit
+                }
+            }
+            else -> Unit
+        }
+    return MdBlockProjection(
+        parsed,
+        options.imageCodeLanguages,
+        options.imageExtensions,
+        definitions.toArray(),
+        notes
+    ).build(None)
+}
 
 private class MdBlockProjection(
-    val parsed: ParsedMarkdown,
+    val parsed: MarkdownSyntax,
     imageCodeLanguages: List<String>,
-    imageExtensions: List<String>
+    imageExtensions: List<String>,
+    val notes: Array<MdProjectionFootnote>,
+    val footnotes: HashMap<String, (Long, MarkdownRange)>
 ) {
     val rows = ArrayList<MdDisplayRow>()
     val pending = ArrayList<MdBlockFrame>()
-    val footnotes = HashMap<String, (Long, MarkdownRange)>()
     val imageCode = HashSet<String>()
     val imageExtension = HashSet<String>()
     init {
@@ -42,12 +81,12 @@ private class MdBlockProjection(
     }
 
     fun build(previous: MdDisplayDocument?): MdDisplayDocument {
-        for (entry in parsed.footnotes)
-            footnotes[entry.label] = (entry.number, parsed.node(entry.definition).range)
+        for (entry in notes)
+            footnotes[entry.label] = (entry.number, entry.node.range)
         pending.add(MdBlockFrame(parsed.root, MdDisplayContext()))
         drain()
-        for (entry in parsed.footnotes) {
-            val definition = parsed.node(entry.definition)
+        for (entry in notes) {
+            val definition = entry.node
             val marker =
                 MdDisplayMarker(
                     0L,

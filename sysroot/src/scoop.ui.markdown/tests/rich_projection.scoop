@@ -16,7 +16,14 @@ private class MarkdownRichProjectionTests {
         assertEquals(0L, target.cell)
         val edit = target.content.replaceText(MarkdownRange(0L, 0L), "# First")
         edit.applyTo(document)
-        val local = MdRichPresentation(model, target.content, edit.after, 0L, 0L)
+        val local =
+            MdRichPresentation(
+                model,
+                edit.after,
+                0L,
+                0L,
+                MdRichChanges(model.snapshot).append(edit.change)
+            )
         assertEquals("# First", local.row.cells[0L].text)
         assertEquals(0L, parsed.root.children.size)
     }
@@ -53,7 +60,14 @@ private class MarkdownRichProjectionTests {
         val before = parsed.inlineContent(parsed.root.children[1L].id)
         val edit = before.replaceText(MarkdownRange(2L, 3L), "😀")
         edit.applyTo(document)
-        val local = MdRichPresentation(model, before, edit.after, 1L, 0L)
+        val local =
+            MdRichPresentation(
+                model,
+                edit.after,
+                1L,
+                0L,
+                MdRichChanges(model.snapshot).append(edit.change)
+            )
         assertEquals("A 😀 B", local.row.cells[0L].text)
         assertTrue(local.row.cells[0L].runs[0L].flags.strong)
         assertTrue(local.displayRow(0L) === model.display.rows[0L])
@@ -114,7 +128,14 @@ private class MarkdownRichProjectionTests {
         val model = MarkdownParsedDocument(parsed, None, MarkdownParseOptions())
         val edit = before.replaceText(MarkdownRange(0L, 3L), "中|文")
         edit.applyTo(document)
-        val local = MdRichPresentation(model, before, edit.after, 1L, 1L)
+        val local =
+            MdRichPresentation(
+                model,
+                edit.after,
+                1L,
+                1L,
+                MdRichChanges(model.snapshot).append(edit.change)
+            )
         assertEquals("中|文", local.row.cells[1L].text)
         assertTrue(local.row.cells[0L] === model.display.rows[1L].cells[0L])
         assertTrue(local.row.cells[2L] === model.display.rows[1L].cells[2L])

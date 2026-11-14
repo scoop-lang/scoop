@@ -48,7 +48,7 @@ val profile = MarkdownProfile(
 val parsed = document.parse(profile)
 ```
 
-`mdBookDirectives()` 只识别 `{{#command arguments}}`，同时支持行内、独立段落和代码块正文。解析不会读取 include 文件或启动渲染工具。自定义实现提供 name、trigger、locations 和 parse，输入及返回范围均采用该映射片段中的 UTF-8 字节坐标；完整用法见[无 UI 扩展示例](examples/source/tests/extensions.scoop)。Block 注册只能接管一个完整段落，不能跨 CommonMark 容器；代码块正文必须单独启用，code span 和 HTML 保持自己的词法。未注册的内容仍按普通 Markdown 解析，配置变化应使用新的 profile／扩展实例。
+`mdBookDirectives()` 只识别 `{{#command arguments}}`，同时支持行内、独立段落和代码块正文。解析不会读取 include 文件或启动渲染工具。自定义实现提供 name、trigger、locations 和 parse，输入及返回范围均采用该映射片段中的 UTF-8 字节坐标；完整用法见[无 UI 扩展示例](examples/source/tests/extensions.scoop)。Block 注册只能接管一个完整段落，不能跨 CommonMark 容器；代码块正文必须单独启用，code span 和 HTML 保持自己的词法。未注册的内容仍按普通 Markdown 解析，配置变化应使用新的 profile／扩展实例。解析在调用线程执行；UI 的全文解析与局部结构命令可能并发使用同一 profile，语法扩展应使用不可变配置或同步自己的内部状态。资源处理器与渲染器仍由宿主管理调用。
 
 内容展开使用独立的 `MarkdownProcessingSession`。应用实现 `MarkdownResourceResolver` 的路径解析、版本查询和读取后，可以显式处理同一个不可变 snapshot：
 
@@ -92,6 +92,8 @@ val change = document.transform(parsed) {
 }
 document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
 ```
+
+`snapshot.prepare(edit)` 与 `syntax.prepareTransform { ... }` 返回尚未发布的 `MarkdownChange`。可以先以 `region.after(change).parse()` 检查结构或定位结果光标，再调用 `change.applyTo(document)`；文档必须仍持有同一个 before 快照。准备不发送观察通知，不改变 revision；其 after 正是成功发布后的文档快照。完整消费用例见 `examples/source/tests/editing.scoop`。
 
 `transform` 要求当前文档、当前 revision 的解析结果。同一批命令基于同一份原始坐标，按源码顺序准备后一次发布；冲突或错误参数不留下部分修改。除了标题／段落转换，还可以 replaceText、setInlineContent、wrapInline／unwrapInline、setLinkTarget、setReferenceDefinition、setTask，以及表格单元格、行列和矩形修改。节点未涉及的源片段继续保留原始写法，引用和列表的续行沿用本地前缀及换行。修改一个引用链接的 target 会生成独立 inline link；修改共享定义使用明确的 setReferenceDefinition。完整消费示例见 [editing.scoop](examples/source/tests/editing.scoop)，边界见[结构事务规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#8-结构事务)。
 

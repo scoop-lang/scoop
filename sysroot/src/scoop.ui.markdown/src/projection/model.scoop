@@ -49,7 +49,7 @@ internal class MdDisplayReuse(
 )
 
 internal class MdDisplayDocument(
-    val parsed: ParsedMarkdown,
+    val parsed: MarkdownSyntax,
     val rows: Array<MdDisplayRow>,
     val reuse: MdDisplayReuse?
 ) {
@@ -63,6 +63,29 @@ internal class MdDisplayDocument(
 
     fun rowForKey(key: MdDisplayKey): Long? = byKey[key]
 
+    fun rowsInSourceRange(range: MarkdownRange): Array<Long> {
+        var low = 0L
+        var high = sourceOrder.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (rows[sourceOrder[middle]].range.end <= range.start)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        val result = ArrayList<Long>()
+        while (low < sourceOrder.size) {
+            val index = sourceOrder[low]
+            if (rows[index].range.start >= range.end)
+                break
+            result.add(index)
+            low += 1L
+        }
+        if (result.size == 0L && rows.size > 0L && range.isEmpty)
+            result.add(rowAt(MarkdownPosition(range.start), MarkdownBias.Before))
+        return result.toArray()
+    }
+
     fun rowAt(position: MarkdownPosition, bias: MarkdownBias = MarkdownBias.After): Long {
         parsed.snapshot.read(MarkdownRange(position.byteOffset, position.byteOffset))
         var low = 0L
@@ -73,7 +96,13 @@ internal class MdDisplayDocument(
             if (
                 range.end <
                     position.byteOffset ||
-                    (range.end == position.byteOffset && bias == MarkdownBias.After)
+                    (
+                        range.end ==
+                            position.byteOffset &&
+                            bias ==
+                            MarkdownBias.After &&
+                            !range.isEmpty
+                    )
             )
                 low = middle + 1L
             else
@@ -196,7 +225,7 @@ private fun mdDisplaySameObject(a: MdDisplayObject?, b: MdDisplayObject?): Boole
     }
 
 internal fun mdDisplayReconcile(
-    parsed: ParsedMarkdown,
+    parsed: MarkdownSyntax,
     rows: Array<MdDisplayRow>,
     previous: MdDisplayDocument?
 ): MdDisplayDocument {

@@ -10,7 +10,7 @@ internal fun mdRichDocumentEdge(host: MarkdownRichHost, end: Boolean): MdSourceM
     val model = host.preview.presentation?.base ?: host.preview.controller.current!!
     val index =
         if (end)
-            model.display.rows.size - 1L
+            mdFrameRowCount(model, host.preview.presentation) - 1L
         else
             0L
     return mdWithRichRow(host, index) {
@@ -38,7 +38,13 @@ private fun mdRichCellEdge(
     if (row.cells.size == 0L) {
         val model = host.preview.presentation?.base ?: host.preview.controller.current!!
         return MdSourceMove(
-            mdFrameOriginal(model, host.preview.presentation, MarkdownPosition(row.range.start)),
+            mdFrameCellOriginal(
+                model,
+                host.preview.presentation,
+                index,
+                0L,
+                MarkdownPosition(row.range.start)
+            ),
             TextAffinity.Downstream,
             None
         )
@@ -141,6 +147,11 @@ internal fun mdRichPage(
     down: Boolean
 ): MdSourceMove {
     val view = host.preview
+    mdSyncPreviewHeights(
+        view,
+        mdPresentationModel(view.presentation, view.controller.current),
+        view.presentation
+    )
     val selected = host.editor.selection
     val caret = mdRichRowCaret(host, index, column, selected.cursor, selected.cursorBias)
     val x = host.preferredX ?: (caret?.x ?: 0.0)
@@ -169,7 +180,7 @@ internal fun mdRichAdjacent(
     val view = host.preview
     val model = view.presentation?.base ?: view.controller.current!!
     val selected = host.editor.selection
-    val row = view.presentation?.displayRow(index) ?: model.display.rows[index]
+    val row = mdFrameRow(model, view.presentation, index)
     if (!vertical && ((previous && column > 0L) || (!previous && column + 1L < row.cells.size)))
         return mdRichCellEdge(
             host,
@@ -181,7 +192,10 @@ internal fun mdRichAdjacent(
                 column + 1L,
             previous
         )
-    if ((previous && index == 0L) || (!previous && index + 1L == model.display.rows.size))
+    if (
+        (previous && index == 0L) ||
+            (!previous && index + 1L == mdFrameRowCount(model, view.presentation))
+    )
         return MdSourceMove(selected.cursor, host.cursorAffinity, host.preferredX)
     val target =
         if (previous)

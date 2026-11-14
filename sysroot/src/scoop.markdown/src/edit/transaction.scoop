@@ -12,9 +12,15 @@ public fun MarkdownDocument.transform(
         throw IllegalStateException(
             Some("Markdown structure edits require the current document parse")
         )
-    val builder = MarkdownTransformBuilder(parsed)
+    return parsed.prepareTransform(configure).applyTo(this)
+}
+
+public fun MarkdownSyntax.prepareTransform(
+    configure: MarkdownTransformBuilder.() -> Unit
+): MarkdownChange {
+    val builder = MarkdownTransformBuilder(this)
     builder.configure()
-    return apply(builder.edit())
+    return snapshot.prepare(builder.edit())
 }
 
 /** All operations in this builder use the same original parse, not intermediate edited nodes. */

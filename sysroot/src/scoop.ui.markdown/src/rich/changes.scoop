@@ -1,0 +1,97 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal class MdRichChangeStep(val previous: MdRichChangeStep?, val change: MarkdownChange)
+
+/** Persistent source mapping retained only until a matching background parse replaces the base. */
+internal class MdRichChanges(
+    val base: MarkdownSnapshot,
+    private val step: MdRichChangeStep? = None
+) {
+    val snapshot: MarkdownSnapshot get() = step?.change?.after ?: base
+
+    fun append(change: MarkdownChange): MdRichChanges {
+        if (change.before !== snapshot)
+            throw IllegalStateException(
+                Some("Markdown display changes require consecutive snapshots")
+            )
+        return if (change.changed)
+            MdRichChanges(base, Some(MdRichChangeStep(step, change)))
+        else
+            this
+    }
+
+    fun backward(anchor: MarkdownAnchor, to: MarkdownSnapshot = base): MarkdownAnchor {
+        var result = anchor
+        var current = step
+        var snapshot = this.snapshot
+        while (snapshot !== to) {
+            val entry =
+                current ?: throw IllegalStateException(Some("Markdown display base is unavailable"))
+            result = entry.change.mapBack(result)
+            snapshot = entry.change.before
+            current = entry.previous
+        }
+        return result
+    }
+
+    fun forward(anchor: MarkdownAnchor, from: MarkdownSnapshot = base): MarkdownAnchor {
+        val pending = changesFrom(from)
+        var result = anchor
+        var index = pending.size
+        while (index > 0L) {
+            index -= 1L
+            result = pending[index].map(result)
+        }
+        return result
+    }
+
+    fun touches(range: MarkdownRange): Boolean {
+        var current = range
+        val pending = changesFrom(base)
+        var index = pending.size
+        while (index > 0L) {
+            index -= 1L
+            val change = pending[index]
+            for (entry in change.replacements)
+                if (
+                    entry.range.start <
+                        current.end &&
+                        entry.range.end >
+                        current.start ||
+                        entry.range.isEmpty &&
+                        entry.range.start >=
+                        current.start &&
+                        entry.range.start <=
+                        current.end
+                )
+                    return true
+            current =
+                MarkdownRange(
+                    change.map(
+                        MarkdownAnchor(MarkdownPosition(current.start), MarkdownBias.After)
+                    ).position.byteOffset,
+                    change.map(
+                        MarkdownAnchor(MarkdownPosition(current.end), MarkdownBias.Before)
+                    ).position.byteOffset
+                )
+        }
+        return false
+    }
+
+    private fun changesFrom(from: MarkdownSnapshot): ArrayList<MarkdownChange> {
+        val result = ArrayList<MarkdownChange>()
+        var current = step
+        var snapshot = this.snapshot
+        while (snapshot !== from) {
+            val entry =
+                current ?:
+                    throw IllegalStateException(Some("Markdown display source is unavailable"))
+            result.add(entry.change)
+            snapshot = entry.change.before
+            current = entry.previous
+        }
+        return result
+    }
+}

@@ -166,20 +166,25 @@ public class MarkdownPreviewMeasurement internal constructor(
             }
             case None -> Unit
         }
+        val bias =
+            if (affinity == TextAffinity.Upstream)
+                MarkdownBias.Before
+            else
+                MarkdownBias.After
+        val original = mdFrameCellOriginal(model, presentation, index, selectedCell, source, bias)
+        val range =
+            if (presentation?.isActive(index, selectedCell) ?: false)
+                presentation!!.content.sourceRange
+            else
+                mdFrameRowRange(model, presentation, index, measured.row.range)
         return Some(
             MarkdownPreviewHit(
+                original,
                 if (local)
-                    source
-                else
-                    mdFrameOriginal(model, presentation, source),
-                if (local)
-                    presentation!!.expanded(source)
+                    mdFrameExpanded(model, presentation, original, bias)
                 else
                     source,
-                if (local)
-                    presentation!!.content.sourceRange
-                else
-                    mdFrameOriginalRange(model, presentation, measured.row.range),
+                range,
                 generated,
                 measured.row.node,
                 affinity,
@@ -196,40 +201,13 @@ public class MarkdownPreviewMeasurement internal constructor(
 
     internal fun caret(position: MarkdownPosition, bias: MarkdownBias = MarkdownBias.After): Rect? {
         val model = document ?: return None
-        val expanded = mdFrameExpanded(model, presentation, position, bias)
-        val local = presentation
-        val inLocal =
-            when (local) {
-                case Some(val active) -> position.byteOffset >=
-                    active.row.cells[active.cellIndex].sourceRange.start &&
-                    position.byteOffset <=
-                    active.row.cells[active.cellIndex].sourceRange.end
-                case None -> false
-            }
-        val index =
-            if (inLocal)
-                local!!.rowIndex
-            else
-                model.display.rowAt(expanded, bias)
+        val index = mdFrameRowAt(model, presentation, position, bias)
         val measured = row(index) ?: return None
         if (measured.resource.cells.size == 0L)
             return Some(
                 Rect(padding, padding + heights.prefix(index), 1.0, measured.resource.height)
             )
-        var cellIndex =
-            if (inLocal)
-                local!!.cellIndex
-            else
-                0L
-        while (
-            !inLocal &&
-                cellIndex +
-                1L <
-                measured.row.cells.size &&
-                model.display.rows[index].cells[cellIndex].sourceRange.end <
-                expanded.byteOffset
-        )
-            cellIndex += 1L
+        val cellIndex = mdFrameColumn(model, presentation, index, position, bias)
         val cell = measured.resource.cells[cellIndex]
         val text = measured.row.cells[cellIndex]
         val raw =
@@ -275,9 +253,7 @@ public class MarkdownPreviewMeasurement internal constructor(
 
     internal fun hitCaret(hit: MarkdownPreviewHit): Rect? {
         val model = document ?: return None
-        val index =
-            (presentation?.rowForKey(hit.blockKey) ?: model.display.rowForKey(hit.blockKey)) ?:
-                return None
+        val index = mdFrameRowForKey(model, presentation, hit.blockKey) ?: return None
         val measured = row(index) ?: return None
         if (hit.cellIndex >= measured.resource.cells.size)
             return Some(

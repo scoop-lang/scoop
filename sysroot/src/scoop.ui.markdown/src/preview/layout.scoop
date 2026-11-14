@@ -22,7 +22,7 @@ private class MdPreviewMeasurePass(
             case Some(val value) -> return value;
             case None -> Unit
         }
-        val row = presentation?.displayRow(index) ?: model.display.rows[index]
+        val row = mdFrameRow(model, presentation, index)
         val cache = host.caches[row.key] ?: MdPreviewRowCache()
         host.caches[row.key] = cache
         val resource = cache.measure(host, context, model, row, width)
@@ -49,18 +49,9 @@ private class MdPreviewMeasurePass(
                 host.editor.snapshot.revision
         )
             return None
-        val kept = presentation?.rowForKey(anchor.key) ?: model.display.rowForKey(anchor.key)
+        val kept = mdFrameRowForKey(model, presentation, anchor.key)
         val index =
-            kept ?:
-                model.display.rowAt(
-                    mdFrameExpanded(
-                        model,
-                        presentation,
-                        anchor.source.position,
-                        anchor.source.bias
-                    ),
-                    anchor.source.bias
-                )
+            kept ?: mdFrameRowAt(model, presentation, anchor.source.position, anchor.source.bias)
         val measured = row(index)
         val local =
             when (kept) {
@@ -74,22 +65,14 @@ private class MdPreviewMeasurePass(
                         0.0
                 }
                 case None -> {
-                    val expanded =
-                        mdFrameExpanded(
+                    val cellIndex =
+                        mdFrameColumn(
                             model,
                             presentation,
+                            index,
                             anchor.source.position,
                             anchor.source.bias
                         )
-                    var cellIndex = 0L
-                    while (
-                        cellIndex +
-                            1L <
-                            measured.row.cells.size &&
-                            model.display.rows[index].cells[cellIndex].sourceRange.end <
-                            expanded.byteOffset
-                    )
-                        cellIndex += 1L
                     if (cellIndex < measured.resource.cells.size) {
                         val cell = measured.resource.cells[cellIndex]
                         val text = measured.row.cells[cellIndex]
@@ -138,19 +121,10 @@ private class MdPreviewMeasurePass(
         )
             return None
         val anchor = value.anchor
-        val expanded =
-            mdFrameExpanded(model, presentation, anchor.source.position, anchor.source.bias)
-        val index = model.display.rowAt(expanded, anchor.source.bias)
+        val index = mdFrameRowAt(model, presentation, anchor.source.position, anchor.source.bias)
         val measured = row(index)
-        var cellIndex = 0L
-        while (
-            cellIndex +
-                1L <
-                measured.row.cells.size &&
-                model.display.rows[index].cells[cellIndex].sourceRange.end <
-                expanded.byteOffset
-        )
-            cellIndex += 1L
+        val cellIndex =
+            mdFrameColumn(model, presentation, index, anchor.source.position, anchor.source.bias)
         if (cellIndex >= measured.resource.cells.size)
             return None
         val cell = measured.resource.cells[cellIndex]
@@ -209,36 +183,13 @@ internal fun mdMeasurePreview(
     val presentation = host.presentation
     val model = mdPresentationModel(presentation, host.controller.latest)
     val estimate = mdPreviewEstimate(host.style, host.options)
-    val same =
-        when ((host.document, model)) {
-            case(Some(val old), Some(val next)) -> old === next
-            case(None, None) -> true
-            else -> false
-        }
-    if (!same) {
-        val reuse = model?.display?.reuse ?: None
-        val old = host.document
-        when ((old, reuse)) {
-            case(Some(val old), Some(val reuse)) -> {
-                if (old.display.identity === reuse.previous && host.heights.count == reuse.oldCount)
-                    host.heights =
-                        host.heights.replace(
-                            reuse.prefix,
-                            reuse.oldCount - reuse.suffix,
-                            model!!.display.rows.size - reuse.prefix - reuse.suffix,
-                            estimate
-                        )
-                else
-                    host.heights = mdHeightRun(model!!.display.rows.size, estimate)
-            }
-            else -> host.heights = mdHeightRun(model?.display?.rows?.size ?: 0L, estimate)
-        }
-        host.document = model
-    }
-    if (host.layoutWidth != width || host.fontRevision != host.fonts.revision) {
+    mdSyncPreviewHeights(host, model, presentation)
+    val widthChanged = host.layoutWidth != width || host.fontRevision != host.fonts.revision
+    if (widthChanged) {
         host.layoutWidth = width
         host.fontRevision = host.fonts.revision
-        host.heights = mdHeightRun(model?.display?.rows?.size ?: 0L, estimate)
+        host.heights =
+            mdHeightRun(presentation?.count ?: (model?.display?.rows?.size ?: 0L), estimate)
         host.maximumWidth = 0.0
     }
     val active =
@@ -265,7 +216,7 @@ internal fun mdMeasurePreview(
                 (presentation?.content?.snapshot?.revision ?: active.snapshot.revision) ==
                     host.editor.snapshot.revision
             )
-                pass.row(active.display.rowAt(mdFrameExpanded(active, presentation, position)))
+                pass.row(mdFrameRowAt(active, presentation, position))
             case None -> Unit
         }
         var adjustment = pass.adjustment()
@@ -284,7 +235,11 @@ internal fun mdMeasurePreview(
             var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
             val bottom = offset.y + size.height + host.options.overscan
             while (
-                index < active.display.rows.size && host.heights.prefix(index) + padding < bottom
+                index <
+                    mdFrameRowCount(active, presentation) &&
+                    host.heights.prefix(index) +
+                    padding <
+                    bottom
             ) {
                 pass.row(index)
                 index += 1L

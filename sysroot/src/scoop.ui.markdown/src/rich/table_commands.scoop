@@ -1,0 +1,116 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+
+internal fun mdRichTableStep(
+    syntax: ParsedMarkdownRegion,
+    currentCell: MarkdownNode,
+    backward: Boolean,
+    vertical: Boolean = false
+): MdRichStructureEdit? {
+    val row = syntax.parent(currentCell.id)!!
+    val table = syntax.parent(row.id)!!
+    var rowIndex = 0L
+    while (table.children[rowIndex] !== row)
+        rowIndex += 1L
+    var column = 0L
+    while (row.children[column] !== currentCell)
+        column += 1L
+    val width = row.children.size
+    val position =
+        rowIndex *
+            width +
+            column +
+            if (vertical)
+                width
+            else
+                if (backward)
+                    -1L
+                else
+                    1L
+    if (position < 0L)
+        return None
+    val nextRow = position / width
+    val nextColumn = position % width
+    val change =
+        syntax.prepareTransform {
+            if (nextRow == table.children.size)
+                insertTableRow(table.id, table.children.size) {
+                    for (index in 0L ..< width)
+                        cell {}
+                }
+        }
+    val after =
+        if (change.changed)
+            syntax.region.after(change).parse()
+        else
+            syntax
+    val nextTable =
+        if (change.changed)
+            mdRichTableAt(after, MarkdownPosition(table.range.start))!!
+        else
+            table
+    val content = after.inlineContent(nextTable.children[nextRow].children[nextColumn].id)
+    val at = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset
+    return Some(MdRichStructureEdit(change, after, MarkdownRange(at, at)))
+}
+
+internal fun mdRichTablePaste(
+    syntax: ParsedMarkdownRegion,
+    selection: MarkdownSelection,
+    text: String
+): MdRichStructureEdit? {
+    val cell = mdRichBlockAt(syntax, selection.cursor, selection.cursorBias) ?: return None
+    when (cell.content) {
+        case MarkdownContent.TableCell(_, _) -> Unit
+        else -> return None
+    }
+    val content = syntax.inlineContent(cell.id)
+    if (!mdRichContains(content, selection))
+        return None
+    val row = syntax.parent(cell.id)!!
+    val table = syntax.parent(row.id)!!
+    var rowIndex = 0L
+    while (table.children[rowIndex] !== row)
+        rowIndex += 1L
+    var column = 0L
+    while (row.children[column] !== cell)
+        column += 1L
+    val selectedRow = rowIndex
+    val selectedColumn = column
+    val change =
+        syntax.prepareTransform { pasteTableTsv(table.id, selectedRow, selectedColumn, text) }
+    val after = syntax.region.after(change).parse()
+    val nextTable = mdRichTableAt(after, MarkdownPosition(table.range.start))!!
+    val next = after.inlineContent(nextTable.children[selectedRow].children[selectedColumn].id)
+    val at =
+        next.text.sourceAt(MarkdownPosition(next.text.byteLength), MarkdownBias.Before).byteOffset
+    return Some(MdRichStructureEdit(change, after, MarkdownRange(at, at)))
+}
+
+private fun mdRichTableAt(syntax: MarkdownSyntax, position: MarkdownPosition): MarkdownNode? {
+    var node = syntax.nodeAt(position)
+    while (true) {
+        when (node.content) {
+            case MarkdownContent.Table(_) -> return Some(node)
+            else -> node = syntax.parent(node.id) ?: return None
+        }
+    }
+}
+
+internal fun mdRichTab(host: MarkdownRichHost, backward: Boolean): Boolean {
+    if (host.readOnly)
+        return true
+    val selection = host.editor.selection
+    val state = host.local ?: return false
+    val syntax = state.syntax(selection) ?: return false
+    val block = mdRichBlockAt(syntax, selection.cursor, selection.cursorBias)
+    val edit =
+        when (block?.content) {
+            case Some(MarkdownContent.TableCell(_, _)) -> mdRichTableStep(syntax, block!!, backward)
+            else -> mdRichListTab(syntax, selection, backward)
+        } ?:
+            return false
+    mdRichStructure(host, edit)
+    return true
+}

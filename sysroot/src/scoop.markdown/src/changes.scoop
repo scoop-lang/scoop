@@ -27,6 +27,8 @@ public class MarkdownChange internal constructor(
     public val beforeRevision: Long get() = before.revision
     public val afterRevision: Long get() = after.revision
 
+    public fun applyTo(document: MarkdownDocument): MarkdownChange = document.applyPrepared(this)
+
     /** Maps a validated baseline anchor without depending on layout or parsed structure. */
     public fun map(anchor: MarkdownAnchor): MarkdownAnchor =
         mdMapChangeAnchor(before, replacements, anchor)

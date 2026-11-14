@@ -19,21 +19,10 @@ internal fun mdRichTarget(
     selection: MarkdownSelection,
     allowMarkers: Boolean = false
 ): MdRichTarget? {
-    var node = model.source.nodeAt(selection.cursor, selection.cursorBias)
-    while (true) {
-        when (node.content) {
-            case MarkdownContent.Document -> {
-                if (model.source.snapshot.byteLength == 0L)
-                    break
-                return None
-            }
-            case MarkdownContent.Paragraph(_) -> break
-            case MarkdownContent.Heading(_, _, _) -> break
-            case MarkdownContent.TableCell(_, _) -> break
-            else -> node = model.source.parent(node.id) ?: return None
-        }
-    }
-    val content = model.source.inlineContent(node.id)
+    val content =
+        model.source.inlineContentAt(selection.cursor, selection.cursorBias) ?: return None
+    if (content.sourceRange.isEmpty && model.snapshot.byteLength > 0L)
+        return None
     if (!mdRichContains(content, selection) && (!allowMarkers || !selection.collapsed))
         return None
     return mdRichLocate(model, content)
@@ -62,12 +51,20 @@ internal fun mdRichClamp(
 
 internal fun mdRichLocate(
     model: MarkdownParsedDocument,
-    content: MarkdownInlineContent
+    content: MarkdownInlineContent,
+    changes: MdRichChanges = MdRichChanges(model.snapshot)
 ): MdRichTarget? {
-    if (model.display.rows.size == 0L)
+    if (
+        model.display.rows.size ==
+            0L ||
+            content.sourceRange.isEmpty &&
+            model.snapshot.byteLength >
+            0L
+    )
         return None
     val first = content.text.sourceAt(MarkdownPosition(0L), MarkdownBias.After)
-    val position = mdPreviewExpanded(model, first, MarkdownBias.After)
+    val original = changes.backward(MarkdownAnchor(first, MarkdownBias.After)).position
+    val position = mdPreviewExpanded(model, original, MarkdownBias.After)
     val index = model.display.rowAt(position, MarkdownBias.Before)
     val row = model.display.rows[index]
     when (row.kind) {
@@ -76,6 +73,8 @@ internal fun mdRichLocate(
         case MdDisplayKind.Table(_, _) -> Unit
         else -> return None
     }
+    if (row.cells.size == 0L)
+        return None
     var cell = 0L
     while (cell + 1L < row.cells.size && row.cells[cell].sourceRange.end < position.byteOffset)
         cell += 1L

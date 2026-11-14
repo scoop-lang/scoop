@@ -1,0 +1,345 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+private class MdRichStructureFixture(source: String, position: Long): Closeable {
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(source), mdCaret(position))
+    val model =
+        MarkdownParsedDocument(
+            editor.document.parse(MarkdownProfile.Editor),
+            None,
+            MarkdownParseOptions()
+        )
+    val local = MdRichRegionState(model, editor.selection)
+    private val subscription =
+        editor.document.observe { change -> assertTrue(local.advance(change)) }
+
+    fun syntax(): ParsedMarkdownRegion = local.syntax(editor.selection)!!
+    fun apply(edit: MdRichStructureEdit) {
+        editor.apply(edit.change, edit.selection, edit.reversed)
+        local.prepared(edit.syntax)
+    }
+    fun display(): MdRichPresentation {
+        val target = local.project(editor.selection, true)!!
+        return MdRichPresentation(
+            model,
+            target.content,
+            target.row,
+            target.cell,
+            local.changes,
+            local.rows
+        )
+    }
+    fun type(text: String): MdRichPresentation {
+        val target = display()
+        val at = target.content.text.textAt(editor.selection.cursor).byteOffset
+        val edit = target.content.replaceText(MarkdownRange(at, at), text)
+        editor.apply(edit)
+        return MdRichPresentation(
+            model,
+            edit.after,
+            target.rowIndex,
+            target.cellIndex,
+            local.changes,
+            local.rows
+        )
+    }
+    public override fun close() {
+        subscription.close();
+        editor.close()
+    }
+}
+
+@Test
+private class MarkdownRichStructureTests {
+    @Test
+    fun splitTypeAndJoinReuseDistantRowsAndRestoreTheCommandCaret() {
+        val source = "# Start\n\nab**CD**\n\nNeighbor\n\nFar\n\nEnd\n"
+        MdRichStructureFixture(source, "# Start\n\nab".byteLength).use {
+            fixture ->
+            val split = mdRichNewline(fixture.syntax(), fixture.editor.selection)!!
+            fixture.apply(split)
+            val first = fixture.display()
+            assertEquals(6L, first.count)
+            assertEquals("CD", first.content.text.text)
+            assertTrue(first.displayRow(4L) === fixture.model.display.rows[3L])
+            val oldKey = first.row.key
+            val typed = fixture.type("中")
+            assertEquals("中CD", typed.content.text.text)
+            assertEquals("CD", first.content.text.text)
+            assertTrue(typed.displayRow(4L) === first.displayRow(4L))
+            assertTrue(
+                when (typed.rowForKey(oldKey)) {
+                    case None -> true;
+                    else -> false
+                }
+            )
+            val start = typed.content.text.sourceAt(MarkdownPosition(0L))
+            fixture.editor.setSelection(MarkdownSelection(start, start))
+            fixture.apply(mdRichJoin(fixture.syntax(), fixture.editor.selection, true)!!)
+            val caret = fixture.editor.selection
+            assertEquals("ab中CD", fixture.display().content.text.text)
+            assertEquals(5L, fixture.display().count)
+            assertTrue(fixture.editor.undo())
+            assertEquals("中CD", fixture.display().content.text.text)
+            assertTrue(fixture.editor.redo())
+            assertEquals(caret, fixture.editor.selection)
+            assertEquals(source, fixture.model.snapshot.toMarkdown())
+        }
+    }
+
+    @Test
+    fun emptyQuotedContinuationReceivesTheNextLiteralInput() {
+        MdRichStructureFixture("> A", 3L).use {
+            fixture ->
+            fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
+            val view = fixture.display()
+            assertEquals("", view.content.text.text)
+            assertEquals(2L, view.count)
+            assertEquals(1L, view.row.indent)
+            assertEquals(0L, view.row.quotes!!.level)
+            val typed = fixture.type("# x")
+            assertEquals("# x", typed.content.text.text)
+            assertTrue(fixture.editor.document.toMarkdown().endsWith("> \\# x"))
+            assertEquals(
+                "A\n# x",
+                mdPreviewSelectedText(
+                    fixture.model,
+                    MarkdownRange(0L, fixture.editor.snapshot.byteLength),
+                    Some(typed)
+                )
+            )
+        }
+    }
+
+    @Test
+    fun aCompletedBackgroundParseDoesNotReplaceThePreviousParagraphWithAnEmptyCaretRow() {
+        MdRichStructureFixture("A", 1L).use {
+            fixture ->
+            fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
+            val local = fixture.display()
+            val completed =
+                MarkdownParsedDocument(
+                    fixture.editor.document.parse(),
+                    None,
+                    MarkdownParseOptions(),
+                    Some(fixture.model.display)
+                )
+            assertTrue(
+                when (mdRichLocate(completed, local.content)) {
+                    case None -> true;
+                    else -> false
+                }
+            )
+            val state = MdRichRegionState(completed, fixture.editor.selection)
+            val target = state.project(fixture.editor.selection, true)!!
+            val next =
+                MdRichPresentation(
+                    completed,
+                    target.content,
+                    target.row,
+                    target.cell,
+                    state.changes,
+                    state.rows
+                )
+            assertEquals(2L, next.count)
+            assertEquals("A", next.displayRow(0L).cells[0L].text)
+            assertEquals("", next.displayRow(1L).cells[0L].text)
+        }
+    }
+
+    @Test
+    fun emptyTaskExitAndListIndentKeepEditableCaretsWithoutAFullParse() {
+        MdRichStructureFixture("- [x] ", 6L).use {
+            fixture ->
+            fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
+            assertEquals("", fixture.display().content.text.text)
+            assertEquals("plain", fixture.type("plain").content.text.text)
+            assertEquals("plain", fixture.editor.document.toMarkdown())
+        }
+        val source = "- first\n- second\n"
+        MdRichStructureFixture(source, 13L).use {
+            fixture ->
+            fixture.apply(mdRichListTab(fixture.syntax(), fixture.editor.selection, false)!!)
+            assertEquals("- first\n  - second\n", fixture.editor.document.toMarkdown())
+            assertEquals(
+                3L,
+                fixture.display().content.text.textAt(fixture.editor.selection.cursor).byteOffset
+            )
+            fixture.apply(mdRichListTab(fixture.syntax(), fixture.editor.selection, true)!!)
+            assertEquals(source, fixture.editor.document.toMarkdown())
+            assertEquals(MarkdownPosition(13L), fixture.editor.selection.cursor)
+            fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
+            assertEquals("ond", fixture.display().content.text.text)
+            assertEquals("- first\n- sec\n- ond\n", fixture.editor.document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun aNewTableRowAndItsTypingShareProjectionButKeepSeparateHistory() {
+        val source = "| a | b |\n| --- | --- |\n| A | B |\n\nFar\n"
+        val at = source.substring(0L, source.indexOf("B")).byteLength + 1L
+        MdRichStructureFixture(source, at).use {
+            fixture ->
+            val before = fixture.editor.selection
+            val syntax = fixture.syntax()
+            val cell = mdRichBlockAt(syntax, before.cursor, before.cursorBias)!!
+            fixture.apply(mdRichTableStep(syntax, cell, false)!!)
+            val inserted = fixture.editor.selection
+            val view = fixture.display()
+            assertEquals(4L, view.count)
+            assertEquals("", view.content.text.text)
+            val typed = fixture.type("中|文")
+            assertEquals("中|文", typed.content.text.text)
+            assertTrue(fixture.editor.document.toMarkdown().contains("中\\|文"))
+            val previous = typed.displayRow(1L).cells[1L]
+            val current = typed.cellRange(1L, 1L, previous.sourceRange)
+            assertEquals("B", mdPreviewSelectedText(fixture.model, current, Some(typed)))
+            assertTrue(fixture.editor.undo())
+            assertEquals(inserted, fixture.editor.selection)
+            assertTrue(fixture.editor.undo())
+            assertEquals(before, fixture.editor.selection)
+            assertEquals(source, fixture.editor.document.toMarkdown())
+            assertTrue(fixture.editor.redo())
+            assertEquals(inserted, fixture.editor.selection)
+            assertEquals("", fixture.display().content.text.text)
+        }
+    }
+
+    @Test
+    fun tableNavigationDoesNotCreateHistoryAndTsvPastePublishesItsLocatedCaret() {
+        MdRichStructureFixture("| a | b |\n| --- | --- |\n| A | B |\n", 2L).use {
+            fixture ->
+            val syntax = fixture.syntax()
+            val cell = mdRichBlockAt(syntax, fixture.editor.selection.cursor, MarkdownBias.After)!!
+            fixture.apply(mdRichTableStep(syntax, cell, false)!!)
+            assertFalse(fixture.editor.canUndo)
+            assertEquals("b", fixture.display().content.text.text)
+            fixture.apply(
+                mdRichTablePaste(fixture.syntax(), fixture.editor.selection, "中\t文\n甲\t乙")!!
+            )
+            assertEquals("中", fixture.display().content.text.text)
+            val caret = fixture.editor.selection
+            assertEquals(3L, fixture.display().row.cells.size)
+            assertTrue(fixture.editor.undo())
+            assertTrue(fixture.editor.redo())
+            assertEquals(caret, fixture.editor.selection)
+            assertEquals("中", fixture.display().content.text.text)
+        }
+    }
+
+    @Test
+    fun footnoteRowsKeepDisplayOrderWhenTheSourceRegionHasDisjointDisplaySpans() {
+        val source = "Text[^z][^a]\n\n[^a]: abcd\n\nMiddle\n\n[^z]: Z\n\nTail\n"
+        val at = source.substring(0L, source.indexOf("abcd")).byteLength + 2L
+        MdRichStructureFixture(source, at).use {
+            fixture ->
+            val original = fixture.model.display
+            fixture.apply(mdRichNewline(fixture.syntax(), fixture.editor.selection)!!)
+            val view = fixture.display()
+            assertEquals(original.rows.size + 1L, view.count)
+            assertEquals("cd", view.content.text.text)
+            assertEquals(5L, view.rowIndex)
+            assertTrue(view.displayRow(2L) === original.rows[2L])
+            assertTrue(view.displayRow(3L) === original.rows[3L])
+            assertEquals("Z", view.displayRow(3L).cells[0L].text)
+            assertEquals("ab", view.displayRow(4L).cells[0L].text)
+            var heights = mdHeightRun(original.rows.size, 20.0).record(2L, 73.0).record(3L, 41.0)
+            heights = view.regions!!.applyHeights(heights, 20.0)
+            assertEquals(view.count, heights.count)
+            assertEquals(73.0, heights.prefix(3L) - heights.prefix(2L))
+            assertEquals(41.0, heights.prefix(4L) - heights.prefix(3L))
+            val restored = view.regions!!.restoreHeights(heights, 20.0)
+            assertEquals(original.rows.size, restored.count)
+            assertEquals(73.0, restored.prefix(3L) - restored.prefix(2L))
+        }
+    }
+
+    @Test
+    fun invalidPreparedSelectionsAndForeignSnapshotsDoNotPublish() {
+        MarkdownEditorState(MarkdownDocument.fromText("A")).use {
+            editor ->
+            val snapshot = editor.snapshot
+            val change =
+                snapshot.prepare(
+                    MarkdownEdit(
+                        snapshot.revision,
+                        [MarkdownReplacement(MarkdownRange(0L, 1L), "中")]
+                    )
+                )
+            assertFailsWith<IllegalArgumentException> {
+                editor.apply(change, MarkdownRange(1L, 1L))
+            }
+            assertTrue(editor.snapshot === snapshot)
+            assertFalse(editor.canUndo)
+            editor.replace(MarkdownRange(0L, 1L), "B")
+            assertFailsWith<IllegalStateException> { editor.apply(change, MarkdownRange(3L, 3L)) }
+            assertEquals("B", editor.document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun aNeighboringMdBookExpansionRemainsSharedDuringLocalBlockEditing() {
+        val editor =
+            MarkdownEditorState(
+                MarkdownDocument.fromText("abCD\n\n{{#include child.md}}\n\nTail\n"),
+                mdCaret(2L)
+            )
+        val resolver = MdRichExpansionResolver()
+        val options =
+            MarkdownParseOptions(
+                MarkdownProfile(extensions = [mdBookDirectives()]),
+                Some(MarkdownExpansionOptions("/book/root.md", resolver, [mdBookProcessor()]))
+            )
+        val engine = MdParseEngine()
+        val model = engine.parse(MdParseRequest(editor.snapshot, options))
+        val state = MdRichRegionState(model, editor.selection)
+        val observer = editor.document.observe { change -> assertTrue(state.advance(change)) }
+        try {
+            val edit = mdRichNewline(state.syntax(editor.selection)!!, editor.selection)!!
+            editor.apply(edit.change, edit.selection)
+            state.prepared(edit.syntax)
+            val target = state.project(editor.selection, true)!!
+            val view =
+                MdRichPresentation(
+                    model,
+                    target.content,
+                    target.row,
+                    target.cell,
+                    state.changes,
+                    state.rows
+                )
+            assertEquals(5L, view.count)
+            assertEquals("CD", view.content.text.text)
+            assertTrue(view.displayRow(2L) === model.display.rows[1L])
+            assertTrue(view.displayRow(3L) === model.display.rows[2L])
+            assertEquals("Expanded", view.displayRow(2L).cells[0L].text)
+            assertEquals("Details", view.displayRow(3L).cells[0L].text)
+            assertEquals(
+                "ab\nCD\nExpanded\nDetails\nTail",
+                mdPreviewSelectedText(
+                    model,
+                    MarkdownRange(0L, editor.snapshot.byteLength),
+                    Some(view)
+                )
+            )
+            assertEquals(1, resolver.reads)
+        } finally {
+            observer.close();
+            editor.close();
+            engine.clear()
+        }
+    }
+}
+
+private class MdRichExpansionResolver: MarkdownResourceResolver {
+    var reads = 0
+    public override fun resolve(baseUri: String, reference: String): String = "/book/" + reference
+    public override fun version(uri: String): String? = Some("1")
+    public override fun read(uri: String): MarkdownResourceData {
+        reads += 1
+        return MarkdownResourceData("# Expanded\n\nDetails\n", "1")
+    }
+}

@@ -123,7 +123,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                     fail(Some("Rich test timeout at " + step.value.toString()))
                 }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
             }
-            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 20) {
+            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 29) {
                 when (input) {
                     case Enabled(_) -> inputReady = true
                     case Disabled(_) -> inputReady = false
@@ -137,7 +137,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
                 }
                 if (
                     step.value >=
-                        20 &&
+                        29 &&
                         publicFocus.isAttached &&
                         !publicFocus.hasFocus &&
                         !publicFocus.isPending
@@ -160,7 +160,7 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
     private fun ready(): Boolean {
         if (!window!!.isFocused || window!!.isOccluded || frames!!.snapshot().required)
             return false
-        if (step.value >= 20)
+        if (step.value >= 29)
             return publicFocus.isFocusActive &&
                 inputReady &&
                 frames!!.snapshot().presentations >
@@ -321,6 +321,10 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
             case 18 -> {
                 assertTrue(host.execute(TextEditCommand.Move(TextMovement.PageDown, false)))
                 assertTrue(editor.selection.cursor.byteOffset > 50L)
+                editor.replaceSelection("X")
+                assertTrue(host.execute(TextEditCommand.InsertNewline))
+                assertTrue(parser.isPending)
+                assertTrue(host.execute(TextEditCommand.Move(TextMovement.PageDown, false)))
                 next {
                     assertTrue(
                         host.execute(TextEditCommand.Move(TextMovement.DocumentStart, false))
@@ -330,20 +334,90 @@ internal class RichProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): C
             case 19 -> {
                 assertEquals(MarkdownPosition(0L), editor.selection.cursor)
                 next {
-                    editor.document.reset("# Public\n\n__text__");
+                    editor.document.reset(
+                        "ab**CD**\n\n" + "Tail paragraph 中文 text.\n\n".repeat(40000L)
+                    )
+                    select(2L)
+                }
+            }
+            case 20 -> next {
+                assertTrue(editor.snapshot.byteLength > 1048576L)
+                assertTrue(host.execute(TextEditCommand.InsertNewline))
+                assertTrue(parser.isPending)
+                assertEquals("CD", host.nativeInputState!!.surroundingText)
+            }
+            case 21 -> {
+                assertEquals("CD", host.nativeInputState!!.surroundingText)
+                assertTrue(mdNativeDocument(native, host))
+                next { assertEquals(0, mdNativeText(native, "中")) }
+            }
+            case 22 -> {
+                assertEquals("中CD", host.nativeInputState!!.surroundingText)
+                next {
+                    assertTrue(
+                        host.execute(TextEditCommand.Move(TextMovement.ParagraphStart, false))
+                    )
+                    assertTrue(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+                    assertTrue(parser.isPending)
+                    assertEquals("ab中CD", host.nativeInputState!!.surroundingText)
+                }
+            }
+            case 23 -> {
+                assertEquals("ab中CD", host.nativeInputState!!.surroundingText)
+                assertTrue(host.execute(TextEditCommand.Undo))
+                assertEquals("中CD", host.nativeInputState!!.surroundingText)
+                assertTrue(host.execute(TextEditCommand.Redo))
+                assertEquals("ab中CD", host.nativeInputState!!.surroundingText)
+                next {
+                    editor.document.reset("- first\n- second\n")
+                    select(13L)
+                }
+            }
+            case 24 -> next {
+                assertTrue(host.execute(TextEditCommand.InsertTab))
+                assertEquals("- first\n  - second\n", editor.document.toMarkdown())
+                assertEquals("second", host.nativeInputState!!.surroundingText)
+                assertTrue(host.execute(TextEditCommand.InsertBacktab))
+                assertEquals("- first\n- second\n", editor.document.toMarkdown())
+                assertEquals(MarkdownPosition(13L), editor.selection.cursor)
+                assertTrue(host.execute(TextEditCommand.InsertNewline))
+                assertEquals("ond", host.nativeInputState!!.surroundingText)
+                assertEquals("- first\n- sec\n- ond\n", editor.document.toMarkdown())
+            }
+            case 25 -> next {
+                editor.document.reset(table)
+                select(bytePosition(table, "B") + 1L)
+            }
+            case 26 -> next {
+                assertTrue(host.execute(TextEditCommand.InsertTab))
+                assertTrue(parser.isPending)
+                assertEquals("", host.nativeInputState!!.surroundingText)
+            }
+            case 27 -> next { assertEquals(0, mdNativeText(native, "X")) }
+            case 28 -> {
+                assertEquals("X", host.nativeInputState!!.surroundingText)
+                assertTrue(host.execute(TextEditCommand.Undo))
+                assertEquals("", host.nativeInputState!!.surroundingText)
+                assertTrue(host.execute(TextEditCommand.Undo))
+                assertEquals("B", host.nativeInputState!!.surroundingText)
+                assertEquals(table, editor.document.toMarkdown())
+                assertTrue(host.execute(TextEditCommand.Redo))
+                assertEquals("", host.nativeInputState!!.surroundingText)
+                next {
+                    editor.document.reset("# Public\n\n__text__")
                     select(12L)
                 }
             }
-            case 20 -> {
+            case 29 -> {
                 assertTrue(host.isClosed)
                 next { assertEquals(0, mdNativeText(native, "X")) }
             }
-            case 21 -> {
+            case 30 -> {
                 assertEquals("# Public\n\n__Xtext__", editor.document.toMarkdown())
                 next { editor.document.reset("") }
             }
-            case 22 -> next { assertEquals(0, mdNativeText(native, "# new")) }
-            case 23 -> {
+            case 31 -> next { assertEquals(0, mdNativeText(native, "# new")) }
+            case 32 -> {
                 assertEquals("\\# new", editor.document.toMarkdown())
                 finished = true
                 active.requestExit()
@@ -365,7 +439,7 @@ private class RichRoot(val probe: RichProbe, scope: ComponentScope): Component(s
         probe.scope = Some(scope)
     }
     public override fun render(): View {
-        if (probe.step.value >= 20)
+        if (probe.step.value >= 29)
             return markdownRichEditor(
                 probe.parser,
                 Some(probe.style),

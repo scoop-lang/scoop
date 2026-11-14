@@ -1,0 +1,59 @@
+package scoop.ui.markdown
+
+/** Navigation can consume a new row count before the next measurement has been accepted. */
+internal fun mdSyncPreviewHeights(
+    host: MarkdownPreviewHost,
+    model: MarkdownParsedDocument?,
+    presentation: MdRichPresentation?
+) {
+    val estimate = mdPreviewEstimate(host.style, host.options)
+    val same =
+        when ((host.document, model)) {
+            case(Some(val old), Some(val next)) -> old === next
+            case(None, None) -> true
+            else -> false
+        }
+    val regions = presentation?.regions ?: None
+    val sameRegions =
+        when ((host.heightRegions, regions)) {
+            case(Some(val old), Some(val next)) -> old === next
+            case(None, None) -> true
+            else -> false
+        }
+    if (!same || !sameRegions) {
+        when (host.heightRegions) {
+            case Some(val previous) -> host.heights =
+                previous.restoreHeights(host.heights, estimate)
+            case None -> Unit
+        }
+        if (!same) {
+            val reuse = model?.display?.reuse ?: None
+            when ((host.document, reuse)) {
+                case(Some(val old), Some(val reuse)) -> {
+                    if (
+                        old.display.identity ===
+                            reuse.previous &&
+                            host.heights.count ==
+                            reuse.oldCount
+                    )
+                        host.heights =
+                            host.heights.replace(
+                                reuse.prefix,
+                                reuse.oldCount - reuse.suffix,
+                                model!!.display.rows.size - reuse.prefix - reuse.suffix,
+                                estimate
+                            )
+                    else
+                        host.heights = mdHeightRun(model!!.display.rows.size, estimate)
+                }
+                else -> host.heights = mdHeightRun(model?.display?.rows?.size ?: 0L, estimate)
+            }
+        }
+        when (regions) {
+            case Some(val next) -> host.heights = next.applyHeights(host.heights, estimate)
+            case None -> Unit
+        }
+    }
+    host.document = model
+    host.heightRegions = regions
+}

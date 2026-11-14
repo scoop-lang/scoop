@@ -9,6 +9,9 @@ public class MarkdownSnapshot internal constructor(
     public val byteLength: Long get() = root.byteLength
     public val lineCount: Long get() = markdownAdd(root.lineBreaks, 1L)
 
+    public fun prepare(edit: MarkdownEdit): MarkdownChange =
+        prepareMarkdownEdit(this, edit, MarkdownChangeKind.Edit)
+
     internal fun checkPosition(position: Long) {
         requireMarkdown(
             position >= 0L && position <= byteLength,

@@ -1,0 +1,150 @@
+package scoop.markdown
+
+public fun MarkdownSyntax.inlineContentAt(
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownInlineContent? {
+    var selected = nodeAt(position, bias)
+    var container = root
+    while (true) {
+        when (selected.content) {
+            case MarkdownContent.Paragraph(_) -> return Some(inlineContent(selected.id))
+            case MarkdownContent.Heading(_, _, _) -> return Some(inlineContent(selected.id))
+            case MarkdownContent.TableCell(_, _) -> return Some(inlineContent(selected.id))
+            case MarkdownContent.ListItem(_) -> {
+                if (mdEmptyListItem(selected))
+                    return Some(inlineContent(selected.id))
+                if (container === root)
+                    container = selected
+            }
+            case MarkdownContent.BlockQuote -> {
+                if (container === root)
+                    container = selected
+            }
+            case MarkdownContent.FootnoteDefinition(_) -> {
+                if (container === root)
+                    container = selected
+            }
+            case MarkdownContent.CodeBlock(_, _, _) -> return None
+            case MarkdownContent.HtmlBlock(_) -> return None
+            case MarkdownContent.Extension(_) -> return None
+            else -> Unit
+        }
+        val parent = parent(selected.id) ?: break
+        selected = parent
+    }
+    if (bias == MarkdownBias.After) {
+        when (inlineContentAt(position, MarkdownBias.Before)) {
+            case Some(val before) -> if (
+                before.text.sourceAt(
+                    MarkdownPosition(before.text.byteLength),
+                    MarkdownBias.Before
+                ) ==
+                    position
+            )
+                return Some(before)
+            case None -> Unit
+        }
+    }
+    val line = snapshot.lineRange(snapshot.lineAt(position))
+    val start = mdBlankInlineStart(this, container, line)
+    val input = mdSourceInput(snapshot, MarkdownRange(start, line.end))
+    if (input.spaces(0L) != input.size)
+        return None
+    return Some(
+        mdEmptyInlineContent(
+            this,
+            container.id,
+            line.end,
+            MarkdownRange(line.end, line.end),
+            mdListPrefix(this, container, true),
+            ""
+        )
+    )
+}
+
+private fun mdBlankInlineStart(
+    syntax: MarkdownSyntax,
+    container: MarkdownNode,
+    line: MarkdownRange
+): Long {
+    var start = line.start
+    var current: MarkdownNode? = Some(container)
+    while (true) {
+        val node = current ?: break
+        when (node.content) {
+            case MarkdownContent.BlockQuote -> {
+                var low = 0L
+                var high = node.markers.size
+                while (low < high) {
+                    val middle = low + (high - low) / 2L
+                    if (node.markers[middle].start < line.start)
+                        low = middle + 1L
+                    else
+                        high = middle
+                }
+                if (
+                    low <
+                        node.markers.size &&
+                        node.markers[low].start <=
+                        line.end &&
+                        node.markers[low].end >
+                        start
+                )
+                    start = node.markers[low].end
+            }
+            case MarkdownContent.ListItem(_) -> {
+                val lines = node.itemSource!!.lines
+                var low = 0L
+                var high = lines.size
+                while (low < high) {
+                    val middle = low + (high - low) / 2L
+                    if (lines[middle].lineStart < line.start)
+                        low = middle + 1L
+                    else
+                        high = middle
+                }
+                if (
+                    low < lines.size && lines[low].lineStart == line.start && lines[low].end > start
+                )
+                    start = lines[low].end
+            }
+            else -> Unit
+        }
+        current = syntax.parent(node.id)
+    }
+    return start
+}
+
+internal fun mdEmptyInlineContent(
+    syntax: MarkdownSyntax,
+    origin: MarkdownNodeId,
+    position: Long,
+    scope: MarkdownRange,
+    prefix: String,
+    leading: String
+): MarkdownInlineContent {
+    val source = mdEmptyText(position)
+    val node =
+        MarkdownNode(
+            MarkdownNodeId(0L),
+            MarkdownContent.Paragraph(source),
+            MarkdownRange(position, position),
+            [],
+            []
+        )
+    return MarkdownInlineContent(
+        syntax.snapshot,
+        syntax.profile,
+        node,
+        MdInlinePlacement(
+            origin,
+            scope,
+            mdLocalNewline(syntax.snapshot, position),
+            prefix,
+            false,
+            leading = leading
+        ),
+        MdInlineModel(source, [])
+    )
+}

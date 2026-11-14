@@ -34,6 +34,8 @@
 
 `replace(range, text)` 使用当前 revision 创建单次事务。对相同范围替换相同文字的操作被省略；没有有效修改时返回未变化的 change，不推进 revision、不通知。真正发布一次修改只推进一次 revision。
 
+`snapshot.prepare(edit)` 按相同规则准备 MarkdownChange，不发布文档；调用方可先检查 after 的结构或计算结果选区，再用 `change.applyTo(document)` 发布这个确切快照。发布要求文档当前 snapshot 为 change.before，不重复准备已经验证的替换。`syntax.prepareTransform { ... }` 同样先将一批结构操作准备为普通 MarkdownChange，供块命令在发布前定位结果。
+
 `MarkdownChange` 保存 before／after 快照、实际 replacements、inverseReplacements 和 kind（Edit／Reset），提供 `changed`、`map(anchor)` 及 `mapBack(anchor)`。mapBack 使用反向差量把 after 锚点映射到 before，插入／删除边界沿同一 Before／After 规则处理；删除内部信息不会因此恢复。inverseReplacements 引用 after 的坐标，可在当前 after revision 上组成反向事务；不重复执行过滤或结构命令。仅保存实际变化所需的数据和共享快照，不为键入复制全文历史。
 
 `reset(source)` 表示外部整体重载，保持文档身份、推进 revision 并发布 Reset，即使字节相同也通知重载。上层可据此清空旧历史；普通 replace 不暗含这种行为。
@@ -67,6 +69,8 @@ CommonMark 官方样例通过 Scoop 测试中的 HTML 投影核对语义；投�
 `parsed.region(range)` 从完整树选取覆盖选区的完整顶层块及相邻块，连同块间空行建立 `MarkdownRegion`；不读取或复制正文，不建立另一份文档或历史。区域边界在物理行首或文件末尾，嵌套列表／引用整体保留容器语义。区域保存区外引用定义和脚注标签的必要上下文；同名定义仍按原文顺序采用第一次出现者。区内定义由本次解析收集，删除后可使用区外后续定义。
 
 `region.after(change)` 要求 change.before 为该区域的当前快照，且所有替换位于区域内；它只推进快照、范围与区外定义映射，不解析、不复制正文。旧区域继续有效；其他文档、过期分支、Reset 或区外修改拒绝沿用，调用方在完整解析到达后重新取得区域。`region.parse()` 只读取区域源码，返回匹配当前快照的 `ParsedMarkdownRegion`；未改变时由调用方复用既有解析。此接口用于已知保持区外块边界的结构编辑，不宣称任意源码修改具有局部失效范围；完整后台解析仍负责跨区域的语法变化及文档级脚注编号。
+
+`MarkdownExtension.parse` 在发起解析的线程执行，只匹配给定输入，不做资源 I/O 或修改文档。调用方在不同线程复用 profile 时，扩展实例应使用不可变配置，或自行同步必要的内部状态；文档库不保证扩展只在某个专用线程执行。
 
 局部解析不将位于文档中间的区域开头当作 front matter 起点。扩展处理器、行内映射、列表前缀、CRLF、代码围栏和定义目标继续使用全局源码范围。区域节点身份只属于该区域解析，不能用于另一次区域或全文解析的结构操作。
 
@@ -106,7 +110,7 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 
 零字节文档的 root.id 也可传给 inlineContent，得到源码位置 0 的空行内区域；只准备区域不增加段落、不修改原文或完整解析树。首次输入按普通段落文字转义，后续操作、取消和逆向事务沿同一套局部编辑规则进行。非空文档的 Document 根不能当作行内区域。
 
-空列表条目的 id 也可取得插入区域，保留列表／任务前缀并在必要时补分隔空格。`syntax.inlineContentAt(position, bias)` 查找当前位置所属的行内块；位于普通空白行时返回该位置的空区域，仍不向解析树添加节点。代码、扩展及不可作为普通文字输入的容器位置返回 None。调用方须使用完整解析或明确的区域解析提供结构上下文。
+空列表条目的 id 也可取得插入区域，保留列表／任务前缀并在必要时补分隔空格。`syntax.inlineContentAt(position, bias)` 查找当前位置所属的行内块；位于普通空白行（包括引用／列表中只含容器前缀的行）时返回该位置的空区域，仍不向解析树添加节点。代码、扩展及不可作为普通文字输入的容器位置返回 None。调用方须使用完整解析或明确的区域解析提供结构上下文。
 
 `replaceText(range, text, bias)` 的 range 使用这份显示文字的 UTF-8 坐标；可跨普通文字、行内格式和链接，但不跨所属段落／标题／单元格。插入继承所选边界处的格式与链接；Before 选择左侧，After 选择右侧，边缘使用存在的一侧。替换非空选区继承被替换的第一个内容单元。对象只能按完整标量处理，原始 HTML、扩展的内部修改继续使用源码事务。代码 span 的新内容按既有生成规则规范化换行与围栏；普通文字按字面值写入，不把输入中的 Markdown 标记直接执行为格式。
 

@@ -20,7 +20,7 @@ internal fun <T> mdWithRichRow(
         view.presentation?.base ?:
             view.controller.current ?:
             throw IllegalStateException(Some("Markdown navigation needs a current projection"))
-    val row = view.presentation?.displayRow(index) ?: model.display.rows[index]
+    val row = mdFrameRow(model, view.presentation, index)
     when (view.currentFrame()?.row(index) ?: None) {
         case Some(val measured) -> return action(row, measured.resource)
         case None -> Unit
@@ -52,35 +52,14 @@ internal fun mdRichRow(
     bias: MarkdownBias
 ): Long {
     val local = host.preview.presentation
-    when (local) {
-        case Some(val active) -> if (
-            mdRichContains(active.content, MarkdownSelection(position, position))
-        )
-            return active.rowIndex
-        case None -> Unit
-    }
     val model = local?.base ?: host.preview.controller.current!!
-    return model.display.rowAt(mdFrameExpanded(model, local, position, bias), bias)
+    return mdFrameRowAt(model, local, position, bias)
 }
 
 internal fun mdRichColumn(host: MarkdownRichHost, index: Long, position: MarkdownPosition): Long {
     val local = host.preview.presentation
-    when (local) {
-        case Some(val active) -> if (
-            active.rowIndex ==
-                index &&
-                mdRichContains(active.content, MarkdownSelection(position, position))
-        )
-            return active.cellIndex
-        case None -> Unit
-    }
     val model = local?.base ?: host.preview.controller.current!!
-    val expanded = mdFrameExpanded(model, local, position)
-    val row = model.display.rows[index]
-    var column = 0L
-    while (column + 1L < row.cells.size && row.cells[column].sourceRange.end < expanded.byteOffset)
-        column += 1L
-    return column
+    return mdFrameColumn(model, local, index, position, host.editor.selection.cursorBias)
 }
 
 internal fun mdRichRowPosition(
@@ -99,10 +78,7 @@ internal fun mdRichRowPosition(
             MarkdownBias.After
     val source = row.cells[column].sourceAt(position.byteOffset, bias)
     return MdSourceMove(
-        if (local?.isLocal(index, column) ?: false)
-            source
-        else
-            mdFrameOriginal(model, local, source, bias),
+        mdFrameCellOriginal(model, local, index, column, source, bias),
         position.affinity,
         None
     )
@@ -111,7 +87,7 @@ internal fun mdRichRowPosition(
 internal fun mdRichMove(host: MarkdownRichHost, movement: TextMovement): MdSourceMove {
     val selected = host.editor.selection
     val model = host.preview.presentation?.base ?: host.preview.controller.current!!
-    if (model.display.rows.size == 0L)
+    if (mdFrameRowCount(model, host.preview.presentation) == 0L)
         return MdSourceMove(selected.cursor, host.cursorAffinity, None)
     if (movement == TextMovement.DocumentStart || movement == TextMovement.DocumentEnd)
         return mdRichDocumentEdge(host, movement == TextMovement.DocumentEnd)

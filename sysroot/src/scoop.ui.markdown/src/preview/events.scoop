@@ -138,41 +138,31 @@ internal fun mdPreviewSelectedText(
     selection: MarkdownRange,
     presentation: MdRichPresentation? = None
 ): String {
-    val start =
-        mdFrameExpanded(
-            model,
-            presentation,
-            MarkdownPosition(selection.start),
-            MarkdownBias.Before
-        ).byteOffset
-    val end =
-        mdFrameExpanded(
-            model,
-            presentation,
-            MarkdownPosition(selection.end),
-            MarkdownBias.After
-        ).byteOffset
     val output = StringBuilder()
     var wroteRow = false
-    for (index in 0L ..< model.display.rows.size) {
-        val row = presentation?.displayRow(index) ?: model.display.rows[index]
-        val active = presentation?.rowIndex == Some(index)
-        if (!active && (row.range.start >= end || row.range.end <= start))
-            continue
+    for (index in 0L ..< mdFrameRowCount(model, presentation)) {
+        val row = mdFrameRow(model, presentation, index)
         var wroteCell = false
         for (cellIndex in 0L ..< row.cells.size) {
             val cell = row.cells[cellIndex]
-            val local = presentation?.isLocal(index, cellIndex) ?: false
             val first =
-                if (local)
-                    selection.start
-                else
-                    start
+                mdFrameCellPosition(
+                    model,
+                    presentation,
+                    index,
+                    cellIndex,
+                    MarkdownPosition(selection.start),
+                    MarkdownBias.Before
+                ).byteOffset
             val last =
-                if (local)
-                    selection.end
-                else
-                    end
+                mdFrameCellPosition(
+                    model,
+                    presentation,
+                    index,
+                    cellIndex,
+                    MarkdownPosition(selection.end),
+                    MarkdownBias.After
+                ).byteOffset
             if (cell.sourceRange.start >= last || cell.sourceRange.end <= first)
                 continue
             if (!wroteCell && wroteRow)

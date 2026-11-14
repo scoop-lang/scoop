@@ -2,20 +2,16 @@ package scoop.ui.markdown
 
 import scoop.markdown.*
 
-/** One active cell overlays an immutable background projection; other rows remain shared. */
+/** Current inline text overlays sparse current block rows and a shared background projection. */
 internal class MdRichPresentation(
     val base: MarkdownParsedDocument,
-    val before: MarkdownInlineContent,
     val content: MarkdownInlineContent,
     val rowIndex: Long,
-    val cellIndex: Long
+    val cellIndex: Long,
+    val changes: MdRichChanges,
+    val regions: MdRichRegionRows? = None
 ) {
-    val change =
-        if (before === content)
-            before.replaceText(MarkdownRange(0L, 0L), "").change
-        else
-            before.edit { restore(content) }.change
-    private val baseRow = base.display.rows[rowIndex]
+    private val baseRow = regions?.row(rowIndex) ?: base.display.rows[rowIndex]
     val row =
         MdDisplayRow(
             baseRow.node,
@@ -32,29 +28,131 @@ internal class MdRichPresentation(
             },
             MdDisplayKey(rowIndex)
         )
+    val count: Long get() = regions?.count ?: base.display.rows.size
 
-    fun isLocal(row: Long, cell: Long): Boolean = row == rowIndex && cell == cellIndex
-    fun isLocalRow(row: MdDisplayRow, cell: Long): Boolean = this.row === row && cell == cellIndex
+    fun isActive(row: Long, cell: Long): Boolean = row == rowIndex && cell == cellIndex
+    fun isLocal(row: Long, cell: Long): Boolean = isActive(row, cell) || regionRow(row)
+    fun isLocalRow(row: MdDisplayRow, cell: Long): Boolean =
+        if (this.row === row)
+            cell == cellIndex || regionRow(rowIndex)
+        else
+            regions?.contains(row.key) ?: false
     fun displayRow(index: Long): MdDisplayRow =
         if (index == rowIndex)
             row
         else
-            base.display.rows[index]
-    fun rowForKey(key: MdDisplayKey): Long? =
+            regions?.row(index) ?: base.display.rows[index]
+    fun rowForKey(key: MdDisplayKey): Long? {
         if (key === row.key)
-            Some(rowIndex)
+            return Some(rowIndex)
+        val result =
+            when (regions) {
+                case Some(val current) -> current.rowForKey(key)
+                case None -> base.display.rowForKey(key)
+            }
+        return if (result == Some(rowIndex))
+            None
         else
-            base.display.rowForKey(key)
+            result
+    }
+
+    fun rowAt(position: MarkdownPosition, bias: MarkdownBias): Long {
+        if (mdRichContains(content, MarkdownSelection(position, position)))
+            return rowIndex
+        when (regions) {
+            case Some(val local) -> {
+                val point =
+                    changes.backward(MarkdownAnchor(position, bias), local.syntax.snapshot).position
+                when (local.rowAt(point, bias)) {
+                    case Some(val index) -> return index
+                    case None -> Unit
+                }
+            }
+            case None -> Unit
+        }
+        val index = base.display.rowAt(expanded(position, bias), bias)
+        return regions?.baseIndex(index) ?: index
+    }
+
+    fun cellPosition(
+        index: Long,
+        cell: Long,
+        position: MarkdownPosition,
+        bias: MarkdownBias
+    ): MarkdownPosition {
+        if (isActive(index, cell))
+            return position
+        val local = regions
+        return when (local) {
+            case Some(val local) -> if (regionRow(index))
+                changes.backward(MarkdownAnchor(position, bias), local.syntax.snapshot).position
+            else
+                expanded(position, bias)
+            case None -> expanded(position, bias)
+        }
+    }
+
+    fun cellOriginal(
+        index: Long,
+        cell: Long,
+        position: MarkdownPosition,
+        bias: MarkdownBias
+    ): MarkdownPosition {
+        if (isActive(index, cell))
+            return position
+        val local = regions
+        return when (local) {
+            case Some(val local) -> if (regionRow(index))
+                changes.forward(MarkdownAnchor(position, bias), local.syntax.snapshot).position
+            else
+                original(position, bias)
+            case None -> original(position, bias)
+        }
+    }
+
+    fun cellRange(index: Long, cell: Long, range: MarkdownRange): MarkdownRange =
+        MarkdownRange(
+            cellOriginal(
+                index,
+                cell,
+                MarkdownPosition(range.start),
+                MarkdownBias.Before
+            ).byteOffset,
+            cellOriginal(index, cell, MarkdownPosition(range.end), MarkdownBias.After).byteOffset
+        )
+
+    fun rowRange(index: Long, range: MarkdownRange): MarkdownRange =
+        if (regionRow(index)) {
+            val snapshot = regions!!.syntax.snapshot
+            MarkdownRange(
+                changes.forward(
+                    MarkdownAnchor(MarkdownPosition(range.start), MarkdownBias.Before),
+                    snapshot
+                ).position.byteOffset,
+                changes.forward(
+                    MarkdownAnchor(MarkdownPosition(range.end), MarkdownBias.After),
+                    snapshot
+                ).position.byteOffset
+            )
+        } else
+            originalRange(range)
+
+    private fun regionRow(index: Long): Boolean =
+        when (regions) {
+            case Some(val local) -> local.contains(local.row(index).key)
+            case None -> false
+        }
+
     fun expanded(
         position: MarkdownPosition,
         bias: MarkdownBias = MarkdownBias.After
     ): MarkdownPosition =
-        mdPreviewExpanded(base, change.mapBack(MarkdownAnchor(position, bias)).position, bias)
+        mdPreviewExpanded(base, changes.backward(MarkdownAnchor(position, bias)).position, bias)
     fun original(
         position: MarkdownPosition,
         bias: MarkdownBias = MarkdownBias.After
     ): MarkdownPosition =
-        change.map(MarkdownAnchor(mdPreviewOriginal(base, position, bias), bias)).position
+        changes.forward(MarkdownAnchor(mdPreviewOriginal(base, position, bias), bias)).position
     fun originalRange(range: MarkdownRange): MarkdownRange =
         MarkdownRange(
             original(MarkdownPosition(range.start), MarkdownBias.Before).byteOffset,
@@ -101,11 +199,96 @@ internal fun mdFrameCellPosition(
     cell: Long,
     position: MarkdownPosition,
     bias: MarkdownBias
-): MarkdownPosition {
-    if (presentation?.isLocal(row, cell) ?: false)
-        return position
-    return mdFrameExpanded(model, presentation, position, bias)
+): MarkdownPosition =
+    when (presentation) {
+        case Some(val local) -> local.cellPosition(row, cell, position, bias)
+        case None -> mdPreviewExpanded(model, position, bias)
+    }
+
+internal fun mdFrameCellOriginal(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    row: Long,
+    cell: Long,
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
+): MarkdownPosition =
+    when (presentation) {
+        case Some(val local) -> local.cellOriginal(row, cell, position, bias)
+        case None -> mdPreviewOriginal(model, position, bias)
+    }
+
+internal fun mdFrameRow(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    index: Long
+): MdDisplayRow = presentation?.displayRow(index) ?: model.display.rows[index]
+
+internal fun mdFrameRowCount(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?
+): Long = presentation?.count ?: model.display.rows.size
+
+internal fun mdFrameColumn(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    index: Long,
+    position: MarkdownPosition,
+    bias: MarkdownBias
+): Long {
+    when (presentation) {
+        case Some(val local) -> if (
+            local.rowIndex ==
+                index &&
+                mdRichContains(local.content, MarkdownSelection(position, position))
+        )
+            return local.cellIndex
+        case None -> Unit
+    }
+    val row = mdFrameRow(model, presentation, index)
+    var column = 0L
+    while (
+        column +
+            1L <
+            row.cells.size &&
+            row.cells[column].sourceRange.end <
+            mdFrameCellPosition(model, presentation, index, column, position, bias).byteOffset
+    )
+        column += 1L
+    return column
 }
+
+internal fun mdFrameRowRange(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    index: Long,
+    range: MarkdownRange
+): MarkdownRange =
+    when (presentation) {
+        case Some(val local) -> local.rowRange(index, range)
+        case None -> mdPreviewOriginalRange(model, range)
+    }
+
+internal fun mdFrameRowAt(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    position: MarkdownPosition,
+    bias: MarkdownBias = MarkdownBias.After
+): Long =
+    when (presentation) {
+        case Some(val local) -> local.rowAt(position, bias)
+        case None -> model.display.rowAt(mdPreviewExpanded(model, position, bias), bias)
+    }
+
+internal fun mdFrameRowForKey(
+    model: MarkdownParsedDocument,
+    presentation: MdRichPresentation?,
+    key: MdDisplayKey
+): Long? =
+    when (presentation) {
+        case Some(val local) -> local.rowForKey(key)
+        case None -> model.display.rowForKey(key)
+    }
 
 internal fun mdSamePresentation(a: MdRichPresentation?, b: MdRichPresentation?): Boolean =
     when ((a, b)) {

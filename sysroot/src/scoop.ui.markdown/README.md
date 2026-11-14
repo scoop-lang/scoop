@@ -1,6 +1,6 @@
 # scoop.ui.markdown
 
-Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像和原生富文本行内编辑；文档级块操作与跨块交互继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
+Markdown 编辑器的纯 Scoop UI Cone。文档内容和结构操作来自独立的 `scoop.markdown`；编辑状态负责源码选区、统一撤销／重做、组合输入与保存 revision。提供源码／所见即所得／双栏组件、共享后台解析、富文本预览、扩展图像和原生富文本行内编辑；块级分段、列表与表格导航已接入；跨块交互继续按[设计](../../../docs/ui/markdown/DESIGN.md)实施，具体合同见[规范](../../../docs/specs/SCOOP-UI-MARKDOWN-SPEC.md)。
 
 组合控件使用标准 `scoop.ui.component` 的可调分栏，应用在实际 run／mount 入口绑定 `ThemeSource`，与按钮等组件相同。示例使用 `context(ThemeSource(shadcnTheme())) { runUiApplication(...) }`。单独的源码／预览／富文本视图继续使用其显式样式，不要求分栏的主题上下文。
 
@@ -29,9 +29,11 @@ editor.close()
 
 文档库的 `parsed.inlineContent(nodeId).replaceText(...)`／`setStyle(...)` 返回准备好的 `MarkdownInlineEdit`。把结果交给 `editor.apply(prepared, reversed = false)`，源码差量与修改后的选区会进入同一个历史项；reversed 可保留反向选择。准备结果携带当前文档身份和 revision，不能应用到别的文档或新 revision。普通源码输入、语义命令与后续 undo／redo 共用历史。
 
-`parsed.splitBlock(id, range)`／`joinBlocks(first, second)` 返回带结果源码光标的 `MarkdownBlockEdit`，同样交给 `editor.apply(prepared)`，与行内操作共用一次发布和统一历史。列表延续、任务框和容器处理由文档 Cone 完成；UI 取得当前解析后准备，不使用旧节点改写新快照。
+`parsed.splitBlock(id, range)`／`joinBlocks(first, second)` 返回带结果源码光标的 `MarkdownBlockEdit`，同样交给 `editor.apply(prepared)`，与行内操作共用一次发布和统一历史。列表延续、任务框和容器处理由文档 Cone 完成；UI 取得当前完整或局部解析后准备，不使用旧节点改写新快照。
 
 `editor.transform(syntax)` 也接受当前 `ParsedMarkdownRegion`，沿用同一历史和源码锚点规则。区域从完整解析的 `region(range)` 取得，通过 `after(change)` 前进后显式 `parse()`；文档库保留完整容器与区外引用上下文。局部树属于原文档的当前快照，不能把同 revision 数字的未发布分支当作当前文档操作。
+
+结构命令还可使用 `snapshot.prepare(edit)` 或 `syntax.prepareTransform { ... }` 先准备 `MarkdownChange`，在其 after 局部树中定位光标，再调用 `editor.apply(change, selection)`。正文和结果选区只发布一次，撤销／重做恢复相应光标；无效选区或过期 before 快照不发布。
 
 状态绑定创建线程，通过现有 `State` 参与 UI 读取追踪。编辑前检查 owner 和 UI 修改时机；关闭释放订阅与历史，不关闭文档。`markSaved(revision)` 只记录宿主实际保存完成的 revision；较旧的保存完成不会把后续修改标成已保存。
 
@@ -51,7 +53,7 @@ editor.close()
 
 `status` 是可追踪的 Idle／Pending／Ready／Failed／Closed 状态。`current` 只返回当前已完成的解析，`latest` 还可保留正在更新前的显示结果；过期结果不能用于结构编辑。`MarkdownParsedDocument.source` 是原文解析，`preview` 是可选的展开解析，`processed` 保留依赖、诊断与来源映射。结构修改使用 `source`，生成内容保持只读。
 
-控制器最多执行一项后台解析、保存一份最新待处理快照和一个待交付结果；通过 ApplicationProxy 在 owner 发布，选区及保存状态变化不重解析。资源通知后显式 `refresh()`，配置变化用 `configure()`。扩展和 resolver 的方法由工作线程串行调用，其实现不应读写 UI State。处理错误进入对应请求的 Failed，下一次输入或刷新仍可恢复。
+控制器最多执行一项后台解析、保存一份最新待处理快照和一个待交付结果；通过 ApplicationProxy 在 owner 发布，选区及保存状态变化不重解析。资源通知后显式 `refresh()`，配置变化用 `configure()`。处理器和 resolver 的方法由工作线程串行调用，其实现不应读写 UI State。语法扩展也会由局部结构编辑在 owner 调用；`MarkdownExtension.parse` 只处理输入，共用实例使用不可变配置或同步内部状态。处理错误进入对应请求的 Failed，下一次输入或刷新仍可恢复。
 
 关闭控制器会停止订阅及后续交付，不等待运行中的解析，不关闭借用的 editor／document／executor。应用在自己的退出收尾中 shutdown／join 线程池；投递被拒绝或应用关闭后丢弃消息，后台任务仍会完成登记和清理。`tests/parse.scoop` 在真实工作线程与原生应用消息循环中验证合并、过期结果、错误恢复、资源刷新和这条关闭路径。
 
@@ -59,9 +61,9 @@ editor.close()
 
 自绘组合可使用 `MarkdownPreviewHost.measure`／`scene`；LayoutResult 负责关闭每次独立测量。`measurement.parsed` 表明实际显示的解析，`hitTest` 同时提供原文／预览位置与生成内容标记；`caret` 和 `reveal` 接受原文位置。旧解析等待更新时仍可显示，但不会被用作当前源码命中。表格按实际行虚拟化，代码按实际行虚拟化，普通段落保持完整 shaping。图片及扩展图像使用原子对象与原始范围；点击仍可定位源码。
 
-`markdownRichEditor(controller, readOnly = false)` 返回原生富文本 View；`MarkdownRichHost` 用于自绘 Element，使用同一套预览样式、布局参数、字体与图像控制器。段落、标题和单元格中的普通文字可直接输入、选择、复制／粘贴和修改样式；`setStyle` 接受当前行内选区。方向键使用真实文字排版，连续键入和组合不等待全文解析。readOnly 保留选择与复制。Enter／Tab 的块级命令和跨块替换仍在实施中。
+`markdownRichEditor(controller, readOnly = false)` 返回原生富文本 View；`MarkdownRichHost` 用于自绘 Element，使用同一套预览样式、布局参数、字体与图像控制器。段落、标题和单元格中的普通文字可直接输入、选择、复制／粘贴和修改样式；`setStyle` 接受当前行内选区。方向键使用真实文字排版，连续键入和组合不等待全文解析。readOnly 保留选择与复制。Enter 拆分段落／标题并延续列表，空项退出一级；边界 Backspace／Delete 合并同容器相邻段落。列表 Tab／Shift-Tab 调整层级，表格 Tab／Shift-Tab 按单元格导航，末格 Tab 或末行 Enter 新增正文行。表格中的 TSV 粘贴按矩形写入。跨块替换继续实施。
 
-活动区域直接使用本次编辑后的局部树生成显示，其他行共享后台投影；按键只替换活动行布局。`measurement.sourceRevision` 是本帧实际显示和命中的文档版本，`measurement.parsed` 可以仍是后台基线。切换段落或外部修改后，宿主在取得当前解析时更新输入映射；旧 native 连接先退休。试测和丢弃帧保留各自的资源，候选窗几何只来自匹配的文档／输入版本。图片、公式、HTML、脚注引用保持原子对象，通过 `onSource` 定位源码；HTML 和脚注的可编辑投影与原生 U+FFFC 坐标一致。
+活动区域直接使用本次编辑后的局部树生成显示，其他行共享后台投影；按键只替换活动行布局。`measurement.sourceRevision` 是本帧实际显示和命中的文档版本，`measurement.parsed` 可以仍是后台基线。块命令按需解析当前 `MarkdownRegion`，多行投影以局部片段替换原来的行，其他行保持共享；Enter 后的新段落不等待全文解析便可接收输入。旧 native 连接先退休，新连接启用后发布对应片段。未变化的 mdBook 展开和脚注显示顺序仍保留，完整后台结果到达后收敛。区外修改或区域边界变化会等待新的完整结果。试测和丢弃帧保留各自的资源，候选窗几何只来自匹配的文档／输入版本。图片、公式、HTML、脚注引用保持原子对象，通过 `onSource` 定位源码；HTML 和脚注的可编辑投影与原生 U+FFFC 坐标一致。
 
 向 `markdownPreview`、`markdownRichEditor` 或宿主的 `update` 传入借用的 `images: MarkdownImageController` 与文档 URI，即可按可见范围加载图片。提供本地 PNG／JPEG、Mermaid CLI 和 MathJax＋rsvg-convert 适配，也可按 `MarkdownImageRenderer` 注册自定义图像扩展。配置、版本、基线和关闭约定见[扩展图像说明](IMAGES.md)。
 
