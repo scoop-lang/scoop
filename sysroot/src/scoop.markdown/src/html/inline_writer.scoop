@@ -1,0 +1,125 @@
+package scoop.markdown
+
+internal struct MdHtmlPiece(val value: MdWriteInline, val style: MdHtmlStyle)
+
+/** Collapse whitespace across element boundaries while retaining its actual formatting context. */
+internal class MdHtmlInlineWriter {
+    private val pieces = ArrayList<MdHtmlPiece>()
+    private var run = StringBuilder()
+    private var style = MdHtmlStyle()
+    private var pending: MdHtmlStyle? = None
+    private var content = false
+    private var breakBefore = true
+
+    fun text(text: String, current: MdHtmlStyle) {
+        for (character in text) {
+            if (mdHtmlSpace(character.code)) {
+                when (pending) {
+                    case Some(_) -> Unit
+                    case None -> pending = Some(current)
+                }
+            } else {
+                space()
+                use(current)
+                run.append(character)
+                content = true
+                breakBefore = false
+            }
+        }
+    }
+
+    private fun use(current: MdHtmlStyle) {
+        if (style !== current) {
+            if (!mdHtmlSameStyle(style, current))
+                flush()
+            style = current
+        }
+    }
+
+    private fun space() {
+        when (pending) {
+            case Some(val current) -> if (content && !breakBefore) {
+                use(current)
+                run.append(' ')
+            }
+            case None -> Unit
+        }
+        pending = None
+    }
+
+    fun atom(value: MdWriteInline, current: MdHtmlStyle) {
+        space()
+        flush()
+        pieces.add(MdHtmlPiece(value, current))
+        content = true
+        breakBefore = false
+    }
+
+    fun lineBreak(current: MdHtmlStyle) {
+        pending = None
+        flush()
+        pieces.add(MdHtmlPiece(MdWriteInline.HardBreak, MdHtmlStyle(link = current.link)))
+        content = true
+        breakBefore = true
+    }
+
+    private fun flush() {
+        val text = run.toString()
+        if (text != "")
+            pieces.add(MdHtmlPiece(MdWriteInline.Literal(text), style))
+        run = StringBuilder()
+    }
+
+    fun finish(singleLine: Boolean): Array<MdWriteInline> {
+        flush()
+        val result = ArrayList<MdWriteInline>()
+        var index = 0L
+        while (index < pieces.size) {
+            val target = pieces[index].style.link
+            val label = ArrayList<MdWriteInline>()
+            var end = index
+            while (end < pieces.size && pieces[end].style.link == target) {
+                val piece = pieces[end]
+                val linkEdge =
+                    when (target) {
+                        case Some(_) -> end ==
+                            index ||
+                            end +
+                            1L ==
+                            pieces.size ||
+                            pieces[end + 1L].style.link !=
+                            target
+                        case None -> false
+                    }
+                val value =
+                    if (
+                        mdWriteBreak(piece.value) &&
+                            (
+                                singleLine ||
+                                    linkEdge ||
+                                    end ==
+                                    0L ||
+                                    end +
+                                    1L ==
+                                    pieces.size ||
+                                    mdWriteBreak(pieces[end - 1L].value)
+                            )
+                    )
+                        MdWriteInline.Raw("<br>")
+                    else
+                        piece.value
+                label.add(mdHtmlWrap(value, piece.style.flags))
+                end += 1L
+            }
+            when (target) {
+                case Some(val link) -> result.add(
+                    MdWriteInline.Link(label.toArray(), link.destination, link.title)
+                )
+                case None -> for (part in label)
+                    result.add(part)
+            }
+            index = end
+        }
+        return result.toArray()
+    }
+}

@@ -25,3 +25,5 @@
 ```
 
 [navigation 测试](tests/navigation.scoop) 使用独立标题索引生成目录、解析 Unicode fragment，并转换物理行／标量列与源码位置；不依赖任何 UI Cone，不修改原始文件。
+
+[HTML 导入测试](tests/html.scoop) 使用 importMarkdownHtml 将 HTML 片段转换为独立 Markdown，显式提供 baseUri 解析相对链接，然后通过 replaceMarkdown／applyTo 发布一次语义修改并精确撤销。调用只依赖文档 Cone，不需要浏览器或 UI；转换边界与诊断范围见[库说明](../../README.md)。

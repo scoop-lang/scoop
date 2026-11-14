@@ -1,0 +1,34 @@
+package scoop.markdown
+
+/** Explicit conversion settings for new Markdown; no resource is fetched during import. */
+public struct MarkdownHtmlImportOptions(
+    val profile: MarkdownProfile = MarkdownProfile.Gfm,
+    val write: MarkdownWriteOptions = MarkdownWriteOptions(finalNewline = false),
+    val baseUri: String? = None
+)
+
+/** Diagnostics and sourceRange refer to UTF-8 bytes in the original HTML argument. */
+public class MarkdownHtmlImportResult internal constructor(
+    public val markdown: String,
+    public val sourceRange: MarkdownRange,
+    public val diagnostics: Array<MarkdownDiagnostic>
+)
+
+/** Converts document/clipboard HTML into independent Markdown without changing an existing document. */
+public fun importMarkdownHtml(
+    html: String,
+    options: MarkdownHtmlImportOptions = MarkdownHtmlImportOptions()
+): MarkdownHtmlImportResult {
+    mdWriteOptions(options.write)
+    val input = mdHtmlInput(html)
+    val range = mdHtmlFragment(input)
+    val parser = MdHtmlParser(input, range)
+    val root = parser.parse()
+    val importer = MdHtmlImporter(input, options, parser.diagnostics)
+    val blocks = importer.blocks(root.children.toArray())
+    return MarkdownHtmlImportResult(
+        mdWriteDocument(blocks, options.write),
+        range,
+        importer.diagnostics.toArray()
+    )
+}

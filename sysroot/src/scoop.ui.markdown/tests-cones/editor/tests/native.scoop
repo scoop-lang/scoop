@@ -57,6 +57,21 @@ internal fun editorNativeClick(window: Window, x: Double, y: Double) {
     }
 }
 
+internal fun editorNativeKey(window: Window, code: Int, text: String, flags: Int = 0) {
+    editorNativeView(window) {
+        view -> @Unsafe
+        {
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    assertEquals(0, nativeEditorKey(view, code, bytes, length, flags))
+                }
+            }
+        }
+    }
+}
+
 internal fun reportEditorFailure(error: Throwable) {
     if (error is ResourceUseException) {
         reportEditorFailure(error.primaryFailure)

@@ -173,6 +173,12 @@ doc.writeTo(writer)
 
 内存中的源文档输出与扩展展开输出明确区分。构建工具若需要把 include 的内容写入最终 Markdown，显式取得处理后的文档再输出；原始 `MarkdownDocument` 不因此被改写。
 
+### 5.1 HTML 导入
+
+独立 `importMarkdownHtml` 接受 HTML 字符串与 `MarkdownHtmlImportOptions`，返回新 Markdown、原 HTML 片段范围和诊断；不依赖窗口或图形库。常见段落、格式、列表、代码及普通矩形表格复用现有 Markdown 生成器。无法表示的结构与未知元素保留原始 HTML，样式只转换明确支持的文字语义，不构造浏览器布局或执行脚本。完整转换范围、HTML 实体／空白规则和恢复边界以 [文档规范 §7.1](../specs/SCOOP-MARKDOWN-SPEC.md#71-html-导入) 为准。
+
+导入只转换调用方提供的片段，生成结果可直接保存，或交给已有 `replaceMarkdown` 准备一次语义事务。UI 剪贴板使用同一入口并遵守当前 profile；原始文档的其余内容、保存与撤销规则保持不变。
+
 ## 6. 扩展语法与无 UI 处理
 
 ### 6.1 按具体语法接入

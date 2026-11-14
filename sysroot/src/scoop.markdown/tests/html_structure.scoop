@@ -1,0 +1,150 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownHtmlStructureTests {
+    @Test
+    fun optionalListAndParagraphClosuresKeepNestedOrderAndTaskState() {
+        val parsed =
+            mdHtmlImported(
+                "<ol start=3><li>one<ul><li>nested<li>next</ul><li>two</ol>" +
+                    "<ul><li><input type=checkbox checked disabled> done<li><p><input type=checkbox> later</ul>" +
+                    "<p>last<p>end"
+            )
+        assertEquals(4L, parsed.root.children.size)
+        when (parsed.root.children[0L].content) {
+            case ListBlock(val list) -> {
+                assertTrue(list.ordered)
+                assertEquals(3L, list.start)
+                assertEquals(2L, parsed.root.children[0L].children.size)
+                assertEquals(2L, parsed.root.children[0L].children[0L].children[1L].children.size)
+            }
+            else -> fail(Some("Expected an ordered imported list"))
+        }
+        val tasks = parsed.root.children[1L]
+        when (tasks.children[0L].content) {
+            case ListItem(val checked) -> assertEquals(Some(true), checked)
+            else -> fail(Some("Expected a checked task"))
+        }
+        when (tasks.children[1L].content) {
+            case ListItem(val checked) -> assertEquals(Some(false), checked)
+            else -> fail(Some("Expected an unchecked task"))
+        }
+        assertEquals("last", parsed.inlineContent(parsed.root.children[2L].id).text.text)
+        assertEquals("end", parsed.inlineContent(parsed.root.children[3L].id).text.text)
+    }
+
+    @Test
+    fun listsThatNeedUnrepresentableNumberingRetainTheirOriginalHtml() {
+        for (
+            html in [
+                "<ol reversed><li>one</li><li>two</li></ol>",
+                "<ol start=-1><li>one</li></ol>",
+                "<ol start=1000000000><li>one</li></ol>",
+                "<ol start=3><li>one</li><li value=8>two</li></ol>"
+            ]
+        ) {
+            val result = importMarkdownHtml(html)
+            assertEquals(html, result.markdown)
+            assertTrue(result.diagnostics.size > 0L)
+        }
+    }
+
+    @Test
+    fun ordinaryTablesRetainHeadersAlignmentFormattingAndOptionalEndTags() {
+        val parsed =
+            mdHtmlImported(
+                "<table><thead><tr><th align=left>Name<th style='text-align:right'>Value</thead>" +
+                    "<tbody><tr><td><b>雪</b><td><code>a|b</code><tr><td>z<td><a href='x'>link</a></tbody></table>"
+            )
+        val table = parsed.root.children[0L]
+        when (table.content) {
+            case Table(val alignments) -> {
+                assertEquals(2L, alignments.size)
+                assertEquals(MarkdownAlignment.Left, alignments[0L])
+                assertEquals(MarkdownAlignment.Right, alignments[1L])
+            }
+            else -> fail(Some("Expected a GFM table"))
+        }
+        assertEquals(3L, table.children.size)
+        assertEquals("Name", parsed.inlineContent(table.children[0L].children[0L].id).text.text)
+        val first = parsed.inlineContent(table.children[1L].children[0L].id)
+        assertEquals("雪", first.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            first.styleState(MarkdownRange(0L, 3L), MarkdownInlineStyle.Strong)
+        )
+        assertEquals("a|b", parsed.inlineContent(table.children[1L].children[1L].id).text.text)
+    }
+
+    @Test
+    fun headerlessTablesAddAnEmptyHeaderAndCaptionsRemainVisible() {
+        val parsed =
+            mdHtmlImported(
+                "<table><caption>Results</caption><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>"
+            )
+        assertEquals(2L, parsed.root.children.size)
+        assertEquals("Results", parsed.inlineContent(parsed.root.children[0L].id).text.text)
+        val table = parsed.root.children[1L]
+        assertEquals(3L, table.children.size)
+        assertEquals("", parsed.inlineContent(table.children[0L].children[0L].id).text.text)
+        assertEquals("A", parsed.inlineContent(table.children[1L].children[0L].id).text.text)
+        assertEquals("D", parsed.inlineContent(table.children[2L].children[1L].id).text.text)
+    }
+
+    @Test
+    fun mergedNestedRaggedAndUnencodableTablesStayEditableAsOriginalHtml() {
+        for (
+            html in [
+                "<table><tr><td colspan=2>A</td></tr></table>",
+                "<table><tr><td rowspan=2>A</td></tr></table>",
+                "<table><tr><td><table><tr><td>A</td></tr></table></td></tr></table>",
+                "<table><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr></table>",
+                "<table><tr><td><code>a\\|b</code></td></tr></table>",
+                "<table><tr><td><custom title='a|b'>data</custom></td></tr></table>",
+                "<table><tr><td><img title='a|b'></td></tr></table>"
+            ]
+        ) {
+            val result = importMarkdownHtml(html)
+            assertEquals(html, result.markdown)
+            assertTrue(result.diagnostics.size > 0L)
+        }
+    }
+
+    @Test
+    fun disabledTargetExtensionsKeepHtmlInsteadOfCreatingLiteralMarkdownMarkers() {
+        val table = "<table><tr><th>H</th></tr><tr><td>A</td></tr></table>"
+        val strike = "<del>old</del>"
+        val result =
+            importMarkdownHtml(
+                strike + table,
+                MarkdownHtmlImportOptions(profile = MarkdownProfile.CommonMark)
+            )
+        assertTrue(result.markdown.contains(strike))
+        assertTrue(result.markdown.contains(table))
+        assertFalse(result.markdown.contains("~~"))
+        val task =
+            importMarkdownHtml(
+                "<ul><li><input type=checkbox checked>done</li></ul>",
+                MarkdownHtmlImportOptions(profile = MarkdownProfile.CommonMark)
+            )
+        assertTrue(task.markdown.contains("<input type=checkbox checked>"))
+        assertFalse(task.markdown.contains("[x]"))
+        for (
+            content in ["<del>a|b</del>", "<span style='text-decoration: line-through'>a|b</span>"]
+        ) {
+            val html = "<table><tr><td>" + content + "</td></tr></table>"
+            val preserved =
+                importMarkdownHtml(
+                    html,
+                    MarkdownHtmlImportOptions(
+                        profile = MarkdownProfile(tables = true, strikethrough = false)
+                    )
+                )
+            assertEquals(html, preserved.markdown)
+            assertTrue(preserved.diagnostics.size > 0L)
+        }
+    }
+}

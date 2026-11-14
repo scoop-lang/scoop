@@ -1,0 +1,181 @@
+package scoop.markdown
+
+import scoop.collections.HashSet
+import scoop.text.*
+
+internal fun mdHtmlTag(input: MdInput, start: Long, limit: Long): MdHtmlTag? {
+    if (input.at(start) != 60)
+        return None
+    val end = mdHtmlEnd(input, start)
+    if (end == 0L || end > limit)
+        return None
+    val closing = input.at(start + 1L) == 47
+    var position =
+        start +
+            (
+                if (closing)
+                    2L
+                else
+                    1L
+            )
+    if (!mdLetter(input.at(position)))
+        return None
+    val first = position
+    while (
+        position <
+            end &&
+            !mdHtmlSpace(input.at(position)) &&
+            input.at(position) !=
+            47 &&
+            input.at(position) !=
+            62
+    )
+        position += 1L
+    val name = input.text(first, position).lowercaseAscii()
+    val values = ArrayList<MdHtmlAttribute>()
+    val seen = HashSet<String>()
+    while (!closing && position + 1L < end) {
+        while (mdHtmlSpace(input.at(position)) || input.at(position) == 47)
+            position += 1L
+        if (position + 1L >= end)
+            break
+        val keyStart = position
+        while (
+            position +
+                1L <
+                end &&
+                !mdHtmlSpace(input.at(position)) &&
+                input.at(position) !=
+                61 &&
+                input.at(position) !=
+                47
+        )
+            position += 1L
+        if (position == keyStart) {
+            position += 1L
+            continue
+        }
+        val key = input.text(keyStart, position).lowercaseAscii()
+        while (mdHtmlSpace(input.at(position)))
+            position += 1L
+        var value = ""
+        if (input.at(position) == 61) {
+            position += 1L
+            while (mdHtmlSpace(input.at(position)))
+                position += 1L
+            val quote = input.at(position)
+            if (quote == 34 || quote == 39) {
+                position += 1L
+                val valueStart = position
+                while (position + 1L < end && input.at(position) != quote)
+                    position += 1L
+                value = mdHtmlDecode(input, valueStart, position, true)
+                if (input.at(position) == quote)
+                    position += 1L
+            } else {
+                val valueStart = position
+                while (position + 1L < end && !mdHtmlSpace(input.at(position)))
+                    position += 1L
+                value = mdHtmlDecode(input, valueStart, position, true)
+            }
+        }
+        if (seen.add(key))
+            values.add(MdHtmlAttribute(key, value))
+    }
+    return Some(
+        MdHtmlTag(
+            name,
+            values.toArray(),
+            end,
+            closing,
+            mdHtmlVoid(name) || ((name == "svg" || name == "math") && input.at(end - 2L) == 47)
+        )
+    )
+}
+
+internal struct MdHtmlRawEnd(val body: Long, val end: Long, val closed: Boolean)
+
+private fun mdHtmlAsciiName(input: MdInput, start: Long, name: String): Boolean {
+    val bytes = name.toByteArray()
+    for (index in 0L ..< bytes.size) {
+        val code = input.at(start + index)
+        val lower =
+            if (code >= 65 && code <= 90)
+                code + 32
+            else
+                code
+        if (lower != bytes[index].toInt())
+            return false
+    }
+    return true
+}
+
+internal fun mdHtmlRawEnd(input: MdInput, start: Long, limit: Long, name: String): MdHtmlRawEnd {
+    var position = start
+    while (name != "plaintext" && position < limit) {
+        if (
+            input.at(position) ==
+                60 &&
+                input.at(position + 1L) ==
+                47 &&
+                mdHtmlAsciiName(input, position + 2L, name)
+        ) {
+            val following = input.at(position + 2L + name.byteLength)
+            if (mdHtmlSpace(following) || following == 62 || following == 47) {
+                val tag = mdHtmlTag(input, position, limit)
+                when (tag) {
+                    case Some(val value) -> if (value.closing && value.name == name)
+                        return MdHtmlRawEnd(position, value.end, true)
+                    case None -> Unit
+                }
+            }
+        }
+        position += 1L
+    }
+    return MdHtmlRawEnd(limit, limit, false)
+}
+
+/** Scan real comments only: quoted attributes and raw-text elements cannot select a fragment. */
+internal fun mdHtmlFragment(input: MdInput): MarkdownRange {
+    var position = 0L
+    var first: Long? = None
+    while (position < input.size) {
+        if (input.at(position) != 60) {
+            position += 1L
+            continue
+        }
+        val end = mdHtmlEnd(input, position)
+        if (end == 0L) {
+            if (mdLetter(input.at(position + 1L)) || input.starts(position, "<!--"))
+                break
+            position += 1L
+            continue
+        }
+        if (input.starts(position, "<!--")) {
+            val comment = input.text(position, end)
+            if (comment == "<!--StartFragment-->" && first == None)
+                first = Some(end)
+            else
+                if (comment == "<!--EndFragment-->") {
+                    when (first) {
+                        case Some(val start) -> return MarkdownRange(start, position)
+                        case None -> Unit
+                    }
+                }
+            position = end
+            continue
+        }
+        val tag = mdHtmlTag(input, position, input.size)
+        position =
+            when (tag) {
+                case Some(val value) -> if (
+                    !value.closing && !value.empty && mdHtmlRawText(value.name)
+                )
+                    mdHtmlRawEnd(input, value.end, input.size, value.name).end
+                else
+                    value.end
+                case None -> end
+            }
+    }
+    return MarkdownRange(0L, input.size)
+}

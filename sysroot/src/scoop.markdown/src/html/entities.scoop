@@ -1,0 +1,171 @@
+package scoop.markdown
+
+import scoop.collections.HashSet
+import scoop.compiler.includeStr
+import scoop.text.*
+
+private object MdHtmlLegacyEntities {
+    private val names: HashSet<String> = load()
+    private fun load(): HashSet<String> {
+        val result = HashSet<String>()
+        for (name in includeStr("data/legacy-entities.txt").lines())
+            if (name != "")
+                result.add(name)
+        return result
+    }
+    fun contains(name: String): Boolean = names.contains(name)
+}
+
+/** HTML differs from Markdown in optional semicolons, attribute ambiguity and numeric C1 values. */
+internal fun mdHtmlEntity(input: MdInput, start: Long, limit: Long, attribute: Boolean): MdEntity? {
+    var end = start + 1L
+    if (input.at(end) == 35) {
+        end += 1L
+        val hex = input.at(end) == 120 || input.at(end) == 88
+        if (hex)
+            end += 1L
+        val first = end
+        var value = 0
+        while (end < limit) {
+            val code = input.at(end)
+            val digit =
+                if (mdDigit(code))
+                    code - 48
+                else
+                    if (hex && code >= 65 && code <= 70)
+                        code - 55
+                    else
+                        if (hex && code >= 97 && code <= 102)
+                            code - 87
+                        else
+                            -1
+            if (digit < 0)
+                break
+            if (value <= 1114111)
+                value =
+                    value *
+                        (
+                            if (hex)
+                                16
+                            else
+                                10
+                        ) +
+                        digit
+            end += 1L
+        }
+        if (end == first)
+            return None
+        if (end < limit && input.at(end) == 59)
+            end += 1L
+        if (value == 0 || value > 1114111 || (value >= 55296 && value <= 57343))
+            value = 65533
+        else
+            if (value >= 128 && value <= 159) {
+                val replacements =
+                    [
+                        8364,
+                        129,
+                        8218,
+                        402,
+                        8222,
+                        8230,
+                        8224,
+                        8225,
+                        710,
+                        8240,
+                        352,
+                        8249,
+                        338,
+                        141,
+                        381,
+                        143,
+                        144,
+                        8216,
+                        8217,
+                        8220,
+                        8221,
+                        8226,
+                        8211,
+                        8212,
+                        732,
+                        8482,
+                        353,
+                        8250,
+                        339,
+                        157,
+                        382,
+                        376
+                    ]
+                value = replacements[(value - 128).toLong()]
+            }
+        return Some(MdEntity(end, value.toChar().toString()))
+    }
+    var best: MdEntity? = None
+    while (
+        end < limit && end - start <= 32L && (mdLetter(input.at(end)) || mdDigit(input.at(end)))
+    ) {
+        end += 1L
+        val name = input.text(start + 1L, end)
+        val value = MdEntities.get(name)
+        when (value) {
+            case Some(val text) -> {
+                if (end < limit && input.at(end) == 59)
+                    return Some(MdEntity(end + 1L, text))
+                if (
+                    MdHtmlLegacyEntities.contains(name) &&
+                        (
+                            !attribute ||
+                                !(
+                                    mdLetter(input.at(end)) ||
+                                        mdDigit(input.at(end)) ||
+                                        input.at(end) ==
+                                        61
+                                )
+                        )
+                )
+                    best = Some(MdEntity(end, text))
+            }
+            case None -> Unit
+        }
+    }
+    return best
+}
+
+internal fun mdHtmlDecode(
+    input: MdInput,
+    start: Long,
+    end: Long,
+    attribute: Boolean = false
+): String {
+    val result = StringBuilder()
+    var position = start
+    var run = start
+    while (position < end) {
+        val code = input.at(position)
+        if (code == 38) {
+            when (mdHtmlEntity(input, position, end, attribute)) {
+                case Some(val value) -> {
+                    result.append(input.text(run, position)).append(value.text)
+                    position = value.end
+                    run = position
+                }
+                case None -> position += 1L
+            }
+        } else
+            if (code == 0 || code == 13) {
+                result.append(input.text(run, position)).append(
+                    if (code == 0)
+                        "\u{fffd}"
+                    else
+                        "\n"
+                )
+                position += if (code == 13 && position + 1L < end && input.at(position + 1L) == 10)
+                    2L
+                else
+                    1L
+                run = position
+            } else
+                position += 1L
+    }
+    return result.append(input.text(run, end)).toString()
+}

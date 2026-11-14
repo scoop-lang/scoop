@@ -191,9 +191,9 @@ RichHost 与 EditorViewState 的 `blockState(MarkdownBlockCommand)`、`executeBl
 
 Enter 拆分段落／标题，保留两侧样式、所在引用和列表语义；空列表项退出一级，空白续行可立即继续输入。普通 Backspace／Delete 在段落边界合并同容器相邻段落／标题，光标位于拼接处。Tab／Shift-Tab 在列表中缩进／提升当前项；表格内按单元格前进／后退，末格 Tab 新增正文行，Enter 保持列并前往下一行，必要时新增行。仅导航不新增历史项；新增行与结果光标作为一次事务进入历史。显式 `PasteTableTsv` 命令使用 `pasteTableTsv` 写入矩形，光标落在起始单元格新文字末尾。结构变化后仍使用真实 native 连接的退休与启用过程，不将旧连接范围解释为新段落位置。
 
-默认复制和剪切同时写入 `text/plain` 与 `text/markdown`：富文本的前者使用所见文本，后者使用原始文档语义片段，生成内容保留原指令。源码面两种表示均为原选区源码。写入成功后才删除剪切选区。默认粘贴优先使用存在的 `text/markdown`，在富文本面调用文档 Cone 的 replaceMarkdown，在源码面原样插入；缺失时按字面文本粘贴 `text/plain`。存在但为空的格式仍是有效内容，不回退到其他格式。一次粘贴作为一个独立撤销项，复用返回的局部解析；组合先接受，禁止使用另一输入面正在持有的组合。
+默认复制和剪切同时写入 `text/plain` 与 `text/markdown`：富文本的前者使用所见文本，后者使用原始文档语义片段，生成内容保留原指令。源码面两种表示均为原选区源码。写入成功后才删除剪切选区。默认富文本粘贴按存在性选择 text/markdown、text/html、text/plain；Markdown 调用文档 Cone 的 replaceMarkdown，HTML 先通过 importMarkdownHtml 按当前 profile 转换，再使用相同语义插入路径，纯文本保持字面含义。默认源码粘贴优先 text/markdown，其次 text/plain，原样插入；不自动转换 HTML。存在但为空的格式仍是有效内容，不回退到其他格式。一次粘贴作为一个独立撤销项，复用返回的局部解析；组合先接受，禁止使用另一输入面正在持有的组合。
 
-`MarkdownClipboardCommand` 提供 CopyText、CopyMarkdown、PasteText、PasteMarkdown 和 PasteTableTsv；RichHost、SourceHost 与 EditorViewState 的 `executeClipboard` 可供菜单／工具栏使用，不要求按钮点击后输入面仍拥有焦点。CopyMarkdown 将源码同时作为普通文本提供，PasteMarkdown 也可把普通文本显式解释为 Markdown，PasteText 始终忽略 Markdown 表示。源码面的 PasteTableTsv 返回 false。只读保留复制，禁用粘贴；禁用组件不执行命令。ViewState 路由到当前栏并在成功后恢复该栏焦点。HTML 导入另行实现，此阶段不把 HTML 格式作为 Markdown 解析。
+`MarkdownClipboardCommand` 提供 CopyText、CopyMarkdown、PasteText、PasteMarkdown、PasteHtml 和 PasteTableTsv；RichHost、SourceHost 与 EditorViewState 的 `executeClipboard` 可供菜单／工具栏使用，不要求按钮点击后输入面仍拥有焦点。CopyMarkdown 将源码同时作为普通文本提供；PasteMarkdown 只选择 Markdown／普通文本，PasteText 与 PasteTableTsv 只选择普通文本。PasteHtml 选择 HTML，缺失时把普通文本显式解释为 HTML；富文本面进行语义插入，源码面一次插入转换后的 Markdown。源码面的 PasteTableTsv 返回 false。只读保留复制，禁用粘贴；禁用组件不执行命令。ViewState 路由到当前栏并在成功后恢复该栏焦点。HTML 的转换范围、原始内容保留和无 I/O 合同见文档规范 §7.1；源码原样保存及模式切换不经过 HTML。
 
 ## 11. 全文查找替换
 

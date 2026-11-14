@@ -1,0 +1,487 @@
+package scoop.tests.markdown.editor
+
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.text.*
+import scoop.tests.surface.*
+import scoop.tests.window.saveNativeClipboard
+import scoop.tests.window.restoreNativeClipboard
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownHtmlClipboardWindowTests {
+    @Test
+    fun htmlClipboardFormatsUseOneHistoryAcrossNativeModesAndComposition() {
+        @Unsafe
+        {
+            val saved = saveNativeClipboard() ?: fail(Some("Cannot save the system clipboard"))
+            try {
+                val app = Application()
+                val workers =
+                    multiThreadExecutor {
+                        workers = 1
+                        blocking { threads = 1 }
+                    }
+                val probe = HtmlClipboardProbe(workers, app.proxy())
+                try {
+                    context(ThemeSource(shadcnTheme())) {
+                        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                            host -> app.run(host)
+                        }
+                    }
+                    assertTrue(probe.finished)
+                } catch (error: Throwable) {
+                    println("HTML clipboard step " + probe.step.value.toString())
+                    reportEditorFailure(error)
+                    throw error
+                } finally {
+                    probe.close()
+                    workers.close()
+                }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(saved))
+            }
+        }
+    }
+}
+
+private class HtmlClipboardProbe(workers: CoroutineExecutor, proxy: ApplicationProxy): Closeable {
+    val original = "before after"
+    val editor =
+        MarkdownEditorState(
+            MarkdownDocument.fromText(original),
+            MarkdownSelection(MarkdownPosition(7L), MarkdownPosition(7L))
+        )
+    val view = MarkdownEditorViewState(editor, MarkdownEditorMode.Wysiwyg)
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val step = state(0)
+    val mounted = state(true)
+    var scope: ComponentScope? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var accepted = -1
+    var previous = 0L
+    var waiting = false
+    var inputReady = false
+    var expectedPane = MarkdownEditorPane.Rich
+    var changes = 0L
+    var callbacks = 0L
+    var beforeChange = 0L
+    var beforeCallback = 0L
+    var finished = false
+    private val subscription = editor.document.observe { _ -> changes += 1L }
+    private val complex = "<table><tr><td colspan=2>x</td></tr></table>"
+
+    init {
+        view.requestFocus(MarkdownEditorPane.Rich)
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown HTML clipboard verification"
+                            size = LogicalSize(760.0, 420.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { owner -> HtmlClipboardRoot(this, owner) })
+                parser.start()
+                native.createDeadline {
+                    fail(
+                        Some(
+                            "HTML clipboard timeout at " +
+                                step.value.toString() +
+                                ", input=" +
+                                inputReady.toString()
+                        )
+                    )
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val input)) -> when (input) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                frame.required ||
+                frame.presentations <=
+                previous ||
+                accepted !=
+                step.value
+        )
+            return false
+        if (!mounted.value)
+            return true
+        val focus =
+            if (expectedPane == MarkdownEditorPane.Source)
+                view.sourceFocus
+            else
+                view.richFocus
+        val readOnly =
+            expectedPane ==
+                MarkdownEditorPane.Rich &&
+                view.mode ==
+                MarkdownEditorMode.SideBySide &&
+                view.rightReadOnly
+        if (!focus.isFocusActive || inputReady == readOnly)
+            return false
+        val current = parser.current ?: return false
+        return current.snapshot === editor.snapshot
+    }
+
+    private fun next(action: () -> Unit = {}) {
+        previous = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+        scope!!.requestLayout()
+    }
+
+    private fun reset() {
+        editor.document.reset(original)
+        editor.setSelection(MarkdownSelection(MarkdownPosition(7L), MarkdownPosition(7L)))
+    }
+
+    private fun formats(html: String, plain: String = "fallback", markdown: String? = None) {
+        val values = ArrayList<ClipboardText>()
+        values.add(ClipboardText("text/html", html))
+        values.add(ClipboardText("text/plain", plain))
+        when (markdown) {
+            case Some(val value) -> values.add(ClipboardText("text/markdown", value))
+            case None -> Unit
+        }
+        window!!.clipboard.writeTexts(values)
+        assertEquals(Some(html), window!!.clipboard.readText("text/html"))
+        assertEquals(Some(plain), window!!.clipboard.readText())
+        assertEquals(markdown, window!!.clipboard.readText("text/markdown"))
+    }
+
+    private fun paste(command: MarkdownClipboardCommand? = None) {
+        beforeChange = changes
+        beforeCallback = callbacks
+        when (command) {
+            case Some(val value) -> assertTrue(view.executeClipboard(value))
+            case None -> editorNativeKey(window!!, 9, "v", 8)
+        }
+    }
+
+    private fun oneChange() {
+        assertEquals(beforeChange + 1L, changes)
+        assertEquals(beforeCallback + 1L, callbacks)
+    }
+
+    private fun undo() {
+        editorNativeKey(window!!, 6, "z", 8)
+    }
+
+    private fun text(expected: String): MarkdownInlineContent {
+        val parsed = parser.current!!.source
+        val content = parsed.inlineContent(parsed.root.children[0L].id)
+        assertEquals(expected, content.text.text)
+        return content
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step.value) {
+            case 0 -> next {
+                formats("<p><strong>雪</strong></p>");
+                paste()
+            }
+            case 1 -> {
+                oneChange()
+                assertEquals(
+                    MarkdownStyleState.On,
+                    text("before 雪after").styleState(
+                        MarkdownRange(7L, 10L),
+                        MarkdownInlineStyle.Strong
+                    )
+                )
+                next { undo() }
+            }
+            case 2 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertEquals(7L, editor.selection.cursor.byteOffset)
+                assertFalse(editor.canUndo)
+                next { editorNativeKey(window!!, 6, "z", 9) }
+            }
+            case 3 -> {
+                text("before 雪after")
+                next { reset() }
+            }
+            case 4 -> next {
+                formats("<em>HTML</em>", "plain", Some("**MD**"))
+                paste()
+            }
+            case 5 -> {
+                oneChange()
+                text("before MDafter")
+                next { reset() }
+            }
+            case 6 -> next {
+                formats("<em>HTML</em>", "plain", Some("**MD**"))
+                paste(Some(MarkdownClipboardCommand.PasteHtml))
+            }
+            case 7 -> {
+                oneChange()
+                assertEquals(
+                    MarkdownStyleState.On,
+                    text("before HTMLafter").styleState(
+                        MarkdownRange(7L, 11L),
+                        MarkdownInlineStyle.Emphasis
+                    )
+                )
+                next { reset() }
+            }
+            case 8 -> next {
+                formats("<em>HTML</em>", "plain", Some("**MD**"))
+                paste(Some(MarkdownClipboardCommand.PasteText))
+            }
+            case 9 -> {
+                oneChange()
+                assertEquals(
+                    MarkdownStyleState.Off,
+                    text("before plainafter").styleState(
+                        MarkdownRange(7L, 12L),
+                        MarkdownInlineStyle.Strong
+                    )
+                )
+                next { reset() }
+            }
+            case 10 -> next {
+                window!!.clipboard.writeText("<b>Literal</b>")
+                paste(Some(MarkdownClipboardCommand.PasteHtml))
+            }
+            case 11 -> {
+                oneChange()
+                text("before Literalafter")
+                next {
+                    reset()
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(6L), MarkdownPosition(0L))
+                    )
+                }
+            }
+            case 12 -> next {
+                formats("");
+                paste()
+            }
+            case 13 -> {
+                oneChange()
+                text(" after")
+                next { undo() }
+            }
+            case 14 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertEquals(
+                    MarkdownSelection(MarkdownPosition(6L), MarkdownPosition(0L)),
+                    editor.selection
+                )
+                next {
+                    reset()
+                    view.setMode(MarkdownEditorMode.Source)
+                    expectedPane = MarkdownEditorPane.Source
+                    view.requestFocus(expectedPane)
+                }
+            }
+            case 15 -> next {
+                formats("<b>HTML</b>", "plain");
+                paste()
+            }
+            case 16 -> {
+                oneChange()
+                assertEquals("before plainafter", editor.document.toMarkdown())
+                next { reset() }
+            }
+            case 17 -> next {
+                formats("<b>HTML</b>", "plain")
+                paste(Some(MarkdownClipboardCommand.PasteHtml))
+            }
+            case 18 -> {
+                oneChange()
+                assertEquals("before **HTML**after", editor.document.toMarkdown())
+                next {
+                    reset()
+                    view.setMode(MarkdownEditorMode.SideBySide)
+                    expectedPane = MarkdownEditorPane.Rich
+                    view.requestFocus(expectedPane)
+                }
+            }
+            case 19 -> next {
+                formats("<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>")
+                paste()
+            }
+            case 20 -> {
+                oneChange()
+                var found = false
+                for (node in parser.current!!.source.root.children)
+                    when (node.content) {
+                        case Table(_) -> found = true
+                        else -> Unit
+                    }
+                assertTrue(found)
+                next { undo() }
+            }
+            case 21 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next {
+                    formats(complex);
+                    paste()
+                }
+            }
+            case 22 -> {
+                oneChange()
+                assertTrue(editor.document.toMarkdown().contains(complex))
+                next { undo() }
+            }
+            case 23 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next {
+                    view.setRightReadOnly(true);
+                    formats("<b>blocked</b>")
+                }
+            }
+            case 24 -> {
+                assertFalse(view.executeClipboard(MarkdownClipboardCommand.PasteHtml))
+                assertEquals(original, editor.document.toMarkdown())
+                next { view.setRightReadOnly(false) }
+            }
+            case 25 -> next { assertEquals(0, editorNativeText(window!!, "拼", 1, 1L)) }
+            case 26 -> {
+                assertTrue(editor.isComposing)
+                next {
+                    formats("<strong>贴</strong>");
+                    paste()
+                }
+            }
+            case 27 -> {
+                assertFalse(editor.isComposing)
+                assertEquals(
+                    MarkdownStyleState.On,
+                    text("before 拼贴after").styleState(
+                        MarkdownRange(10L, 13L),
+                        MarkdownInlineStyle.Strong
+                    )
+                )
+                next { undo() }
+            }
+            case 28 -> {
+                text("before 拼after")
+                next { undo() }
+            }
+            case 29 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next {
+                    parser.configure(MarkdownParseOptions(profile = MarkdownProfile.CommonMark))
+                }
+            }
+            case 30 -> next {
+                formats("<del>x</del>");
+                paste()
+            }
+            case 31 -> {
+                oneChange()
+                assertTrue(editor.document.toMarkdown().contains("<del>x</del>"))
+                assertFalse(editor.document.toMarkdown().contains("~~"))
+                next { mounted.value = false }
+            }
+            case 32 -> {
+                assertFalse(view.sourceFocus.isAttached)
+                assertFalse(view.richFocus.isAttached)
+                assertFalse(view.executeClipboard(MarkdownClipboardCommand.PasteHtml))
+                assertFalse(editor.isClosed)
+                assertFalse(parser.isClosed)
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected HTML clipboard step"))
+        }
+    }
+
+    public override fun close() {
+        subscription.close()
+        frames?.close()
+        parser.close()
+        editor.close()
+    }
+}
+
+private class HtmlClipboardRoot(val probe: HtmlClipboardProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        probe.scope = Some(scope)
+    }
+    public override fun render(): View =
+        element(
+            probe.step.value,
+            { props, owner -> HtmlClipboardFrame(probe, props, owner) },
+            if (probe.mounted.value)
+                [
+                    markdownEditor(
+                        probe.view,
+                        probe.parser,
+                        onChanged = { _ -> probe.callbacks += 1L }
+                    )
+                ]
+            else
+                []
+        )
+}
+
+private class HtmlClipboardFrame(
+    val probe: HtmlClipboardProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (!probe.mounted.value)
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(760.0, 420.0))), Unit)
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        val ticket = step.value
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+        }
+    }
+}

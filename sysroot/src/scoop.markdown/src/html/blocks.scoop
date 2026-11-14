@@ -1,0 +1,174 @@
+package scoop.markdown
+
+import scoop.text.*
+import scoop.url.*
+
+/** Converted blocks reuse the existing Markdown writer; unknown subtrees keep original HTML. */
+internal class MdHtmlImporter(
+    val input: MdInput,
+    val options: MarkdownHtmlImportOptions,
+    val diagnostics: ArrayList<MarkdownDiagnostic>
+) {
+    private val base: Url? =
+        when (options.baseUri) {
+            case Some(val value) -> Some(Url.parse(value))
+            case None -> None
+        }
+
+    fun retain(node: MdHtmlNode, reason: String): String {
+        diagnostics.add(MarkdownDiagnostic(node.range, reason))
+        return input.text(node.start, node.end)
+    }
+
+    fun destination(node: MdHtmlNode, value: String): String {
+        val parent = base ?: return value
+        try {
+            return parent.resolve(value).toString()
+        } catch (error: UrlParseException) {
+            diagnostics.add(
+                MarkdownDiagnostic(
+                    node.range,
+                    "Kept an HTML target that cannot be resolved against baseUri"
+                )
+            )
+            return value
+        }
+    }
+
+    fun blocks(
+        nodes: Array<MdHtmlNode>,
+        style: MdHtmlStyle = MdHtmlStyle(),
+        omit: MdHtmlNode? = None
+    ): Array<MdWriteBlock> {
+        val output = ArrayList<MdWriteBlock>()
+        val paragraph = ArrayList<MdHtmlVisit>()
+        val pending = ArrayList<MdHtmlVisit>()
+        mdHtmlPush(pending, nodes, style)
+        while (pending.size > 0L) {
+            val visit = pending.removeAt(pending.size - 1L)
+            val node = visit.node
+            if (visit.boundary) {
+                flush(paragraph, output, omit)
+                continue
+            }
+            if (mdHtmlOmitted(node, omit) || mdHtmlIgnored(node.name))
+                continue
+            if (!mdHtmlBlock(node.name)) {
+                paragraph.add(visit)
+                continue
+            }
+            flush(paragraph, output, omit)
+            if (!options.profile.strikethrough && mdHtmlStrike(node)) {
+                output.add(
+                    MdWriteBlock.Raw(
+                        retain(node, "Strikethrough is disabled in the target profile")
+                    )
+                )
+                continue
+            }
+            val current = mdHtmlStyled(node, visit.style)
+            if (mdHtmlFlowContainer(node.name)) {
+                pending.add(MdHtmlVisit(node, current, true))
+                mdHtmlPush(pending, node.children.toArray(), current)
+            } else
+                when (node.name) {
+                    case "p" -> output.add(
+                        MdWriteBlock.Paragraph(
+                            inlines(mdHtmlVisits(node.children.toArray(), current), omit = omit)
+                        )
+                    )
+                    case "h1" -> output.add(heading(node, 1, current, omit))
+                    case "h2" -> output.add(heading(node, 2, current, omit))
+                    case "h3" -> output.add(heading(node, 3, current, omit))
+                    case "h4" -> output.add(heading(node, 4, current, omit))
+                    case "h5" -> output.add(heading(node, 5, current, omit))
+                    case "h6" -> output.add(heading(node, 6, current, omit))
+                    case "blockquote" -> output.add(
+                        MdWriteBlock.Quote(blocks(node.children.toArray(), current, omit))
+                    )
+                    case "pre" -> output.add(
+                        if (mdHtmlCodeContent(node))
+                            mdHtmlCode(node)
+                        else
+                            MdWriteBlock.Raw(
+                                retain(node, "Preformatted non-text HTML content remains HTML")
+                            )
+                    )
+                    case "ul" -> output.add(list(node, current))
+                    case "ol" -> output.add(list(node, current))
+                    case "table" -> output.add(table(node, current))
+                    case "hr" -> output.add(MdWriteBlock.ThematicBreak)
+                    else -> output.add(
+                        MdWriteBlock.Raw(retain(node, "Unconverted HTML <" + node.name + ">"))
+                    )
+                }
+        }
+        flush(paragraph, output, omit)
+        return output.toArray()
+    }
+
+    private fun flush(
+        paragraph: ArrayList<MdHtmlVisit>,
+        output: ArrayList<MdWriteBlock>,
+        omit: MdHtmlNode?
+    ) {
+        if (paragraph.size > 0L) {
+            val content = inlines(paragraph.toArray(), omit = omit)
+            if (content.size > 0L)
+                output.add(MdWriteBlock.Paragraph(content))
+            paragraph.clear()
+        }
+    }
+
+    private fun heading(
+        node: MdHtmlNode,
+        level: Int,
+        style: MdHtmlStyle,
+        omit: MdHtmlNode?
+    ): MdWriteBlock =
+        MdWriteBlock.Heading(
+            level,
+            inlines(mdHtmlVisits(node.children.toArray(), style), true, omit)
+        )
+}
+
+private fun mdHtmlCode(node: MdHtmlNode): MdWriteBlock {
+    var language = ""
+    var candidate = node
+    for (child in node.children) {
+        if (child.name == "code") {
+            candidate = child
+            break
+        }
+    }
+    val classes =
+        (candidate.attribute("class") ?: "").replace("\n", " ").replace("\t", " ").replace(
+            "\r",
+            " "
+        ).replace("\u{c}", " ").split(" ")
+    for (name in classes) {
+        val prefix =
+            if (name.startsWith("language-"))
+                9L
+            else
+                if (name.startsWith("lang-"))
+                    5L
+                else
+                    0L
+        if (prefix > 0L && name.byteLength > prefix) {
+            language = mdBytesText(name.toByteArray(), prefix, name.byteLength)
+            break
+        }
+    }
+    var text = mdHtmlPlain(node)
+    if (node.children.size > 0L) {
+        when (node.children[0L].kind) {
+            case Text(val first) -> {
+                if (first.startsWith("\n") && text.startsWith("\n"))
+                    text = mdBytesText(text.toByteArray(), 1L, text.byteLength)
+            }
+            else -> Unit
+        }
+    }
+    return MdWriteBlock.Fence(language, text)
+}

@@ -6,6 +6,8 @@
 
 模式栏下方使用公开的 `markdownFormattingToolbar`，提供粗体、斜体、删除线与行内代码；对应快捷键为 Cmd-B、Cmd-I、Cmd-Shift-X、Cmd-E。格式操作支持跨块选区；无选区时控制后续键入，不产生空标记。按钮显示混合状态，纯源码模式或右侧只读时禁用。Link／Image 打开文字／替代文字、URI 和标题面板，可插入、修改或移除当前目标；Cancel 不改变文档。图片 URI 相对当前文件解析，编辑器沿用本地图片适配展示，文件保存／上传由宿主应用提供。
 
+Cmd-V 在富文本栏优先使用剪贴板 Markdown，其次把 HTML 转成 Markdown，最后按普通文字插入；段落、文字格式、链接、列表和普通表格可转换，无法表示的结构保留原 HTML。一次粘贴可独立撤销，组合文字先提交。源码栏默认原样粘贴 Markdown／普通文本；应用菜单可通过 viewState.executeClipboard(MarkdownClipboardCommand.PasteHtml) 显式导入 HTML。此示例沿用默认快捷键，没有额外的粘贴菜单。
+
 块工具栏提供 Block、List 和 Table 菜单：可转换标题／段落，增减引用，改变列表类型和层级，插入代码块、分隔线与表格，并增删表格行列、设置列对齐。Cmd-0／1…6 对应段落／标题；菜单操作后可以继续输入，修改使用同一撤销历史。新增代码块直接进入局部源码编辑。
 
 Find／Replace 或 Cmd-F／Cmd-Alt-F 打开原生全文查找栏，提供大小写、整词和正则选项。查询字段 Enter／Shift-Enter、Cmd-G／Cmd-Shift-G 前后跳转；Escape 在组合结束后返回编辑区域。Replace 修改当前匹配，Replace all 一次修改所有匹配并共用文档撤销；只读栏禁用替换。正则替换支持 `$1`、`${name}`、`$$`。搜索包含原始 Markdown 的标记和目标 URI，不展开外部 include；高亮与滚动使用同一源码映射。

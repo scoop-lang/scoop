@@ -117,9 +117,9 @@ RichHost 和 viewState 提供 `setCode`／`toggleCode`／`codeState`，Primary-E
 
 ## 剪贴板格式
 
-默认复制／剪切同时写入所见 `text/plain` 和语义 `text/markdown`；源码面两者均为原选区。默认粘贴优先读取存在的 Markdown 格式，富文本面按文档 Cone 的 replaceMarkdown 插入，源码面原样插入；缺失时将普通文本按字面文字插入。一次粘贴独立撤销，先接受当前组合，剪切先成功写剪贴板再删除。生成内容的 Markdown 表示保留原指令。HTML 导入尚未接入。
+默认复制／剪切同时写入所见 `text/plain` 和语义 `text/markdown`；源码面两者均为原选区。富文本默认粘贴按 `text/markdown`、`text/html`、`text/plain` 的存在性依次选择；空的高优先级表示不会回退。Markdown 通过文档 Cone 的 replaceMarkdown 语义插入，HTML 先用 importMarkdownHtml 转换，普通文本按字面文字处理。源码面默认读取 Markdown／普通文本并原样插入；显式 PasteHtml 才转换 HTML。一次粘贴独立撤销，先接受当前组合，剪切先成功写剪贴板再删除。生成内容的 Markdown 表示保留原指令。
 
-`MarkdownRichHost.executeClipboard`、`MarkdownSourceHost.executeClipboard` 和 `MarkdownEditorViewState.executeClipboard` 接受 `MarkdownClipboardCommand.CopyText / CopyMarkdown / PasteText / PasteMarkdown / PasteTableTsv`，可直接由菜单或工具栏调用。CopyMarkdown 同时将源码作为纯文本提供；PasteText 忽略 Markdown 格式；PasteMarkdown 可显式解析纯文本；PasteTableTsv 只在富文本表格中执行矩形操作，默认粘贴不猜测 Tab 内容。只读保留复制，禁用修改；禁用组件或未挂载的 ViewState 返回 false。ViewState 按活动栏路由，成功后恢复该栏焦点。
+`MarkdownRichHost.executeClipboard`、`MarkdownSourceHost.executeClipboard` 和 `MarkdownEditorViewState.executeClipboard` 接受 `MarkdownClipboardCommand.CopyText / CopyMarkdown / PasteText / PasteMarkdown / PasteHtml / PasteTableTsv`，可直接由菜单或工具栏调用。CopyMarkdown 同时将源码作为纯文本提供；PasteText 只读普通文本；PasteMarkdown 读取 Markdown，缺失时显式解析普通文本；PasteHtml 读取 HTML，缺失时把普通文本解释为 HTML。HTML 转换使用当前语法 profile，无法表示的内容保留原 HTML；转换范围见 [文档库说明](../scoop.markdown/README.md)。PasteTableTsv 只读取普通文本，并只在富文本表格中执行矩形操作，默认粘贴不猜测 Tab 内容。只读保留复制，禁用修改；禁用组件或未挂载的 ViewState 返回 false。ViewState 按活动栏路由，成功后恢复该栏焦点。
 
 ## 大纲和位置导航
 

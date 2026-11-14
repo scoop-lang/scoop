@@ -1,0 +1,209 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun MdHtmlImporter.table(node: MdHtmlNode, style: MdHtmlStyle): MdWriteBlock {
+    if (!options.profile.tables)
+        return MdWriteBlock.Raw(retain(node, "Tables are disabled in the target profile"))
+    val rows = ArrayList<MdHtmlVisit>()
+    val pending = ArrayList<MdHtmlVisit>()
+    mdHtmlPush(pending, node.children.toArray(), style)
+    var caption: MdHtmlVisit? = None
+    while (pending.size > 0L) {
+        val visit = pending.removeAt(pending.size - 1L)
+        val current = visit.node
+        when (current.kind) {
+            case Text(val text) -> {
+                if (!mdHtmlBlank(text))
+                    return MdWriteBlock.Raw(
+                        retain(node, "Table content outside cells remains HTML")
+                    )
+                continue
+            }
+            else -> Unit
+        }
+        if (mdHtmlIgnored(current.name) || current.name == "colgroup" || current.name == "col")
+            continue
+        if (!options.profile.strikethrough && mdHtmlStrike(current))
+            return MdWriteBlock.Raw(retain(node, "Strikethrough is disabled in the target profile"))
+        val selected = mdHtmlStyled(current, visit.style)
+        when (current.name) {
+            case "thead" -> mdHtmlPush(pending, current.children.toArray(), selected)
+            case "tbody" -> mdHtmlPush(pending, current.children.toArray(), selected)
+            case "tfoot" -> mdHtmlPush(pending, current.children.toArray(), selected)
+            case "tr" -> rows.add(MdHtmlVisit(current, selected))
+            case "caption" -> {
+                when (caption) {
+                    case Some(_) -> return MdWriteBlock.Raw(
+                        retain(node, "Multiple HTML table captions remain HTML")
+                    )
+                    case None -> Unit
+                }
+                caption = Some(MdHtmlVisit(current, selected))
+            }
+            else -> return MdWriteBlock.Raw(
+                retain(node, "Complex HTML table structure remains HTML")
+            )
+        }
+    }
+    val output = ArrayList<Array<Array<MdWriteInline>>>()
+    val alignment = ArrayList<MarkdownAlignment>()
+    var columns = 0L
+    var header = false
+    for (rowIndex in 0L ..< rows.size) {
+        val row = rows[rowIndex]
+        val cells = ArrayList<MdHtmlNode>()
+        for (child in row.node.children) {
+            when (child.kind) {
+                case Text(val text) -> {
+                    if (!mdHtmlBlank(text))
+                        return MdWriteBlock.Raw(
+                            retain(node, "Table row content outside cells remains HTML")
+                        )
+                    continue
+                }
+                else -> Unit
+            }
+            if (mdHtmlIgnored(child.name))
+                continue
+            if (child.name != "td" && child.name != "th")
+                return MdWriteBlock.Raw(retain(node, "Complex HTML table cells remain HTML"))
+            if (
+                (child.attribute("rowspan") ?: "1").trim().toLongOrNone() !=
+                    Some(1L) ||
+                    (child.attribute("colspan") ?: "1").trim().toLongOrNone() !=
+                    Some(1L) ||
+                    !mdHtmlSimpleCell(child, options.profile) ||
+                    (!options.profile.strikethrough && mdHtmlStrike(child))
+            )
+                return MdWriteBlock.Raw(
+                    retain(node, "Merged or structurally complex table cells remain HTML")
+                )
+            cells.add(child)
+        }
+        if (rowIndex == 0L) {
+            columns = cells.size
+            header = columns > 0L
+            for (cell in cells) {
+                alignment.add(MarkdownAlignment.None)
+                if (cell.name != "th")
+                    header = false
+            }
+            if (!header)
+                output.add(Array<Array<MdWriteInline>>(columns) { _ -> [] })
+        }
+        if (cells.size != columns || columns == 0L)
+            return MdWriteBlock.Raw(retain(node, "A nonrectangular HTML table remains HTML"))
+        val converted = ArrayList<Array<MdWriteInline>>()
+        for (index in 0L ..< columns) {
+            val cell = cells[index]
+            val direction = mdHtmlAlignment(cell)
+            if (direction != MarkdownAlignment.None) {
+                if (alignment[index] != MarkdownAlignment.None && alignment[index] != direction)
+                    return MdWriteBlock.Raw(retain(node, "Conflicting cell alignment remains HTML"))
+                alignment[index] = direction
+            }
+            var selected = mdHtmlStyled(cell, row.style)
+            if (cell.name == "th" && !(header && rowIndex == 0L))
+                selected = MdHtmlStyle(selected.flags.or(2), selected.link)
+            val content = blocks(cell.children.toArray(), selected)
+            val parts = ArrayList<MdWriteInline>()
+            for (block in content) {
+                when (block) {
+                    case Paragraph(val inlines) -> {
+                        if (parts.size > 0L)
+                            parts.add(MdWriteInline.Raw("<br>"))
+                        for (inline in inlines)
+                            parts.add(
+                                if (mdWriteBreak(inline))
+                                    MdWriteInline.Raw("<br>")
+                                else
+                                    inline
+                            )
+                    }
+                    else -> return MdWriteBlock.Raw(
+                        retain(node, "Block content in a table cell remains HTML")
+                    )
+                }
+            }
+            converted.add(parts.toArray())
+        }
+        output.add(converted.toArray())
+    }
+    if (columns == 0L)
+        return MdWriteBlock.Raw(retain(node, "An empty HTML table remains HTML"))
+    val source =
+        try {
+            mdWriteTable(alignment.toArray(), output.toArray())
+        } catch (error: IllegalArgumentException) {
+            return MdWriteBlock.Raw(
+                retain(node, "Cell content cannot be represented by a GFM table")
+            )
+        }
+    val prefix =
+        when (caption) {
+            case Some(val value) -> mdWriteInlines(
+                inlines(mdHtmlVisits(value.node.children.toArray(), value.style))
+            )
+            case None -> ""
+        }
+    return MdWriteBlock.Raw(
+        (
+            if (prefix == "")
+                ""
+            else
+                prefix + "\n\n"
+        ) +
+            source
+    )
+}
+
+private fun mdHtmlAlignment(node: MdHtmlNode): MarkdownAlignment =
+    when (
+        mdHtmlCss(node, "text-align") ?: (node.attribute("align") ?: "").trim().lowercaseAscii()
+    ) {
+        case "left" -> MarkdownAlignment.Left
+        case "center" -> MarkdownAlignment.Center
+        case "right" -> MarkdownAlignment.Right
+        else -> MarkdownAlignment.None
+    }
+
+private fun mdHtmlSimpleCell(node: MdHtmlNode, profile: MarkdownProfile): Boolean {
+    val pending = ArrayList<MdHtmlNode>()
+    for (child in node.children)
+        pending.add(child)
+    while (pending.size > 0L) {
+        val child = pending.removeAt(pending.size - 1L)
+        if (mdHtmlIgnored(child.name))
+            continue
+        if (
+            (!profile.strikethrough && mdHtmlStrike(child)) ||
+                (child.name == "img" && child.attribute("src") == None)
+        )
+            return false
+        when (child.kind) {
+            case Text(_) -> Unit
+            else -> {
+                if (
+                    child.name !=
+                        "p" &&
+                        child.name !=
+                        "div" &&
+                        child.name !=
+                        "br" &&
+                        child.name !=
+                        "code" &&
+                        child.name !=
+                        "img" &&
+                        !mdHtmlInlineContainer(child.name)
+                )
+                    return false
+                if (child.name == "code" && !mdHtmlCodeContent(child))
+                    return false
+                for (nested in child.children)
+                    pending.add(nested)
+            }
+        }
+    }
+    return true
+}

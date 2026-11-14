@@ -1,0 +1,164 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+import scoop.url.UrlParseException
+
+internal fun mdHtmlImported(
+    value: String,
+    options: MarkdownHtmlImportOptions = MarkdownHtmlImportOptions()
+): ParsedMarkdown =
+    MarkdownDocument.fromText(importMarkdownHtml(value, options).markdown).parse(options.profile)
+
+@Test
+private class MarkdownHtmlImportTests {
+    @Test
+    fun blocksFormattingAndLinksUseTheExistingMarkdownSemantics() {
+        val html =
+            "<h2>Title &amp; 雪</h2><p>Hello <b>bold <em>both</em></b> <del>old</del> " +
+                "<a href='doc?a=1&amp;b=2' title='A &quot;title&quot;'>link <strong>bold</strong></a>.</p><hr>"
+        val result = importMarkdownHtml(html)
+        assertEquals(0L, result.diagnostics.size)
+        assertEquals(MarkdownRange(0L, html.byteLength), result.sourceRange)
+        assertEquals(
+            "<h2>Title &amp; 雪</h2>\n<p>Hello <strong>bold <em>both</em></strong> <del>old</del> " +
+                "<a href=\"doc?a=1&amp;b=2\" title=\"A &quot;title&quot;\">link <strong>bold</strong></a>.</p>\n<hr />\n",
+            mdTestHtml(MarkdownDocument.fromText(result.markdown).parse())
+        )
+    }
+
+    @Test
+    fun whitespaceCollapsesAcrossElementsWithoutLosingNonbreakingOrUnicodeSpaces() {
+        val parsed =
+            mdHtmlImported(
+                "\n<div> alpha\t <span> \n beta </span><b> gamma</b> \n delta&nbsp; \u{2003}\n</div>"
+            )
+        val text = parsed.inlineContent(parsed.root.children[0L].id)
+        assertEquals("alpha beta gamma delta\u{a0} \u{2003}", text.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            text.styleState(MarkdownRange(11L, 16L), MarkdownInlineStyle.Strong)
+        )
+        val literal = mdHtmlImported("<p>*literal* &lt; &amp; [x](y) \\z</p>")
+        assertEquals(
+            "*literal* < & [x](y) \\z",
+            literal.inlineContent(literal.root.children[0L].id).text.text
+        )
+    }
+
+    @Test
+    fun textualCssCanOverrideInheritedWeightAndCombineSupportedStyles() {
+        assertEquals(
+            "<p><strong>A</strong><em>B</em><strong>C</strong> <del><strong>D</strong></del></p>\n",
+            mdTestHtml(
+                mdHtmlImported(
+                    "<p><b>A<span style='font-weight:normal;font-style:italic'>B</span>C</b> " +
+                        "<span STYLE='font-weight:700; text-decoration:line-through'>D</span></p>"
+                )
+            )
+        )
+    }
+
+    @Test
+    fun attributesAreCaseInsensitiveDecodedOnceAndKeepTheFirstDuplicate() {
+        assertEquals(
+            "<p><a href=\"one\" title=\"t &amp; q\">x</a><img src=\"pic.png\" alt=\"雪 &amp; 😀\" title=\"P\" /></p>\n",
+            mdTestHtml(
+                mdHtmlImported(
+                    "<P><A HREF=one HREF=two title='t &amp; q'>x</A>" +
+                        "<IMG SRC='pic&#46;png' ALT='雪 &amp; 😀' TITLE='P'></P>"
+                )
+            )
+        )
+    }
+
+    @Test
+    fun codeKeepsItsTextLanguageAndCollisionFreeDelimiters() {
+        val parsed =
+            mdHtmlImported(
+                "<pre>\n<code class='hljs language-scoop'>val s = &quot;```&quot;\n\t雪\n</code></pre>" +
+                    "<p><code> ` x ` </code></p>"
+            )
+        when (parsed.root.children[0L].content) {
+            case CodeBlock(Some(val fence), val info, val body) -> {
+                assertTrue(fence.length > 3L)
+                assertEquals("scoop", info.text)
+                assertEquals("val s = \"```\"\n\t雪\n", body.text)
+            }
+            else -> fail(Some("Expected an imported code fence"))
+        }
+        assertEquals(" ` x ` ", parsed.inlineContent(parsed.root.children[1L].id).text.text)
+        val raw = "<pre><img src='x.png'></pre>"
+        assertEquals(raw, importMarkdownHtml(raw).markdown)
+    }
+
+    @Test
+    fun breaksUseMarkdownWherePossibleAndRetainHtmlAtUnrepresentableBoundaries() {
+        assertEquals(
+            "<p>a<br />\nb<br />\n<br>c</p>\n<h1>x<br>y</h1>\n<p><br>z<br></p>\n",
+            mdTestHtml(mdHtmlImported("<p>a<br>b<br><br>c</p><h1>x<br>y</h1><p><br>z<br></p>"))
+        )
+        val edge = mdHtmlImported("<p>before<a href='x'><br>x<br></a>after</p>")
+        assertEquals("<p>before<a href=\"x\"><br>x<br></a>after</p>\n", mdTestHtml(edge))
+    }
+
+    @Test
+    fun aProvidedBaseResolvesReferencesWithoutReadingHtmlBaseOrResources() {
+        val html =
+            "<base href='https://unused.invalid/'><p><a href='../guide?q=1&amp;x=2#雪'>x</a><img src='./x.png'></p>"
+        val parsed =
+            mdHtmlImported(
+                html,
+                MarkdownHtmlImportOptions(baseUri = Some("https://example.test/a/page.html"))
+            )
+        when (parsed.root.children[0L].children[0L].content) {
+            case Link(val target) -> assertEquals(
+                "https://example.test/guide?q=1&x=2#%E9%9B%AA",
+                target.destination.text
+            )
+            else -> fail(Some("Expected a resolved HTML link"))
+        }
+        when (parsed.root.children[0L].children[1L].content) {
+            case Image(val target) -> assertEquals(
+                "https://example.test/a/x.png",
+                target.destination.text
+            )
+            else -> fail(Some("Expected a resolved HTML image"))
+        }
+        val invalid =
+            importMarkdownHtml(
+                "<a href='has space'>x</a>",
+                MarkdownHtmlImportOptions(baseUri = Some("https://example.test/a/"))
+            )
+        assertEquals(1L, invalid.diagnostics.size)
+        assertTrue(invalid.markdown.contains("has space"))
+        assertFailsWith<UrlParseException> {
+            importMarkdownHtml("<p>x</p>", MarkdownHtmlImportOptions(baseUri = Some("bad base")))
+        }
+    }
+
+    @Test
+    fun newDocumentWriteOptionsDoNotLeakIntoImportedLiteralContent() {
+        val result =
+            importMarkdownHtml(
+                "<ul><li>one</li><li>two</li></ul><p>end</p>",
+                MarkdownHtmlImportOptions(
+                    write =
+                        MarkdownWriteOptions(
+                            newline = MarkdownNewline.CrLf,
+                            finalNewline = true,
+                            bullet = '+'
+                        )
+                )
+            )
+        assertTrue(result.markdown.startsWith("+ "))
+        assertTrue(result.markdown.endsWith("\r\n"))
+        assertFalse(result.markdown.replace("\r\n", "").contains("\n"))
+        assertFailsWith<IllegalArgumentException> {
+            importMarkdownHtml(
+                "<p>x</p>",
+                MarkdownHtmlImportOptions(write = MarkdownWriteOptions(bullet = 'x'))
+            )
+        }
+    }
+}

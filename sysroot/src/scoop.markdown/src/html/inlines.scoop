@@ -1,0 +1,92 @@
+package scoop.markdown
+
+internal fun MdHtmlImporter.inlines(
+    nodes: Array<MdHtmlVisit>,
+    singleLine: Boolean = false,
+    omit: MdHtmlNode? = None
+): Array<MdWriteInline> {
+    val output = MdHtmlInlineWriter()
+    val pending = ArrayList<MdHtmlVisit>()
+    var index = nodes.size
+    while (index > 0L) {
+        index -= 1L
+        pending.add(nodes[index])
+    }
+    while (pending.size > 0L) {
+        val visit = pending.removeAt(pending.size - 1L)
+        val node = visit.node
+        if (mdHtmlOmitted(node, omit) || mdHtmlIgnored(node.name))
+            continue
+        when (node.kind) {
+            case Text(val text) -> output.text(text, visit.style)
+            else -> {
+                if (!options.profile.strikethrough && mdHtmlStrike(node)) {
+                    output.atom(
+                        MdWriteInline.Raw(
+                            retain(node, "Strikethrough is disabled in the target profile")
+                        ),
+                        visit.style
+                    )
+                    continue
+                }
+                var style = mdHtmlStyled(node, visit.style)
+                if (mdHtmlInlineContainer(node.name)) {
+                    if (node.name == "a") {
+                        when (node.attribute("href")) {
+                            case Some(val href) -> style =
+                                MdHtmlStyle(
+                                    style.flags,
+                                    Some(
+                                        MdHtmlLink(
+                                            destination(node, href),
+                                            node.attribute("title") ?: ""
+                                        )
+                                    )
+                                )
+                            case None -> Unit
+                        }
+                    }
+                    mdHtmlPush(pending, node.children.toArray(), style)
+                } else
+                    when (node.name) {
+                        case "br" -> output.lineBreak(style)
+                        case "code" -> {
+                            if (mdHtmlCodeContent(node)) {
+                                val text = mdHtmlPlain(node)
+                                if (text != "")
+                                    output.atom(MdWriteInline.Code(text), style)
+                            } else
+                                output.atom(
+                                    MdWriteInline.Raw(
+                                        retain(node, "Code with non-text HTML content remains HTML")
+                                    ),
+                                    style
+                                )
+                        }
+                        case "img" -> when (node.attribute("src")) {
+                            case Some(val source) -> output.atom(
+                                MdWriteInline.Image(
+                                    node.attribute("alt") ?: "",
+                                    destination(node, source),
+                                    node.attribute("title") ?: ""
+                                ),
+                                style
+                            )
+                            case None -> output.atom(
+                                MdWriteInline.Raw(retain(node, "Image without src remains HTML")),
+                                style
+                            )
+                        }
+                        else -> output.atom(
+                            MdWriteInline.Raw(retain(node, "Unconverted HTML <" + node.name + ">")),
+                            style
+                        )
+                    }
+            }
+        }
+    }
+    return output.finish(singleLine)
+}
+
+internal fun mdHtmlVisits(nodes: Array<MdHtmlNode>, style: MdHtmlStyle): Array<MdHtmlVisit> =
+    Array<MdHtmlVisit>(nodes.size) { index -> MdHtmlVisit(nodes[index], style) }

@@ -1,0 +1,111 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownHtmlBoundaryTests {
+    @Test
+    fun clipboardMarkersSelectOnlyTheRequestedUtf8Fragment() {
+        val prefix = "<html><body>外部<!--StartFragment-->"
+        val fragment = "<p>雪 😀</p>"
+        val html = prefix + fragment + "<!--EndFragment-->tail</body></html>"
+        val result = importMarkdownHtml(html)
+        assertEquals(
+            MarkdownRange(prefix.byteLength, prefix.byteLength + fragment.byteLength),
+            result.sourceRange
+        )
+        val parsed = MarkdownDocument.fromText(result.markdown).parse()
+        assertEquals("雪 😀", parsed.inlineContent(parsed.root.children[0L].id).text.text)
+        val empty = importMarkdownHtml("outside<!--StartFragment--><!--EndFragment-->tail")
+        assertEquals("", empty.markdown)
+        assertTrue(empty.sourceRange.isEmpty)
+    }
+
+    @Test
+    fun metadataScriptsAndFalseFragmentMarkersNeverBecomeImportedBodyContent() {
+        val html =
+            "<!DOCTYPE html><html><head><title>Hidden</title><style>p::before { content: '<!--StartFragment-->'; }</style>" +
+                "<script>const value = '<!--StartFragment-->'; // </script-like></script></head>" +
+                "<body><p title='<!--StartFragment-->'>visible</p><!--EndFragment-->" +
+                "<script>alert('not executed')</script><template><p>Hidden</p></template></body></html>"
+        val result = importMarkdownHtml(html)
+        assertEquals(MarkdownRange(0L, html.byteLength), result.sourceRange)
+        assertEquals("visible", result.markdown)
+        assertEquals(0L, result.diagnostics.size)
+    }
+
+    @Test
+    fun unknownSubtreesKeepTheirExactMarkupAndAttributes() {
+        val raw = "<custom data-x=\"a &amp; b\"><p>raw * content</p></custom>"
+        val html = "<figure>" + raw + "</figure>"
+        val result = importMarkdownHtml(html)
+        assertEquals(raw, result.markdown)
+        assertEquals(1L, result.diagnostics.size)
+        assertEquals(MarkdownRange(8L, 8L + raw.byteLength), result.diagnostics[0L].range)
+        for (tag in ["u", "sub", "sup", "kbd", "math"]) {
+            val source = "<" + tag + " data-x='kept'>雪</" + tag + ">"
+            assertEquals(source, importMarkdownHtml(source).markdown)
+        }
+    }
+
+    @Test
+    fun incompleteAndMisnestedInputReportsRecoveryWithoutLosingEditableText() {
+        val html = "<p>雪 <em>open"
+        val result = importMarkdownHtml(html)
+        assertEquals(1L, result.diagnostics.size)
+        assertEquals(MarkdownRange(7L, html.byteLength), result.diagnostics[0L].range)
+        assertEquals(
+            "<p>雪 <em>open</em></p>\n",
+            mdTestHtml(MarkdownDocument.fromText(result.markdown).parse())
+        )
+        val broken = importMarkdownHtml("<p><b><i>x</b>y</i></p>")
+        assertEquals(2L, broken.diagnostics.size)
+        val parsed = MarkdownDocument.fromText(broken.markdown).parse()
+        assertEquals("xy", parsed.inlineContent(parsed.root.children[0L].id).text.text)
+        val literal = mdHtmlImported("<p>x <b title='unfinished")
+        assertEquals(
+            "x <b title='unfinished",
+            literal.inlineContent(literal.root.children[0L].id).text.text
+        )
+    }
+
+    @Test
+    fun deepTransparentContainersAndRepeatedStylesDoNotRequireRecursiveDomWalking() {
+        val html =
+            "<div>".repeat(2048L) +
+                "<p>" +
+                "<b>".repeat(2048L) +
+                "deep" +
+                "</b>".repeat(2048L) +
+                "</p>" +
+                "</div>".repeat(2048L)
+        val result = importMarkdownHtml(html)
+        assertEquals(0L, result.diagnostics.size)
+        assertEquals(
+            "<p><strong>deep</strong></p>\n",
+            mdTestHtml(MarkdownDocument.fromText(result.markdown).parse())
+        )
+    }
+
+    @Test
+    fun aMegabyteHtmlImportProducesIndependentBlocksAndCanBeInsertedWithExactUndo() {
+        val html = "<div><p>段落 <strong>bold</strong> &amp; text</p></div>\n".repeat(22000L)
+        assertTrue(html.byteLength > 1024L * 1024L)
+        val imported = importMarkdownHtml(html)
+        assertEquals(0L, imported.diagnostics.size)
+        val parsed = MarkdownDocument.fromText(imported.markdown).parse()
+        assertEquals(22000L, parsed.root.children.size)
+        assertEquals(
+            "段落 bold & text",
+            parsed.inlineContent(parsed.root.children[21999L].id).text.text
+        )
+        val target = MarkdownDocument.fromText("before after")
+        val edit = target.parse().replaceMarkdown(MarkdownRange(7L, 7L), imported.markdown)
+        edit.applyTo(target)
+        assertSame(edit.change.after, edit.after.snapshot)
+        assertTrue(target.byteLength > 500000L)
+        target.apply(MarkdownEdit(target.revision, edit.change.inverseReplacements))
+        assertEquals("before after", target.toMarkdown())
+    }
+}

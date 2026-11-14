@@ -1,0 +1,264 @@
+package scoop.markdown
+
+import scoop.collections.HashMap
+
+/** Import recovery uses an element stack and ordinary optional-end-tag rules, not a browser DOM. */
+internal class MdHtmlParser(val input: MdInput, val range: MarkdownRange) {
+    val diagnostics = ArrayList<MarkdownDiagnostic>()
+    private val root = MdHtmlNode(MdHtmlKind.Root, range.start, range.end)
+    private val stack = ArrayList<MdHtmlNode>()
+    private val active = HashMap<String, ArrayList<Long>>()
+
+    fun parse(): MdHtmlNode {
+        stack.add(root)
+        var position = range.start
+        var run = position
+        while (position < range.end) {
+            if (input.at(position) != 60) {
+                position += 1L
+                continue
+            }
+            if (
+                input.starts(position, "<!--") ||
+                    input.starts(position, "<!") ||
+                    input.starts(position, "<?")
+            ) {
+                text(run, position)
+                val end = mdHtmlEnd(input, position)
+                if (end == 0L || end > range.end) {
+                    diagnostics.add(
+                        MarkdownDiagnostic(
+                            MarkdownRange(position, range.end),
+                            "Ignored an incomplete HTML comment or declaration"
+                        )
+                    )
+                    position = range.end
+                } else
+                    position = end
+                run = position
+                continue
+            }
+            val candidate = mdHtmlTag(input, position, range.end)
+            when (candidate) {
+                case None -> {
+                    if (mdLetter(input.at(position + 1L)) && mdHtmlEnd(input, position) == 0L) {
+                        diagnostics.add(
+                            MarkdownDiagnostic(
+                                MarkdownRange(position, range.end),
+                                "Kept an incomplete HTML tag as literal text"
+                            )
+                        )
+                        position = range.end
+                    } else
+                        position += 1L
+                }
+                case Some(val tag) -> {
+                    text(run, position)
+                    if (tag.closing) {
+                        val index = open(tag.name)
+                        when (index) {
+                            case Some(val at) -> {
+                                for (nested in at + 1L ..< stack.size)
+                                    if (!mdHtmlOptionalEnd(stack[nested].name))
+                                        diagnostics.add(
+                                            MarkdownDiagnostic(
+                                                MarkdownRange(position, tag.end),
+                                                "Closed a misnested HTML <" +
+                                                    stack[nested].name +
+                                                    ">"
+                                            )
+                                        )
+                                closeFrom(at, tag.end)
+                            }
+                            case None -> if (!mdHtmlVoid(tag.name))
+                                diagnostics.add(
+                                    MarkdownDiagnostic(
+                                        MarkdownRange(position, tag.end),
+                                        "Ignored unmatched HTML end tag </" + tag.name + ">"
+                                    )
+                                )
+                        }
+                        position = tag.end
+                    } else {
+                        implicit(tag.name, position)
+                        val node =
+                            MdHtmlNode(
+                                MdHtmlKind.Element(tag.name, tag.attributes),
+                                position,
+                                tag.end
+                            )
+                        stack[stack.size - 1L].children.add(node)
+                        position = tag.end
+                        if (!tag.empty) {
+                            if (mdHtmlRawText(tag.name)) {
+                                val end = mdHtmlRawEnd(input, position, range.end, tag.name)
+                                val body =
+                                    if (tag.name == "textarea" || tag.name == "title")
+                                        mdHtmlDecode(input, position, end.body)
+                                    else
+                                        input.text(position, end.body)
+                                if (body != "")
+                                    node.children.add(
+                                        MdHtmlNode(MdHtmlKind.Text(body), position, end.body)
+                                    )
+                                node.end = end.end
+                                if (!end.closed && tag.name != "plaintext")
+                                    diagnostics.add(
+                                        MarkdownDiagnostic(
+                                            node.range,
+                                            "Closed an incomplete HTML <" +
+                                                tag.name +
+                                                "> at the fragment end"
+                                        )
+                                    )
+                                position = end.end
+                            } else
+                                push(node)
+                        }
+                    }
+                    run = position
+                }
+            }
+        }
+        text(run, range.end)
+        for (index in 1L ..< stack.size)
+            if (!mdHtmlOptionalEnd(stack[index].name) && !mdHtmlFlowContainer(stack[index].name))
+                diagnostics.add(
+                    MarkdownDiagnostic(
+                        MarkdownRange(stack[index].start, range.end),
+                        "Closed an incomplete HTML <" + stack[index].name + "> at the fragment end"
+                    )
+                )
+        closeFrom(1L, range.end)
+        return root
+    }
+
+    private fun text(start: Long, end: Long) {
+        if (start < end)
+            stack[stack.size - 1L].children.add(
+                MdHtmlNode(MdHtmlKind.Text(mdHtmlDecode(input, start, end)), start, end)
+            )
+    }
+
+    private fun push(node: MdHtmlNode) {
+        val indices =
+            when (active[node.name]) {
+                case Some(val value) -> value
+                case None -> {
+                    val value = ArrayList<Long>()
+                    active[node.name] = value
+                    value
+                }
+            }
+        indices.add(stack.size)
+        stack.add(node)
+    }
+
+    private fun open(name: String): Long? {
+        val indices = active[name] ?: return None
+        return if (indices.size == 0L)
+            None
+        else
+            Some(indices[indices.size - 1L])
+    }
+
+    private fun closeFrom(index: Long, end: Long) {
+        while (stack.size > index) {
+            val node = stack.removeAt(stack.size - 1L)
+            node.end = end
+            val indices = active[node.name]!!
+            indices.removeAt(indices.size - 1L)
+        }
+    }
+
+    private fun close(name: String, end: Long) {
+        when (open(name)) {
+            case Some(val index) -> closeFrom(index, end)
+            case None -> Unit
+        }
+    }
+
+    private fun afterBoundary(name: String, boundary: String, end: Long) {
+        val index = open(name) ?: return
+        val outside = open(boundary) ?: return
+        if (index > outside)
+            closeFrom(index, end)
+    }
+
+    private fun implicit(name: String, end: Long) {
+        if (mdHtmlBlock(name))
+            close("p", end)
+        when (name) {
+            case "body" -> close("head", end)
+            case "li" -> {
+                val list = open("ul") ?: -1L
+                val ordered = open("ol") ?: -1L
+                val item = open("li") ?: -1L
+                if (item > list && item > ordered && item >= 1L)
+                    closeFrom(item, end)
+            }
+            case "dt" -> {
+                afterBoundary("dt", "dl", end);
+                afterBoundary("dd", "dl", end)
+            }
+            case "dd" -> {
+                afterBoundary("dt", "dl", end);
+                afterBoundary("dd", "dl", end)
+            }
+            case "tr" -> afterBoundary("tr", "table", end)
+            case "td" -> {
+                afterBoundary("td", "tr", end);
+                afterBoundary("th", "tr", end)
+            }
+            case "th" -> {
+                afterBoundary("td", "tr", end);
+                afterBoundary("th", "tr", end)
+            }
+            case "thead" -> closeTableSection(end)
+            case "tbody" -> closeTableSection(end)
+            case "tfoot" -> closeTableSection(end)
+            case "a" -> close("a", end)
+            else -> if (
+                name ==
+                    "h1" ||
+                    name ==
+                    "h2" ||
+                    name ==
+                    "h3" ||
+                    name ==
+                    "h4" ||
+                    name ==
+                    "h5" ||
+                    name ==
+                    "h6"
+            ) {
+                for (heading in ["h1", "h2", "h3", "h4", "h5", "h6"])
+                    close(heading, end)
+            }
+        }
+    }
+
+    private fun closeTableSection(end: Long) {
+        afterBoundary("tr", "table", end)
+        for (section in ["thead", "tbody", "tfoot"])
+            afterBoundary(section, "table", end)
+    }
+}
+
+private fun mdHtmlOptionalEnd(name: String): Boolean =
+    when (name) {
+        case "html" -> true
+        case "head" -> true
+        case "body" -> true
+        case "p" -> true
+        case "li" -> true
+        case "dt" -> true
+        case "dd" -> true
+        case "tr" -> true
+        case "td" -> true
+        case "th" -> true
+        case "thead" -> true
+        case "tbody" -> true
+        case "tfoot" -> true
+        else -> false
+    }

@@ -1,0 +1,144 @@
+package scoop.markdown
+
+internal struct MdHtmlAttribute(val name: String, val value: String)
+
+internal enum MdHtmlKind {
+    Root, Text(String), Element(String, Array<MdHtmlAttribute>)
+}
+
+/** A temporary import tree; retained HTML always comes from its original input range. */
+internal class MdHtmlNode(val kind: MdHtmlKind, val start: Long, var end: Long) {
+    val children = ArrayList<MdHtmlNode>()
+    val range: MarkdownRange get() = MarkdownRange(start, end)
+    val name: String get() =
+        when (kind) {
+            case Element(val name, _) -> name
+            else -> ""
+        }
+    fun attribute(name: String): String? {
+        when (kind) {
+            case Element(_, val values) -> {
+                for (value in values)
+                    if (value.name == name)
+                        return Some(value.value)
+            }
+            else -> Unit
+        }
+        return None
+    }
+}
+
+internal struct MdHtmlTag(
+    val name: String,
+    val attributes: Array<MdHtmlAttribute>,
+    val end: Long,
+    val closing: Boolean,
+    val empty: Boolean
+)
+
+internal fun mdHtmlInput(value: String): MdInput =
+    MdInput(
+        MarkdownText(
+            value,
+            if (value == "")
+                []
+            else
+                [
+                    MarkdownTextSpan(
+                        MarkdownRange(0L, value.byteLength),
+                        MarkdownRange(0L, value.byteLength),
+                        MarkdownTextMapping.Literal
+                    )
+                ],
+            0L
+        )
+    )
+
+internal fun mdHtmlSpace(code: Int): Boolean =
+    code == 32 || code == 9 || code == 10 || code == 12 || code == 13
+
+internal fun mdHtmlVoid(name: String): Boolean =
+    when (name) {
+        case "area" -> true
+        case "base" -> true
+        case "br" -> true
+        case "col" -> true
+        case "embed" -> true
+        case "hr" -> true
+        case "img" -> true
+        case "input" -> true
+        case "link" -> true
+        case "meta" -> true
+        case "param" -> true
+        case "source" -> true
+        case "track" -> true
+        case "wbr" -> true
+        else -> false
+    }
+
+internal fun mdHtmlRawText(name: String): Boolean =
+    when (name) {
+        case "script" -> true
+        case "style" -> true
+        case "textarea" -> true
+        case "title" -> true
+        case "xmp" -> true
+        case "iframe" -> true
+        case "noembed" -> true
+        case "noframes" -> true
+        case "plaintext" -> true
+        else -> false
+    }
+
+internal fun mdHtmlIgnored(name: String): Boolean =
+    when (name) {
+        case "head" -> true
+        case "script" -> true
+        case "style" -> true
+        case "template" -> true
+        case "base" -> true
+        case "meta" -> true
+        case "link" -> true
+        case "title" -> true
+        else -> false
+    }
+
+internal fun mdHtmlFlowContainer(name: String): Boolean =
+    when (name) {
+        case "html" -> true
+        case "body" -> true
+        case "div" -> true
+        case "section" -> true
+        case "article" -> true
+        case "main" -> true
+        case "header" -> true
+        case "footer" -> true
+        case "nav" -> true
+        case "aside" -> true
+        case "figure" -> true
+        case "figcaption" -> true
+        else -> false
+    }
+
+internal fun mdHtmlBlock(name: String): Boolean =
+    mdHtmlFlowContainer(name) ||
+        when (name) {
+            case "p" -> true
+            case "h1" -> true
+            case "h2" -> true
+            case "h3" -> true
+            case "h4" -> true
+            case "h5" -> true
+            case "h6" -> true
+            case "blockquote" -> true
+            case "ul" -> true
+            case "ol" -> true
+            case "pre" -> true
+            case "hr" -> true
+            case "table" -> true
+            case "dl" -> true
+            case "address" -> true
+            case "fieldset" -> true
+            case "form" -> true
+            else -> false
+        }

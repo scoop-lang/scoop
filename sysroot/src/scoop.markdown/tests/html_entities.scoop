@@ -1,0 +1,56 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownHtmlEntityTests {
+    @Test
+    fun namedReferencesUseLongestMatchesAndLegacyTextForms() {
+        val parsed =
+            mdHtmlImported(
+                "<p>&copy &amp &notin; &notit; &unknown; &CounterClockwiseContourIntegral;</p>"
+            )
+        assertEquals(
+            "© & ∉ ¬it; &unknown; \u{2233}",
+            parsed.inlineContent(parsed.root.children[0L].id).text.text
+        )
+    }
+
+    @Test
+    fun ambiguousLegacyReferencesStayLiteralInsideAttributes() {
+        val parsed =
+            mdHtmlImported(
+                "<a href='path?x=&copy=1&ampx=2&amp;y=3' title='&copy ok &copy=1 &notit; &ampx &amp;'>link</a>"
+            )
+        when (parsed.root.children[0L].children[0L].content) {
+            case Link(val target) -> {
+                assertEquals("path?x=&copy=1&ampx=2&y=3", target.destination.text)
+                assertEquals("© ok &copy=1 &notit; &ampx &", target.title.text)
+            }
+            else -> fail(Some("Expected a decoded attribute link"))
+        }
+    }
+
+    @Test
+    fun numericReferencesHandleMissingSemicolonsInvalidScalarsAndHtmlC1Mappings() {
+        val parsed =
+            mdHtmlImported(
+                "<p>&#128; &#x80; &#0; &#xD800; &#1114112; &#999999999999999999999999; &#x1F600 &#65z &#x41z &#x;</p>"
+            )
+        assertEquals(
+            "€ € � � � � 😀 Az Az &#x;",
+            parsed.inlineContent(parsed.root.children[0L].id).text.text
+        )
+        assertEquals("<p>\u{80}</p>\n", mdTestHtml(MarkdownDocument.fromText("&#128;").parse()))
+    }
+
+    @Test
+    fun literalNewlinesAndNullsAreNormalizedBeforeEntityExpansion() {
+        val parsed = mdHtmlImported("<pre>\r\na\rb\r\nc\u{0}&amp;&lt;</pre><p>A&#9;B&nbsp;C</p>")
+        when (parsed.root.children[0L].content) {
+            case CodeBlock(_, _, val body) -> assertEquals("a\nb\nc�&<\n", body.text)
+            else -> fail(Some("Expected normalized preformatted content"))
+        }
+        assertEquals("A B\u{a0}C", parsed.inlineContent(parsed.root.children[1L].id).text.text)
+    }
+}

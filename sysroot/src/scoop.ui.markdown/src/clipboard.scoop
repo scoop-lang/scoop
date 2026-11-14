@@ -5,7 +5,7 @@ import scoop.window.*
 
 /** Explicit clipboard formats for menus and toolbars; ordinary Copy/Paste choose both/preferred formats. */
 public enum MarkdownClipboardCommand {
-    CopyText, CopyMarkdown, PasteText, PasteMarkdown, PasteTableTsv
+    CopyText, CopyMarkdown, PasteText, PasteMarkdown, PasteHtml, PasteTableTsv
 }
 
 internal fun mdClipboardCopy(
@@ -61,12 +61,23 @@ internal fun mdRichPaste(
             command ==
                 Some(MarkdownClipboardCommand.PasteText) ||
                 command ==
-                Some(MarkdownClipboardCommand.PasteTableTsv)
+                Some(MarkdownClipboardCommand.PasteTableTsv) ||
+                command ==
+                Some(MarkdownClipboardCommand.PasteHtml)
         )
             None
         else
             clipboard.readText("text/markdown")
-    val selected = markdown ?: clipboard.readText() ?: return true
+    val html =
+        if (
+            command ==
+                Some(MarkdownClipboardCommand.PasteHtml) ||
+                (command == None && markdown == None)
+        )
+            clipboard.readText("text/html")
+        else
+            None
+    val selected = markdown ?: html ?: clipboard.readText() ?: return true
     host.perform { host.editor.acceptComposition() }
     val state = host.local ?: return false
     val syntax = state.syntax(host.editor.selection) ?: return false
@@ -74,8 +85,25 @@ internal fun mdRichPaste(
         val edit = mdRichTablePaste(syntax, host.editor.selection, selected) ?: return false
         mdRichStructure(host, edit)
     } else
-        if (markdown != None || command == Some(MarkdownClipboardCommand.PasteMarkdown)) {
-            val edit = syntax.replaceMarkdown(host.editor.selection.range, selected)
+        if (
+            markdown !=
+                None ||
+                html !=
+                None ||
+                command ==
+                Some(MarkdownClipboardCommand.PasteMarkdown) ||
+                command ==
+                Some(MarkdownClipboardCommand.PasteHtml)
+        ) {
+            val source =
+                if (html != None || command == Some(MarkdownClipboardCommand.PasteHtml))
+                    importMarkdownHtml(
+                        selected,
+                        MarkdownHtmlImportOptions(profile = syntax.profile)
+                    ).markdown
+                else
+                    selected
+            val edit = syntax.replaceMarkdown(host.editor.selection.range, source)
             mdRichStructure(host, MdRichStructureEdit(edit.change, edit.after, edit.selection))
         } else {
             val input = host.input ?: return false
@@ -101,6 +129,7 @@ internal fun mdSourceClipboard(
         case CopyMarkdown -> mdSourceCopy(host)
         case PasteTableTsv -> return false
         case PasteMarkdown -> return mdSourcePaste(host, false)
+        case PasteHtml -> return mdSourcePasteHtml(host)
         case PasteText -> return mdSourcePaste(host, true)
     }
     return true
@@ -134,6 +163,30 @@ internal fun mdSourcePaste(host: MarkdownSourceHost, plain: Boolean): Boolean {
         {
             host.current.acceptComposition();
             host.current.replaceSelection(selected)
+        }
+    )
+    return true
+}
+
+private fun mdSourcePasteHtml(host: MarkdownSourceHost): Boolean {
+    if (host.options.readOnly)
+        return true
+    if (host.ownsOtherComposition())
+        return false
+    val html =
+        host.window.clipboard.readText("text/html") ?:
+            host.window.clipboard.readText() ?:
+            return true
+    val profile =
+        when (host.syntax) {
+            case Some(val value) -> value.parsed.profile
+            case None -> MarkdownProfile.Gfm
+        }
+    val converted = importMarkdownHtml(html, MarkdownHtmlImportOptions(profile = profile))
+    host.perform(
+        {
+            host.current.acceptComposition()
+            host.current.replaceSelection(converted.markdown)
         }
     )
     return true

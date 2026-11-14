@@ -1,0 +1,103 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun MdHtmlImporter.list(node: MdHtmlNode, style: MdHtmlStyle): MdWriteBlock {
+    val ordered = node.name == "ol"
+    val start =
+        when (node.attribute("start")) {
+            case Some(val value) -> value.trim().toLongOrNone() ?: -1L
+            case None -> 1L
+        }
+    if (ordered && (node.attribute("reversed") != None || start < 0L || start > 999999999L))
+        return MdWriteBlock.Raw(
+            retain(node, "Ordered list numbering cannot be represented in Markdown")
+        )
+    val items = ArrayList<MdWriteItem>()
+    var tight = true
+    for (child in node.children) {
+        when (child.kind) {
+            case Text(val text) -> {
+                if (!mdHtmlBlank(text))
+                    return MdWriteBlock.Raw(
+                        retain(node, "List content outside an item remains HTML")
+                    )
+                continue
+            }
+            else -> Unit
+        }
+        if (mdHtmlIgnored(child.name))
+            continue
+        if (child.name != "li")
+            return MdWriteBlock.Raw(retain(node, "List content outside an item remains HTML"))
+        if (!options.profile.strikethrough && mdHtmlStrike(child))
+            return MdWriteBlock.Raw(retain(node, "Strikethrough is disabled in the target profile"))
+        when (child.attribute("value")) {
+            case Some(val value) -> if (
+                ordered && value.trim().toLongOrNone() != Some(start + items.size)
+            )
+                return MdWriteBlock.Raw(retain(node, "Discontinuous list numbering remains HTML"))
+            case None -> Unit
+        }
+        val checkbox =
+            if (options.profile.taskLists)
+                mdHtmlCheckbox(child)
+            else
+                None
+        val content = blocks(child.children.toArray(), mdHtmlStyled(child, style), checkbox?.node)
+        val checked = checkbox?.checked
+        if (checked != None && content.size > 0L) {
+            when (content[0L]) {
+                case Paragraph(_) -> Unit
+                else -> return MdWriteBlock.Raw(
+                    retain(node, "A Markdown task starts with paragraph content")
+                )
+            }
+        }
+        var paragraphs = 0L
+        for (block in content)
+            when (block) {
+                case Paragraph(_) -> paragraphs += 1L
+                else -> Unit
+            }
+        for (item in child.children)
+            if (item.name == "p")
+                tight = false
+        if (paragraphs > 1L)
+            tight = false
+        items.add(MdWriteItem(content, checked))
+    }
+    return MdWriteBlock.ListBlock(ordered, start, tight, items.toArray())
+}
+
+private class MdHtmlCheckbox(val node: MdHtmlNode, val checked: Boolean)
+
+private fun mdHtmlCheckbox(item: MdHtmlNode): MdHtmlCheckbox? {
+    val pending = ArrayList<MdHtmlVisit>()
+    mdHtmlPush(pending, item.children.toArray(), MdHtmlStyle())
+    while (pending.size > 0L) {
+        val node = pending.removeAt(pending.size - 1L).node
+        if (mdHtmlIgnored(node.name))
+            continue
+        when (node.kind) {
+            case Text(val text) -> {
+                if (!mdHtmlBlank(text))
+                    return None
+            }
+            else -> {
+                if (
+                    node.name ==
+                        "input" &&
+                        (node.attribute("type") ?: "").lowercaseAscii() ==
+                        "checkbox"
+                )
+                    return Some(MdHtmlCheckbox(node, node.attribute("checked") != None))
+                if (node.name == "p" || mdHtmlInlineContainer(node.name))
+                    mdHtmlPush(pending, node.children.toArray(), MdHtmlStyle())
+                else
+                    return None
+            }
+        }
+    }
+    return None
+}

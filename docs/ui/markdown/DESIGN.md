@@ -113,7 +113,7 @@
 
 粗体、斜体与删除线通过 `MarkdownRichInput.setStyle` 作用于非空跨块选区；折叠光标只保存后续键入的显式样式，实际输入时与文字合为同一事务。设置样式先接受组合，移动选区或外部修改后清除覆盖；组合取消保留待输入样式。`MarkdownRichHost` 与 `MarkdownEditorViewState` 提供 setStyle／toggleStyle 和可追踪的 styleState；可选 `markdownFormattingToolbar` 使用同一命令并返回富文本焦点。Primary-B／I／Shift-X 分别对应这三种样式，Mixed 切为全部启用；源码模式、只读和未挂载时禁用。行内代码使用独立的 setCode／toggleCode／codeState 与 Primary-E，避免把代码规范化混入普通格式标记；后续输入显式进入或退出代码模式，保留相应的换行与组合选区语义。
 
-普通复制／剪切同时提供所见 text/plain 与语义 text/markdown，原指令的生成显示不会取代被复制的源码。富文本粘贴以独立 Markdown 片段为优先，源码面直接插入原文；仅有纯文本时保持字面含义。MarkdownClipboardCommand 的显式纯文本、Markdown 和 TSV 命令供 Host／ViewState 的菜单入口使用；一次粘贴复用 MarkdownFragmentEdit.after 并进入单一历史项，详见编辑器规范。HTML 导入继续单独实施。
+普通复制／剪切同时提供所见 text/plain 与语义 text/markdown，原指令的生成显示不会取代被复制的源码。富文本粘贴依次选择 Markdown、HTML 与纯文本；HTML 在独立文档 Cone 中按明确范围转换，纯文本保持字面含义。源码面默认直接插入 Markdown／普通文本。MarkdownClipboardCommand 的显式纯文本、Markdown、HTML 和 TSV 命令供 Host／ViewState 的菜单入口使用；PasteHtml 在源码面也可显式插入转换结果。一次粘贴复用 MarkdownFragmentEdit.after 并进入单一历史项，详见编辑器规范及[文档规范 §7.1](../../specs/SCOOP-MARKDOWN-SPEC.md#71-html-导入)。
 
 块操作通过 `MarkdownBlockCommand`、RichHost／viewState 的 `blockState`／`executeBlock` 及可选 `markdownBlockToolbar` 接入。Block、List、Table 菜单覆盖段落／H1–H6、引用层级、列表类型与条目层级、代码块、分隔线、表格插入和行列／对齐；Primary-0／1…6 切换段落／标题。状态只读取已有结构，执行才解析必要的当前区域。连续同级块包装复用文档 Cone 的前缀事务，标题转换保留相邻块；空表格单元格使用真实源边界定位，删除后选择相邻有效单元格，禁止删除表头或最后一列。菜单关闭后恢复输入，代码转换直接打开局部源码面；所有操作共用当前选区、组合和撤销。
 

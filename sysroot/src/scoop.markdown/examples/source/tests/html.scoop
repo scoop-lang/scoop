@@ -1,0 +1,32 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownHtmlExampleTests {
+    @Test
+    fun aHeadlessConsumerImportsHtmlAndAppliesOneSemanticEdit() {
+        val imported =
+            importMarkdownHtml(
+                "<p><strong>雪</strong> &amp; <a href='../guide'>guide</a></p>",
+                MarkdownHtmlImportOptions(baseUri = Some("https://example.test/docs/page.html"))
+            )
+        assertEquals(0L, imported.diagnostics.size)
+        val document = MarkdownDocument.fromText("prefix suffix")
+        val edit = document.parse().replaceMarkdown(MarkdownRange(7L, 7L), imported.markdown)
+        assertEquals("prefix suffix", document.toMarkdown())
+        edit.applyTo(document)
+        val parsed = document.parse()
+        val inline = parsed.inlineContent(parsed.root.children[0L].id)
+        assertEquals("prefix 雪 & guidesuffix", inline.text.text)
+        assertEquals(
+            MarkdownStyleState.On,
+            inline.styleState(MarkdownRange(7L, 10L), MarkdownInlineStyle.Strong)
+        )
+        assertTrue(document.toMarkdown().contains("https://example.test/guide"))
+        document.apply(MarkdownEdit(document.revision, edit.change.inverseReplacements))
+        assertEquals("prefix suffix", document.toMarkdown())
+    }
+}

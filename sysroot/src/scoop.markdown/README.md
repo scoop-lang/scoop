@@ -34,7 +34,7 @@ for (node in parsed.nodes()) {
 
 Paragraph、Heading、TableCell 的最后一个内容字段是去掉容器前缀后的行内解析输入，保留实体和 Markdown 标记；表格竖线已按表格词法去转义。叶 Text 的字段是解码后的显示文字。两者都有完整映射。`parent(id)` 在同一份结果中查询父节点，根返回 None。
 
-已通过 652 个 CommonMark 官方样例、26 个 GFM 扩展样例、源码映射与深层嵌套测试，并验证仓库中 547／641 KB 的两份规范。解析算法与语料来源见 [许可说明](licenses/README.md)。这里不提供公共 HTML renderer；HTML 只是标准样例的测试投影。
+已通过 652 个 CommonMark 官方样例、26 个 GFM 扩展样例、源码映射与深层嵌套测试，并验证仓库中 547／641 KB 的两份规范。解析算法与语料来源见 [许可说明](licenses/README.md)。标准样例使用测试内部的 HTML 投影；公共 HTML 导入入口见下文，目前没有公共 HTML 输出 renderer。
 
 `MarkdownProfile.Editor` 另外开启公式、YAML front matter、脚注和 [TOC] 指令；CommonMark／Gfm 的默认含义保持。公式支持 `$...$`、`\(...\)`、块级 `$$` 和 `\[...\]`，返回带有 TeX 和源码映射的 Extension。front matter 同样保留原始 YAML；缺少关闭定界符的块在 `diagnostics` 中报告范围，原文仍完整可保存。脚注定义和引用是独立节点，`footnotes` 给出使用顺序、编号及节点身份，`footnoteDefinition(label)` 查询定义。
 
@@ -81,6 +81,20 @@ val source = notes.toMarkdown()
 `markdownText(options) { ... }` 直接返回字符串。`MarkdownWriteOptions` 控制新源码的换行、最终换行、无序列表符号和缩进；生成不会修改旧文档或触发解析。块接口还包括 blockQuote、orderedList、thematicBreak 和 table；表格先 header，再 row，每行通过 cell 收集行内内容。完整消费代码见 [generation.scoop](examples/source/tests/generation.scoop)。
 
 `text` 保留文字的显示内容并转义 Markdown；`rawMarkdown` 显式接收源码。GFM 的邮箱自动链接仍由解析配置控制。行内还支持 emphasis、strong、strikethrough、code、link、image、softBreak 和 hardBreak；代码和链接各自选择合适的定界与转义。源码事务与默认保存继续保留原有字节，生成器只负责新的内容。可表示的结构及参数边界见[生成规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#7-markdown-生成)。
+
+HTML 文件或剪贴板片段可在无 UI 程序中转换为新的 Markdown：
+
+```scoop
+val imported = importMarkdownHtml(
+    "<p><strong>雪</strong> &amp; <a href='../guide'>guide</a></p>",
+    MarkdownHtmlImportOptions(baseUri = Some("https://example.test/docs/page.html"))
+)
+val converted = MarkdownDocument.fromText(imported.markdown)
+```
+
+`MarkdownHtmlImportOptions` 的 profile 默认 Gfm，write 默认不加最终换行；baseUri 仅解析相对链接与图片，不访问资源或读取 HTML 的 base 元素。`MarkdownHtmlImportResult` 提供 markdown、sourceRange 和 diagnostics，范围均是原 HTML 的 UTF-8 字节；完整的 StartFragment／EndFragment 注释对限定剪贴板片段，属性及 script／style 中的同名字串不参与定位。已有文档使用 `parsed.replaceMarkdown(range, imported.markdown)` 准备一次语义修改，再 `applyTo(document)` 发布，原文件其他范围与精确撤销保持原有合同。完整消费见 [HTML 导入测试](examples/source/tests/html.scoop)。
+
+转换覆盖段落、标题、引用、列表、任务框、常见文字格式、链接、图片、代码、分隔线和普通矩形表格；HTML 空白与字符实体按 HTML 规则处理，pre 保留代码空白。常见 CSS 字重、斜体和删除线可转换，字体、颜色、class 和布局不重建；已转换元素仅保留对应 Markdown 语义属性。profile 关闭的语法、合并单元格／嵌套／不规则表格、无法表示的列表编号及未知元素保留原 HTML 并给出诊断。未知子树保留原始属性，head、脚本、样式、template 与元数据不作为正文。导入不执行脚本，也不构造完整浏览器 DOM；常见可省略结束标签得到恢复，其他错位或未闭合输入报告范围。详细边界见 [HTML 导入规范](../../../docs/specs/SCOOP-MARKDOWN-SPEC.md#71-html-导入)。
 
 现有文档通过结构事务改写：
 

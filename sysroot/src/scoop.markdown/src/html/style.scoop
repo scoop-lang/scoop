@@ -1,0 +1,188 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal struct MdHtmlLink(val destination: String, val title: String)
+
+internal class MdHtmlStyle(val flags: Int = 0, val link: MdHtmlLink? = None)
+
+internal struct MdHtmlVisit(
+    val node: MdHtmlNode,
+    val style: MdHtmlStyle,
+    val boundary: Boolean = false
+)
+
+internal fun mdHtmlOmitted(node: MdHtmlNode, omit: MdHtmlNode?): Boolean =
+    when (omit) {
+        case Some(val value) -> node === value
+        case None -> false
+    }
+
+internal fun mdHtmlBlank(value: String): Boolean {
+    for (character in value)
+        if (!mdHtmlSpace(character.code))
+            return false
+    return true
+}
+
+internal fun mdHtmlSameStyle(a: MdHtmlStyle, b: MdHtmlStyle): Boolean =
+    a === b || (a.flags == b.flags && a.link == b.link)
+
+/** Only textual CSS semantics with an existing Markdown representation are converted. */
+internal fun mdHtmlCss(node: MdHtmlNode, property: String): String? {
+    val style = node.attribute("style") ?: return None
+    var result: String? = None
+    for (declaration in style.split(";")) {
+        val colon = declaration.indexOf(":")
+        if (colon < 0L)
+            continue
+        val bytes = declaration.toByteArray()
+        if (mdBytesText(bytes, 0L, colon).trim().lowercaseAscii() == property)
+            result =
+                Some(
+                    mdBytesText(bytes, colon + 1L, bytes.size).trim().lowercaseAscii().replace(
+                        "!important",
+                        ""
+                    ).trim()
+                )
+    }
+    return result
+}
+
+internal fun mdHtmlStrike(node: MdHtmlNode): Boolean =
+    node.name ==
+        "del" ||
+        node.name ==
+        "s" ||
+        node.name ==
+        "strike" ||
+        (mdHtmlCss(node, "text-decoration") ?: "").contains("line-through") ||
+        (mdHtmlCss(node, "text-decoration-line") ?: "").contains("line-through")
+
+internal fun mdHtmlStyled(node: MdHtmlNode, before: MdHtmlStyle): MdHtmlStyle {
+    var flags = before.flags
+    if (node.name == "em" || node.name == "i")
+        flags = flags.or(1)
+    if (node.name == "strong" || node.name == "b")
+        flags = flags.or(2)
+    if (mdHtmlStrike(node))
+        flags = flags.or(4)
+    when (mdHtmlCss(node, "font-weight")) {
+        case Some(val weight) -> {
+            val number = weight.toIntOrNone()
+            if (weight == "bold" || weight == "bolder" || (number ?: 0) >= 600)
+                flags = flags.or(2)
+            else
+                if (
+                    weight ==
+                        "normal" ||
+                        weight ==
+                        "lighter" ||
+                        ((number ?: 0) > 0 && (number ?: 0) < 600)
+                )
+                    flags = flags.and(5)
+        }
+        case None -> Unit
+    }
+    when (mdHtmlCss(node, "font-style")) {
+        case Some(val style) -> {
+            if (style == "italic" || style.startsWith("oblique"))
+                flags = flags.or(1)
+            else
+                if (style == "normal")
+                    flags = flags.and(6)
+        }
+        case None -> Unit
+    }
+    return if (flags == before.flags)
+        before
+    else
+        MdHtmlStyle(flags, before.link)
+}
+
+internal fun mdHtmlWrap(value: MdWriteInline, flags: Int): MdWriteInline {
+    var result = value
+    if (flags.and(1) != 0)
+        result = MdWriteInline.Emphasis([result])
+    if (flags.and(2) != 0)
+        result = MdWriteInline.Strong([result])
+    if (flags.and(4) != 0)
+        result = MdWriteInline.Strike([result])
+    return result
+}
+
+internal fun mdHtmlInlineContainer(name: String): Boolean =
+    when (name) {
+        case "span" -> true
+        case "b" -> true
+        case "strong" -> true
+        case "i" -> true
+        case "em" -> true
+        case "s" -> true
+        case "del" -> true
+        case "strike" -> true
+        case "a" -> true
+        else -> false
+    }
+
+internal fun mdHtmlPush(
+    visits: ArrayList<MdHtmlVisit>,
+    nodes: Array<MdHtmlNode>,
+    style: MdHtmlStyle
+) {
+    var index = nodes.size
+    while (index > 0L) {
+        index -= 1L
+        visits.add(MdHtmlVisit(nodes[index], style))
+    }
+}
+
+internal fun mdHtmlPlain(node: MdHtmlNode): String {
+    val result = StringBuilder()
+    val pending = ArrayList<MdHtmlNode>()
+    pending.add(node)
+    while (pending.size > 0L) {
+        val current = pending.removeAt(pending.size - 1L)
+        when (current.kind) {
+            case Text(val text) -> result.append(text)
+            else -> if (!mdHtmlIgnored(current.name)) {
+                if (current.name == "br")
+                    result.append('\n')
+                var index = current.children.size
+                while (index > 0L) {
+                    index -= 1L
+                    pending.add(current.children[index])
+                }
+            }
+        }
+    }
+    return result.toString()
+}
+
+internal fun mdHtmlCodeContent(node: MdHtmlNode): Boolean {
+    val pending = ArrayList<MdHtmlNode>()
+    pending.add(node)
+    while (pending.size > 0L) {
+        val current = pending.removeAt(pending.size - 1L)
+        if (mdHtmlIgnored(current.name))
+            continue
+        when (current.kind) {
+            case Text(_) -> Unit
+            else -> {
+                if (
+                    current.name !=
+                        "pre" &&
+                        current.name !=
+                        "code" &&
+                        current.name !=
+                        "br" &&
+                        !mdHtmlInlineContainer(current.name)
+                )
+                    return false
+                for (child in current.children)
+                    pending.add(child)
+            }
+        }
+    }
+    return true
+}

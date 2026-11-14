@@ -88,6 +88,20 @@ inline builder 提供 text、emphasis、strong、strikethrough、code、link、i
 
 生成的新文档与已有 snapshot 的 PreserveSource 输出是两条明确的调用路径。默认保存仍调用源文档的 writeTo／toMarkdown，不能把生成器变成保存时的全篇重排。显式格式化和结构化编辑在后续章节给出独立合同。
 
+### 7.1 HTML 导入
+
+`importMarkdownHtml(html, options)` 显式把 HTML 字符串转换成新的 Markdown，不读取资源、不执行脚本、不修改已有文档，也不要求 UI。`MarkdownHtmlImportOptions` 包含 profile（默认 Gfm）、write（默认不附加最终换行）和可选 baseUri。结果 `MarkdownHtmlImportResult` 提供 markdown、sourceRange 和 diagnostics；范围均是原输入 HTML 的 UTF-8 字节。成对的实际 `<!--StartFragment-->`／`<!--EndFragment-->` 注释限定导入片段，否则导入完整输入；标签属性或 script／style 正文里的同名字串不是片段标记。
+
+转换保留段落、H1–H6、引用、有序／无序列表、粗体、斜体、链接与图片、行内代码、代码围栏、分隔线和普通矩形表格。删除线、任务框和表格遵守目标 profile；不启用的扩展及无法由 Markdown 表达的结构保留为原始 HTML，并报告所在范围。列表保留合法起始序号和嵌套，前置 checkbox 转为任务状态；倒序、不连续显式序号、合并单元格和嵌套表格保留 HTML。无表头的表格增加空表头，不把第一行正文当作标题。代码语言读取 code 的 language-*／lang-* class，代码内容及定界符沿已有生成器处理。
+
+普通文字按 HTML 规则折叠 ASCII 空白，保留 NBSP、Unicode、实体和转义后的字面含义；pre 保留正文换行与空格，忽略紧接开始标签的首个换行。命名字符引用复用 WHATWG 实体表，支持 HTML 的历史无分号形式及属性上下文限制，数值引用使用 HTML 的无效标量和 C1 映射规则。br 在可表示的位置转为硬换行；标题、单元格、段首／段尾及连续换行等不能直接用 Markdown 硬换行表达的位置保留 br 标签。
+
+html／body 和普通布局容器只提供内容分组；head、script、style、template、元数据和注释不成为正文。支持内联 font-weight、font-style 与 line-through 的常用文本语义；导入不还原 CSS 字体、颜色、尺寸、定位、class 或页面布局。已转换标签的语义属性用于 Markdown，其余属性不作为新文档的隐藏状态保留；未知标签及不支持的内容保留原始子树与属性，不能悄悄改成普通文字。原始 Markdown 的 HTML 无损保存仍沿既有快照合同，不经此转换。
+
+解析支持大小写不敏感的标签与属性、带引号／无引号属性、空元素及 p、li、表格行／单元格等常见可省略结束标签。它是本节转换范围的片段解析器，不提供浏览器 DOM、样式或完整 HTML5 错位格式恢复；其他不完整／错位输入保留可用内容并报告恢复位置。调用方提供 baseUri 时，链接和图片相对引用使用 scoop.url 解析，不读 HTML 中的 base 标签；不能解析的目标保留原值并报告，未提供基址时保留解码目标。baseUri 本身无效时沿 scoop.url 抛 UrlParseException；非法写入选项沿生成器抛 IllegalArgumentException。写入选项只作用于新 Markdown。
+
+富文本插入可把结果 markdown 交给 §8.6 的 replaceMarkdown，沿同一个准备、发布和精确撤销路径处理。导入只扫描给定片段，不为了粘贴解析目标文档的全文。
+
 ## 8. 结构事务
 
 `document.transform(parsed) { ... }` 在当前不可变源快照对应的解析结果上准备结构修改，并通过 `MarkdownEdit` 一次发布。过期、其他文档或尚未发布分支的结果抛 IllegalStateException；相同 revision 数字不替代实际快照匹配。准备期间不修改文档；按原始坐标稳定排序后检查操作不重叠，任何非法参数或冲突都使本次准备失败。一个事务内的方法都基于同一份原始解析；不能用第一次操作尚未发布的节点作为后续操作的输入。回调返回前文档若被其他调用修改，最终 apply 仍拒绝旧基线。

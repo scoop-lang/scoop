@@ -401,3 +401,15 @@ autoIndent／autoPairs／autoFences 分别控制保留缩进、括号配对和�
 原生窗口共 488 步通过：新增源码辅助 38 步，以及既有源码、三模式、富文本、局部源码、格式、链接／图片、块操作、查找、导航和折叠 450 步；另有导航状态与后台查询各 1 项通过。新增窗口覆盖真实输入和中文组合、一次撤销、各辅助开关、字面粘贴、行号像素、折叠命中、末尾导航、试测释放、卸载与借用资源。大于 1 MiB、36,000 段的样本只测量少于 100 个源码行，收起后不超过 6 行；这些是功能验证，不替代最终交互性能基线。程序均由 scoop test 构建，通过 scoop bundle／Launch Services 串行运行，begin／end／complete 完整且 failures 为空。
 
 严格 API 文档生成及 MarkdownSourceHighlights、MarkdownSourceTheme、MarkdownSourceOptions、sourceSyntax 查询通过；规范、设计、README、示例和编程导航（含安装副本）同步。本批没有编译器、runtime 或其他系统库修改。原始日志、临时应用包和 API 站点核对后清理，正常构建缓存保留。HTML 导入、其余 Typora 扩展和最终 1／5 MiB 综合性能验收继续实施。
+
+## C／D：独立 HTML 导入与原生富文本粘贴（2026-11-15）
+
+文档 Cone 提供 importMarkdownHtml、MarkdownHtmlImportOptions 和 MarkdownHtmlImportResult，复用现有 HTML token 扫描、WHATWG 实体表与 Markdown 生成器。支持常见块、文字格式、链接图片、代码、列表任务框和普通矩形表格；片段标记与诊断使用原 HTML 的 UTF-8 范围。HTML 空白、历史无分号实体、数值 C1 映射及常见省略结束标签按定义恢复；显式 baseUri 只解析目标，不访问资源。CSS 仅转换明确的文字语义；未知元素、profile 关闭的语法、复杂表格与无法表示的编号保留 HTML。实现不依赖 UI、浏览器或外部转换程序，Turndown 转换规则参考及许可已记录。
+
+富文本默认粘贴按存在性选择 Markdown、HTML、普通文本；显式 PasteHtml 在两种输入面均可用，源码默认继续原样插入 Markdown／普通文本。转换结果通过已有语义事务发布，空表示不回退，组合提交与粘贴分别可撤销，菜单路由遵守只读和生命周期。复制、剪切与三模式保存继续使用同一原始文档。
+
+使用 ~/.scoop 完成 fmt、相关 check --tests --release、编辑器示例 check。文档库全量 269 项、UI 库全量 155 项和独立 consumer 21 项通过；表格复查修复后，HTML 24 项定向复验通过。新增模型覆盖大于 1 MiB、22,000 段的导入／语义插入／精确撤销，以及 2,048 层布局容器和重复格式、UTF-8 片段、实体、畸形 HTML、无头表格与保留原始子树。复查将含不能转换的删除线或无 src 图片的表格保留为整张 HTML，避免其中原始竖线破坏 GFM 单元格。
+
+原生窗口 235 步通过：新增 HTML 剪贴板 33 步，以及源码 52 步、富文本 61 步、局部源码 54 步、三模式 35 步。新增用例验证真实 Cmd-V、三格式优先级、显式 HTML／纯文本、空表示与反向选区、一次正文通知、精确撤销／重做、源码模式、两类表格、只读、中文组合、CommonMark profile 和卸载；系统剪贴板在每次命令前设置并核对，结束恢复原内容。验收校正段首空格由生成器编码为实体的显示语义预期，并将字符索引的测试预期改为 UTF-8 范围。新增窗口再次独立复跑通过；所有窗口由 scoop test 构建、scoop bundle／Launch Services 串行启动，begin／end／complete 完整且 failures 为空。
+
+严格 API 文档生成及 importMarkdownHtml、MarkdownHtmlImportOptions、MarkdownHtmlImportResult、MarkdownClipboardCommand／PasteHtml 查询通过。规范、设计、README、消费示例、原生复现说明及编程导航（含安装副本）同步。本批没有编译器、runtime 或其他系统库修改。原始日志、临时程序、应用包和 API 站点核对后清理，保留正常构建缓存。其余 Typora 扩展、HTML 展示和最终 1／5 MiB 综合交互性能验收继续实施。
