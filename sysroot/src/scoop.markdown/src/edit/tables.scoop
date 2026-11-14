@@ -2,7 +2,7 @@ package scoop.markdown
 
 import scoop.text.*
 
-private fun mdTableColumns(node: MarkdownNode): Long =
+internal fun mdTableColumns(node: MarkdownNode): Long =
     when (node.content) {
         case MarkdownContent.Table(val alignments) -> alignments.size
         else -> throw IllegalArgumentException(Some("A table edit requires a table node"))

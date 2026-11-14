@@ -78,7 +78,7 @@ inline builder 提供 text、emphasis、strong、strikethrough、code、link、i
 
 `document.transform(parsed) { ... }` 在匹配 documentId／revision 的解析结果上准备结构修改，并通过 `MarkdownEdit` 一次发布。过期或其他文档的结果抛 IllegalStateException。准备期间不修改文档；按原始坐标稳定排序后检查操作不重叠，任何非法参数或冲突都使本次准备失败。一个事务内的方法都基于同一份原始解析；不能用第一次操作尚未发布的节点作为后续操作的输入。回调返回前文档若被其他调用修改，最终 apply 仍拒绝旧基线。
 
-`MarkdownTransformBuilder` 提供 `replaceSource`、`replaceText`、`setInlineContent`、`setHeading`、`setParagraph`、`wrapInline`、`unwrapInline`、`setLinkTarget`、`setReferenceDefinition`、`setTask`、`setTableCell`、`insertTableRow` 和 `removeTableRow`。节点参数使用该解析结果的 MarkdownNodeId，错误节点种类或索引抛 IllegalArgumentException。不同节点的互不重叠修改可以组合，旧快照与反向事务遵守既有合同。
+`MarkdownTransformBuilder` 提供 `replaceSource`、`replaceText`、`setInlineContent`、`setHeading`、`setParagraph`、`wrapInline`、`unwrapInline`、`setLinkTarget`、`setReferenceDefinition`、`setTask`，以及单元格、表格行列和矩形修改（§8.2）。节点参数使用该解析结果的 MarkdownNodeId，错误节点种类或索引抛 IllegalArgumentException。不同节点的互不重叠修改可以组合，旧快照与反向事务遵守既有合同。
 
 Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类型的行内解析输入：保留 Markdown 标记、实体和普通转义，去掉容器前缀、标题标记和任务框前缀；表格竖线先按 GFM 表格词法去转义。去前缀、换行规范化和表格转义均保留原始映射。这与叶 Text 的已解码显示文字明确区分。`ParsedMarkdown.parent(id)` 提供所属树内的父节点，根返回 None，不重新搜索整树。
 
@@ -88,7 +88,7 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 
 任务条目的首段须保持段落，转为标题前先移除任务框；无法在 Markdown 中同时表达任务首段与独立标题的参数组合直接报错。空标题的行内内容插入点位于开头标记之后，存在关闭标记时保留必要的间隔。
 
-表格以第 0 行为 header。修改已有单元格只替换它的内容；为不齐的行补出缺失单元格时只追加必要分隔符。新 body row 的列数须匹配 header；删除不作用于 header。行修改继承所在引用／列表的续行前缀与本地换行，不把一个引用内的表格行插到引用外。整列操作、列表层级操作和显式格式化仍按设计继续补充。
+表格以第 0 行为 header。修改已有单元格只替换它的内容；为不齐的行补出缺失单元格时只追加必要分隔符。新 body row 的列数须匹配 header；删除不作用于 header。行修改继承所在引用／列表的续行前缀与本地换行，不把一个引用内的表格行插到引用外。整列与矩形修改见 §8.2；列表层级操作和显式格式化继续按设计补充。
 
 ### 8.1 行内显示内容的编辑
 
@@ -105,6 +105,16 @@ Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类
 `content.edit { ... }` 按顺序准备一个行内编辑批次，builder 的 content 始终指向本批当前的局部内容。replaceText／setStyle 消费当前显示坐标，select 设置最终显示选区；整批只有一个对原文档的源码事务和一次内容 revision。restore 可以恢复从同一行内区域保留的内容快照，供组合取消恢复确切源码；其他文档或其他区域的内容不能充当该恢复基线。中间快照共享原文档未变化的源树，不建立另一份文档或历史，不向观察者发布。
 
 MarkdownInlineContent.sourceRange 是局部操作会涉及的源范围，包含必要的块标记与换行；表格使用所属行以涵盖缺失单元格的补齐。该范围随准备结果更新。后台全文解析可以随后收敛；连续行内输入不依赖它按键逐次完成。外部内容修改后，旧准备结果按既有快照规则失效，由调用方使用新解析重新选择编辑区域。
+
+### 8.2 表格列与矩形修改
+
+insertTableColumn(id, index, alignment) 在 0 到现有列数之间插入一列，末尾 inline builder 配置新 header，默认空；已有 body row 的新单元格为空。removeTableColumn 删除指定列及对应分隔行标记，至少保留一列；删除整个表格使用明确的源码／节点替换。setTableColumnAlignment 只替换目标分隔单元格的冒号，保留原有连字符数量和周围空白。
+
+setTableCells(id, row, column, values) 把非空、矩形的普通文字写入指定位置；起点可以是已有单元格，也可以紧接最后一行／列。矩形超出当前范围时追加必要的列与 body row，新列默认无对齐，新 header 与未覆盖位置为空。文字按现有单元格生成规则转义，Tab／换行可编码为实体，不能把文字内容当作 Markdown 执行。非矩形、负索引、起点跨过末尾、错误节点种类或重叠事务均失败且不发布。
+
+pasteTableTsv 使用相同矩形写入路径。Tab 分列，CR／LF／CRLF 分行；首字符为双引号的字段可包含 Tab 和换行，两个双引号表示一个字面双引号，关闭引号后只能是分隔符或结尾。尾部的一次行分隔不额外增加空行；短行补空单元格，空输入表示一个空单元格。不完整引号或关闭后的非法文字拒绝整次操作。
+
+列和矩形操作保留未编辑单元格的原始内容、引用／列表前缀和既有换行；涉及的行可以补齐两侧竖线，避免单列退化成标题或新内容成为块标记。GFM 原来忽略的多余 body 单元格保留在可见列之后，不因扩列变成可见正文。所有行与分隔行修改合并为一个普通源码事务；逆向事务恢复原始字节。
 
 ## 9. 扩展语法
 

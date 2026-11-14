@@ -6,6 +6,30 @@ import scoop.test.*
 @Test
 private class MarkdownEditingExampleTests {
     @Test
+    fun `headless consumers can add formatted table columns and paste rectangular TSV`() {
+        val document = MarkdownDocument.fromText("| Name | Score |\n|---|---|\n| A | 100 |\n")
+        val parsed = document.parse()
+        document.transform(parsed) {
+            insertTableColumn(parsed.root.children[0L].id, 1L, MarkdownAlignment.Left) {
+                strong { text("Notes") }
+            }
+        }
+        val current = document.parse()
+        val change =
+            document.transform(current) {
+                pasteTableTsv(current.root.children[0L].id, 1L, 1L, "\"α|β\"\t12\r\n中文\t34")
+            }
+        val after = document.parse()
+        val table = after.root.children[0L]
+        assertEquals(3L, table.children.size)
+        assertEquals(3L, table.children[0L].children.size)
+        assertEquals("α|β", after.inlineContent(table.children[1L].children[1L].id).text.text)
+        assertEquals("中文", after.inlineContent(table.children[2L].children[1L].id).text.text)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(current.snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
     fun `public semantic edits expose their resulting source selection without UI`() {
         val document = MarkdownDocument.fromText("Hello **world**")
         val parsed = document.parse()

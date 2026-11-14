@@ -1,0 +1,86 @@
+package scoop.markdown
+
+/** Clipboard TSV supports quoted delimiters, quoted newlines and doubled quote escapes. */
+internal fun mdTableTsv(value: String): Array<List<String>> {
+    val text = value.toCharArray()
+    val rows = ArrayList<Array<String>>()
+    var row = ArrayList<String>()
+    var index = 0L
+    var columns = 0L
+    while (true) {
+        val field = StringBuilder()
+        if (index < text.size && text[index] == '"') {
+            index += 1L
+            var closed = false
+            while (index < text.size) {
+                if (text[index] == '"') {
+                    if (index + 1L < text.size && text[index + 1L] == '"') {
+                        field.append('"')
+                        index += 2L
+                    } else {
+                        index += 1L
+                        closed = true
+                        break
+                    }
+                } else {
+                    field.append(text[index])
+                    index += 1L
+                }
+            }
+            requireMarkdown(closed, "Unterminated quoted TSV field")
+            requireMarkdown(
+                index ==
+                    text.size ||
+                    text[index] ==
+                    '\t' ||
+                    text[index] ==
+                    '\r' ||
+                    text[index] ==
+                    '\n',
+                "Unexpected text after a quoted TSV field"
+            )
+        } else {
+            while (
+                index <
+                    text.size &&
+                    text[index] !=
+                    '\t' &&
+                    text[index] !=
+                    '\r' &&
+                    text[index] !=
+                    '\n'
+            ) {
+                field.append(text[index])
+                index += 1L
+            }
+        }
+        row.add(field.toString())
+        if (index < text.size && text[index] == '\t') {
+            index += 1L
+            continue
+        }
+        if (row.size > columns)
+            columns = row.size
+        rows.add(row.toArray())
+        if (index == text.size)
+            break
+        index += if (text[index] == '\r' && index + 1L < text.size && text[index + 1L] == '\n')
+            2L
+        else
+            1L
+        if (index == text.size)
+            break
+        row = ArrayList<String>()
+    }
+    val width = columns
+    return Array<List<String>>(rows.size) {
+        at ->
+        val line = rows[at]
+        Array<String>(width) {
+            column -> if (column < line.size)
+                line[column]
+            else
+                ""
+        }
+    }
+}

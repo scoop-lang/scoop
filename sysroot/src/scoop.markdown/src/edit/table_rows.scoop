@@ -1,0 +1,63 @@
+package scoop.markdown
+
+/** Edits physical cell lexemes without serializing untouched inline Markdown. */
+internal class MdTableSourceRow(snapshot: MarkdownSnapshot, source: MarkdownRange) {
+    private val input = mdSourceInput(snapshot, source).trim()
+    val range: MarkdownRange = input.range(0L, input.size)
+    val cells = ArrayList<String>()
+    init {
+        for (cell in mdTableRawCells(input))
+            cells.add(cell.text)
+    }
+    fun pad(width: Long) {
+        while (cells.size < width)
+            cells.add(" ")
+    }
+    fun write(): String = mdTableWriteCells(cells)
+}
+
+internal fun mdTableWriteCells(cells: List<String>): String {
+    val output = StringBuilder().append('|')
+    if (cells.size == 0L)
+        output.append(" |")
+    else
+        for (cell in cells) {
+            output.append(cell)
+            val bytes = cell.toByteArray()
+            var slashes = 0L
+            var end = bytes.size
+            while (end > 0L && bytes[end - 1L].toInt() == 92) {
+                slashes += 1L
+                end -= 1L
+            }
+            if (slashes % 2L != 0L)
+                output.append(' ')
+            output.append('|')
+        }
+    return output.toString()
+}
+
+internal fun mdTableAlignmentSource(alignment: MarkdownAlignment, dashes: String = "---"): String =
+    when (alignment) {
+        case MarkdownAlignment.None -> dashes
+        case MarkdownAlignment.Left -> ":" + dashes
+        case MarkdownAlignment.Center -> ":" + dashes + ":"
+        case MarkdownAlignment.Right -> dashes + ":"
+    }
+
+internal fun MarkdownTransformBuilder.mdAppendTableRows(table: MarkdownNode, rows: List<String>) {
+    if (rows.size == 0L)
+        return
+    val newline = mdLocalNewline(snapshot, table.range.start)
+    val prefix = mdContinuationPrefix(snapshot, table)
+    val terminated = mdNodeEnding(snapshot, table) != ""
+    val output = StringBuilder()
+    for (index in 0L ..< rows.size) {
+        if (!terminated || index > 0L)
+            output.append(newline)
+        output.append(prefix).append(rows[index])
+    }
+    if (terminated)
+        output.append(newline)
+    replace(MarkdownRange(table.range.end, table.range.end), output.toString())
+}

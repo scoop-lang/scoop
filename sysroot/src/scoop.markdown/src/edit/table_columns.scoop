@@ -1,0 +1,73 @@
+package scoop.markdown
+
+/** Inserts a header defined by the inline builder and empty body cells. */
+public fun MarkdownTransformBuilder.insertTableColumn(
+    id: MarkdownNodeId,
+    index: Long,
+    alignment: MarkdownAlignment = MarkdownAlignment.None,
+    header: MarkdownInlineBuilder.() -> Unit = {}
+) {
+    val table = parsed.node(id)
+    val columns = mdTableColumns(table)
+    requireMarkdown(index >= 0L && index <= columns, "Markdown table column index is out of range")
+    val title = mdWriteInlines(mdCollectInlines(header), true, true)
+    for (row in 0L ..< table.children.size) {
+        val source = MdTableSourceRow(snapshot, table.children[row].range)
+        source.pad(index)
+        source.cells.add(
+            index,
+            " " +
+                (
+                    if (row == 0L)
+                        title
+                    else
+                        ""
+                ) +
+                " "
+        )
+        replace(source.range, source.write())
+    }
+    val delimiter = MdTableSourceRow(snapshot, table.markers[0L])
+    delimiter.cells.add(index, " " + mdTableAlignmentSource(alignment) + " ")
+    replace(delimiter.range, delimiter.write())
+}
+
+public fun MarkdownTransformBuilder.removeTableColumn(id: MarkdownNodeId, index: Long) {
+    val table = parsed.node(id)
+    val columns = mdTableColumns(table)
+    requireMarkdown(columns > 1L, "A Markdown table must retain at least one column")
+    requireMarkdown(index >= 0L && index < columns, "Markdown table column index is out of range")
+    for (row in table.children) {
+        val source = MdTableSourceRow(snapshot, row.range)
+        if (index < source.cells.size) {
+            source.cells.removeAt(index)
+            replace(source.range, source.write())
+        }
+    }
+    val delimiter = MdTableSourceRow(snapshot, table.markers[0L])
+    delimiter.cells.removeAt(index)
+    replace(delimiter.range, delimiter.write())
+}
+
+public fun MarkdownTransformBuilder.setTableColumnAlignment(
+    id: MarkdownNodeId,
+    column: Long,
+    alignment: MarkdownAlignment
+) {
+    val table = parsed.node(id)
+    val columns = mdTableColumns(table)
+    requireMarkdown(column >= 0L && column < columns, "Markdown table column index is out of range")
+    val cells = mdTableRawCells(mdSourceInput(snapshot, table.markers[0L]))
+    val cell = MdInput(cells[column]).trim()
+    val start =
+        if (cell.at(0L) == 58)
+            1L
+        else
+            0L
+    val end =
+        if (cell.at(cell.size - 1L) == 58)
+            cell.size - 1L
+        else
+            cell.size
+    replace(cell.range(0L, cell.size), mdTableAlignmentSource(alignment, cell.text(start, end)))
+}

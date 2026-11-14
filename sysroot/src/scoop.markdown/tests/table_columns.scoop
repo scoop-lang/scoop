@@ -1,0 +1,208 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownTableColumnTests {
+    @Test
+    fun `new separators cannot consume a bare trailing backslash in an existing cell`() {
+        val slash = "\\"
+        val source = "a | b" + slash + "\n--- | ---\nx | y" + slash
+        for (insert in [true, false]) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            document.transform(parsed) {
+                if (insert)
+                    insertTableColumn(parsed.root.children[0L].id, 2L)
+                else
+                    removeTableColumn(parsed.root.children[0L].id, 0L)
+            }
+            val current = document.parse()
+            val table = current.root.children[0L]
+            val column =
+                if (insert)
+                    1L
+                else
+                    0L
+            assertEquals(
+                "b" + slash,
+                current.inlineContent(table.children[0L].children[column].id).text.text
+            )
+            assertEquals(
+                "y" + slash,
+                current.inlineContent(table.children[1L].children[column].id).text.text
+            )
+        }
+    }
+
+    @Test
+    fun `columns insert at every boundary while retaining raw inline spelling`() {
+        val source = "__A__ | `B`\n:----- | ---:\n**one** | x\\|y\n\nTail\n"
+        for (column in 0L .. 2L) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val change =
+                document.transform(parsed) {
+                    insertTableColumn(
+                        parsed.root.children[0L].id,
+                        column,
+                        MarkdownAlignment.Center
+                    ) { emphasis { text("New|header") } }
+                }
+            val current = document.parse()
+            val table = current.root.children[0L]
+            val alignment =
+                when (table.content) {
+                    case MarkdownContent.Table(val values) -> values
+                    else -> fail(Some("Expected a table"))
+                }
+            assertEquals(3L, alignment.size)
+            assertEquals(MarkdownAlignment.Center, alignment[column])
+            assertEquals(
+                "New|header",
+                current.inlineContent(table.children[0L].children[column].id).text.text
+            )
+            assertEquals(
+                "",
+                current.inlineContent(table.children[1L].children[column].id).text.text
+            )
+            assertTrue(document.toMarkdown().contains("__A__ "))
+            assertTrue(document.toMarkdown().contains(" `B`"))
+            assertTrue(document.toMarkdown().contains("**one** "))
+            assertTrue(document.toMarkdown().endsWith("\n\nTail\n"))
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `missing cells stay empty and ignored surplus cells stay outside inserted columns`() {
+        val source = "| a | b | c |\n|---|---|---|\n| short |\n| x | y | z | IGNORED |\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        document.transform(parsed) { insertTableColumn(parsed.root.children[0L].id, 3L) }
+        val current = document.parse()
+        val table = current.root.children[0L]
+        assertEquals(4L, table.children[0L].children.size)
+        for (row in 1L ..< table.children.size)
+            assertEquals("", current.inlineContent(table.children[row].children[3L].id).text.text)
+        assertTrue(document.toMarkdown().contains("| IGNORED |"))
+        document.transform(current) { removeTableColumn(table.id, 1L) }
+        val after = document.parse()
+        val row = after.root.children[0L].children[2L]
+        assertEquals("x", after.inlineContent(row.children[0L].id).text.text)
+        assertEquals("z", after.inlineContent(row.children[1L].id).text.text)
+        assertEquals("", after.inlineContent(row.children[2L].id).text.text)
+    }
+
+    @Test
+    fun `removing to one column keeps a table and its inverse restores optional pipes`() {
+        val source = "left | right\n-- | ---\nA | B"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) { removeTableColumn(parsed.root.children[0L].id, 0L) }
+        val current = document.parse()
+        val table = current.root.children[0L]
+        assertTrue(
+            when (table.content) {
+                case MarkdownContent.Table(_) -> true;
+                else -> false
+            }
+        )
+        assertEquals(1L, table.children[0L].children.size)
+        assertEquals("right", current.inlineContent(table.children[0L].children[0L].id).text.text)
+        assertEquals("B", current.inlineContent(table.children[1L].children[0L].id).text.text)
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(current) { removeTableColumn(table.id, 0L) }
+        }
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `alignment edits only the chosen colons and retains delimiter spacing and dash count`() {
+        val source = "| a | b |\n|  :-----: \t| --- |\n| x | y |\n"
+        for (
+            alignment in [
+                MarkdownAlignment.None,
+                MarkdownAlignment.Left,
+                MarkdownAlignment.Center,
+                MarkdownAlignment.Right
+            ]
+        ) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            document.transform(parsed) {
+                setTableColumnAlignment(parsed.root.children[0L].id, 0L, alignment)
+            }
+            val marker =
+                when (alignment) {
+                    case MarkdownAlignment.None -> "-----"
+                    case MarkdownAlignment.Left -> ":-----"
+                    case MarkdownAlignment.Center -> ":-----:"
+                    case MarkdownAlignment.Right -> "-----:"
+                }
+            assertEquals(source.replace(":-----:", marker), document.toMarkdown())
+            assertEquals(
+                if (alignment == MarkdownAlignment.Center)
+                    0L
+                else
+                    1L,
+                document.revision
+            )
+        }
+    }
+
+    @Test
+    fun `column edits retain quote list prefixes CRLF and unedited following blocks`() {
+        val source = "> - | a | b |\r\n>   |---|---|\r\n>   | old | kept |\r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val table =
+            mdTestFind(parsed) {
+                node -> when (node.content) {
+                    case MarkdownContent.Table(_) -> true;
+                    else -> false
+                }
+            }
+        val change = document.transform(parsed) { insertTableColumn(table.id, 1L) { text("N") } }
+        assertTrue(document.toMarkdown().startsWith("> - | a | N | b |\r\n>   |---| --- |---|\r\n"))
+        assertTrue(document.toMarkdown().endsWith("\r\n\r\nTail\r\n"))
+        val current = document.parse()
+        assertEquals(2L, current.root.children.size)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `column failures and overlap reject the whole source transaction`() {
+        val source = "| a | b |\n|---|---|\n| x | y |"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val table = parsed.root.children[0L]
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { insertTableColumn(table.id, 3L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { removeTableColumn(table.id, -1L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                setTableColumnAlignment(table.id, 2L, MarkdownAlignment.Left)
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { insertTableColumn(table.children[0L].id, 0L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                insertTableColumn(table.id, 1L)
+                setTableCell(table.id, 1L, 0L) { text("overlap") }
+            }
+        }
+        assertEquals(source, document.toMarkdown())
+        assertEquals(0L, document.revision)
+    }
+}

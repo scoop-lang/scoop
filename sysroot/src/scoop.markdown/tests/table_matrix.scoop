@@ -1,0 +1,154 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+private fun matrixTable(parsed: ParsedMarkdown): MarkdownNode =
+    mdTestFind(parsed) {
+        node -> when (node.content) {
+            case MarkdownContent.Table(_) -> true;
+            else -> false
+        }
+    }
+
+private fun matrixCell(parsed: ParsedMarkdown, row: Long, column: Long): String =
+    parsed.inlineContent(matrixTable(parsed).children[row].children[column].id).text.text
+
+@Test
+private class MarkdownTableMatrixTests {
+    @Test
+    fun `rectangular replacement grows columns without revealing previously ignored body cells`() {
+        val source = "| a | b |\n| --- | :---: |\n| __one__ | old | IGNORED |\n| short |\n\nTail"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) {
+                setTableCells(matrixTable(parsed).id, 1L, 1L, [["X|Y", "**literal**"], ["中文", "😀"]])
+            }
+        val current = document.parse()
+        assertEquals(3L, matrixTable(current).children[0L].children.size)
+        assertEquals("one", matrixCell(current, 1L, 0L))
+        assertEquals("X|Y", matrixCell(current, 1L, 1L))
+        assertEquals("**literal**", matrixCell(current, 1L, 2L))
+        assertEquals("short", matrixCell(current, 2L, 0L))
+        assertEquals("中文", matrixCell(current, 2L, 1L))
+        assertEquals("😀", matrixCell(current, 2L, 2L))
+        assertEquals("", matrixCell(current, 0L, 2L))
+        assertTrue(document.toMarkdown().contains("| __one__ |"))
+        assertTrue(document.toMarkdown().contains("| IGNORED |"))
+        assertTrue(document.toMarkdown().endsWith("\n\nTail"))
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `appended matrix rows inherit list quote prefixes and terminated or unterminated CRLF`() {
+        for (ending in ["", "\r\n"]) {
+            val source = "> - | a | b |\r\n>   | --- | --- |" + ending
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val change =
+                document.transform(parsed) {
+                    setTableCells(
+                        matrixTable(parsed).id,
+                        1L,
+                        0L,
+                        [["one", "two"], ["three", "four"]]
+                    )
+                }
+            assertEquals(
+                "> - | a | b |\r\n>   | --- | --- |\r\n>   | one | two |\r\n>   | three | four |" +
+                    ending,
+                document.toMarkdown()
+            )
+            val current = document.parse()
+            assertEquals(3L, matrixTable(current).children.size)
+            assertEquals("four", matrixCell(current, 2L, 1L))
+            document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+            assertEquals(source, document.toMarkdown())
+        }
+    }
+
+    @Test
+    fun `matrix text preserves literal whitespace line breaks and markup inside one physical cell`() {
+        val value = " \t中文\n**text**|😀 "
+        val document = MarkdownDocument.fromText("| h |\n|---|\n| old |")
+        val parsed = document.parse()
+        document.transform(parsed) { setTableCells(matrixTable(parsed).id, 1L, 0L, [[value]]) }
+        assertEquals(value, matrixCell(document.parse(), 1L, 0L))
+        assertEquals(3L, document.snapshot().lineCount)
+    }
+
+    @Test
+    fun `TSV handles quoted delimiters newlines escaped quotes short rows and terminal separators`() {
+        val document = MarkdownDocument.fromText("| h |\n|---|\n")
+        val parsed = document.parse()
+        val tsv = "\"a\tb\"\t\"say \"\"Hi\"\"\"\r\n\"line1\nline2\"\t😀\t\r\n"
+        document.transform(parsed) { pasteTableTsv(matrixTable(parsed).id, 1L, 0L, tsv) }
+        val current = document.parse()
+        assertEquals(3L, matrixTable(current).children.size)
+        assertEquals(3L, matrixTable(current).children[0L].children.size)
+        assertEquals("a\tb", matrixCell(current, 1L, 0L))
+        assertEquals("say \"Hi\"", matrixCell(current, 1L, 1L))
+        assertEquals("", matrixCell(current, 1L, 2L))
+        assertEquals("line1\nline2", matrixCell(current, 2L, 0L))
+        assertEquals("😀", matrixCell(current, 2L, 1L))
+        assertEquals("", matrixCell(current, 2L, 2L))
+    }
+
+    @Test
+    fun `empty TSV clears one cell while extra blank lines retain their matrix rows`() {
+        val document = MarkdownDocument.fromText("| h |\n|---|\n| old |")
+        val parsed = document.parse()
+        document.transform(parsed) { pasteTableTsv(matrixTable(parsed).id, 1L, 0L, "") }
+        assertEquals("", matrixCell(document.parse(), 1L, 0L))
+        val current = document.parse()
+        document.transform(current) { pasteTableTsv(matrixTable(current).id, 1L, 0L, "x\n\n") }
+        val after = document.parse()
+        assertEquals(3L, matrixTable(after).children.size)
+        assertEquals("x", matrixCell(after, 1L, 0L))
+        assertEquals("", matrixCell(after, 2L, 0L))
+    }
+
+    @Test
+    fun `header paste can append a column while retaining existing formatted header content`() {
+        val document = MarkdownDocument.fromText("| **Name** |\n|:---|\n| A | hidden |")
+        val parsed = document.parse()
+        document.transform(parsed) { setTableCells(matrixTable(parsed).id, 0L, 1L, [["Score"]]) }
+        val current = document.parse()
+        assertEquals("Name", matrixCell(current, 0L, 0L))
+        assertEquals("Score", matrixCell(current, 0L, 1L))
+        assertEquals("", matrixCell(current, 1L, 1L))
+        assertTrue(document.toMarkdown().contains("**Name**"))
+        assertTrue(document.toMarkdown().contains("hidden"))
+    }
+
+    @Test
+    fun `invalid matrix shape locations and TSV quotes do not publish partial changes`() {
+        val source = "| h |\n|---|\n| old |"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val id = matrixTable(parsed).id
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setTableCells(id, 0L, 0L, []) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setTableCells(id, 0L, 0L, [[]]) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setTableCells(id, 1L, 0L, [["a"], ["b", "c"]]) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setTableCells(id, 3L, 0L, [["a"]]) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { setTableCells(id, 1L, 2L, [["a"]]) }
+        }
+        for (tsv in ["\"missing", "\"closed\"extra", "a\t\"bad\"word"])
+            assertFailsWith<IllegalArgumentException> {
+                document.transform(parsed) { pasteTableTsv(id, 1L, 0L, tsv) }
+            }
+        assertEquals(source, document.toMarkdown())
+        assertEquals(0L, document.revision)
+    }
+}

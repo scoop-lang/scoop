@@ -1,0 +1,86 @@
+package scoop.markdown
+
+/** Replaces a rectangular text matrix, growing the table only where the values require it. */
+public fun MarkdownTransformBuilder.setTableCells(
+    id: MarkdownNodeId,
+    row: Long,
+    column: Long,
+    values: List<List<String>>
+) {
+    val table = parsed.node(id)
+    val columns = mdTableColumns(table)
+    requireMarkdown(
+        row >= 0L && row <= table.children.size && column >= 0L && column <= columns,
+        "Markdown table matrix start is out of range"
+    )
+    requireMarkdown(
+        values.size > 0L && values[0L].size > 0L,
+        "Markdown table matrix must be nonempty"
+    )
+    val width = values[0L].size
+    requireMarkdown(
+        values.size <= 9223372036854775807L - row && width <= 9223372036854775807L - column,
+        "Markdown table matrix size overflow"
+    )
+    val encoded = ArrayList<Array<String>>()
+    for (line in values) {
+        requireMarkdown(line.size == width, "Markdown table matrix must be rectangular")
+        encoded.add(
+            Array<String>(width) {
+                at -> mdWriteInlines([MdWriteInline.Literal(line[at])], true, true)
+            }
+        )
+    }
+    val endRow = row + values.size
+    val endColumn = column + width
+    val nextWidth =
+        if (columns > endColumn)
+            columns
+        else
+            endColumn
+    for (index in 0L ..< table.children.size) {
+        val changed = index >= row && index < endRow
+        if (!changed && nextWidth == columns)
+            continue
+        val source = MdTableSourceRow(snapshot, table.children[index].range)
+        if (nextWidth > columns) {
+            source.pad(columns)
+            for (added in columns ..< nextWidth)
+                source.cells.add(added, " ")
+        }
+        if (changed) {
+            source.pad(endColumn)
+            for (at in 0L ..< width)
+                source.cells[column + at] = " " + encoded[index - row][at] + " "
+        }
+        replace(source.range, source.write())
+    }
+    if (nextWidth > columns) {
+        val delimiter = MdTableSourceRow(snapshot, table.markers[0L])
+        for (added in columns ..< nextWidth)
+            delimiter.cells.add(" --- ")
+        replace(delimiter.range, delimiter.write())
+    }
+    val addedRows = ArrayList<String>()
+    for (index in table.children.size ..< endRow) {
+        val values = encoded[index - row]
+        val cells =
+            Array<String>(nextWidth) {
+                at -> if (at >= column && at < endColumn)
+                    " " + values[at - column] + " "
+                else
+                    " "
+            }
+        addedRows.add(mdTableWriteCells(cells))
+    }
+    mdAppendTableRows(table, addedRows)
+}
+
+public fun MarkdownTransformBuilder.pasteTableTsv(
+    id: MarkdownNodeId,
+    row: Long,
+    column: Long,
+    tsv: String
+) {
+    setTableCells(id, row, column, mdTableTsv(tsv))
+}

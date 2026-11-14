@@ -1,6 +1,7 @@
 package scoop.markdown
 
-internal fun mdTableCells(input: MdInput): Array<MarkdownText> {
+/** Physical cell slices retain their spaces and escapes for structural table edits. */
+internal fun mdTableRawCells(input: MdInput): Array<MarkdownText> {
     val cells = ArrayList<MarkdownText>()
     val trimmed = input.trim()
     var start =
@@ -20,32 +21,49 @@ internal fun mdTableCells(input: MdInput): Array<MarkdownText> {
             end -= 1L
     }
     var offset = start
-    var run = start
-    var body = MdTextBuilder()
     while (offset < end) {
-        if (trimmed.at(offset) == 92 && trimmed.at(offset + 1L) == 92) {
+        if (
+            trimmed.at(offset) ==
+                92 &&
+                (trimmed.at(offset + 1L) == 92 || trimmed.at(offset + 1L) == 124)
+        ) {
             offset += 2L;
             continue
         }
-        if (trimmed.at(offset) == 92 && trimmed.at(offset + 1L) == 124) {
-            body.append(trimmed.slice(run, offset))
-            body.add("|", trimmed.range(offset, offset + 2L), MarkdownTextMapping.Escape)
-            offset += 2L
-            run = offset
-        } else
-            if (trimmed.at(offset) == 124) {
-                body.append(trimmed.slice(run, offset))
-                cells.add(MdInput(body.build(trimmed.range(start, start).start)).trim().value)
-                body = MdTextBuilder()
-                offset += 1L
-                start = offset
+        if (trimmed.at(offset) == 124) {
+            cells.add(trimmed.slice(start, offset))
+            start = offset + 1L
+        }
+        offset += 1L
+    }
+    cells.add(trimmed.slice(start, end))
+    return cells.toArray()
+}
+
+internal fun mdTableCells(input: MdInput): Array<MarkdownText> {
+    val slices = mdTableRawCells(input)
+    return Array<MarkdownText>(slices.size) {
+        index ->
+        val raw = MdInput(slices[index])
+        val body = MdTextBuilder()
+        var offset = 0L
+        var run = 0L
+        while (offset < raw.size) {
+            if (raw.at(offset) == 92 && raw.at(offset + 1L) == 92) {
+                offset += 2L
+                continue
+            }
+            if (raw.at(offset) == 92 && raw.at(offset + 1L) == 124) {
+                body.append(raw.slice(run, offset))
+                body.add("|", raw.range(offset, offset + 2L), MarkdownTextMapping.Escape)
+                offset += 2L
                 run = offset
             } else
                 offset += 1L
+        }
+        body.append(raw.slice(run, raw.size))
+        MdInput(body.build(raw.range(0L, 0L).start)).trim().value
     }
-    body.append(trimmed.slice(run, end))
-    cells.add(MdInput(body.build(trimmed.range(start, start).start)).trim().value)
-    return cells.toArray()
 }
 
 internal fun mdTableAlignments(input: MdInput): Array<MarkdownAlignment>? {
