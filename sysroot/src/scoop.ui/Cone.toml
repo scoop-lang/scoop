@@ -44,6 +44,14 @@ path = "tests/preferences.scoop"
 when = { os = ["linux", "windows"] }
 
 [[test.sources]]
+path = "tests/text_selection_removal.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_selection_removal.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
 path = "tests/composition.scoop"
 when = { os = "windows" }
 

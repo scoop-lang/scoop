@@ -124,6 +124,8 @@ val markdown = application.clipboard.readText("text/markdown")
 
 `KeyEvent.textCommands` 保存 window 后端解释出的移动、删除、提交等编辑语义；多条命令保留顺序，随该次按下事件进入同一输入路由。macOS 使用原生 selector，Linux 使用当前逻辑键和标准 Control 编辑键位。空列表表示本次没有编辑命令，keyup 和 synthetic 输入也没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
 
+原生菜单的 `MenuRole.DeleteSelection` 对应 `TextEditCommand.DeleteSelection`，只删除非空选区；空选区不删除下一个字符，不等同于 `Delete(TextDeletion.Forward)`。当前文本目标通过 `TextCommandAvailability(deleteSelection = true)` 显式发布能力，默认 false；IME 启用不代表存在选区。原生文本字段按自己的可编辑性与选区验证，Scoop 文本宿主继续走正常输入路由、策略和撤销。该角色没有默认快捷键，不修改剪贴板。
+
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit 的 UTF-16 范围和 TSF 的 ACP 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
 macOS／Windows 的 Enabled／Disabled 都带有 `TextInputConnection`，原生批次的 origin 标识连接和交付顺序。编辑器用 `publishTextInputState(connection, state, after)` 立即发布已生效的文档及已处理批次；AppKit／TSF 的同步 surrounding／selection 查询读取原生不可变副本。引用该快照的显式替换带实际 baseRevision，前序批次尚未处理时不生成猜测的文档范围。CurrentSelection 批次继续不依赖 revision；无效范围拒绝整批，旧连接的编辑不能落到新连接。

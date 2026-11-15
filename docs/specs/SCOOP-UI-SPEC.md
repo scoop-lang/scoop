@@ -532,6 +532,8 @@ ParagraphMeasurement.layout 借出该测量持有的 TextLayout，供自绘控�
 
 `undo()` 先取消仍在进行的组合，再撤销最近编辑；没有历史时仍可取消组合。`redo()` 在存在可重做项时先取消组合再重做，否则不改变状态。历史只保存必要的 UTF-8 文本差量及前后 TextPosition，不为普通键入保存全文；连续插入／退格／向前删除仅在种类、相邻范围及方向选区相符时合并。粘贴、剪切、显式替换、选择与焦点切换形成边界，`breakUndoGroup()` 可显式结束合并。新编辑丢弃旧 redo，取消组合不丢弃已有 redo。各编辑入口返回是否改变可观察状态；空批次与无效 undo／redo 返回 false。
 
+`TextEditCommand.DeleteSelection` 只删除当前非空选区，经宿主已有输入资格、只读、策略与组合检查，以独立编辑事务记录撤销；空选区不修改正文、组合或历史，不调用策略。它与 `Delete(TextDeletion.Forward)` 的空选区删除行为不同。
+
 `applyEdit(range, text, policy, source = Programmatic)` 是显式遵循输入策略的程序编辑入口。普通 replace／replaceAll／setSelection 继续表示明确的模型操作，不读取活动宿主的 policy；宿主发起的粘贴、删除、换行、制表符和结束组合的选择操作统一走策略事务。
 
 `textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。

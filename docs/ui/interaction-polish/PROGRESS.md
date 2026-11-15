@@ -12,10 +12,11 @@
 
 | 批次 | 状态 | 已完成与剩余 |
 | --- | --- | --- |
-| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；原生文本菜单、拖放与其他平台验证待继续 |
+| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
 | S2 | 进行中 | Window 语义节点、发布／退休和 AppKit 基础投影已接入；UI scope／场景／控件、关系／内容合并、精确命中和外部客户端仍待完成 |
-| S3～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
+| S3 | 进行中 | 独立 DeleteSelection 角色／命令与三平台映射已实现，编辑事务与输入路由定向测试通过；文本菜单模式、目标／选区会话及前台实窗验证待继续 |
+| S4～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
 
@@ -72,3 +73,12 @@
 - 已生成 Window API 文档并用 `scoop api search/show` 核对 Darwin 工厂、导入路径、SemanticProperties／Actions、Boolean focus、可选几何访问器和不可公开构造的节点身份。同步正式 spec、README、设计状态及编程库导航。临时文档站点、标准 AppKit 对照源码和二进制在核对后清理；保留外部 AX 客户端和后续构建缓存。
 
 本批是 S0／S2 的低层基础，工厂当前仅在 Darwin 目标公开；UI scope 与 Accepted 场景、默认控件、完整文本、虚拟集合、其他平台 provider 和真实屏幕阅读器仍按统一计划推进。
+
+### 仅删除选区的菜单命令
+
+- 新增 MenuRole.DeleteSelection、TextEditCommand.DeleteSelection 与 TextCommandAvailability.deleteSelection。没有选区时不删除相邻字符、不结束组合、不调用编辑策略或增加撤销；可用性要求显式声明，不从 IME 开关猜测。AppKit 原生字段使用 delete:，Windows 原生 Edit／RichEdit 使用 WM_CLEAR，GTK Scoop 内容沿既有命令派发；按实际平台继续验证。
+- TextEditHost 的删除与 Cut 复用同一选区编辑准备路径，保留策略过滤、异常前不发布、独立撤销和方向／affinity；删除不写剪贴板。只读／禁用和焦点检查沿原宿主执行，SelectableTextHost 不提供删除。Surface 传递新增可用性和真实命令，保留 preventDefault、焦点／边界资格与静止停帧。
+- macOS 的三个编辑事务测试通过：空选区与活动组合／redo 保留、Unicode 反向选择与独立 undo／redo、策略拒绝／异常。两个 Surface 路由测试通过，覆盖可用性继承、失焦、禁用、边界、默认动作阻止及没有合成键盘事件。生产／测试 Scoop 格式与语义检查、AppKit Objective-C 严格编译检查通过；Window、Surface、UI 开发产物已按依赖定向更新。
+- 已扩展真实编辑器用例，检查菜单能力、删除／撤销、空选区、只读／禁用与剪贴板保留；原生菜单焦点用例同时检查 Scoop DeleteSelection 事件与实际 NSTextField 删除及空选区禁用。后者原先用禁用菜单项模拟后台状态，现改为条目正常启用、Scoop 发布全 false，准确验证系统字段沿自己的状态判断。这两组源码检查通过，前台运行仍待桌面解锁，没有据离屏结果声明菜单交互通过。
+- S0.3 的独立 AppKit 原型确认：公开 NSTextView.defaultMenu 无须创建隐藏编辑器即可返回系统模板，但其中富文本、拼写、替换及排版动作仍依赖真实编辑服务。后续文本菜单按可执行能力接入，不能直接展示全部模板来假报支持；三种菜单模式与目标会话尚未完成。
+- 已生成并查询 Window／UI API 数据，核对两个 DeleteSelection 枚举入口、七项可用性的默认值、TextEditHost.execute 与导入路径；同步相关 spec、README、设计现状及编程材料。临时菜单模板程序和 API 站点已清理，保留开发 Cone 与缓存供后续工作使用。

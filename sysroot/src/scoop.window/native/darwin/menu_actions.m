@@ -14,6 +14,8 @@ static SEL role_selector(int32_t role) {
     return @selector(undo:);
   case 9:
     return @selector(redo:);
+  case 10:
+    return @selector(delete:);
   default:
     return NULL;
   }
@@ -42,9 +44,9 @@ static BOOL can_activate(SWMenu *menu, SWMenuEntry *entry) {
     return NO;
   if (entry.role >= 4) {
     if (window && target.firstResponder == window.view)
-      return ((window.menuTextCommands & 64)
+      return ((window.menuTextCommands & 128)
                   ? (window.menuTextCommands & (1 << (entry.role - 4))) != 0
-                  : window.view.imeAllowed);
+                  : window.view.imeAllowed && entry.role != 10);
     SEL selector = role_selector(entry.role);
     id responder = [NSApp targetForAction:selector to:nil from:entry.item];
     if (!responder)

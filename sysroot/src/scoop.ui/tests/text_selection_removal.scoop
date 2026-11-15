@@ -1,0 +1,95 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class TextSelectionRemovalTest {
+    @Test
+    fun `empty selection skips policy and preserves composition and history`() {
+        val editor = TextEditorState("AZ", Some(Utf8Selection(1L, 1L)))
+        editor.applyEdit(Utf8Range(1L, 1L), "x", textEditPolicy())
+        editor.undo()
+        val before = editor.inputState
+        val policy =
+            textEditPolicy { transform { _ -> fail(Some("empty selection reached policy")) } }
+        when (prepareEditorSelectionRemoval(editor, policy, true)) {
+            case None -> {}
+            case Some(_) -> fail(Some("empty selection prepared a removal"))
+        }
+        assertEquals(before, editor.inputState)
+        assertTrue(editor.canRedo)
+        editor.applyInput(
+            TextInputBatch(
+                None,
+                [
+                    TextInputOperation.Preedit(
+                        "候",
+                        Some(Utf8Selection(0L, 0L)),
+                        TextReplacement.CurrentSelection
+                    )
+                ]
+            )
+        )
+        val composing = editor.inputState
+        assertTrue(editor.isComposing)
+        when (prepareEditorSelectionRemoval(editor, policy, true)) {
+            case None -> {}
+            case Some(_) -> fail(Some("empty selection prepared a removal"))
+        }
+        assertEquals(composing, editor.inputState)
+        assertTrue(editor.isComposing)
+    }
+
+    @Test
+    fun `removal stages Unicode selection and preserves direction in one undo entry`() {
+        val editor = TextEditorState("A😀éZ")
+        editor.setSelection(TextPosition(8L, TextAffinity.Upstream), TextPosition(1L))
+        val before = editor.inputState
+        val policy =
+            textEditPolicy {
+                transform {
+                    candidate ->
+                    assertEquals(TextEditSource.EditCommand, candidate.source)
+                    assertEquals("AZ", candidate.after.text)
+                    TextEditDecision.Accept
+                }
+            }
+        val prepared = prepareEditorSelectionRemoval(editor, policy, true)!!
+        assertTrue(prepared.accepted)
+        assertEquals(before, editor.inputState)
+        assertTrue(prepared.publish(editor, false))
+        assertEquals("AZ", editor.text)
+        assertEquals(Utf8Selection(1L, 1L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals(before.surroundingText, editor.text)
+        assertEquals(before.selection, editor.selection)
+        assertEquals(TextPosition(8L, TextAffinity.Upstream), editor.anchor)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("AZ", editor.text)
+    }
+
+    @Test
+    fun `rejected or throwing deletion does not publish text or history`() {
+        val editor = TextEditorState("A😀Z", Some(Utf8Selection(5L, 1L)))
+        val before = editor.inputState
+        val reject = textEditPolicy { transform { _ -> TextEditDecision.Reject } }
+        val prepared = prepareEditorSelectionRemoval(editor, reject, true)!!
+        assertFalse(prepared.accepted)
+        assertFalse(prepared.publish(editor, false))
+        assertEquals(before, editor.inputState)
+        assertFalse(editor.canUndo)
+        val error = IllegalStateException(Some("deletion policy failed"))
+        val throwing = textEditPolicy { transform { _ -> throw error } }
+        assertSame(
+            error,
+            assertFailsWith<IllegalStateException> {
+                prepareEditorSelectionRemoval(editor, throwing, true)
+            }
+        )
+        assertEquals(before, editor.inputState)
+        assertFalse(editor.canUndo)
+    }
+}

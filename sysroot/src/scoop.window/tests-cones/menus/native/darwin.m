@@ -61,9 +61,17 @@ int32_t scoop_test_native_menu_editor(void *pointer) {
   BOOL enabled = item.enabled;
   BOOL sent = [NSApp sendAction:item.action to:item.target from:item];
   BOOL selected = editor.selectedRange.length == field.stringValue.length;
+  NSMenuItem *deletion = find_item(NSApp.mainMenu, @"Native Delete");
+  [deletion.menu update];
+  BOOL deletionEnabled = deletion.enabled;
+  [NSApp sendAction:deletion.action to:deletion.target from:deletion];
+  BOOL deleted = editor.string.length == 0;
+  [deletion.menu update];
+  BOOL emptyDisabled = !deletion.enabled;
   [window makeFirstResponder:previous];
   [field removeFromSuperview];
-  return enabled && sent && selected;
+  return enabled && sent && selected && deletionEnabled && deleted &&
+         emptyDisabled;
 }
 
 int64_t scoop_test_menu_property(void *pointer, const uint8_t *text,

@@ -41,9 +41,9 @@ static bool can_activate(SWMenuEntry *entry) {
   if (entry->role == 3)
     return window->maximize_button && window->resizable;
   if (entry->role >= 4)
-    return (window->menu_text_commands & 64)
+    return (window->menu_text_commands & 128)
                ? (window->menu_text_commands & (1 << (entry->role - 4))) != 0
-               : window->ime_allowed;
+               : window->ime_allowed && entry->role != 10;
   return true;
 }
 

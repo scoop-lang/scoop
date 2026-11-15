@@ -1,13 +1,14 @@
 package scoop.window
 
-/** Availability of the six standard menu edits, independent of an IME connection. */
+/** Availability of standard menu edits, independent of an IME connection. */
 public struct TextCommandAvailability(
     val cut: Boolean = false,
     val copy: Boolean = false,
     val paste: Boolean = false,
     val selectAll: Boolean = false,
     val undo: Boolean = false,
-    val redo: Boolean = false
+    val redo: Boolean = false,
+    val deleteSelection: Boolean = false
 )
 
 public var Window.textCommandAvailability: TextCommandAvailability?
@@ -22,7 +23,7 @@ set(value) {
     val flags =
         when (value) {
             case None -> 0
-            case Some(val commands) -> 64 +
+            case Some(val commands) -> 128 +
                 flag(commands.cut) +
                 flag(commands.copy) *
                 2 +
@@ -33,7 +34,9 @@ set(value) {
                 flag(commands.undo) *
                 16 +
                 flag(commands.redo) *
-                32
+                32 +
+                flag(commands.deleteSelection) *
+                64
         }
     @Unsafe
     {

@@ -16,6 +16,6 @@ public enum TextDeletion {
 /** Native editing interpretation carried by the same routed keyboard event. */
 public enum TextEditCommand {
     Move(val movement: TextMovement, val extendSelection: Boolean),
-    Delete(TextDeletion), Copy, Cut, Paste, SelectAll, Undo, Redo,
+    Delete(TextDeletion), DeleteSelection, Copy, Cut, Paste, SelectAll, Undo, Redo,
     InsertNewline, InsertTab, InsertBacktab, Cancel
 }

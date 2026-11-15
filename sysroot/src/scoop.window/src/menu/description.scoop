@@ -68,6 +68,7 @@ internal fun menuRoleCode(role: MenuRole): Int =
         case SelectAll -> 7
         case Undo -> 8
         case Redo -> 9
+        case DeleteSelection -> 10
     }
 
 internal fun menuTextCommand(code: Int): TextEditCommand =
@@ -78,6 +79,7 @@ internal fun menuTextCommand(code: Int): TextEditCommand =
         7 -> TextEditCommand.SelectAll
         8 -> TextEditCommand.Undo
         9 -> TextEditCommand.Redo
+        10 -> TextEditCommand.DeleteSelection
         else -> throw WindowException("native menu editing command", WindowErrorKind.NativeFailure)
     }
 

@@ -127,6 +127,21 @@ internal fun advanceEditing(probe: EditProbe) {
                 assertEquals("", first.text)
                 assertTrue(probe.field(0L).execute(TextEditCommand.Redo))
                 assertEquals("B 😀 C", first.text)
+                val clipboard = window.clipboard.readText()
+                first.setSelection(Utf8Selection(6L, 2L))
+                assertTrue(window.textCommandAvailability!!.deleteSelection)
+                assertTrue(probe.field(0L).execute(TextEditCommand.DeleteSelection))
+                assertEquals("B  C", first.text)
+                assertEquals(clipboard, window.clipboard.readText())
+                assertFalse(window.textCommandAvailability!!.deleteSelection)
+                val revision = first.revision
+                assertTrue(probe.field(0L).execute(TextEditCommand.DeleteSelection))
+                assertEquals(revision, first.revision)
+                assertEquals("B  C", first.text)
+                assertTrue(probe.field(0L).execute(TextEditCommand.Undo))
+                assertEquals("B 😀 C", first.text)
+                assertEquals(Utf8Selection(6L, 2L), first.selection)
+                assertFalse(probe.field(2L).execute(TextEditCommand.DeleteSelection))
                 probe.readonly = true
                 probe.change()
             }
@@ -135,6 +150,8 @@ internal fun advanceEditing(probe: EditProbe) {
             assertTrue(probe.focus[0L].hasFocus)
             assertEquals(1, editorText(window, "blocked"))
             assertTrue(probe.field(0L).execute(TextEditCommand.Delete(TextDeletion.Backward)))
+            assertFalse(window.textCommandAvailability!!.deleteSelection)
+            assertTrue(probe.field(0L).execute(TextEditCommand.DeleteSelection))
             assertEquals("B 😀 C", first.text)
             probe.next {
                 probe.readonly = false;

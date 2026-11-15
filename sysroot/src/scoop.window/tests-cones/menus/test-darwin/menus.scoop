@@ -40,7 +40,7 @@ private class NativeMenuTests {
     fun `edit roles follow the native focus target and its validation`() {
         val handler = FocusedMenuHandler()
         Application().run(handler)
-        assertEquals(1, handler.editCommands)
+        assertEquals(2, handler.editCommands)
         assertTrue(handler.nativeEditorSelected)
     }
 }

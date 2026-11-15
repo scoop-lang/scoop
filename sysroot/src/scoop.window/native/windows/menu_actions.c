@@ -65,6 +65,7 @@ bool sw_menu_enabled(SWMenuEntry *entry) {
       bool editable = !(GetWindowLongPtrW(editor, GWL_STYLE) & ES_READONLY);
       switch (entry->role) {
       case 4:
+      case 10:
         return editable && start != end;
       case 5:
         return start != end;
@@ -81,9 +82,9 @@ bool sw_menu_enabled(SWMenuEntry *entry) {
       }
     }
     return menu_focus(entry->menu) == window->hwnd &&
-           ((window->menu_text_commands & 64)
+           ((window->menu_text_commands & 128)
                 ? (window->menu_text_commands & (1 << (entry->role - 4))) != 0
-                : window->ime_allowed);
+                : window->ime_allowed && entry->role != 10);
   }
   if (entry->role == 2)
     return window && window->minimize_button;
@@ -116,8 +117,8 @@ bool sw_menu_activate(SWMenuEntry *entry) {
   } else {
     HWND editor = native_editor(menu, window);
     if (editor) {
-      static const UINT commands[] = {WM_CUT,    WM_COPY, WM_PASTE,
-                                      EM_SETSEL, WM_UNDO, EM_REDO};
+      static const UINT commands[] = {WM_CUT,  WM_COPY, WM_PASTE, EM_SETSEL,
+                                      WM_UNDO, EM_REDO, WM_CLEAR};
       SendMessageW(editor, commands[entry->role - 4], 0,
                    entry->role == 7 ? (LPARAM)-1 : 0);
     } else {

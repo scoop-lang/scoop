@@ -36,7 +36,7 @@ public enum MenuItemKind {
 }
 
 public enum MenuRole {
-    Quit, Minimize, Zoom, Cut, Copy, Paste, SelectAll, Undo, Redo
+    Quit, Minimize, Zoom, Cut, Copy, Paste, SelectAll, Undo, Redo, DeleteSelection
 }
 
 /** A standard role and an application action are mutually exclusive. */

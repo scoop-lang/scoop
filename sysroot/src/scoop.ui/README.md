@@ -142,6 +142,8 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。
 
+需要菜单“删除”行为时使用 `host.execute(TextEditCommand.DeleteSelection)`：只删除非空选区，不影响剪贴板，遵守当前只读／禁用、焦点、编辑策略与撤销。空选区不调用策略、不结束组合；`Delete(TextDeletion.Forward)` 仍是键盘向前删除行为。宿主按当前状态自动发布对应菜单可用性；只读选择宿主不提供删除命令。
+
 窗口错误通过 `UiHost(onRootError = { id, error -> ... })` 接收：失败根完成输入与资源清理后报告一次，处理器正常返回可继续运行其他根，默认处理器重新抛出。`attach` 成功返回 `Some(UiWindow)`，已处理的初次挂载失败返回 `None`。宿主事件、共享渲染器、消息投递和错误处理器自身的失败仍关闭整个宿主。`scope.createDeadline` 使用原生一次性 deadline，随作用域退休关闭，并在所属根的错误边界内交付回调。
 
 同一父级与 key 的 Portal 可更新 NonModal／FocusContained／Modal，不重新挂载内容。约束更新保留原始恢复焦点，新增聚焦等待 Accepted；关闭中的约束保留到移除帧被接受。模式变化本身不产生关闭回调。

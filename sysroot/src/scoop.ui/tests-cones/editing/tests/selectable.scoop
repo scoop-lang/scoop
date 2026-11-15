@@ -191,6 +191,7 @@ internal fun advanceSelectableText(probe: EditProbe) {
                 window.clipboard.readText()
             )
             assertFalse(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+            assertFalse(host.execute(TextEditCommand.DeleteSelection))
             assertTrue(host.selectionBounds().size >= 2L)
             assertEquals(test.savedStarts, test.imeStarts)
             probe.next { selectableClick(window, host, 1L) }

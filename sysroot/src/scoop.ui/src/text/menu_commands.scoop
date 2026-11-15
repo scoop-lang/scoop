@@ -15,7 +15,8 @@ internal fun TextEditHost.refreshMenuCommands() {
                 paste = editable,
                 selectAll = options.enabled && current.text.byteLength > 0L,
                 undo = editable && current.canUndo,
-                redo = editable && current.canRedo
+                redo = editable && current.canRedo,
+                deleteSelection = editable && selected
             )
         )
 }

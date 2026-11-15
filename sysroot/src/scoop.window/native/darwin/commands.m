@@ -53,6 +53,7 @@ int32_t sw_text_command(SEL selector) {
       {"insertTabIgnoringFieldEditor:", 47},
       {"insertBacktab:", 48},
       {"cancelOperation:", 49},
+      {"delete:", 50},
   };
   const char *name = sel_getName(selector);
   for (size_t index = 0; index < sizeof(commands) / sizeof(commands[0]);

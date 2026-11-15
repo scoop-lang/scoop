@@ -48,4 +48,6 @@ activate 只接受自己的 MenuId、仍存在且祖先均启用的条目；Role
 
 原生菜单产生的 WindowEvent.TextCommand 经 Surface 的 InputEvent.TextCommand 沿当前焦点路径执行 capture／target／bubble／default；没有合格焦点时不把命令交给后台编辑器。TextEditHost 和 SelectableTextHost 在默认阶段复用各自 execute(TextEditCommand)，preventDefault 可阻止该次默认编辑。
 
-两种文本宿主通过所属 InputScope.textCommandAvailability 发布六个原生编辑角色的状态。文本、选择、只读／禁用、复制策略和撤销历史变化同步更新；SelectableTextHost 只发布 Copy 和 SelectAll，未接受的新文本不使用旧选择能力。Paste 表示目标允许尝试粘贴，真正执行时才读取剪贴板，无文本时无操作。焦点、输入边界和卸载决定哪一份状态进入 Window；原生文件面板的编辑目标由系统处理，不修改后台 UI 文档。
+两种文本宿主通过所属 InputScope.textCommandAvailability 发布七个原生编辑角色的状态。文本、选择、只读／禁用、复制策略和撤销历史变化同步更新；SelectableTextHost 只发布 Copy 和 SelectAll，未接受的新文本不使用旧选择能力。Paste 表示目标允许尝试粘贴，真正执行时才读取剪贴板，无文本时无操作。焦点、输入边界和卸载决定哪一份状态进入 Window；原生文件面板的编辑目标由系统处理，不修改后台 UI 文档。
+
+DeleteSelection 仅删除当前非空选区，不等价于向前删除。TextEditHost 只有在启用、可编辑且有选区时发布该能力，实际执行仍使用当前策略；空选区为无操作，SelectableTextHost 不提供删除。该命令可用于原生菜单与语义编辑，不为它合成键盘事件或单独维护编辑历史。

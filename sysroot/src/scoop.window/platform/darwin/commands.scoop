@@ -49,6 +49,7 @@ private fun decodeTextCommand(code: Int): TextEditCommand {
         47 -> TextEditCommand.InsertTab
         48 -> TextEditCommand.InsertBacktab
         49 -> TextEditCommand.Cancel
+        50 -> TextEditCommand.DeleteSelection
         else -> throw WindowException("unknown native text command", WindowErrorKind.NativeFailure)
     }
 }
