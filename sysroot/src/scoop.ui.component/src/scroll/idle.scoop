@@ -1,0 +1,66 @@
+package scoop.ui.component
+
+import scoop.time.*
+
+/** One idle interval, suspended by actual input ownership rather than periodic sampling. */
+internal class ScrollbarIdle {
+    var visible = false
+    private var available = false
+    private var automatic = false
+    private var busy = false
+    private var delay = Duration.ZERO
+    private var idleSince: TimeMark? = None
+    val deadline: TimeMark? get() =
+        when (idleSince) {
+            case Some(val time) -> Some(time + delay)
+            case None -> None
+        }
+
+    fun configure(
+        available: Boolean,
+        automatic: Boolean,
+        delay: Duration,
+        busy: Boolean,
+        now: TimeMark
+    ) {
+        this.available = available
+        this.automatic = automatic
+        this.delay = delay
+        this.busy = busy
+        if (!available) {
+            visible = false
+            idleSince = None
+        } else
+            if (!automatic) {
+                visible = true
+                idleSince = None
+            } else
+                if (busy) {
+                    idleSince = None
+                } else
+                    if (visible && idleSince == None) {
+                        idleSince = Some(now)
+                    }
+    }
+
+    fun wake(now: TimeMark) {
+        if (!available)
+            return
+        visible = true
+        idleSince =
+            if (automatic && !busy)
+                Some(now)
+            else
+                None
+    }
+
+    fun expire(now: TimeMark) {
+        when (deadline) {
+            case Some(val end) -> if (now >= end) {
+                visible = false
+                idleSince = None
+            }
+            case None -> {}
+        }
+    }
+}

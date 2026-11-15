@@ -96,3 +96,5 @@ val geometry = theme.checkboxGeometry(bounds, options = changed)
 ## Linux GNU
 
 Linux GNU 使用同一套公共绘图实现，支持 raster 和 Skia Ganesh GLES 目标，窗口可采用 Wayland 或 X11。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.ui.style --release --sysroot ~/.scoop`。三套主题的像素、几何及 GPU／raster 对照在 `tests-cones/themes` 中验证；依赖与实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
+
+Scrollbar 的调用方可以把固定命中条带作为 geometry bounds，以 `scrollbarOptions { thickness = Some(currentWidth) }` 提供本帧绘制宽度；主题沿交叉轴居中。`ScrollbarVisual.showTrack = false` 只取消轨道绘制，opacity 作用于整条；自动隐藏、命中、重复操作和系统偏好由上层共享滚动控件负责。

@@ -16,7 +16,8 @@
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
 | S2 | 进行中 | Window 语义节点、发布／退休和 AppKit 基础投影已接入；UI scope／场景／控件、关系／内容合并、精确命中和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection 角色／命令、三种文本菜单模式、宿主与模型绑定、选区策略、键盘入口和各输入控件透传已实现；AppKit 菜单与 UI 定向测试通过，真实编辑菜单因锁屏待验；受保护用途、多击组合、系统文本服务和其他平台仍待继续 |
-| S4～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
+| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入，20 项定向测试通过，实窗验证待完成；统一 gutter／Overlay、遮挡显露和滚动语义待继续 |
+| S5～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
 
@@ -91,3 +92,14 @@
 - AppKit 原生菜单 Cone 的两项非忽略测试通过，包含真实默认模板标题、七种命令、标签覆盖、辅助点击、菜单会话和资源收尾；原生焦点测试仍按既有前台要求单独待验。UI 的两个新增定向测试通过，覆盖配置快照、菜单键、重复／合成／释放事件及额外修饰键。组件生产与全部测试源码检查通过，receiver DSL 的六项测试和 ButtonGroup 的三项测试全部通过。组合链接中的过期 UI 依赖已通过按顺序更新 Style、四套主题和 Component 开发产物闭合。
 - 既有真实编辑器用例增加二十个菜单阶段，覆盖右键与 Control+左键、选区保持／定位、菜单删除、Shift+F10、粘贴时读取新剪贴板与长度过滤、撤销、只读、关闭菜单、preventDefault、换焦点／模型、禁用和关窗后的迟到动作。源码检查与 release 可执行文件构建通过；本机仍锁屏，没有据这些构建结果声明前台文本菜单交互通过。Linux／Windows、受保护用途、多击组合、系统文本服务、语义菜单动作和触摸长按继续保留在完整计划中。
 - 已同步 Window、UI、Component spec、README 和编程材料，生成并查询三个 Cone 的 API，核对默认值、标签类型、showContextMenu 和 builder 重载及有效 import。临时 API 站点已清理，开发 Cone 和待解锁运行的测试程序保留。
+
+
+### 滚动条活动反馈与操作
+
+- ScrollArea、VirtualList、Textarea 和 MessageScroller 提供不可变 ScrollbarBehavior 与 receiver copy；InputGroup 透传多行配置。按范围判断的 Auto／Always／Hidden 与闲置隐藏分别解析，FollowSystem 消费根的有效偏好，未知值回退常显；显式 autoHide、展宽、深浅、触发条件和各过渡时长可独立覆盖。
+- 共享控制器用一份显隐动画、一个 native deadline 和一个非消费式指针观察管理两轴；原有按比例的 thumb 拖动保留。按住、hover、滚动路由／momentum、相关键盘和程序动画暂缓隐藏；LayoutCorrection 不续期。隐藏后撤下输入区域，重新出现等待 Accepted。命中条带独立于绘制宽度，主题保留主轴几何，交叉轴缩放完整绘制，消费本帧透明度和 showTrack；Material 的大内缩不会挤空细条。
+- 增加 Page／Jump 轨道行为、轨道与箭头的可关闭按住重复；按下接管与最终释放沿既有输入路由，preventDefault 的释放仍清理。主题／范围／状态替换及禁用继续使用 Accepted 几何与原取消通路。减少动画立即完成过渡；减少透明度取消半透明及淡入淡出，保留自动隐藏。
+- 主题库的语义检查、生产构建及四套主题依赖重建通过；组件生产／测试代码检查及生产构建通过。20 项定向测试全部通过：8 项新行为／时序／四主题细条绘图测试、4 项滚动布局、2 项滚动装饰和 6 项 receiver DSL。原生场景复用既有窗口，新增 17 个阶段覆盖隐藏点击穿透、静止停帧、边缘唤醒、按住翻页、被拦截的释放、跳转拖动和常显偏好热切换；源码检查与 release 可执行文件构建通过。本机仍锁屏，尚未运行这些前台交互阶段，不能据构建结果声明实窗验收通过。
+- 本批保留现有 ScrollArea／VirtualList 的 Overlay 与 Textarea 固定占位；统一布局选项、Overlay 对 caret／焦点显露的遮挡处理和经 S2 接入的滚动语义仍属于 S4 未完成部分。真实设备／平台验证按总计划进行，不以值测试或构建通过代替。
+
+已生成并查询 Style／Component API，核对 ScrollbarBehavior 的完整默认值、构造方式、Textarea／ScrollArea builder 重载、VirtualList／MessageScroller Props 和 showTrack；临时 API 站点已清理。

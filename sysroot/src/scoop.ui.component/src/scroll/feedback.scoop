@@ -1,0 +1,427 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+/** Both axes share one visibility animation, one native deadline and one passive pointer observer. */
+internal class ScrollbarFeedback(
+    private val scope: ComponentScope,
+    private val props: () -> ScrollControlProps,
+    private val parent: InputArea,
+    private val changed: () -> Unit
+): Closeable {
+    var options = resolve()
+    val opacity =
+        scope.animation(
+            if (options.autoHide)
+                0.0
+            else
+                1.0
+        )
+    private val idle = ScrollbarIdle()
+    private val timer = scope.createDeadline { tick() }
+    private val probe = scope.createArea()
+    private var state = props().state
+    private var intent: Closeable? = None
+    private var closed = false
+    private var ready = false
+    private var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+    private var horizontal: Rect? = None
+    private var vertical: Rect? = None
+    private var within = false
+    private var edge = false
+    private var horizontalHover = false
+    private var verticalHover = false
+    private var focused = false
+    private val keys = ArrayList<NamedKey>()
+    private var repeating: ScrollbarRepetition? = None
+    private var scheduled: TimeMark? = None
+
+    init {
+        probe.ignoreSelf = true
+        probe.scope.parent = Some(parent.scope)
+        observeState()
+        scope.resource { parent.scope.observePointer { event -> pointerEvent(event) } }
+        scope.resource { parent.scope.observeActivity { activityChanged() } }
+        scope.resource { parent.scope.addEventFinished { event -> finished(event) } }
+        scope.observeInteractionPreferences { _ -> update() }
+    }
+
+    private fun resolve(): ResolvedScrollbarBehavior {
+        val value = props()
+        return ResolvedScrollbarBehavior(
+            value.scrollbarBehavior,
+            scope.interactionPreferences,
+            value.theme.scrollbarMetrics(value.scrollbar).thickness,
+            value.theme.tokens.motion.preference == MotionPreference.Reduced
+        )
+    }
+    private fun observeState() {
+        intent =
+            Some(
+                state.observeIntent {
+                    event -> if (!closed && options.input.revealOnScroll) {
+                        when (event) {
+                            case User(_) -> wake()
+                            case Programmatic(_) -> wake()
+                            case LayoutCorrection(_) -> {}
+                        }
+                    }
+                }
+            )
+    }
+    fun update() {
+        options = resolve()
+        if (state !== props().state) {
+            intent?.close()
+            state = props().state
+            ready = false
+            horizontal = None
+            vertical = None
+            repeating = None
+            keys.clear()
+            observeState()
+        }
+        if (!allowed())
+            keys.clear()
+        if (!allowed() || options.input.repeatDelay == None)
+            repeating = None
+        refresh()
+        changed()
+    }
+    private fun allowed(): Boolean =
+        !closed &&
+            scope.isMounted &&
+            props().enabled &&
+            parent.scope.isInputAllowed &&
+            scope.nativeWindow.state ==
+            WindowState.Open &&
+            scope.nativeWindow.isFocused
+
+    fun hover(orientation: Orientation, value: Boolean) {
+        if (orientation == Orientation.Horizontal) {
+            if (horizontalHover == value)
+                return
+            horizontalHover = value
+        } else {
+            if (verticalHover == value)
+                return
+            verticalHover = value
+        }
+        refresh()
+    }
+
+    private fun activityChanged() {
+        if (closed)
+            return
+        val next = parent.scope.activity.hasFocus && allowed()
+        if (
+            next &&
+                !focused &&
+                parent.isFocusActive &&
+                parent.focusOrigin !=
+                FocusOrigin.Pointer &&
+                options.input.revealOnKeyboard
+        )
+            wake()
+        focused = next
+        if (!next)
+            keys.clear()
+        if (!allowed())
+            repeating = None
+        refresh()
+    }
+
+    private fun finished(event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Keyboard(val key) -> {
+                if (key.synthetic)
+                    return
+                when (key.logicalKey) {
+                    case Named(val name) -> {
+                        var index = 0L
+                        while (index < keys.size) {
+                            if (keys[index] == name)
+                                keys.removeAt(index)
+                            else
+                                index += 1L
+                        }
+                        if (
+                            key.state == ElementState.Pressed && scrollbarHeldKey(name) && allowed()
+                        )
+                            keys.add(name)
+                    }
+                    else -> {}
+                }
+                if (
+                    key.state == ElementState.Pressed && allowed() && options.input.revealOnKeyboard
+                )
+                    wake()
+                else
+                    refresh()
+            }
+            else -> {}
+        }
+    }
+
+    private fun pointerEvent(event: PointerObservation) {
+        if (closed)
+            return
+        when (event) {
+            case Pointer(PointerEvent.Left(_)) -> pointer(None)
+            case Pointer(PointerEvent.Cancelled(_, _)) -> {
+                keys.clear()
+                repeating = None
+                pointer(None)
+            }
+            case FocusLost -> {
+                keys.clear()
+                repeating = None
+                pointer(None)
+            }
+            case Closed -> {
+                ready = false
+                repeating = None
+                pointer(None)
+            }
+            case Pointer(_) -> pointer(probe.pointerPosition)
+        }
+    }
+    private fun pointer(point: Point?) {
+        val inside =
+            allowed() &&
+                ready &&
+                parent.scope.isHovered &&
+                when (point) {
+                    case Some(val value) -> bounds.contains(value)
+                    case None -> false
+                }
+        val near =
+            inside &&
+                scrollbarNearEdge(bounds, horizontal, vertical, point!!, options.edgeThickness)
+        val reveal =
+            (inside && !within && options.input.revealOnViewportHover) ||
+                (near && !edge && options.input.revealOnEdgeHover)
+        within = inside
+        edge = near
+        if (reveal)
+            wake()
+        else
+            refresh()
+    }
+    private fun busy(): Boolean {
+        if (!allowed())
+            return false
+        val activity = parent.scope.activity
+        return horizontalHover ||
+            verticalHover ||
+            activity.hasPress ||
+            activity.hasScrollRoute ||
+            state.isAnimating ||
+            keys.size >
+            0L ||
+            (within && options.input.revealOnViewportHover) ||
+            (edge && options.input.revealOnEdgeHover)
+    }
+    fun wake() {
+        if (closed || !allowed())
+            return
+        configure()
+        idle.wake(MonotonicTimeSource.markNow())
+        refresh()
+    }
+    private fun configure() {
+        idle.configure(
+            ready && (horizontal != None || vertical != None),
+            options.autoHide,
+            options.input.idleDelay,
+            busy(),
+            MonotonicTimeSource.markNow()
+        )
+    }
+    private fun refresh() {
+        if (closed || !scope.isMounted)
+            return
+        configure()
+        idle.expire(MonotonicTimeSource.markNow())
+        val target =
+            if (idle.visible)
+                1.0
+            else
+                0.0
+        val before = opacity.target
+        changeProgress(
+            opacity,
+            target,
+            if (ready)
+                options.transition(
+                    if (idle.visible)
+                        options.input.fadeIn
+                    else
+                        options.input.fadeOut,
+                    true
+                )
+            else
+                None
+        )
+        schedule()
+        if (before != target)
+            changed()
+    }
+    fun repeat(orientation: Orientation, resume: Boolean, step: () -> Boolean) {
+        if (!allowed() || options.input.repeatDelay == None || panelPresent(repeating))
+            return
+        repeating =
+            Some(
+                ScrollbarRepetition(
+                    orientation,
+                    MonotonicTimeSource.markNow() +
+                        if (resume)
+                            options.input.repeatInterval
+                        else
+                            options.input.repeatDelay!!,
+                    step
+                )
+            )
+        schedule()
+    }
+    fun stopRepeat(orientation: Orientation) {
+        if (repeating?.orientation == Some(orientation)) {
+            repeating = None
+            schedule()
+        }
+    }
+    private fun schedule() {
+        var next = idle.deadline
+        when (repeating) {
+            case Some(val value) -> if (next == None || value.next < next!!)
+                next = Some(value.next)
+            case None -> {}
+        }
+        if (next == scheduled)
+            return
+        scheduled = next
+        when (next) {
+            case Some(val time) -> timer.schedule(time)
+            case None -> timer.cancel()
+        }
+    }
+    private fun tick() {
+        scheduled = None
+        val now = MonotonicTimeSource.markNow()
+        val repeat = repeating
+        when (repeat) {
+            case Some(val value) -> if (value.next <= now) {
+                value.next = now + options.input.repeatInterval
+                if (!allowed() || !value.step()) {
+                    if (panelPresent(repeating) && repeating!! === value)
+                        repeating = None
+                }
+            }
+            case None -> {}
+        }
+        refresh()
+    }
+    fun scene(context: SceneContext, bounds: Rect, horizontal: Rect?, vertical: Rect?) {
+        if (horizontal != None || vertical != None)
+            context.place(probe, bounds)
+        val owner = state
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission == FrameSubmission.Accepted && !closed && state === owner
+            ) {
+                this.bounds = bounds
+                this.horizontal = horizontal
+                this.vertical = vertical
+                ready = probe.visibleBounds != None
+                if (horizontal == None && vertical == None)
+                    repeating = None
+                pointer(probe.pointerPosition)
+            }
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        try {
+            intent?.close()
+        } finally {
+            intent = None
+            repeating = None
+            timer.close()
+        }
+    }
+}
+
+private class ScrollbarRepetition(
+    val orientation: Orientation,
+    var next: TimeMark,
+    val step: () -> Boolean
+)
+
+private fun scrollbarHeldKey(key: NamedKey): Boolean =
+    key ==
+        NamedKey.ArrowUp ||
+        key ==
+        NamedKey.ArrowDown ||
+        key ==
+        NamedKey.ArrowLeft ||
+        key ==
+        NamedKey.ArrowRight ||
+        key ==
+        NamedKey.PageUp ||
+        key ==
+        NamedKey.PageDown ||
+        key ==
+        NamedKey.Home ||
+        key ==
+        NamedKey.End ||
+        key ==
+        NamedKey.Space
+
+internal fun scrollbarNearEdge(
+    bounds: Rect,
+    horizontal: Rect?,
+    vertical: Rect?,
+    point: Point,
+    thickness: Double
+): Boolean {
+    if (thickness <= 0.0 || !bounds.contains(point))
+        return false
+    when (horizontal) {
+        case Some(val rect) -> if (
+            point.x >=
+                rect.x &&
+                point.x <
+                rect.x +
+                rect.width &&
+                point.y >=
+                rect.y +
+                rect.height -
+                thickness
+        )
+            return true
+        case None -> {}
+    }
+    when (vertical) {
+        case Some(val rect) -> {
+            val inside =
+                if (rect.x + rect.width / 2.0 < bounds.x + bounds.width / 2.0)
+                    point.x < rect.x + thickness
+                else
+                    point.x >= rect.x + rect.width - thickness
+            if (inside && point.y >= rect.y && point.y < rect.y + rect.height)
+                return true
+        }
+        case None -> {}
+    }
+    return false
+}

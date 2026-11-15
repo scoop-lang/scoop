@@ -34,7 +34,7 @@ private fun appearanceFocus(probe: AreaProbe, active: ActiveApplication) {
             assertEquals(Point(0.0, 0.0), probe.outer.offset)
             assertEquals(16777215L, probe.cornerPixel)
             assertEquals(16777215L, probe.ringPixel)
-            assertEquals(0.0, probe.bar().track.bounds.x)
+            assertEquals(0.0, probe.bar().bounds.x)
             probe.input(active) { probe.click(25.0, 120.0) }
         }
         case 26 -> {

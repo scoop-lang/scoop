@@ -1,0 +1,160 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+/** Continues the existing native scenario on its original mounted viewport. */
+internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplication): Boolean {
+    when (probe.behaviorPhase) {
+        case 0 -> {
+            probe.styled.value = false
+            probe.theme.current.value = shadcnTheme()
+            probe.ui!!.preferences =
+                probe.ui!!.preferences.copy {
+                    autoHideScrollbars = Some(true)
+                    reduceMotion = Some(true)
+                    reduceTransparency = Some(false)
+                }
+            probe.behavior.value = testedScrollbarBehavior()
+            probe.outer.scrollTo(Point(0.0, 60.0))
+            assertTrue(moveSurfacePointer(probe.window!!, 250.0, 150.0))
+            probe.barWait(140L)
+        }
+        case 1 -> probe.barInput(active) { probe.click(215.0, 90.0) }
+        case 2 -> {
+            assertEquals(Point(0.0, 60.0), probe.outer.offset)
+            probe.idleFrames = probe.passes
+            probe.barWait(100L)
+        }
+        case 3 -> {
+            assertEquals(probe.idleFrames, probe.passes)
+            probe.behavior.value = probe.behavior.value.copy { revealOnEdgeHover = true }
+            probe.barInput(active) {
+                assertTrue(moveSurfacePointer(probe.window!!, 250.0, 150.0))
+                assertTrue(moveSurfacePointer(probe.window!!, 215.0, 90.0))
+            }
+        }
+        case 4 -> probe.barInput(active) { probe.click(215.0, 90.0) }
+        case 5 -> {
+            assertTrue(probe.outer.offset.y > 60.0)
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            probe.behavior.value =
+                testedScrollbarBehavior().copy {
+                    preset = ScrollbarPreset.Static
+                    autoHide = Some(false)
+                    widenOnHover = Some(true)
+                    repeatDelay = Some(Duration.milliseconds(20L))
+                    repeatInterval = Duration.milliseconds(20L)
+                }
+            probe.behaviorPhase += 1
+        }
+        case 6 -> probe.barInput(active) {
+            assertTrue(moveSurfacePointer(probe.window!!, 215.0, 100.0))
+            assertTrue(probe.view!!.button(215.0, 100.0, true))
+        }
+        case 7 -> probe.barWait(160L)
+        case 8 -> {
+            assertTrue(probe.outer.offset.y > probe.outer.viewport.height)
+            assertTrue(probe.outer.offset.y <= probe.outer.maximum.y)
+            probe.preventRelease = true
+            probe.barInput(active) { assertTrue(probe.view!!.button(215.0, 100.0, false)) }
+        }
+        case 9 -> {
+            probe.preventRelease = false
+            probe.previousOffset = probe.outer.offset
+            probe.barWait(100L)
+        }
+        case 10 -> {
+            assertEquals(probe.previousOffset, probe.outer.offset)
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            probe.behavior.value =
+                probe.behavior.value.copy { trackPress = ScrollbarTrackPress.Jump }
+            probe.behaviorPhase += 1
+        }
+        case 11 -> {
+            val shape = probe.bar()
+            probe.expectedJump =
+                (50.0 - shape.travelStart.y - shape.thumbLength / 2.0) /
+                    shape.travel *
+                    probe.outer.maximum.y
+            probe.barInput(active) {
+                assertTrue(moveSurfacePointer(probe.window!!, 215.0, 70.0))
+                assertTrue(probe.view!!.button(215.0, 70.0, true))
+            }
+        }
+        case 12 -> {
+            assertTrue(
+                probe.outer.offset.y >
+                    probe.expectedJump -
+                    0.001 &&
+                    probe.outer.offset.y <
+                    probe.expectedJump +
+                    0.001
+            )
+            probe.barInput(active) {
+                assertTrue(moveSurfacePointer(probe.window!!, 215.0, 90.0))
+                assertTrue(probe.view!!.button(215.0, 90.0, false))
+            }
+        }
+        case 13 -> {
+            assertTrue(probe.outer.offset.y > probe.expectedJump)
+            assertTrue(probe.outerFocus.hasFocus)
+            probe.behavior.value = testedScrollbarBehavior()
+            assertTrue(moveSurfacePointer(probe.window!!, 250.0, 150.0))
+            probe.barWait(140L)
+        }
+        case 14 -> {
+            probe.ui!!.preferences =
+                probe.ui!!.preferences.copy { autoHideScrollbars = Some(false) }
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            probe.behaviorPhase += 1
+        }
+        case 15 -> probe.barInput(active) { probe.click(215.0, 90.0) }
+        case 16 -> {
+            assertTrue(probe.outer.offset.y > 0.0)
+            probe.behavior.value = scrollbarBehavior { preset = ScrollbarPreset.Static }
+            probe.behaviorPhase += 1
+            return true
+        }
+        else -> fail(Some("unexpected scrollbar behavior phase"))
+    }
+    return false
+}
+
+private fun testedScrollbarBehavior(): ScrollbarBehavior =
+    scrollbarBehavior {
+        idleDelay = Duration.milliseconds(40L)
+        fadeIn = Duration.ZERO
+        fadeOut = Duration.ZERO
+        revealOnEdgeHover = false
+        revealOnKeyboard = false
+        idleWidth = Some(8.0)
+        hoverWidth = Some(14.0)
+        dragWidth = Some(16.0)
+        minimumHitThickness = Some(24.0)
+        repeatDelay = None
+    }
+
+internal fun AreaProbe.barInput(active: ActiveApplication, action: () -> Unit) {
+    waiting = true
+    action()
+    assertTrue(
+        active.proxy().post {
+            _ ->
+            behaviorPhase += 1
+            waiting = false
+        }
+    )
+}
+
+internal fun AreaProbe.barWait(milliseconds: Long) {
+    waiting = true
+    behaviorWaiter!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+}

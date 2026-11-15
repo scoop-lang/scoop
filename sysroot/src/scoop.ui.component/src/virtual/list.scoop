@@ -23,7 +23,8 @@ public class VirtualListProps public constructor(
     public val retention: ItemRetention = ItemRetention.Dispose,
     public val navigation: ItemNavigation = ItemNavigation.None,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    public val endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0)
+    public val endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0),
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
 )
 
 /** Creates item subtrees only for the viewport, overscan and existing input sessions. */
@@ -58,7 +59,8 @@ public class VirtualList public constructor(
                     input.focus.order
                 ),
                 input.paintCache,
-                themes.read(input.theme)
+                themes.read(input.theme),
+                scrollbarBehavior = input.scrollbarBehavior
             )
         return lazyElement(
             input.source,

@@ -83,7 +83,7 @@ internal fun measureTextField(
     val bars = input.options.multiline && input.scrollbars != ScrollbarVisibility.Hidden
     val thickness =
         if (bars)
-            value.theme.scrollbarMetrics(input.style.scrollbar).thickness
+            ink.scrollbarFeedback.options.thickness
         else
             0.0
     val horizontal = bars && !input.options.wrap

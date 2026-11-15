@@ -125,11 +125,12 @@ internal class ShapeThemePainter(
                         disabledOpacity
             if (opacity < 1.0)
                 local.saveLayer(opacity)
-            drawRound(
-                local,
-                geometry.track,
-                scrollbar.track.resolve(scrollbarVisual(visual, ScrollbarRegion.Track))
-            )
+            if (visual.showTrack)
+                drawRound(
+                    local,
+                    geometry.track,
+                    scrollbar.track.resolve(scrollbarVisual(visual, ScrollbarRegion.Track))
+                )
             drawRound(
                 local,
                 geometry.thumb,

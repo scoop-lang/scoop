@@ -82,6 +82,8 @@ private class ComponentReceiverDslTests {
         textarea(model) {
             captured.add(this)
             rows = 6L
+            scrollbarBehavior { autoHide = Some(false) }
+            scrollbarBehavior { minimumHitThickness = Some(24.0) }
             wrap = false
             readOnly = true
             description = "details"
@@ -100,6 +102,9 @@ private class ComponentReceiverDslTests {
         captured[0L].rows = 2L
         assertSame(model, props.state)
         assertEquals(6L, props.rows)
+        captured[0L].scrollbarBehavior { autoHide = Some(true) }
+        assertEquals(Some(false), props.scrollbarBehavior.autoHide)
+        assertEquals(Some(24.0), props.scrollbarBehavior.minimumHitThickness)
         assertFalse(props.wrap)
         assertTrue(props.readOnly)
         assertEquals("details", props.description)

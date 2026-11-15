@@ -21,7 +21,8 @@ internal class TextFieldInput(
     val onSubmit: (TextEditorState) -> Unit,
     val labelTarget: FieldTarget?,
     val group: GroupPosition?,
-    val chrome: TextFieldChrome
+    val chrome: TextFieldChrome,
+    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
 )
 
 /** Shares composition while keeping the two public component identities distinct. */

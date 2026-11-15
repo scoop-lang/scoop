@@ -19,7 +19,8 @@ internal class ScrollControlProps(
     val paintCache: PaintCachePolicy,
     val theme: Theme,
     val style: StyleOverride = styleOverride(),
-    val focusOutline: OutlineStyle? = None
+    val focusOutline: OutlineStyle? = None,
+    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
 )
 
 /** Shared input, range publication and themed bars for eager and lazy viewports. */
@@ -33,13 +34,21 @@ internal class ScrollControl(
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }
     private val focus = scope.focusTarget(area, props().focus)
-    private val horizontal = ScrollBarControl(scope, props, area, Orientation.Horizontal)
-    private val vertical = ScrollBarControl(scope, props, area, Orientation.Vertical)
+    private val feedback =
+        scope.resource { ScrollbarFeedback(scope, props, area) { feedbackChanged() } }
+    private val horizontal = ScrollBarControl(scope, props, area, Orientation.Horizontal, feedback)
+    private val vertical = ScrollBarControl(scope, props, area, Orientation.Vertical, feedback)
     private var direction = scope.layoutDirection
 
     init {
         area.scope.defaultAction = { context, event -> handle(context, event) }
         scope.routeChildren(area)
+    }
+    private fun feedbackChanged() {
+        horizontal.feedbackChanged()
+        vertical.feedbackChanged()
+        if (scope.isMounted)
+            scope.requestFrame()
     }
     fun update() {
         val value = props()
@@ -51,6 +60,7 @@ internal class ScrollControl(
         viewport.paintCache = value.paintCache
         focus.options = value.focus
         area.scope.enabled = value.enabled
+        feedback.update()
         horizontal.update()
         vertical.update()
         painters.get(value.theme)
@@ -93,7 +103,7 @@ internal class ScrollControl(
                 snapshot,
                 value.axes,
                 value.scrollbars,
-                value.theme.scrollbarMetrics(value.scrollbar).thickness,
+                feedback.options.thickness,
                 presentedDirection
             )
         context.draw {
@@ -103,6 +113,7 @@ internal class ScrollControl(
             local ->
             local.place(area, bounds)
             viewport.present(local, layout, Some { content -> content.children() }, contentOrigin)
+            feedback.scene(local, bounds, bars.horizontal, bars.vertical)
             horizontal.scene(local, snapshot, bars.horizontal, painter)
             vertical.scene(local, snapshot, bars.vertical, painter)
         }

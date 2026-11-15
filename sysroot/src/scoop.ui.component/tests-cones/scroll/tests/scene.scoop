@@ -42,6 +42,7 @@ internal class AreaScene(private val probe: AreaProbe, scope: ComponentScope): C
                                     visibility = this @AreaScene.probe.visibility.value
                                 )
                             this.theme = Some(this @AreaScene.probe.theme)
+                            this.scrollbarBehavior = this @AreaScene.probe.behavior.value
                         }
                     else
                         empty()
@@ -144,6 +145,7 @@ private class AreaContent(
                         else
                             ScrollChain.Chain
                     this.theme = Some(this @AreaContent.probe.theme)
+                    this.scrollbarBehavior { preset = ScrollbarPreset.Static }
                 },
                 element({ mount -> ContentInput(probe, false, scope = mount) })
             ]

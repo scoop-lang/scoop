@@ -173,6 +173,8 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             }
         }
         case 48 -> {
+            if (!advanceScrollbarBehavior(probe, active))
+                return
             probe.outer.animateTo(Point(200.0, 480.0), AnimationSpec.Tween(Duration.seconds(3L)))
             probe.generation.value = 3
             probe.phase += 1

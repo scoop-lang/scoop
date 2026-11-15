@@ -105,6 +105,25 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 `scrollArea(content) { state = Some(scroll); height = Some(240.0) }` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。offset 只发布最近 Accepted 的画面位置，wheel、拖动及翻页通过 `scroll.observeIntent` 交付 User 来源；整个内容树保持挂载，滚动不重建其描述。
 
+`ScrollArea`、`VirtualList`、`Textarea` 和 `MessageScroller` 共用 `scrollbarBehavior { ... }`。默认 FollowSystem 跟随根的自动隐藏偏好，未知时保持常显；Static 使用固定反馈，Custom 提供自动隐藏预设。`scrollbars = ScrollbarVisibility.Auto` 仍只判断是否存在滚动范围。比如：
+
+```scoop
+scrollArea(content) {
+    height = Some(240.0)
+    scrollbarBehavior {
+        preset = ScrollbarPreset.Custom
+        idleDelay = Duration.milliseconds(800L)
+        idleWidth = Some(6.0)
+        hoverWidth = Some(12.0)
+        dragWidth = Some(14.0)
+        minimumHitThickness = Some(18.0)
+        trackPress = ScrollbarTrackPress.Jump
+    }
+}
+```
+
+类型位于 `scoop.ui.component`，Duration 位于 `scoop.time`。`autoHide = Some(false)`、`widenOnHover = Some(false)`、`shadeOnHover = Some(false)` 分别关闭隐藏、展宽或深浅变化；时长零表示立即切换。`revealOnScroll`、`revealOnViewportHover`、`revealOnEdgeHover`、`revealOnKeyboard` 控制唤醒，默认除整个视口 hover 外均开启；`repeatDelay = None` 禁用轨道／箭头按住重复。`showTrack = Some(false)` 只取消轨道绘制。重复 receiver 调用保留先前覆盖，`copy` 不修改旧值。隐藏不截获正文点击；减少动画保留隐藏但立即切换，减少透明度使用不透明反馈。Textarea 在 idle／hover／hidden 间保留固定最大占位宽度。
+
 滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。竖条随 LayoutDirection 位于逻辑 End，双轴条在同一角落让位；方向热切换保留内容、焦点与物理 offset，并取消旧位置的拖条。ScrollArea 的 `style { corners(Corners.all(8.0)); border(Some(Border.all(1.0, color))) }` 可配置视口装饰和圆角裁剪，不改变内容尺寸；`focusOutline` 可覆盖主题焦点环，焦点指示遵守 FocusVisibility。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
 
 ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(tileSize = 256, overscan = 1)`，默认 None。策略只缓存 UI drawLayer 声明的有限内容，公共 ParagraphHost 正文自动使用该入口；普通 draw 保持直接执行。绘制缓存与 retention 独立，切换不会替换 ScrollState 或子项实例。含滤镜的记录按 Graphics 的独立裁剪能力正常重放，滤镜也可放在完整内容合成阶段。`tests-cones/paint-cache` 验证四种缓存组合、真实输入、文字更新和停帧。

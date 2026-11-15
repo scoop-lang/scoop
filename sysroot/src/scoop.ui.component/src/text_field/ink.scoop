@@ -27,10 +27,26 @@ internal class TextFieldInk(
     internal val lineHeight = TextFieldLineHeight()
     private val padding = scope.createArea()
     private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
+    internal val scrollbarFeedback =
+        scope.resource {
+            ScrollbarFeedback(scope, { scrollbarProps() }, host.area) { feedbackChanged() }
+        }
     private val horizontal =
-        ScrollBarControl(scope, { scrollbarProps() }, host.area, Orientation.Horizontal)
+        ScrollBarControl(
+            scope,
+            { scrollbarProps() },
+            host.area,
+            Orientation.Horizontal,
+            scrollbarFeedback
+        )
     private val vertical =
-        ScrollBarControl(scope, { scrollbarProps() }, host.area, Orientation.Vertical)
+        ScrollBarControl(
+            scope,
+            { scrollbarProps() },
+            host.area,
+            Orientation.Vertical,
+            scrollbarFeedback
+        )
     private val painters = scope.resource { ThemePainterCache() }
     private val content = scope.resource { StylePainter() }
 
@@ -51,6 +67,12 @@ internal class TextFieldInk(
                 }
             }
     }
+    private fun feedbackChanged() {
+        horizontal.feedbackChanged()
+        vertical.feedbackChanged()
+        if (scope.isMounted)
+            scope.requestFrame()
+    }
     private fun appearance(): TextEditAppearance {
         val value = props.value
         return textFieldAppearance(value.input, value.theme, value.text, value.placeholder, fonts)
@@ -70,7 +92,8 @@ internal class TextFieldInk(
             value.input.options.enabled,
             value.input.focus,
             value.input.options.paintCache,
-            value.theme
+            value.theme,
+            scrollbarBehavior = value.input.scrollbarBehavior
         )
     }
     public override fun update(): UiInvalidation {
@@ -87,6 +110,7 @@ internal class TextFieldInk(
         )
         field.update(input.labelTarget, input.options.enabled)
         padding.scope.enabled = input.options.enabled
+        scrollbarFeedback.update()
         horizontal.update()
         vertical.update()
         painters.get(value.theme)
@@ -115,6 +139,12 @@ internal class TextFieldInk(
             local ->
             local.translate(geometry.content.x, geometry.content.y)
             host.scene(local, current.editor)
+            scrollbarFeedback.scene(
+                local,
+                Rect(0.0, 0.0, geometry.content.width, geometry.content.height),
+                current.horizontal,
+                current.vertical
+            )
             horizontal.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
             vertical.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
         }

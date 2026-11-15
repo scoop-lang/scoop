@@ -1,0 +1,72 @@
+package scoop.ui.component
+
+import scoop.time.Duration
+
+/** Repeated receiver calls preserve every earlier override. */
+public class ScrollbarBehaviorBuilder internal constructor(initial: ScrollbarBehavior) {
+    public var preset: ScrollbarPreset = initial.preset
+    public var autoHide: Boolean? = initial.autoHide
+    public var idleDelay: Duration = initial.idleDelay
+    public var fadeIn: Duration = initial.fadeIn
+    public var fadeOut: Duration = initial.fadeOut
+    public var revealOnScroll: Boolean = initial.revealOnScroll
+    public var revealOnViewportHover: Boolean = initial.revealOnViewportHover
+    public var revealOnEdgeHover: Boolean = initial.revealOnEdgeHover
+    public var revealOnKeyboard: Boolean = initial.revealOnKeyboard
+    public var widenOnHover: Boolean? = initial.widenOnHover
+    public var shadeOnHover: Boolean? = initial.shadeOnHover
+    public var idleWidth: Double? = initial.idleWidth
+    public var hoverWidth: Double? = initial.hoverWidth
+    public var dragWidth: Double? = initial.dragWidth
+    public var expandDuration: Duration = initial.expandDuration
+    public var contractDuration: Duration = initial.contractDuration
+    public var idleOpacity: Double? = initial.idleOpacity
+    public var hoverOpacity: Double? = initial.hoverOpacity
+    public var dragOpacity: Double? = initial.dragOpacity
+    public var shadeDuration: Duration = initial.shadeDuration
+    public var minimumHitThickness: Double? = initial.minimumHitThickness
+    public var edgeThickness: Double? = initial.edgeThickness
+    public var showTrack: Boolean? = initial.showTrack
+    public var trackPress: ScrollbarTrackPress = initial.trackPress
+    public var repeatDelay: Duration? = initial.repeatDelay
+    public var repeatInterval: Duration = initial.repeatInterval
+
+    internal fun snapshot(): ScrollbarBehavior =
+        ScrollbarBehavior(
+            preset = preset,
+            autoHide = autoHide,
+            idleDelay = idleDelay,
+            fadeIn = fadeIn,
+            fadeOut = fadeOut,
+            revealOnScroll = revealOnScroll,
+            revealOnViewportHover = revealOnViewportHover,
+            revealOnEdgeHover = revealOnEdgeHover,
+            revealOnKeyboard = revealOnKeyboard,
+            widenOnHover = widenOnHover,
+            shadeOnHover = shadeOnHover,
+            idleWidth = idleWidth,
+            hoverWidth = hoverWidth,
+            dragWidth = dragWidth,
+            expandDuration = expandDuration,
+            contractDuration = contractDuration,
+            idleOpacity = idleOpacity,
+            hoverOpacity = hoverOpacity,
+            dragOpacity = dragOpacity,
+            shadeDuration = shadeDuration,
+            minimumHitThickness = minimumHitThickness,
+            edgeThickness = edgeThickness,
+            showTrack = showTrack,
+            trackPress = trackPress,
+            repeatDelay = repeatDelay,
+            repeatInterval = repeatInterval
+        )
+}
+
+internal fun configureScrollbarBehavior(
+    initial: ScrollbarBehavior,
+    configure: ScrollbarBehaviorBuilder.() -> Unit
+): ScrollbarBehavior {
+    val builder = ScrollbarBehaviorBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}

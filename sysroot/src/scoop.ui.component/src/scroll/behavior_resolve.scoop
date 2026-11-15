@@ -1,0 +1,83 @@
+package scoop.ui.component
+
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.window.InteractionPreferences
+
+/** Resolves system facts once per update, without selecting a theme by platform name. */
+internal class ResolvedScrollbarBehavior(
+    val input: ScrollbarBehavior,
+    preferences: InteractionPreferences,
+    val baseThickness: Double,
+    themeReduced: Boolean = false
+) {
+    private val automatic =
+        when (input.preset) {
+            case FollowSystem -> preferences.autoHideScrollbars ?: false
+            case Static -> false
+            case Custom -> true
+        }
+    val autoHide = input.autoHide ?: automatic
+    val widen = input.widenOnHover ?: automatic
+    val shade = input.shadeOnHover ?: automatic
+    val reduceMotion = (preferences.reduceMotion ?: false) || themeReduced
+    val opaque = preferences.reduceTransparency ?: false
+    val idleWidth =
+        input.idleWidth ?:
+            if (automatic)
+                baseThickness / 2.0
+            else
+                baseThickness
+    val hoverWidth =
+        if (widen)
+            input.hoverWidth ?: baseThickness
+        else
+            idleWidth
+    val dragWidth =
+        if (widen)
+            input.dragWidth ?: baseThickness
+        else
+            idleWidth
+    val idleOpacity =
+        if (opaque)
+            1.0
+        else
+            input.idleOpacity ?:
+                if (automatic)
+                    0.55
+                else
+                    1.0
+    val hoverOpacity =
+        if (opaque)
+            1.0
+        else
+            if (shade)
+                input.hoverOpacity ?:
+                    if (automatic)
+                        0.85
+                    else
+                        1.0
+            else
+                idleOpacity
+    val dragOpacity =
+        if (opaque)
+            1.0
+        else
+            if (shade)
+                input.dragOpacity ?: 1.0
+            else
+                idleOpacity
+    val thickness =
+        lowerBound(
+            lowerBound(idleWidth, lowerBound(hoverWidth, dragWidth)),
+            input.minimumHitThickness ?: lowerBound(baseThickness, 12.0)
+        )
+    val edgeThickness = input.edgeThickness ?: this.thickness
+    val showTrack = input.showTrack ?: !automatic
+
+    fun transition(duration: Duration, transparency: Boolean = false): AnimationSpec? =
+        if (reduceMotion || (transparency && opaque) || duration == Duration.ZERO)
+            None
+        else
+            Some(AnimationSpec.Tween(duration))
+}

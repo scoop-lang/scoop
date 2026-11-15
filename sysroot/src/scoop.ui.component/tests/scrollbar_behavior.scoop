@@ -1,0 +1,300 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.window.InteractionPreferences
+
+@Test
+private class ScrollbarBehaviorTest {
+    @Test
+    fun `system facts and explicit feedback switches resolve independently`() {
+        val input = scrollbarBehavior()
+        val unknown = ResolvedScrollbarBehavior(input, InteractionPreferences(), 10.0)
+        assertFalse(unknown.autoHide)
+        assertEquals(10.0, unknown.idleWidth)
+        assertEquals(1.0, unknown.idleOpacity)
+        assertTrue(unknown.showTrack)
+        val automatic =
+            ResolvedScrollbarBehavior(
+                input,
+                InteractionPreferences(autoHideScrollbars = Some(true)),
+                10.0
+            )
+        assertTrue(automatic.autoHide)
+        assertEquals(5.0, automatic.idleWidth)
+        assertEquals(10.0, automatic.hoverWidth)
+        assertEquals(12.0, automatic.thickness)
+        assertFalse(automatic.showTrack)
+        val overridden =
+            input.copy {
+                autoHide = Some(false)
+                widenOnHover = Some(false)
+                shadeOnHover = Some(true)
+                idleWidth = Some(7.0)
+                hoverWidth = Some(20.0)
+                hoverOpacity = Some(0.9)
+            }
+        val custom =
+            ResolvedScrollbarBehavior(
+                overridden,
+                InteractionPreferences(autoHideScrollbars = Some(true)),
+                10.0
+            )
+        assertFalse(custom.autoHide)
+        assertEquals(7.0, custom.hoverWidth)
+        assertEquals(0.9, custom.hoverOpacity)
+        assertEquals(None, input.autoHide)
+        assertEquals(None, input.idleWidth)
+        val reduced =
+            ResolvedScrollbarBehavior(
+                input.copy { autoHide = Some(true) },
+                InteractionPreferences(reduceMotion = Some(true), reduceTransparency = Some(true)),
+                10.0
+            )
+        assertTrue(reduced.autoHide)
+        assertEquals(1.0, reduced.idleOpacity)
+        assertEquals(1.0, reduced.hoverOpacity)
+        assertEquals(1.0, reduced.dragOpacity)
+        when (reduced.transition(Duration.seconds(1L))) {
+            case None -> {}
+            case Some(_) -> fail(Some("reduced motion must switch immediately"))
+        }
+        val localReduced = ResolvedScrollbarBehavior(input, InteractionPreferences(), 10.0, true)
+        when (localReduced.transition(Duration.seconds(1L))) {
+            case None -> {}
+            case Some(_) -> fail(Some("local reduced motion must switch immediately"))
+        }
+        val fixed =
+            ResolvedScrollbarBehavior(
+                input.copy { preset = ScrollbarPreset.Static },
+                InteractionPreferences(autoHideScrollbars = Some(true)),
+                8.0
+            )
+        assertFalse(fixed.autoHide)
+        val explicit =
+            ResolvedScrollbarBehavior(
+                input.copy { preset = ScrollbarPreset.Custom },
+                InteractionPreferences(autoHideScrollbars = Some(false)),
+                8.0
+            )
+        assertTrue(explicit.autoHide)
+    }
+
+    @Test
+    fun `idle hiding pauses during interaction and becomes quiescent after expiry`() {
+        val start = ScrollbarTestTime().markNow()
+        val clock = ScrollbarIdle()
+        val delay = Duration.seconds(1L)
+        clock.configure(true, true, delay, false, start)
+        assertFalse(clock.visible)
+        assertEquals(None, clock.deadline)
+        clock.wake(start)
+        clock.wake(start + Duration.milliseconds(500L))
+        clock.expire(start + delay)
+        assertTrue(clock.visible)
+        assertEquals(Some(start + Duration.milliseconds(1500L)), clock.deadline)
+        clock.configure(true, true, delay, true, start + delay)
+        clock.expire(start + Duration.seconds(20L))
+        assertTrue(clock.visible)
+        assertEquals(None, clock.deadline)
+        clock.configure(true, true, delay, false, start + Duration.seconds(20L))
+        assertEquals(Some(start + Duration.seconds(21L)), clock.deadline)
+        clock.expire(start + Duration.seconds(21L))
+        assertFalse(clock.visible)
+        assertEquals(None, clock.deadline)
+        clock.configure(true, true, delay, false, start + Duration.seconds(99L))
+        assertFalse(clock.visible)
+        assertEquals(None, clock.deadline)
+    }
+
+    @Test
+    fun `preference and availability changes do not leave an old hide deadline`() {
+        val start = ScrollbarTestTime().markNow()
+        val clock = ScrollbarIdle()
+        clock.configure(true, false, Duration.seconds(2L), false, start)
+        assertTrue(clock.visible)
+        assertEquals(None, clock.deadline)
+        clock.configure(true, true, Duration.seconds(2L), false, start)
+        clock.configure(true, true, Duration.seconds(2L), false, start + Duration.seconds(1L))
+        assertEquals(Some(start + Duration.seconds(2L)), clock.deadline)
+        clock.configure(true, false, Duration.ZERO, false, start)
+        clock.expire(start + Duration.seconds(3L))
+        assertTrue(clock.visible)
+        clock.configure(false, false, Duration.ZERO, false, start)
+        assertFalse(clock.visible)
+        clock.wake(start)
+        assertFalse(clock.visible)
+        assertEquals(None, clock.deadline)
+        clock.configure(true, true, Duration.ZERO, false, start)
+        clock.wake(start)
+        clock.expire(start)
+        assertFalse(clock.visible)
+        assertEquals(None, clock.deadline)
+    }
+
+    @Test
+    fun `wide hit bands keep thin thumbs and buttons usable in both orientations`() {
+        val theme = shadcnTheme()
+        for (orientation in [Orientation.Vertical, Orientation.Horizontal]) {
+            val bounds =
+                if (orientation == Orientation.Vertical)
+                    Rect(4.0, 6.0, 20.0, 160.0)
+                else
+                    Rect(4.0, 6.0, 160.0, 20.0)
+            val shape =
+                theme.scrollbarGeometry(
+                    bounds,
+                    ScrollbarVisual(orientation, 0.4, 0.25),
+                    scrollbarOptions {
+                        thickness = Some(4.0);
+                        buttonLength(Some(12.0))
+                    }
+                )
+            val thumb = shape.thumb.bounds
+            val point =
+                if (orientation == Orientation.Vertical)
+                    Point(bounds.x + 0.5, thumb.y + thumb.height / 2.0)
+                else
+                    Point(thumb.x + thumb.width / 2.0, bounds.y + 0.5)
+            assertFalse(thumb.contains(point))
+            assertEquals(Some(ScrollbarRegion.Thumb), scrollbarPart(shape, point))
+            val offset = scrollbarThumbOffset(shape, point, 0.5, 1000.0)
+            assertTrue(offset > 399.9999 && offset < 400.0001)
+            val arrow = shape.decrement!!.outline.bounds
+            val at =
+                if (orientation == Orientation.Vertical)
+                    Point(bounds.x + 0.5, arrow.y + arrow.height / 2.0)
+                else
+                    Point(arrow.x + arrow.width / 2.0, bounds.y + 0.5)
+            assertEquals(Some(ScrollbarRegion.Decrement), scrollbarPart(shape, at))
+            assertEquals(None, scrollbarPart(shape, Point(bounds.x - 1.0, bounds.y - 1.0)))
+        }
+    }
+
+    @Test
+    fun `edge wake respects direction shared corners and the configured strip`() {
+        val bounds = Rect(0.0, 0.0, 200.0, 100.0)
+        val right = Some(Rect(188.0, 0.0, 12.0, 88.0))
+        val bottom = Some(Rect(0.0, 88.0, 188.0, 12.0))
+        assertTrue(scrollbarNearEdge(bounds, bottom, right, Point(191.0, 40.0), 10.0))
+        assertFalse(scrollbarNearEdge(bounds, bottom, right, Point(180.0, 40.0), 10.0))
+        assertFalse(scrollbarNearEdge(bounds, bottom, right, Point(199.0, 99.0), 10.0))
+        assertFalse(scrollbarNearEdge(bounds, bottom, right, Point(191.0, 40.0), 0.0))
+        assertFalse(scrollbarNearEdge(bounds, bottom, right, Point(201.0, 40.0), 100.0))
+        val left = Some(Rect(0.0, 0.0, 12.0, 88.0))
+        assertTrue(scrollbarNearEdge(bounds, None, left, Point(2.0, 30.0), 5.0))
+        assertFalse(scrollbarNearEdge(bounds, None, left, Point(8.0, 30.0), 5.0))
+    }
+
+    @Test
+    fun `track visibility and whole bar opacity leave thumb painting independent`() {
+        val theme =
+            shadcnTheme().copy {
+                scrollbar {
+                    track = StateColors.solid(Color.Black)
+                    thumb = StateColors.solid(Color.White)
+                }
+            }
+        val shown = paintScrollbar(theme, true, 1.0)
+        val hiddenTrack = paintScrollbar(theme, false, 1.0)
+        val hiddenBar = paintScrollbar(theme, true, 0.0)
+        assertEquals(255, scrollbarAlpha(shown, 10, 90))
+        assertEquals(0, scrollbarAlpha(hiddenTrack, 10, 90))
+        assertEquals(255, scrollbarAlpha(hiddenTrack, 10, 20))
+        assertEquals(0, scrollbarAlpha(hiddenBar, 10, 20))
+        assertEquals(0, scrollbarAlpha(hiddenBar, 10, 90))
+    }
+
+    @Test
+    fun `narrow activity feedback keeps each themes thumb visible without changing its travel`() {
+        for (theme in [macosTheme(), materialTheme(), fluentTheme(), shadcnTheme()]) {
+            val metrics = theme.scrollbarMetrics()
+            val options =
+                ResolvedScrollbarBehavior(
+                    scrollbarBehavior(),
+                    InteractionPreferences(autoHideScrollbars = Some(true)),
+                    metrics.thickness
+                )
+            val visual = ScrollbarVisual(visibleFraction = 0.3, showTrack = false)
+            val geometry = theme.scrollbarGeometry(Rect(4.0, 4.0, options.thickness, 100.0), visual)
+            theme.createPainter().use {
+                painter -> RasterSurface(32, 112).use {
+                    surface ->
+                    surface.draw {
+                        canvas ->
+                        canvas.clear(Color.Transparent)
+                        drawScrollbarWidth(
+                            canvas,
+                            painter,
+                            geometry,
+                            visual,
+                            options.idleWidth,
+                            options.baseThickness
+                        )
+                    }
+                    val bytes = surface.readPixels()
+                    val x = (geometry.thumb.bounds.x + geometry.thumb.bounds.width / 2.0).toLong()
+                    val y = (geometry.thumb.bounds.y + geometry.thumb.bounds.height / 2.0).toLong()
+                    assertTrue(bytes[(y * 32L + x) * 4L + 3L].toUByte().toInt() > 0)
+                    assertTrue(geometry.travel > 0.0)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `invalid durations widths and opacity fail at configuration construction`() {
+        assertFailsWith<IllegalArgumentException> {
+            scrollbarBehavior { fadeOut = Duration.milliseconds(-1L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            scrollbarBehavior { repeatInterval = Duration.ZERO }
+        }
+        assertFailsWith<IllegalArgumentException> { scrollbarBehavior { idleWidth = Some(-1.0) } }
+        assertFailsWith<IllegalArgumentException> {
+            scrollbarBehavior { hoverOpacity = Some(1.01) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            scrollbarBehavior { repeatDelay = Some(Duration.milliseconds(-1L)) }
+        }
+    }
+}
+
+private class ScrollbarTestTime: TimeSource {
+    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
+}
+
+private fun paintScrollbar(theme: Theme, track: Boolean, opacity: Double): Array<Byte> =
+    theme.createPainter().use {
+        painter -> RasterSurface(24, 112).use {
+            surface ->
+            surface.draw {
+                canvas ->
+                canvas.clear(Color.Transparent)
+                val visual =
+                    ScrollbarVisual(visibleFraction = 0.3, opacity = opacity, showTrack = track)
+                val geometry =
+                    theme.scrollbarGeometry(
+                        Rect(4.0, 4.0, 12.0, 100.0),
+                        visual,
+                        scrollbarOptions {
+                            thickness = Some(12.0);
+                            trackInset = Some(0.0);
+                            buttonLength(None)
+                        }
+                    )
+                painter.drawScrollbar(canvas, geometry, visual)
+            }
+            surface.readPixels()
+        }
+    }
+
+private fun scrollbarAlpha(bytes: Array<Byte>, x: Int, y: Int): Int =
+    bytes[(y.toLong() * 24L + x.toLong()) * 4L + 3L].toUByte().toInt()

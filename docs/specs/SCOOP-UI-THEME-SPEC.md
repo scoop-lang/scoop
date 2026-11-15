@@ -164,7 +164,7 @@ RadioVisual 包含 selected 与交互状态及可选采样参数。RadioMetrics 
 
 ### 4.4 Scrollbar
 
-Scrollbar 接收 Orientation、有限 position／visibleFraction 及部件视觉状态。position 和 visibleFraction 按 0～1 的归一比例表达，几何计算将合法有限输入收敛到范围内。hoveredPart／pressedPart 使用 Track／Thumb／Decrement／Increment 等类型化枚举，整体 enabled 独立表达。
+Scrollbar 接收 Orientation、有限 position／visibleFraction 及部件视觉状态。position 和 visibleFraction 按 0～1 的归一比例表达，几何计算将合法有限输入收敛到范围内。hoveredPart／pressedPart 使用 Track／Thumb／Decrement／Increment 等类型化枚举，整体 enabled 独立表达。ScrollbarVisual.showTrack: Boolean = true 控制轨道绘制，不改变 thumb／按钮几何或调用方的轨道命中；opacity 仍作用于整条。调用方可用更大的 bounds 保留固定命中条带，再以 ScrollbarOptions.thickness 提供本帧绘制厚度，主题沿交叉轴居中绘制。
 
 ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩及可选端部按钮长度。ScrollbarGeometry 返回轨道、滑块、可选两端按钮的具体矩形／轮廓、滑块起始位置和可移动距离。先扣除端部按钮，再按 visibleFraction 计算并限制滑块长度；滑块行程是轨道可用主轴长度减去最终滑块长度。极短 bounds、全可见内容和零行程仍返回非负有限几何，不产生除零。
 

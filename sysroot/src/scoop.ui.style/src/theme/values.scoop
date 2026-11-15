@@ -98,7 +98,8 @@ public struct ScrollbarVisual(
     val enabled: Boolean = true,
     val hoveredPart: ScrollbarRegion? = None,
     val pressedPart: ScrollbarRegion? = None,
-    val opacity: Double = 1.0
+    val opacity: Double = 1.0,
+    val showTrack: Boolean = true
 )
 
 public struct StateColors(

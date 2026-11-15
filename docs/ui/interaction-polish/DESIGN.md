@@ -10,7 +10,7 @@
 
 | 项目 | 当前已具备 | 本轮需要完成 |
 | --- | --- | --- |
-| 滚动条 | `Auto／Always／Hidden`、主题度量、hover／pressed 配色、thumb 拖动、轨道翻页；ScrollArea／VirtualList 共用实现 | 平台行为预设、闲置隐藏、悬浮展开／收缩、独立命中宽度、占位策略和系统偏好更新；Textarea 使用同一规则 |
+| 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带和重复操作 | 当前验证见实施记录；统一 Overlay／gutter、遮挡显露、滚动语义及实窗／平台验收待继续 |
 | 原生文本菜单 | 原生 popup、七种编辑角色及可用性；文本宿主与输入控件已接入三种菜单模式、右键选区、键盘入口和目标会话 | 前台实窗与 Windows／GTK 验证、触摸入口、受保护用途及系统文本服务；已验证范围见实施记录 |
 | 多击选择 | 公共编辑器已有双击选词、三击选逻辑行、按词／行继续拖选，且已有实窗用例 | Windows 连续点击计数、Linux 系统阈值、平台真实事件及 Unicode／投影组合回归 |
 | 拖动 | 公共轴向 `Drag`、阈值接管、取消、速度；用于滚动条、Slider、Resizable 等 | 数据 offer、drop target、Copy／Move 协商、预览、完成与取消，覆盖窗口内、同程序跨窗口及跨程序 |
@@ -21,7 +21,7 @@
 
 源码核查的几个具体结论：
 
-- [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)已有悬浮部件判断，但没有闲置 deadline 或宽度过渡；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。Textarea 目前还会固定预留条宽，不能只修改 ScrollArea。
+- [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)现已接入独立宽度／透明度过渡、闲置隐藏和按住重复，共享行为由 ScrollbarFeedback 管理；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。Textarea 仍固定预留解析后的最大条宽；行为已共享，统一占位选项与遮挡显露待继续。
 - [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。S1 已在 [Windows 输入](../../../sysroot/src/scoop.window/native/windows/input.c)补齐三击及更多次数，并将 [Linux 输入](../../../sysroot/src/scoop.window/native/linux/input.c)改为消费 GTK 自身 count，移除固定 0.5 秒和 5 个物理像素的重复判断。Windows 生产计数算法的本地定向测试已通过；两个平台的原生输入用例仍待目标环境运行，不能据共享编辑行为或算法测试声明整条输入链通过。
 - [公共 Drag](../../../sysroot/src/scoop.ui/src/interaction/drag.scoop)只负责一段鼠标轴向交互，没有跨应用传输和落放目标。[PointerEvent](../../../sysroot/src/scoop.window/src/input/pointer.scoop)也尚无 touch contact 或数据拖放事件。
 - S1 已将 Window 系统偏好经 UI 根传给 [ThemeSource.read(scope)](../../../sysroot/src/scoop.ui.style/src/theme/source.scoop)和[文本选项](../../../sysroot/src/scoop.ui/src/text/editor/options.scoop)。caret 默认继承；四套主题消费减少动画、高对比度、减少透明度和文字缩放。已通过的离屏／实窗范围与剩余系统热切换验证分别记录，不以公共接口接入代替全部控件及设备验收。
@@ -265,7 +265,7 @@ S0.3 本地原型已确认 AppKit 公开的 `NSTextView.defaultMenu` 可以在�
 
 | 组合 | 必须观察到的结果 |
 | --- | --- |
-| 滚动条 | idle／hover／drag／淡出、关闭单项效果、系统常显、零范围、双轴、RTL、窄／零视口；改变条宽不使正文或 thumb 抓取点跳动 |
+| 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带和重复操作 | 当前验证见实施记录；统一 Overlay／gutter、遮挡显露、滚动语义及实窗／平台验收待继续 |
 | 输入与运动 | 传统鼠标轮、触控板含 momentum、直接触摸、键盘、语义滚动；新输入中断旧运动，嵌套不双重消费或双重回弹 |
 | 多击 | OS 真实连续点击抵达共享编辑器；系统阈值变化、二／三击继续拖选、Unicode／换行／投影、失焦与取消 |
 | 文本菜单 | 选区内外右键、辅助点击、键盘、长按；只读／密码／禁用、Undo／Redo／Delete、剪贴板变更、菜单期间 composition、目标切换及关闭 |
@@ -281,7 +281,7 @@ S0.3 本地原型已确认 AppKit 公开的 `NSTextView.defaultMenu` 可以在�
 
 ## 12. 依据与核查边界
 
-本次读取规范与上述源码，核查本机 AppKit SDK、官方文档及 GTK 4.18.6 设置源码；未修改运行代码，未运行新的实窗、触屏、拖放或辅助技术验收。
+设计初稿阶段读取规范与上述源码，核查本机 AppKit SDK、官方文档及 GTK 4.18.6 设置源码；该阶段没有修改运行代码或运行新的实窗、触屏、拖放及辅助技术验收。后续实现与验证以 [PROGRESS.md](PROGRESS.md) 为准。
 
 - Apple：[NSScroller.preferredScrollerStyle](https://developer.apple.com/documentation/appkit/nsscroller/preferredscrollerstyle)、[减少动画](https://developer.apple.com/documentation/appkit/nsworkspace/accessibilitydisplayshouldreducemotion)、[NSTextView 菜单定制](https://developer.apple.com/documentation/appkit/nstextviewdelegate/textview(_:menu:for:at:))、[触控板事件](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingTouchEvents/HandlingTouchEvents.html)。本机 NSView SDK 同时核实既有 `beginDraggingSessionWithItems:event:source:`；不使用新 SDK 才增加的手势 overload 作为最低平台前提。
 - Microsoft：[自绘滚动条的系统偏好](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.autohidescrollbars?view=winrt-26100)、[系统设置](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow)、[EDIT 文本操作与默认菜单](https://learn.microsoft.com/en-us/windows/win32/controls/edit-controls-text-operations)、[DoDragDrop 及触摸启动限制](https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-dodragdrop)、[WM_POINTERDOWN](https://learn.microsoft.com/en-us/windows/win32/inputmsg/wm-pointerdown)。

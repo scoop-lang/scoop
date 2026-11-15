@@ -11,7 +11,8 @@ internal class ScrollBarControl(
     private val scope: ComponentScope,
     private val props: () -> ScrollControlProps,
     parent: InputArea,
-    private val orientation: Orientation
+    private val orientation: Orientation,
+    private val feedback: ScrollbarFeedback
 ) {
     private val area = scope.createArea { context, event -> handle(context, event) }
     private var currentState = props().state
@@ -21,14 +22,19 @@ internal class ScrollBarControl(
     private var hover: ScrollbarRegion? = None
     private var pressed: ScrollbarRegion? = None
     private var grab = 0.0
+    private var pageDirection = 0.0
+    private var trackClaimed = false
     private var drag: Drag? = None
+    private val width = scope.animation(feedback.options.idleWidth)
+    private val strength = scope.animation(feedback.options.idleOpacity)
+
     init {
         drag =
             Some(
                 scope.drag(
                     area,
                     dragOptions(),
-                    { point -> acceptsThumb(point) },
+                    { point -> acceptsDrag(point) },
                     { event -> handleDrag(event) }
                 )
             )
@@ -57,10 +63,47 @@ internal class ScrollBarControl(
             currentState = value.state
         }
         area.scope.enabled = value.enabled
+        if (!value.enabled)
+            cancel()
         drag!!.update(
             dragOptions(),
-            { point -> acceptsThumb(point) },
+            { point -> acceptsDrag(point) },
             { event -> handleDrag(event) }
+        )
+        feedbackChanged()
+    }
+    fun feedbackChanged() {
+        val options = feedback.options
+        val active = pressed != None
+        val over = hover != None
+        val targetWidth =
+            if (active)
+                options.dragWidth
+            else
+                if (over)
+                    options.hoverWidth
+                else
+                    options.idleWidth
+        changeProgress(
+            width,
+            targetWidth,
+            options.transition(
+                if (targetWidth > width.target)
+                    options.input.expandDuration
+                else
+                    options.input.contractDuration
+            )
+        )
+        changeProgress(
+            strength,
+            if (active)
+                options.dragOpacity
+            else
+                if (over)
+                    options.hoverOpacity
+                else
+                    options.idleOpacity,
+            options.transition(options.input.shadeDuration, true)
         )
     }
     fun scene(
@@ -81,6 +124,8 @@ internal class ScrollBarControl(
                 snapshot.viewport.width
             else
                 snapshot.viewport.height
+        val alpha = strength.value * feedback.opacity.value
+        val thickness = width.value
         val visual =
             ScrollbarVisual(
                 orientation,
@@ -93,33 +138,75 @@ internal class ScrollBarControl(
                 else
                     1.0,
                 value.enabled && range > 0.0,
-                hover,
-                pressed
+                if (feedback.options.shade)
+                    hover
+                else
+                    None,
+                if (feedback.options.shade)
+                    pressed
+                else
+                    None,
+                alpha,
+                feedback.options.showTrack
             )
         val next =
             when (bounds) {
-                case Some(val rect) -> if (rect.width > 0.0 && rect.height > 0.0) {
-                    val shape = value.theme.scrollbarGeometry(rect, visual, value.scrollbar)
-                    if (visual.enabled)
-                        context.place(area, rect)
-                    context.draw { paint -> painter.drawScrollbar(paint.canvas, shape, visual) }
-                    Some(shape)
-                } else
-                    None
+                case Some(val rect) -> {
+                    if (
+                        rect.width >
+                            0.0 &&
+                            rect.height >
+                            0.0 &&
+                            alpha >
+                            0.0 &&
+                            thickness >
+                            0.0 &&
+                            feedback.options.baseThickness >
+                            0.0
+                    ) {
+                        val shape = value.theme.scrollbarGeometry(rect, visual, value.scrollbar)
+                        if (visual.enabled)
+                            context.place(area, rect)
+                        val baseline = feedback.options.baseThickness
+                        context.draw {
+                            paint -> drawScrollbarWidth(
+                                paint.canvas,
+                                painter,
+                                shape,
+                                visual,
+                                thickness,
+                                baseline
+                            )
+                        }
+                        Some(shape)
+                    } else
+                        None
+                }
                 case None -> None
             }
         val state = currentState
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && currentState === state) {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    currentState ===
+                    state &&
+                    scope.isMounted
+            ) {
                 geometry = next
+                if (!panelPresent(next))
+                    cancel()
                 pointer = area.pointerPosition
+                hovered = area.scope.isHovered
                 refreshHover()
             }
         }
     }
     private fun changed() {
-        if (scope.isMounted)
+        if (scope.isMounted) {
+            feedbackChanged()
             scope.requestFrame()
+        }
     }
     private fun refreshHover() {
         val next =
@@ -134,27 +221,35 @@ internal class ScrollBarControl(
                 case None -> None
             }
         if (next != hover) {
-            hover = next;
+            hover = next
+            feedback.hover(orientation, next != None)
+            if (pressed != None && pressed != Some(ScrollbarRegion.Thumb) && next == pressed)
+                feedback.repeat(orientation, true) { repeatStep() }
             changed()
         }
     }
     private fun release() {
-        if (pressed != None) {
-            pressed = None;
+        feedback.stopRepeat(orientation)
+        val wasPressed = pressed != None
+        pressed = None
+        val claimed = trackClaimed
+        trackClaimed = false
+        if (claimed && !area.isClosed)
+            area.scope.cancelPointerClaim()
+        if (wasPressed)
             changed()
-        }
     }
     private fun handle(context: RoutedEventContext, event: InputEvent) {
         if (context.phase == RoutedPhase.Notification) {
             when (event) {
                 case Pointer(InputPointerEvent.Entered(_)) -> {
-                    hovered = true;
-                    pointer = context.localPosition;
+                    hovered = true
+                    pointer = context.localPosition
                     refreshHover()
                 }
                 case Pointer(InputPointerEvent.Left(_)) -> {
-                    hovered = false;
-                    pointer = None;
+                    hovered = false
+                    pointer = None
                     refreshHover()
                 }
                 case Pointer(InputPointerEvent.Cancelled(_, _)) -> release()
@@ -175,31 +270,26 @@ internal class ScrollBarControl(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 val part = scrollbarPart(shape, point) ?: return
-                if (part == ScrollbarRegion.Thumb)
-                    return
-                pressed = Some(part)
-                when (part) {
-                    case Thumb -> return
-                    case Track -> {
-                        val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
-                        val distance =
-                            if (orientation == Orientation.Horizontal)
-                                currentState.viewport.width
-                            else
-                                currentState.viewport.height
-                        moveBy(
-                            if (
-                                scrollbarAxis(orientation, point) <
-                                    scrollbarAxis(orientation, origin)
-                            )
-                                -distance
-                            else
-                                distance
+                if (
+                    part ==
+                        ScrollbarRegion.Thumb ||
+                        (
+                            part ==
+                                ScrollbarRegion.Track &&
+                                feedback.options.input.trackPress ==
+                                ScrollbarTrackPress.Jump
                         )
-                    }
-                    case Decrement -> moveBy(-props().lineStep)
-                    case Increment -> moveBy(props().lineStep)
-                }
+                )
+                    return
+                if (!area.scope.claimPointer(MouseButton.Left))
+                    return
+                trackClaimed = true
+                pressed = Some(part)
+                pageDirection = scrollbarTrackDirection(shape, point)
+                currentState.cancelAnimation()
+                val moved = step(part)
+                if (moved)
+                    feedback.repeat(orientation, false) { repeatStep() }
                 changed()
                 context.consume()
             }
@@ -207,12 +297,38 @@ internal class ScrollBarControl(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
             ) -> {
                 if (pressed != None) {
-                    release();
+                    release()
                     context.consume()
                 }
             }
             else -> {}
         }
+    }
+    private fun step(part: ScrollbarRegion): Boolean {
+        val distance =
+            when (part) {
+                case Decrement -> -props().lineStep
+                case Increment -> props().lineStep
+                case Track -> pageDirection *
+                    if (orientation == Orientation.Horizontal)
+                        currentState.viewport.width
+                    else
+                        currentState.viewport.height
+                case Thumb -> return false
+            }
+        return moveBy(distance)
+    }
+    private fun repeatStep(): Boolean {
+        if (!scope.isMounted || !props().enabled || !area.scope.isInputAllowed)
+            return false
+        val part = pressed ?: return false
+        val shape = geometry ?: return false
+        val point = area.pointerPosition ?: return false
+        if (!hovered || scrollbarPart(shape, point) != Some(part))
+            return false
+        if (part == ScrollbarRegion.Track && scrollbarTrackDirection(shape, point) != pageDirection)
+            return false
+        return step(part)
     }
     private fun dragOptions(): DragOptions =
         DragOptions(
@@ -223,9 +339,19 @@ internal class ScrollBarControl(
             threshold = 0.0,
             enabled = props().enabled
         )
-    private fun acceptsThumb(point: Point): Boolean =
+    private fun acceptsDrag(point: Point): Boolean =
         when (geometry) {
-            case Some(val shape) -> scrollbarPart(shape, point) == Some(ScrollbarRegion.Thumb)
+            case Some(val shape) -> {
+                val part = scrollbarPart(shape, point)
+                part ==
+                    Some(ScrollbarRegion.Thumb) ||
+                    (
+                        part ==
+                            Some(ScrollbarRegion.Track) &&
+                            feedback.options.input.trackPress ==
+                            ScrollbarTrackPress.Jump
+                    )
+            }
             case None -> false
         }
     private fun handleDrag(event: DragEvent) {
@@ -239,19 +365,27 @@ internal class ScrollBarControl(
                             return
                         }
                     }
+                val jump = scrollbarPart(shape, value.position) == Some(ScrollbarRegion.Track)
                 pressed = Some(ScrollbarRegion.Thumb)
                 val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
                 grab =
-                    if (shape.thumbLength > 0.0)
-                        (
-                            scrollbarAxis(orientation, value.position) -
-                                scrollbarAxis(orientation, origin)
-                        ) /
-                            shape.thumbLength
+                    if (jump)
+                        0.5
                     else
-                        0.0
+                        if (shape.thumbLength > 0.0)
+                            (
+                                scrollbarAxis(orientation, value.position) -
+                                    scrollbarAxis(orientation, origin)
+                            ) /
+                                shape.thumbLength
+                        else
+                            0.0
+                currentState.cancelAnimation()
                 changed()
-                currentState.beginLayoutRequest(ScrollOrigin.User)
+                if (jump)
+                    dragTo(value.position)
+                else
+                    currentState.beginLayoutRequest(ScrollOrigin.User)
             }
             case Moved(val value) -> dragTo(value.position)
             case Ended(val value) -> {
@@ -286,13 +420,22 @@ internal class ScrollBarControl(
             ScrollOrigin.User
         )
     }
-    private fun moveBy(distance: Double) {
+    private fun moveBy(distance: Double): Boolean =
         currentState.scrollBy(
             if (orientation == Orientation.Horizontal)
                 Point(distance, 0.0)
             else
                 Point(0.0, distance),
             ScrollOrigin.User
-        )
-    }
+        ) !=
+            Point(0.0, 0.0)
 }
+
+internal fun scrollbarTrackDirection(shape: ScrollbarGeometry, point: Point): Double =
+    if (
+        scrollbarAxis(shape.orientation, point) <
+            scrollbarAxis(shape.orientation, Point(shape.thumb.bounds.x, shape.thumb.bounds.y))
+    )
+        -1.0
+    else
+        1.0

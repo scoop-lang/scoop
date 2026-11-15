@@ -19,6 +19,7 @@ public class ScrollAreaBuilder internal constructor() {
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
     public var style: StyleOverride = styleOverride()
     public var focusOutline: OutlineStyle? = None
+    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
     public var key: ViewKey = ViewKey.Position
 
     public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
@@ -27,6 +28,10 @@ public class ScrollAreaBuilder internal constructor() {
 
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
         scrollbar = scrollbar.copy(configure)
+    }
+
+    public fun scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit): Unit {
+        scrollbarBehavior = scrollbarBehavior.copy(configure)
     }
 
     public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
@@ -48,7 +53,8 @@ public class ScrollAreaBuilder internal constructor() {
             theme,
             paintCache,
             style,
-            focusOutline
+            focusOutline,
+            scrollbarBehavior
         )
 }
 

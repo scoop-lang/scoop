@@ -301,9 +301,36 @@ ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记�
 
 Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, apply)，将内容位移取反为 offset，返回实际消费位移；子项到边界后只交接剩余原始单位。Contain 在本层消费后 preventDefault。新 wheel（包括零位移手势开始）先取消旧平滑滚动；系统 phase／momentum 沿用 Surface 路由。控件不另建惯性时钟。
 
-滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例、焦点和物理 offset，不反转正文或隐式请求新的滚动位置；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
+滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的固定最大厚度。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例、焦点和物理 offset，不反转正文或隐式请求新的滚动位置；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
 
-滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头在默认阶段接管按下，按下及重复行为由下述 ScrollbarBehavior 配置。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+
+ScrollAreaProps／VirtualListProps／TextareaProps 及对应 builder 增加 `scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()`，同名 receiver 方法在当前配置上调用 copy，重复配置保留先前覆盖。`scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit = {}): ScrollbarBehavior` 构造不可变值；`copy` 使用相同 builder。行为不属于主题：主题继续负责静态颜色、形状、按钮与基础厚度，Behavior 负责出现条件、运动和操作。ScrollbarVisibility.Auto 仅表示零范围时不呈现，Always 允许呈现禁用的零范围外观，Hidden 不呈现；这组条件与闲置自动隐藏分别判断。
+
+| ScrollbarBehaviorBuilder 字段 | 默认值与含义 |
+| --- | --- |
+| preset: ScrollbarPreset | FollowSystem；另有 Static、Custom |
+| autoHide: Boolean? | None，按预设；显式值覆盖预设 |
+| idleDelay: Duration | 1000 ms，最后一次活动结束后等待时间 |
+| fadeIn／fadeOut: Duration | 100／250 ms，零表示立即切换 |
+| revealOnScroll／revealOnEdgeHover／revealOnKeyboard: Boolean | true |
+| revealOnViewportHover: Boolean | false |
+| widenOnHover／shadeOnHover: Boolean? | None，自动隐藏预设启用、固定预设关闭；可独立覆盖 |
+| idleWidth／hoverWidth／dragWidth: Double? | None；固定预设均取主题厚度，自动隐藏预设 idle 取其一半，其余取主题厚度；显式长度为逻辑单位 |
+| expandDuration／contractDuration: Duration | 120／180 ms；零表示立即切换 |
+| idleOpacity／hoverOpacity／dragOpacity: Double? | None；固定预设均为 1，自动隐藏预设为 0.55／0.85／1 |
+| shadeDuration: Duration | 120 ms；零表示立即切换 |
+| minimumHitThickness: Double? | None，取主题厚度和 12 逻辑单位的较大值；绘制宽度与命中厚度分别计算 |
+| edgeThickness: Double? | None，取固定最大条宽与命中厚度的较大值；用于非消费式边缘唤醒 |
+| showTrack: Boolean? | None，固定预设显示、自动隐藏预设不显示；不移除轨道点击能力或显式配置的端部按钮 |
+| trackPress: ScrollbarTrackPress | Page；可选 Jump，按下即把 thumb 中点移到指针并继续拖动 |
+| repeatDelay: Duration?／repeatInterval: Duration | 400／60 ms；repeatDelay=None 禁用按住重复；轨道 Page 和端部按钮复用同一机制 |
+
+FollowSystem 读取根的有效 InteractionPreferences.autoHideScrollbars，未知值按 false 处理；Static 按 false、Custom 按 true 解析自动隐藏基值。宽度／深浅及轨道默认值随该预设基值解析，显式覆盖互相独立。系统常显因此关闭 FollowSystem 的默认闲置隐藏；显式 autoHide 优先于系统值。根 reduceMotion=true 或主题 MotionPreference.Reduced 使所有上述过渡立即完成，但不取消明确的自动隐藏。reduceTransparency=true 使已显示滚动条不使用半透明或淡入淡出，仍保留显示／隐藏和宽度行为。
+
+所有时长非负，repeatInterval 必须为正；宽度／边缘长度必须有限且非负，透明度必须有限且位于 0～1。无效配置抛 IllegalArgumentException。固定条带宽取有效 idle／hover／drag 绘制宽度和最小命中厚度的最大值，动画不改变正文测量或双轴角部。thumb／按钮的命中范围沿交叉轴扩展到条带，主轴仍采用实际主题几何。展宽绘制沿交叉轴缩放完整主题形状，内缩和描边同时缩放；不通过修改主轴内缩改变 thumb 行程，细条也不会被原主题的大内缩挤空。完全透明时不登记可操作区域；隐藏的边缘观察不消费正文按下，重新出现需新帧 Accepted 后才可操作。
+
+同一滚动控件共用出现状态和一个实际 deadline，动画沿 Surface 的 Animatable 推进。滚动定位、配置允许的视口／边缘进入和真实键盘活动唤醒；LayoutCorrection 不刷新闲置时间。可见条上的 hover、按住、thumb 拖动、当前子树的滚动路由／momentum、相关按住键及程序滚动动画暂缓隐藏，活动结束后重新等待 idleDelay。禁用、输入域退出、状态替换、卸载及失去有效几何取消重复操作；隐藏后不保留周期轮询。Page 按住仅向初始方向翻页，thumb 到达指针、离开原部件或抵达边界后停止；重新进入可继续。Jump 不做分页重复。端部按钮每步使用 lineStep。
 
 ### 6.3 VirtualList
 
@@ -439,7 +466,7 @@ TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 Sp
 
 有界宽度占满父约束，无界宽度使用显式 SurfaceOptions.suggestedSize.width，缺省 240，再满足主题 minimumSize。Input 一行、Textarea rows 行的建议高度使用同一字体与正文样式下真实空段落的行高，合并 padding、边框和主题建议／最小高度，再按父约束收敛；不以字符数估算布局。Host 每帧只按最终内视口测量一次，基线来自该布局并加实际内容偏移。description 作为普通 Label 在边框外下方按同宽约束测量，不作为输入正文或滚动内容。
 
-Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden。非 Hidden 固定预留主题垂直条宽；wrap=false 时另预留水平条高，避免文字溢出改变滚动条后再反复测量。Auto 只在实际范围非零时显示，Always 显示禁用的零范围外观，Hidden 不预留。复用已有 ScrollBarControl 与宿主本帧 scrollSnapshot，只有宿主持有 ScrollViewport。条的滚动和输入沿既有残量、捕获及成功几何规则；Input 只水平显露，不绘制滚动条。
+Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden。非 Hidden 固定预留行为解析后的最大垂直条宽；wrap=false 时另预留水平条高，避免文字溢出改变滚动条后再反复测量。Auto 只在实际范围非零时显示，Always 显示禁用的零范围外观，Hidden 不预留。复用已有 ScrollBarControl 与宿主本帧 scrollSnapshot，只有宿主持有 ScrollViewport。条的滚动和输入沿既有残量、捕获及成功几何规则；Input 只水平显露，不绘制滚动条。
 
 外框留白使用不参与 Tab 的区域，在正文之前放置；点击留白把焦点交给同一宿主，不建立第二个文本连接。正文区域仍执行普通定位和选择。主题／明暗、描述、只读或模型替换更新保留控件挂载；编辑模型替换按 TextEditHost 的旧组合／连接收尾规则生效。模态、虚拟项固定、外层显露和绘制缓存只沿框架既有能力组合。
 

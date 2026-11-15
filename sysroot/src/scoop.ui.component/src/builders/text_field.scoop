@@ -74,6 +74,11 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
     public var tab: TextTabBehavior = TextTabBehavior.Navigate
     public var submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter
     public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
+    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+
+    public fun scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit): Unit {
+        scrollbarBehavior = scrollbarBehavior.copy(configure)
+    }
 
     internal fun textareaProps(state: TextEditorState): TextareaProps =
         TextareaProps(
@@ -104,7 +109,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             labelTarget,
             group,
             chrome,
-            contextMenu
+            contextMenu,
+            scrollbarBehavior
         )
 }
 
