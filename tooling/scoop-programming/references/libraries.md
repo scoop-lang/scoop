@@ -25,6 +25,7 @@
 | 文件、目录、进程、环境变量、线程                  | `scoop.platform`；`io/files`、`io/resources`、`io/processes`、`io/environment`；整合输入与计算见 `apps/file-report` |
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
+| GUI 文本与 Markdown 剪贴板 | `scoop.window` 的 Clipboard；`readText(mediaType = "text/plain")` 区分格式缺失和空文本，`writeText` 写纯文本，`writeTexts(List<ClipboardText>)` 同时提供一项内容的多个文本表示。使用无参数的具体 text MIME，按 ASCII 小写规范化；所有表示先检查且不允许重复格式或 NUL。纯文本归一为 LF，Markdown／HTML 等保留换行。接口要求活动应用的 owner 线程，不保活窗口、不解析正文；剪切先成功写出再删选区。示例与平台映射见库 README |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get`、`http/existing-connection` 及各库 README |
 | HTTP 协议与异步传输适配                           | `scoop.http`、`scoop.http.asyncio`；仅在需要协议层时使用                                       |
 | 命令行参数与测试                                  | `scoop.cli`、`scoop.test`；`cli/options`、`test/assertions`                                    |
@@ -33,7 +34,7 @@
 | 数学、大整数和十进制数                            | `scoop.math` 的 README／示例                                                                   |
 | 日志与控制台 provider                             | `scoop.log`、`scoop.log.console` 的 README／示例                                               |
 | 终端、异步终端与交互行编辑                        | `terminal/output`；`scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例           |
-| UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；使用当前目标可用的库  |
+| UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；独立控件修改借用模型前可调用 `State.checkMutation()`，`SceneContext.drawTextLayout` 在既有文字缓存路径绘制自有排版；使用当前目标可用的库  |
 
 ## JSON 与 DTO
 
