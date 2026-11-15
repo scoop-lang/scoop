@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 anyhow = "1"
+base64 = "0.23.1"
 clap = { version = "4", features = ["derive"] }
 goblin = "0.10.7"
 image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }

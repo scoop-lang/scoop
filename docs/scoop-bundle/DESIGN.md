@@ -43,7 +43,7 @@ Windows 快捷方式写入与 bundle.identifier 一致的 AppUserModelID。`bund
 
 PM 识别 `[bundle]` 工具表或外部配置引用，保留原始 TOML 值及诊断来源；字段含义只由 bundle 解析器解释。普通 build/check 不读取外部 bundle 文件、资源、证书或平台打包工具。bundle 表不进入 `ConeManifestSemantic`、`.slib`、语言身份或编译请求。
 
-成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
+成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。当前成员 JSON 使用协议 7，HostPathCarrier 的 bytes 是标准 Base64 字符串，按宿主保留 Unix 原始字节或 Windows WTF-16LE；构建结果中的普通字符串及非 Unicode 路径展示继续按其各自格式读取。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
 
 项目模式的主流程为：
 

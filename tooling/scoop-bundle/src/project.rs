@@ -85,8 +85,8 @@ pub fn prepare(args: &Args) -> Result<Input> {
     let members: Value =
         serde_json::from_slice(&result.stdout).context("invalid PM members JSON")?;
     ensure!(
-        members["format"] == 6,
-        "scoop-bundle requires PM members protocol 6; update the paired Scoop tools"
+        members["format"] == 7,
+        "scoop-bundle requires PM members protocol 7; update the paired Scoop tools"
     );
     let selected: Vec<_> = members["members"]
         .as_array()

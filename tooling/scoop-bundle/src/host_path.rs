@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Value, json};
 
@@ -22,12 +23,17 @@ pub fn value(path: &Path) -> Value {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
-        json!({"encoding": "UnixBytes", "bytes": path.as_os_str().as_bytes()})
+        json!({"encoding": "UnixBytes", "bytes": STANDARD.encode(path.as_os_str().as_bytes())})
     }
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
-        json!({"encoding": "WindowsWtf16Le", "bytes": path.as_os_str().encode_wide().flat_map(u16::to_le_bytes).collect::<Vec<_>>()})
+        let bytes = path
+            .as_os_str()
+            .encode_wide()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>();
+        json!({"encoding": "WindowsWtf16Le", "bytes": STANDARD.encode(bytes)})
     }
 }
 
@@ -42,7 +48,7 @@ pub fn decode(value: &Value) -> Result<PathBuf> {
     {
         use std::os::unix::ffi::OsStringExt;
         let bytes = match encoding {
-            "UnixBytes" => serde_json::from_value::<Vec<u8>>(value["bytes"].clone())?,
+            "UnixBytes" => decode_bytes(value)?,
             "unix-bytes" => {
                 let hex = value["hex"].as_str().context("missing path hex")?;
                 if !hex.is_ascii() || !hex.len().is_multiple_of(2) {
@@ -65,7 +71,7 @@ pub fn decode(value: &Value) -> Result<PathBuf> {
         use std::os::windows::ffi::OsStringExt;
         let units = match encoding {
             "WindowsWtf16Le" => {
-                let bytes: Vec<u8> = serde_json::from_value(value["bytes"].clone())?;
+                let bytes = decode_bytes(value)?;
                 if !bytes.len().is_multiple_of(2) {
                     bail!("invalid UTF-16 path");
                 }
@@ -86,6 +92,20 @@ pub fn decode(value: &Value) -> Result<PathBuf> {
     }
 }
 
+fn decode_bytes(value: &Value) -> Result<Vec<u8>> {
+    let bytes = STANDARD
+        .decode(
+            value["bytes"]
+                .as_str()
+                .context("missing Base64 host path bytes")?,
+        )
+        .context("invalid Base64 host path bytes")?;
+    if bytes.is_empty() {
+        bail!("empty host path");
+    }
+    Ok(bytes)
+}
+
 pub fn serialize<S: Serializer>(path: &Path, serializer: S) -> Result<S::Ok, S::Error> {
     value(path).serialize(serializer)
 }
@@ -93,3 +113,6 @@ pub fn serialize<S: Serializer>(path: &Path, serializer: S) -> Result<S::Ok, S::
 pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PathBuf, D::Error> {
     decode(&Value::deserialize(deserializer)?).map_err(serde::de::Error::custom)
 }
+
+#[cfg(test)]
+mod tests;
