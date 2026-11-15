@@ -2,7 +2,7 @@
 
 原生桌面包装提供 `nativeApplicationMenuBar`、`nativeWindowMenuBar`、`nativeMenuButton` 和 `nativeContextMenu`，使用独立的 `NativeMenuContent`、稳定 key 与 Binding。应用菜单在 `ApplicationComponent.render` 中声明；窗口菜单包装正文。菜单值和回调更新不依赖绘制，popup 使用一次性 session；`NativePopupHandle.requestOpen()` 发起新请求，取消不会自动重开。标准编辑角色沿当前输入范围进入现有文本编辑器。详见[原生菜单规范](../../../docs/specs/SCOOP-UI-NATIVE-MENUS-SPEC.md)。
 
-`windowChrome` 区分视觉 clip、原生 windowShape 与 inputShape，按实际窗框和系统按钮几何布局。`windowDragRegion`、`windowResizeRegion`、`windowControls` 复用原生移动／缩放和系统按钮能力；关闭保留 `CloseRequested` 退出确认。`scope.nativeToolWindowController()`、`nativeDialogController<T>(target)`、`fileDialogController()` 管理明确拥有的窗口／session，普通 `UiHost.attach` 继续借用 Window；`nativeOpenFileButton`／`nativeSaveFileButton` 复用 Button 并返回类型化 Path。能力差异和资源顺序见[窗框规范](../../../docs/specs/SCOOP-UI-WINDOW-CHROME-SPEC.md)与[窗口控制器规范](../../../docs/specs/SCOOP-UI-NATIVE-WINDOWS-SPEC.md)。
+`windowChrome` 区分视觉 clip、原生 windowShape 与 inputShape，按实际窗框和系统按钮几何布局。`windowDragRegion`、`windowResizeRegion`、`windowControls` 复用原生移动／缩放和系统按钮能力；关闭保留 `CloseRequested` 退出确认。`scope.nativeToolWindowController()`、`nativeDialogController<T>(target)`、`fileDialogController()` 管理明确拥有的窗口／session，普通 `UiHost.attach` 继续借用 Window；`nativeOpenFileButton`／`nativeSaveFileButton` 复用 Button 并返回类型化 Path。模态窗口与文件面板的原生创建失败通过现有结果回调返回 Failed，清除 pending 后仍可继续操作；open 返回 true 只表示请求已处理，应检查实际结果。参数、UI 工厂及业务回调异常沿所属 UI 错误边界报告。能力差异和资源顺序见[窗框规范](../../../docs/specs/SCOOP-UI-WINDOW-CHROME-SPEC.md)与[窗口控制器规范](../../../docs/specs/SCOOP-UI-NATIVE-WINDOWS-SPEC.md)。
 
 托盘包装在独立 [scoop.ui.component.tray](../scoop.ui.component.tray/README.md) Cone，普通 component 不依赖 scoop.tray／DBusMenu。原生组件的组合测试和 Windows 桌面执行入口见 [tests-cones/native-desktop](tests-cones/native-desktop/README.md)，实际平台验收记录见[桌面能力进度](../../../docs/desktop-ui/PROGRESS.md)。
 

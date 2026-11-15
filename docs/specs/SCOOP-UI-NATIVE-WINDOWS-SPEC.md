@@ -4,7 +4,7 @@
 
 ## 1. Scope 与共同规则
 
-控制器由创建它的 ComponentScope 或 ApplicationScope 拥有；创建入口将其登记为 scope 资源。打开动作进入所属 dispatch，返回 Boolean：成功接受一次请求为 true，已有活动请求或 scope 已退休为 false。原生拒绝和创建错误保持所属错误边界，不能把 Unsupported 当作已成功。所有公开操作在应用 owner 线程执行，render 不调用 open。isPending／isOpen 以及 window 的变化可被 render 观察。
+控制器由创建它的 ComponentScope 或 ApplicationScope 拥有；创建入口将其登记为 scope 资源。打开动作进入所属 dispatch，返回 Boolean：成功接受一次请求为 true，已有活动请求或 scope 已退休为 false；true 不表示原生展示成功，带结果回调的控制器可以在受理时立即返回 Failed。原生拒绝保留实际错误，不把 Unsupported 当作 Accepted。参数错误、UI 挂载及业务回调异常继续进入所属 UI 错误边界。所有公开操作在应用 owner 线程执行，render 不调用 open。isPending／isOpen 以及 window 的变化可被 render 观察。
 
 窗口控制器只销毁自己创建的 Window／UiWindow，UiHost.attach 本身继续借用 Window。创建失败回收已取得资源；关闭先结束 session，再关闭 UiWindow 并 requestDestroy，实际原生销毁等待低层使用退休。显式关闭控制器或 scope 卸载停止业务回调；取消一次展示保留控制器，以便完成后再次打开。每次请求的回调只执行一次；组件触发器通过 Props 取得最新回调。
 
@@ -22,11 +22,15 @@
 
 控制器提供可观察 isPending、借用 window 和 cancel()。等待 ModalCompleted 时仍为 pending，不能复用其活动窗口；完成时先释放拥有的 UI／窗口、清除 pending，再执行 onResult，允许回调打开下一次。原生 CloseRequested 取消本次展示。由 UI 挂载失败造成的 open 失败按 UiHost 已有规则报告，并清理隐藏窗口，不伪造 Accepted 或原生 Failed。
 
+创建原生窗口或启动 ModalSession 时的 WindowException 通过一次 NativeDialogResult.Failed 交付；交付前清除 pending 并释放已创建的 UI／窗口，不因此退休调用方 scope。清理本身失败继续进入 UI 错误边界并保留原始与清理异常。捕获只包围相应原生操作，不把 UI 工厂或结果回调抛出的异常重新解释为原生创建失败。
+
 ## 4. 文件面板控制器
 
 窗口／应用 scope 均提供 `fileDialogController(): FileDialogController`。控制器提供 openFile(target, onResult, options = OpenFileOptions())、openFiles(target, onResult, options = OpenFileOptions())、saveFile(target, onResult, options = SaveFileOptions()) 和 selectDirectory(target, onResult, options = DirectoryDialogOptions())，均返回 Boolean。每次请求都显式给出 DialogTarget，单选／保存／目录的回调为 FileDialogResult<Path>，多选为 FileDialogResult<Array<Path>>，不做字符串路径转换。
 
 isPending 可被 render 观察；cancel() 请求取消当前面板，等待真实完成期间仍为 pending。完成先清除当前 session 和登记，再执行本次 onResult；取消或失败不自动重开。close 永久退休控制器并取消当前请求，卸载后不执行迟到回调。保存只返回路径，不创建或写入文件。
+
+创建 FileDialogSession 时的 WindowException 通过一次 FileDialogResult.Failed 立即交付，isPending 保持 false，调用方 scope 和控制器仍可使用。结果回调不在捕获创建异常的 try 范围内，不捕获或重复交付业务回调异常。
 
 ## 5. 文件按钮
 

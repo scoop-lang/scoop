@@ -66,6 +66,8 @@ internal suspend fun runControllerCases(
         reopened.state == WindowState.Destroyed && closes.value == 2
     }
 
+    runControllerCreationFailures(probe, application, scope, owner, reopened)
+
     val dialog = scope.nativeDialogController<String>(DialogTarget.Owner(owner))
     val replies = DialogReplies()
     assertTrue(
