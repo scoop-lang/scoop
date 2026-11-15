@@ -4,6 +4,8 @@
 
 当前静态目录的组织、手工打包与部署步骤见[如何组织和发布 registry](https://scoop-lang.org/guides/registry.html)。
 
+下一阶段的发布工具、PR 管理与静态部署流程见 [Registry 首版设计草案](REGISTRY-V1.md)；该文档仍处于讨论阶段，不改变本轮已完成范围。
+
 采用独立 `scoop-pm` 可执行程序：它处理 workspace、版本求解、GitHub/Git、registry 消费和 `Cone.lock`，源码打包在下一阶段加入；`scoop` 取得 lock 的精确图与本地输入后继续使用现有构建调度、缓存和链接。`scoopc` 仍只编译一个 Cone。这将新增复杂度集中在 PM，便于在不启动 LLVM 的测试中验证解析和下载行为。
 
 本轮完成本地功能、工具接入与 registry 消费：workspace、path/Git/sysroot/artifact、lock、清单编辑、LSP、帮助/模板与发行，以及静态 HTTP 索引读取和选中源码包下载。源码打包/发布工具移至下一阶段，消费验收直接使用预先生成的静态目录。
