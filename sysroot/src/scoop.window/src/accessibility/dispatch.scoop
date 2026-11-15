@@ -1,0 +1,27 @@
+package scoop.window.accessibility
+
+import scoop.window.*
+
+/** A native action may enter only between ordinary owner callbacks. */
+internal fun ApplicationOwner.performAccessibility(
+    action: () -> SemanticActionResult
+): SemanticActionResult {
+    if (!isCurrentThread())
+        return SemanticActionResult.Busy
+    if (exiting || native == None)
+        return SemanticActionResult.Unavailable
+    if (dispatchDepth != 0 || nativeCallbackDepth != 0 || pumping)
+        return SemanticActionResult.Busy
+    dispatchDepth += 1
+    try {
+        return action()
+    } catch (error: Throwable) {
+        recordFailure(error)
+        beginExit()
+        return SemanticActionResult.Unavailable
+    } finally {
+        dispatchDepth -= 1
+        if (exiting)
+            mailbox.wake()
+    }
+}

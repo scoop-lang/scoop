@@ -12,9 +12,10 @@
 
 | 批次 | 状态 | 已完成与剩余 |
 | --- | --- | --- |
-| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、现有测试入口；原生文本菜单、拖放、accessibility 原型与其他平台验证待继续 |
+| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；原生文本菜单、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
+| S2 | 进行中 | Window 语义节点、发布／退休和 AppKit 基础投影已接入；UI scope／场景／控件、关系／内容合并、精确命中和外部客户端仍待完成 |
+| S3～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
 
@@ -60,3 +61,14 @@
 - 新增独立 `window-clicks` Cone，直接编译 Windows 实际使用的计数函数；6 个测试在 macOS release 通过，覆盖连续／首次原生双击、阈值边界及热变更、消息时间回绕、窗口屏幕位置变化、拖出返回、取消和计数饱和。C11 与包含真实调用的 C++20 编译检查通过；未建立 Win32 API 模拟层。
 - 新增 Win32 SendInput 三次点击用例，并扩展 GTK X11 原生输入测试；它们只发送按下／释放，由平台产生 count。既有 Win32 协议测试检查取消后的 DBLCLK 从 1 开始、Up 配对；这些用例尚待集中 Windows／Linux 验证，未将本地算法结果当作平台通过。Wayland 和实际人工设备输入保持独立待验。
 - 同步 Window spec、公开注释、库 README、设计现状与编程材料。没有新增计数 timer 或改变公共 InputTime 的 Observed 合同；临时下载的 GTK 参考源码在核对后清理，保留后续需要的构建缓存。
+
+### Window 语义资源与 AppKit 基础投影
+
+- 新增 `scoop.window.accessibility` 包；低层 provider／node 为 owner 资源，节点身份在窗口生命期不复用。属性、动作、父子关系与阅读顺序通过明确发布更新，名称／值变化清除旧几何；未知、空文本、受保护文本、隐藏和离屏分别处理。没有新增 Cone、IR、runtime 或另一套事件循环。
+- AppKit 使用 NSAccessibilityElement 接入现有内容 view。getter 读取已发布原生状态，实际动作经捕获 Context 的 ForeignCallback 执行；业务／watch／另一动作中重入返回 Busy，BOOL 仅对已完成动作返回成功，无返回值的 setter 用实际值验证结果。异常沿既有应用退出路径处理。
+- 节点关闭立即拒绝旧对象动作，包括尚未生成原生对象的节点；provider／Window 关闭撤销注册并在回调退栈后释放 callback。父节点退休覆盖后代，重新附着不复用身份。几何使用窗口逻辑坐标，未知布局不公布 frame，零面积不计为 visible child；未实现的精确命中不以矩形中心冒充。
+- 10 个 Scoop 文件格式检查、Window 与测试 Cone 语义检查、生产／测试 Objective-C 严格编译检查通过；独立 AX 客户端的 C11 严格编译通过。macOS release 的 `window-accessibility` 单一应用测试通过，覆盖十二个连续原生动作阶段，以及属性发布前后、关系／几何校验、Unicode 写入与拒绝、焦点、隐藏／禁用、重入、节点／provider／Window 退休和异常收尾。测试通过公开 NSAccessibility 方法检查，不读取生产私有状态。
+- 外部 AX 客户端连接权限检查通过，但尚未完成跨进程动作：AXWindows 返回一项，该引用的远程 role 为 AXApplication；同一个窗口在进程内为 AXWindow。独立的标准 AppKit NSWindow／NSButton 对照在普通窗口级别也复现此现象，且进程内 isAccessibilityElement=true。本机仍锁屏，当前无法确定异常的具体系统原因；待桌面恢复后复验，不把进程内通过记为外部 AX 或 VoiceOver 通过，也不改动系统安全设置。
+- 已生成 Window API 文档并用 `scoop api search/show` 核对 Darwin 工厂、导入路径、SemanticProperties／Actions、Boolean focus、可选几何访问器和不可公开构造的节点身份。同步正式 spec、README、设计状态及编程库导航。临时文档站点、标准 AppKit 对照源码和二进制在核对后清理；保留外部 AX 客户端和后续构建缓存。
+
+本批是 S0／S2 的低层基础，工厂当前仅在 Darwin 目标公开；UI scope 与 Accepted 场景、默认控件、完整文本、虚拟集合、其他平台 provider 和真实屏幕阅读器仍按统一计划推进。

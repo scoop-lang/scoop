@@ -2,7 +2,7 @@
 
 面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板。控件、文档布局、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
+库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板与低层无障碍投影。控件、文档布局、语义内容和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
 
 ## 依赖与入口
 
@@ -35,6 +35,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
 | 输入 | 物理键、当前布局逻辑键、重复、左右修饰键、未知键码、指针位置／按钮、序列取消、行／像素滚轮及 momentum、单调输入时间、基础光标和区域内隐藏 |
 | 文本 | 普通文字与 IME 共用编辑批次；marked／preedit、commit、候选窗位置、失焦及禁用时撤销组合 |
+| 无障碍基础 | macOS 的 `scoop.window.accessibility` 内容 provider、节点属性／几何发布与实际动作；完整 UI、文本范围及其他平台仍在实施 |
 | 绘制 | 合并重绘请求；隐藏／遮挡／零尺寸时保留 dirty；显式 native lease |
 
 `Window` 操作和原生句柄查询都要求 owner 线程。`RequestStatus.Requested` 表示已向系统提交请求，实际结果由事件或快照确认；例如焦点请求不保证系统一定授予焦点。
@@ -56,6 +57,18 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 `observeInteractionPreferences { value -> ... }` 返回需要显式关闭的 Closeable。登记不触发初次回调；收到实际变化时先发布整个快照，再在普通 owner 派发中通知观察者和发送 `ApplicationEvent.InteractionPreferencesChanged`。回调中可以注销、登记或退出，重复值不通知。从 Window 登记的观察仍属于应用，使用者应在自身卸载时关闭；应用退出会清除所有登记。读取已取得的值快照不需要窗口或 owner 继续存活。
 
 `caretBlinkInterval` 是一次显隐切换的间隔，零为常显；GTK 的整周期已除以二。`caretWidthPixels` 仍是物理像素，使用时按实际窗口 scale 转为逻辑宽度；GTK 如有公开宽高比则通过 `caretAspectRatio` 给出，不猜测字号。`textScaleFactor` 独立于 DPI。AppKit 没有公开独立数值的 caret／文字缩放保持 None；Windows 按实际可用的 UISettings 接口提供附加值，GTK 使用 4.18 基线的公开设置。原生通知经现有事件循环交付，无需安装轮询 timer。
+
+## 无障碍内容投影
+
+在 macOS 导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions)` 修改事实和真实回调，`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。
+
+本批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 仅用于 Checkbox，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue 或 focus 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
+
+更新后调用 `publish()`，原生 getter 仅读取已发布状态。`node.geometry` 是可选的已接受布局几何，使用窗口内容逻辑坐标；可选 visibleBounds 描述自身裁剪，零面积不算可见。名称／值改变会清除旧几何，匹配布局可用后再设置；不能以外接矩形中心代替精确可点击点。发布不触发绘制，无变化不重复通知。
+
+这些资源要求 owner 线程。原生动作在普通 owner 回调之间同步执行，重入返回 Busy，不递归 pump 或布局；异常沿应用现有退出路径报告。节点 close 退休子树，provider close 退休全部节点；窗口进入 Closing 自动关闭 provider。客户端持有的旧原生对象不再执行动作；重新附着产生新身份。
+
+当前 `createAccessibilityProvider` 只在 Darwin 目标公开。完整 UI scope／Accepted 场景接入、文本范围、精确命中、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 
 ## 多窗口、模态与窗框
 

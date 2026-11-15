@@ -63,6 +63,14 @@ path = "native/darwin/preferences.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/accessibility.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_node.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/window.m"
 when = { os = "darwin" }
 

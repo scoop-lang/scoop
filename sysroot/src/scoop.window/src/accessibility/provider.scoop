@@ -1,0 +1,213 @@
+package scoop.window.accessibility
+
+import scoop.collections.HashMap
+import scoop.window.*
+
+/** The platform projection owns no writable application state. */
+internal interface AccessibilityProjection: Closeable {
+    fun publish(changed: Collection<AccessibilityNode>, removed: Array<Long>, focused: Long)
+    fun retire(number: Long)
+}
+
+/** Stages owner-thread semantic changes and publishes them independently of drawing. */
+public class AccessibilityProvider internal constructor(
+    internal val owner: WindowOwner
+): Closeable {
+    private val nodes = HashMap<Long, AccessibilityNode>()
+    private val pending = HashMap<Long, AccessibilityNode>()
+    private val removed = ArrayList<Long>()
+    internal val roots = ArrayList<AccessibilityNode>()
+    private var focus: AccessibilityNode? = None
+    private var focusChanged = false
+    private var publishing = false
+    private var closed = false
+    private var projection: AccessibilityProjection? = None
+
+    internal fun bind(value: AccessibilityProjection) {
+        projection = Some(value)
+    }
+
+    public val isClosed: Boolean get() {
+        checkThread()
+        return closed
+    }
+
+    /** The actual keyboard focus. Setting it does not request focus or run a handler. */
+    public var focused: AccessibilityNode?
+    get() {
+        checkOpen()
+        return focus
+    }
+    set(value) {
+        checkOpen()
+        checkParent(value)
+        when (val previous = focus) {
+            case Some(val old) -> when (value) {
+                case Some(val next) -> if (old === next)
+                    return
+                case None -> {}
+            }
+            case None -> when (value) {
+                case None -> return
+                case Some(_) -> {}
+            }
+        }
+        focus = value
+        focusChanged = true
+    }
+
+    public fun createNode(
+        role: SemanticRole,
+        parent: AccessibilityNode? = None
+    ): AccessibilityNode {
+        checkOpen()
+        checkParent(parent)
+        val sequence = owner.semanticIdentity
+        if (sequence.next == Long.MAX_VALUE)
+            throw IllegalStateException(Some("semantic node identity exhausted"))
+        val id = SemanticNodeId(sequence, owner.id, sequence.next)
+        sequence.next += 1L
+        val node = AccessibilityNode(this, id, role, parent)
+        nodes[id.number] = node
+        addChild(node)
+        changed(node)
+        return node
+    }
+
+    internal fun checkThread() {
+        owner.application.checkThread()
+    }
+
+    internal fun checkOpen() {
+        checkThread()
+        if (closed || owner.phase != WindowState.Open)
+            throw IllegalStateException(Some("accessibility provider is closed"))
+        if (publishing)
+            throw IllegalStateException(Some("accessibility publication is in progress"))
+    }
+
+    internal fun checkParent(value: AccessibilityNode?) {
+        when (value) {
+            case Some(val node) -> requireWindow(
+                node.provider === this && node.active,
+                "semantic relation requires an active node in the same provider"
+            )
+            case None -> {}
+        }
+    }
+
+    internal fun addChild(node: AccessibilityNode) {
+        (node.parentNode?.children ?: roots).add(node)
+    }
+
+    internal fun removeChild(node: AccessibilityNode) {
+        val children = node.parentNode?.children ?: roots
+        for (index in 0L ..< children.size) {
+            if (children[index] === node) {
+                children.removeAt(index)
+                return
+            }
+        }
+    }
+
+    internal fun changed(node: AccessibilityNode) {
+        pending[node.id.number] = node
+    }
+
+    internal fun retire(node: AccessibilityNode) {
+        node.active = false
+        node.actions = SemanticActions()
+        node.placement = None
+        projection!!.retire(node.id.number)
+        for (child in node.children.toArray())
+            retire(child)
+        removeChild(node)
+        node.parentNode = None
+        pending.remove(node.id.number)
+        nodes.remove(node.id.number)
+        removed.add(node.id.number)
+        when (val current = focus) {
+            case Some(val value) -> if (value === node) {
+                focus = None
+                focusChanged = true
+            }
+            case None -> {}
+        }
+    }
+
+    /** Publishes only staged changes. A native getter never observes a partial publication. */
+    public fun publish() {
+        checkOpen()
+        if (pending.size == 0L && removed.size == 0L && !focusChanged)
+            return
+        publishing = true
+        try {
+            projection!!.publish(pending.values, removed.toArray(), focus?.id?.number ?: 0L)
+            pending.clear()
+            removed.clear()
+            focusChanged = false
+        } finally {
+            publishing = false
+        }
+    }
+
+    internal fun perform(number: Long, action: Int, value: String?): SemanticActionResult {
+        if (closed || owner.phase != WindowState.Open || owner.application.exiting)
+            return SemanticActionResult.Unavailable
+        if (owner.inputBlocked)
+            return SemanticActionResult.Rejected
+        if (publishing)
+            return SemanticActionResult.Busy
+        val node = nodes[number] ?: return SemanticActionResult.Unavailable
+        if (!node.canAct())
+            return SemanticActionResult.Rejected
+        val actions = node.actions
+        val result =
+            when (action) {
+                case 0 -> actions.invoke?.invoke() ?: SemanticActionResult.Unsupported
+                case 1 -> if (node.properties.readOnly)
+                    SemanticActionResult.Rejected
+                else
+                    actions.toggle?.invoke() ?: SemanticActionResult.Unsupported
+                case 2 -> if (node.properties.readOnly)
+                    SemanticActionResult.Rejected
+                else
+                    when (value) {
+                        case Some(val text) -> actions.setValue?.invoke(text) ?:
+                            SemanticActionResult.Unsupported
+                        case None -> SemanticActionResult.InvalidArgument
+                    }
+                case 3 -> actions.focus?.invoke(true) ?: SemanticActionResult.Unsupported
+                case 4 -> actions.focus?.invoke(false) ?: SemanticActionResult.Unsupported
+                else -> SemanticActionResult.Unsupported
+            }
+        if (!closed && owner.phase == WindowState.Open)
+            publish()
+        return result
+    }
+
+    public override fun close() {
+        checkThread()
+        if (closed)
+            return
+        closed = true
+        for (node in nodes.values) {
+            node.active = false
+            node.actions = SemanticActions()
+            node.placement = None
+            node.children.clear()
+            node.parentNode = None
+        }
+        nodes.clear()
+        pending.clear()
+        removed.clear()
+        roots.clear()
+        focus = None
+        when (val value = projection) {
+            case Some(val current) -> current.close()
+            case None -> {}
+        }
+        projection = None
+        owner.accessibility = None
+    }
+}

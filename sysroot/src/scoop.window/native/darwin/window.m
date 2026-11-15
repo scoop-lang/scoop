@@ -94,6 +94,17 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
 }
 
 @implementation SWView
+- (BOOL)isAccessibilityElement {
+  return self.semanticRoot ? NO : [super isAccessibilityElement];
+}
+- (NSArray *)accessibilityChildren {
+  return self.semanticRoot ? @[ self.semanticRoot ]
+                           : [super accessibilityChildren];
+}
+- (id)accessibilityFocusedUIElement {
+  return self.semanticRoot ? sw_accessibility_focused(self)
+                           : [super accessibilityFocusedUIElement];
+}
 - (BOOL)isFlipped {
   return YES;
 }

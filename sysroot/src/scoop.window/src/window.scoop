@@ -1,6 +1,8 @@
 package scoop.window
 
 import scoop.window.native.NativeWindowLease
+import scoop.window.accessibility.AccessibilityProvider
+import scoop.window.accessibility.SemanticIdentity
 
 /** Mutable creation attributes, copied before creating the native object. */
 public class WindowAttributes internal constructor(
@@ -212,6 +214,8 @@ public class Window internal constructor(internal val owner: WindowOwner) {
 }
 
 internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, native: Ptr<Unit>) {
+    val semanticIdentity = SemanticIdentity()
+    var accessibility: AccessibilityProvider? = None
     var owningWindow: WindowOwner? = None
     var role: WindowRole = WindowRole.Normal
     var requestedVisible: Boolean = false
@@ -259,6 +263,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
         if (phase == WindowState.Closing || phase == WindowState.Destroyed)
             return
         phase = WindowState.Closing
+        accessibility?.close()
         for (lease in closingLeases.toArray())
             lease.requestClose()
         application.cancelOwnedFileDialogs(

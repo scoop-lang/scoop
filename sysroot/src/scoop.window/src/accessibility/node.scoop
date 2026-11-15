@@ -1,0 +1,115 @@
+package scoop.window.accessibility
+
+import scoop.window.*
+
+/** A semantic resource whose role and identity last until it is explicitly retired. */
+public class AccessibilityNode internal constructor(
+    internal val provider: AccessibilityProvider,
+    public val id: SemanticNodeId,
+    public val role: SemanticRole,
+    internal var parentNode: AccessibilityNode?
+): Closeable {
+    internal val children = ArrayList<AccessibilityNode>()
+    internal var active = true
+    internal var properties = SemanticProperties()
+    internal var actions = SemanticActions()
+    internal var placement: SemanticGeometry? = None
+    internal var order = 0L
+
+    public val isClosed: Boolean get() {
+        provider.checkThread()
+        return !active
+    }
+
+    /** Stages matching, already accepted layout geometry; None invalidates an old layout. */
+    public var geometry: SemanticGeometry?
+    get() {
+        checkOpen()
+        return placement
+    }
+    set(value) {
+        checkOpen()
+        if (placement == value)
+            return
+        value?.check()
+        placement = value
+        provider.changed(this)
+    }
+
+    /** Replaces current facts and callbacks without changing the native role or identity. */
+    public fun update(
+        properties: SemanticProperties,
+        actions: SemanticActions = SemanticActions()
+    ) {
+        checkOpen()
+        properties.check()
+        requireWindow(
+            properties.checked == None || role == SemanticRole.Checkbox,
+            "checked state requires the checkbox role"
+        )
+        if (this.properties == properties && this.actions.capabilities == actions.capabilities) {
+            this.actions = actions
+            return
+        }
+        if (this.properties.name != properties.name || this.properties.value != properties.value)
+            placement = None
+        this.properties = properties
+        this.actions = actions
+        provider.changed(this)
+    }
+
+    /** Changes reading order; geometry and creation identity do not determine parenthood. */
+    public fun reparent(parent: AccessibilityNode?, order: Long = 0L) {
+        checkOpen()
+        provider.checkParent(parent)
+        var ancestor = parent
+        while (true) {
+            val current = ancestor ?: break
+            requireWindow(current !== this, "semantic parent would create a cycle")
+            ancestor = current.parentNode
+        }
+        val sameParent =
+            when (val current = parentNode) {
+                case Some(val value) -> when (parent) {
+                    case Some(val next) -> value === next
+                    case None -> false
+                }
+                case None -> when (parent) {
+                    case Some(_) -> false
+                    case None -> true
+                }
+            }
+        if (sameParent && this.order == order)
+            return
+        provider.removeChild(this)
+        parentNode = parent
+        this.order = order
+        provider.addChild(this)
+        provider.changed(this)
+    }
+
+    internal fun checkOpen() {
+        provider.checkOpen()
+        if (!active)
+            throw IllegalStateException(Some("semantic node is retired"))
+    }
+
+    internal fun canAct(): Boolean {
+        var current: AccessibilityNode? = Some(this)
+        while (true) {
+            val node = current ?: return true
+            if (!node.active || node.properties.hidden || !node.properties.enabled)
+                return false
+            current = node.parentNode
+        }
+    }
+
+    /** Retires this node and its descendants. Retired native references cannot be reused. */
+    public override fun close() {
+        provider.checkThread()
+        if (active) {
+            provider.checkOpen()
+            provider.retire(this)
+        }
+    }
+}

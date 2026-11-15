@@ -1,0 +1,129 @@
+package scoop.window.accessibility
+
+import scoop.window.*
+
+/** A small identity owner that does not retain a window or its application. */
+internal class SemanticIdentity {
+    var next = 1L
+}
+
+/** A window-owned identity. Closing a provider never makes it refer to another node. */
+public class SemanticNodeId internal constructor(
+    private val identity: SemanticIdentity,
+    public val window: WindowId,
+    internal val number: Long
+): Equals<SemanticNodeId>, Hash {
+    public override operator fun equals(other: SemanticNodeId): Boolean =
+        identity === other.identity && number == other.number
+    public override fun hash(): Long = number.hash()
+}
+
+/** Roles implemented by the initial native content provider. */
+public enum SemanticRole {
+    Group, Text, Button, Checkbox, TextField, ScrollArea
+}
+
+public enum SemanticChecked {
+    Off, On, Mixed
+}
+
+/** Unknown strings differ from known empty strings. Protected text has no public value. */
+public struct SemanticProperties(
+    val name: String? = None,
+    val description: String? = None,
+    val automationId: String? = None,
+    val value: String? = None,
+    val enabled: Boolean = true,
+    val readOnly: Boolean = false,
+    val protectedText: Boolean = false,
+    val checked: SemanticChecked? = None,
+    val hidden: Boolean = false
+) {
+    internal fun check() {
+        requireWindow(!protectedText || value == None, "protected text cannot publish a value")
+    }
+}
+
+/** Bounds are not a promise that their center is a valid clickable point. */
+public struct SemanticGeometry(
+    val bounds: LogicalRect,
+    val visibleBounds: LogicalRect? = Some(bounds)
+) {
+    internal fun check() {
+        checkSemanticRect(bounds)
+        when (visibleBounds) {
+            case Some(val visible) -> {
+                checkSemanticRect(visible)
+                requireWindow(
+                    visible.origin.x >=
+                        bounds.origin.x &&
+                        visible.origin.y >=
+                        bounds.origin.y &&
+                        visible.origin.x +
+                        visible.size.width <=
+                        bounds.origin.x +
+                        bounds.size.width &&
+                        visible.origin.y +
+                        visible.size.height <=
+                        bounds.origin.y +
+                        bounds.size.height,
+                    "visible semantic geometry must be inside its bounds"
+                )
+            }
+            case None -> {}
+        }
+    }
+}
+
+private fun checkSemanticRect(value: LogicalRect) {
+    checkRect(value)
+    requireWindow(
+        (value.origin.x + value.size.width).isFinite() &&
+            (value.origin.y + value.size.height).isFinite(),
+        "semantic rectangle overflow"
+    )
+}
+
+/** Completion describes the UI action, not any asynchronous business it starts. */
+public enum SemanticActionResult {
+    Completed, InvalidArgument, Unsupported, Unavailable, Rejected, Busy
+}
+
+/** Native capabilities are derived from these actual implementations. */
+public struct SemanticActions(
+    val invoke: (() -> SemanticActionResult)? = None,
+    val toggle: (() -> SemanticActionResult)? = None,
+    val setValue: ((String) -> SemanticActionResult)? = None,
+    val focus: ((Boolean) -> SemanticActionResult)? = None
+) {
+    internal val capabilities: Int get() {
+        var result = 0
+        when (invoke) {
+            case Some(_) -> result += 1;
+            case None -> {}
+        }
+        when (toggle) {
+            case Some(_) -> result += 2;
+            case None -> {}
+        }
+        when (setValue) {
+            case Some(_) -> result += 4;
+            case None -> {}
+        }
+        when (focus) {
+            case Some(_) -> result += 8;
+            case None -> {}
+        }
+        return result
+    }
+}
+
+internal fun actionCode(value: SemanticActionResult): Int =
+    when (value) {
+        case Completed -> 1
+        case InvalidArgument -> 2
+        case Unsupported -> 3
+        case Unavailable -> 4
+        case Rejected -> 5
+        case Busy -> 6
+    }

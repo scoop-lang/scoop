@@ -49,6 +49,7 @@ internal class ApplicationOwner(
     var stopped: Boolean = false
     var initialized: Boolean = false
     var dispatchDepth: Int = 0
+    var nativeCallbackDepth: Int = 0
     var pumping: Boolean = false
     var flow: ControlFlow = ControlFlow.Wait
     var failure: Throwable? = None
@@ -155,6 +156,7 @@ internal class ApplicationOwner(
     }
 
     fun nativeCallback(identity: Long, stage: Int) {
+        nativeCallbackDepth += 1
         try {
             if (identity == 0L) {
                 pump(stage)
@@ -166,6 +168,8 @@ internal class ApplicationOwner(
             recordFailure(error);
             beginExit();
             drainShutdown()
+        } finally {
+            nativeCallbackDepth -= 1
         }
     }
 

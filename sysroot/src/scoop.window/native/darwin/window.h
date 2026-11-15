@@ -76,6 +76,7 @@ typedef struct {
 
 @interface SWView : NSView
 @property(nonatomic, weak) SWWindow *owner;
+@property(nonatomic, strong) NSAccessibilityElement *semanticRoot;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWEvent *> *pressedKeys;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *pressedButtons;
@@ -154,6 +155,7 @@ void sw_invalidate_text_caret(SWView *view);
 @end
 
 void sw_wake(SWApplication *application);
+id sw_accessibility_focused(SWView *view);
 void sw_preferences_start(SWApplication *application);
 void sw_preferences_stop(SWApplication *application);
 BOOL sw_menu_key_equivalent(SWApplication *application, NSEvent *event);
