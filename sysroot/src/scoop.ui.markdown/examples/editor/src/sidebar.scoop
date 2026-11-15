@@ -1,0 +1,185 @@
+package scoop.examples.markdown.editor
+
+import scoop.graphics.*
+import scoop.icons.lucide.file as fileIcon
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.row as editorRow
+import scoop.ui.component.column as editorColumn
+import scoop.ui.component.frame as editorFrame
+import scoop.ui.component.label as editorLabel
+import scoop.ui.component.virtualList as editorVirtualList
+import scoop.ui.component.button as editorButton
+import scoop.ui.markdown.*
+import scoop.ui.style.*
+
+internal fun EditorWindow.sidebar(): View {
+    val owner = this
+    val index = navigation.latest
+    val headings = index?.headings ?: []
+    val items = EditorOutlineItems(navigation, index, headings, navigation.activeHeading)
+    return editorFrame(
+        editorColumn {
+            alignment = CrossAlignment.Stretch
+            spacing = 12.0
+            item(editorCaption("文稿", size = 11.0))
+            item(
+                editorButton(
+                    editorRow {
+                        spacing = 8.0
+                        alignment = CrossAlignment.Center
+                        icon(fileIcon) {
+                            size = 17.0;
+                            color = Some(editorAccent);
+                            strokeWidth = 1.6
+                        }
+                        item(
+                            editorLabel(owner.fileName) {
+                                style {
+                                    fontSize = Some(13.0);
+                                    weight = Some(500)
+                                }
+                                settings {
+                                    maxLines = Some(1L);
+                                    ellipsis = "…"
+                                }
+                            }
+                        ) {
+                            grow = 1.0;
+                            basis = FlexBasis.Fixed(0.0)
+                        }
+                    },
+                    { owner.navigation.goTo(MarkdownPosition(0L)) }
+                ) {
+                    variant = ButtonVariant.Ghost
+                    style =
+                        editorControlStyle().copy {
+                            surface { style { background(Some(Paint(Color(0.86, 0.88, 0.92)))) } }
+                        }
+                }
+            )
+            item(
+                editorFrame(editorCaption("大纲", size = 11.0)) {
+                    padding = Some(Insets(0.0, 12.0, 0.0, 0.0))
+                }
+            )
+            if (headings.size == 0L)
+                item(
+                    editorColumn {
+                        spacing = 4.0
+                        item(editorCaption("尚无标题", size = 12.0))
+                        label("添加标题后，将在这里显示文稿结构。") {
+                            style {
+                                fontSize = Some(11.0);
+                                color = Some(editorMuted)
+                            }
+                        }
+                    }
+                )
+            else
+                item(
+                    editorVirtualList(items, ItemExtent.Fixed(30.0)) {
+                        state = Some(owner.outlineScroll)
+                        overscan = 90.0
+                        navigation = ItemNavigation.Roving()
+                    }
+                ) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+            item(empty()) {
+                grow =
+                    if (headings.size == 0L)
+                        1.0
+                    else
+                        0.0;
+                basis = FlexBasis.Fixed(0.0)
+            }
+            item(editorCaption(headings.size.toString() + " 个标题"))
+        }
+    ) {
+        key = ViewKey.Text("sidebar")
+        padding = Some(Insets(14.0, 20.0, 14.0, 12.0))
+        style { background(Some(Paint(editorSidebar))) }
+    }
+}
+
+internal class EditorOutlineItems(
+    val controller: MarkdownNavigationController,
+    val expected: MarkdownNavigation?,
+    val headings: Array<MarkdownHeading>,
+    val active: Long?
+): ItemSource {
+    public override val count: Long get() = headings.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case ViewKey.Number(val index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        val heading = headings[index]
+        var depth = 0.0
+        var parent = heading.parent
+        while (parent != None) {
+            depth += 1.0;
+            parent = headings[parent!!].parent
+        }
+        val inset = depth * 12.0
+        val current = controller.current
+        val ready =
+            when ((expected, current)) {
+                case(Some(val old), Some(val now)) -> old === now
+                else -> false
+            }
+        val owner = this
+        return button(
+            editorFrame(
+                label(
+                    if (heading.title == "")
+                        "无标题"
+                    else
+                        heading.title
+                ) {
+                    style {
+                        fontSize = Some(13.0);
+                        color = Some(editorInk)
+                    }
+                    settings {
+                        maxLines = Some(1L);
+                        ellipsis = "…"
+                    }
+                }
+            ) {
+                padding = Some(Insets(inset, 0.0, 0.0, 0.0));
+                alignment = Alignment(AxisAlignment.Start, AxisAlignment.Center)
+            },
+            {
+                val latest = owner.controller.current
+                when ((owner.expected, latest)) {
+                    case(Some(val old), Some(val now)) -> {
+                        if (old === now)
+                            owner.controller.goToHeading(index)
+                    }
+                    else -> Unit
+                }
+            }
+        ) {
+            enabled = ready
+            size = ButtonSize.Sm
+            variant = ButtonVariant.Ghost
+            style =
+                editorControlStyle().copy {
+                    surface {
+                        padding = Some(Insets(8.0, 4.0, 8.0, 4.0))
+                        if (owner.active == Some(index))
+                            style { background(Some(Paint(Color(0.82, 0.87, 0.96)))) }
+                    }
+                }
+        }
+    }
+}

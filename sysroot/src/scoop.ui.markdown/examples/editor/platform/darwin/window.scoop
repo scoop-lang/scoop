@@ -1,0 +1,9 @@
+package scoop.examples.markdown.editor
+
+import scoop.window.*
+import scoop.window.platform.macos.*
+
+internal fun configureEditorWindow(window: Window): WindowFrame {
+    window.setMacOSTitlebar(TitlebarOptions(transparent = true, titleHidden = true))
+    return WindowFrame.System(WindowContentMode.Extended)
+}

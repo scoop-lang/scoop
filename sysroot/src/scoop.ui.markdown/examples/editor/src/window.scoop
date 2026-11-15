@@ -1,0 +1,238 @@
+package scoop.examples.markdown.editor
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.fs.*
+import scoop.platform.fs.Path as FilePath
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.row as editorRow
+import scoop.ui.component.column as editorColumn
+import scoop.ui.component.frame as editorFrame
+import scoop.text.split
+import scoop.ui.markdown.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class EditorWindow(
+    internal val editor: MarkdownEditorState,
+    internal val documentFile: FilePath,
+    internal val documentUri: String,
+    workers: CoroutineExecutor,
+    renderers: List<MarkdownImageRenderer>,
+    scope: ComponentScope
+): Component(scope) {
+    internal val parser =
+        scope.resource { MarkdownParseController(editor, workers, scope.application.proxy()) }
+    internal val images =
+        scope.resource { MarkdownImageController(workers, scope.application.proxy(), renderers) }
+    internal val view = MarkdownEditorViewState(editor, MarkdownEditorMode.Wysiwyg)
+    internal val search =
+        scope.resource { MarkdownSearchController(view, workers, scope.application.proxy()) }
+    internal val navigation = scope.resource { MarkdownNavigationController(view, parser) }
+    internal val folding = scope.resource { MarkdownFoldingController(view, parser) }
+    internal val outline = state(true)
+    internal val formatOpen = state(false)
+    internal val moreOpen = state(false)
+    internal val message = state("")
+    internal val target = EditorTargetDialog()
+    internal val location = EditorLocationDialog()
+    internal var pendingFormat: (() -> Unit)? = None
+    internal var pendingMore: (() -> Unit)? = None
+    internal val outlineScroll = ScrollState()
+    private val nativeFrame = state(WindowFrame.System(WindowContentMode.Standard))
+    internal val displayPath = documentFile.toOsString().decodeUtf8()
+    internal val fileName: String = editorFileName(displayPath)
+
+    private val sourceStyle =
+        MarkdownSourceStyle(
+            text =
+                textStyle {
+                    families = ["SF Mono", "Menlo", "monospace"]
+                    fontSize = 13.0
+                    lineHeight = Some(1.65)
+                    color = editorInk
+                },
+            background = Color(0.992, 0.992, 0.995)
+        )
+    private val richStyle =
+        MarkdownPreviewStyle(
+            text =
+                textStyle {
+                    families = [".AppleSystemUIFont", "Helvetica Neue", "PingFang SC", "sans-serif"]
+                    fontSize = 16.0
+                    lineHeight = Some(1.65)
+                    color = editorInk
+                }
+        )
+    private val editorOptions =
+        MarkdownEditorOptions(
+            source = MarkdownSourceOptions(lineNumbers = true, padding = 24.0),
+            rich = MarkdownPreviewOptions(padding = 34.0, paragraphSpacing = 12.0)
+        )
+
+    public override fun onMount() {
+        nativeFrame.value = configureEditorWindow(scope.nativeWindow)
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    shortcutBinding(editorShortcut("s"), { save() }),
+                    shortcutBinding(editorShortcut("q"), { quit() })
+                ]
+            )
+        }
+    }
+
+    internal fun quit() {
+        scope.application.requestExit()
+    }
+
+    internal fun save() {
+        try {
+            editor.acceptComposition()
+            val saved = editor.snapshot
+            documentFile.writeText(saved.toMarkdown())
+            editor.markSaved(saved.revision)
+            message.value = ""
+        } catch (error: Exception) {
+            message.value = error.message ?: "保存失败"
+        }
+        view.requestFocus(view.activePane)
+    }
+
+    internal fun setMode(mode: MarkdownEditorMode) {
+        view.setMode(mode)
+        view.requestFocus(view.activePane)
+    }
+
+    private fun restoreDocumentFocus() {
+        if (!search.isVisible)
+            view.requestFocus(view.activePane)
+    }
+
+    internal fun finishFormatMenu() {
+        val action = pendingFormat
+        pendingFormat = None
+        when (action) {
+            case Some(val run) -> run()
+            case None -> view.requestFocus(view.activePane)
+        }
+    }
+
+    internal fun finishMoreMenu() {
+        val action = pendingMore
+        pendingMore = None
+        when (action) {
+            case Some(val run) -> run()
+            case None -> view.requestFocus(view.activePane)
+        }
+    }
+
+    public override fun render(): View {
+        val owner = this
+        val document =
+            editorFrame(
+                markdownEditor(
+                    view,
+                    parser,
+                    sourceStyle = Some(sourceStyle),
+                    richStyle = Some(richStyle),
+                    options = editorOptions,
+                    images = Some(images),
+                    documentUri = documentUri,
+                    search = Some(search),
+                    navigation = Some(navigation),
+                    folding = Some(folding),
+                    onChanged = { _ -> owner.message.value = "" },
+                    onOpenLink = { destination -> owner.message.value = destination }
+                )
+            ) { key = ViewKey.Text("editor") }
+        val documentPane =
+            editorFrame(
+                editorColumn {
+                    alignment = CrossAlignment.Stretch
+                    if (owner.search.isVisible)
+                        item(
+                            editorFrame(markdownSearchBar(owner.search)) {
+                                key = ViewKey.Text("search")
+                                padding = Some(Insets(16.0, 10.0, 16.0, 10.0))
+                                style { background(Some(Paint(editorChrome))) }
+                            }
+                        )
+                    item(document) {
+                        grow = 1.0;
+                        basis = FlexBasis.Fixed(0.0)
+                    }
+                }
+            ) { key = ViewKey.Text("document") }
+        val body =
+            editorColumn {
+                alignment = CrossAlignment.Stretch
+                item(editorDivider())
+                item(
+                    editorRow {
+                        alignment = CrossAlignment.Stretch
+                        if (owner.outline.value) {
+                            item(owner.sidebar()) {
+                                basis = FlexBasis.Fixed(214.0);
+                                shrink = 0.0
+                            }
+                            item(
+                                editorFrame(empty()) {
+                                    key = ViewKey.Text("sidebar-rule")
+                                    width = Some(1.0)
+                                    style { background(Some(Paint(editorRule))) }
+                                }
+                            ) { shrink = 0.0 }
+                        }
+                        item(documentPane) {
+                            grow = 1.0;
+                            basis = FlexBasis.Fixed(0.0)
+                        }
+                    }
+                ) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+                item(editorDivider())
+                item(owner.statusBar())
+                item(owner.target.view(owner.view, { owner.restoreDocumentFocus() }))
+                item(owner.location.view(owner.navigation, { owner.restoreDocumentFocus() }))
+            }
+        val chrome =
+            windowChrome(body) {
+                frame = owner.nativeFrame.value
+                titleBar = Some(owner.toolbar())
+                titleBarHeight = 54.0
+            }
+        return nativeWindowMenuBar(
+            editorFrame(chrome) { style { background(Some(Paint(editorChrome))) } },
+            owner.applicationMenu()
+        )
+    }
+}
+
+internal fun editorFileName(path: String): String {
+    val parts = path.split("/")
+    return parts[parts.size - 1L]
+}
+
+internal fun editorModeName(mode: MarkdownEditorMode): String =
+    when (mode) {
+        case Source -> "源码"
+        case Wysiwyg -> "所见即所得"
+        case SideBySide -> "双栏"
+    }
+
+internal fun editorShortcut(
+    key: String,
+    shift: Boolean = false,
+    alt: Boolean = false
+): ShortcutChord =
+    ShortcutChord(
+        ShortcutKey.Logical(LogicalKey.Character(key)),
+        ShortcutModifiers(primary = true, shift = shift, alt = alt)
+    )

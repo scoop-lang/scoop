@@ -1,0 +1,86 @@
+package scoop.examples.markdown.editor
+
+import scoop.markdown.*
+import scoop.text.*
+import scoop.window.Utf8Selection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.ui.text.TextEditorState
+
+internal class EditorLocationDialog {
+    private val visible = state(false)
+    private val message = state("")
+    private val field = TextEditorState()
+    private val focus = FocusHandle()
+
+    fun open(navigation: MarkdownNavigationController) {
+        navigation.editor.acceptComposition()
+        val current = navigation.editor.snapshot.lineColumn(navigation.editor.selection.cursor)
+        field.replaceAll((current.line + 1L).toString() + ":" + (current.column + 1L).toString())
+        field.setSelection(Utf8Selection(0L, field.text.byteLength))
+        message.value = ""
+        visible.value = true
+    }
+
+    private fun submit(navigation: MarkdownNavigationController) {
+        val parts = field.text.trim().split(":")
+        if (parts.size < 1L || parts.size > 2L) {
+            message.value = "请输入有效的行号，或“行号:列号”。"
+            return
+        }
+        val line = parts[0L].trim().toLongOrNone() ?: 0L
+        val column =
+            if (parts.size == 1L)
+                1L
+            else
+                parts[1L].trim().toLongOrNone() ?: 0L
+        if (line < 1L || line > navigation.editor.snapshot.lineCount || column < 1L) {
+            message.value = "请输入有效的行号，或“行号:列号”。"
+            return
+        }
+        if (navigation.goToLine(line - 1L, column - 1L))
+            visible.value = false
+    }
+
+    fun view(navigation: MarkdownNavigationController, restoreFocus: () -> Unit): View {
+        val owner = this
+        return dialog(
+            visible.binding(),
+            column {
+                alignment = CrossAlignment.Stretch
+                spacing = 8.0
+                label("行号或行号:列号")
+                input(owner.field) {
+                    placeholder = "例如 12:3"
+                    focus = FocusOptions(Some(owner.focus))
+                    invalid = owner.message.value != ""
+                    onEdited = { _ -> owner.message.value = "" }
+                    onSubmit = { _ -> owner.submit(navigation) }
+                }
+                if (owner.message.value != "")
+                    label(owner.message.value)
+            }
+        ) {
+            title("前往行")
+            width = 320.0
+            focus {
+                initialFocus = Some(owner.focus);
+                this.restoreFocus = false
+            }
+            footer(
+                row {
+                    spacing = 8.0
+                    justify = MainAlignment.End
+                    item(empty()) {
+                        grow = 1.0;
+                        basis = FlexBasis.Fixed(0.0)
+                    }
+                    button("取消", { owner.visible.value = false }) { variant = ButtonVariant.Ghost }
+                    button("前往", { owner.submit(navigation) }) { style = editorPrimaryStyle() }
+                }
+            )
+            onClosed = { _ -> restoreFocus() }
+        }
+    }
+}

@@ -1,0 +1,6 @@
+package scoop.examples.markdown.editor
+
+import scoop.window.*
+
+internal fun configureEditorWindow(window: Window): WindowFrame =
+    WindowFrame.System(WindowContentMode.Standard)

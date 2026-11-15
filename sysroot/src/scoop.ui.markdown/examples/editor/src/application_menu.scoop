@@ -1,0 +1,95 @@
+package scoop.examples.markdown.editor
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+internal fun EditorWindow.applicationMenu(): NativeMenuContent {
+    val owner = this
+    return nativeMenu {
+        submenu(
+            ViewKey.Text("application"),
+            "Scoop Markdown",
+            nativeMenu {
+                item(ViewKey.Text("quit"), "退出 Scoop Markdown", { _ -> owner.quit() }) {
+                    shortcut = Some(editorShortcut("q"))
+                }
+            }
+        )
+        submenu(
+            ViewKey.Text("file"),
+            "文件",
+            nativeMenu {
+                item(ViewKey.Text("save"), "保存", { _ -> owner.save() }) {
+                    shortcut = Some(editorShortcut("s"))
+                }
+            }
+        )
+        submenu(
+            ViewKey.Text("edit"),
+            "编辑",
+            nativeMenu {
+                role(ViewKey.Text("undo"), "撤销", MenuRole.Undo) {
+                    shortcut = Some(editorShortcut("z"))
+                }
+                role(ViewKey.Text("redo"), "重做", MenuRole.Redo) {
+                    shortcut = Some(editorShortcut("z", true))
+                }
+                separator(ViewKey.Text("clipboard"))
+                role(ViewKey.Text("cut"), "剪切", MenuRole.Cut) {
+                    shortcut = Some(editorShortcut("x"))
+                }
+                role(ViewKey.Text("copy"), "复制", MenuRole.Copy) {
+                    shortcut = Some(editorShortcut("c"))
+                }
+                role(ViewKey.Text("paste"), "粘贴", MenuRole.Paste) {
+                    shortcut = Some(editorShortcut("v"))
+                }
+                role(ViewKey.Text("select-all"), "全选", MenuRole.SelectAll) {
+                    shortcut = Some(editorShortcut("a"))
+                }
+                separator(ViewKey.Text("find-separator"))
+                item(ViewKey.Text("find"), "查找…", { _ -> owner.search.show() }) {
+                    shortcut = Some(editorShortcut("f"))
+                }
+                item(ViewKey.Text("replace"), "查找与替换…", { _ -> owner.search.show(true) }) {
+                    shortcut = Some(editorShortcut("f", alt = true))
+                }
+                item(
+                    ViewKey.Text("location"),
+                    "前往行…",
+                    { _ -> owner.location.open(owner.navigation) }
+                ) { shortcut = Some(editorShortcut("l")) }
+            }
+        )
+        submenu(
+            ViewKey.Text("view"),
+            "显示",
+            nativeMenu {
+                for (
+                    entry in [
+                        (MarkdownEditorMode.Source, "1"),
+                        (MarkdownEditorMode.Wysiwyg, "2"),
+                        (MarkdownEditorMode.SideBySide, "3")
+                    ]
+                ) {
+                    val(mode, key) = entry
+                    item(
+                        ViewKey.Text(key),
+                        (
+                            if (owner.view.mode == mode)
+                                "✓  "
+                            else
+                                ""
+                        ) +
+                            editorModeName(mode),
+                        { _ -> owner.setMode(mode) }
+                    ) { shortcut = Some(editorShortcut(key, alt = true)) }
+                }
+                separator(ViewKey.Text("sidebar-separator"))
+                checkboxItem(ViewKey.Text("sidebar"), "显示大纲", owner.outline.binding())
+            }
+        )
+    }
+}

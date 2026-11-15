@@ -1,0 +1,167 @@
+package scoop.examples.markdown.editor
+
+import scoop.graphics.*
+import scoop.icons.lucide.panelLeft
+import scoop.icons.lucide.chevronLeft
+import scoop.icons.lucide.chevronRight
+import scoop.icons.lucide.folder
+import scoop.icons.lucide.search as searchIcon
+import scoop.icons.lucide.save as saveIcon
+import scoop.markdown.lineColumn
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.row as editorRow
+import scoop.ui.component.column as editorColumn
+import scoop.ui.component.frame as editorFrame
+import scoop.ui.markdown.*
+import scoop.ui.style.*
+
+private fun EditorWindow.modeControl(): View {
+    val owner = this
+    return editorFrame(
+        editorRow {
+            alignment = CrossAlignment.Center
+            spacing = 2.0
+            for (
+                mode in [
+                    MarkdownEditorMode.Source,
+                    MarkdownEditorMode.Wysiwyg,
+                    MarkdownEditorMode.SideBySide
+                ]
+            ) {
+                button(editorModeName(mode), { owner.setMode(mode) }) {
+                    size = ButtonSize.Sm
+                    variant = ButtonVariant.Ghost
+                    style = editorControlStyle(owner.view.mode == mode)
+                }
+            }
+        }
+    ) {
+        padding = Some(Insets.all(2.0))
+        style {
+            background(Some(Paint(Color(0.89, 0.90, 0.92))));
+            corners(Corners.all(7.0))
+        }
+    }
+}
+
+internal fun EditorWindow.toolbar(): View {
+    val owner = this
+    return windowDragRegion(
+        editorFrame(
+            editorRow {
+                alignment = CrossAlignment.Center
+                spacing = 10.0
+                item(
+                    editorIconButton(
+                        panelLeft,
+                        "显示或隐藏大纲",
+                        {
+                            owner.outline.value = !owner.outline.value;
+                            owner.view.requestFocus(owner.view.activePane)
+                        },
+                        selected = owner.outline.value
+                    )
+                ) { shrink = 0.0 }
+                row {
+                    spacing = 0.0
+                    item(
+                        editorIconButton(
+                            chevronLeft,
+                            "后退",
+                            { owner.navigation.goBack() },
+                            owner.navigation.canGoBack
+                        )
+                    )
+                    item(
+                        editorIconButton(
+                            chevronRight,
+                            "前进",
+                            { owner.navigation.goForward() },
+                            owner.navigation.canGoForward
+                        )
+                    )
+                }
+                item(
+                    editorColumn {
+                        spacing = 1.0
+                        alignment = CrossAlignment.Stretch
+                        label(owner.fileName) {
+                            style {
+                                fontSize = Some(14.0);
+                                weight = Some(600)
+                            }
+                            settings {
+                                maxLines = Some(1L);
+                                ellipsis = "…"
+                            }
+                        }
+                        item(
+                            editorCaption(
+                                if (owner.editor.isDirty)
+                                    "已修改"
+                                else
+                                    "Markdown 文稿"
+                            )
+                        )
+                    }
+                ) {
+                    grow = 1.0;
+                    basis = FlexBasis.Fixed(0.0)
+                }
+                item(owner.modeControl()) { shrink = 0.0 }
+                item(editorDivider(true)) { shrink = 0.0 }
+                item(owner.formatMenu()) { shrink = 0.0 }
+                item(editorIconButton(searchIcon, "查找 · ⌘F", { owner.search.show() })) {
+                    shrink = 0.0
+                }
+                item(editorIconButton(saveIcon, "保存 · ⌘S", { owner.save() })) { shrink = 0.0 }
+                item(owner.moreMenu()) { shrink = 0.0 }
+            }
+        ) { padding = Some(Insets(12.0, 0.0, 14.0, 0.0)) }
+    )
+}
+
+internal fun EditorWindow.statusBar(): View {
+    val owner = this
+    val current = editor.snapshot.lineColumn(editor.selection.cursor)
+    return editorFrame(
+        editorRow {
+            alignment = CrossAlignment.Center
+            spacing = 12.0
+            icon(folder) {
+                size = 13.0;
+                color = Some(editorMuted);
+                strokeWidth = 1.6
+            }
+            item(editorCaption(owner.displayPath)) {
+                grow = 1.0;
+                basis = FlexBasis.Fixed(0.0)
+            }
+            if (owner.message.value != "")
+                item(editorCaption(owner.message.value)) { max = Some(220.0) }
+            item(
+                editorCaption(
+                    if (owner.editor.isDirty)
+                        "未保存"
+                    else
+                        "已保存",
+                    if (owner.editor.isDirty)
+                        editorAccent
+                    else
+                        editorMuted
+                )
+            )
+            item(
+                editorCaption(
+                    (current.line + 1L).toString() + " 行，" + (current.column + 1L).toString() + " 列"
+                )
+            )
+            item(editorCaption(owner.editor.snapshot.byteLength.toString() + " 字节"))
+            item(editorCaption("UTF-8"))
+        }
+    ) {
+        height = Some(28.0);
+        padding = Some(Insets(14.0, 0.0, 16.0, 0.0))
+    }
+}

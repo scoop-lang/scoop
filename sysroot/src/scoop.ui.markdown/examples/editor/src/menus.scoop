@@ -1,0 +1,322 @@
+package scoop.examples.markdown.editor
+
+import scoop.icons.lucide.*
+import scoop.markdown.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+private fun marked(label: String, state: MarkdownStyleState): String =
+    when (state) {
+        case On -> "✓  " + label
+        case Mixed -> "–  " + label
+        else -> label
+    }
+
+private fun MenuBuilder.block(owner: EditorWindow, label: String, command: MarkdownBlockCommand) {
+    val status = owner.view.blockState(command)
+    item(
+        ViewKey.Text(label),
+        marked(label, status),
+        {
+            owner.pendingFormat =
+                Some(
+                    {
+                        owner.view.executeBlock(command);
+                        Unit
+                    }
+                )
+        }
+    ) { enabled = status != MarkdownStyleState.Unavailable }
+}
+
+internal fun EditorWindow.formatMenu(): View {
+    val owner = this
+    val content =
+        menu {
+            for (
+                entry in [
+                    ("粗体", MarkdownInlineStyle.Strong),
+                    ("斜体", MarkdownInlineStyle.Emphasis),
+                    ("删除线", MarkdownInlineStyle.Strikethrough)
+                ]
+            ) {
+                val(name, format) = entry
+                val status = owner.view.styleState(format)
+                item(
+                    ViewKey.Text(name),
+                    marked(name, status),
+                    {
+                        owner.pendingFormat =
+                            Some(
+                                {
+                                    owner.view.toggleStyle(format);
+                                    Unit
+                                }
+                            )
+                    }
+                ) { enabled = status != MarkdownStyleState.Unavailable }
+            }
+            item(
+                ViewKey.Text("inline-code"),
+                marked("行内代码", owner.view.codeState()),
+                {
+                    owner.pendingFormat =
+                        Some(
+                            {
+                                owner.view.toggleCode();
+                                Unit
+                            }
+                        )
+                }
+            ) { enabled = owner.view.codeState() != MarkdownStyleState.Unavailable }
+            separator(ViewKey.Text("inline-end"))
+            submenu(
+                ViewKey.Text("paragraph"),
+                "段落与标题",
+                menu {
+                    block(owner, "正文", MarkdownBlockCommand.Paragraph)
+                    for (level in 1 .. 6)
+                        block(owner, level.toString() + " 级标题", MarkdownBlockCommand.Heading(level))
+                    separator(ViewKey.Text("quotes"))
+                    block(owner, "增加引用层级", MarkdownBlockCommand.Quote)
+                    block(owner, "减少引用层级", MarkdownBlockCommand.Unquote)
+                }
+            )
+            submenu(
+                ViewKey.Text("lists"),
+                "列表",
+                menu {
+                    block(owner, "无序列表", MarkdownBlockCommand.BulletList)
+                    block(owner, "有序列表", MarkdownBlockCommand.OrderedList)
+                    block(owner, "任务列表", MarkdownBlockCommand.TaskList)
+                    separator(ViewKey.Text("indent"))
+                    block(owner, "增加缩进", MarkdownBlockCommand.Indent)
+                    block(owner, "减少缩进", MarkdownBlockCommand.Outdent)
+                    block(owner, "移除列表标记", MarkdownBlockCommand.RemoveList)
+                    block(owner, "从 1 重新编号", MarkdownBlockCommand.RenumberList)
+                }
+            )
+            submenu(
+                ViewKey.Text("tables"),
+                "表格",
+                menu {
+                    block(owner, "插入 3 × 3 表格", MarkdownBlockCommand.InsertTable(3L, 3L))
+                    separator(ViewKey.Text("rows"))
+                    block(owner, "在上方插入行", MarkdownBlockCommand.InsertTableRow(true))
+                    block(owner, "在下方插入行", MarkdownBlockCommand.InsertTableRow(false))
+                    block(owner, "删除当前行", MarkdownBlockCommand.RemoveTableRow)
+                    block(owner, "在左侧插入列", MarkdownBlockCommand.InsertTableColumn(true))
+                    block(owner, "在右侧插入列", MarkdownBlockCommand.InsertTableColumn(false))
+                    block(owner, "删除当前列", MarkdownBlockCommand.RemoveTableColumn)
+                    separator(ViewKey.Text("alignment"))
+                    block(
+                        owner,
+                        "默认对齐",
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.None)
+                    )
+                    block(
+                        owner,
+                        "左对齐",
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Left)
+                    )
+                    block(
+                        owner,
+                        "居中",
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Center)
+                    )
+                    block(
+                        owner,
+                        "右对齐",
+                        MarkdownBlockCommand.AlignTableColumn(MarkdownAlignment.Right)
+                    )
+                }
+            )
+            separator(ViewKey.Text("insert"))
+            for (entry in [("链接…", MarkdownTargetKind.Link), ("图片…", MarkdownTargetKind.Image)]) {
+                val(name, kind) = entry
+                item(
+                    ViewKey.Text(name),
+                    name,
+                    { owner.pendingFormat = Some({ owner.target.open(owner.view, kind) }) }
+                ) { enabled = owner.view.canEditTarget }
+            }
+            block(owner, "代码块", MarkdownBlockCommand.CodeBlock)
+            block(owner, "分隔线", MarkdownBlockCommand.InsertThematicBreak)
+        }
+    return dropdownMenu(formatOpen.binding(), content) {
+        trigger(
+            row {
+                alignment = CrossAlignment.Center
+                spacing = 5.0
+                label("Aa") {
+                    style {
+                        fontSize = Some(16.0);
+                        weight = Some(500)
+                    }
+                }
+                icon(chevronDown) {
+                    size = 11.0;
+                    strokeWidth = 1.8
+                }
+            }
+        ) {
+            variant = ButtonVariant.Ghost;
+            style = editorControlStyle()
+        }
+        width = 224.0
+        alignment = OverlayAlignment.End
+        focus { restoreFocus = false }
+        onClosed = { _ -> owner.finishFormatMenu() }
+    }
+}
+
+internal fun EditorWindow.moreMenu(): View {
+    val owner = this
+    val foldingRegion = folding.current?.at(editor.selection.cursor) ?: None
+    val collapsed =
+        when (foldingRegion) {
+            case Some(val region) -> folding.isCollapsed(region)
+            case None -> false
+        }
+    val content =
+        menu {
+            item(
+                ViewKey.Text("undo"),
+                "撤销",
+                {
+                    owner.pendingMore =
+                        Some(
+                            {
+                                owner.editor.undo();
+                                owner.view.requestFocus(owner.view.activePane)
+                            }
+                        )
+                }
+            ) {
+                enabled = owner.editor.canUndo;
+                shortcut = Some(editorShortcut("z"))
+            }
+            item(
+                ViewKey.Text("redo"),
+                "重做",
+                {
+                    owner.pendingMore =
+                        Some(
+                            {
+                                owner.editor.redo();
+                                owner.view.requestFocus(owner.view.activePane)
+                            }
+                        )
+                }
+            ) {
+                enabled = owner.editor.canRedo;
+                shortcut = Some(editorShortcut("z", true))
+            }
+            separator(ViewKey.Text("search"))
+            item(
+                ViewKey.Text("replace"),
+                "查找与替换…",
+                { owner.pendingMore = Some({ owner.search.show(true) }) }
+            ) { shortcut = Some(editorShortcut("f", alt = true)) }
+            item(
+                ViewKey.Text("location"),
+                "前往行…",
+                { owner.pendingMore = Some({ owner.location.open(owner.navigation) }) }
+            ) { shortcut = Some(editorShortcut("l")) }
+            separator(ViewKey.Text("outline"))
+            checkboxItem(ViewKey.Text("sidebar"), "显示大纲", owner.outline.binding()) {
+                closeOnSelect = Some(true)
+            }
+            item(
+                ViewKey.Text("fold"),
+                if (collapsed)
+                    "展开当前章节"
+                else
+                    "折叠当前章节",
+                {
+                    owner.pendingMore =
+                        Some(
+                            {
+                                when (foldingRegion) {
+                                    case Some(val region) -> owner.folding.setCollapsed(
+                                        region,
+                                        !collapsed
+                                    )
+                                    case None -> Unit
+                                }
+                                owner.view.requestFocus(owner.view.activePane)
+                            }
+                        )
+                }
+            ) {
+                enabled =
+                    when (foldingRegion) {
+                        case Some(_) -> true;
+                        case None -> false
+                    }
+            }
+            item(
+                ViewKey.Text("fold-all"),
+                "折叠全部",
+                {
+                    owner.pendingMore =
+                        Some(
+                            {
+                                owner.folding.collapseAll();
+                                owner.view.requestFocus(owner.view.activePane)
+                            }
+                        )
+                }
+            ) { enabled = (owner.folding.current?.regions?.size ?: 0L) > 0L }
+            item(
+                ViewKey.Text("unfold-all"),
+                "展开全部",
+                {
+                    owner.pendingMore =
+                        Some(
+                            {
+                                owner.folding.expandAll();
+                                owner.view.requestFocus(owner.view.activePane)
+                            }
+                        )
+                }
+            ) { enabled = (owner.folding.current?.regions?.size ?: 0L) > 0L }
+            separator(ViewKey.Text("split"))
+            label(ViewKey.Text("split-label"), "双栏设置")
+            checkboxItem(
+                ViewKey.Text("sync"),
+                "同步滚动",
+                binding(
+                    get = { owner.view.synchronizeScroll },
+                    set = { value -> owner.view.setSynchronizeScroll(value) }
+                )
+            ) { enabled = owner.view.mode == MarkdownEditorMode.SideBySide }
+            checkboxItem(
+                ViewKey.Text("readonly"),
+                "右侧只读",
+                binding(
+                    get = { owner.view.rightReadOnly },
+                    set = { value -> owner.view.setRightReadOnly(value) }
+                )
+            ) { enabled = owner.view.mode == MarkdownEditorMode.SideBySide }
+        }
+    return dropdownMenu(moreOpen.binding(), content) {
+        trigger(
+            icon(ellipsis) {
+                size = 19.0;
+                color = Some(editorInk);
+                strokeWidth = 1.8
+            }
+        ) {
+            variant = ButtonVariant.Ghost;
+            size = ButtonSize.IconSm;
+            style = editorControlStyle()
+        }
+        width = 238.0
+        alignment = OverlayAlignment.End
+        focus { restoreFocus = false }
+        onClosed = { _ -> owner.finishMoreMenu() }
+    }
+}

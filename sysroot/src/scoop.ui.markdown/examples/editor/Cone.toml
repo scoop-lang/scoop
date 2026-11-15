@@ -5,8 +5,23 @@ name = "markdown-editor"
 version = "0.1.0"
 kind = "executable"
 
+[[sources]]
+path = "src"
+[[sources]]
+path = "platform/darwin"
+when = { os = "darwin" }
+[[sources]]
+path = "platform/windows"
+when = { os = "windows" }
+[[sources]]
+path = "platform/linux"
+when = { os = "linux", env = "gnu" }
+
 [dependencies]
 "scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.graphics.text" = "0.1.0"
+"scoop:scoop.graphics.svg" = "0.1.0"
+"scoop:scoop.icons.lucide" = "0.1.0"
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.concurrent" = "0.1.0"

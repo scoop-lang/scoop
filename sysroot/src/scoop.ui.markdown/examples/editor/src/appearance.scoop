@@ -1,0 +1,204 @@
+package scoop.examples.markdown.editor
+
+import scoop.graphics.*
+import scoop.graphics.svg.SvgAsset
+import scoop.graphics.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal val editorInk = Color(0.19, 0.20, 0.22)
+
+internal val editorMuted = Color(0.47, 0.48, 0.51)
+
+internal val editorChrome = Color(0.965, 0.965, 0.972)
+
+internal val editorSidebar = Color(0.945, 0.947, 0.957)
+
+internal val editorRule = Color(0.85, 0.86, 0.88)
+
+internal val editorAccent = Color(0.08, 0.40, 0.88)
+
+internal fun editorTheme(): ShapeTheme =
+    shadcnTheme {
+        tokens {
+            corners = ThemeCorners(4.0, 6.0, 8.0)
+            palette {
+                primary = ColorPair(Color(0.91, 0.92, 0.94), editorInk)
+                secondary = ColorPair(Color(0.86, 0.89, 0.95), editorInk)
+                accent = ColorPair(Color(0.89, 0.90, 0.93), editorInk)
+                ring = editorAccent
+            }
+            typography {
+                body {
+                    families = [".AppleSystemUIFont", "Helvetica Neue", "PingFang SC", "sans-serif"]
+                    fontSize = 13.0
+                    lineHeight = Some(18.0 / 13.0)
+                    color = editorInk
+                }
+                caption {
+                    families = [".AppleSystemUIFont", "Helvetica Neue", "PingFang SC", "sans-serif"]
+                    fontSize = 11.0
+                    lineHeight = Some(16.0 / 11.0)
+                    color = editorMuted
+                }
+                action {
+                    families = [".AppleSystemUIFont", "Helvetica Neue", "PingFang SC", "sans-serif"]
+                    fontSize = 13.0
+                    weight = 400
+                    color = editorInk
+                }
+            }
+        }
+        surfaces {
+            action {
+                focus = OutlineStyle(editorAccent.withAlpha(0.28), 2.0, 2.0, Some(editorAccent))
+                fill =
+                    StateColors(
+                        Color.White,
+                        Color(0.94, 0.95, 0.97),
+                        Color(0.88, 0.89, 0.92),
+                        Color.White
+                    )
+                foreground = StateColors.solid(editorInk)
+                border = StateColors.solid(editorRule)
+                metrics =
+                    SurfaceMetrics(
+                        Size(0.0, 30.0),
+                        Size(0.0, 0.0),
+                        Insets(9.0, 3.0, 9.0, 3.0),
+                        Insets.all(1.0),
+                        CornerRadii.all(6.0),
+                        3.0
+                    )
+            }
+            plain {
+                focus = OutlineStyle(editorAccent.withAlpha(0.28), 2.0, 2.0, Some(editorAccent))
+                metrics =
+                    SurfaceMetrics(
+                        Size(0.0, 30.0),
+                        Size(0.0, 0.0),
+                        Insets(9.0, 3.0, 9.0, 3.0),
+                        Insets.all(1.0),
+                        CornerRadii.all(6.0),
+                        3.0
+                    )
+            }
+        }
+    }
+
+internal fun editorControlStyle(selected: Boolean = false): ButtonStyle =
+    buttonStyle {
+        text {
+            fontSize = Some(13.0);
+            weight = Some(400)
+        }
+        surface {
+            suggestedSize = Some(Size(0.0, 28.0))
+            padding = Some(Insets(9.0, 3.0, 9.0, 3.0))
+            style {
+                corners(Corners.all(5.0))
+                background(
+                    Some(
+                        Paint(
+                            if (selected)
+                                Color.White
+                            else
+                                Color.Transparent
+                        )
+                    )
+                )
+                border(None)
+                if (selected)
+                    boxShadows([BoxShadow(Point(0.0, 1.0), 1.0, 1.0, Color.Black.withAlpha(0.10))])
+            }
+        }
+        states {
+            hovered {
+                background(
+                    Some(
+                        Paint(
+                            if (selected)
+                                Color.White
+                            else
+                                Color(0.89, 0.90, 0.92)
+                        )
+                    )
+                )
+            }
+            pressed { background(Some(Paint(Color(0.84, 0.86, 0.90)))) }
+        }
+    }
+
+internal fun editorIconButton(
+    asset: SvgAsset,
+    hint: String,
+    action: () -> Unit,
+    enabled: Boolean = true,
+    selected: Boolean = false
+): View =
+    tooltip(
+        button(
+            {
+                appearance -> icon(asset) {
+                    size = 18.0;
+                    color = Some(appearance.text.color);
+                    strokeWidth = 1.7
+                }
+            },
+            action
+        ) {
+            this.enabled = enabled
+            size = ButtonSize.IconSm
+            variant = ButtonVariant.Ghost
+            style =
+                editorControlStyle(selected).copy {
+                    surface {
+                        suggestedSize = Some(Size(30.0, 28.0));
+                        padding = Some(Insets.all(5.0))
+                    }
+                }
+        },
+        hint
+    ) {
+        side = OverlaySide.Bottom
+        openDelay = Duration.milliseconds(600L)
+        arrow = None
+    }
+
+internal fun editorCaption(text: String, color: Color = editorMuted, size: Double = 11.0): View =
+    label(text) {
+        style {
+            fontSize = Some(size);
+            this.color = Some(color)
+        }
+        settings {
+            maxLines = Some(1L);
+            ellipsis = "…"
+        }
+    }
+
+internal fun editorDivider(vertical: Boolean = false): View =
+    frame(empty()) {
+        if (vertical) {
+            width = Some(1.0);
+            height = Some(20.0)
+        } else
+            height = Some(1.0)
+        style { background(Some(Paint(editorRule))) }
+    }
+
+internal fun editorPrimaryStyle(): ButtonStyle =
+    editorControlStyle().copy {
+        text {
+            color = Some(Color.White);
+            weight = Some(500)
+        }
+        surface { style { background(Some(Paint(editorAccent))) } }
+        states {
+            hovered { background(Some(Paint(Color(0.06, 0.35, 0.80)))) }
+            pressed { background(Some(Paint(Color(0.04, 0.30, 0.72)))) }
+        }
+    }
