@@ -22,6 +22,8 @@ scoop bundle --executable ./dist/editor --target aarch64-apple-darwin \
 
 项目配置位于 `Cone.toml` 的 `[bundle]`，也可以仅声明 `config = "packaging/Bundle.toml"`。独立文件仍使用 `[bundle]` 表；已有程序模式必须提供 name、version、identifier。命令行 `--config` 选择完整外置配置，相对文件路径以该配置文件所在目录为基准。
 
+项目入口消费当前配套包管理器的 `pm members --json` 协议 7，选定一个 executable Cone 并读取其 metadata／bundle 配置；构建仍交给同一 Scoop 工具链。
+
 资源示例见 [Cone.toml](examples/resources/Cone.toml) 与 [main.scoop](examples/resources/src/main.scoop)。程序通过 `executablePath()` 访问固定相对布局，在其他 cwd 启动同样可用。
 
 macOS 默认执行 ad-hoc codesign；真实证书在 `[bundle.macos.signing]` 显式选择 `mode = "identity"` 与 `identity`。主应用和辅助 executable 的 entitlements 分别声明。`--force` 强制重新部署和签名；普通命中不查询钥匙串或读取已签产物。
