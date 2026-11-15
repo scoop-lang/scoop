@@ -117,7 +117,7 @@ int64_t scoop_window_clipboard_write(void *writer, SWApplication *app) {
   GPtrArray *providers = writer;
   // The union owns the references supplied to it; the writer keeps its own.
   for (guint index = 0; index < providers->len; ++index)
-    g_object_ref(g_ptr_array_index(providers, index));
+    (void)g_object_ref(g_ptr_array_index(providers, index));
   GdkContentProvider *combined = gdk_content_provider_new_union(
       (GdkContentProvider **)providers->pdata, providers->len);
   gboolean written = gdk_clipboard_set_content(
