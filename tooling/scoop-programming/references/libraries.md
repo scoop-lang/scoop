@@ -26,6 +26,8 @@
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
 | GUI 文本与 Markdown 剪贴板 | `scoop.window` 的 Clipboard；`readText(mediaType = "text/plain")` 区分格式缺失和空文本，`writeText` 写纯文本，`writeTexts(List<ClipboardText>)` 同时提供一项内容的多个文本表示。使用无参数的具体 text MIME，按 ASCII 小写规范化；所有表示先检查且不允许重复格式或 NUL。纯文本归一为 LF，Markdown／HTML 等保留换行。接口要求活动应用的 owner 线程，不保活窗口、不解析正文；剪切先成功写出再删选区。示例与平台映射见库 README |
+| Markdown 文档、解析、事务与生成 | 独立仓库 [scoop-lang/scoop-markdown](https://github.com/scoop-lang/scoop-markdown) 的 [scoop.markdown](https://github.com/scoop-lang/scoop-markdown/blob/main/scoop.markdown/README.md)；从该仓库的 Cone 目录声明源码依赖，无 UI 文件处理示例位于 `scoop.markdown/examples/source` |
+| Markdown 编辑、展示与扩展 | 同仓库的 [scoop.ui.markdown](https://github.com/scoop-lang/scoop-markdown/blob/main/scoop.ui.markdown/README.md) 提供源码／所见即所得／双栏与 inline／block 扩展；完整窗口示例位于 `markdown-editor`，公开操作见 [API 导航](https://github.com/scoop-lang/scoop-markdown/blob/main/docs/API-GUIDE.md) |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get`、`http/existing-connection` 及各库 README |
 | HTTP 协议与异步传输适配                           | `scoop.http`、`scoop.http.asyncio`；仅在需要协议层时使用                                       |
 | 命令行参数与测试                                  | `scoop.cli`、`scoop.test`；`cli/options`、`test/assertions`                                    |

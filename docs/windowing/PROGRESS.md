@@ -23,7 +23,7 @@
 
 macOS aarch64 上使用 `~/.scoop` 完成 Scoop 与 native 格式检查、`check --tests --release` 和原生 `ClipboardTest`。测试通过，覆盖多个表示与标准 UTI 互通、自定义 MIME、格式缺失与空文本、重复格式、UTF-8／NUL、原生写入失败、换行、超过 1 MiB 的中文／emoji 文本，以及 owner 与应用生命周期；测试保存并恢复系统剪贴板原有全部项目和格式。Linux 与 Windows 后端已同步实现，本批未在这两个系统运行验证。
 
-公共规范、库 README、组件平台说明与编程 skill 的 API 导航同步更新。
+公共规范、库 README、组件平台说明与编程 skill 的 API 导航同步更新。消费这些接口的 Markdown 库和编辑器现由独立仓库 [scoop-lang/scoop-markdown](https://github.com/scoop-lang/scoop-markdown) 维护，编辑器剪贴板与原生输入验收见其[实施记录](https://github.com/scoop-lang/scoop-markdown/blob/main/docs/markdown/PROGRESS.md)。
 
 ## Windows 阶段
 
