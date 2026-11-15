@@ -106,6 +106,8 @@ State 的持有者与 UI 订阅者分别确定。一个 State 可以在任何组
 
 状态对象绑定创建线程。值的读写及订阅维护在该线程执行；当前 UI 还要求该线程是窗口 owner。后台工作通过既有 owner 投递机制返回结果，不直接修改 UI 状态。相同 owner 上的多个 UiWindow 可以观察同一状态；不同 owner 不共享这套无锁状态对象。
 
+`State.checkMutation()` 公开检查同一 owner 及当前不在 render／measure／scene／draw 的条件；它不读取 value、不登记依赖、不修改值或发出通知。独立控件库可以在修改其借用的文档模型前执行这项检查，再同步发布新的 State。检查不跨挂起点授予后续修改资格；正常 setter 继续执行自己的实际边界检查。
+
 一次 `render` 使用一个库内、同步的依赖收集作用域：
 
 1. State getter 将当前组件节点记入本次读取集合，同一 State 的重复读取只登记一次。
@@ -393,6 +395,8 @@ Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 
 
 ### 7.2.1 有限绘图层与分块像素缓存
 
+独立文本控件可通过 `scoop.ui.text` 的公开扩展 `SceneContext.drawTextLayout(key, layout, revision, origin = Point(0, 0))` 绘制已排版的 TextLayout。该方法仅绘制文字，沿现有 SrcOver 文字记录路径工作，避免独立离屏合成改变文字边缘；绘制边界从排版的实际墨迹范围与 origin 推导。调用方在同步绘制期间保持 layout 有效，并在文字、字体、排版或 origin 等像素输入变化时更新 revision。没有场景／像素缓存时直接绘制；绘制时不转移 layout 所有权。
+
 `PaintKey()` 创建普通的稳定绘图标识，由 Element 或公共绘图宿主持有；它没有资源、全局序号或输入归属。同一元素的一次 scene 中，一个 key 最多使用一次，不同元素独立使用。`SceneContext.drawLayer(key, bounds, revision, samplingOutset = 1.0, block)` 声明一个以 bounds 裁剪、以 SrcOver 独立合成的有限绘图层。它复用 PaintContext 的纯度与借用规则；最终场景变换、clip、父级 opacity 和滤镜在合成时应用。
 
 drawLayer 的回调始终在独立局部记录 Canvas 中执行，不继承目标变换、clip 或 DPI；同一内容在缓存开关两种状态下使用同一坐标语义。调用方为影响输出的输入提供 revision；相同 key、revision、size、bounds 和 samplingOutset 表示可复用相同内容。State、时间、动画采样和绘图资源改变须反映在 revision 中，框架不猜测任意可变闭包的依赖。不能提供可靠版本或有限范围，以及需要直接作用于背景的绘图，继续使用 draw。
@@ -508,7 +512,7 @@ ParagraphHost.scene(context, measurement: ParagraphMeasurement): Unit
 
 measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。每次宿主测量只对每个子项发出一次请求，包括本次最终被截掉的对象；相同有效请求可复用本轮已有结果。
 
-宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 使用所选结果持有的 TextLayout 先画文字，再调用 children 呈现已放置对象；普通路径直接 draw，显式场景／像素缓存内通过 drawLayer 复用版本化的有限记录；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
+宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 使用所选结果持有的 TextLayout 先画文字，再调用 children 呈现已放置对象；普通路径直接 draw，显式场景／像素缓存内通过 drawTextLayout 的专用文字记录复用版本化结果；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
 
 内容或字体／样式变化重建 Paragraph，宽度和对象 metrics 改变时创建新 TextLayout；实际输入不变时复用缓存。子控件颜色等不改变 metrics 的更新不要求重排；尺寸／基线动画在 Surface 同帧采样后进入测量。关闭或替换文本缓存不卸载行内子项；只有正常的描述匹配、移除和宿主关闭改变挂载。
 

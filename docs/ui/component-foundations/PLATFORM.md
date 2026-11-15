@@ -71,6 +71,8 @@ macOS 的 Command／Option／Control 编辑习惯由 AppKit 后端实现；Windo
 
 这会直接修改当前 macOS [剪贴板测试](../../../sysroot/src/scoop.window/tests/clipboard.scoop) 对 CRLF 和内嵌 NUL 的往返预期。原因是 Windows 标准 Unicode 剪贴板文本以 NUL 终止；不为保留旧行为增加私有交换格式。编辑模型本身仍可保存普通 Scoop 字符串，剪贴板限制不扩散成语言字符串限制。
 
+`ClipboardText`／`writeTexts` 允许 Markdown 编辑器同时提供纯文本和 `text/markdown`，接收端以 `readText(mediaType)` 选择格式。纯文本继续遵守以上换行规则，其他文本表示保留实际换行；所有表示共用 owner、NUL 和失败合同。多格式输入先完整检查，再经同一系统剪贴板发布，不增加进程私有内容回退。当前合同见[窗口规范 §2.2](../../specs/SCOOP-WINDOW-SPEC.md#22-gui-文本剪贴板)。
+
 ## 4. IME 文档与 caret 的共同合同
 
 把目前在 Darwin 文件中提供的 `publishTextInputState`、`publishTextInputCaret` 及清除 caret 的公共语义整理到共享 window API。实际 native 文档查询仍由后端完成；不把原生借用或回调指针传给 UI。

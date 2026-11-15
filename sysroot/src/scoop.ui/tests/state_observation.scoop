@@ -5,6 +5,27 @@ import scoop.test.*
 @Test
 private class StateObservationTest {
     @Test
+    fun `mutation preflight protects external model edits before changing them`() {
+        val signal = state(1)
+        val model = ArrayList<Int>()
+        signal.checkMutation()
+        assertEquals(1, signal.value)
+        evaluateUi(None) {
+            assertFailsWith<IllegalStateException> {
+                signal.checkMutation()
+                model.add(2)
+            }
+        }
+        assertEquals(0L, model.size)
+        assertEquals(1, signal.value)
+        signal.checkMutation()
+        model.add(2)
+        signal.value = 2
+        assertEquals(1L, model.size)
+        assertEquals(2, signal.value)
+    }
+
+    @Test
     fun `optional evaluation is absent outside evaluation and during preparation`() {
         assertTrue(
             when (currentEvaluation()) {

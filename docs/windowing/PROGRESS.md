@@ -17,6 +17,14 @@
 
 每批完成后先格式化／lint，再运行相应测试，提交并推送分支，检查并合并远端 main。原始日志与临时验收产物保存在仓库外；本文只记录范围、结果与实际限制。
 
+## 多格式文本剪贴板
+
+`ClipboardText`、`Clipboard.writeTexts` 和带媒体类型的 `readText` 让同一系统项目提供纯文本、Markdown、HTML 及自定义文本表示。共享层统一 MIME 规范化、重复格式、NUL、换行和 owner 合同；所有参数先检查，native 准备完成后发布。macOS 使用 UTI，Linux 使用 GDK MIME provider，Windows 使用 Unicode 纯文本及 MIME 注册格式，并使用应用的隐藏宿主窗口取得 clipboard owner。
+
+macOS aarch64 上使用 `~/.scoop` 完成 Scoop 与 native 格式检查、`check --tests --release` 和原生 `ClipboardTest`。测试通过，覆盖多个表示与标准 UTI 互通、自定义 MIME、格式缺失与空文本、重复格式、UTF-8／NUL、原生写入失败、换行、超过 1 MiB 的中文／emoji 文本，以及 owner 与应用生命周期；测试保存并恢复系统剪贴板原有全部项目和格式。Linux 与 Windows 后端已同步实现，本批未在这两个系统运行验证。
+
+公共规范、库 README、组件平台说明与编程 skill 的 API 导航同步更新。
+
 ## Windows 阶段
 
 ### 1. COFF import 选择

@@ -1,0 +1,135 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.text.repeat
+
+internal class ClipboardFormatsChecks(private val clipboard: Clipboard) {
+    fun oneSystemItemProvidesPlainMarkdownAndHtmlRepresentations() {
+        val markdown = "**中文😀**\r\nnext"
+        val html = "<strong>中文😀</strong>\r\nnext"
+        clipboard.writeTexts(
+            [
+                ClipboardText("TEXT/PLAIN", "中文😀\r\nnext"),
+                ClipboardText("text/markdown", markdown),
+                ClipboardText("text/html", html)
+            ]
+        )
+        assertEquals(Some("中文😀\nnext"), clipboard.readText())
+        assertEquals(Some(markdown), clipboard.readText("Text/Markdown"))
+        assertEquals(Some(html), clipboard.readText("text/html"))
+        assertEquals(1L, nativeClipboardItemCount())
+        assertEquals(0, nativeClipboardDataMatches("public.utf8-plain-text", "中文😀\nnext"))
+        assertEquals(0, nativeClipboardDataMatches("net.daringfireball.markdown", markdown))
+        assertEquals(0, nativeClipboardDataMatches("public.html", html))
+        clipboard.writeText("plain again")
+        assertEquals(None, clipboard.readText("text/markdown"))
+        assertEquals(None, clipboard.readText("text/html"))
+        clipboard.writeTexts([ClipboardText("text/markdown", "")])
+        assertEquals(Some(""), clipboard.readText("text/markdown"))
+        assertEquals(None, clipboard.readText())
+        clipboard.writeTexts([ClipboardText("text/x-scoop-test", "custom\r\n中文😀")])
+        assertEquals(Some("custom\r\n中文😀"), clipboard.readText("text/x-scoop-test"))
+        assertEquals(None, clipboard.readText("text/markdown"))
+    }
+
+    fun invalidRepresentationsLeaveEveryExistingFormatUntouched() {
+        clipboard.writeTexts(
+            [ClipboardText("text/plain", "keep"), ClipboardText("text/markdown", "**keep**")]
+        )
+        for (
+            mediaType in [
+                "",
+                "text/",
+                "text/*",
+                "application/json",
+                "text/雪",
+                "text/plain; charset=utf-8",
+                "text/a b"
+            ]
+        ) {
+            assertFailsWith<IllegalArgumentException> { clipboard.readText(mediaType) }
+            assertFailsWith<IllegalArgumentException> {
+                clipboard.writeTexts(
+                    [ClipboardText("text/plain", "replace"), ClipboardText(mediaType, "bad")]
+                )
+            }
+        }
+        assertFailsWith<IllegalArgumentException> { clipboard.writeTexts([]) }
+        assertFailsWith<IllegalArgumentException> {
+            clipboard.writeTexts(
+                [ClipboardText("TEXT/MARKDOWN", "first"), ClipboardText("text/markdown", "second")]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            clipboard.writeTexts(
+                [
+                    ClipboardText("text/plain", "replace"),
+                    ClipboardText("text/markdown", "bad\u{0}text")
+                ]
+            )
+        }
+        assertEquals(Some("keep"), clipboard.readText())
+        assertEquals(Some("**keep**"), clipboard.readText("text/markdown"))
+    }
+
+    fun nativeTypesInvalidUtf8AndWriteFailureUseTheRealClipboard() {
+        val markdown = "# external\r\n\r\n中文😀\n"
+        assertEquals(
+            0,
+            setNativeClipboardData("net.daringfireball.markdown", markdown.toByteArray())
+        )
+        assertEquals(Some(markdown), clipboard.readText("text/markdown"))
+        assertEquals(None, clipboard.readText())
+        assertEquals(
+            0,
+            setNativeClipboardData("net.daringfireball.markdown", "bad\u{0}text".toByteArray())
+        )
+        assertEquals(
+            WindowErrorKind.Unsupported,
+            assertFailsWith<WindowException> { clipboard.readText("text/markdown") }.kind
+        )
+        assertEquals(
+            0,
+            setNativeClipboardData("net.daringfireball.markdown", [(-61).toByte(), 40.toByte()])
+        )
+        assertEquals(
+            WindowErrorKind.NativeFailure,
+            assertFailsWith<WindowException> { clipboard.readText("text/markdown") }.kind
+        )
+        @Unsafe
+        {
+            assertEquals(0, failNextNativeClipboardWrite())
+        }
+        assertEquals(
+            WindowErrorKind.NativeFailure,
+            assertFailsWith<WindowException> {
+                clipboard.writeTexts(
+                    [
+                        ClipboardText("text/plain", "failed"),
+                        ClipboardText("text/markdown", "**failed**")
+                    ]
+                )
+            }.kind
+        )
+        clipboard.writeTexts(
+            [
+                ClipboardText("text/plain", "recovered"),
+                ClipboardText("text/markdown", "**recovered**")
+            ]
+        )
+        assertEquals(Some("recovered"), clipboard.readText())
+        assertEquals(Some("**recovered**"), clipboard.readText("text/markdown"))
+    }
+
+    fun largeUnicodeMarkdownAndPlainTextRemainIndependent() {
+        val markdown = "**中文😀**\r\n".repeat(80000L)
+        val plain = "中文😀\n".repeat(80000L)
+        assertTrue(markdown.byteLength > 1048576L)
+        clipboard.writeTexts(
+            [ClipboardText("text/markdown", markdown), ClipboardText("text/plain", plain)]
+        )
+        assertEquals(Some(markdown), clipboard.readText("text/markdown"))
+        assertEquals(Some(plain), clipboard.readText())
+    }
+}
