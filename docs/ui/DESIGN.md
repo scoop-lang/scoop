@@ -10,6 +10,8 @@
 
 2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-完整布局与更新合同汇总)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
 
+Markdown 文档库、编辑组件与桌面编辑器在独立仓库 [scoop-lang/scoop-markdown](https://github.com/scoop-lang/scoop-markdown) 维护。`scoop.markdown` 提供无 UI 的解析、处理和生成；`scoop.ui.markdown` 提供源码、所见即所得、双栏编辑与 inline／block 扩展框架；`markdown-editor` 是完整窗口示例。相关规范、设计和验证记录见该仓库的[文档导航](https://github.com/scoop-lang/scoop-markdown/blob/main/docs/README.md)。
+
 ## 1. 分层目标
 
 UI 框架提供构建完全自绘控件的能力，应用可以只使用框架和 Surface 绘图／动画完成自己的界面。基础控件作为另一普通库构建：
