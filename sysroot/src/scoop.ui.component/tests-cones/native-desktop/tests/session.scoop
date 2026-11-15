@@ -5,6 +5,7 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
+import scoop.window.ModalOptions as WindowModalOptions
 import scoop.window.asyncio.*
 import scoop.asyncio.*
 import scoop.time.Duration
@@ -280,13 +281,49 @@ internal class NativeDesktopProbe {
             )
         )
         val dialogWindow = dialog.window!!
-        assertFalse(scope.dispatch { throw expectedFailure })
+        val rejected = scope.nativeDialogController<Unit>(DialogTarget.Owner(other))
+        val rejectedResults = state(0)
+        val reopenedDialog = state<Window?>(None)
+        assertFalse(
+            rejected.open(
+                { _, mount -> NativeChild(this, mount) },
+                {
+                    result ->
+                    when (result) {
+                        case Failed(val error) -> assertEquals(
+                            WindowErrorKind.Unsupported,
+                            error.kind
+                        )
+                        else -> fail(Some("unsupported presentation did not report Failed"))
+                    }
+                    rejectedResults.value += 1
+                    assertTrue(
+                        rejected.open(
+                            {
+                                response, mount ->
+                                reopenedDialog.value = Some(response.window)
+                                NativeChild(this, mount)
+                            },
+                            { fail(Some("unmounted replacement dialog callback")) }
+                        )
+                    )
+                    throw expectedFailure
+                },
+                options = Some(WindowModalOptions(ModalScope.Application, ModalPresentation.Sheet))
+            )
+        )
+        assertEquals(1, rejectedResults.value)
         assertTrue(firstUi!!.isClosed)
         assertFalse(secondUi!!.isClosed)
         assertFalse(applicationUi!!.isClosed)
         assertEquals(WindowState.Open, native.state)
         awaitNative("owned resources after root failure") {
-            toolWindow.state == WindowState.Destroyed && dialogWindow.state == WindowState.Destroyed
+            toolWindow.state ==
+                WindowState.Destroyed &&
+                dialogWindow.state ==
+                WindowState.Destroyed &&
+                reopenedDialog.value!!.state ==
+                WindowState.Destroyed
         }
         assertFalse(native.isInputBlocked)
         assertFalse(otherPopup.requestOpen())

@@ -1,0 +1,136 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+import scoop.window.ModalOptions as WindowModalOptions
+import scoop.test.*
+
+internal suspend fun runControllerCreationFailures(
+    probe: NativeDesktopProbe,
+    application: ApplicationScope,
+    scope: ComponentScope,
+    owner: Window,
+    closedOwner: Window
+) {
+    val files = scope.fileDialogController()
+    val fileFailures = state(0)
+    assertTrue(
+        files.openFile(
+            DialogTarget.Owner(closedOwner),
+            {
+                result ->
+                when (result) {
+                    case Failed(val error) -> assertEquals(WindowErrorKind.InvalidState, error.kind)
+                    else -> fail(Some("closed file owner did not report Failed"))
+                }
+                fileFailures.value += 1
+            }
+        )
+    )
+    assertEquals(1, fileFailures.value)
+    assertFalse(files.isPending)
+    assertTrue(scope.isMounted)
+    val fileCancelled = state(false)
+    assertTrue(
+        files.openFile(
+            DialogTarget.Owner(owner),
+            {
+                result -> when (result) {
+                    case Cancelled(_) -> fileCancelled.value = true
+                    else -> fail(Some("file controller did not recover after creation failure"))
+                }
+            }
+        )
+    )
+    files.cancel()
+    awaitNative("file controller reuse after native failure") { fileCancelled.value }
+
+    val appFiles = application.fileDialogController()
+    assertTrue(
+        appFiles.selectDirectory(
+            DialogTarget.Owner(closedOwner),
+            {
+                result ->
+                when (result) {
+                    case Failed(val error) -> assertEquals(WindowErrorKind.InvalidState, error.kind)
+                    else -> fail(Some("closed directory owner did not report Failed"))
+                }
+                fileFailures.value += 1
+            }
+        )
+    )
+    assertEquals(2, fileFailures.value)
+    assertFalse(appFiles.isPending)
+    assertTrue(application.isMounted)
+
+    val rejected = application.nativeDialogController<Unit>(DialogTarget.Owner(closedOwner))
+    val mounted = state(false)
+    val dialogFailures = state(0)
+    assertTrue(
+        rejected.open(
+            {
+                _, child ->
+                mounted.value = true;
+                NativeChild(probe, child)
+            },
+            {
+                result ->
+                when (result) {
+                    case Failed(val error) -> assertEquals(WindowErrorKind.InvalidState, error.kind)
+                    else -> fail(Some("closed modal owner did not report Failed"))
+                }
+                dialogFailures.value += 1
+            }
+        )
+    )
+    assertFalse(mounted.value)
+    assertEquals(1, dialogFailures.value)
+    assertFalse(rejected.isPending)
+    assertTrue(application.isMounted)
+
+    val dialog = scope.nativeDialogController<Unit>(DialogTarget.Application)
+    val failedWindow = state<Window?>(None)
+    assertTrue(
+        dialog.open(
+            {
+                reply, child ->
+                failedWindow.value = Some(reply.window);
+                NativeChild(probe, child)
+            },
+            {
+                result ->
+                when (result) {
+                    case Failed(val error) -> assertEquals(WindowErrorKind.Unsupported, error.kind)
+                    else -> fail(Some("unsupported modal presentation did not report Failed"))
+                }
+                dialogFailures.value += 1
+            },
+            options = Some(WindowModalOptions(ModalScope.Application, ModalPresentation.Sheet))
+        )
+    )
+    assertEquals(2, dialogFailures.value)
+    assertFalse(dialog.isPending)
+    assertTrue(scope.isMounted)
+    assertFalse(owner.isInputBlocked)
+    awaitNative("failed modal presentation releases its window") {
+        failedWindow.value!!.state == WindowState.Destroyed
+    }
+    val accepted = state(false)
+    assertTrue(
+        dialog.open(
+            { reply, child -> NativeChild(probe, child) { reply.accept(Unit) } },
+            {
+                result -> when (result) {
+                    case Accepted(_) -> accepted.value = true
+                    else -> fail(Some("modal controller did not recover after native failure"))
+                }
+            }
+        )
+    )
+    awaitNative("modal controller reuse after presentation failure") { accepted.value }
+    files.close()
+    appFiles.close()
+    rejected.close()
+    dialog.close()
+}

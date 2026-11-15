@@ -8,4 +8,6 @@ macOS／Linux 的入口位于 test-desktop。Linux 需要 GTK4／libadwaita、Sk
 
 Windows 的完整原生用例位于 test-windows，以 Ignore 保留到有 GPU 的交互桌面；SSH 中正常编译全部程序并运行纯值测试。桌面单独执行 `scoop test ... --release --ignored`；三个 Windows 目标各自消费匹配 CRT 的预编译库和原生资源。
 
+控制器回归还覆盖关闭 owner 后创建文件／模态窗口、Application sheet 不受支持时的 Failed 回调；断言回调只交付一次、调用方 scope 保持挂载、隐藏窗口释放及控制器可再次打开。Failed 回调中重新打开后再抛出的业务异常沿原有错误边界报告，scope 清理同时释放新窗口。
+
 焦点范围与标准菜单编辑命令的纯行为覆盖位于 `scoop.surface` 的 `InputMenuCommandsTest`，托盘包装及额外依赖位于独立 `scoop.ui.component.tray`。

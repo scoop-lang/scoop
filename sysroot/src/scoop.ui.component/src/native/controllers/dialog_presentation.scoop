@@ -1,7 +1,6 @@
 package scoop.ui.component
 
 import scoop.window.*
-import scoop.window.ModalOptions as WindowModalOptions
 
 internal class NativeDialogPresentation<T>(
     private val scope: NativeControllerScope,
@@ -14,8 +13,7 @@ internal class NativeDialogPresentation<T>(
     private var ending = false
     private var closed = false
 
-    fun start(options: WindowModalOptions) {
-        val modal = owned.window.showModal(options)
+    fun start(modal: ModalSession) {
         session = Some(modal)
         observation =
             Some(

@@ -34,6 +34,7 @@ public class NativeDialogController<T> internal constructor(
         return current?.owned?.window
     }
 
+    /** Native creation or presentation failures return Failed without retiring the caller. */
     public fun <C: Component> open(
         create: (NativeDialogResponse<T>, ComponentScope) -> C,
         onResult: (NativeDialogResult<T>) -> Unit,
@@ -59,13 +60,18 @@ public class NativeDialogController<T> internal constructor(
                             }
                     )
             val window =
-                scope.application.createWindow(
-                    attributes.copyWindowAttributes {
-                        this.relation = relation
-                        this.visible = false
-                        this.requestActivation = false
-                    }
-                )
+                try {
+                    scope.application.createWindow(
+                        attributes.copyWindowAttributes {
+                            this.relation = relation
+                            this.visible = false
+                            this.requestActivation = false
+                        }
+                    )
+                } catch (error: WindowException) {
+                    onResult(NativeDialogResult.Failed<T>(error))
+                    return@request true
+                }
             val owned = NativeOwnedWindow(window)
             val presentation =
                 NativeDialogPresentation<T>(scope, owned) {
@@ -77,6 +83,7 @@ public class NativeDialogController<T> internal constructor(
                 }
             current = Some(presentation)
             pending.value = true
+            var nativeFailure: WindowException? = None
             try {
                 val response = NativeDialogResponse(presentation)
                 owned.events =
@@ -102,14 +109,38 @@ public class NativeDialogController<T> internal constructor(
                     presentation.close()
                     return@request false
                 }
-                presentation.start(modal)
-                true
+                val session =
+                    try {
+                        Some(window.showModal(modal))
+                    } catch (error: WindowException) {
+                        nativeFailure = Some(error)
+                        None
+                    }
+                when (session) {
+                    case Some(val active) -> presentation.start(active)
+                    case None -> Unit
+                }
             } catch (error: Throwable) {
                 current = None
                 pending.value = false
                 throwNative(cleanupNative(Some(error)) { presentation.close() })
-                false
+                return@request false
             }
+            when (nativeFailure) {
+                case Some(val error) -> {
+                    current = None
+                    pending.value = false
+                    try {
+                        presentation.close()
+                    } catch (cleanup: Throwable) {
+                        throw ResourceUseException(error, cleanup)
+                    }
+                    if (!closed)
+                        onResult(NativeDialogResult.Failed<T>(error))
+                }
+                case None -> Unit
+            }
+            true
         }
     public fun cancel() {
         if (!closed)

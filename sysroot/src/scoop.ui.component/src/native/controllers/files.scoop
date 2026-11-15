@@ -4,6 +4,7 @@ import scoop.platform.fs.Path
 import scoop.ui.*
 import scoop.window.*
 
+/** Native session creation failures are delivered once through the requested result callback. */
 public class FileDialogController internal constructor(
     private val scope: NativeControllerScope
 ): Closeable {
@@ -41,7 +42,13 @@ public class FileDialogController internal constructor(
         scope.request {
             if (closed || pending.value)
                 return@request false
-            val session = create()
+            val session =
+                try {
+                    create()
+                } catch (error: WindowException) {
+                    onResult(FileDialogResult.Failed<T>(error))
+                    return@request true
+                }
             pending.value = true
             cancellation = Some { session.cancel() }
             observation =
