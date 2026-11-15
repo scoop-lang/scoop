@@ -15,6 +15,9 @@ internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEv
             return Some(
                 when (event.kind) {
                     100 -> ApplicationEvent.MonitorsChanged
+                    102 -> ApplicationEvent.InteractionPreferencesChanged(
+                        copyInteractionPreferences(native!!)
+                    )
                     101 -> ApplicationEvent.ExitRequested(
                         if (event.flags == 1)
                             ExitReason.User

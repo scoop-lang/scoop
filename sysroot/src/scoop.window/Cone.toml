@@ -59,6 +59,10 @@ path = "native/darwin/application.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/preferences.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/window.m"
 when = { os = "darwin" }
 
@@ -145,6 +149,14 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/windows/application.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/preferences.cpp"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "runtimeobject"
 when = { os = "windows" }
 
 [[native.sources]]
@@ -290,6 +302,10 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/linux/application.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/preferences.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]

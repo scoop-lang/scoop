@@ -56,9 +56,19 @@ Windows 写入使用应用已有的隐藏宿主窗口取得 clipboard owner，�
 
 观察不增加窗口 lease、线程、定时器或 redraw。close 幂等；窗口进入 Closing 时撤销全部登记并释放回调，不再读取已销毁窗口。此入口服务需要准确暂停剩余时间的 UI 通知，不能用焦点控件或绘制是否发生来推测窗口活动状态。
 
+### 2.4 系统交互偏好
+
+`ActiveApplication.interactionPreferences` 和 `Window.interactionPreferences` 返回应用 owner 已发布的不可变 `InteractionPreferences` 快照。字段为 `autoHideScrollbars: Boolean?`、`reduceMotion: Boolean?`、`highContrast: Boolean?`、`reduceTransparency: Boolean?`、`textScaleFactor: Double?`、`caretBlinkInterval: Duration?`、`caretWidthPixels: Int?`、`caretAspectRatio: Double?`、`doubleClickInterval: Duration?`。None 表示该平台没有可用的公开值，Some(false) 表示系统明确关闭对应偏好；正文字体缩放与物理显示器 DPI 分别表达，不从主题名或字体大小猜测系统值。
+
+caretBlinkInterval 是一次显示／隐藏切换的间隔，零表示常显；原生整周期在边界除以二。caretWidthPixels 是系统实际给出的物理像素宽度，caretAspectRatio 是系统给出的光标宽高比，两者不以假定字号互相转换。非零时间、缩放、宽度与宽高比必须为有效正值；未知值交给 UI 的明确默认配置，不在 Window 层伪造 OS 值。
+
+`observeInteractionPreferences(callback: (InteractionPreferences) -> Unit): Closeable` 在 ActiveApplication 与 Window 上登记应用级观察者。取得快照和登记要求 owner 线程、应用仍运行且未开始退出；从 Window 取得入口不延长该窗口生命周期。登记不内联通知，当前值直接从属性读取。原生变化经普通事件队列进入 owner；发布完整快照后，只在值确实变化时通知当时的观察者，再发送 `ApplicationEvent.InteractionPreferencesChanged(snapshot)`。回调可读取新值、注销自己或其他观察者、登记新观察者及请求退出；新登记不进入当前批次，被关闭的登记立即停止通知。回调沿正常业务派发与异常处理，不递归进入 handler。退出清空观察者，close 在 owner 上幂等，已保留的值快照仍可普通读取。
+
+AppKit 读取 NSScroller.preferredScrollerStyle、NSWorkspace 的减少动画／提高对比度／减少透明度、NSEvent.doubleClickInterval，订阅公开偏好通知及应用重新激活。没有公开独立数值的 caret／文字缩放保持 None。Windows 读取 UISettings 的自动隐藏、文字缩放与高级效果，及 SystemParametersInfo／GetCaretBlinkTime／GetDoubleClickTime 的实际设置；WinRT 接口缺失时只将对应值标为未知，已可用的 Win32 设置继续提供。GTK 读取 overlay scrolling、动画、cursor blink／周期／宽高比和双击时间，并读取 AdwStyleManager 的高对比度；GTK 4.18 没有明确公开值的减少透明度和独立文字缩放保持 None。所有后端通过系统通知更新，没有逐帧查询或设置轮询。
+
 ## 3. 事件模型
 
-ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
+ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、InteractionPreferencesChanged(InteractionPreferences)、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
 
 WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。触摸、手势、文件拖放和平台专有激活结果随对应能力后续增加。
 

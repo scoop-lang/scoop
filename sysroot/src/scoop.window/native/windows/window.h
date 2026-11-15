@@ -74,6 +74,7 @@ typedef struct SWApplication {
   SWEvent *head, *tail;
   SWWatch *watches;
   void *text_manager;
+  void *preferences;
   SWMenu *translating_menu;
 } SWApplication;
 typedef struct SWWindow {
@@ -121,7 +122,10 @@ int64_t scoop_window_clear_ime_caret(void *pointer);
 int64_t scoop_window_text_count(SWEvent *event);
 SWTextEditData scoop_window_text_edit(SWEvent *event, int64_t index);
 
-enum { SW_WAKE = WM_APP + 1, SW_READY, SW_TEXT_LOCK };
+enum { SW_WAKE = WM_APP + 1, SW_READY, SW_TEXT_LOCK, SW_PREFERENCES };
+
+int64_t sw_preferences_start(SWApplication *app);
+void sw_preferences_stop(SWApplication *app);
 extern const WCHAR sw_window_class[];
 void sw_wake(SWApplication *application);
 void sw_fail(SWApplication *application, DWORD error);

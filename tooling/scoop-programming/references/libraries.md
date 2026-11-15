@@ -26,6 +26,7 @@
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
 | GUI 文本与 Markdown 剪贴板 | `scoop.window` 的 Clipboard；`readText(mediaType = "text/plain")` 区分格式缺失和空文本，`writeText` 写纯文本，`writeTexts(List<ClipboardText>)` 同时提供一项内容的多个文本表示。使用无参数的具体 text MIME，按 ASCII 小写规范化；所有表示先检查且不允许重复格式或 NUL。纯文本归一为 LF，Markdown／HTML 等保留换行。接口要求活动应用的 owner 线程，不保活窗口、不解析正文；剪切先成功写出再删选区。示例与平台映射见库 README |
+| GUI 系统交互偏好 | `scoop.window` 的 `ActiveApplication.interactionPreferences`／`Window.interactionPreferences` 与 `observeInteractionPreferences`；读取不可变快照，变化沿 owner 通知。None 与明确 false 分开，caret 闪烁为单次显隐间隔、零为常显，物理宽度与文字缩放／DPI 分开。观察者不内联通知，在消费者卸载时 close；系统未提供的值由 UI 显式回退。接口与平台来源见库 README |
 | Markdown 文档、解析、事务与生成 | 独立仓库 [scoop-lang/scoop-markdown](https://github.com/scoop-lang/scoop-markdown) 的 [scoop.markdown](https://github.com/scoop-lang/scoop-markdown/blob/main/scoop.markdown/README.md)；从该仓库的 Cone 目录声明源码依赖，无 UI 文件处理示例位于 `scoop.markdown/examples/source` |
 | Markdown 编辑、展示与扩展 | 同仓库的 [scoop.ui.markdown](https://github.com/scoop-lang/scoop-markdown/blob/main/scoop.ui.markdown/README.md) 提供源码／所见即所得／双栏与 inline／block 扩展；完整窗口示例位于 `markdown-editor`，公开操作见 [API 导航](https://github.com/scoop-lang/scoop-markdown/blob/main/docs/API-GUIDE.md) |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get`、`http/existing-connection` 及各库 README |

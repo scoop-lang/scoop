@@ -1,0 +1,198 @@
+package scoop.tests.window.preferences
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Extern(name = "scoop_test_preferences_motion")
+private fun nativeMotion(): Int
+
+@Extern(name = "scoop_test_preferences_scrollbars")
+private fun nativeScrollbars(): Int
+
+@Extern(name = "scoop_test_preferences_change")
+private fun nativeChange(value: Int)
+
+@Extern(name = "scoop_test_preferences_restore")
+private fun nativeRestore()
+
+@Test
+private class PreferencesNotificationsTest {
+    @Test
+    fun `native preferences publish atomically and observers follow owner lifetime`() {
+        val probe = PreferencesProbe()
+        try {
+            Application().run(probe)
+        } finally {
+            @Unsafe
+            {
+                nativeRestore()
+            }
+        }
+        assertEquals(1, probe.firstCalls)
+        assertEquals(2, probe.keeperCalls)
+        assertEquals(1, probe.lateCalls)
+        assertEquals(1, probe.events)
+        assertEquals(1, probe.destroyed)
+        for (observer in probe.observers) {
+            observer.close()
+            observer.close()
+        }
+        assertFailsWith<WindowException> { probe.application!!.interactionPreferences }
+        assertFailsWith<WindowException> {
+            probe.window!!.observeInteractionPreferences { _ -> fail() }
+        }
+    }
+}
+
+private class PreferencesProbe: ApplicationHandler {
+    val ownerThread = currentThreadId()
+    val observers = ArrayList<Closeable>()
+    var application: ActiveApplication? = None
+    var window: Window? = None
+    var first: Closeable? = None
+    var removed: Closeable? = None
+    var expected = false
+    var inHandler = false
+    var firstCalls = 0
+    var keeperCalls = 0
+    var lateCalls = 0
+    var events = 0
+    var destroyed = 0
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertFalse(inHandler)
+        inHandler = true
+        try {
+            when (event) {
+                case Resumed -> start(application)
+                case InteractionPreferencesChanged(val value) -> {
+                    events += 1
+                    assertEquals(1, events)
+                    assertEquals(1, firstCalls)
+                    assertEquals(1, keeperCalls)
+                    assertEquals(0, lateCalls)
+                    assertEquals(Some(expected), value.reduceMotion)
+                    // Repeated native notifications with unchanged values are silent.
+                    @Unsafe
+                    {
+                        nativeChange(
+                            if (expected)
+                                1
+                            else
+                                0
+                        )
+                    }
+                    assertTrue(
+                        application.proxy().post {
+                            active ->
+                            assertEquals(1, events)
+                            assertEquals(1, keeperCalls)
+                            window!!.requestDestroy()
+                            expected = !expected
+                            @Unsafe
+                            {
+                                nativeChange(
+                                    if (expected)
+                                        1
+                                    else
+                                        0
+                                )
+                            }
+                        }
+                    )
+                }
+                case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+                case NewEvents(StartCause.Deadline) -> fail(
+                    Some("preference notification timed out")
+                )
+                else -> Unit
+            }
+        } finally {
+            inHandler = false
+        }
+    }
+
+    fun checkValue(value: InteractionPreferences) {
+        assertFalse(inHandler)
+        assertEquals(ownerThread, currentThreadId())
+        assertEquals(value, application!!.interactionPreferences)
+        assertEquals(value, window!!.interactionPreferences)
+        assertEquals(Some(expected), value.reduceMotion)
+    }
+
+    fun start(active: ActiveApplication) {
+        application = Some(active)
+        val target = active.createWindow(windowAttributes { visible = false })
+        window = Some(target)
+        val baseline = active.interactionPreferences
+        assertEquals(baseline, target.interactionPreferences)
+        @Unsafe
+        {
+            assertEquals(Some(nativeMotion() != 0), baseline.reduceMotion)
+            assertEquals(Some(nativeScrollbars() != 0), baseline.autoHideScrollbars)
+        }
+        assertEquals(None, baseline.caretBlinkInterval)
+        assertEquals(None, baseline.caretWidthPixels)
+        assertEquals(None, baseline.caretAspectRatio)
+        assertEquals(None, baseline.textScaleFactor)
+        assertTrue(baseline.doubleClickInterval!! > Duration.ZERO)
+        expected = !baseline.reduceMotion!!
+        first =
+            Some(
+                active.observeInteractionPreferences {
+                    value ->
+                    checkValue(value)
+                    firstCalls += 1
+                    first!!.close()
+                    removed!!.close()
+                    observers.add(
+                        active.observeInteractionPreferences {
+                            next ->
+                            checkValue(next)
+                            lateCalls += 1
+                            // Closing the application cancels the rest of this notification.
+                            active.requestExit()
+                        }
+                    )
+                }
+            )
+        observers.add(first!!)
+        removed =
+            Some(target.observeInteractionPreferences { _ -> fail(Some("closed observer ran")) })
+        observers.add(removed!!)
+        observers.add(
+            target.observeInteractionPreferences {
+                value ->
+                checkValue(value)
+                keeperCalls += 1
+            }
+        )
+        assertEquals(0, firstCalls)
+        Thread.start {
+            assertEquals(Some(!expected), baseline.reduceMotion)
+            assertFailsWith<IllegalStateException> { active.interactionPreferences }
+            assertFailsWith<IllegalStateException> { first!!.close() }
+            assertFailsWith<IllegalStateException> {
+                active.observeInteractionPreferences { _ -> fail() }
+            }
+        }.use { thread -> thread.join() }
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+        )
+        @Unsafe
+        {
+            nativeChange(
+                if (expected)
+                    1
+                else
+                    0
+            )
+        }
+        assertEquals(baseline, active.interactionPreferences)
+        assertEquals(0, firstCalls)
+    }
+}

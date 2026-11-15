@@ -89,6 +89,7 @@ typedef struct {
   char *application_id;
   GListModel *monitors;
   gulong display_closed, monitors_changed, theme_changed;
+  gulong preferences_changed, contrast_changed;
   int kind, wake_fd, error, layout;
   guint gdk_modifiers;
   int64_t next_monitor;
@@ -156,6 +157,8 @@ enum {
   SW_ALT_GRAPH_KNOWN = 1u << 17
 };
 extern SWApplication *sw_application;
+void sw_preferences_start(SWApplication *app);
+void sw_preferences_stop(SWApplication *app);
 double sw_now(void);
 void sw_wake(SWApplication *app);
 void sw_fail(SWApplication *app, int error);

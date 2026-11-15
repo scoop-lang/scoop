@@ -34,6 +34,8 @@ internal class ApplicationOwner(
     var monitorRecords: ArrayList<MonitorRecord> = ArrayList<MonitorRecord>()
     var nextMonitor: Long = 1L
     val watches: ArrayList<ApplicationWatch> = ArrayList<ApplicationWatch>()
+    var interactionPreferences = InteractionPreferences()
+    val preferencesObservers = ArrayList<InteractionPreferencesObserver>()
     var nextWatch: Long = 1L
     val active = ActiveApplication(this)
     var native: Ptr<Unit>? = None
@@ -103,6 +105,7 @@ internal class ApplicationOwner(
                         applicationId
                     )
                 native = Some(pointer)
+                interactionPreferences = copyInteractionPreferences(pointer)
                 mailbox.bind(pointer)
                 try {
                     when (attach) {
@@ -133,6 +136,7 @@ internal class ApplicationOwner(
                     }
                 }
             } finally {
+                retirePreferences()
                 mailbox.unbind()
                 when (native) {
                     case Some(val pointer) -> {
@@ -279,6 +283,7 @@ internal class ApplicationOwner(
         if (exiting)
             return
         exiting = true
+        retirePreferences()
         for (session in fileDialogs)
             session.cancel(FileDialogCancelReason.ApplicationExit)
         for (input in pendingInputs.toArray())

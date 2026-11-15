@@ -70,6 +70,7 @@ typedef struct {
 @property(nonatomic, weak) SWMenu *menuBar;
 @property(nonatomic, weak) NSMenu *dockMenu;
 @property(nonatomic, strong) NSMutableArray *modalStack;
+@property(nonatomic, strong) NSMutableArray *preferenceObservers;
 - (void)enqueue:(SWEvent *)event;
 @end
 
@@ -153,6 +154,8 @@ void sw_invalidate_text_caret(SWView *view);
 @end
 
 void sw_wake(SWApplication *application);
+void sw_preferences_start(SWApplication *application);
+void sw_preferences_stop(SWApplication *application);
 BOOL sw_menu_key_equivalent(SWApplication *application, NSEvent *event);
 SWEvent *sw_event(SWWindow *window, int32_t kind);
 void sw_stamp_input(SWEventData *data);

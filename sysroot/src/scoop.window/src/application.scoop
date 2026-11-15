@@ -22,7 +22,10 @@ public enum ApplicationEvent {
         PopupResult
     ),
     ModalCompleted(ModalSessionId, ModalResult), FileDialogCompleted(FileDialogSessionId),
-    Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
+    Window(WindowId, WindowEvent), MonitorsChanged,
+    InteractionPreferencesChanged(InteractionPreferences), AboutToWait, ExitRequested(
+        ExitReason
+    ), Exiting
 }
 
 /** Events whose final notification is Destroyed. */

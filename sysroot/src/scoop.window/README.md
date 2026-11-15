@@ -28,6 +28,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | --- | --- |
 | 主循环 | Wait、Poll、单调 WaitUntil；跨线程 `ApplicationProxy.post`／`requestExit`；回调串行交付 |
 | 定时回调 | `Window.createDeadline` 创建窗口所属的一次性回调；共用主循环最近期限，关闭窗口即撤销 |
+| 系统交互偏好 | `interactionPreferences` 读取已发布快照，`observeInteractionPreferences` 观察变化；未知值与明确关闭分开，不轮询系统 |
 | 窗口 | 独立／Owned 顶层窗口、Tool 角色与一次 raise；标题、显示／隐藏、焦点请求、尺寸及约束、桌面位置、窗框及按钮、窗口级别、最小化／最大化、主题、透明／模糊、内容共享提示、注意力请求 |
 | 模态 | 从隐藏窗口创建 ModalSession；Owner／Application 输入范围、SeparateWindow／Sheet 能力、嵌套、取消与原生使用退休 |
 | macOS | activation policy、titlebar 属性、bundle identifier 查询 |
@@ -45,6 +46,14 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 `PointerState.time`、`KeyEvent.time` 和 `PointerEvent.Cancelled` 携带 `InputTime`，其 `mark()` 与 `MonotonicTimeSource` 同源。当前后端使用原生接收边界的 `Observed`；它区别于可可靠映射的原生发生时间 `Event`，不在业务派发时重新采样。失焦或原生捕获／跟踪中断仅取消仍活动的鼠标序列；正常离开内容区继续拖动，取消后的迟到 Up 被忽略。
 
 全屏控制／显示模式切换、全局 raw device、触摸／高级手势、光标捕获／自定义光标、文件拖放和复杂平台窗口交互属于后续范围。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+
+## 系统交互偏好
+
+在活动应用的 owner 线程，通过 `application.interactionPreferences` 或 `window.interactionPreferences` 读取 `InteractionPreferences`：自动隐藏滚动条、减少动画、高对比度、减少透明度、独立文字缩放、光标闪烁间隔／物理宽度／宽高比和双击间隔。`None` 表示没有可用的系统值，`Some(false)` 表示系统明确关闭；UI 可以为未知值选择明确默认值，不能据此伪造系统设置。
+
+`observeInteractionPreferences { value -> ... }` 返回需要显式关闭的 Closeable。登记不触发初次回调；收到实际变化时先发布整个快照，再在普通 owner 派发中通知观察者和发送 `ApplicationEvent.InteractionPreferencesChanged`。回调中可以注销、登记或退出，重复值不通知。从 Window 登记的观察仍属于应用，使用者应在自身卸载时关闭；应用退出会清除所有登记。读取已取得的值快照不需要窗口或 owner 继续存活。
+
+`caretBlinkInterval` 是一次显隐切换的间隔，零为常显；GTK 的整周期已除以二。`caretWidthPixels` 仍是物理像素，使用时按实际窗口 scale 转为逻辑宽度；GTK 如有公开宽高比则通过 `caretAspectRatio` 给出，不猜测字号。`textScaleFactor` 独立于 DPI。AppKit 没有公开独立数值的 caret／文字缩放保持 None；Windows 按实际可用的 UISettings 接口提供附加值，GTK 使用 4.18 基线的公开设置。原生通知经现有事件循环交付，无需安装轮询 timer。
 
 ## 多窗口、模态与窗框
 
@@ -127,6 +136,7 @@ renderer 在 owner 上通过 `scoop.window.native` 的 Unsafe `acquireNativeWind
 ```sh
 target/debug/scoop test sysroot/src/scoop.window --release
 target/debug/scoop test sysroot/src/scoop.window/tests-cones/deadlines --release
+target/debug/scoop test sysroot/src/scoop.window/tests-cones/preferences --release
 target/debug/scoop test sysroot/src/scoop.window.asyncio --release
 target/debug/scoop test sysroot/src/scoop.window/examples/metal/app --release
 ```

@@ -225,6 +225,7 @@ internal fun ApplicationOwner.deliverWindow(
 internal fun ApplicationOwner.dispatchNative(event: ApplicationEvent, input: NativeInputDelivery?) {
     when (event) {
         case Menu(val activation) -> deliverMenu(activation)
+        case InteractionPreferencesChanged(val value) -> deliverPreferences(value)
         case Window(val identity, val notification) -> {
             val window = findWindow(identity.value)
             when (window) {

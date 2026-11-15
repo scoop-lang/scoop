@@ -98,6 +98,7 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
                            (__bridge CFStringRef)NSModalPanelRunLoopMode);
     CFRunLoopAddSource(CFRunLoopGetMain(), owner.source, kCFRunLoopCommonModes);
     app.delegate = owner;
+    sw_preferences_start(owner);
     [NSNotificationCenter.defaultCenter
         addObserver:owner
            selector:@selector(menuDidBeginTracking:)
@@ -163,6 +164,7 @@ void scoop_window_application_stop(void *pointer) {
 
 void scoop_window_application_destroy(void *pointer) {
   SWApplication *owner = (__bridge_transfer SWApplication *)pointer;
+  sw_preferences_stop(owner);
   [NSNotificationCenter.defaultCenter removeObserver:owner];
   NSApp.delegate = nil;
   if (owner.timer) {

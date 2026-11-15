@@ -73,6 +73,18 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   case SW_READY:
     sw_watch_message(app, (int64_t)wp);
     return 0;
+  case SW_PREFERENCES:
+  case WM_SETTINGCHANGE:
+  case WM_THEMECHANGED: {
+    SWEvent *event = calloc(1, sizeof(*event));
+    if (!event)
+      sw_fail(app, ERROR_NOT_ENOUGH_MEMORY);
+    else {
+      event->data.kind = 102;
+      sw_enqueue(app, event);
+    }
+    return 0;
+  }
   case WM_TIMER:
     if (wp == 1) {
       KillTimer(hwnd, 1);
@@ -159,11 +171,21 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
     if (app->wake)
       app->hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, host_class, L"", WS_POPUP,
                                   0, 0, 0, 0, NULL, NULL, instance, app);
-    if (app->hwnd)
-      return (SWResult){app, 0};
-    error = GetLastError();
+    if (app->hwnd) {
+      error = (DWORD)sw_preferences_start(app);
+      if (!error)
+        return (SWResult){app, 0};
+      sw_preferences_stop(app);
+      DestroyWindow(app->hwnd);
+    } else
+      error = GetLastError();
     if (app->wake)
       CloseHandle(app->wake);
+    while (app->head) {
+      SWEvent *event = app->head;
+      app->head = event->next;
+      sw_free_event(event);
+    }
     free(app);
   }
   UnregisterClassW(sw_window_class, instance);
@@ -217,6 +239,7 @@ void scoop_window_application_stop(SWApplication *app) {
   sw_wake(app);
 }
 void scoop_window_application_destroy(SWApplication *app) {
+  sw_preferences_stop(app);
   sw_text_application_destroy(app);
   KillTimer(app->hwnd, 1);
   DestroyWindow(app->hwnd);
