@@ -10,7 +10,7 @@ public class Toaster public constructor(
     private val props: Props<ToasterProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val control = ToasterControl(scope, { props.value })
     init {
         themes.mount(props.value.theme)

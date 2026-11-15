@@ -28,7 +28,7 @@ public class EmptyState public constructor(
     private val props: Props<EmptyStateProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     public override fun onMount() {

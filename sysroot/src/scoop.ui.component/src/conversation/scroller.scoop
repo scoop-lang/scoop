@@ -8,7 +8,7 @@ public class MessageScroller public constructor(
     private val props: Props<MessageScrollerProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private var spaced: SpacedTranscript? = None
     public override fun onMount() {
         themes.mount(props.value.theme)

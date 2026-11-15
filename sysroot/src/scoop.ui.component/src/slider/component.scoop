@@ -22,7 +22,7 @@ public class Slider public constructor(
     private val props: Props<SliderProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val active = state<Long?>(None)
     private var slots: Array<SliderSlot> = []
     private val control = SliderControl(scope, { currentInput() })

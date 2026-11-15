@@ -30,7 +30,7 @@ public class Resizable public constructor(
     private val props: Props<ResizableProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val owner = ResizableOwner()
     private var checked: Array<ResizableSize>? = None
     private var model = HashMap<ViewKey, ResizableSize>()

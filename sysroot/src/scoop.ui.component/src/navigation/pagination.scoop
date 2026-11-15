@@ -9,7 +9,7 @@ public class Pagination public constructor(
     private val props: Props<PaginationProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

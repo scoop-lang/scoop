@@ -18,6 +18,13 @@ internal class TraceTheme(
     var surfaceDraws = 0
     var checkboxDraws = 0
     public override val tokens: ThemeTokens get() = base.tokens
+    public override fun withPreferences(preferences: ThemePreferences): Theme {
+        val next = base.withPreferences(preferences)
+        return if (next === base)
+            this
+        else
+            TraceTheme(id, next, probe)
+    }
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,

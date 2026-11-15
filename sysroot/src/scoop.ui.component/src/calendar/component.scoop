@@ -12,7 +12,7 @@ public class Calendar public constructor(
     scope: ComponentScope
 ): Component(scope) {
     private val control = CalendarControl(props, scope)
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val appearances = CalendarAppearanceCache()
     public override fun onMount() {
         themes.mount(props.value.theme)

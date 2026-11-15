@@ -391,7 +391,7 @@ transition／selectionTransition 还提供同名 Unit 设置方法，将同一�
 
 公共 style 的 `Insets(left, top, right, bottom)` 表达有限非负内边距，`Insets.all(value)` 构造四边相等的值，控件不再复制同名类型。布局操作检查边距、尺寸及求和结果，颜色和绘图参数继续由 graphics 检查。首批交互过渡复用 Surface Animatable<Double> 生成 0～1 采样，主题根据它解析颜色或标记外观；目标相同的普通更新不重新启动动画，显式清除 transition 时直接吸附到当前目标。
 
-此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 读取当前 Theme，其余局部属性继续继承主题。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。
+此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 通过 ThemeSource.read(scope) 取得当前根偏好解析后的 Theme，其余局部属性继续继承主题。减少动画、高对比度、减少透明度和文字缩放的解析规则见主题规范第 6.1 节；来源的基础 State 不被根覆盖改写。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。
 
 控件或其 Element 通过 ComponentScope.resource 登记自己创建的资源，或登记拥有可替换资源的缓存对象；输入区域和动画通过作用域的对应入口取得。卸载沿框架的子先父顺序清理，应用不为 Label／Button／Checkbox 逐个 use。借用的 Image／Path／字体、Binding 与外部模型不得由控件擅自关闭。
 

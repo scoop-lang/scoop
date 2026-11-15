@@ -1,0 +1,302 @@
+package scoop.tests.ui.componentframereuse
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class ComponentThemePreferencesTest {
+    @Test
+    fun `shared themes follow each root while scaling preserves editing and reduced motion stops frames`() {
+        val probe = ThemePreferenceProbe()
+        try {
+            context(probe.source) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+        } finally {
+            probe.timer?.close()
+        }
+        assertTrue(probe.finished)
+        assertEquals(2, probe.mounts)
+        assertEquals(2, probe.unmounts)
+        assertFalse(probe.focus.isAttached)
+    }
+}
+
+internal class ThemePreferenceProbe {
+    val source = ThemeSource(shadcnTheme())
+    val explicit = state<ThemeSource?>(None)
+    val alternative = preferenceAlternative()
+    val model = TextEditorState("alpha beta")
+    val focus = FocusHandle()
+    val roots = ArrayList<UiWindow>()
+    val windows = ArrayList<Window>()
+    val frames = MutableArray<Int>(2L) { _ -> 0 }
+    val renders = MutableArray<Int>(2L) { _ -> 0 }
+    val measures = MutableArray<Int>(2L) { _ -> 0 }
+    val scenes = MutableArray<Int>(2L) { _ -> 0 }
+    val sizes = MutableArray<Array<Size>>(2L) { _ -> [] }
+    val fontSizes = MutableArray<Double>(2L) { _ -> 0.0 }
+    val modes = MutableArray<ThemeMode>(2L) { _ -> ThemeMode.Light }
+    var timer: WindowDeadline? = None
+    var active: ActiveApplication? = None
+    var initial: Array<Size> = []
+    var other: Array<Size> = []
+    var beforeFrames: Array<Int> = []
+    var beforeRenders: Array<Int> = []
+    var beforeMeasures: Array<Int> = []
+    var beforeScenes: Array<Int> = []
+    var revision = 0L
+    var phase = 0
+    var mounts = 0
+    var unmounts = 0
+    var finished = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                model.replace(Utf8Range(0L, 5L), "ALPHA")
+                model.setSelection(Utf8Selection(5L, 0L))
+                revision = model.revision
+                for (index in 0L ..< 2L) {
+                    val window =
+                        application.createWindow(
+                            windowAttributes {
+                                title = f"Scoop theme preferences ${index}"
+                                size = LogicalSize(320.0, 340.0)
+                                position =
+                                    Some(DesktopPosition(80.0 + index.toDouble() * 360.0, 120.0))
+                                requestActivation = index == 0L
+                                level = WindowLevel.AlwaysOnTop
+                            }
+                        )
+                    windows.add(window)
+                    roots.add(
+                        host.attach(
+                            window,
+                            { scope -> ThemePreferenceScene(this, index, scope) },
+                            preferences =
+                                uiPreferences {
+                                    reduceMotion = Some(index == 1L)
+                                    highContrast = Some(false)
+                                    reduceTransparency = Some(false)
+                                    textScaleFactor =
+                                        Some(
+                                            if (index == 0L)
+                                                1.0
+                                            else
+                                                1.25
+                                        )
+                                    caretBlinkInterval = Some(Duration.ZERO)
+                                }
+                        )!!
+                    )
+                }
+                timer = Some(windows[0L].createDeadline { elapsed() })
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"theme preference test timed out at ${phase}, mounts ${mounts}, renders ${
+                        renders[0L]
+                    }, ${renders[1L]}, measures ${measures[0L]}, ${measures[1L]}, scenes ${
+                        scenes[0L]
+                    }, ${scenes[1L]}, frames ${frames[0L]}, ${frames[1L]}, visible ${
+                        windows[0L].isVisible
+                    }, ${windows[1L].isVisible}, occluded ${windows[0L].isOccluded}, ${
+                        windows[1L].isOccluded
+                    }"
+                )
+            )
+            else -> {}
+        }
+    }
+
+    fun accepted(index: Long, measured: Array<Size>) {
+        frames[index] += 1
+        sizes[index] = measured
+        if (phase == 0 && frames[0L] > 0 && frames[1L] > 0) {
+            phase = 1
+            later()
+        }
+    }
+
+    private fun later() {
+        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+    }
+
+    private fun capture() {
+        beforeFrames = Array<Int>(2L) { index -> frames[index] }
+        beforeRenders = Array<Int>(2L) { index -> renders[index] }
+        beforeMeasures = Array<Int>(2L) { index -> measures[index] }
+        beforeScenes = Array<Int>(2L) { index -> scenes[index] }
+    }
+
+    private fun retained() {
+        assertEquals(revision, model.revision)
+        assertEquals("ALPHA beta", model.text)
+        assertEquals(Utf8Selection(5L, 0L), model.selection)
+        assertTrue(model.canUndo)
+        assertTrue(focus.isFocusActive)
+        assertEquals(2, mounts)
+        assertEquals(0, unmounts)
+    }
+
+    private fun stopped() {
+        for (index in 0L ..< 2L) {
+            assertEquals(
+                beforeFrames[index],
+                frames[index],
+                Some(f"root ${index} kept requesting frames in reduced motion")
+            )
+            assertEquals(beforeRenders[index], renders[index])
+            assertEquals(beforeMeasures[index], measures[index])
+            assertEquals(beforeScenes[index], scenes[index])
+        }
+    }
+
+    private fun elapsed() {
+        when (phase) {
+            1 -> {
+                windows[0L].requestFocus()
+                assertTrue(focus.requestFocus())
+                capture()
+                phase = 2
+                later()
+            }
+            2 -> {
+                retained()
+                assertTrue(
+                    frames[0L] >= beforeFrames[0L] + 2,
+                    Some("loading indicators did not start animating")
+                )
+                initial = sizes[0L]
+                other = sizes[1L]
+                capture()
+                roots[0L].preferences =
+                    roots[0L].preferences.copy {
+                        reduceMotion = Some(true)
+                        highContrast = Some(true)
+                        reduceTransparency = Some(true)
+                        textScaleFactor = Some(2.0)
+                    }
+                phase = 3
+                later()
+            }
+            3 -> {
+                retained()
+                assertEquals(28.0, fontSizes[0L])
+                assertEquals(17.5, fontSizes[1L])
+                assertEquals(14.0, source.current.value.tokens.typography.body.fontSize)
+                assertTrue(
+                    sizes[0L][0L].height > initial[0L].height * 1.5,
+                    Some("label did not remeasure scaled typography")
+                )
+                assertTrue(
+                    sizes[0L][3L].height > initial[3L].height * 1.5,
+                    Some("input did not remeasure scaled typography")
+                )
+                for (index in 0L ..< other.size)
+                    assertEquals(other[index], sizes[1L][index])
+                assertEquals(beforeFrames[1L], frames[1L])
+                capture()
+                phase = 4
+                later()
+            }
+            4 -> {
+                stopped()
+                roots[0L].preferences =
+                    roots[0L].preferences.copy {
+                        highContrast = Some(false)
+                        reduceTransparency = Some(false)
+                        textScaleFactor = Some(1.0)
+                    }
+                phase = 5
+                later()
+            }
+            5 -> {
+                retained()
+                assertEquals(initial[0L], sizes[0L][0L])
+                assertEquals(initial[3L], sizes[0L][3L])
+                source.current.value = shadcnTheme(ThemeMode.Dark)
+                phase = 6
+                later()
+            }
+            6 -> {
+                retained()
+                assertEquals(ThemeMode.Dark, modes[0L])
+                assertEquals(ThemeMode.Dark, modes[1L])
+                assertEquals(14.0, fontSizes[0L])
+                assertEquals(17.5, fontSizes[1L])
+                capture()
+                roots[0L].preferences = roots[0L].preferences.copy { reduceMotion = Some(false) }
+                phase = 7
+                later()
+            }
+            7 -> {
+                assertTrue(
+                    frames[0L] >= beforeFrames[0L] + 2,
+                    Some("restoring motion did not restart loading indicators")
+                )
+                assertEquals(beforeFrames[1L], frames[1L])
+                roots[0L].preferences = roots[0L].preferences.copy { reduceMotion = Some(true) }
+                phase = 8
+                later()
+            }
+            8 -> {
+                capture()
+                phase = 9
+                later()
+            }
+            9 -> {
+                stopped()
+                retained()
+                explicit.value = Some(alternative)
+                phase = 10
+                later()
+            }
+            10 -> {
+                retained()
+                assertTrue(
+                    sizes[0L][0L].height > initial[0L].height * 1.5,
+                    Some("an explicit source did not replace the ambient label theme")
+                )
+                assertEquals(initial[3L], sizes[0L][3L])
+                explicit.value = None
+                phase = 11
+                later()
+            }
+            11 -> {
+                retained()
+                assertEquals(
+                    initial[0L],
+                    sizes[0L][0L],
+                    Some("clearing explicit Props did not restore the captured source")
+                )
+                finished = true
+                active!!.requestExit()
+            }
+            else -> fail(Some(f"unexpected theme preference phase ${phase}"))
+        }
+    }
+}
+
+private fun preferenceAlternative(): ThemeSource {
+    val base = shadcnTheme()
+    return ThemeSource(
+        base.copy {
+            tokens { typography { body = base.tokens.typography.body.copy { fontSize = 24.0 } } }
+        }
+    )
+}

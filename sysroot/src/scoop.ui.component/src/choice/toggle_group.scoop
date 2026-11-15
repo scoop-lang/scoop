@@ -37,7 +37,7 @@ public class ToggleGroup<T: Equals<T>> public constructor(
     scope: ComponentScope
 ): Component(scope) {
     private val handles = ChoiceHandles()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

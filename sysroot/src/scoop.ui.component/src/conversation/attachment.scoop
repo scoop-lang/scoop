@@ -89,7 +89,7 @@ public class Attachment(
     private val props: Props<AttachmentProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     private val medium = spanStyle { this.weight = Some(500) }
@@ -174,7 +174,10 @@ public class Attachment(
                     16.0 * d
         val media =
             when (input.media) {
-                case Some(AttachmentMedia.Image(val image, val natural)) -> imageView(image, natural) {
+                case Some(AttachmentMedia.Image(val image, val natural)) -> imageView(
+                    image,
+                    natural
+                ) {
                     this.fit = ContentFit.Cover
                     this.opacity =
                         if (

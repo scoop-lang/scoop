@@ -31,7 +31,7 @@ internal class DownloadPanel(
     }
     public override fun render(): View {
         val value = model.snapshot.value
-        val theme = themes.current.value
+        val theme = themes.read(scope)
         val text =
             when (value.progress.total) {
                 case Some(val total) -> f"${value.progress.bytes} / ${total} bytes"

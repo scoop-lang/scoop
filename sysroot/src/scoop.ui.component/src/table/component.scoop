@@ -7,7 +7,7 @@ public class Table public constructor(
     private val props: Props<TableProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val horizontal = ScrollState()
     private var checked: TableProps? = None
     private var appearance: TableAppearance? = None

@@ -4,10 +4,10 @@ import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class NavMenuControl(val props: Props<NavigationMenuProps>) {
+internal class NavMenuControl(val props: Props<NavigationMenuProps>, scope: ComponentScope) {
     val local = state<ViewKey?>(None)
     val anchor = LayoutAnchor()
-    val themes = ThemeAccess()
+    val themes = ThemeAccess(scope)
     val storage = ChoiceHandles()
     var handles: Array<FocusHandle> = []
     val open: ViewKey? get() =
@@ -42,7 +42,7 @@ public class NavigationMenu public constructor(
     private val props: Props<NavigationMenuProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val control = NavMenuControl(props)
+    private val control = NavMenuControl(props, scope)
     public override fun onMount() {
         control.themes.mount(props.value.theme)
     }

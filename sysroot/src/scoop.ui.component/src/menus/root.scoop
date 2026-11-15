@@ -56,7 +56,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
     private val handle = OverlayHandle()
     private val triggerFocus = FocusHandle()
     private val candidates = MenuFocus()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val last = state(false)
     private val point = state<Point?>(None)
     private var pendingTab: Boolean? = None

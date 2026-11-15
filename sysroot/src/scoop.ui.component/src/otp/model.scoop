@@ -80,7 +80,7 @@ public class InputOtp public constructor(
     private val props: Props<InputOtpProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val body = ActionTextStyle()
     private val visual = state(TextEditInteraction())
     private val interactionChanged: (TextEditInteraction) -> Unit = { next -> visual.value = next }

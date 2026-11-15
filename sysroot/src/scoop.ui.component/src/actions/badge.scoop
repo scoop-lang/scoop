@@ -61,7 +61,7 @@ private class BadgeAction(
             props.value.value.focus,
             { props.value.action() }
         )
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     public override fun onMount() {
         themes.mount(props.value.value.theme)
@@ -82,7 +82,7 @@ private class BadgeAction(
 private class BadgeDisplay(private val props: Props<BadgeProps>, scope: ComponentScope): Component(
     scope
 ) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     public override fun onMount() {
         themes.mount(props.value.theme)

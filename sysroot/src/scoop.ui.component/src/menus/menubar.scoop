@@ -37,7 +37,7 @@ public class Menubar public constructor(
     private val props: Props<MenubarProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val storage = ChoiceHandles()
     private var handles: Array<FocusHandle> = []
     public override fun onMount() {

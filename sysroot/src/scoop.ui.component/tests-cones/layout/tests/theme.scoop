@@ -8,6 +8,13 @@ import scoop.ui.style.*
 internal class CountingTheme(private val base: Theme, private val probe: LayoutProbe): Theme {
     val painters = ArrayList<CountedPainter>()
     public override val tokens: ThemeTokens get() = base.tokens
+    public override fun withPreferences(preferences: ThemePreferences): Theme {
+        val next = base.withPreferences(preferences)
+        return if (next === base)
+            this
+        else
+            CountingTheme(next, probe)
+    }
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,

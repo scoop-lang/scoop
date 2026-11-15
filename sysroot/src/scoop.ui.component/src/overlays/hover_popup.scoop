@@ -11,7 +11,7 @@ public class Tooltip public constructor(
     private val props: Props<TooltipProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val popup = HoverPopup({ props.value.input })
+    private val popup = HoverPopup({ props.value.input }, scope)
     public override fun onMount() {
         popup.mount()
     }
@@ -22,7 +22,7 @@ public class HoverCard public constructor(
     private val props: Props<HoverCardProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val popup = HoverPopup({ props.value.input })
+    private val popup = HoverPopup({ props.value.input }, scope)
     public override fun onMount() {
         popup.mount()
     }
@@ -30,11 +30,11 @@ public class HoverCard public constructor(
 }
 
 /** Composition shared by the two hover families; Hover owns all input and deadline state. */
-private class HoverPopup(private val read: () -> HoverPopupInput) {
+private class HoverPopup(private val read: () -> HoverPopupInput, scope: ComponentScope) {
     private val local = state(false)
     private val anchor = LayoutAnchor()
     private val link = HoverPopupLink()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val bodyStyle = ActionTextStyle()
     private val open = binding({ read().open?.value ?: local.value }, { next -> setOpen(next) })
     private val portalOpen =

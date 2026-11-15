@@ -10,7 +10,7 @@ public class NavigationMenuLink public constructor(
     private val props: Props<NavigationMenuLinkProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.button.theme)
     }

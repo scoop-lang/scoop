@@ -90,7 +90,7 @@ private class OtpSeparator(
     private val source: Props<ThemeSource?>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(source.value)
     }

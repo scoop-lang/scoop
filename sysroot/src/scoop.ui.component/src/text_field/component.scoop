@@ -26,7 +26,7 @@ internal class TextFieldInput(
 
 /** Shares composition while keeping the two public component identities distinct. */
 internal class TextFieldRenderer(private val scope: ComponentScope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val body = ActionTextStyle()
     private val hint = ActionTextStyle()
     private val description = ActionTextStyle()

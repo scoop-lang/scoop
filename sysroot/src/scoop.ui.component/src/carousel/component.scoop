@@ -28,7 +28,7 @@ public class Carousel public constructor(
     private val props: Props<CarouselProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val owner = CarouselOwner(props.value.initialIndex)
     private var source: ItemSource? = None
     private var keys: Array<ViewKey> = []

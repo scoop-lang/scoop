@@ -9,10 +9,19 @@ public class ShapeTheme internal constructor(
     public val surfaces: SurfaceParts,
     public val checkbox: CheckboxPart,
     public val radio: RadioPart,
-    public val scrollbar: ScrollbarPart
+    public val scrollbar: ScrollbarPart,
+    internal val preferenceBase: ShapeTheme? = None,
+    internal val appliedPreferences: ThemePreferences = ThemePreferences()
 ): Theme {
     public fun copy(configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme =
         configureShapeTheme(this, configure)
+
+    public override fun withPreferences(preferences: ThemePreferences): Theme {
+        preferences.check()
+        if (preferences == appliedPreferences)
+            return this
+        return resolveShapePreferences(preferenceBase ?: this, preferences)
+    }
 
     private fun surfaceStyle(
         visual: SurfaceVisual,

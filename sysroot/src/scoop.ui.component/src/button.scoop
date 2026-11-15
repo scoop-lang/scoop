@@ -28,7 +28,7 @@ public class Button public constructor(
     private val props: Props<ButtonProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     private val click: () -> Unit = { props.value.onClick() }
     private val control =

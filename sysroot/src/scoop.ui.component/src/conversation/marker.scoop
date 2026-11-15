@@ -49,7 +49,7 @@ public class MarkerBuilder internal constructor(): ConversationActionBuilder() {
 public class Marker(private val props: Props<MarkerProps>, scope: ComponentScope): Component(
     scope
 ) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     public override fun onMount() {
         themes.mount(props.value.theme)

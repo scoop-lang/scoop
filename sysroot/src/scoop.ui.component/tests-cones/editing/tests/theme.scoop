@@ -27,6 +27,13 @@ internal class FieldBar(
 internal class FieldTheme(private val base: Theme, private val probe: FieldProbe): Theme {
     val painters = ArrayList<ThemePainter>()
     public override val tokens: ThemeTokens get() = base.tokens
+    public override fun withPreferences(preferences: ThemePreferences): Theme {
+        val next = base.withPreferences(preferences)
+        return if (next === base)
+            this
+        else
+            FieldTheme(next, probe)
+    }
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,

@@ -63,7 +63,17 @@ private class ComponentFrameProbe {
                         }
                     )
                 window.requestFocus()
-                host.attach(window, { mount -> ComponentFrameScene(this, active, scope = mount) })
+                host.attach(
+                    window,
+                    { mount -> ComponentFrameScene(this, active, scope = mount) },
+                    preferences =
+                        uiPreferences {
+                            reduceMotion = Some(false)
+                            highContrast = Some(false)
+                            reduceTransparency = Some(false)
+                            textScaleFactor = Some(1.0)
+                        }
+                )
             }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(f"component frame reuse timed out at ${frames}")

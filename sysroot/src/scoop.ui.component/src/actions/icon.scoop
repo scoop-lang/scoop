@@ -24,7 +24,7 @@ public class Icon public constructor(
     private val props: Props<IconProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         if (props.value.color == None)
             themes.mount(props.value.theme)

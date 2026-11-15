@@ -24,7 +24,7 @@ public class FieldLabel public constructor(
     private val props: Props<FieldLabelProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

@@ -1,0 +1,143 @@
+package scoop.ui.style
+
+import scoop.graphics.Color
+import scoop.math.pow
+
+/** Composite straight sRGB colors onto the known opaque theme surface. */
+internal fun opaqueThemeColor(color: Color, background: Color): Color {
+    val alpha = themeUnit(color.alpha)
+    return Color(
+        themeUnit(color.red) * alpha + background.red * (1.0 - alpha),
+        themeUnit(color.green) * alpha + background.green * (1.0 - alpha),
+        themeUnit(color.blue) * alpha + background.blue * (1.0 - alpha)
+    )
+}
+
+private fun linearThemeChannel(value: Double): Double =
+    if (value <= 0.04045)
+        value / 12.92
+    else
+        pow((value + 0.055) / 1.055, 2.4)
+
+private fun themeLuminance(color: Color): Double =
+    0.2126 *
+        linearThemeChannel(color.red) +
+        0.7152 *
+        linearThemeChannel(color.green) +
+        0.0722 *
+        linearThemeChannel(color.blue)
+
+internal fun themeContrast(first: Color, second: Color): Double {
+    val a = themeLuminance(first)
+    val b = themeLuminance(second)
+    return (themeMax(a, b) + 0.05) / (themeMin(a, b) + 0.05)
+}
+
+internal fun contrastThemeColor(color: Color, background: Color, minimum: Double): Color {
+    val source = opaqueThemeColor(color, background)
+    if (themeContrast(source, background) >= minimum)
+        return source
+    val target =
+        if (themeContrast(Color.Black, background) >= themeContrast(Color.White, background))
+            Color.Black
+        else
+            Color.White
+    var low = 0.0
+    var high = 1.0
+    var result = target
+    // Binary search the least sRGB change that reaches the requested contrast.
+    for (step in 0 ..< 24) {
+        val middle = (low + high) / 2.0
+        val candidate = mixThemeColor(source, target, middle)
+        if (themeContrast(candidate, background) >= minimum) {
+            high = middle
+            result = candidate
+        } else
+            low = middle
+    }
+    return result
+}
+
+internal fun preferencePair(
+    pair: ColorPair,
+    canvas: Color,
+    contrast: Boolean,
+    minimum: Double = 7.0
+): ColorPair {
+    var background = opaqueThemeColor(pair.background, canvas)
+    if (!contrast)
+        return ColorPair(background, pair.foreground)
+    val black = themeContrast(Color.Black, background)
+    val white = themeContrast(Color.White, background)
+    if (themeMax(black, white) < minimum) {
+        val foreground =
+            if (black >= white)
+                Color.Black
+            else
+                Color.White
+        background = contrastThemeColor(background, foreground, minimum)
+    }
+    return ColorPair(background, contrastThemeColor(pair.foreground, background, minimum))
+}
+
+internal fun preferencePalette(
+    value: ThemePalette,
+    canvas: Color,
+    contrast: Boolean
+): ThemePalette {
+    val background =
+        if (contrast)
+            ColorPair(canvas, contrastThemeColor(value.background.foreground, canvas, 7.0))
+        else
+            preferencePair(value.background, canvas, false)
+    val base = background.background
+    return value.copy {
+        this.background = background
+        this.card = preferencePair(value.card, base, contrast)
+        this.popover = preferencePair(value.popover, base, contrast)
+        this.primary = preferenceAccent(value.primary, base, contrast)
+        this.secondary = preferencePair(value.secondary, base, contrast)
+        this.muted = preferencePair(value.muted, base, contrast)
+        this.accent = preferencePair(value.accent, base, contrast)
+        this.destructive = preferenceAccent(value.destructive, base, contrast)
+        if (contrast) {
+            this.border = contrastThemeColor(value.border, base, 3.0)
+            this.input = contrastThemeColor(value.input, base, 3.0)
+            this.ring = contrastThemeColor(value.ring, base, 3.0)
+            this.disabledText = contrastThemeColor(value.disabledText, base, 4.5)
+            this.chart =
+                ChartPalette(
+                    contrastThemeColor(value.chart.one, base, 3.0),
+                    contrastThemeColor(value.chart.two, base, 3.0),
+                    contrastThemeColor(value.chart.three, base, 3.0),
+                    contrastThemeColor(value.chart.four, base, 3.0),
+                    contrastThemeColor(value.chart.five, base, 3.0)
+                )
+        }
+        val sidebar = preferencePair(value.sidebar.background, base, contrast)
+        this.sidebar =
+            SidebarPalette(
+                sidebar,
+                preferenceAccent(value.sidebar.primary, sidebar.background, contrast),
+                preferencePair(value.sidebar.accent, sidebar.background, contrast),
+                if (contrast)
+                    contrastThemeColor(value.sidebar.border, sidebar.background, 3.0)
+                else
+                    value.sidebar.border,
+                if (contrast)
+                    contrastThemeColor(value.sidebar.ring, sidebar.background, 3.0)
+                else
+                    value.sidebar.ring
+            )
+        this.shadow = Color.Transparent
+    }
+}
+
+private fun preferenceAccent(pair: ColorPair, background: Color, contrast: Boolean): ColorPair {
+    val fill =
+        if (contrast)
+            contrastThemeColor(pair.background, background, 7.0)
+        else
+            pair.background
+    return preferencePair(ColorPair(fill, pair.foreground), background, contrast)
+}

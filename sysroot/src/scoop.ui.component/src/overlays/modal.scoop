@@ -13,7 +13,7 @@ public class Dialog public constructor(
     private val props: Props<DialogProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val modal = ModalContent({ props.value.input })
+    private val modal = ModalContent({ props.value.input }, scope)
     public override fun onMount() {
         modal.mount()
     }
@@ -24,7 +24,7 @@ public class AlertDialog public constructor(
     private val props: Props<AlertDialogProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val modal = ModalContent({ props.value.input })
+    private val modal = ModalContent({ props.value.input }, scope)
     public override fun onMount() {
         modal.mount()
     }
@@ -35,7 +35,7 @@ public class Sheet public constructor(
     private val props: Props<SheetProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val modal = ModalContent({ props.value.input })
+    private val modal = ModalContent({ props.value.input }, scope)
     public override fun onMount() {
         modal.mount()
     }
@@ -43,8 +43,8 @@ public class Sheet public constructor(
 }
 
 /** The business binding and Portal own the session; this composition only supplies its content. */
-internal class ModalContent(private val read: () -> ModalInput) {
-    private val themes = ThemeAccess()
+internal class ModalContent(private val read: () -> ModalInput, scope: ComponentScope) {
+    private val themes = ThemeAccess(scope)
     private val localHandle = OverlayHandle()
     private val cancelFocus = FocusHandle()
     private val titles = ActionTextStyle()
@@ -304,7 +304,10 @@ internal class ModalContent(private val read: () -> ModalInput) {
                         )
                         corners(
                             when (input.kind) {
-                                case Drawer(val props, _) -> drawerCorners(props.side, 12.0 * density)
+                                case Drawer(val props, _) -> drawerCorners(
+                                    props.side,
+                                    12.0 * density
+                                )
                                 else -> Corners.all(
                                     if (sheet)
                                         0.0

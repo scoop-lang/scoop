@@ -10,7 +10,7 @@ public class Questionnaire(
     private val props: Props<QuestionnaireProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val handles = ChoiceHandles()
     private val editorFocus = FocusHandle()
     private val text = ActionTextStyle()

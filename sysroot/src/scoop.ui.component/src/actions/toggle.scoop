@@ -31,7 +31,7 @@ public class Toggle public constructor(
 ): Component(scope) {
     private val control =
         PressControl(scope, PressOptions(props.value.enabled), props.value.focus, { activate() })
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     private fun activate() {
         val binding = props.value.pressed

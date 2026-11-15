@@ -8,7 +8,7 @@ public class Chart public constructor(
     private val props: Props<ChartProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val localActive = state<ChartSelection?>(None)
     private val active =
         binding(

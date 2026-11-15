@@ -28,7 +28,7 @@ public class Accordion<T: Equals<T>> public constructor(
     private val props: Props<AccordionProps<T>>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val handles = ChoiceHandles()
     public override fun onMount() {
         themes.mount(props.value.theme)

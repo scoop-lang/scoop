@@ -29,7 +29,7 @@ public class Switch public constructor(
             props.value.focus,
             { activate() }
         )
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private fun activate() {
         val binding = props.value.checked
         binding.value = !binding.value

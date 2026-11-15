@@ -79,7 +79,7 @@ private class WindowControl(
     private val props: Props<WindowControlInput>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val nativeInteraction = state(InteractionState())
     private val maximized = state(false)
     private val click: () -> Unit = { activate() }

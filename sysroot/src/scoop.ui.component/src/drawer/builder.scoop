@@ -94,7 +94,7 @@ public class Drawer public constructor(
     scope: ComponentScope
 ): Component(scope) {
     private val owner = DrawerOwner(props.value.initialSnap)
-    private val modal = ModalContent({ props.value.input(owner) })
+    private val modal = ModalContent({ props.value.input(owner) }, scope)
     public override fun onMount() {
         modal.mount()
     }

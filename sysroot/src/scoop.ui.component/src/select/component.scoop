@@ -20,7 +20,7 @@ public class Select<T: Equals<T>> public constructor(
     private val layer = OverlayHandle()
     private val candidates = MenuFocus()
     private val scroll = ScrollState()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private var pendingTab: Boolean? = None
     private val open =
         binding({ props.value.open?.value ?: local.value }, { value -> setOpen(value) })

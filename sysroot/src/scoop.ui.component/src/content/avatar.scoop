@@ -31,7 +31,7 @@ public class Avatar public constructor(
     private val props: Props<AvatarProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val captions = ActionTextStyle()
     public override fun onMount() {
         themes.mount(props.value.theme)

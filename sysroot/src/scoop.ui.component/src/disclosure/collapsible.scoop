@@ -32,7 +32,7 @@ public class Collapsible public constructor(
     private val props: Props<CollapsibleProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val motion = scope.presence(props.value.open.value)
     public override fun onMount() {
         themes.mount(props.value.theme)

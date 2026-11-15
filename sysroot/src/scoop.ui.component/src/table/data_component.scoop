@@ -56,7 +56,7 @@ public class DataTable<Row> public constructor(
     private val props: Props<DataTableProps<Row>>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val horizontal = ScrollState()
     private val vertical = ScrollState()
     private val menuOpen = state(false)

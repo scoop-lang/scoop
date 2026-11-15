@@ -11,7 +11,7 @@ public class Breadcrumb public constructor(
     private val props: Props<BreadcrumbProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

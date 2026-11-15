@@ -6,6 +6,13 @@ import scoop.ui.style.*
 
 internal class GalleryTheme(private val base: Theme, private val probe: GalleryProbe): Theme {
     public override val tokens: ThemeTokens get() = base.tokens
+    public override fun withPreferences(preferences: ThemePreferences): Theme {
+        val next = base.withPreferences(preferences)
+        return if (next === base)
+            this
+        else
+            GalleryTheme(next, probe)
+    }
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,

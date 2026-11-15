@@ -187,13 +187,28 @@ ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩
 
 `ThemeSource` 是应用持有的稳定普通 class，包含 `State<Theme>` 当前值。应用将来源通过语言 Context 绑定在真实 Application.run／runWithAsyncio 及挂载入口；控件挂载时取得来源，在每次 render 中读取当前值，使实际消费者订阅。一次来源更新合并逻辑工作和必要帧，不遍历未订阅的任意业务对象。
 
-Component 的挂载工厂在该入口构造实例，因此可以在构造阶段保存 ThemeSource 引用。首轮 render 早于 onMount，render 所需的普通来源引用不能等到 onMount 才初始化；onMount 继续用于登记控制器、订阅和 native 资源。保存来源不等于保存当时的 Theme，每次 render 仍读取 source.current.value。
+Component 的挂载工厂在该入口构造实例，因此可以在构造阶段保存 ThemeSource 引用。首轮 render 早于 onMount，render 所需的普通来源引用不能等到 onMount 才初始化；onMount 继续用于登记控制器、订阅和 native 资源。保存来源不等于保存当时的 Theme，每次 render 仍调用 source.read(scope)，同时读取基础主题与本根偏好。
 
 控件只保存来源和持久交互状态。Theme、已解析局部覆盖及几何经 Props／同帧 measure／paint 更新；切换风格或明暗可以按新的 metrics 重新布局，但保留组件实例、State、Binding、InputArea 和焦点。没有结构变化时不能通过更换 Element 类型或增删装饰包装实现主题切换。painter 资源替换不等于组件卸载。
 
 局部主题首期通过明确的 ThemeSource／Theme 参数和 Props 传入，组合控件显式转交需要继承的子项。不把临时 Context 当成 View 捕获或自动挂载树继承；需要子树 Provider 时另行设计。没有环境来源且未显式提供主题的控件，使用语言现有的缺失 Context 诊断，不偷偷建立全局可变默认主题。
 
 输入使用 Surface 已成功提交的几何。控件在 paint 放置主题给出的轮廓／区域，必要的拖动数据随该帧成功发布；失败帧不能提前替换已发布的输入几何。逻辑 enabled 和最新处理器仍在 update 生效，绘制变化不推迟禁用。完整 ScrollView 的拖动／滚动行为不属于此绘图批次。
+
+### 6.1 根交互偏好的主题消费
+
+`ThemePreferences(reduceMotion=false, highContrast=false, reduceTransparency=false, textScaleFactor=1.0)` 是纯值输入，文字缩放须为有限正数。`Theme.withPreferences(preferences): Theme` 返回采用这些偏好的不可变主题，必须同时更新实际使用的 tokens、部件及绘图数据；第三方主题也实现这一入口，不能只替换 tokens 而继续绘制旧的部件颜色。重复应用相同偏好不叠加字号；ShapeTheme 从保留的基础描述解析，恢复默认偏好得到原基础主题。对解析结果显式 copy 会建立新的基础描述，应用通常修改 ThemeSource.current 中的基础主题。
+
+`ThemeSource.resolve(preferences)` 读取当前 State 并复用最近一次相同基础主题／偏好的结果；不拥有 painter 或窗口资源。`ThemeSource.read(scope)` 从 ComponentScope.interactionPreferences 取得根已合并的设置，未知布尔值使用 false、未知文字缩放使用 1.0，再调用 resolve。内置控件和自绘示例通过 read 消费；current.value 保留未经根解析的基础值，供应用修改或纯数据检查。同一来源可供不同根使用，根的偏好不写回共享 State。
+
+内置 ShapeTheme 的具体规则如下：
+
+- reduceMotion=true 将有效 ThemeMotion 设为 Reduced，主题原本的 Reduced 继续有效；普通皮肤的 Full 不能恢复根已关闭的动画。现有过渡、位移和不定进度动效通过同一有效 ThemeMotion 停止或立即到达目标，不增加时钟。恢复后按各控件已有的启动规则运行。
+- textScaleFactor 作用于 body／caption／action 的字体大小，保留字体族、字重及相对行高。控件用新文字度量重新布局和命中，不缩放整个 Canvas，也不改变窗口 DPI；控件明确的局部字号继续由应用决定。
+- highContrast=true 使用主题当前明暗模式作为不透明背景，将默认语义配色、表面与标记的实际颜色调整为高对比。稳定交互状态下，启用文字／选中标记与背景的对比度至少 7:1，禁用文字至少 4.5:1，控件边界／焦点至少 3:1；对比度使用 sRGB 相对亮度。取消会降低辨识度的整体禁用透明度，焦点环宽度至少 2 个逻辑单位；外环不再用固定颜色替换各状态已解析的边框。颜色仍保持可用的原色；不足时朝黑或白调整。这是内置主题的对比度策略，不冒充 OS 强制色调色板。
+- reduceTransparency=true 将默认填充颜色合成到对应的不透明背景，并去掉主题默认投影、辉光与模糊装饰；highContrast 同时采用这一处理。抗锯齿、图像内容与应用显式指定的绘图效果不被重写。局部颜色／样式覆盖仍归应用所有，应在相应界面单独验收对比度。
+
+上述变化沿根的既有显示依赖更新；实际排版、绘图与输入区域使用同一轮结果，保留挂载、编辑模型、IME 与焦点。测试同时检查四套主题的明暗配色和真实控件热切换，尤其验证停止动画后不继续请求帧。
 
 ## 7. 效果、缓存与能耗
 
@@ -205,7 +220,7 @@ ThemePainter 缓存考虑本轮主题参数、几何、效果和本帧采样值�
 
 ## 8. 实施与验收
 
-实施顺序为 graphics 基础滤镜及通用嵌套 PaintContext → 公共 Style／装饰 → 主题协议与几何／绘图基础 → 三套主题及离屏展示 → 基础控件消费主题 → 完整展示示例和真实 UI 组合。上述批次及原有布局、生命周期、异步进度目标均已完成本期 macOS 验收。每批格式、检查与定向测试通过后提交、推送、merge origin/main，正常缓存保留。
+实施顺序为 graphics 基础滤镜及通用嵌套 PaintContext → 公共 Style／装饰 → 主题协议与几何／绘图基础 → 三套主题及离屏展示 → 基础控件消费主题 → 完整展示示例和真实 UI 组合。上述基础批次及原有布局、生命周期、异步进度目标均已完成其 macOS 验收。本轮第 6.1 节新增偏好的实施与验证范围见 [UI 交互打磨记录](../ui/interaction-polish/PROGRESS.md)，不沿用历史批次的完成状态。每批格式、检查与定向测试通过后提交、推送、merge origin/main，正常缓存保留。
 
 主题展示示例并列显示四类公共部件和已实现控件的普通、hovered、pressed、disabled、selected／mixed 和 focused 状态；支持三风格、Light／Dark 和系统跟随。公共部件区域直接调用 Canvas 绘图，真实控件区域同时验证交互和主题切换。
 

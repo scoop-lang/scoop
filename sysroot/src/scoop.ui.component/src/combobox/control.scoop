@@ -12,7 +12,7 @@ internal class ComboboxControl<T: Equals<T>>(
     val props: Props<ComboboxProps<T>>,
     val owner: ComponentScope
 ) {
-    val themes = ThemeAccess()
+    val themes = ThemeAccess(owner)
     val localOpen = state(false)
     val localActive = state<ViewKey?>(None)
     val ownEditor = FocusHandle()

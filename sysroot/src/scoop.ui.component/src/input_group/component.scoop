@@ -19,7 +19,7 @@ public class InputGroup public constructor(
     private val props: Props<InputGroupProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val ownFocus = FocusHandle()
     public override fun onMount() {
         themes.mount(props.value.theme)

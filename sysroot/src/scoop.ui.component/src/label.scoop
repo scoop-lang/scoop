@@ -26,7 +26,7 @@ public class Label public constructor(
     scope: ComponentScope
 ): Component(scope) {
     private var plain: PlainLabel? = None
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         when (props.value.text) {
             case Plain(_, _) -> when (props.value.baseStyle) {

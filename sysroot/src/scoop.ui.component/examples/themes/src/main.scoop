@@ -24,7 +24,7 @@ internal class Showcase(private val model: ShowcaseModel, scope: ComponentScope)
         )
     }
     public override fun render(): View =
-        showcaseView(model, count, name, notes, choices, { count += 1 })
+        showcaseView(model, model.source.read(scope), count, name, notes, choices, { count += 1 })
 }
 
 internal class Gallery(

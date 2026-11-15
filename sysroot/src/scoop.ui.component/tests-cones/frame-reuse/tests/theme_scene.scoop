@@ -1,0 +1,85 @@
+package scoop.tests.ui.componentframereuse
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class ThemePreferenceScene(
+    private val probe: ThemePreferenceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun render(): View {
+        val theme = probe.source.read(scope)
+        probe.renders[index] += 1
+        probe.fontSizes[index] = theme.tokens.typography.body.fontSize
+        probe.modes[index] = theme.tokens.mode
+        val source = probe.explicit.value
+        val model = probe.model
+        val focus = probe.focus
+        val children =
+            [
+                label("Preference text") { this.theme = source },
+                spinner(),
+                progress(None),
+                if (index == 0L)
+                    input(model) { this.focus = FocusOptions(handle = Some(focus)) }
+                else
+                    label("Independent window")
+            ]
+        return cachedScene(
+            element(
+                theme,
+                { props, mount -> ThemePreferencePanel(props, probe, index, mount) },
+                children
+            )
+        )
+    }
+}
+
+private class ThemePreferencePanel(
+    private val props: Props<Theme>,
+    private val probe: ThemePreferenceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Array<Size>>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Array<Size>
+    > {
+        probe.measures[index] += 1
+        val measured = ArrayList<Size>()
+        var top = 15.0
+        for (child in 0L ..< context.childCount) {
+            val metrics =
+                context.measureChild(
+                    child,
+                    Constraints(maxWidth = Some(280.0), maxHeight = Some(90.0))
+                )
+            context.placeChild(child, Point(15.0, top))
+            measured.add(metrics.size)
+            top += metrics.size.height + 15.0
+        }
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(320.0, 340.0))),
+            measured.toArray()
+        )
+    }
+    public override fun scene(context: SceneContext, measured: Array<Size>) {
+        probe.scenes[index] += 1
+        val background = props.value.tokens.palette.background.background
+        context.draw { paint -> paint.canvas.clear(background) }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && !probe.finished)
+                probe.accepted(index, measured)
+        }
+    }
+}

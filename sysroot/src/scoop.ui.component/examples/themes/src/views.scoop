@@ -10,13 +10,13 @@ import scoop.ui.text.TextEditorState
 
 internal fun showcaseView(
     model: ShowcaseModel,
+    theme: Theme,
     count: Int,
     name: TextEditorState,
     notes: TextEditorState,
     choices: Array<FocusHandle>,
     onIncrement: () -> Unit
 ): View {
-    val theme = model.source.current.value
     val enabled = model.enabled.value
     val effects = ArrayList<ContentEffect>()
     if (model.shadow.value)

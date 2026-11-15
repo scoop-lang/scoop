@@ -7,7 +7,7 @@ import scoop.ui.component.row as itemRow
 import scoop.ui.style.*
 
 internal class ItemRenderer(private val scope: ComponentScope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     private val medium = spanStyle { this.weight = Some(500) }

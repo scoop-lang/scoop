@@ -9,7 +9,7 @@ public class Command public constructor(
     private val props: Props<CommandProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val localActive = state<ViewKey?>(None)
     private val ownFocus = FocusHandle()
     private val ownScroll = ScrollState()

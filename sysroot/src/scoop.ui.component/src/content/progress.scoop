@@ -47,7 +47,7 @@ public class Progress public constructor(
     private val props: Props<ProgressProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val labels = ActionTextStyle()
     private val values = ActionTextStyle()
     public override fun onMount() {

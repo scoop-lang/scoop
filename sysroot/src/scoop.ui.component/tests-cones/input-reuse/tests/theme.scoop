@@ -9,6 +9,13 @@ internal class InputTheme(private val base: Theme): Theme {
     var inScene = false
     var hovered = false
     public override val tokens: ThemeTokens get() = base.tokens
+    public override fun withPreferences(preferences: ThemePreferences): Theme {
+        val next = base.withPreferences(preferences)
+        return if (next === base)
+            this
+        else
+            InputTheme(next)
+    }
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,
