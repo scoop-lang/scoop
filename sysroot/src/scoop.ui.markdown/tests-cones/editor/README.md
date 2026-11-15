@@ -27,3 +27,5 @@ cat /tmp/scoop-markdown-editor-events/events.jsonl
 必须核对事件中出现用例 begin、空 failures 的 end 和 complete；`open` 退出成功本身不能证明通过。失败详情保存在 `0.stdout`／`0.stderr`。按实际本机 target 调整路径，核对后清理本轮临时 app 和事件目录，正常 Cone 构建缓存保留。
 
 HTML 剪贴板用例使用同一份测试程序，将上述 filter 改为 `MarkdownHtmlClipboardWindowTests` 并指定新的空事件目录。两个窗口用例分别启动，避免一个进程创建多次 Application。
+
+`MarkdownPerformanceWindowTests` 使用当前仓库的两份大型规范构造约 1／5／20 MiB 文档，测真实输入、帧提交、解析收敛、滚动和换宽，并包含长段、代码、表格与原位源码专项。运行需传 `SCOOP_MARKDOWN_PERF_REPOSITORY` 指向仓库根；可用 `SCOOP_MARKDOWN_PERF_CASE` 选择场景。指标定义、语料、复现命令和本机结果见[交互测量记录](../../../../../docs/ui/markdown/PERFORMANCE.md)。

@@ -1,0 +1,205 @@
+package scoop.tests.markdown.editor
+
+import scoop.markdown.*
+import scoop.platform.env.*
+import scoop.platform.fs.*
+import scoop.platform.time.*
+import scoop.text.repeat
+import scoop.ui.markdown.*
+
+internal class MarkdownPerfCase(
+    val name: String,
+    val source: String,
+    val entry: Long,
+    val mode: MarkdownEditorMode,
+    val pane: MarkdownEditorPane,
+    val inputs: Int = 64,
+    val scrolls: Int = 40
+)
+
+internal fun markdownPerformanceCases(): Array<MarkdownPerfCase> {
+    val root =
+        when (environmentVariable("SCOOP_MARKDOWN_PERF_REPOSITORY")) {
+            case Some(val path) -> Path.fromOsString(path)
+            case None -> currentDirectory()
+        }
+    val before = MonotonicTimeSource.markNow()
+    val documents =
+        root.resolve(Path.fromString("docs/specs/SCOOP-IMPL-SPEC.md")).readText() +
+            "\n\n" +
+            root.resolve(Path.fromString("docs/specs/SCOOP-SPEC.md")).readText()
+    markdownPerfLog(
+        "PERF_CORPUS,bytes=" +
+            documents.byteLength.toString() +
+            ",read_ms=" +
+            markdownPerfMilliseconds(before.elapsedNow()).toString()
+    )
+    val result = ArrayList<MarkdownPerfCase>()
+    for (mib in [1L, 5L]) {
+        val source = markdownPerfMixed(documents, mib * 1048576L)
+        val name = "mixed-" + mib.toString()
+        result.add(
+            MarkdownPerfCase(
+                name + "-source",
+                source,
+                6L,
+                MarkdownEditorMode.Source,
+                MarkdownEditorPane.Source
+            )
+        )
+        result.add(
+            MarkdownPerfCase(
+                name + "-rich",
+                source,
+                6L,
+                MarkdownEditorMode.Wysiwyg,
+                MarkdownEditorPane.Rich
+            )
+        )
+        result.add(
+            MarkdownPerfCase(
+                name + "-side-source",
+                source,
+                6L,
+                MarkdownEditorMode.SideBySide,
+                MarkdownEditorPane.Source
+            )
+        )
+        result.add(
+            MarkdownPerfCase(
+                name + "-side-rich",
+                source,
+                6L,
+                MarkdownEditorMode.SideBySide,
+                MarkdownEditorPane.Rich
+            )
+        )
+    }
+    val trend = markdownPerfMixed(documents, 20L * 1048576L)
+    result.add(
+        MarkdownPerfCase(
+            "mixed-20-source",
+            trend,
+            6L,
+            MarkdownEditorMode.Source,
+            MarkdownEditorPane.Source,
+            8,
+            12
+        )
+    )
+    result.add(
+        MarkdownPerfCase(
+            "mixed-20-rich",
+            trend,
+            6L,
+            MarkdownEditorMode.Wysiwyg,
+            MarkdownEditorPane.Rich,
+            8,
+            12
+        )
+    )
+    val paragraph =
+    // Keep the edited leaf canonical so punctuation escaping is not counted as typed text.
+    "Plain 中文 English words with punctuation\\, **strong** and more text. " +
+        "中文 English words with punctuation, **strong** and more text. ".repeat(2047L)
+    val unbroken = "abcdefghijklmnopqrstuvwxyz".repeat(5000L)
+    for ((name, source) in [("long-paragraph", paragraph), ("unbroken", unbroken)]) {
+        result.add(
+            MarkdownPerfCase(
+                name + "-source",
+                source,
+                6L,
+                MarkdownEditorMode.Source,
+                MarkdownEditorPane.Source,
+                8,
+                12
+            )
+        )
+        result.add(
+            MarkdownPerfCase(
+                name + "-rich",
+                source,
+                6L,
+                MarkdownEditorMode.Wysiwyg,
+                MarkdownEditorPane.Rich,
+                8,
+                12
+            )
+        )
+    }
+    val code = "```scoop\n" + "val n = 1\n".repeat(100000L) + "```\n"
+    result.add(
+        MarkdownPerfCase(
+            "code-100000-rich-source",
+            code,
+            13L,
+            MarkdownEditorMode.Wysiwyg,
+            MarkdownEditorPane.Rich,
+            16,
+            24
+        )
+    )
+    val header = "| Alpha | Beta | Gamma | Delta |\n| --- | --- | --- | --- |\n"
+    val table = header + "| 中文 words | value | **bold** | more text |\n".repeat(3000L)
+    result.add(
+        MarkdownPerfCase(
+            "table-3000-rich",
+            table,
+            header.byteLength + 2L,
+            MarkdownEditorMode.Wysiwyg,
+            MarkdownEditorPane.Rich,
+            16,
+            24
+        )
+    )
+    val image = "left ![alt](image.png) right\n\n" + markdownPerfMixed(documents, 5L * 1048576L)
+    result.add(
+        MarkdownPerfCase(
+            "image-inline-source-5",
+            image,
+            6L,
+            MarkdownEditorMode.Wysiwyg,
+            MarkdownEditorPane.Rich,
+            16,
+            24
+        )
+    )
+    val selected = environmentVariable("SCOOP_MARKDOWN_PERF_CASE")?.decodeUtf8()
+    return when (selected) {
+        case None -> result.toArray()
+        case Some(val name) -> {
+            val filtered = ArrayList<MarkdownPerfCase>()
+            for (entry in result)
+                if (entry.name == name)
+                    filtered.add(entry)
+            if (filtered.size == 0L)
+                throw IllegalArgumentException(Some("Unknown Markdown performance case: " + name))
+            filtered.toArray()
+        }
+    }
+}
+
+/** Stops at a physical line boundary without splitting UTF-8. Preparation is not timed as UI work. */
+private fun markdownPerfMixed(documents: String, bytes: Long): String {
+    val prefix =
+        "Plain 中文 input with **emphasis** and a [link](https://example.org).\n\n" +
+            "> Quote with a nested list:\n> - first\n>   - nested\n\n" +
+            "- [ ] Task\n- [x] Done\n\n![image](image.png) and $x+1$.\n\n"
+    val source = prefix + documents.repeat(bytes / documents.byteLength + 1L)
+    val snapshot = MarkdownDocument.fromText(source).snapshot()
+    var first = 0L
+    var last = snapshot.lineCount
+    while (first < last) {
+        val middle = first + (last - first) / 2L
+        if (snapshot.positionOfLine(middle).byteOffset < bytes)
+            first = middle + 1L
+        else
+            last = middle
+    }
+    val end =
+        if (first < snapshot.lineCount)
+            snapshot.positionOfLine(first).byteOffset
+        else
+            snapshot.byteLength
+    return snapshot.read(MarkdownRange(0L, end))
+}

@@ -1,0 +1,75 @@
+package scoop.tests.markdown.editor
+
+import scoop.graphics.*
+import scoop.platform.time.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.markdown.*
+
+internal class MarkdownPerfRoot(val probe: MarkdownPerfProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        probe.scope = Some(scope)
+        probe.parser.start()
+    }
+    public override fun render(): View =
+        element(
+            MarkdownPerfFrameTicket(
+                probe.ticket.value,
+                when (probe.parser.current) {
+                    case Some(_) -> true
+                    case None -> false
+                }
+            ),
+            { ticket, owner -> MarkdownPerfFrame(probe, ticket, owner) },
+            [
+                markdownEditor(
+                    probe.view,
+                    probe.parser,
+                    Some(probe.sourceStyle),
+                    Some(probe.richStyle),
+                    fonts = Some(probe.fonts)
+                )
+            ]
+        )
+}
+
+private struct MarkdownPerfLayout(val width: Double, val measured: Double)
+
+private struct MarkdownPerfFrameTicket(val number: Int, val structured: Boolean)
+
+private class MarkdownPerfFrame(
+    val probe: MarkdownPerfProbe,
+    val ticket: Props<MarkdownPerfFrameTicket>,
+    scope: ComponentScope
+): Element<MarkdownPerfLayout>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownPerfLayout
+    > {
+        val started = MonotonicTimeSource.markNow()
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(
+            size,
+            MarkdownPerfLayout(size.size.width, markdownPerfMilliseconds(started.elapsedNow()))
+        )
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownPerfLayout) {
+        val started = MonotonicTimeSource.markNow()
+        context.children()
+        val painted = markdownPerfMilliseconds(started.elapsedNow())
+        val current = ticket.value
+        val revision = probe.editor.snapshot.revision
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accept(
+                    current.number,
+                    revision,
+                    current.structured,
+                    layout.width,
+                    layout.measured + painted
+                )
+        }
+    }
+}

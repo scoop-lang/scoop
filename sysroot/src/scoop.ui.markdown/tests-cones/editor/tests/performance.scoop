@@ -1,0 +1,439 @@
+package scoop.tests.markdown.editor
+
+import scoop.collections.sorted
+import scoop.concurrent.multiThreadExecutor
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.io.*
+import scoop.platform.time.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.*
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MarkdownPerformanceWindowTests {
+    @Test
+    fun nativeEditingAndPresentationReportRepositoryAndLargeBlockCosts() {
+        val cases = markdownPerformanceCases()
+        val app = Application()
+        val workers =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val probe = MarkdownPerfProbe(cases, workers, app.proxy())
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> app.run(host)
+                }
+            }
+            assertTrue(probe.finished)
+        } catch (failure: Throwable) {
+            markdownPerfLog(
+                "Performance case=" +
+                    probe.caseIndex.toString() +
+                    ", phase=" +
+                    probe.phase.toString() +
+                    ", ticket=" +
+                    probe.ticket.value.toString()
+            )
+            reportEditorFailure(failure)
+            throw failure
+        } finally {
+            probe.close()
+            workers.close()
+        }
+    }
+}
+
+internal fun markdownPerfMilliseconds(value: Duration): Double =
+    value.floorSeconds.toDouble() * 1000.0 + value.nanosecondsOfSecond.toDouble() / 1000000.0
+
+internal fun markdownPerfLog(value: String) {
+    standardOutput.writeLine(value)
+}
+
+internal class MarkdownPerfProbe(
+    private val cases: Array<MarkdownPerfCase>,
+    workers: CoroutineExecutor,
+    proxy: ApplicationProxy
+): Closeable {
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(""))
+    val parser = MarkdownParseController(editor, workers, proxy)
+    val view = MarkdownEditorViewState(editor, MarkdownEditorMode.Source)
+    val fonts = FontCollection()
+    private val text =
+        textStyle {
+            families = ["Perf Latin", "Perf CJK"];
+            fontSize = 16.0;
+            lineHeight = Some(1.5)
+        }
+    val sourceStyle = MarkdownSourceStyle(text)
+    val richStyle = MarkdownPreviewStyle(text)
+    val ticket = state(0)
+    var scope: ComponentScope? = None
+    var caseIndex = -1L
+    var phase = 0
+    var finished = false
+    private var window: Window? = None
+    private var frames: FrameProbe? = None
+    private var waiting = false
+    private var inputReady = false
+    private var presentations = 0L
+    private var accepted = -1
+    private var acceptedAt = MonotonicTimeSource.markNow()
+    private var acceptedWork = 0.0
+    private var structureRevision = -1L
+    private var structureAt = acceptedAt
+    private var started = acceptedAt
+    private var lastInput = acceptedAt
+    private var width = 1200.0
+    private var observedWidth = 0.0
+    private var issued = 0
+    private var scrolled = 0
+    private var resized = 0
+    private var expectedBytes = 0L
+    private var expectedCursor = 0L
+    private var firstViewport = 0.0
+    private var convergence = 0.0
+    private val inputLatency = ArrayList<Double>()
+    private val inputWork = ArrayList<Double>()
+    private val nativeWork = ArrayList<Double>()
+    private val scrollLatency = ArrayList<Double>()
+    private val scrollWork = ArrayList<Double>()
+    private val resizeLatency = ArrayList<Double>()
+
+    init {
+        fonts.register(testSansBytes, "Perf Latin")
+        fonts.register(testCjkBytes, "Perf CJK")
+        view.requestFocus(MarkdownEditorPane.Source)
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown performance verification"
+                            size = LogicalSize(1200.0, 800.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { owner -> MarkdownPerfRoot(this, owner) })
+                native.createDeadline {
+                    fail(
+                        Some(
+                            "Markdown performance timeout: phase=" +
+                                phase.toString() +
+                                ", ticket=" +
+                                ticket.value.toString() +
+                                ", accepted=" +
+                                accepted.toString() +
+                                ", width=" +
+                                observedWidth.toString() +
+                                ", focused=" +
+                                native.isFocused.toString() +
+                                ", input=" +
+                                inputReady.toString() +
+                                ", structured=" +
+                                structureRevision.toString() +
+                                ", revision=" +
+                                editor.snapshot.revision.toString()
+                        )
+                    )
+                }.schedule(
+                    MonotonicTimeSource.markNow() +
+                        Duration.seconds(
+                            if (cases.size == 1L)
+                                60L
+                            else
+                                300L
+                        )
+                )
+            }
+            case Window(_, WindowEvent.TextInput(val input)) -> when (input) {
+                case Enabled(_) -> inputReady = true
+                case Disabled(_) -> inputReady = false
+                else -> Unit
+            }
+            case AboutToWait -> {
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    fun accept(
+        current: Int,
+        revision: Long,
+        structured: Boolean,
+        measuredWidth: Double,
+        work: Double
+    ) {
+        observedWidth = measuredWidth
+        if (
+            current !=
+                ticket.value ||
+                revision !=
+                editor.snapshot.revision ||
+                measuredWidth <
+                width -
+                0.5 ||
+                measuredWidth >
+                width +
+                0.5
+        )
+            return
+        val now = MonotonicTimeSource.markNow()
+        if (accepted != current) {
+            accepted = current
+            acceptedAt = now
+            acceptedWork = work
+        }
+        if (structured && structureRevision != revision) {
+            structureRevision = revision
+            structureAt = now
+        }
+    }
+
+    private fun ready(): Boolean {
+        val native = window ?: return false
+        val frame = frames!!.snapshot()
+        if (
+            !native.isFocused ||
+                native.isOccluded ||
+                !inputReady ||
+                frame.required ||
+                frame.presentations <=
+                presentations ||
+                accepted !=
+                ticket.value
+        )
+            return false
+        val pane =
+            if (caseIndex < 0L)
+                MarkdownEditorPane.Source
+            else
+                cases[caseIndex].pane
+        if (
+            !(
+                if (pane == MarkdownEditorPane.Source)
+                    view.sourceFocus
+                else
+                    view.richFocus
+            ).isFocusActive
+        )
+            return false
+        if (phase == 1 && pane == MarkdownEditorPane.Rich || phase == 3)
+            return structureRevision == editor.snapshot.revision
+        return true
+    }
+
+    private fun issue(action: () -> Unit) {
+        presentations = frames!!.snapshot().presentations
+        accepted = -1
+        started = MonotonicTimeSource.markNow()
+        action()
+        ticket.value += 1
+        scope!!.requestFrame()
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> beginCase()
+            case 1 -> {
+                firstViewport = markdownPerfMilliseconds(started.elapsedNow())
+                markdownPerfLog(
+                    "PERF_VIEWPORT," + cases[caseIndex].name + ",ms=" + firstViewport.toString()
+                )
+                phase = 2
+                typeNext()
+            }
+            case 2 -> {
+                assertEquals(expectedBytes, editor.snapshot.byteLength)
+                assertEquals(MarkdownPosition(expectedCursor), editor.selection.cursor)
+                if (issued > 4) {
+                    inputLatency.add(markdownPerfMilliseconds(acceptedAt - started))
+                    inputWork.add(acceptedWork)
+                }
+                if (issued < cases[caseIndex].inputs + 4)
+                    typeNext()
+                else {
+                    phase = 3
+                    scope!!.requestFrame()
+                }
+            }
+            case 3 -> {
+                convergence = markdownPerfMilliseconds(structureAt - lastInput)
+                markdownPerfLog(
+                    "PERF_CONVERGED," + cases[caseIndex].name + ",ms=" + convergence.toString()
+                )
+                phase = 4
+                scrollNext()
+            }
+            case 4 -> {
+                scrollLatency.add(markdownPerfMilliseconds(acceptedAt - started))
+                scrollWork.add(acceptedWork)
+                if (scrolled < cases[caseIndex].scrolls)
+                    scrollNext()
+                else {
+                    phase = 5
+                    resizeNext()
+                }
+            }
+            case 5 -> {
+                resizeLatency.add(markdownPerfMilliseconds(acceptedAt - started))
+                if (resized < 6)
+                    resizeNext()
+                else {
+                    report()
+                    if (caseIndex + 1L == cases.size) {
+                        finished = true
+                        active.requestExit()
+                    } else
+                        beginCase()
+                }
+            }
+            else -> fail(Some("Invalid Markdown performance phase"))
+        }
+    }
+
+    private fun beginCase() {
+        caseIndex += 1L
+        val value = cases[caseIndex]
+        markdownPerfLog("PERF_BEGIN," + value.name + ",bytes=" + value.source.byteLength.toString())
+        phase = 1
+        issued = 0;
+        scrolled = 0;
+        resized = 0
+        inputLatency.clear();
+        inputWork.clear();
+        nativeWork.clear()
+        scrollLatency.clear();
+        scrollWork.clear();
+        resizeLatency.clear()
+        expectedBytes = value.source.byteLength
+        expectedCursor = value.entry
+        width = 1200.0
+        issue {
+            editor.document.reset(value.source)
+            val at = MarkdownPosition(value.entry)
+            editor.setSelection(MarkdownSelection(at, at))
+            view.setMode(value.mode)
+            view.sourceScroll.scrollTo(Point(0.0, 0.0))
+            view.richScroll.scrollTo(Point(0.0, 0.0))
+            view.requestFocus(value.pane)
+            window!!.requestSize(LogicalSize(width, 800.0))
+        }
+    }
+
+    private fun typeNext() {
+        val text = ["a", "中", "😀", "b"][issued.toLong() % 4L]
+        issue {
+            val before = MonotonicTimeSource.markNow()
+            assertEquals(0, editorNativeText(window!!, text))
+            if (issued >= 4)
+                nativeWork.add(markdownPerfMilliseconds(before.elapsedNow()))
+            expectedBytes += text.byteLength
+            expectedCursor += text.byteLength
+            issued += 1
+        }
+        lastInput = started
+    }
+
+    private fun scrollNext() {
+        val scroll =
+            if (cases[caseIndex].pane == MarkdownEditorPane.Source)
+                view.sourceScroll
+            else
+                view.richScroll
+        issue {
+            scroll.scrollTo(Point(0.0, scroll.offset.y + 120.0))
+            scrolled += 1
+        }
+    }
+
+    private fun resizeNext() {
+        width =
+            if (resized % 2 == 0)
+                900.0
+            else
+                1200.0
+        issue {
+            window!!.requestSize(LogicalSize(width, 800.0))
+            resized += 1
+        }
+    }
+
+    private fun percentile(values: ArrayList<Double>, percent: Long): Double {
+        val sorted = values.sorted()
+        return sorted[(sorted.size * percent + 99L) / 100L - 1L]
+    }
+
+    private fun report() {
+        val value = cases[caseIndex]
+        var slow = 0L
+        for (latency in scrollLatency)
+            if (latency > 1000.0 / 60.0)
+                slow += 1L
+        markdownPerfLog(
+            "PERF_RESULT," +
+                value.name +
+                ",bytes=" +
+                value.source.byteLength.toString() +
+                ",inputs=" +
+                inputLatency.size.toString() +
+                ",first_ms=" +
+                firstViewport.toString() +
+                ",input_p50_ms=" +
+                percentile(inputLatency, 50L).toString() +
+                ",input_p95_ms=" +
+                percentile(inputLatency, 95L).toString() +
+                ",native_p95_ms=" +
+                percentile(nativeWork, 95L).toString() +
+                ",layout_scene_p95_ms=" +
+                percentile(inputWork, 95L).toString() +
+                ",converge_ms=" +
+                convergence.toString() +
+                ",scroll_p50_ms=" +
+                percentile(scrollLatency, 50L).toString() +
+                ",scroll_p95_ms=" +
+                percentile(scrollLatency, 95L).toString() +
+                ",scroll_work_p95_ms=" +
+                percentile(scrollWork, 95L).toString() +
+                ",scroll_over_60hz=" +
+                slow.toString() +
+                "/" +
+                scrollLatency.size.toString() +
+                ",resize_p95_ms=" +
+                percentile(resizeLatency, 95L).toString()
+        )
+    }
+
+    public override fun close() {
+        frames?.close();
+        parser.close();
+        editor.close();
+        fonts.close()
+    }
+}
