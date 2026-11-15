@@ -45,9 +45,31 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
     if (context.phase != RoutedPhase.Default || !host.options.enabled)
         return
     when (event) {
+        case Pointer(
+            InputPointerEvent.Button(val pointer, val button, ElementState.Pressed, _)
+        ) -> {
+            if (
+                isContextMenuClick(button, pointer.state.modifiers) &&
+                    editorContextMenu(host, Some(pointer), context.localPosition)
+            ) {
+                context.consume()
+                return
+            }
+        }
+        case Keyboard(val key) -> {
+            if (editorMenuKey(key) && host.showContextMenu()) {
+                context.consume()
+                return
+            }
+        }
+        else -> {}
+    }
+    when (event) {
         case TextCommand(val command) -> if (host.execute(command))
             context.consume()
-        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)) -> {
+        case Pointer(
+            InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)
+        ) -> {
             if (state == ElementState.Pressed)
                 editorPress(host, pointer, context.localPosition, count)
             else
@@ -112,6 +134,7 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
         host.invalidate()
         host.publishNative()
     } else {
+        host.contextMenu.cancel()
         host.retireConnection()
         editorStopDrag(host, false)
         host.blink.cancel()

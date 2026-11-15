@@ -144,6 +144,10 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 需要菜单“删除”行为时使用 `host.execute(TextEditCommand.DeleteSelection)`：只删除非空选区，不影响剪贴板，遵守当前只读／禁用、焦点、编辑策略与撤销。空选区不调用策略、不结束组合；`Delete(TextDeletion.Forward)` 仍是键盘向前删除行为。宿主按当前状态自动发布对应菜单可用性；只读选择宿主不提供删除命令。
 
+`TextEditOptions.contextMenu` 默认使用 `TextContextMenuMode.PreferSystem`；可设 StandardNative 或 Disabled。`textContextMenu { selection = TextContextMenuSelection.Preserve }` 保留选区外右击时的选择，Platform 则遵循当前平台惯例；选区内点击始终保留方向选择。右键、AppKit Control+左键和 ContextMenu／Shift+F10 使用同一菜单入口，`host.showContextMenu()` 可从有效 caret／选区锚点发起请求。它依赖 Accepted 文本几何，未聚焦、禁用或已有菜单时返回 false；已关闭宿主仍报告状态错误。
+
+菜单动作绑定原宿主与模型，经同一编辑策略、剪贴板和撤销路径执行；失焦、换模型、禁用或关闭使旧请求失效。优先系统模式仅复用已有编辑能力支持的模板项目，不能据此认为拼写、翻译等系统服务已接通。标签可以通过 `scoop.window.TextContextMenuLabels` 覆盖；完整边界见[文本菜单规范](../../../docs/specs/SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。
+
 窗口错误通过 `UiHost(onRootError = { id, error -> ... })` 接收：失败根完成输入与资源清理后报告一次，处理器正常返回可继续运行其他根，默认处理器重新抛出。`attach` 成功返回 `Some(UiWindow)`，已处理的初次挂载失败返回 `None`。宿主事件、共享渲染器、消息投递和错误处理器自身的失败仍关闭整个宿主。`scope.createDeadline` 使用原生一次性 deadline，随作用域退休关闭，并在所属根的错误边界内交付回调。
 
 同一父级与 key 的 Portal 可更新 NonModal／FocusContained／Modal，不重新挂载内容。约束更新保留原始恢复焦点，新增聚焦等待 Accepted；关闭中的约束保留到移除帧被接受。模式变化本身不产生关闭回调。

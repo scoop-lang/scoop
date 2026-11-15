@@ -1,0 +1,55 @@
+package scoop.window
+
+internal fun platformTextContextMenuTemplate(preferSystem: Boolean): TextContextMenuTemplate {
+    @Unsafe
+    {
+        val snapshot =
+            created(nativeTextMenuCreate(flag(preferSystem)), "read text context menu template")
+        try {
+            val entries =
+                Array<TextContextMenuEntry>(nativeTextMenuCount(snapshot)) {
+                    index -> @Unsafe
+                    {
+                        val row = nativeTextMenuEntry(snapshot, index)
+                        if (row.role == 0)
+                            return@Array TextContextMenuEntry.Separator
+                        val command = menuTextCommand(row.role)
+                        val label = String.fromUtf8(row.bytes!!, row.length)
+                        return@Array TextContextMenuEntry.Command(
+                            command,
+                            label,
+                            textMenuShortcut(command, false)
+                        )
+                    }
+                }
+            return TextContextMenuTemplate(
+                entries,
+                if (nativeTextMenuUsesSystem(snapshot) != 0)
+                    TextContextMenuSource.SystemTemplate
+                else
+                    TextContextMenuSource.Standard,
+                true
+            )
+        } finally {
+            nativeTextMenuRelease(snapshot)
+        }
+    }
+}
+
+@CLayout
+private struct NativeTextMenuEntry(val role: Int, val bytes: Ptr<UInt8>?, val length: Long)
+
+@Extern(name = "scoop_window_text_menu_create")
+private fun nativeTextMenuCreate(preferSystem: Int): NativeCreateResult
+
+@Extern(name = "scoop_window_text_menu_count")
+private fun nativeTextMenuCount(snapshot: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_text_menu_entry")
+private fun nativeTextMenuEntry(snapshot: Ptr<Unit>, index: Long): NativeTextMenuEntry
+
+@Extern(name = "scoop_window_text_menu_uses_system")
+private fun nativeTextMenuUsesSystem(snapshot: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_text_menu_release")
+private fun nativeTextMenuRelease(snapshot: Ptr<Unit>)

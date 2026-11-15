@@ -33,7 +33,8 @@ public class TextareaProps public constructor(
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
     public val labelTarget: FieldTarget? = None,
     public val group: GroupPosition? = None,
-    public val chrome: TextFieldChrome = TextFieldChrome.Framed
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed,
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions()
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -72,7 +73,8 @@ private fun multilineInput(input: TextareaProps): TextFieldInput =
             caretBlink = input.caretBlink,
             policy = input.policy,
             projection = input.projection,
-            copy = input.copy
+            copy = input.copy,
+            contextMenu = input.contextMenu
         ),
         input.rows,
         input.scrollbars,

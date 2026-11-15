@@ -163,6 +163,21 @@ internal fun editorPointer(
     )
 }
 
+internal fun editorContextClick(window: Window, point: Point, control: Boolean = false) {
+    assertEquals(
+        0,
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView nativeContextClick(view, point.x, point.y, control)
+            }
+        }
+    )
+}
+
+@Extern(name = "scoop_test_editor_context_click")
+private fun nativeContextClick(view: Ptr<Unit>, x: Double, y: Double, control: Boolean): Int
+
 internal fun editorNativeCaret(window: Window, state: TextEditorState, bounds: Rect?) {
     var cursor = 0L
     for (character in state.text.utf8Slice(Utf8Range(0L, state.selection.cursor)))

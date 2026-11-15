@@ -1,0 +1,4 @@
+package scoop.window
+
+internal fun platformTextContextMenuTemplate(preferSystem: Boolean): TextContextMenuTemplate =
+    standardTextContextMenuTemplate(true)

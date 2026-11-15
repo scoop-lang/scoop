@@ -54,7 +54,10 @@ private class GtkMenuHandler: ApplicationHandler {
 
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
-            case Resumed -> start(application)
+            case Resumed -> {
+                checkTextMenuTemplates(application)
+                start(application)
+            }
             case Window(_, WindowEvent.GeometryChanged(_)) -> startShortcut()
             case NewEvents(StartCause.Deadline) -> fail(Some("GTK menu test deadline"))
             case Menu(val activation) -> {

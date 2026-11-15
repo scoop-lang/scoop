@@ -1,0 +1,237 @@
+package scoop.ui.text
+
+import scoop.ui.*
+import scoop.window.*
+
+private struct EditorMenuItem(
+    val id: MenuItemId,
+    val command: TextEditCommand,
+    val label: String,
+    val shortcut: ShortcutChord?
+)
+
+private class EditorMenuSession(
+    val menu: Menu,
+    val popup: PopupSession,
+    val document: TextEditorState,
+    val options: TextContextMenuOptions,
+    val items: Array<EditorMenuItem>
+) {
+    var valid = true
+    var invoked = false
+    var completed = false
+    var actions: Closeable? = None
+    var completion: Closeable? = None
+}
+
+/** Owns one bound text target; popup completion never performs an edit. */
+internal class EditorContextMenu(private val host: TextEditHost): Closeable {
+    private var current: EditorMenuSession? = None
+    private var closed = false
+
+    val pending: Boolean get() =
+        when (val value = current) {
+            case Some(val session) -> when (session.popup.result) {
+                case Some(_) -> false
+                case None -> true
+            }
+            case None -> false
+        }
+
+    fun eligible(): Boolean =
+        !closed &&
+            !host.closed &&
+            host.scope.isMounted &&
+            host.options.enabled &&
+            host.options.contextMenu.mode !=
+            TextContextMenuMode.Disabled &&
+            host.window.state ==
+            WindowState.Open &&
+            !host.window.isInputBlocked &&
+            host.area.isFocusActive &&
+            host.area.scope.isInputAllowed
+
+    fun open(template: TextContextMenuTemplate, placement: PopupPlacement): Boolean {
+        if (pending || !eligible())
+            return false
+        releaseCurrent()
+        val menu = host.scope.application.createMenu()
+        try {
+            val items = ArrayList<EditorMenuItem>()
+            val availability = host.area.scope.textCommandAvailability ?: TextCommandAvailability()
+            for (entry in template.entries)
+                when (entry) {
+                    case Separator -> menu.insert(
+                        MenuItemDescription(kind = MenuItemKind.Separator)
+                    )
+                    case Command(val command, val label, val shortcut) -> {
+                        val id =
+                            menu.insert(
+                                MenuItemDescription(
+                                    label,
+                                    enabled = textMenuAvailable(availability, command),
+                                    shortcut = shortcut
+                                )
+                            )
+                        items.add(EditorMenuItem(id, command, label, shortcut))
+                    }
+                }
+            val popup = host.window.showPopup(menu, placement)
+            val session =
+                EditorMenuSession(
+                    menu,
+                    popup,
+                    host.current,
+                    host.options.contextMenu,
+                    items.toArray()
+                )
+            current = Some(session)
+            session.actions =
+                Some(host.scope.observeMenu(menu) { event -> activate(session, event) })
+            session.completion =
+                Some(
+                    host.scope.observePopup(popup) {
+                        result ->
+                        session.completed = true
+                        when (result) {
+                            case Selected(_) -> if (session.invoked || !session.valid)
+                                finish(session)
+                            case Cancelled(_) -> finish(session)
+                            case Failed(val error) -> {
+                                finish(session)
+                                throw error
+                            }
+                        }
+                    }
+                )
+            return true
+        } catch (error: Throwable) {
+            var failure: Throwable? = Some(error)
+            failure = cleanupUi(failure) { cancel() }
+            failure = cleanupUi(failure) { menu.close() }
+            throwUi(failure)
+            return false
+        }
+    }
+
+    private fun activate(session: EditorMenuSession, event: MenuActivation) {
+        if (
+            closed ||
+                !session.valid ||
+                session.invoked ||
+                !eligible() ||
+                host.current !==
+                session.document ||
+                host.options.contextMenu !=
+                session.options
+        )
+            return
+        when (event.source) {
+            case Popup(val popup, val window) -> {
+                if (popup != session.popup.id || window != host.window.id)
+                    return
+            }
+            else -> return
+        }
+        for (item in session.items)
+            if (item.id == event.item) {
+                session.invoked = true
+                val available = host.area.scope.textCommandAvailability ?: TextCommandAvailability()
+                try {
+                    if (textMenuAvailable(available, item.command))
+                        host.execute(item.command)
+                } finally {
+                    if (session.completed)
+                        finish(session)
+                }
+                return
+            }
+    }
+
+    fun refresh() {
+        val session = current ?: return
+        if (!session.valid)
+            return
+        if (
+            !eligible() ||
+                host.current !==
+                session.document ||
+                host.options.contextMenu !=
+                session.options
+        ) {
+            cancel()
+            return
+        }
+        val available = host.area.scope.textCommandAvailability ?: TextCommandAvailability()
+        for (item in session.items) {
+            val enabled = textMenuAvailable(available, item.command)
+            if (session.menu.description(item.id).enabled != enabled)
+                session.menu.update(
+                    item.id,
+                    MenuItemDescription(item.label, enabled = enabled, shortcut = item.shortcut)
+                )
+        }
+    }
+
+    fun cancel() {
+        val session = current ?: return
+        session.valid = false
+        val actions = session.actions
+        session.actions = None
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { actions?.close() }
+        failure = cleanupUi(failure) { session.popup.close() }
+        failure = cleanupUi(failure) { session.menu.close() }
+        when (session.popup.result) {
+            case Some(_) -> failure = cleanupUi(failure) { finish(session) }
+            case None -> {}
+        }
+        throwUi(failure)
+    }
+
+    private fun finish(session: EditorMenuSession) {
+        session.valid = false
+        val actions = session.actions
+        val completion = session.completion
+        session.actions = None
+        session.completion = None
+        when (val value = current) {
+            case Some(val active) -> if (active === session)
+                current = None
+            case None -> {}
+        }
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { actions?.close() }
+        failure = cleanupUi(failure) { completion?.close() }
+        failure = cleanupUi(failure) { session.menu.close() }
+        throwUi(failure)
+    }
+
+    private fun releaseCurrent() {
+        val session = current ?: return
+        session.valid = false
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { session.popup.close() }
+        failure = cleanupUi(failure) { finish(session) }
+        throwUi(failure)
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        releaseCurrent()
+    }
+}
+
+internal fun textMenuAvailable(value: TextCommandAvailability, command: TextEditCommand): Boolean =
+    when (command) {
+        case Undo -> value.undo
+        case Redo -> value.redo
+        case Cut -> value.cut
+        case Copy -> value.copy
+        case Paste -> value.paste
+        case DeleteSelection -> value.deleteSelection
+        case SelectAll -> value.selectAll
+        else -> false
+    }

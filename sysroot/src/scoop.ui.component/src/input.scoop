@@ -28,7 +28,8 @@ public class InputProps public constructor(
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
     public val labelTarget: FieldTarget? = None,
     public val group: GroupPosition? = None,
-    public val chrome: TextFieldChrome = TextFieldChrome.Framed
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed,
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions()
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -59,7 +60,8 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             caretBlink = input.caretBlink,
             policy = input.policy,
             projection = input.projection,
-            copy = input.copy
+            copy = input.copy,
+            contextMenu = input.contextMenu
         ),
         1L,
         ScrollbarVisibility.Hidden,

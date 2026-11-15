@@ -238,7 +238,7 @@ internal fun advanceSystemIme(probe: EditProbe) {
             assertEquals(Some(state.text), window.clipboard.readText())
             assertTrue(editorDocument(window, state))
             test.complete = true
-            probe.next { window.requestDestroy() }
+            probe.next { probe.contextMenus.start(probe) }
         }
         else -> fail(Some("unexpected system IME phase"))
     }

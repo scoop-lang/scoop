@@ -19,6 +19,7 @@ internal fun TextEditHost.refreshMenuCommands() {
                 deleteSelection = editable && selected
             )
         )
+    contextMenu.refresh()
 }
 
 internal fun SelectableTextHost.refreshMenuCommands() {

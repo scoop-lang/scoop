@@ -60,7 +60,8 @@ internal fun inputGroupControlView(
                 projection = value.projection,
                 copy = value.copy,
                 labelTarget = value.labelTarget,
-                chrome = TextFieldChrome.Bare
+                chrome = TextFieldChrome.Bare,
+                contextMenu = value.contextMenu
             ),
             { current, mount -> Input(current, scope = mount) }
         )
@@ -99,7 +100,8 @@ internal fun inputGroupControlView(
                 projection = value.projection,
                 copy = value.copy,
                 labelTarget = value.labelTarget,
-                chrome = TextFieldChrome.Bare
+                chrome = TextFieldChrome.Bare,
+                contextMenu = value.contextMenu
             ),
             { current, mount -> Textarea(current, scope = mount) }
         )

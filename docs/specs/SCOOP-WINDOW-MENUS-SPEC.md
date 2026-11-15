@@ -63,3 +63,13 @@ scoop.window.native 的 Menu.acquireNativeMenu(requestClose) 返回 NativeMenuLe
 Menu.close 或应用关闭立即停止原生动作（包含由原生端直接执行的标准角色），随后通知 requestClose；使用者负责结束自身 tracking、解除附着并 close lease。通知只发一次；退出控制通路不依赖普通业务队列。lease.close 不销毁 Menu；其原生使用仍活动时不能提前归还句柄。窗口库只保存 NativeMenuUseId，不认识 TrayIcon，也不引入托盘依赖。
 
 使用者可以先调用 lease.cancel() 退休当前使用的动作并请求结束原生菜单，再等待自身展示退出、endTracking 和 close；cancel 不关闭 Menu，不允许在已取消的 lease 上开始新展示。GTK 借用模型的标准 action 属性使用 scoop-menu 命名空间；对应 GActionGroup 使用去除该命名空间的动作名，可按 GMenuModel／GActionGroup 公共接口只读适配其他原生菜单协议。
+
+## 6. 文本上下文菜单模板
+
+`ActiveApplication.textContextMenuTemplate(preferSystem = true, labels = None)` 在活动 owner 上返回不可变的 TextContextMenuTemplate。它包含 source（Standard／SystemTemplate）、entries 和 selectWordOutsideSelection；entries 是 TextContextMenuEntry.Command(command, label, shortcut) 或 Separator。只包含 Undo／Redo／Cut／Copy／Paste／DeleteSelection／SelectAll，规范化分隔符，无空组和重复命令。模板没有 native 使用或业务回调，读取模板不启动菜单、IME 或文档。TextContextMenuLabels 的七个可选字符串覆盖对应标签；未覆盖部分优先使用可取得的系统标签，再使用库的英文默认标签。应用可以显式提供自己的本地化标签，NUL 在菜单创建边界拒绝。
+
+AppKit 从公开 NSTextView.defaultMenu 取得可执行的标准编辑项目和系统标题，过滤没有当前编辑实现的项目，补齐缺少的标准命令；source=SystemTemplate 表示复用了这个可执行子集，不表示已经接通富文本、拼写、替换、翻译等原生编辑服务。Standard 使用固定标准分组，也可复用已取得的系统标题。Windows／GTK 当前没有可独立绑定自绘文档的完整默认文本菜单，使用同一标准模板；preferSystem 的回退不报错，也不创建隐藏的可编辑控件。系统模板及服务的后续扩展仍需实际实现和平台验证。
+
+Undo／Cut／Copy／Paste／SelectAll 使用平台 Primary 快捷键；Redo 在 Windows 为 Primary+Y，在 AppKit／GTK 为 Primary+Shift+Z，DeleteSelection 没有默认快捷键。模板只提供快捷键含义，普通 popup 的生命周期与菜单绑定规则不变。selectWordOutsideSelection 表示平台默认的选区外辅助点击策略：AppKit 选词，Windows／GTK 放置 caret；调用方可显式覆盖。
+
+`isContextMenuClick(button, modifiers)` 是平台点击惯例的纯查询：右键成立，AppKit 另接受不带 Alt／Super 的 Control+左键，保留原始按钮事件而不伪造成右键。键盘菜单请求仍使用 ContextMenu 键或 Shift+F10。模板条目允许调用方以 MenuCommand.Action 绑定确定的文本目标；此时只执行 MenuActivation，PopupCompleted 仅负责收尾，不把命令重定向到后来取得焦点的编辑器。

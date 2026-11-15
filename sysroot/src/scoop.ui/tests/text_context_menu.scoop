@@ -1,0 +1,84 @@
+package scoop.ui.text
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class TextContextMenuTest {
+    @Test
+    fun `menu configuration copies retain untouched fields without changing earlier values`() {
+        val original =
+            textContextMenu {
+                mode = TextContextMenuMode.StandardNative
+                selection = TextContextMenuSelection.Preserve
+                labels = Some(TextContextMenuLabels(copy = Some("Copy selection")))
+            }
+        val changed = original.copy { mode = TextContextMenuMode.Disabled }
+        assertEquals(TextContextMenuMode.PreferSystem, TextEditOptions().contextMenu.mode)
+        assertEquals(TextContextMenuMode.StandardNative, original.mode)
+        assertEquals(TextContextMenuMode.Disabled, changed.mode)
+        assertEquals(original.selection, changed.selection)
+        assertEquals(original.labels, changed.labels)
+    }
+
+    @Test
+    fun `menu keys require one real press and do not steal modified shortcuts`() {
+        assertTrue(editorMenuKey(contextKey(NamedKey.ContextMenu)))
+        assertTrue(editorMenuKey(contextKey(NamedKey.F10, shift = true)))
+        assertFalse(editorMenuKey(contextKey(NamedKey.F10)))
+        assertFalse(editorMenuKey(contextKey(NamedKey.ContextMenu, shift = true)))
+        for (key in [NamedKey.ContextMenu, NamedKey.F10]) {
+            val shift = key == NamedKey.F10
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, control = true)))
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, alt = true)))
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, superKey = true)))
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, altGraph = Some(true))))
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, repeat = true)))
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, synthetic = true)))
+            assertFalse(editorMenuKey(contextKey(key, shift = shift, pressed = false)))
+        }
+    }
+}
+
+private fun contextKey(
+    key: NamedKey,
+    shift: Boolean = false,
+    control: Boolean = false,
+    alt: Boolean = false,
+    superKey: Boolean = false,
+    altGraph: Boolean? = None,
+    repeat: Boolean = false,
+    synthetic: Boolean = false,
+    pressed: Boolean = true
+): KeyEvent =
+    KeyEvent(
+        PhysicalKey.Code(
+            if (key == NamedKey.F10)
+                KeyCode.F10
+            else
+                KeyCode.ContextMenu
+        ),
+        LogicalKey.Named(key),
+        KeyLocation.Standard,
+        if (pressed)
+            ElementState.Pressed
+        else
+            ElementState.Released,
+        repeat,
+        Modifiers(
+            shift,
+            control,
+            alt,
+            superKey,
+            false,
+            false,
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            altGraph = altGraph
+        ),
+        synthetic,
+        InputTime.Observed(MonotonicTimeSource.markNow())
+    )

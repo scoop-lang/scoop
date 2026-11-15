@@ -37,7 +37,8 @@ public class InputOtpProps public constructor(
     public val style: InputOtpStyle = inputOtpStyle(),
     public val caretBlink: Duration? = None,
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-    public val onComplete: (TextEditorState) -> Unit = { _ -> Unit }
+    public val onComplete: (TextEditorState) -> Unit = { _ -> Unit },
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions()
 ) {
     init {
         requireComponent(length > 0L, "OTP length must be positive")

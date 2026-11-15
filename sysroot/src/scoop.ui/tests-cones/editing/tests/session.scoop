@@ -33,6 +33,8 @@ private class PublicTextEditHostTest {
                         }
                         assertTrue(probe.finished)
                         assertTrue(probe.systemIme.complete)
+                        assertTrue(probe.contextMenus.complete)
+                        assertEquals("replacement", probe.primary.text)
                         assertEquals(3, probe.mounts)
                         assertEquals(probe.mounts, probe.unmounts)
                         assertEquals(1, probe.displayTest.mounts)
@@ -60,6 +62,7 @@ private class PublicTextEditHostTest {
                         editingFailure(error)
                         throw error
                     } finally {
+                        probe.contextMenus.close()
                         try {
                             probe.frames?.close()
                         }
@@ -77,8 +80,9 @@ private class PublicTextEditHostTest {
 
 internal class EditProbe(val fonts: FontCollection) {
     val systemIme = SystemImeProbe()
+    val contextMenus = EditorContextMenuProbe()
     val displayTest = DisplayProbe()
-    val primary = TextEditorState("A😀éZ")
+    var primary = TextEditorState("A😀éZ")
     val multiline = TextEditorState("one two\nthree")
     val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
     val fields = MutableArray<TextEditHost?>(3L) { _ -> None }
@@ -146,7 +150,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     true
                 else
                     readonly,
-            enabled = index != 2L,
+            enabled = index != 2L && contextMenus.enabled,
             tab = tab,
             submit =
                 if (index == 1L)
@@ -157,7 +161,8 @@ internal class EditProbe(val fonts: FontCollection) {
             caretBlink = Some(blink),
             policy = policy,
             projection = displayTest.projection,
-            copy = displayTest.copy
+            copy = displayTest.copy,
+            contextMenu = contextMenus.options
         )
     fun model(index: Long): TextEditorState =
         if (index == 1L)
@@ -218,7 +223,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     retriedFocus = true
                     window!!.requestFocus()
                 }
-                if (!finished && phase < 91 && !waiting && settled()) {
+                if (!finished && phase <= 91 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {

@@ -26,6 +26,7 @@ public open class InputBuilder internal constructor() {
     public var policy: TextEditPolicy = textEditPolicy()
     public var projection: TextProjection = textProjection()
     public var copy: TextCopyPolicy = TextCopyPolicy.Default
+    public var contextMenu: TextContextMenuOptions = TextContextMenuOptions()
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
     public var key: ViewKey = ViewKey.Position
@@ -35,6 +36,9 @@ public open class InputBuilder internal constructor() {
     }
     public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
         focus = focus.copy(configure)
+    }
+    public fun contextMenu(configure: TextContextMenuOptionsBuilder.() -> Unit): Unit {
+        contextMenu = contextMenu.copy(configure)
     }
     internal fun inputProps(state: TextEditorState): InputProps =
         InputProps(
@@ -59,7 +63,8 @@ public open class InputBuilder internal constructor() {
             copy,
             labelTarget,
             group,
-            chrome
+            chrome,
+            contextMenu
         )
 }
 
@@ -98,7 +103,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             copy,
             labelTarget,
             group,
-            chrome
+            chrome,
+            contextMenu
         )
 }
 

@@ -126,6 +126,8 @@ val markdown = application.clipboard.readText("text/markdown")
 
 原生菜单的 `MenuRole.DeleteSelection` 对应 `TextEditCommand.DeleteSelection`，只删除非空选区；空选区不删除下一个字符，不等同于 `Delete(TextDeletion.Forward)`。当前文本目标通过 `TextCommandAvailability(deleteSelection = true)` 显式发布能力，默认 false；IME 启用不代表存在选区。原生文本字段按自己的可编辑性与选区验证，Scoop 文本宿主继续走正常输入路由、策略和撤销。该角色没有默认快捷键，不修改剪贴板。
 
+`active.textContextMenuTemplate(preferSystem = true, labels = None)` 返回七种标准编辑命令的纯值模板，包含标签、快捷键及平台选区提示；不创建编辑器、IME 或菜单会话。AppKit 从公开 NSTextView.defaultMenu 保留可执行的标准项目，Windows／GTK 使用标准分组；SystemTemplate 仅表示复用了系统模板子集。未取得的系统标签使用英文默认值，`TextContextMenuLabels` 可逐项覆盖。自绘文本目标可用 Action 项绑定自身，再调用 `Window.showPopup`；不要在 PopupCompleted 中重复执行命令。`isContextMenuClick` 识别右键及平台辅助点击，保留原始物理按钮。详见[菜单规范 §6](../../../docs/specs/SCOOP-WINDOW-MENUS-SPEC.md#6-文本上下文菜单模板)。
+
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit 的 UTF-16 范围和 TSF 的 ACP 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
 macOS／Windows 的 Enabled／Disabled 都带有 `TextInputConnection`，原生批次的 origin 标识连接和交付顺序。编辑器用 `publishTextInputState(connection, state, after)` 立即发布已生效的文档及已处理批次；AppKit／TSF 的同步 surrounding／selection 查询读取原生不可变副本。引用该快照的显式替换带实际 baseRevision，前序批次尚未处理时不生成猜测的文档范围。CurrentSelection 批次继续不依赖 revision；无效范围拒绝整批，旧连接的编辑不能落到新连接。

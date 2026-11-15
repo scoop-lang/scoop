@@ -27,7 +27,8 @@ public class TextEditOptions public constructor(
     public val caretBlink: Duration? = None,
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
-    public val copy: TextCopyPolicy = TextCopyPolicy.Default
+    public val copy: TextCopyPolicy = TextCopyPolicy.Default,
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions()
 ) {
     internal fun check() {
         when (caretBlink) {

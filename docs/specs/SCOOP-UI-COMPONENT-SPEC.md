@@ -425,6 +425,8 @@ InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Com
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
+InputProps／TextareaProps／InputOtpProps 及其 builder 提供 `contextMenu: TextContextMenuOptions = TextContextMenuOptions()`，默认优先使用平台可接入的系统文本菜单模板。builder 的 `contextMenu { ... }` 更新当前配置，可分别设置 Disabled／StandardNative／PreferSystem、选区外辅助点击的选择策略和标准命令标签。右键与平台辅助点击、菜单键／Shift+F10、只读和禁用状态、菜单目标与生命周期遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 直接透传同一输入配置，不创建第二个菜单或编辑模型；OTP 的整组输入共用一个菜单目标，编辑仍经过长度和模式策略。
+
 两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
 
 projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。内置遮罩默认禁用 Copy／Cut，明确 Allow 时复制原文；切换显隐保留模型、历史与 IME 连接，控件不创建另一份显示文档。

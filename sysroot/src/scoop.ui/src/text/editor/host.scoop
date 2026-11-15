@@ -49,6 +49,7 @@ public class TextEditHost public constructor(
     internal var revealRevision = 0UL
     internal var caretVisible = true
     internal var drag: EditorDrag? = None
+    internal val contextMenu = EditorContextMenu(this)
     public val scroll = ScrollState()
     internal val viewport = scope.scrollViewport(scroll)
     public val area =
@@ -280,6 +281,13 @@ public class TextEditHost public constructor(
         return editorCommand(this, command, None)
     }
 
+    /** Opens a bound native menu at a visible caret or selection from accepted layout. */
+    public fun showContextMenu(): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        return editorContextMenu(this, None, None)
+    }
+
     internal fun modelChanged() {
         if (closed || performing)
             return
@@ -371,6 +379,7 @@ public class TextEditHost public constructor(
         closed = true
         val owned = current.detachHost(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { contextMenu.close() }
         failure = cleanupUi(failure) { preferenceObserver.close() }
         failure = cleanupUi(failure) { geometryObserver.close() }
         failure = cleanupUi(failure) { blink.close() }

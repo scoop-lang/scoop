@@ -26,3 +26,14 @@ when = { os = "darwin" }
 "scoop.tests:text-fonts" = { version = "0.1.0", path = "../../../scoop.graphics.text/tests/data" }
 "scoop.tests:surface-native" = { version = "0.1.0", path = "../../../scoop.surface/test-native" }
 "scoop.tests:window-native" = { version = "0.1.0", path = "../../../scoop.window/test-native" }
+
+[native]
+objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "../../../scoop.window/tests-cones/menus/native/darwin.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/context_menu.m"
+when = { os = "darwin" }

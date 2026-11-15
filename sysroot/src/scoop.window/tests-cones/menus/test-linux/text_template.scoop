@@ -1,0 +1,11 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+
+internal fun checkPlatformTextTemplate(application: ActiveApplication) {
+    val template = application.textContextMenuTemplate()
+    assertEquals(TextContextMenuSource.Standard, template.source)
+    assertFalse(template.selectWordOutsideSelection)
+    assertFalse(isContextMenuClick(MouseButton.Left, textMenuModifiers(control = true)))
+}
