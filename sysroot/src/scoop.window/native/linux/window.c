@@ -255,6 +255,7 @@ void scoop_window_destroy(SWWindow *window) {
   gtk_im_context_set_client_widget(window->simple_ime, NULL);
   g_clear_object(&window->ime);
   g_clear_object(&window->simple_ime);
+  g_clear_object(&window->click_controller);
   gtk_window_destroy(GTK_WINDOW(window->window));
   g_clear_object(&window->group);
   for (size_t i = 0; i < G_N_ELEMENTS(window->pressed); ++i)

@@ -1,0 +1,86 @@
+package scoop.tests.window.input
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.nativeMouseClicks
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class NativeMouseClicksTest {
+    @Test
+    fun `Win32 produces three consecutive press and release counts from real input messages`() {
+        val handler = ClickHandler()
+        Application().run(handler)
+        assertEquals(6, handler.buttons)
+        assertTrue(handler.sent)
+        assertTrue(handler.destroyed)
+    }
+}
+
+private class ClickHandler: ApplicationHandler {
+    var window: Window? = None
+    var lease: NativeWindowLease? = None
+    var buttons = 0
+    var sent = false
+    var destroyed = false
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                window =
+                    Some(
+                        application.createWindow(
+                            windowAttributes {
+                                title = "Scoop native clicks"
+                                size = LogicalSize(280.0, 180.0)
+                                level = WindowLevel.AlwaysOnTop
+                            }
+                        )
+                    )
+                @Unsafe
+                {
+                    lease = Some(window!!.acquireNativeWindow())
+                }
+                window!!.requestFocus()
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+            }
+            case AboutToWait -> {
+                if (!sent && window!!.isFocused) {
+                    @Unsafe
+                    {
+                        when (lease!!.handle) {
+                            case Win32(val hwnd, _) -> assertEquals(1, nativeMouseClicks(hwnd))
+                        }
+                    }
+                    sent = true
+                }
+            }
+            case Window(
+                _,
+                WindowEvent.Pointer(PointerEvent.Button(_, val button, val phase, val clicks))
+            ) -> {
+                assertEquals(MouseButton.Left, button)
+                assertEquals(
+                    if (buttons % 2 == 0)
+                        ElementState.Pressed
+                    else
+                        ElementState.Released,
+                    phase
+                )
+                assertEquals(buttons / 2 + 1, clicks)
+                buttons += 1
+                if (buttons == 6)
+                    application.requestExit()
+            }
+            case Window(_, WindowEvent.Closing) -> lease!!.close()
+            case Window(_, WindowEvent.Destroyed) -> destroyed = true
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"native click input timed out: sent=${sent}, buttons=${buttons}")
+            )
+            else -> {}
+        }
+    }
+}

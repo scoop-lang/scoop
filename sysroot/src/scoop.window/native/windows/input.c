@@ -98,6 +98,8 @@ static void key(SWWindow *window, UINT msg, WPARAM vk, LPARAM lp) {
 }
 
 void sw_cancel_pointer(SWWindow *window, int reason) {
+  sw_clicks_reset(&window->clicks);
+  memset(window->pressed_clicks, 0, sizeof(window->pressed_clicks));
   if (!window->pressed_buttons)
     return;
   window->pressed_buttons = 0;
@@ -163,6 +165,9 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
   POINT position = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
   switch (msg) {
   case WM_CAPTURECHANGED:
+    if (window->pressed_buttons)
+      sw_cancel_pointer(window, 1);
+    return false;
   case WM_CANCELMODE:
     sw_cancel_pointer(window, 1);
     return false;
@@ -181,6 +186,15 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
     }
     return false;
   case WM_MOUSEMOVE:
+    if (window->pressed_buttons && window->clicks.count > 0) {
+      POINT screen = position;
+      if (!ClientToScreen(window->hwnd, &screen)) {
+        sw_fail(window->application, GetLastError());
+        return true;
+      }
+      sw_clicks_move(&window->clicks, screen.x, screen.y,
+                     GetSystemMetrics(SM_CXDRAG), GetSystemMetrics(SM_CYDRAG));
+    }
     if (!window->pointer_inside) {
       window->pointer_inside = true;
       TRACKMOUSEEVENT track = {.cbSize = sizeof(track),
@@ -226,12 +240,24 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
       return true;
     }
     if (!up) {
+      POINT screen = position;
+      if (!ClientToScreen(window->hwnd, &screen)) {
+        sw_fail(window->application, GetLastError());
+        return true;
+      }
+      window->pressed_clicks[button] = sw_clicks_press(
+          &window->clicks, (uint32_t)GetMessageTime(), button, screen.x,
+          screen.y, GetDoubleClickTime(), GetSystemMetrics(SM_CXDOUBLECLK),
+          GetSystemMetrics(SM_CYDOUBLECLK), twice);
       window->pressed_buttons |= mask;
       if (GetCapture() != window->hwnd)
         SetCapture(window->hwnd);
     } else
       window->pressed_buttons &= ~mask;
-    pointer(window, up ? 4 : 3, position, button, twice ? 2 : 1, 0, 0);
+    pointer(window, up ? 4 : 3, position, button,
+            window->pressed_clicks[button], 0, 0);
+    if (up)
+      window->pressed_clicks[button] = 0;
     if (!window->pressed_buttons && GetCapture() == window->hwnd)
       ReleaseCapture();
     *result = TRUE;

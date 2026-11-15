@@ -1,5 +1,33 @@
 #include "../../native/windows/window.h"
 
+int32_t scoop_window_test_mouse_clicks(HWND hwnd) {
+  POINT point = {24, 36}, previous;
+  if (GetForegroundWindow() != hwnd || !IsWindowVisible(hwnd) ||
+      (GetAsyncKeyState(VK_LBUTTON) & 0x8000) ||
+      !ClientToScreen(hwnd, &point) || !GetCursorPos(&previous))
+    return 0;
+  HWND target = WindowFromPoint(point);
+  if (target != hwnd && GetAncestor(target, GA_ROOT) != hwnd)
+    return 0;
+  if (!SetCursorPos(point.x, point.y))
+    return 0;
+  INPUT input[6] = {0};
+  for (unsigned index = 0; index < 6; ++index) {
+    input[index].type = INPUT_MOUSE;
+    input[index].mi.dwFlags =
+        index % 2 ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+  }
+  UINT sent = SendInput(6, input, sizeof(INPUT));
+  if (sent % 2) {
+    INPUT release = {0};
+    release.type = INPUT_MOUSE;
+    release.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    SendInput(1, &release, sizeof(release));
+  }
+  SetCursorPos(previous.x, previous.y);
+  return sent == 6;
+}
+
 void scoop_window_test_input(HWND hwnd) {
   BYTE original[256], state[256] = {0};
   GetKeyboardState(original);

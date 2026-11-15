@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include "../frame.h"
+#include "clicks.h"
 #include <dwmapi.h>
 #include <imm.h>
 #include <limits.h>
@@ -105,6 +106,8 @@ typedef struct SWWindow {
   SWEventData pressed[512];
   bool key_down[512];
   uint32_t pressed_buttons;
+  int pressed_clicks[32];
+  SWClicks clicks;
   int64_t text_connection;
   void *text;
   SWMenu *menu_bar, *popup_menu;

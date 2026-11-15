@@ -1,0 +1,19 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "window-clicks"
+version = "0.1.0"
+kind = "library"
+
+[[test.sources]]
+path = "tests"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+
+[native]
+c_flags = ["-Wall", "-Wextra", "-Werror"]
+
+[[native.sources]]
+path = "native/clicks.c"

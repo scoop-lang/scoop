@@ -30,7 +30,7 @@ private class LinuxApplicationTest {
             assertEquals(1, handler.keyDown)
             assertEquals(1, handler.keyUp)
             assertEquals("a", handler.text)
-            assertEquals(2, handler.buttons)
+            assertEquals(6, handler.buttons)
             assertEquals(2L, handler.wheels.size)
             assertEquals(ScrollDelta.LineDelta(0.0, -1.0), handler.wheels[0L])
             assertEquals(ScrollDelta.LineDelta(-1.0, 0.0), handler.wheels[1L])
@@ -157,7 +157,18 @@ private class LinuxHandler: ApplicationHandler {
                 }
                 case Window(_, WindowEvent.Pointer(val event)) -> {
                     when (event) {
-                        case Button(_, _, _, _) -> buttons += 1
+                        case Button(_, val button, val phase, val clicks) -> {
+                            assertEquals(MouseButton.Left, button)
+                            assertEquals(
+                                if (buttons % 2 == 0)
+                                    ElementState.Pressed
+                                else
+                                    ElementState.Released,
+                                phase
+                            )
+                            assertEquals(buttons / 2 + 1, clicks)
+                            buttons += 1
+                        }
                         case Wheel(_, val delta, _, _) -> wheels.add(delta)
                         else -> {}
                     }

@@ -132,9 +132,9 @@ struct SWWindow {
   double increment_width, increment_height;
   double caret_x, caret_y, caret_width, caret_height;
   double pointer_x, pointer_y;
-  double click_time;
-  double click_x, click_y;
-  int click_button, click_count;
+  GtkEventController *click_controller;
+  bool resetting_click;
+  int pressed_clicks[32];
   uint64_t modifiers;
   uint32_t pressed_buttons;
   SWEventData pressed[768];
@@ -195,7 +195,7 @@ GdkSurface *sw_surface(SWWindow *window);
 void sw_reset_input(SWWindow *window);
 void sw_focus(SWWindow *window, bool focused);
 void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
-                double dy, int phase);
+                double dy, int detail);
 void sw_cancel_pointer(SWWindow *window, int reason);
 void sw_cancel_composition(SWWindow *window);
 SWEvent *sw_text_batch(SWWindow *window);

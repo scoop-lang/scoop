@@ -179,7 +179,7 @@ static void pointer_pressed(GtkGestureClick *gesture, int count, double x,
   sw_pointer(window, 3,
              pointer_button(gtk_gesture_single_get_current_button(
                  GTK_GESTURE_SINGLE(gesture))),
-             0, 0, 0);
+             0, 0, count);
   window->current_event = NULL;
   gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 }
@@ -190,11 +190,15 @@ static void pointer_released(GtkGestureClick *gesture, int count, double x,
   sw_pointer(window, 4,
              pointer_button(gtk_gesture_single_get_current_button(
                  GTK_GESTURE_SINGLE(gesture))),
-             0, 0, 0);
+             0, 0, count);
 }
 static void pointer_cancel(GtkGesture *gesture, GdkEventSequence *sequence,
                            gpointer data) {
-  sw_cancel_pointer(data, 1);
+  SWWindow *window = data;
+  bool resetting = window->resetting_click;
+  window->resetting_click = true;
+  sw_cancel_pointer(window, 1);
+  window->resetting_click = resetting;
 }
 static gboolean scroll(GtkEventControllerScroll *controller, double dx,
                        double dy, gpointer data) {
@@ -236,6 +240,7 @@ void sw_input_install(SWWindow *window) {
   g_signal_connect(motion, "leave", G_CALLBACK(pointer_leave), window);
   gtk_widget_add_controller(window->view, motion);
   GtkGesture *click = gtk_gesture_click_new();
+  window->click_controller = GTK_EVENT_CONTROLLER(g_object_ref(click));
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
   g_signal_connect(click, "pressed", G_CALLBACK(pointer_pressed), window);
   g_signal_connect(click, "released", G_CALLBACK(pointer_released), window);
@@ -254,14 +259,21 @@ void sw_input_install(SWWindow *window) {
 }
 
 void sw_cancel_pointer(SWWindow *window, int reason) {
-  if (!window->pressed_buttons)
-    return;
+  bool pressed = window->pressed_buttons != 0;
   window->pressed_buttons = 0;
-  SWEvent *event = sw_event(window, 12);
-  if (event) {
-    event->data.flags = 7;
-    event->data.a = reason;
-    sw_enqueue(window->application, event);
+  memset(window->pressed_clicks, 0, sizeof(window->pressed_clicks));
+  if (pressed) {
+    SWEvent *event = sw_event(window, 12);
+    if (event) {
+      event->data.flags = 7;
+      event->data.a = reason;
+      sw_enqueue(window->application, event);
+    }
+  }
+  if (window->click_controller && !window->resetting_click) {
+    window->resetting_click = true;
+    gtk_event_controller_reset(window->click_controller);
+    window->resetting_click = false;
   }
 }
 
@@ -310,7 +322,7 @@ void sw_focus(SWWindow *window, bool focused) {
 }
 
 void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
-                double dy, int phase) {
+                double dy, int detail) {
   if (kind == 4 && button >= 0 && button < 32 &&
       !(window->pressed_buttons & (1u << button)))
     return;
@@ -335,28 +347,22 @@ void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
   if (kind == 3) {
     if (window->current_event)
       event->native_input = gdk_event_ref(window->current_event);
-    double now = sw_now();
-    bool repeated = now - window->click_time < 0.5 &&
-                    button == window->click_button &&
-                    fabs(data->z - window->click_x) < 5 &&
-                    fabs(data->w - window->click_y) < 5;
-    window->click_count =
-        repeated && window->click_count < INT_MAX ? window->click_count + 1 : 1;
-    window->click_time = now;
-    window->click_button = button;
-    window->click_x = data->z;
-    window->click_y = data->w;
-    data->c = window->click_count;
-    if (button >= 0 && button < 32)
+    data->c = detail > 0 ? detail : 1;
+    if (button >= 0 && button < 32) {
+      window->pressed_clicks[button] = (int)data->c;
       window->pressed_buttons |= 1u << button;
+    }
   }
   if (kind == 4) {
-    data->c = window->click_count;
-    if (button >= 0 && button < 32)
+    data->c = detail > 0 ? detail : 1;
+    if (button >= 0 && button < 32) {
+      data->c = window->pressed_clicks[button];
+      window->pressed_clicks[button] = 0;
       window->pressed_buttons &= ~(1u << button);
+    }
   }
   if (kind == 5 || kind == 6) {
-    data->a = phase;
+    data->a = detail;
     data->c = 0;
   }
   sw_enqueue(window->application, event);

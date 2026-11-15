@@ -179,6 +179,14 @@ AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选
 
 Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力，Gesture 只报告原生手势；这些扩展不是当前交付接口。
 
+PointerEvent.Button 的 clicks 是本次按下的连续点击次数，至少为 1；与该按下配对的释放沿用同一次数，不因其间的移动、其他按钮或下一次计数变化而改写。不同窗口各自记录；按钮变化、失焦、系统操作／捕获取消、超时、超出点击距离或实际拖动结束旧多击序列。四次及更多点击保留实际次数，上层编辑器可统一按三击选择单位处理。
+
+AppKit 继续使用 NSEvent.clickCount；GTK 使用 GtkGestureClick 的 pressed／released 次数，不在 Window 重算固定 0.5 秒／5 像素阈值。GTK 4.18 自身按 gtk-double-click-time、gtk-double-click-distance、gtk-dnd-drag-threshold 及设备／按钮变化结束计数；显式 Window 输入取消还重置该控制器，普通 Left 不取消按下，拖动后的 Up 保留原次数。
+
+Win32 在原生 down／double-click／up 消息上补足 3、4 等连续计数，使用 GetMessageTime 的同源毫秒差、GetDoubleClickTime 及 GetSystemMetrics 的双击矩形。比较点使用屏幕物理像素，不使用内容逻辑坐标，窗口移动和 DPI 变化不会把不同屏幕位置当成同一点；双击矩形宽／高按中心点展开。SM_CXDRAG／SM_CYDRAG 为按下位置各方向的物理容差，移动越界只结束多击计数，继续当前按下／拖动／释放路由。已结束按下的正常 ReleaseCapture 不清空多击历史，异常捕获丢失和显式取消则清空。系统已标记的双击可作为首次可见输入的计数 2；已明确取消的序列不因该标记恢复。当前 Win32 鼠标入口仍为 DeviceId=None 的系统聚合指针，不伪造独立硬件身份。
+
+这些计数不建立新的 timer／轮询；Windows 只在输入处理时读取阈值，GTK 沿现有控制器生命周期运行。Windows 连续次数达到 Int.MAX_VALUE 后保持该值，不溢出或回到 1。平台消息时间的局部比较不改变公共 InputTime 仍可为 Observed 的合同。原生次数的验收必须经过真实平台输入路径；直接提交 count=3 只验证编辑器消费，不能证明平台计数正确。阈值来源见 [GetSystemMetrics](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetrics)；GTK 的取消与 released 配对行为以 [GTK 4.18 GtkGestureClick 实现](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.0/gtk/gtkgestureclick.c)为基线。
+
 ScrollDelta 的 x／y 表示内容在窗口坐标系中的位移：正 x 向右，正 y 向下。滚动容器将其取反为 offset，因此查看更右方／下方的内容分别对应负 x／y。后端以 OS 已应用用户滚动方向设置的事件为准，只归一坐标含义，不再次应用自然滚动设置；GTK 两轴取反，Win32 水平轴取反、垂直轴保留，AppKit 保留原生内容位移。LineDelta 和 PixelDelta 的单位／比例与相位合同不变。
 
 后续光标捕获使用 None／Confined／Locked，warp 与相对输入分离；custom cursor 的 RGBA 与 hotspot 在创建时复制。移动／resize／系统窗口菜单请求需要有效输入上下文的平台，由后端保留原生 serial 并核对，不能靠定时回调伪造用户操作。

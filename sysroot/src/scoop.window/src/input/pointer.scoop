@@ -30,7 +30,11 @@ public enum PointerCancelReason {
     FocusLost, CaptureLost, SystemOperation, Modal
 }
 
-/** Window-relative pointer events, with independent wheel and momentum phases. */
+/**
+ * Window-relative pointer events, with independent wheel and momentum phases.
+ * Button carries a consecutive click count of at least one. The matching release
+ * retains its press count; cancellation ends the sequence without a release.
+ */
 public enum PointerEvent {
     Entered(PointerState), Left(PointerState), Moved(PointerState),
     Button(PointerState, MouseButton, ElementState, Int),

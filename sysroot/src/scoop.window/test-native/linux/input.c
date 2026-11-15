@@ -40,6 +40,10 @@ int32_t scoop_test_gtk_input(void *window, void *view) {
   int ok = XTestFakeMotionEvent(display, -1, root_x, root_y, CurrentTime) &&
            XTestFakeButtonEvent(display, 1, True, CurrentTime) &&
            XTestFakeButtonEvent(display, 1, False, CurrentTime) &&
+           XTestFakeButtonEvent(display, 1, True, CurrentTime) &&
+           XTestFakeButtonEvent(display, 1, False, CurrentTime) &&
+           XTestFakeButtonEvent(display, 1, True, CurrentTime) &&
+           XTestFakeButtonEvent(display, 1, False, CurrentTime) &&
            XTestFakeKeyEvent(display, 38, True, CurrentTime) &&
            XTestFakeKeyEvent(display, 38, False, CurrentTime) &&
            XTestFakeButtonEvent(display, 5, True, CurrentTime) &&

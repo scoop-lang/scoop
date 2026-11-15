@@ -13,7 +13,7 @@
 | 批次 | 状态 | 已完成与剩余 |
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、现有测试入口；原生文本菜单、拖放、accessibility 原型与其他平台验证待继续 |
-| S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；点击计数和输入细节待继续 |
+| S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
 | S2～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -52,3 +52,11 @@
 - 已生成并查询 Style API 文档，核对 ThemePreferences、withPreferences、ThemeSource.resolve／read 的签名与导入路径；库 README、Component spec 和编程材料同步。临时站点已清理，保留更新后的 Style、四套主题及 Component 产物和共享缓存。
 
 本批仅完成主题偏好的公共接入与离屏验证，全部控件派生样式、真实设备／读屏器、三平台 provider 和完整 S11 矩阵仍按计划推进。
+
+### 原生连续点击计数
+
+- Windows 在原生 down／double-click 消息上延续三击及更多次计数，使用消息时间、屏幕物理位置及当前系统时间／距离阈值；拖动、失焦或取消结束计数，正常最后一次 Up 后的 ReleaseCapture 保留历史。每个已按下按钮保留自己的次数，释放不受其他按钮或拖动重置影响。
+- Linux 直接消费 GtkGestureClick 的 count，移除重复的固定阈值；核对 GTK 4.18 实现中设置变化、设备／按钮切换、拖动及 released 的配对行为。显式输入取消重置 GTK 控制器，重入取消与窗口销毁释放各有正常出口。AppKit 保留其原生计数。
+- 新增独立 `window-clicks` Cone，直接编译 Windows 实际使用的计数函数；6 个测试在 macOS release 通过，覆盖连续／首次原生双击、阈值边界及热变更、消息时间回绕、窗口屏幕位置变化、拖出返回、取消和计数饱和。C11 与包含真实调用的 C++20 编译检查通过；未建立 Win32 API 模拟层。
+- 新增 Win32 SendInput 三次点击用例，并扩展 GTK X11 原生输入测试；它们只发送按下／释放，由平台产生 count。既有 Win32 协议测试检查取消后的 DBLCLK 从 1 开始、Up 配对；这些用例尚待集中 Windows／Linux 验证，未将本地算法结果当作平台通过。Wayland 和实际人工设备输入保持独立待验。
+- 同步 Window spec、公开注释、库 README、设计现状与编程材料。没有新增计数 timer 或改变公共 InputTime 的 Observed 合同；临时下载的 GTK 参考源码在核对后清理，保留后续需要的构建缓存。

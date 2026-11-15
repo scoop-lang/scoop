@@ -102,12 +102,14 @@ private class InputHandler: ApplicationHandler {
             case Button(val state, val button, val phase, val clicks) -> {
                 assertEquals(MouseButton.Left, button)
                 assertEquals(PhysicalPosition(24.0, 36.0), state.physicalPosition)
+                // The earlier focus cancellation starts a new sequence, even for DBLCLK.
+                assertEquals(1, clicks)
                 assertEquals(
-                    if (phase == ElementState.Pressed)
-                        2
+                    if (buttons == 0)
+                        ElementState.Pressed
                     else
-                        1,
-                    clicks
+                        ElementState.Released,
+                    phase
                 )
                 buttons += 1
             }

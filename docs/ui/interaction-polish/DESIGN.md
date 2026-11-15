@@ -1,6 +1,6 @@
 # UI 交互细节打磨设计
 
-日期：2026-11-16。状态：设计与源码核查，待实施。本文承接已经交付的[基础交互](../foundations/DESIGN.md)、[控件基础](../component-foundations/DESIGN.md)及[原生菜单](../../specs/SCOOP-UI-NATIVE-MENUS-SPEC.md)，并与[accessibility 设计](../accessibility/DESIGN.md)共同安排后续工作。本文中的配置名称描述目标形状，正式签名、默认值和平台合同在对应批次实施前写入所属 spec；不能把本文作为新增 API 已可用的依据。
+日期：2026-11-16。状态：实施中，实际交付与验证见[实施记录](PROGRESS.md)。本文承接已经交付的[基础交互](../foundations/DESIGN.md)、[控件基础](../component-foundations/DESIGN.md)及[原生菜单](../../specs/SCOOP-UI-NATIVE-MENUS-SPEC.md)，并与[accessibility 设计](../accessibility/DESIGN.md)共同安排后续工作。本文中的配置名称描述目标形状，正式签名、默认值和平台合同在对应批次实施前写入所属 spec；不能把本文作为新增 API 已可用的依据。
 
 任务拆分、依赖、三平台与设备验收、附加能力核查及最终完成条件统一见[实施计划](PLAN.md)。计划使用 S0～S11 覆盖本文和完整 accessibility；下文 U0～U5 保留为设计内容的分组对照。
 
@@ -22,9 +22,9 @@
 源码核查的几个具体结论：
 
 - [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)已有悬浮部件判断，但没有闲置 deadline 或宽度过渡；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。Textarea 目前还会固定预留条宽，不能只修改 ScrollArea。
-- [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。[Windows 输入](../../../sysroot/src/scoop.window/native/windows/input.c)目前仅由 `WM_*BUTTONDBLCLK` 产生计数 2，其余为 1；[Linux 输入](../../../sysroot/src/scoop.window/native/linux/input.c)未使用 `GtkGestureClick` 回调的 count，自行使用 0.5 秒和 5 个物理像素判断连续点击。共享编辑行为存在，不等于三平台输入链均完整。
+- [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。S1 已在 [Windows 输入](../../../sysroot/src/scoop.window/native/windows/input.c)补齐三击及更多次数，并将 [Linux 输入](../../../sysroot/src/scoop.window/native/linux/input.c)改为消费 GTK 自身 count，移除固定 0.5 秒和 5 个物理像素的重复判断。Windows 生产计数算法的本地定向测试已通过；两个平台的原生输入用例仍待目标环境运行，不能据共享编辑行为或算法测试声明整条输入链通过。
 - [公共 Drag](../../../sysroot/src/scoop.ui/src/interaction/drag.scoop)只负责一段鼠标轴向交互，没有跨应用传输和落放目标。[PointerEvent](../../../sysroot/src/scoop.window/src/input/pointer.scoop)也尚无 touch contact 或数据拖放事件。
-- [ThemeMotion](../../../sysroot/src/scoop.ui.style/src/theme/values.scoop)的 `Reduced` 是显式主题值；[文本选项](../../../sysroot/src/scoop.ui/src/text/editor/options.scoop)默认 caret 闪烁为 500ms。这些不能作为已经跟随 OS 无障碍设置的证据。
+- S1 已将 Window 系统偏好经 UI 根传给 [ThemeSource.read(scope)](../../../sysroot/src/scoop.ui.style/src/theme/source.scoop)和[文本选项](../../../sysroot/src/scoop.ui/src/text/editor/options.scoop)。caret 默认继承；四套主题消费减少动画、高对比度、减少透明度和文字缩放。已通过的离屏／实窗范围与剩余系统热切换验证分别记录，不以公共接口接入代替全部控件及设备验收。
 
 ## 2. 需要一起补齐的细节
 
