@@ -1,6 +1,8 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09。状态：设计，待实施。本文确定目标合同与实施顺序；文中的新增接口尚不存在，不能据此判断某个平台已支持 accessibility。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)。
+日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：设计，待实施。本文确定目标合同与技术边界；文中的新增接口尚不存在，不能据此判断某个平台已支持 accessibility。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)。
+
+完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 
 ## 1. 目标与范围
 
@@ -12,6 +14,7 @@
 - 按控件语义执行激活、修改值、选择、展开、滚动、文本编辑和焦点操作，收到实际结果与变化通知。
 - 正确处理隐藏、离屏、弹层、模态限制及没有实例化的虚拟条目。
 - 让第三方 Element 使用与内置控件相同的公共能力，并能通过真实辅助技术完成操作。
+- 与普通交互共同处理系统偏好、可见焦点、文字缩放、上下文菜单和拖放替代操作；语义 provider 与键盘、指针、触摸使用同一业务状态。
 
 实施采用已有的 C／Objective-C／C++ 与系统库，不新增 Rust 依赖，不采用 AccessKit，也不开展其 no_std 改造。框架不增加专用编译器 IR、runtime 对象模型或另一套事件循环。
 
@@ -36,6 +39,8 @@ AI 接入以标准 OS provider 为基础，不默认启动 MCP／HTTP 服务，�
 
 provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘子树，保留调用方仍持有的原生 Window；重新附着分配新的节点身份。低层 Window 接口同样允许直接使用 Surface 的实际调用方提供语义，不要求实例化 UI 控件库。
 
+系统减少动画、高对比度、减少透明度、滚动条与 caret 等偏好由 Window 的公共平台接口提供，UI／style 消费其解析结果，详见[交互打磨设计第 3 节](../interaction-polish/DESIGN.md#3-分层与平台偏好)。该能力在 provider 尚未接通或当前没有辅助技术客户端时仍生效；不以“检测到屏幕阅读器”作为提供完整键盘和视觉体验的条件。
+
 ## 3. 语义节点与身份
 
 ### 3.1 三种结构各司其职
@@ -53,7 +58,7 @@ provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘�
 | `SemanticNodeId` | 类型化的运行期身份，带窗口归属；不使用对象地址或数组下标 |
 | 角色 | 创建时确定，如 Button、Text、TextField、List、ListItem、Dialog；原生角色改变时退休旧身份 |
 | 名称与说明 | 可访问名称、说明、错误文本、可选 automation identifier；已知空字符串与未知值区分 |
-| 状态与值 | enabled、readOnly、checked／mixed、selected、expanded、required、invalid、busy，以及实际文本／数值 |
+| 状态与值 | enabled、readOnly、protected、checked／mixed、selected、expanded、required、invalid、busy，以及允许公开的实际文本／数值 |
 | 关系 | 父子、labelled-by、described-by、controls、active descendant；引用同一活动根内的有效节点 |
 | 集合信息 | 数据顺序、条目 key、实际数量，适用时包含层级、行列与选中关系 |
 | 几何 | 已提交几何或明确的不可用状态；包括当前可见区域与可命中性 |
@@ -109,6 +114,7 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 | Button、Checkbox、Switch、Radio | 激活、切换或选择；报告真实 checked／mixed／selected |
 | Input、Textarea、密码输入 | 文本宿主、只读状态、选区、编辑能力及受保护值规则 |
 | Slider、Spinbox、Progress | 范围、当前值、步进；进度不因此变成可编辑控件 |
+| ScrollArea、Textarea 的视口及滚动条 | 真实范围、位置和滚动／显露能力；视觉自动隐藏不移除容器能力，零范围不公布虚假可滚方向 |
 | Field、FieldLabel、FieldError | 复用 FieldTarget 建立标签、说明、required、错误关系 |
 | List、VirtualList、Tree、Table | 集合及条目关系、位置、选择、展开和虚拟化能力 |
 | Tabs、Menu、Combobox、Dialog | 选中页、活动项、弹出状态与模态边界；只采用适用的原生角色 |
@@ -143,6 +149,8 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 
 原生后端负责窗口逻辑坐标到平台要求的屏幕坐标转换，包括缩放、多显示器和坐标轴方向。窗口移动可刷新原生坐标映射，不要求重绘所有语义节点。窗口被其他窗口遮挡与控件被自身滚动容器裁剪分别处理，不能把二者统一映射为 hidden。
 
+滚动回弹的视觉位移沿同一 Accepted 场景变换进入几何；语义滚动范围、当前逻辑位置和虚拟条目索引仍取合法的 ScrollState。不能把超范围视觉位移报告为负滚动百分比，也不能在画面回弹时留下未变换的点击点。滚动条变宽、变浅或闲置隐藏不退休滚动容器；若条本身导出节点，其身份和平台适用的可见状态分别处理，不在每次淡入淡出重建整个子树。
+
 ### 5.3 变化通知
 
 提交差量涵盖结构、名称／值／状态、文本、选区、键盘焦点、active descendant 及必要的可见范围变化。按平台发送适用通知，不在每次动画或布局遍历后通知整棵树变化。
@@ -151,11 +159,13 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 
 状态提示和 live region 使用明确的 announcement 入口，提供平台适用的优先级。普通进度值更新、tooltip 和所有文本变化不能自动变成播报，以免覆盖用户正在阅读的内容。
 
+双击／三击、触摸调整选区、菜单编辑和文本 Drop 的通知来自同一份已发布的文档差量与最终选区，不能由输入层和 provider 各发一遍。数据拖放的开始、可用目标变化、完成／失败可按实际控件语义提供简短反馈；每次 pointer move、滚动条透明度采样或回弹采样不触发 announcement。重排完成的反馈使用实际条目及新位置，失败不提前宣布已经移动。
+
 ## 6. 动作、焦点与模态
 
 ### 6.1 统一业务入口
 
-语义动作包括 Invoke、Toggle、SetValue、Select、Expand／Collapse、文本选择／编辑，以及 Realize、Reveal、Focus。参数使用动作对应的值类型；只有存在真实实现时才向平台公布能力。能力表示控件支持何种操作，enabled 等状态表示当前能否执行；disabled 不必移除其固有的原生 pattern，但动作必须按平台合同拒绝。
+语义动作包括 Invoke、Toggle、SetValue、Select、Expand／Collapse、文本选择／编辑、实际存在的 ShowContextMenu，以及 Realize、Reveal、Focus。参数使用动作对应的值类型；只有存在真实实现时才向平台公布能力。能力表示控件支持何种操作，enabled 等状态表示当前能否执行；disabled 不必移除其固有的原生 pattern，但动作必须按平台合同拒绝。
 
 Button 的 Invoke 与 Press 共用最新业务激活入口，但不伪造 pointer-down／pointer-up；执行前按当前 enabled、生命周期和输入边界重新判定。选择、切换和设置值沿现有控制器及 Binding 修改状态。受控 Binding 拒绝修改时，native 快照不能自行改成请求值。
 
@@ -172,6 +182,24 @@ Button 的 Invoke 与 Press 共用最新业务激活入口，但不伪造 pointe
 `Focus` 经过现有 FocusController、FocusHandle 和必要的滚动显露通路；键盘焦点通知必须反映实际焦点。active descendant 模式允许键盘焦点停留在容器、活动项随导航改变。辅助技术自身的浏览焦点只在平台有明确反馈时记录，不能从普通 getter 推断。
 
 同窗口模态、Portal 与独立模态窗口共用现有输入边界。背景即使仍可绘制，也不能通过语义动作绕过模态限制；原生树按平台合同限制可导航内容。弹层首次可交互仍等待有效场景，退出时立即停止其动作，背景解除限制沿既有模态提交时序完成。
+
+### 6.3 键盘、触摸与拖放的替代操作
+
+只有指针拖动或多指手势才能完成的必要操作不算完整可访问能力。按实际消费者提供等价的普通入口：列表重排可有上移／下移或选择目标位置的命令；Slider／Resizable 使用范围值和步进；缩放内容提供增加、减少和恢复入口。键盘、菜单与语义动作调用同一业务函数，不伪造跨屏坐标拖动，也不新增泛化的“任意 DragTo”自动化协议。
+
+窗口内、同程序跨窗口及跨程序的数据拖放使用[交互打磨设计第 6 节](../interaction-polish/DESIGN.md#6-数据拖放)的真实 offer／effect／完成规则。辅助技术能够通过复制／粘贴或应用的明确移动命令完成适用任务；不能假定外部程序支持 Scoop 的自定义动作。平台有适用的 drag／drop pattern 时只按已经实现的会话能力映射，不把该 pattern 当作所有平台的共同前提。
+
+ShowContextMenu 使用当前语义目标和有效的 caret／选区／控件锚点，沿同一菜单请求通路打开。原生菜单由系统 provider 暴露条目，UI 自绘树只保持发起目标与必要关系，不复制原生菜单子树。菜单关闭按实际焦点会话恢复；目标已卸载、变更文档或被模态屏障阻止时，旧动作不转发给另一编辑器。
+
+触摸探索由平台辅助技术管理；应用处理实际交付的输入，不截取系统保留的辅助手势。必要操作同时提供可触达的普通目标，不依赖 hover、双击速度或精确拖动。放大的触摸命中区域与语义 bounds／可点击点使用实际场景，不能覆盖无关兄弟或穿过裁剪。
+
+### 6.4 视觉与系统偏好
+
+缺省跟随系统，设置变化通过已有 owner 更新。减少动画时停止额外回弹、模拟惯性和装饰性位移，滚动／选择结果仍即时到达真实状态；一个主题的普通 Full 配置不能重新开启根策略已关闭的效果。系统常显滚动条要求、caret 不闪烁或加宽分别保留，不用同一个“无障碍模式”开关代替。
+
+高对比度和减少透明度影响实际配色、边界与背景；焦点、选择、错误及 drop target 不仅用颜色深浅区别。文字缩放影响度量、布局和显露，不能只放大最终像素而保留旧命中矩形。系统字体／缩放不可查询时使用明确的应用配置，不伪造系统值，也不将物理 DPI 与用户文字缩放重复相乘。
+
+这些规则适用于所有用户，先用现有控件完成纯键盘、缩放、对比度和减少动画验证，不等待全部 AX／UIA／AT-SPI 批次结束。
 
 ## 7. 隐藏、离屏与虚拟化
 
@@ -234,6 +262,8 @@ Realize 增加不抢焦点的按 key 准备入口，复用现有 LazyChildren �
 
 普通属性读取和原生对象引用不保活整个 View。真实输入焦点、编辑／composition、正在完成的 Realize／Reveal，以及平台明确反馈的活动导航目标，才按对应需要保留实例；目标改变或请求结束后解除保留。删除优先于保留，不能为了维持引用重新插入已删除条目。
 
+数据拖放只在确实需要当前编辑宿主、落点或目标 handler 时保留相应实例；已经拥有自有数据快照的来源不因此保留整棵 View。会话记录逻辑 key，虚拟项重排不串项，删除立即使相关动作失效。不能为了公布可能的 drop target 而实现整个虚拟列表。
+
 十万条数据、约二十行可见的列表，不应在接入 provider 时构造十万个 View 或常驻十万个语义对象。正常开销随已实现条目和被实际持有的代理增长。客户端主动全量枚举仍有相应真实成本，不能承诺零成本，也不为此引入任意资源计费或访问配额。
 
 平台可能在 View 回收时将某些具体对象移出原生树。通知应表达该平台中的对象实现状态变化，不让客户端把仍在集合中的逻辑 key 误认为业务删除。
@@ -253,6 +283,12 @@ Realize 增加不抢焦点的按 key 准备入口，复用现有 LazyChildren �
 辅助技术编辑进入现有编辑策略、只读检查、selection、composition 与 undo 分组。需要区分编辑来源时，在现有 `TextEditSource` 中增加 accessibility 来源；不绕过应用的 Reject／Transform。原生 text／selection 通知在实际编辑结果发布后产生。
 
 密码控件声明受保护文本属性。原生属性、范围文本、诊断快照和通知均不得包含明文；平台允许的长度、选区和替换能力单独适配。不能仅把画面换成圆点，却仍通过通用 value getter 暴露正文。
+
+受保护用途独立于视觉投影：暂时显示密码明文、切换主题或将复制策略设为 Allow，不自动解除 provider 的保护。拖放 preview、系统词典／拼写／Services 等菜单入口也按同一用途决定能否导出内容；缺省禁止受保护文本拖出，正常粘贴／拖入仍遵守输入策略。
+
+多击选择、触摸把手和 Drop 共用 UTF-8 范围、方向及 affinity。按词、逻辑行或视觉行查询必须区分实际单位，软换行不伪装成文档中的换行。同文档文本移动是一个编辑差量和一个 undo 项；范围端点沿该差量更新，不通过删除／重建语义文本节点来绕过范围保持。
+
+原生编辑菜单继续使用既有 EditCommand／Paste 入口；DragDrop 和 Accessibility 来源仅为策略识别真实编辑来源。默认外来文本清洗不能被拖入或辅助技术入口意外绕过，所有入口仍应用相同的只读、受保护状态、字符／长度与 Reject／Transform 合同。Move 因部分接收或来源冲突只完成了复制时，通知必须反映实际结果，不能宣称来源已移动。未接通某个系统文本服务不能通过显示一个空动作冒充支持。
 
 ## 9. 原生调用、线程与 C ABI
 
@@ -274,6 +310,8 @@ Realize 增加不抢焦点的按 key 准备入口，复用现有 LazyChildren �
 Linux D-Bus 方法可保留调用并在 owner 完成后回复；Windows COM 调用需要核实 apartment、线程和重入行为；AppKit 必须逐项确认同步 getter、动作和 setter 的实际返回合同。无返回值 setter 只能在后续状态与通知中体现真实修改，不提前改写 native 值。
 
 内部请求状态仅服务当前调用的完成、失败与关闭清理，不新增公共 future／RPC 服务。同步 Realize 和跨线程关闭必须在平台原型阶段验证，不能等到所有控件改造后才发现 owner 无法推进。
+
+本轮原生文本菜单和数据拖放同样存在同步查询／动作与 tracking loop。与其共同核查已有 owner 的可进入边界，复用必要的派发保护，不各建一套可重入事件循环。原生菜单条目或 drop callback 触发 UI 修改时仍不能进入正在执行的 render／layout；各协议分别满足自身返回合同，不因共用执行入口而统一返回“已排队”。
 
 ### 9.3 数据与生命周期
 
@@ -297,7 +335,7 @@ native 保留语义属性投影和轻量代理，并按需持有当前调用；�
 
 通过现有 HWND 的 `WM_GETOBJECT` 对接 UIA provider，采用 C／C++ COM 实现 Simple、Fragment、FragmentRoot 及适用 pattern。运行期 ID、导航、焦点和屏幕物理坐标由该适配层转换。
 
-按能力实现 Invoke、Toggle、Value、RangeValue、Selection／SelectionItem、ExpandCollapse、Scroll／ScrollItem、Text／TextRange。虚拟集合另外实现 ItemContainer 与 VirtualizedItem；`Realize` 不等于 `ScrollIntoView`，更不等于 Focus。
+按能力实现 Invoke、Toggle、Value、RangeValue、Selection／SelectionItem、ExpandCollapse、Scroll／ScrollItem、Text／TextRange。具有实际行列及标题语义的表格接入适用的 Grid／GridItem、Table／TableItem；普通列表不因此公布虚假的表格能力。虚拟集合另外实现 ItemContainer 与 VirtualizedItem；`Realize` 不等于 `ScrollIntoView`，更不等于 Focus。
 
 placeholder 仅提供其实际支持的能力，不支持的完整属性按 UIA 合同返回错误。`FindItemByProperty` 明确区分不支持的 property 与查无此项，并支持合同要求的顺序枚举。已程序化隐藏的内容退出树；仍属于 UI 模型的离屏内容按 `IsOffscreen` 表达。
 
@@ -334,27 +372,32 @@ AT-SPI 映射区分 VISIBLE 与 SHOWING；大集合只在正确提供 active-des
 | 文档／代码区域 | 需要的变化 |
 | --- | --- |
 | [UI spec](../../specs/SCOOP-UI-SPEC.md) | 语义声明、身份、树结构、提交、只读查询边界、隐藏与虚拟化；更新现有范围声明 |
-| [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md) | 控件默认语义、覆盖值、数据级条目描述、行为与状态对应 |
-| [Window spec](../../specs/SCOOP-WINDOW-SPEC.md) | accessibility 包、native 投影、同步派发例外、线程／返回值／关闭合同 |
+| [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md) | 控件默认语义、覆盖值、数据级条目描述、行为与状态对应；菜单和拖放替代入口 |
+| [Window spec](../../specs/SCOOP-WINDOW-SPEC.md) | accessibility 包、native 投影、同步派发例外、线程／返回值／关闭合同；复用公共系统偏好与原生菜单／拖放边界 |
 | [Surface spec](../../specs/SCOOP-SURFACE-SPEC.md) | 仅补实际需要的新场景／命中／显露接入，不重做输入系统 |
 | [文本 spec](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)与 UI 文本章节 | 补实际缺少的范围保持及平台文本访问规则；已有布局算法保持复用 |
+| [Theme spec](../../specs/SCOOP-UI-THEME-SPEC.md)与原生菜单规范 | 系统偏好的实际消费者、减少动画／对比度；ShowContextMenu、文本目标与原生 provider 归属 |
 | `scoop.ui` 的 scope／host／layout／focus／lazy／text | 登记、发布、动作、几何与虚拟条目协调 |
 | `scoop.ui.component` 与各目标 native 后端 | 控件接入及 AppKit／UIA／AT-SPI provider |
 
 本次没有需要修改语言语义、runtime 对象模型或 compiler pipeline 的具体问题，因此不安排相应重构。
 
-### 12.2 批次
+### 12.2 设计交付分组
+
+下表保留各组的目标与完成要求；与交互打磨的合并拆分、前置和实际执行顺序见[统一实施计划](../interaction-polish/PLAN.md#3-批次与依赖)。
 
 | 批次 | 交付内容 | 通过条件 |
 | --- | --- | --- |
-| P0：平台边界原型 | 最小原生节点、同步查询／动作／关闭；Linux 路线判断 | 证明 owner 可安全推进，真实客户端可读取并操作；记录每项返回合同及平台限制 |
+| P0：平台边界原型 | 最小原生节点、同步查询／动作／关闭；Linux 路线判断；与交互打磨共同核查偏好和 native tracking | 证明 owner 可安全推进，真实客户端可读取并操作；记录每项返回合同及平台限制 |
 | P1：macOS 纵向闭环 | 语义资源、发布、AppKit 根及 Button／Label／Checkbox／Input | VoiceOver 与 AX 客户端完成读取、激活、编辑；禁用、隐藏及关闭正确 |
-| P2：交互与文本 | 表单关系、复杂焦点、模态／Portal、文本范围、选区、受保护值、通知 | 真实辅助技术完成表单和弹层任务，Binding／编辑策略拒绝不假报成功 |
+| P2：交互与文本 | 表单关系、复杂焦点、模态／Portal、文本范围、选区、受保护值、通知；文本菜单和已接入拖放的替代操作 | 真实辅助技术完成表单、菜单和弹层任务，Binding／编辑策略拒绝不假报成功，键盘可完成等价操作 |
 | P3：虚拟集合 | 条目描述源、代理、按 key Realize／Reveal、集合选择与数据变化 | 十万行保持局部实例；可找到并操作未实例化条目，排序、删除与焦点正确 |
 | P4：其余平台 | Windows UIA 与经 P0 选定的 Linux 实现 | 相同用例经 Narrator／UIA、Orca／AT-SPI 通过；只声明实际完成的平台 |
 | P5：覆盖与工具使用 | 现有控件补齐、诊断可读性、实际 agent 客户端接入验证 | 可见节点与集合查询、语义动作及截图输入完成明确任务，无第二套状态 |
 
 P0 不要求提前实现全部控件，但同步动作与 GTK 接入结论必须足以支持后续路线。Windows 后端未完成的相关基础单独列出依赖，不用 macOS 通过代替其他平台验收。
+
+统一计划从 S0 验证原生边界、S2 交付公共语义与 macOS 基础闭环；S5 完成文本／表单／焦点，S7 完成虚拟集合，S10 跟随公共接口完成其余平台，S11 覆盖全部已有控件及工具使用。系统偏好与纯键盘视觉体验可独立先交付，不能因 Linux provider 路线尚未确定而推迟所有平台的这些修复；后者仍保留为核心交付的未完成项。
 
 ### 12.3 必要验证
 
@@ -369,6 +412,9 @@ P0 不要求提前实现全部控件，但同步动作与 GTK 接入结论必须
 | 虚拟集合 | 可见约二十行时接入不会 build 十万行；元数据查询不 build；只实现被请求项；不支持搜索不返回 NotFound |
 | 数据变化 | 按 key 重定位；重排不串项；删除与过滤使旧请求失效；View 回收不等于逻辑删除 |
 | 文本 | emoji、组合序列、UTF-16 转换、软换行、范围端点变化、composition、只读与密码文本 |
+| 菜单与数据拖放 | 右键／键盘／ShowContextMenu 指向同一文本目标；原生条目不重复；Drop 与多击只通知实际差量，失败不删源，替代操作可完成真实任务 |
+| 系统偏好与视觉 | 常显条、减少动画、高对比度、减少透明度、caret、文字缩放热切换；逻辑范围与回弹几何一致，隐藏条不移除 Scroll／Reveal |
+| 触摸与键盘 | 不依赖 hover 或精确拖动的实际入口，放大命中不越界；平台辅助触摸探索、普通 Tab 和焦点恢复分别验证 |
 | 原生生命周期 | 跨线程查询、同步 Realize、重入拒绝、窗口关闭、迟到 callback 和客户端保留旧对象均安全结束 |
 | 空闲行为 | 单纯名称／状态更新不请求绘制；没有变化时无持续轮询、重复整树通知或帧唤醒 |
 
