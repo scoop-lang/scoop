@@ -35,7 +35,7 @@ public class InputOtpProps public constructor(
     public val labelTarget: FieldTarget? = None,
     public val focus: FocusOptions = FocusOptions(),
     public val style: InputOtpStyle = inputOtpStyle(),
-    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val caretBlink: Duration? = None,
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
     public val onComplete: (TextEditorState) -> Unit = { _ -> Unit }
 ) {

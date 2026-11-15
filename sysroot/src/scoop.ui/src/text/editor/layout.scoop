@@ -6,14 +6,20 @@ import scoop.math.max
 import scoop.surface.*
 import scoop.ui.*
 
-internal class EditorInputLayout(val layout: TextEditLayout, val display: TextDisplay)
+internal class EditorInputLayout(
+    val layout: TextEditLayout,
+    val display: TextDisplay,
+    val caretStyle: EditorCaretStyle
+)
 
 internal class EditorFrame(
     private val retained: RetainedEditorLayout,
     val snapshot: ScrollSnapshot,
     val revision: Long,
     val display: TextDisplay,
-    val cells: TextEditCells?
+    val cells: TextEditCells?,
+    val caretStyle: EditorCaretStyle,
+    val caretPadding: Double
 ): Closeable {
     val layout: TextEditLayout get() = retained.layout
     public override fun close() {
@@ -24,7 +30,8 @@ internal class EditorFrame(
 private fun editorLayout(
     host: TextEditHost,
     width: Double?,
-    cells: TextEditCells?
+    cells: TextEditCells?,
+    caretStyle: EditorCaretStyle
 ): EditorInputLayout {
     host.checkDocument(host.current.committedText)
     val input = editorSnapshot(host.current.storage.value)
@@ -71,7 +78,7 @@ private fun editorLayout(
     val layout = editorGeometry(host, paragraph, cells)
     host.currentProjection = host.options.projection
     host.currentDisplay = Some(display)
-    return EditorInputLayout(layout, display)
+    return EditorInputLayout(layout, display, caretStyle)
 }
 
 private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
@@ -113,11 +120,11 @@ private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
     )
 }
 
-private fun editorWidth(host: TextEditHost, viewport: Double?): Double? {
+private fun editorWidth(host: TextEditHost, viewport: Double?, padding: Double): Double? {
     if (!host.options.multiline || !host.options.wrap)
         return None
     return when (viewport) {
-        case Some(val width) -> Some(max(0.0, width - host.appearance.caretWidth))
+        case Some(val width) -> Some(max(0.0, width - padding))
         case None -> None
     }
 }
@@ -128,8 +135,15 @@ internal fun editorMeasure(
     cells: TextEditCells?
 ): TextEditMeasurement {
     constraints.check()
-    val width = editorWidth(host, constraints.maxWidth)
-    val text = editorLayout(host, width, cells)
+    val caretStyle = editorCaretStyle(host)
+    // An unwrapped line bounds the caret height of its wrapped fragments, including fallback fonts.
+    val padding =
+        if (caretStyle.aspectRatio > 0.0)
+            caretStyle.padding(editorLayout(host, None, cells, caretStyle).layout)
+        else
+            caretStyle.width
+    val width = editorWidth(host, constraints.maxWidth, padding)
+    val text = editorLayout(host, width, cells, caretStyle)
     val layout = text.layout
     val paragraphMode =
         when (cells) {
@@ -143,7 +157,7 @@ internal fun editorMeasure(
             None
     val caretPadding =
         if (paragraphMode)
-            host.appearance.caretWidth
+            padding
         else
             0.0
     val naturalWidth = max(layout.size.width, hint?.size?.width ?: 0.0) + caretPadding
@@ -161,6 +175,8 @@ internal fun editorMeasure(
         host.current.revision,
         text.display,
         cells,
+        caretStyle,
+        caretPadding,
         when (hint) {
             case Some(_) -> Some(host.hint.retainLayout());
             case None -> None
@@ -174,21 +190,22 @@ internal fun editorInputText(host: TextEditHost): EditorInputLayout {
     when (host.accepted) {
         case Some(val frame) -> {
             if (frame.display.source.text == host.current.text)
-                return EditorInputLayout(frame.layout, frame.display)
+                return EditorInputLayout(frame.layout, frame.display, frame.caretStyle)
             return editorLayout(
                 host,
-                editorWidth(host, Some(frame.snapshot.viewport.width)),
-                frame.cells
+                editorWidth(host, Some(frame.snapshot.viewport.width), frame.caretPadding),
+                frame.cells,
+                frame.caretStyle
             )
         }
-        case None -> return editorLayout(host, None, None)
+        case None -> return editorLayout(host, None, None, editorCaretStyle(host))
     }
 }
 
 internal fun editorCaret(host: TextEditHost, text: EditorInputLayout): Rect? =
-    text.layout.caret(
-        editorVisualPosition(text.layout, text.display.mapping.forward(host.current.cursor)),
-        host.appearance.caretWidth
+    text.caretStyle.caret(
+        text.layout,
+        editorVisualPosition(text.layout, text.display.mapping.forward(host.current.cursor))
     )
 
 internal fun editorScene(host: TextEditHost, context: SceneContext, measure: TextEditMeasurement) {
@@ -198,14 +215,16 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             measure.scrollSnapshot,
             measure.revision,
             measure.display,
-            measure.cells
+            measure.cells,
+            measure.caretStyle,
+            measure.caretPadding
         )
     host.staged?.close()
     host.staged = Some(frame)
     val layout = frame.layout
     val appearance = host.appearance
     val input = host.current.inputState
-    val caret = editorCaret(host, EditorInputLayout(layout, frame.display))
+    val caret = editorCaret(host, EditorInputLayout(layout, frame.display, frame.caretStyle))
     val selection = layout.selection(frame.display.displayRange(input.selection.range))
     val marked =
         when (input.markedRange) {
@@ -268,7 +287,10 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                     active && host.caretVisible && input.selection.anchor == input.selection.cursor
                 ) {
                     when (caret) {
-                        case Some(val rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
+                        case Some(val rect) -> paint.canvas.drawRect(
+                            rect,
+                            Paint(appearance.caretColor)
+                        )
                         case None -> {}
                     }
                 }

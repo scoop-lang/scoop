@@ -37,7 +37,7 @@ internal class OtpScene(private val probe: OtpProbe, scope: ComponentScope): Com
                     InputOtpPattern.Digits,
                 probe.enabled,
                 probe.readonly,
-                caretBlink = Duration.milliseconds(0L),
+                caretBlink = Some(Duration.milliseconds(0L)),
                 fonts = Some(probe.fonts),
                 labelTarget = Some(probe.target),
                 focus = FocusOptions(Some(probe.focus)),

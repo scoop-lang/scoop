@@ -381,7 +381,7 @@ interactionStyles(configure: InteractionStylesBuilder.() -> Unit = {}): Interact
 | InteractionStylesBuilder | hovered／pressed／focused／disabled: StyleOverride，分别默认 styleOverride() |
 | ButtonStyleBuilder | kind: SurfaceKind = Action；surface: SurfaceOptions = surfaceOptions()；text: SpanStyle? = None；states: InteractionStyles = interactionStyles()；transition: StyleValue<AnimationSpec?> = Inherit |
 | CheckboxStyleBuilder | marker: CheckboxOptions = checkboxOptions()；padding: Insets? = None；states: InteractionStyles = interactionStyles()；transition／selectionTransition: StyleValue<AnimationSpec?> = Inherit |
-| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／caretColor／markedColor: Color? = None；caretWidth: Double = 1.0；scrollbar: ScrollbarOptions = scrollbarOptions() |
+| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／caretColor／markedColor: Color? = None；caretWidth: Double? = None；scrollbar: ScrollbarOptions = scrollbarOptions() |
 
 嵌套配置使用真实同名成员：InteractionStylesBuilder 的四种状态接收 StyleOverrideBuilder；surface／marker／scrollbar 接收对应部件 OptionsBuilder；states 接收 InteractionStylesBuilder；text／placeholder／description 接收 SpanStyleBuilder。这些成员均返回 Unit、基于当前值修改，重复块累积，空块保留已有字段。可选文字覆盖尚为 None 时，文字配置块从全部继承的 spanStyle() 开始；直接给属性赋入完整值表示替换，赋入 None 移除该文字覆盖。
 
@@ -419,7 +419,9 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+文本输入的 InputProps／TextareaProps／InputOtpProps 及各自 builder 的 `caretBlink: Duration? = None` 默认跟随根系统偏好；`Some(Duration.ZERO)` 保持光标可见。TextFieldStyle 与 InputOtpStyle 的 `caretWidth: Double? = None` 同样交给共享 TextEditHost 解析，显式值是有限正数，单位为逻辑像素。其优先级及 Accepted 几何合同见[UI 规范 §8.3](SCOOP-UI-SPEC.md#83-系统交互偏好)。
+
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 None，跟随根系统偏好；显式 Some(Duration.ZERO) 保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
@@ -671,7 +673,7 @@ ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed
 
 ## 19. Input OTP
 
-`inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 的同名成员创建一个 InputOtpProps／InputOtp。length 必须为正；Props 包含 state、length、parts: Array<InputOtpPart>=[]、pattern=Digits、enabled=true、readOnly=false、invalid=false、fonts／theme／labelTarget=None、focus=FocusOptions()、style=inputOtpStyle()、caretBlink=500ms、onEdited／onComplete 两个默认空回调。所有编辑、选区、composition 和撤销历史只有一份 TextEditorState；整体只有一个 Tab 目标和 TextEditHost，FieldTarget 沿现有输入标签关联。
+`inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 的同名成员创建一个 InputOtpProps／InputOtp。length 必须为正；Props 包含 state、length、parts: Array<InputOtpPart>=[]、pattern=Digits、enabled=true、readOnly=false、invalid=false、fonts／theme／labelTarget=None、focus=FocusOptions()、style=inputOtpStyle()、caretBlink=None、onEdited／onComplete 两个默认空回调。所有编辑、选区、composition 和撤销历史只有一份 TextEditorState；整体只有一个 Tab 目标和 TextEditHost，FieldTarget 沿现有输入标签关联。
 
 InputOtpPart 为 Group(InputOtpGroup)／Separator(View)。InputOtpGroup 保存非空的 Array<InputOtpSlot>，slot 包含 index 和 invalid=false；全部 group 的索引必须按正文逻辑顺序恰好覆盖 0..<length。parts 为空时使用一个默认组。显式描述必须以组开始和结束，不能出现连续 separator；相邻组可直接相连。builder 的 `group { slot(index, invalid=false) }` 和 `separator(content: View)` 构建描述，`separator()` 使用 16 单位的减号图形。分隔内容是正常 View，保留其 key 与挂载；槽和组是同一编辑表面的几何，不各自挂载输入控件。方向改变按逻辑起止侧翻转布局，组和分隔符不进入正文、粘贴结果或复制文本。
 

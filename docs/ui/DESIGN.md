@@ -12,7 +12,7 @@
 
 Markdown 文档库、编辑组件与桌面编辑器在独立仓库 [scoop-lang/scoop-markdown](https://github.com/scoop-lang/scoop-markdown) 维护。`scoop.markdown` 提供无 UI 的解析、处理和生成；`scoop.ui.markdown` 提供源码、所见即所得、双栏编辑与 inline／block 扩展框架；`markdown-editor` 是完整窗口示例。相关规范、设计和验证记录见该仓库的[文档导航](https://github.com/scoop-lang/scoop-markdown/blob/main/docs/README.md)。
 
-2026-11-16 的 [UI 交互细节打磨设计](interaction-polish/DESIGN.md)梳理现有实现与平台缺口，安排可定制的平台滚动条、文本原生菜单、多击选择补齐、三个范围的数据拖放、触摸／手势和滚动回弹，并补充系统偏好、键盘替代操作及组合验收。[accessibility 设计](accessibility/DESIGN.md)同步复核，完整任务按[统一实施计划](interaction-polish/PLAN.md)的 S0～S11 推进；计划已整理、实现待开始，不改变本文件原有批次的验收事实。
+2026-11-16 的 [UI 交互细节打磨设计](interaction-polish/DESIGN.md)梳理现有实现与平台缺口，安排可定制的平台滚动条、文本原生菜单、多击选择补齐、三个范围的数据拖放、触摸／手势和滚动回弹，并补充系统偏好、键盘替代操作及组合验收。[accessibility 设计](accessibility/DESIGN.md)同步复核，完整任务按[统一实施计划](interaction-polish/PLAN.md)的 S0～S11 推进；实施中，当前交付见[实施记录](interaction-polish/PROGRESS.md)，不改变本文件原有批次的验收事实。
 
 ## 1. 分层目标
 

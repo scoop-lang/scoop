@@ -59,6 +59,29 @@ public class TextEditHost public constructor(
     public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
     internal val blink = scope.createDeadline { editorBlink(this) }
     internal val dragTimer = scope.createDeadline { editorDragTick(this) }
+    internal var caretPreferences = scope.interactionPreferences
+    private var caretScale = window.metrics?.scaleFactor
+    private val preferenceObserver =
+        scope.observeInteractionPreferences { next -> editorPreferencesChanged(this, next) }
+    private val geometryObserver =
+        scope.observeWindow(window) {
+            event -> when (event) {
+                case GeometryChanged(val metrics) -> {
+                    if (caretScale != Some(metrics.scaleFactor)) {
+                        caretScale = Some(metrics.scaleFactor)
+                        if (
+                            !closed &&
+                                appearance.caretWidth ==
+                                None &&
+                                caretPreferences.caretWidthPixels !=
+                                None
+                        )
+                            scope.requestLayout()
+                    }
+                }
+                else -> {}
+            }
+        }
 
     init {
         initialOptions.check()
@@ -103,9 +126,11 @@ public class TextEditHost public constructor(
     }
     public fun caret(position: TextPosition): Rect? {
         checkOpen()
-        return layout.caret(
-            editorVisualPosition(layout, display.toDisplay(position)),
-            appearance.caretWidth
+        val frame =
+            accepted ?: throw IllegalStateException(Some("text editor has no accepted layout"))
+        return frame.caretStyle.caret(
+            frame.layout,
+            editorVisualPosition(frame.layout, frame.display.toDisplay(position))
         )
     }
     public fun selectionBounds(range: Utf8Range): Array<TextBox> {
@@ -346,6 +371,8 @@ public class TextEditHost public constructor(
         closed = true
         val owned = current.detachHost(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { preferenceObserver.close() }
+        failure = cleanupUi(failure) { geometryObserver.close() }
         failure = cleanupUi(failure) { blink.close() }
         failure = cleanupUi(failure) { dragTimer.close() }
         drag = None

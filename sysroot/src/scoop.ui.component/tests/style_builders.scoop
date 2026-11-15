@@ -130,11 +130,17 @@ private class ControlStyleTest {
             }
         )
         when (original.selectionTransition.resolve(fallback)) {
-            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(125L), duration);
+            case Some(Tween(val duration, _)) -> assertEquals(
+                Duration.milliseconds(125L),
+                duration
+            );
             else -> fail(Some("explicit selection transition was lost"))
         }
         when (derived.transition.resolve(fallback)) {
-            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(250L), duration);
+            case Some(Tween(val duration, _)) -> assertEquals(
+                Duration.milliseconds(250L),
+                duration
+            );
             else -> fail(Some("inherited transition was lost"))
         }
         assertTrue(
@@ -158,7 +164,7 @@ private class ControlStyleTest {
                 placeholder { color = Some(Color.Black) }
                 placeholder { fontSize = Some(12.0) }
                 description {}
-                caretWidth = 2.0
+                caretWidth = Some(2.0)
                 selectionColor = Some(Color.White)
                 scrollbar { thickness = Some(9.0) }
                 scrollbar { buttonLength(None) }
@@ -172,7 +178,7 @@ private class ControlStyleTest {
                 placeholder { weight = Some(500) }
                 description { color = Some(Color.White) }
             }
-        captured[0L].caretWidth = 9.0
+        captured[0L].caretWidth = Some(9.0)
         captured[0L].text = None
         assertEquals(Some(700), original.text!!.weight)
         assertEquals(Some(None), original.text!!.lineHeight)
@@ -188,11 +194,11 @@ private class ControlStyleTest {
         assertEquals(None, derived.placeholder!!.color)
         assertEquals(None, original.description!!.color)
         assertEquals(Some(Color.White), derived.description!!.color)
-        assertEquals(2.0, derived.caretWidth)
+        assertEquals(Some(2.0), derived.caretWidth)
         assertEquals(original.selectionColor, derived.selectionColor)
         assertEquals(Some(9.0), derived.scrollbar.thickness)
         assertEquals(StyleValue.Set<Double?>(None), derived.scrollbar.buttonLength)
-        assertEquals(2.0, original.copy().caretWidth)
+        assertEquals(Some(2.0), original.copy().caretWidth)
         assertTrue(
             when (textFieldStyle().text) {
                 case None -> true;

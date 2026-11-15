@@ -15,11 +15,17 @@ public class InputOtpStyle internal constructor(
     public val inactiveSelectionColor: Color? = None,
     public val caretColor: Color? = None,
     public val markedColor: Color? = None,
-    public val caretWidth: Double = 1.0
+    public val caretWidth: Double? = None
 ) {
     init {
         nonnegative(gap, "invalid OTP gap")
-        nonnegative(caretWidth, "invalid OTP caret width")
+        when (caretWidth) {
+            case Some(val value) -> requireComponent(
+                value.isFinite() && value > 0.0,
+                "invalid OTP caret width"
+            )
+            case None -> {}
+        }
         when (cellSize) {
             case Some(val size) -> requireComponent(
                 size.width.isFinite() &&
@@ -54,7 +60,7 @@ public class InputOtpStyleBuilder internal constructor(initial: InputOtpStyle) {
     public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
     public var caretColor: Color? = initial.caretColor
     public var markedColor: Color? = initial.markedColor
-    public var caretWidth: Double = initial.caretWidth
+    public var caretWidth: Double? = initial.caretWidth
     public fun surface(configure: StyleOverrideBuilder.() -> Unit) {
         surface = surface.copy(configure)
     }

@@ -7,12 +7,28 @@ import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
 import scoop.window.WindowState
+import scoop.window.InteractionPreferences
 
 private class SceneCompletion(val node: MountedNode, val action: (FrameCompletion) -> Unit)
 
 /** Owns one root; closing it leaves the caller's native window intact. */
 public class UiWindow internal constructor(internal val root: UiRoot): Closeable {
     public val nativeWindow: Window get() = root.window
+    public var preferences: UiPreferences
+    get() {
+        checkOpen()
+        return root.preferences.options
+    }
+    set(value) {
+        checkOpen()
+        checkFocusMutation()
+        value.check()
+        root.surface.dispatch { root.preferences.replace(value) }
+    }
+    public val interactionPreferences: InteractionPreferences get() {
+        checkOpen()
+        return root.preferences.value
+    }
     public var defaultFonts: FontCollection
     get() {
         checkOpen();
@@ -41,7 +57,8 @@ internal class UiRoot(
     val host: UiHost,
     val window: Window,
     private val initial: View,
-    defaultFonts: FontCollection? = None
+    defaultFonts: FontCollection? = None,
+    initialPreferences: UiPreferences = uiPreferences()
 ): SurfaceContent, UiUpdateRoot {
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
@@ -58,6 +75,7 @@ internal class UiRoot(
     val surface: SurfaceWindow get() =
         attached ?: throw IllegalStateException(Some("UI root is not attached"))
 
+    val preferences = RootPreferences(this, initialPreferences)
     val fonts = RootFonts(defaultFonts)
 
     fun checkThread() {
@@ -71,6 +89,7 @@ internal class UiRoot(
         attached = Some(value)
         val current = createNode(this, None, initial)
         node = Some(current)
+        preferences.start()
         focus.start()
         overlays.start()
         current.rebuild(UpdateTurn())
@@ -160,6 +179,7 @@ internal class UiRoot(
         completions.clear()
         prepareUi {
             var failure: Throwable? = None
+            failure = cleanupUi(failure) { preferences.close() }
             failure = cleanupUi(failure) { focus.close() }
             failure = cleanupUi(failure) { node?.deactivate() }
             failure = cleanupUi(failure) { overlays.stop() }

@@ -16,7 +16,7 @@ private fun editorCanBlink(host: TextEditHost): Boolean {
             None
     )
         return false
-    val interval = host.options.caretBlink
+    val interval = editorBlinkInterval(host)
     return interval.floorSeconds > 0L || interval.nanosecondsOfSecond > 0
 }
 
@@ -26,7 +26,7 @@ internal fun editorScheduleBlink(host: TextEditHost) {
         return
     }
     if (!host.blink.isScheduled)
-        host.blink.schedule(MonotonicTimeSource.markNow() + host.options.caretBlink)
+        host.blink.schedule(MonotonicTimeSource.markNow() + editorBlinkInterval(host))
 }
 
 internal fun editorBlink(host: TextEditHost) {

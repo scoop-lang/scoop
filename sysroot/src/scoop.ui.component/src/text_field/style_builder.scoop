@@ -28,7 +28,7 @@ public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle)
     public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
     public var caretColor: Color? = initial.caretColor
     public var markedColor: Color? = initial.markedColor
-    public var caretWidth: Double = initial.caretWidth
+    public var caretWidth: Double? = initial.caretWidth
     public var scrollbar: ScrollbarOptions = initial.scrollbar
 
     public fun surface(configure: SurfaceOptionsBuilder.() -> Unit): Unit {

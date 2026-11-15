@@ -88,7 +88,7 @@ private class ComponentReceiverDslTests {
             copy = TextCopyPolicy.Allow
             onEdited = { value -> notifications.add(value) }
             style { text { weight = Some(500) } }
-            style { caretWidth = 2.0 }
+            style { caretWidth = Some(2.0) }
         }
         val props = captured[0L].textareaProps(model)
         captured[0L].rows = 2L
@@ -103,7 +103,7 @@ private class ComponentReceiverDslTests {
         props.onEdited(model)
         assertSame(model, notifications[0L])
         assertEquals(Some(500), props.style.text!!.weight)
-        assertEquals(2.0, props.style.caretWidth)
+        assertEquals(Some(2.0), props.style.caretWidth)
         assertFailsWith<IllegalArgumentException> { textarea(model) { rows = 0L } }
     }
 

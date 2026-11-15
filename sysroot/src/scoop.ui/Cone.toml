@@ -40,6 +40,10 @@ path = "tests/frame_dependencies.scoop"
 when = { os = ["linux", "windows"] }
 
 [[test.sources]]
+path = "tests/preferences.scoop"
+when = { os = ["linux", "windows"] }
+
+[[test.sources]]
 path = "tests/composition.scoop"
 when = { os = "windows" }
 

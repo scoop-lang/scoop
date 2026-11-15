@@ -48,7 +48,7 @@ internal class ComboScene(private val p: ComboProbe, scope: ComponentScope): Com
                     else
                         ComboboxInputPlacement.Inline
                 showClear = true;
-                caretBlink = Duration.milliseconds(0L)
+                caretBlink = Some(Duration.milliseconds(0L))
                 onValueChange = { _ -> p.calls += 1 };
                 onValuesChange = { _ -> p.calls += 1 }
                 onSubmit = { _ -> p.submissions += 1 };

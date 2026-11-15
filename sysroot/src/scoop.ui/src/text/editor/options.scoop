@@ -24,13 +24,19 @@ public class TextEditOptions public constructor(
     public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val caretBlink: Duration? = None,
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
     public val copy: TextCopyPolicy = TextCopyPolicy.Default
 ) {
     internal fun check() {
-        requireUi(caretBlink.floorSeconds >= 0L, "negative caret blink interval")
+        when (caretBlink) {
+            case Some(val value) -> requireUi(
+                value.floorSeconds >= 0L,
+                "negative caret blink interval"
+            )
+            case None -> {}
+        }
         checkPaintCachePolicy(paintCache)
     }
 }
@@ -44,10 +50,16 @@ public class TextEditAppearance public constructor(
     public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
     public val caretColor: Color = Color.Black,
     public val markedColor: Color = Color.Black,
-    public val caretWidth: Double = 1.0
+    public val caretWidth: Double? = None
 ) {
     internal fun check() {
-        requireUi(caretWidth.isFinite() && caretWidth > 0.0, "invalid caret width")
+        when (caretWidth) {
+            case Some(val value) -> requireUi(
+                value.isFinite() && value > 0.0,
+                "invalid caret width"
+            )
+            case None -> {}
+        }
         for (color in [selectionColor, inactiveSelectionColor, caretColor, markedColor])
             requireUi(
                 color.red.isFinite() &&

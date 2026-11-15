@@ -22,7 +22,7 @@ public open class InputBuilder internal constructor() {
     public var direction: TextDirection? = None
     public var alignment: TextAlignment = TextAlignment.Start
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
-    public var caretBlink: Duration = Duration.milliseconds(500L)
+    public var caretBlink: Duration? = None
     public var policy: TextEditPolicy = textEditPolicy()
     public var projection: TextProjection = textProjection()
     public var copy: TextCopyPolicy = TextCopyPolicy.Default

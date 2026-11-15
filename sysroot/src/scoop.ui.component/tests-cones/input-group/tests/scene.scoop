@@ -26,7 +26,7 @@ internal class GroupScene(private val probe: GroupProbe, scope: ComponentScope):
                 fonts = Some(p.fonts),
                 focus = focus,
                 readOnly = p.readonly,
-                caretBlink = Duration.milliseconds(0L),
+                caretBlink = Some(Duration.milliseconds(0L)),
                 labelTarget = Some(p.target),
                 projection =
                     if (p.masked)
@@ -59,7 +59,7 @@ internal class GroupScene(private val probe: GroupProbe, scope: ComponentScope):
                         wrap = false,
                         tab = TextTabBehavior.Insert,
                         labelTarget = Some(p.target),
-                        caretBlink = Duration.milliseconds(0L),
+                        caretBlink = Some(Duration.milliseconds(0L)),
                         onEdited =
                             {
                                 _ ->

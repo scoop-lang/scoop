@@ -25,7 +25,7 @@ public class InputOtpBuilder internal constructor() {
     public var labelTarget: FieldTarget? = None
     public var focus: FocusOptions = FocusOptions()
     public var style: InputOtpStyle = inputOtpStyle()
-    public var caretBlink: Duration = Duration.milliseconds(500L)
+    public var caretBlink: Duration? = None
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onComplete: (TextEditorState) -> Unit = { _ -> Unit }
     public var key: ViewKey = ViewKey.Position

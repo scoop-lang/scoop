@@ -1,0 +1,69 @@
+package scoop.ui
+
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.InteractionPreferences
+
+@Test
+private class UiPreferencesTest {
+    @Test
+    fun `preferences preserve unknown false and zero while explicit geometry wins`() {
+        val system =
+            InteractionPreferences(
+                autoHideScrollbars = Some(true),
+                reduceMotion = Some(true),
+                caretBlinkInterval = Some(Duration.milliseconds(600L)),
+                caretWidthPixels = Some(3),
+                doubleClickInterval = Some(Duration.milliseconds(300L))
+            )
+        assertEquals(system, uiPreferences().resolve(system))
+        val configured =
+            uiPreferences {
+                autoHideScrollbars = Some(false)
+                reduceMotion = Some(false)
+                caretBlinkInterval = Some(Duration.ZERO)
+                caretAspectRatio = Some(0.12)
+            }
+        val result = configured.resolve(system)
+        assertEquals(Some(false), result.autoHideScrollbars)
+        assertEquals(Some(false), result.reduceMotion)
+        assertEquals(Some(Duration.ZERO), result.caretBlinkInterval)
+        assertEquals(None, result.caretWidthPixels)
+        assertEquals(Some(0.12), result.caretAspectRatio)
+        assertEquals(None, result.highContrast)
+        assertEquals(system.doubleClickInterval, result.doubleClickInterval)
+        assertEquals(InteractionPreferences(), uiPreferences().resolve(InteractionPreferences()))
+        assertEquals(
+            Some(7),
+            configured.copy { caretWidthPixels = Some(7) }.resolve(system).caretWidthPixels
+        )
+        assertEquals(
+            Some(3),
+            configured.copy { caretAspectRatio = None }.resolve(system).caretWidthPixels
+        )
+    }
+
+    @Test
+    fun `builders publish independent values and reject invalid preferences`() {
+        val retained = ArrayList<UiPreferencesBuilder>()
+        val original =
+            uiPreferences {
+                retained.add(this)
+                textScaleFactor = Some(1.5)
+            }
+        retained[0L].textScaleFactor = Some(3.0)
+        assertEquals(Some(1.5), original.textScaleFactor)
+        assertEquals(original, original.copy())
+        assertFailsWith<IllegalArgumentException> { uiPreferences { textScaleFactor = Some(0.0) } }
+        assertFailsWith<IllegalArgumentException> {
+            uiPreferences { textScaleFactor = Some(Double.NaN) }
+        }
+        assertFailsWith<IllegalArgumentException> { uiPreferences { caretWidthPixels = Some(0) } }
+        assertFailsWith<IllegalArgumentException> {
+            uiPreferences { caretAspectRatio = Some(-0.1) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            uiPreferences { caretBlinkInterval = Some(Duration.seconds(-1L)) }
+        }
+    }
+}

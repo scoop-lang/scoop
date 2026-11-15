@@ -552,9 +552,9 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 `interaction` 只读取 owner 线程上最后发布的交互值，不借用输入区域或排版资源。关窗／卸载的失焦与离开通知继续更新该值，回调可同步读取；宿主关闭后仍可读取最后发布的值。该只读查询不以 ComponentScope.isMounted 拒绝，不恢复交互资格；更新、编辑命令及借用布局等操作仍要求有效宿主。
 
-TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
+TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink: Duration?=None、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
-TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
+TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 的显式值为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 
 update 最后可传 `onCommitted: (TextEditorState) -> Unit = {}`，只在宿主接受的操作改变已提交正文且本次结束后没有活动 preedit 时调用；选择、临时 preedit、取消／拒绝后恢复原基线及外部模型更新不触发。它在 onEdited 之后执行；若前一个回调已关闭宿主、替换绑定或改写该次结果，则不回放过期完成通知。该入口供 OTP 的完整长度通知使用，不另建完成状态镜像。
 
@@ -570,7 +570,7 @@ TextEditMeasurement.scrollSnapshot 返回本次测量确定的 ScrollSnapshot。
 
 输入区域在 ScrollViewport 内以当前内容坐标放置完整视口，使局部输入与 caret 使用文档坐标。光标变化通过 FocusTarget.reveal 在成功帧后显露，同一次请求沿内外层滚动推进；自动显露不覆盖另一个目标正在等待的焦点请求。宿主保留最后 Accepted 帧的 TextLayout 所有权；失败的新布局不能替换输入所依据的旧几何。文档已更新而尚未呈现时，命中／导航使用新正文与最近成功视口宽度，候选框仍不可用。原生 TextInputState 在操作生效后立即按实际 origin 确认发布，不等待 drawable；成功场景单独发布当前 revision 的 caret。过期／非法原生批次整批拒绝并重建连接，关闭中的旧连接批次不进入恢复或新绑定的编辑器。
 
-caretBlink 为非负时长，零表示保持可见。只在活动焦点、折叠选区、非组合、窗口可见且实际 caret 可见时预约下一次闪烁；输入重置可见阶段，失焦／隐藏／不可见／关闭停止预约。拖选出视口时才预约边缘滚动，按实际可滚范围推进，每次滚动等 Accepted 后再继续；被阻止的释放也通过 onEventFinished 结束拖选。普通滚轮复用残量消费和祖先链，宿主没有永久轮询或第二个场景坐标系统。
+caretBlink 缺省跟随根的系统偏好；显式 Some(duration) 为非负时长，零表示保持可见。只在活动焦点、折叠选区、非组合、窗口可见且实际 caret 可见时预约下一次闪烁；输入重置可见阶段，失焦／隐藏／不可见／关闭停止预约。拖选出视口时才预约边缘滚动，按实际可滚范围推进，每次滚动等 Accepted 后再继续；被阻止的释放也通过 onEventFinished 结束拖选。普通滚轮复用残量消费和祖先链，宿主没有永久轮询或第二个场景坐标系统。
 
 #### 7.5.3 编辑显示投影
 
@@ -818,7 +818,7 @@ ComponentScope 同步发出取消，异步 finally 和实际 I/O 收尾由既有
 
 预期网络失败在业务任务正文内转换为错误状态，取消保留 CancellationException 的传播；未捕获失败继续沿既有任务树与宿主异常路径处理，不增加 UI 错误边界或自动重试。需要显式识别连续任务时，由业务对象保存当前任务身份；旧任务的迟到进度／结果不能覆盖新任务。普通托管状态、任务取消与原生资源释放各自遵守已有合同。
 
-### 8.1 根默认字体
+### 8.2 根默认字体
 
 `UiHost.attach(window, create, fonts: FontCollection? = None)` 和单窗 `runUiApplication(title, create, fonts: FontCollection? = None)` 接收可选的借用字体。没有提供时，根创建并拥有一份启用系统 fallback 的 FontCollection；全体默认文字消费者共享它。根在后代、布局、编辑与绘制资源退休后关闭自己创建的集合。外部集合仅借用，关闭一个根不能关闭其他窗口共享的集合。
 
@@ -826,13 +826,23 @@ ComponentScope 同步发出取消，异步 finally 和实际 I/O 收尾由既有
 
 Label、Typography、Button 内容、可选择文字、Input／Textarea／OTP、菜单及公共自绘示例统一以显式 fonts 优先，否则读取 scope.defaultFonts。组合组件不为默认值逐层复制 FontCollection；标题／说明等明确的局部覆盖继续保留优先级。主题来源和方向维持既有协议，不增加通用 Ambient 或 Context 自动换绑。
 
+### 8.3 系统交互偏好
+
+`UiHost.attach` 与 `runUiApplication` 的末尾参数 `preferences: UiPreferences = uiPreferences()` 配置根的系统偏好覆盖；`UiWindow.preferences` 可在逻辑阶段整体替换。`uiPreferences { ... }` 和 `copy { ... }` 构造不可变值，包含 `autoHideScrollbars`、`reduceMotion`、`highContrast`、`reduceTransparency`、`textScaleFactor`、`caretBlinkInterval`、`caretWidthPixels`、`caretAspectRatio`；各字段默认 None，表示跟随 Window 提供的系统值。显式 Some(false) 和零闪烁时长分别表示关闭该行为和光标常显，不等于未知。文字缩放、光标物理宽度及宽高比须为有限正值，闪烁时长须非负。应用明确指定光标宽度或宽高比时，优先于系统提供的任一种光标尺寸；应用同时指定二者时采用物理宽度。双击阈值属于原生点击计数，不由 UI 根覆盖。
+
+`UiWindow.interactionPreferences` 和 `ComponentScope.interactionPreferences` 返回已合并的 Window `InteractionPreferences` 快照，保留平台不可查询的 None；同一应用的不同根可独立覆盖。只订阅已有 Window 偏好通知，不在每帧查询操作系统。只有有效快照变化才失效实际读取的 render／update／measure／scene／draw 路径及请求一帧；缓存记录来源版本，读取偏好不产生持续帧。显式覆盖屏蔽的系统变化不引起无关更新。
+
+`ComponentScope.observeInteractionPreferences(action): Closeable` 观察后续有效值变化，不立即回调；调用方可先读取当前快照。通知采用观察者快照，回调中关闭立即生效、新增登记从下一次变化开始；回调中的再次替换按发生顺序交付。回调沿所属根的 Surface 错误边界执行，失败关闭该根，关闭根或卸载作用域立即注销，不能保留应用级原生订阅。根配置不能在 render／measure／scene／draw 中修改，显式设置与 OS 通知遵循同一发布顺序。
+
+文本宿主的 `TextEditOptions.caretBlink: Duration? = None` 与 `TextEditAppearance.caretWidth: Double? = None` 默认读取根偏好。显式值优先，缺失系统值时分别回退到 500ms 和 1 个逻辑像素。系统物理宽度按当前窗口缩放转为逻辑宽度；仅有宽高比时按排版的实际光标高度计算，不能把文字缩放或 DIP 宽度冒充物理像素。宽度、换行预留和对外光标查询随同一测量／Accepted 帧保存。闪烁间隔变化取消旧预约并恢复可见阶段，尺寸变化重新测量；两者均不重建正文模型、IME 连接或撤销历史；输入框、Textarea、OTP 继续共用此宿主。
+
 ## 9. 宿主、关闭与错误
 
 应用级挂载、无窗口 State 更新、ApplicationScope 及原生资源事件的 D7 合同见[UI 应用挂载与原生资源规范](SCOOP-UI-DESKTOP-SPEC.md)。其应用根复用本节宿主与错误规则，不创建隐藏 Surface；实际交付状态见该文档引用的实施记录。
 
-`UiHost(onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error }, handler = { _, _, _ -> })` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create, fonts = None): UiWindow?` 成功返回 Some(UiWindow)，初次构造／挂载失败则清理并交付根错误，处理器正常返回时返回 None；挂载回调主动关闭根同样返回 None。错误线程或已经关闭的宿主在开始附着前直接拒绝。处理器默认重新抛出，不默默丢弃错误；调用方可以提供正常返回的处理器，使其他根继续运行。
+`UiHost(onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error }, handler = { _, _, _ -> })` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create, fonts = None, preferences = uiPreferences()): UiWindow?` 成功返回 Some(UiWindow)，初次构造／挂载失败则清理并交付根错误，处理器正常返回时返回 None；挂载回调主动关闭根同样返回 None。错误线程或已经关闭的宿主在开始附着前直接拒绝。处理器默认重新抛出，不默默丢弃错误；调用方可以提供正常返回的处理器，使其他根继续运行。
 
-`runUiApplication(title, create, fonts = None)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；根错误采用明确的重新抛出策略，退出事件循环并向调用方报告失败。复杂窗口策略使用显式 UiHost。UiWindow.close 及已处理的根错误均只关闭根和 Surface，原生 Window 仍由调用方持有，不隐式触发 LastWindowPolicy；错误处理器可按 WindowId 选择销毁原生窗口或退出应用。
+`runUiApplication(title, create, fonts = None, preferences = uiPreferences())` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；根错误采用明确的重新抛出策略，退出事件循环并向调用方报告失败。复杂窗口策略使用显式 UiHost。UiWindow.close 及已处理的根错误均只关闭根和 Surface，原生 Window 仍由调用方持有，不隐式触发 LastWindowPolicy；错误处理器可按 WindowId 选择销毁原生窗口或退出应用。
 
 macOS 与 Linux 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding> = []) 返回其 SurfaceHost 拥有的 HostShortcutScope；采用同一输入路由和生命周期，不复制绑定或匹配算法。每个 UiHost 至多一个活动宿主登记，关闭 UiHost 时停用；局部行为与窗口 ShortcutScope 优先，任何模态输入域都会截断宿主回退。在 Dialog 内有效的保存／确认动作应登记在该域的 InputScope。
 

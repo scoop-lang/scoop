@@ -27,7 +27,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                     else
                         Some(probe.fonts),
                 focus = FocusOptions(Some(probe.focus[0L])),
-                caretBlink = Duration.milliseconds(0L),
+                caretBlink = Some(Duration.milliseconds(0L)),
                 paintCache = PaintCachePolicy.Tiles(64, 0),
                 onEdited =
                     {
@@ -57,7 +57,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                         fonts = Some(probe.fonts),
                         focus = FocusOptions(Some(probe.focus[1L])),
                         scrollbars = probe.scrollbars,
-                        caretBlink = Duration.milliseconds(0L),
+                        caretBlink = Some(Duration.milliseconds(0L)),
                         paintCache = PaintCachePolicy.Tiles(64, 0)
                     ),
                     {
@@ -71,7 +71,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                     this.fonts = Some(this @FieldScene.probe.fonts)
                     this.focus =
                         FocusOptions(Some(this @FieldScene.probe.focus[2L]), tabStop = false)
-                    this.caretBlink = Duration.milliseconds(0L)
+                    this.caretBlink = Some(Duration.milliseconds(0L))
                 },
                 virtualList(probe.items, ItemExtent.Fixed(48.0)) {
                     this.state = Some(this @FieldScene.probe.listScroll)
@@ -101,7 +101,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                                     this.fonts = Some(this @FieldScene.probe.fonts)
                                     this.focus =
                                         FocusOptions(Some(this @FieldScene.probe.focus[3L]))
-                                    this.caretBlink = Duration.milliseconds(0L)
+                                    this.caretBlink = Some(Duration.milliseconds(0L))
                                 }
                             ]
                         )
@@ -224,7 +224,7 @@ private class FieldRowComponent(
         input(props.value.model) {
             this.fonts = Some(this @FieldRowComponent.probe.fonts)
             this.focus = FocusOptions(Some(this @FieldRowComponent.props.value.focus))
-            this.caretBlink = Duration.milliseconds(0L)
+            this.caretBlink = Some(Duration.milliseconds(0L))
             this.paintCache = PaintCachePolicy.Tiles(64, 0)
         }
 }

@@ -1,0 +1,423 @@
+package scoop.tests.ui.preferences
+
+import scoop.graphics.*
+import scoop.graphics.text.TextPosition
+import scoop.platform.concurrent.Thread
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+@Extern(name = "scoop_test_preferences_motion")
+private fun nativeMotion(): Int
+
+@Extern(name = "scoop_test_preferences_change")
+private fun changeNativeMotion(value: Int)
+
+@Extern(name = "scoop_test_preferences_restore")
+private fun restoreNativeMotion()
+
+private fun currentNativeMotion(): Boolean {
+    @Unsafe
+    {
+        return nativeMotion() != 0
+    }
+}
+
+@Test
+private class UiPreferenceSessionTest {
+    @Test
+    fun `live preferences invalidate readers preserve editor geometry and retire with their roots`() {
+        val original = currentNativeMotion()
+        val probe = PreferenceProbe(original)
+        try {
+            UiHost(
+                onRootError =
+                    {
+                        _, error ->
+                        probe.errors += 1
+                        if (probe.phase != 13 && probe.phase != 14)
+                            throw error
+                    }
+            ) { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+        } finally {
+            probe.timer?.close()
+            @Unsafe
+            {
+                restoreNativeMotion()
+            }
+        }
+        assertTrue(probe.finished)
+        assertEquals(1, probe.errors)
+        assertEquals(2, probe.mounts)
+        assertEquals(2, probe.unmounts)
+        for (editor in probe.editors)
+            assertTrue(editor!!.isClosed)
+    }
+}
+
+internal class PreferenceProbe(val original: Boolean) {
+    val windows = ArrayList<Window>()
+    val roots = ArrayList<UiWindow>()
+    val scopes = MutableArray<ComponentScope?>(2L) { _ -> None }
+    val editors = MutableArray<TextEditHost?>(2L) { _ -> None }
+    val models = [TextEditorState("alpha beta gamma"), TextEditorState("second window")]
+    val measures = MutableArray<Int>(10L) { _ -> 0 }
+    val reads = MutableArray<Double>(8L) { _ -> 0.0 }
+    val frames = MutableArray<Int>(2L) { _ -> 0 }
+    val ready = MutableArray<Boolean>(2L) { _ -> false }
+    val notifications = ArrayList<InteractionPreferences>()
+    val lateWidths = ArrayList<Int?>()
+    var timer: WindowDeadline? = None
+    private var active: ActiveApplication? = None
+    private var selfObserver: Closeable? = None
+    private var observersReady = false
+    private var removedObserver: Closeable? = None
+    private var baseline: Array<Int> = []
+    private var frameBaseline: Array<Int> = []
+    private var beforeRevision = 0L
+    private var beforeSelection = Utf8Selection(0L, 0L)
+    private var oldCaret = Rect(0.0, 0.0, 0.0, 0.0)
+    private var retiredNotifications = 0L
+    var phase = 0
+    var mounts = 0
+    var unmounts = 0
+    var errors = 0
+    var finished = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+                models[0L].replace(Utf8Range(0L, 5L), "ALPHA")
+                models[0L].setSelection(Utf8Selection(5L, 0L))
+                beforeRevision = models[0L].revision
+                beforeSelection = models[0L].selection
+                for (index in 0L ..< 2L) {
+                    val window =
+                        application.createWindow(
+                            windowAttributes {
+                                title = f"Scoop preferences ${index}"
+                                size = LogicalSize(300.0, 210.0)
+                                position =
+                                    Some(DesktopPosition(80.0 + index.toDouble() * 340.0, 120.0))
+                                requestActivation = index == 0L
+                                level = WindowLevel.AlwaysOnTop
+                            }
+                        )
+                    windows.add(window)
+                    val configuration =
+                        uiPreferences {
+                            caretBlinkInterval = Some(Duration.ZERO)
+                            caretWidthPixels =
+                                Some(
+                                    if (index == 0L)
+                                        2
+                                    else
+                                        4
+                                )
+                            textScaleFactor = Some(1.0)
+                            if (index == 0L)
+                                reduceMotion = Some(this @PreferenceProbe.original)
+                        }
+                    roots.add(
+                        host.attach(
+                            window,
+                            { scope -> PreferenceRoot(this, index, scope) },
+                            preferences = configuration
+                        )!!
+                    )
+                }
+                timer = Some(windows[0L].createDeadline { elapsed() })
+                Thread.start {
+                    assertFailsWith<IllegalStateException> { roots[0L].preferences }
+                }.use { thread -> thread.join() }
+            }
+            case InteractionPreferencesChanged(_) -> {
+                if (phase == 5) {
+                    phase = 6
+                    later()
+                } else
+                    if (phase == 12) {
+                        phase = 13
+                        later()
+                    }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"preference session timeout at ${phase}, frames=${frames[0L]},${
+                        frames[1L]
+                    }, errors=${errors}"
+                )
+            )
+            else -> {}
+        }
+    }
+
+    fun mounted(index: Long, scope: ComponentScope) {
+        scopes[index] = Some(scope)
+        mounts += 1
+        assertEquals(roots.size, index)
+        if (index != 0L)
+            return
+        scope.observeInteractionPreferences {
+            value ->
+            assertTrue(observersReady, Some("registration invoked a callback inline"))
+            notifications.add(value)
+        }
+        selfObserver =
+            Some(
+                scope.observeInteractionPreferences {
+                    value ->
+                    if (phase != 2)
+                        return@observeInteractionPreferences
+                    assertEquals(
+                        Some(3),
+                        value.caretWidthPixels,
+                        Some(
+                            f"observer phase=${phase}, width=${
+                                value.caretWidthPixels ?: -1
+                            }, count=${notifications.size}"
+                        )
+                    )
+                    selfObserver!!.close()
+                    removedObserver!!.close()
+                    scope.observeInteractionPreferences {
+                        next -> lateWidths.add(next.caretWidthPixels)
+                    }
+                    roots[0L].preferences =
+                        roots[0L].preferences.copy { caretWidthPixels = Some(6) }
+                }
+            )
+        removedObserver =
+            Some(
+                scope.observeInteractionPreferences {
+                    _ -> if (phase == 2)
+                        fail(Some("retired observer called"))
+                }
+            )
+        observersReady = true
+    }
+
+    private fun later() {
+        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(120L))
+    }
+
+    fun accepted(index: Long) {
+        frames[index] += 1
+        ready[index] = true
+        if (phase == 0 && ready[0L] && ready[1L]) {
+            phase = 1
+            later()
+        } else
+            if (index == 0L && phase == 11 && editors[0L]!!.area.isFocusActive) {
+                capture()
+                phase = 15
+                later()
+            } else
+                if (index == 0L && phase == 16) {
+                    phase = 17
+                    later()
+                } else
+                    if (
+                        index ==
+                            0L &&
+                            (phase == 2 || phase == 7 || phase == 8 || phase == 9 || phase == 10)
+                    ) {
+                        later()
+                    }
+    }
+
+    private fun capture() {
+        baseline = Array<Int>(measures.size) { index -> measures[index] }
+        frameBaseline = Array<Int>(frames.size) { index -> frames[index] }
+    }
+
+    private fun assertRetained() {
+        assertEquals(beforeRevision, models[0L].revision)
+        assertEquals(beforeSelection, models[0L].selection)
+        assertEquals("ALPHA beta gamma", models[0L].text)
+        assertTrue(models[0L].canUndo)
+        assertTrue(editors[0L]!!.state === models[0L])
+        assertEquals(2, mounts)
+    }
+
+    private fun caret(): Rect = editors[0L]!!.caret(TextPosition(0L))!!
+
+    fun elapsed() {
+        when (phase) {
+            case 1 -> {
+                // Application activation can publish real preferences before the first frame.
+                notifications.clear()
+                capture()
+                oldCaret = caret()
+                assertEquals(2.0 / windows[0L].metrics!!.scaleFactor, oldCaret.width)
+                phase = 2
+                roots[0L].preferences =
+                    roots[0L].preferences.copy {
+                        caretWidthPixels = Some(3)
+                        textScaleFactor = Some(2.0)
+                    }
+                assertEquals(Some(6), roots[0L].interactionPreferences.caretWidthPixels)
+                assertEquals(oldCaret, caret())
+            }
+            case 2 -> {
+                assertRetained()
+                assertEquals(6.0 / windows[0L].metrics!!.scaleFactor, caret().width)
+                assertEquals(2L, notifications.size)
+                assertEquals(Some(3), notifications[0L].caretWidthPixels)
+                assertEquals(Some(6), notifications[1L].caretWidthPixels)
+                assertEquals(1L, lateWidths.size)
+                assertEquals(Some(6), lateWidths[0L])
+                for (index in 0L ..< 4L)
+                    assertEquals(2.0, reads[index], Some(f"reader ${index} stayed cached"))
+                assertTrue(measures[0L] > baseline[0L])
+                assertEquals(baseline[1L], measures[1L])
+                assertTrue(measures[2L] > baseline[2L])
+                assertEquals(baseline[3L], measures[3L])
+                assertTrue(measures[4L] > baseline[4L])
+                for (index in 5L ..< 10L)
+                    assertEquals(baseline[index], measures[index])
+                phase = 3
+                later()
+            }
+            case 3 -> {
+                capture()
+                roots[0L].preferences = roots[0L].preferences.copy()
+                phase = 4
+                later()
+            }
+            case 4 -> {
+                for (index in 0L ..< 2L)
+                    assertEquals(frameBaseline[index], frames[index])
+                assertEquals(2L, notifications.size)
+                capture()
+                phase = 5
+                @Unsafe
+                {
+                    changeNativeMotion(
+                        if (original)
+                            0
+                        else
+                            1
+                    )
+                }
+            }
+            case 6 -> {
+                assertEquals(Some(original), roots[0L].interactionPreferences.reduceMotion)
+                assertEquals(Some(!original), roots[1L].interactionPreferences.reduceMotion)
+                assertEquals(frameBaseline[0L], frames[0L])
+                assertEquals(baseline[0L], measures[0L])
+                assertTrue(measures[5L] > baseline[5L])
+                phase = 7
+                roots[0L].preferences = roots[0L].preferences.copy { reduceMotion = None }
+            }
+            case 7 -> {
+                assertEquals(Some(!original), scopes[0L]!!.interactionPreferences.reduceMotion)
+                oldCaret = caret()
+                phase = 8
+                roots[0L].preferences =
+                    roots[0L].preferences.copy {
+                        caretWidthPixels = None
+                        caretAspectRatio = Some(0.2)
+                    }
+                assertEquals(oldCaret, caret())
+            }
+            case 8 -> {
+                assertRetained()
+                assertEquals(caret().height * 0.2, caret().width)
+                phase = 9
+                editors[0L]!!.update(
+                    models[0L],
+                    TextEditAppearance(scopes[0L]!!.defaultFonts, caretWidth = Some(5.0)),
+                    TextEditOptions(multiline = true)
+                )
+            }
+            case 9 -> {
+                assertEquals(5.0, caret().width)
+                capture()
+                phase = 10
+                roots[0L].preferences =
+                    roots[0L].preferences.copy {
+                        caretWidthPixels = Some(12)
+                        caretAspectRatio = None
+                    }
+            }
+            case 10 -> {
+                assertRetained()
+                assertEquals(5.0, caret().width)
+                assertEquals(baseline[4L], measures[4L])
+                phase = 11
+                models[0L].setSelection(Utf8Selection(0L, 0L))
+                windows[0L].requestFocus()
+                assertTrue(editors[0L]!!.area.requestFocus())
+                roots[0L].preferences =
+                    roots[0L].preferences.copy {
+                        caretBlinkInterval = Some(Duration.milliseconds(25L))
+                    }
+            }
+            case 15 -> {
+                assertTrue(
+                    frames[0L] >= frameBaseline[0L] + 2,
+                    Some("a focused caret did not start blinking after preference change")
+                )
+                assertEquals(baseline[4L], measures[4L])
+                phase = 16
+                roots[0L].preferences =
+                    roots[0L].preferences.copy { caretBlinkInterval = Some(Duration.ZERO) }
+            }
+            case 17 -> {
+                capture()
+                phase = 18
+                later()
+            }
+            case 18 -> {
+                assertEquals(
+                    frameBaseline[0L],
+                    frames[0L],
+                    Some("zero blink interval kept requesting frames")
+                )
+                assertEquals(baseline[4L], measures[4L])
+                retiredNotifications = notifications.size
+                roots[0L].close()
+                assertFailsWith<IllegalStateException> { roots[0L].preferences }
+                phase = 12
+                @Unsafe
+                {
+                    changeNativeMotion(
+                        if (original)
+                            1
+                        else
+                            0
+                    )
+                }
+            }
+            case 13 -> {
+                assertEquals(retiredNotifications, notifications.size)
+                assertTrue(roots[0L].isClosed)
+                assertEquals(Some(original), roots[1L].interactionPreferences.reduceMotion)
+                scopes[1L]!!.observeInteractionPreferences {
+                    _ -> throw IllegalStateException(Some("preference observer failure"))
+                }
+                roots[1L].preferences = roots[1L].preferences.copy { textScaleFactor = Some(3.0) }
+                phase = 14
+                later()
+            }
+            case 14 -> {
+                assertEquals(1, errors)
+                assertTrue(roots[1L].isClosed)
+                finished = true
+                active!!.requestExit()
+            }
+            else -> fail(Some(f"unexpected preference timer at ${phase}"))
+        }
+    }
+}

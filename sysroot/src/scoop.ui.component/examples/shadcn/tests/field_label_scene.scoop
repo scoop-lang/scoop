@@ -61,7 +61,7 @@ internal class FieldLabelScene(
                     this.labelTarget = Some(this @FieldLabelScene.probe.targets[0L])
                     this.focus { this.handle = Some(this @FieldLabelScene.probe.focus[0L]) }
                     this.readOnly = this @FieldLabelScene.probe.readOnly
-                    this.caretBlink = Duration.milliseconds(0L)
+                    this.caretBlink = Some(Duration.milliseconds(0L))
                 },
                 caption("Name", probe.targets[0L]),
                 textarea(probe.notes) {
@@ -69,7 +69,7 @@ internal class FieldLabelScene(
                     this.labelTarget = Some(this @FieldLabelScene.probe.targets[1L])
                     this.focus { this.handle = Some(this @FieldLabelScene.probe.focus[1L]) }
                     this.rows = 2L
-                    this.caretBlink = Duration.milliseconds(0L)
+                    this.caretBlink = Some(Duration.milliseconds(0L))
                 },
                 caption("Notes", probe.targets[1L]),
                 hidden,

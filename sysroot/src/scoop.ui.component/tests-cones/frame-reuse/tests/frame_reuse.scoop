@@ -299,7 +299,7 @@ private class ComponentFrameEditor(
                         scope,
                         TextEditorState("Caret"),
                         TextEditAppearance(fonts),
-                        TextEditOptions(caretBlink = Duration.milliseconds(30L))
+                        TextEditOptions(caretBlink = Some(Duration.milliseconds(30L)))
                     )
                 }
             )

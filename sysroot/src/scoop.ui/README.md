@@ -30,6 +30,12 @@ ApplicationScope 和 ComponentScope 均提供 application、uiHost、resource、
 
 无窗口生命周期验证见 [application](tests-cones/application/README.md)，共享状态、错误隔离与 Accepted 区域组合见 [desktop](tests-cones/desktop/README.md)。
 
+## 系统交互偏好
+
+`UiHost.attach(..., preferences = uiPreferences { ... })` 和 `runUiApplication` 为每个根设置独立覆盖。默认各项为 None，跟随系统；例如 `reduceMotion = Some(true)` 请求减少动画，`caretBlinkInterval = Some(Duration.ZERO)` 请求光标常显。`UiWindow.preferences` 可以整体替换，字段恢复 None 后重新跟随当前系统值。
+
+`scope.interactionPreferences` 读取有效快照，render／update／measure／scene／draw 的读取会随变化失效；`scope.observeInteractionPreferences { ... }` 接收后续变化，随挂载自动注销。系统无法查询的字段仍为 None，不通过每帧查询或轮询补值。TextEditHost 的闪烁与宽度默认继承根；`TextEditOptions(caretBlink = Some(duration))` 和 `TextEditAppearance(..., caretWidth = Some(width))` 可局部覆盖，后者以逻辑像素计。系统物理宽度会按窗口缩放换算，宽高比使用实际排版高度；对外 caret 查询保留最后 Accepted 帧的宽度。
+
 ## 自绘与资源
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。

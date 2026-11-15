@@ -45,7 +45,7 @@ internal class NavScene(private val p: NavProbe, scope: ComponentScope): Compone
                             makeInput(p.query) {
                                 fonts = Some(p.fonts);
                                 focus = FocusOptions(Some(p.editor));
-                                caretBlink = Duration.milliseconds(0L)
+                                caretBlink = Some(Duration.milliseconds(0L))
                             }
                         )
                     )

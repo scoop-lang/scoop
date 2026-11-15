@@ -884,7 +884,7 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - [复杂模型](ui/shadcn/MODELS.md)规定选择／菜单、日期、表格本地／外部结果、六类图表、Toast、回合阅读及问卷校验。业务 IO、路由、解析与持久化仍由应用或所属库负责。
 - 按主题纵向样例、八组控件和最终组合验收推进；各批先更新所属 spec，再实施与定向验证，实际进度见[实施记录](ui/shadcn/PROGRESS.md)。先验 macOS aarch64，最后补 x86_64 Rosetta；其他平台后端和 OS accessibility 单独推进，不把文档中的拟议 API 记为已交付。
 
-### UI 交互细节打磨与 accessibility（计划已整理，待实施）
+### UI 交互细节打磨与 accessibility（实施中）
 
 - [交互打磨设计](ui/interaction-polish/DESIGN.md)（2026-11-16）覆盖平台滚动条及独立行为选项、文本原生菜单、多击选择的平台修复、窗口内／同程序跨窗口／跨程序数据拖放、文本拖放、触摸／手势和滚动回弹。源码核查区分已有双击／三击编辑逻辑与 Windows 点击计数、Linux 系统阈值缺口；不重复建设已有能力。
 - [统一实施计划](ui/interaction-polish/PLAN.md)以 S0～S11 覆盖全部交互与 accessibility，列明任务、依赖、代码／规范范围、三平台与设备验收、附加能力核查和最终完成条件。每批先写所属 spec，再改实现和实际消费者；系统偏好、键盘替代操作、非 hover 命中及 Unicode／IME／撤销／焦点组合随批次接入。
