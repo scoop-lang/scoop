@@ -66,7 +66,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。`cursorAffinity: SemanticTextAffinity` 默认 Downstream，保留活动 cursor 在软换行边界的实际偏向；AppKit 光标行号读取该偏向，按 index 请求则默认 Downstream。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 
-更新后调用 `publish()`，原生 getter 仅读取已发布状态。`node.geometry` 是可选的已接受布局几何，使用窗口内容逻辑坐标；可选 visibleBounds 描述自身裁剪，零面积不算可见。名称／值改变会清除旧几何，匹配布局可用后再设置；不能以外接矩形中心代替精确可点击点。发布不触发绘制，无变化不重复通知。
+更新后调用 `publish()`，原生 getter 仅读取已发布状态。`node.geometry` 是可选的已接受布局几何，使用窗口内容逻辑坐标；可选 visibleBounds 描述自身裁剪，零面积不算可见。名称／值改变会清除旧几何，匹配布局可用后再设置；不能以外接矩形中心代替精确可点击点。发布不触发绘制，无变化不重复通知。选区的 anchor／cursor 对调即使仍覆盖同一 NSRange，也发送一次选择通知；单独方向或偏向变化不发送正文通知。
 
 自绘宿主可用 `@Unsafe node.setGeometry(geometry, hitTest, order = 0L)` 同时提供匹配的原生命中快照与场景顺序。`scoop.window.accessibility.native.NativeSemanticHitTest` 包含 context、retain、release 和 contains；函数必须是配套的原生只读实现，不进入 Scoop 或 UI 状态。节点和已发布投影分别保留引用，替换、内容失效及关闭时释放。普通 geometry 赋值只保留矩形，并清除旧命中和文本几何。AppKit 按场景顺序查询，支持路径孔洞、裁剪、ignored 祖先映射和独立后代；阅读顺序保持不变。UI 已使用 graphics 的 withNativeGeometry 接入这条路径，普通 UI Element 直接使用 SceneContext.semantics。
 

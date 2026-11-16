@@ -12,4 +12,17 @@ macOS 用例将同一挂载的 TextField 语义与 TextEditHost 通过 updateTex
 
 范围几何用例额外验证 AppKit 字符／行／按点查询、surrogate 拒绝、组合字符、caret 行号、软换行同一偏移的上下游切换、可见范围与实际选区矩形；真实窗口覆盖滚动、缩放、丢弃帧、正文先于布局更新、普通 update 解除绑定、恢复、缺少节点／文字登记和宿主关闭。测试通过与真实布局、模型和原生对象对照，不在 getter 中取得焦点。每个 Application 用例在独立进程运行。
 
-本用例不代替外部 AX、VoiceOver 或其他平台验证；完整范围和实际结果见[统一计划](../../../../../docs/ui/interaction-polish/PLAN.md)及[实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)。
+独立 AX 模式使用 [native/client.c](native/client.c)，以公开 AXUIElement API 验证正文、字符／行／可见范围、StringForRange／AttributedStringForRange、范围矩形与按点定位。预期矩形来自实际 TextEditHost 排版和 Accepted 输入几何，再转换为 AX 的屏幕坐标。客户端通过 AXObserver 检查反向选区改为同范围正向选区时的一次选择通知、活动光标行号、没有正文通知，以及重复设置不重复通知。应用随后核对真实模型、焦点和后续编辑行为。
+
+先编译客户端，并用 `scoop test ... --release --no-run` 构建测试。跨进程查询时将测试可执行文件放入具有正确 CFBundleExecutable 的普通 `.app` 中，直接启动包内二进制；编辑用例当前为 case 1，几何生命周期用例为 case 0，各用独立进程。示例：
+
+```sh
+clang -std=c11 -Wall -Wextra -Werror \
+  sysroot/src/scoop.ui/tests-cones/accessibility-text/native/client.c \
+  -framework ApplicationServices -o /absolute/work/ax-text-client
+SCOOP_ACCESSIBILITY_TEXT_CLIENT=/absolute/work/ax-text-client \
+  /absolute/work/ui-accessibility-text.app/Contents/MacOS/ui-accessibility-text \
+  --scoop-test-cases 1
+```
+
+客户端检查现有 Accessibility 权限，不弹出授权提示或修改系统设置。未设置该变量时保留进程内协议验证；两种模式分别记录，均不代替 VoiceOver 或其他平台验证。完整范围和实际结果见[统一计划](../../../../../docs/ui/interaction-polish/PLAN.md)及[实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)。

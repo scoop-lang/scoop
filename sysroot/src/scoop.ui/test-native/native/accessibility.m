@@ -1,8 +1,10 @@
 #import <AppKit/AppKit.h>
 #include <stdint.h>
+#include <unistd.h>
 
 @interface SWUiAccessibilityCalls : NSObject
 @property(nonatomic) BOOL closed;
+@property(nonatomic, strong) NSTask *task;
 @end
 @implementation SWUiAccessibilityCalls
 @end
@@ -307,4 +309,55 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
 void scoop_ui_ax_close_calls(void *pointer) {
   SWUiAccessibilityCalls *calls = CFBridgingRelease(pointer);
   calls.closed = YES;
+  calls.task.terminationHandler = nil;
+  if (calls.task.running)
+    [calls.task terminate];
+  calls.task = nil;
+}
+
+int32_t scoop_ui_ax_text_client(void *pointer, void *element, void *viewPointer,
+                                int32_t tag, double x, double y, double width,
+                                double height,
+                                int32_t (*callback)(void *, int32_t, int32_t),
+                                void *context) {
+  const char *client = getenv("SCOOP_ACCESSIBILITY_TEXT_CLIENT");
+  if (!client || !*client)
+    return 0;
+  SWUiAccessibilityCalls *calls = (__bridge SWUiAccessibilityCalls *)pointer;
+  NSRect screen = NSAccessibilityFrameInView((__bridge NSView *)viewPointer,
+                                             NSMakeRect(x, y, width, height));
+  // AXUIElement uses a top-left origin on the primary display.
+  double top = NSMaxY(NSScreen.screens.firstObject.frame) - NSMaxY(screen);
+  NSTask *task = [NSTask new];
+  calls.task = task;
+  task.executableURL =
+      [NSURL fileURLWithPath:[NSString stringWithUTF8String:client]];
+  task.arguments = @[
+    [NSString stringWithFormat:@"%d", getpid()],
+    [(__bridge id)element accessibilityIdentifier],
+    [NSString stringWithFormat:@"%.17g", screen.origin.x],
+    [NSString stringWithFormat:@"%.17g", top],
+    [NSString stringWithFormat:@"%.17g", screen.size.width],
+    [NSString stringWithFormat:@"%.17g", screen.size.height]
+  ];
+  task.terminationHandler = ^(NSTask *finished) {
+    int32_t result =
+        finished.terminationStatus ? -100 - finished.terminationStatus : 1;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (!calls.closed) {
+        calls.task = nil;
+        callback(context, tag, result);
+      }
+    });
+  };
+  NSError *error = nil;
+  if (![task launchAndReturnError:&error]) {
+    calls.task = nil;
+    task.terminationHandler = nil;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (!calls.closed)
+        callback(context, tag, -3);
+    });
+  }
+  return 1;
 }

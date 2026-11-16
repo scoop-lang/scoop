@@ -58,7 +58,7 @@ SemanticProperties.cursorAffinity 使用 SemanticTextAffinity（Upstream／Downs
 
 SemanticActions 增加 setSelection(Utf8Selection) 与 replaceText(Utf8Range, String)，返回同一 SemanticActionResult。前者允许只读的可选择文本；后者以及 setValue 遵守 readOnly／enabled。原生选区修改进入实际 handler，文本替换不直接修改投影。AppKit 的 SelectedText 写入使用已发布选区，选区或正文已变化时拒绝旧请求；范围动作携带当前投影的内容版本，不能把旧 UTF-8 偏移应用到新正文。普通全文 setValue 继续使用实际控件的值替换入口。
 
-AppKit 在发布时将合法 UTF-8 选区转换为同一 NSString 的 UTF-16 范围；正文长度、选中文本、SelectedTextRange(s)、StringForRange 和纯文本 AttributedStringForRange 只查询已发布副本。参数越界或切断 surrogate 时返回 unavailable，不夹取到别的文本。SelectedTextRanges setter 只接受一个合法 NSValue 范围，不伪造多选区能力。值和实际选区发布后发送适用 ValueChanged／SelectedTextChanged 通知，getter 不回调 Scoop、不触发布局。
+AppKit 在发布时将合法 UTF-8 选区转换为同一 NSString 的 UTF-16 范围；正文长度、选中文本、SelectedTextRange(s)、StringForRange 和纯文本 AttributedStringForRange 只查询已发布副本。参数越界或切断 surrogate 时返回 unavailable，不夹取到别的文本。SelectedTextRanges setter 只接受一个合法 NSValue 范围，不伪造多选区能力。值和实际选区发布后发送适用 ValueChanged／SelectedTextChanged 通知；anchor／cursor 对调也是实际选择变化，即使排序后的 NSRange 相同，仍发送一次选择通知，以便客户端重新读取活动 cursor 的行号。仅端点方向或偏向变化不发送正文变化，重复发布相同选区不重复通知。getter 不回调 Scoop、不触发布局。
 
 受保护文本不发布正文或选区，不提供上述范围／长度查询；显式可用的全文替换仍可进入真实编辑器。文本位置与单位查询遵守下节的已呈现布局合同；retained range、密码平台专有能力和其他 provider 继续按 S5／S10 接入，不以正文、单选区和当前布局查询声明它们已完成。
 

@@ -171,7 +171,29 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
         }
         assertFalse(host!!.focus.handle.hasFocus)
         geometryChecked = true
-        select(0, 3L, 1L)
+        previousChanges = changes
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val bounds = host!!.area.toWindow(host!!.layout.inlineObjects[0L].box!!.rect)!!
+                    if (
+                        !calls!!.postTextClient(
+                            node!!,
+                            view,
+                            -1,
+                            TextQueryBounds(bounds.x, bounds.y, bounds.width, bounds.height)
+                        )
+                    )
+                        select(0, 3L, 1L)
+                }
+            }
+        }
     }
 
     private fun completed(tag: Int, result: Int) {
@@ -183,6 +205,13 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
             result
         )
         when (tag) {
+            case - 1 -> {
+                assertEquals(Utf8Selection(1L, 4L), host!!.selection)
+                assertEquals(previousChanges + 1, changes)
+                assertTrue(node!!.hasTextGeometry())
+                assertFalse(host!!.focus.handle.hasFocus)
+                select(0, 3L, 1L)
+            }
             case 0 -> {
                 assertEquals(Utf8Selection(1L, 4L), host!!.selection)
                 assertTrue(node!!.selection(1L, 3L))

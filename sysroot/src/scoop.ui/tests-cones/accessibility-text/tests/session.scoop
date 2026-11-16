@@ -202,12 +202,49 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
         }
         assertFalse(editor!!.focus.handle.hasFocus)
         geometryChecked = true
-        select(0, 1L, 2L)
+        model.value.setSelection(Utf8Selection(initialText.byteLength, 1L))
+        afterUpdate { externalGeometry() }
+    }
+
+    private fun externalGeometry() {
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val bounds =
+                        editor!!.area.toWindow(
+                            editor!!.selectionBounds(Utf8Range(1L, 5L))[0L].rect
+                        )!!
+                    if (
+                        !calls!!.postTextClient(
+                            node!!,
+                            view,
+                            -1,
+                            TextQueryBounds(bounds.x, bounds.y, bounds.width, bounds.height)
+                        )
+                    )
+                        select(0, 1L, 2L)
+                }
+            }
+        }
     }
 
     private fun completed(tag: Int, result: Int) {
         assertEquals(1, result)
         when (tag) {
+            case - 1 -> {
+                assertEquals(initialText, model.value.text)
+                assertEquals(Utf8Selection(1L, initialText.byteLength), model.value.selection)
+                assertEquals(1L, node!!.insertionLine())
+                assertTrue(node!!.hasTextGeometry())
+                assertFalse(editor!!.focus.handle.hasFocus)
+                select(0, 1L, 2L)
+            }
             case 0 -> {
                 assertEquals(Utf8Selection(1L, 5L), model.value.selection)
                 assertFalse(editor!!.focus.handle.hasFocus)

@@ -17,7 +17,7 @@
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；基础跨进程 AX 回归已通过；其余控件、复杂关系、激活点及完整外部／读屏器验收仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，两类宿主的真实文本菜单与 IME 组合实窗回归通过；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
-| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询和 AppKit 实窗回归已接入；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
@@ -35,8 +35,15 @@
 - UI 的 updateTextEditor／updateSelectableText 绑定真实宿主；文字视口与节点位置一起经 Accepted 发布，过期、缺失登记、解除绑定、正文更新和关闭撤下旧几何。普通 update 解除专用绑定，专用入口恢复；滚动只替换场景引用。投影区间、grapheme、OTP cell／caret 和 alternateText 均复用原宿主数据。
 - aarch64-apple-darwin release 的 5 项原生文本查询测试通过：投影与词／字符单位、原对象关闭后的引用、视觉／逻辑行和末尾空行、精确 clip 孔洞、RTL／空分格输入、行内替代文字。裁剪已存在的 glyph box 不再回退到旁边 caret，以免把完全隐藏的文字报告为可见。
 - 3 项实窗用例分别在独立进程通过：编辑器 Unicode 读取／写入／策略、只读替代文字与 caret、滚动／缩放／实际 Discarded／新正文先于布局／解除和恢复绑定／缺失登记／宿主关闭。原有只读、保护、撤销和 composition 验证保留。范围矩形与真实排版及 Accepted 输入几何逐项对照，查询不改变键盘焦点。软换行的上游 cursor 曾被报告为下一行，已复现并加入定向回归；两个宿主通过 SemanticTextAffinity 保留其真实偏向，单独偏向变化不撤下排版。
-- Window／UI 规范、原 accessibility 设计、计划、README 与编程导航同步；新增 Window 原生 API 和两个 UI 宿主入口已由生成文档查询核对。文本范围的跨进程 AX 查询、VoiceOver、逻辑 retained range 与其他平台继续按 S5／S10 推进。
+- Window／UI 规范、原 accessibility 设计、计划、README 与编程导航同步；新增 Window 原生 API 和两个 UI 宿主入口已由生成文档查询核对。文本范围的跨进程 AX 查询见下节；VoiceOver、逻辑 retained range 与其他平台继续按 S5／S10 推进。
 - 受影响的 Window、Window.asyncio、Surface、UI、Style、四套主题与 Component 开发产物已更新；内置控件既有语义用例以新产物通过，包含正文／选区与 Field 关系。Scoop 格式和检查、Objective-C／C++20 严格编译、生成 API 及本地文档链接检查通过。临时 API 站点、应用包和逐次报告已清理，保留共享产物、启动脚本与后续使用的 AX 客户端。
+
+### 独立 AX 文本范围与选区通知
+
+- 编辑器和只读富文本使用独立 AXUIElement 客户端，通过正文、UTF-16 字符／行／可见范围、StringForRange／AttributedStringForRange、范围屏幕矩形与按点定位。矩形与实际排版及 Accepted 输入几何对照，覆盖行内 alternateText 的部分范围映射到完整对象；查询和选择保持键盘焦点。
+- 两类宿主均复现同一缺陷：反向选区改为覆盖范围相同的正向选区后，真实 cursor 已改变，但 AppKit 只比较排序后的 NSRange，未发送选择通知。发布比较已补充原 anchor／cursor，保留现有偏向和正文处理。
+- aarch64-apple-darwin release 的两个外部模式完整通过。AXObserver 分别收到一次 SelectedTextChanged、零次 ValueChanged；再次设置同一选区没有新增通知。编辑器同时检查活动 cursor 从首行移到末行，只读宿主检查实际选择回调仅增加一次；原有编辑、策略、撤销、composition、保护和关闭用例继续通过。
+- Window native 与客户端的严格编译、Scoop 格式／语义检查及定向 release 构建通过。规范、设计和测试入口已同步；此修复不改变公共签名或 ABI，只重建 Window 与实际测试消费者。临时应用包及原始报告已清理，保留两个 AX 客户端、共享产物和启动脚本供后续使用。VoiceOver、逻辑 retained range、虚拟集合和其他平台仍待继续。
 
 ### 系统交互偏好的 Window 接口
 

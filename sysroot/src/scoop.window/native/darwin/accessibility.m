@@ -310,7 +310,8 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
       !(next.data.flags & SWAXProtected) &&
       (!NSEqualRanges(old.selection, next.selection) ||
        (next.selection.location != NSNotFound &&
-        (!same(old.value, next.value) ||
+        (!same(old.value, next.value) || old.data.anchor != next.data.anchor ||
+         old.data.cursor != next.data.cursor ||
          ((old.data.flags ^ next.data.flags) & SWAXCursorUpstream)))))
     NSAccessibilityPostNotification(
         node, NSAccessibilitySelectedTextChangedNotification);

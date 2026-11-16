@@ -187,6 +187,29 @@ public class NativeCalls public constructor(
             }
         }
     }
+    public fun postTextClient(
+        node: NativeNode,
+        view: Ptr<Unit>,
+        tag: Int,
+        bounds: TextQueryBounds
+    ): Boolean {
+        @Unsafe
+        {
+            return nativeTextClient(
+                pointer,
+                node.pointer,
+                view,
+                tag,
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height,
+                callback.function,
+                callback.context
+            ) !=
+                0
+        }
+    }
     public override fun close() {
         @Unsafe
         {
@@ -318,3 +341,17 @@ private fun nativePost(
 
 @Extern(name = "scoop_ui_ax_close_calls")
 private fun nativeCloseCalls(calls: Ptr<Unit>)
+
+@Extern(name = "scoop_ui_ax_text_client")
+private fun nativeTextClient(
+    calls: Ptr<Unit>,
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    tag: Int,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+): Int
