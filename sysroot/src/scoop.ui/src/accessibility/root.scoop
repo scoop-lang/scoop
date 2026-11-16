@@ -7,6 +7,7 @@ import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
 import scoop.window.accessibility.*
+import scoop.ui.text.NativeTextSource
 
 private class SemanticCompletion {
     var result = SemanticActionResult.Unavailable
@@ -159,6 +160,14 @@ internal class RootSemantics(
     }
     fun capture(handle: SemanticsHandle, canvas: Canvas, shape: Path, path: Array<ScrollReveal>) {
         frame().capture(handle, canvas, shape, path)
+    }
+    fun captureText(
+        binding: SemanticTextBinding,
+        canvas: Canvas,
+        bounds: Rect,
+        source: NativeTextSource
+    ) {
+        frame().captureText(binding, canvas, bounds, source)
     }
     fun complete(frame: FrameCompletion) {
         val scene = drawing

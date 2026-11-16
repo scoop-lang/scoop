@@ -256,15 +256,15 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             content ->
             val snapshot = frame.snapshot
             host.area.setCaret(caret, Some(input.revision))
-            content.place(
-                host.area,
+            val viewport =
                 Rect(
                     snapshot.offset.x - snapshot.padding.left,
                     snapshot.offset.y - snapshot.padding.top,
                     snapshot.viewport.width,
                     snapshot.viewport.height
                 )
-            )
+            content.place(host.area, viewport)
+            editorSemantics(host, content, frame, viewport)
             content.draw {
                 paint -> for (box in selection)
                     paint.canvas.drawRect(box.rect, Paint(color))

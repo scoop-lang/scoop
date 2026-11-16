@@ -44,11 +44,12 @@ public fun textMask(glyph: String = "•"): TextProjection {
 public class TextDisplay internal constructor(
     public val source: TextEditSnapshot,
     public val text: String,
-    internal val mapping: EditorOffsetMap
+    internal val mapping: EditorOffsetMap,
+    internal val edits: Array<TextEditReplacement>
 ) {
     private val sourceBytes = source.text.toByteArray()
     private val displayBytes = text.toByteArray()
-    private val boundaries = editorGraphemeBytes(source.text)
+    internal val boundaries = editorGraphemeBytes(source.text)
     internal fun documentPosition(position: TextPosition): TextPosition =
         editorBoundaryPosition(boundaries, position)
     public fun toDisplay(position: TextPosition): TextPosition {
@@ -97,5 +98,5 @@ public fun projectText(
 internal fun projectEditorText(input: TextEditSnapshot, projection: TextProjection): TextDisplay =
     evaluateUi(None) {
         val result = mapEditorText(input.text, projection.transform(input))
-        TextDisplay(input, result.text, result.mapping)
+        TextDisplay(input, result.text, result.mapping, result.edits)
     }

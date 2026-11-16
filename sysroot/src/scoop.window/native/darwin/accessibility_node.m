@@ -424,6 +424,16 @@
       selector == @selector(accessibilityStringForRange:) ||
       selector == @selector(accessibilityAttributedStringForRange:))
     return self.accessibleText != nil;
+  if (selector == @selector(accessibilityRangeForIndex:) ||
+      selector == @selector(accessibilityRangeForPosition:) ||
+      selector == @selector(accessibilityFrameForRange:) ||
+      selector == @selector(accessibilityLineForIndex:) ||
+      selector == @selector(accessibilityRangeForLine:) ||
+      selector == @selector(accessibilityVisibleCharacterRange))
+    return self.accessibleTextGeometry != nil;
+  if (selector == @selector(accessibilityInsertionPointLineNumber))
+    return self.accessibleTextGeometry &&
+           state.selection.location != NSNotFound;
   if (selector == @selector(accessibilitySelectedText) ||
       selector == @selector(accessibilitySelectedTextRange) ||
       selector == @selector(accessibilitySelectedTextRanges))

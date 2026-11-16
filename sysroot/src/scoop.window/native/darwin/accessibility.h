@@ -29,6 +29,32 @@ typedef struct {
 - (BOOL)containsPoint:(NSPoint)point;
 @end
 
+typedef struct {
+  int64_t start, end;
+  int32_t status;
+} SWAccessibilityTextRange;
+
+typedef void (*SWAccessibilityTextBoxVisitor)(void *, double, double, double,
+                                              double);
+
+typedef struct {
+  void *context;
+  void (*retain)(void *);
+  void (*release)(void *);
+  SWAccessibilityTextRange (*range)(void *, int64_t, int32_t, int32_t);
+  SWAccessibilityTextRange (*line_range)(void *, int64_t);
+  int64_t (*line_index)(void *, int64_t, int32_t);
+  SWAccessibilityTextRange (*range_at_point)(void *, double, double);
+  int32_t (*boxes)(void *, int64_t, int64_t, void *,
+                   SWAccessibilityTextBoxVisitor);
+  SWAccessibilityTextRange (*visible_range)(void *);
+} SWAccessibilityTextData;
+
+@interface SWAccessibilityTextGeometry : NSObject
+@property(nonatomic, readonly) SWAccessibilityTextData value;
+- (instancetype)initWithValue:(SWAccessibilityTextData)value;
+@end
+
 enum {
   SWAXEnabled = 1,
   SWAXReadOnly = 2,
@@ -36,7 +62,8 @@ enum {
   SWAXHidden = 8,
   SWAXNamed = 16,
   SWAXIgnored = 32,
-  SWAXRequired = 64
+  SWAXRequired = 64,
+  SWAXCursorUpstream = 128
 };
 
 @class SWAccessibilityTree;
@@ -48,6 +75,7 @@ enum {
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *labels, *controls,
     *titleFor;
 @property(nonatomic, strong) SWAccessibilityHitGeometry *hit;
+@property(nonatomic, strong) SWAccessibilityTextGeometry *textGeometry;
 @end
 
 @interface SWAccessibilityNode : NSAccessibilityElement
@@ -64,6 +92,10 @@ enum {
 
 @interface SWAccessibilityNode (Text)
 - (NSString *)accessibleText;
+@end
+
+@interface SWAccessibilityNode (TextGeometry)
+- (SWAccessibilityTextGeometry *)accessibleTextGeometry;
 @end
 
 @interface SWAccessibilityTree : NSObject

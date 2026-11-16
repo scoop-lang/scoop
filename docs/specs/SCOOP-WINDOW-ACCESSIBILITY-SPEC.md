@@ -54,11 +54,25 @@ showContextMenu 映射 AppKit accessibilityPerformShowMenu，经相同 owner／�
 
 Text／TextField 的已知、非受保护 value 同时是其纯文本正文，不再保存另一份可写文档。SemanticProperties.selection: Utf8Selection? 默认 None；Some 只适用于这两个角色，要求 value 已知、protectedText=false，端点必须是正文范围内的 UTF-8 标量边界。None 表示没有公开选区，不能与零长度 caret 混淆；原生单选区协议返回排序后的范围，公共值保留 anchor／cursor 方向。仅选区变化不使节点边界或精确命中失效。
 
+SemanticProperties.cursorAffinity 使用 SemanticTextAffinity（Upstream／Downstream），默认 Downstream，描述已公开选区活动 cursor 的实际排版偏向；没有公开选区时不使用它。光标在软换行的同一字节边界时，Upstream 指向前一行末，Downstream 指向后一行首。仅偏向改变仍保留匹配正文的文本几何，发布选择变化而非正文变化；AppKit 的 InsertionPointLineNumber 同时读取 cursor 与该偏向。按 index／range 的原生请求没有提供偏向时使用 Downstream。
+
 SemanticActions 增加 setSelection(Utf8Selection) 与 replaceText(Utf8Range, String)，返回同一 SemanticActionResult。前者允许只读的可选择文本；后者以及 setValue 遵守 readOnly／enabled。原生选区修改进入实际 handler，文本替换不直接修改投影。AppKit 的 SelectedText 写入使用已发布选区，选区或正文已变化时拒绝旧请求；范围动作携带当前投影的内容版本，不能把旧 UTF-8 偏移应用到新正文。普通全文 setValue 继续使用实际控件的值替换入口。
 
 AppKit 在发布时将合法 UTF-8 选区转换为同一 NSString 的 UTF-16 范围；正文长度、选中文本、SelectedTextRange(s)、StringForRange 和纯文本 AttributedStringForRange 只查询已发布副本。参数越界或切断 surrogate 时返回 unavailable，不夹取到别的文本。SelectedTextRanges setter 只接受一个合法 NSValue 范围，不伪造多选区能力。值和实际选区发布后发送适用 ValueChanged／SelectedTextChanged 通知，getter 不回调 Scoop、不触发布局。
 
-受保护文本不发布正文或选区，不提供上述范围／长度查询；显式可用的全文替换仍可进入真实编辑器。完整文本几何、按点定位、词／行单位、retained range、密码平台专有能力和其他 provider 按 S5 后续合同接入，不以正文与单选区接口声明它们已完成。
+受保护文本不发布正文或选区，不提供上述范围／长度查询；显式可用的全文替换仍可进入真实编辑器。文本位置与单位查询遵守下节的已呈现布局合同；retained range、密码平台专有能力和其他 provider 继续按 S5／S10 接入，不以正文、单选区和当前布局查询声明它们已完成。
+
+#### 3.1.1 已呈现的文本范围与几何
+
+`@Unsafe node.setTextGeometry(geometry: NativeSemanticTextGeometry?)` 在已有、匹配当前正文的 Accepted 节点几何上安装原生只读文本查询；None 撤下旧查询。Some 要求 Text／TextField、已知非受保护 value 和有效节点 geometry。NativeSemanticTextGeometry 位于 `scoop.window.accessibility.native`，包含配套的 opaque context、retain／release、range、lineRange、lineIndex、rangeAtPoint、boxes 与 visibleRange 函数指针；Window 不依赖某个排版库、不重新布局，也不在原生 getter 中进入 Scoop。
+
+range(context, offset, affinity, unit) 使用已发布正文的 UTF-8 字节；affinity 为 0（Upstream）或 1（Downstream），unit 为 0（grapheme）、1（词）、2（视觉行）、3（逻辑行）。lineRange 使用零起始视觉行号，lineIndex 把正文位置映射到实际视觉行；软换行保留 affinity，末尾空行是独立的空范围。rangeAtPoint 使用窗口逻辑坐标，必须经过实际文本区域的变换与精确 clip。boxes 用同步 native visitor(context, x, y, width, height) 返回同一范围的全部窗口逻辑矩形，保留 bidi 及跨行的独立片段；空范围返回实际 caret。visibleRange 返回当前精确裁剪中可见片段的最小覆盖正文范围，离散片段之间的不可见字符可以包含在这一单范围中；完全不可见时不可用。坐标不是像素或屏幕坐标。
+
+NativeSemanticTextRange 保存 start、end、status；其 status 和 boxes 返回值为 1（成功）、0（不可用）、-1（参数无效）、-2（原生失败），只有成功结果中的数据有效。lineIndex 成功返回非负行号，-1／-2／-3 分别表示不可用、参数无效、原生失败。返回范围处于正文的合法 UTF-8 标量边界，返回矩形有限、尺寸非负；visitor 不进入 Scoop、不保留借用参数、不抛出跨 ABI 异常。调用方负责提供与正文及节点几何相符的查询，不把未呈现位置或省略号作为原文位置。
+
+安装时节点保留引用，发布时原生投影独立保留引用；候选、节点、投影分别释放自己的引用。正文／名称使内容版本失效、普通 geometry 替换或清除、退休和关闭时一起撤下文本查询；单独的选区、只读或 enabled 更新不重建排版。原生发布失败保留上一份完整投影。保留的 native 查询只持有实际布局及几何资料，不保活 UI 或 Window；客户端保留旧节点不能读到它们退休前的范围。
+
+AppKit 通过公开的 RangeForIndex、RangeForPosition、BoundsForRange、LineForIndex、RangeForLine、InsertionPointLineNumber 和 VisibleCharacterRange 读取上述投影。平台边界与同一已发布 NSString 做 UTF-8／UTF-16 转换，拒绝越界和切断 surrogate 的参数；BoundsForRange 取所有实际矩形的外接矩形并经当前 NSView／NSWindow 转为屏幕坐标。getter 不请求帧、不抢焦点、不改选区或文档；没有匹配文本几何时相关 selector 不公布，正文读取继续可用。文本几何从不可用变为可用或被撤下时发送布局变化，普通相同帧重放不因此重复通知。
 
 ### 3.2 滚动范围与动作
 

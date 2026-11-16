@@ -17,6 +17,7 @@ public class SemanticsHandle internal constructor(
     internal var focus: FocusTarget? = None
     internal var merged = false
     internal var revealPlacement: SemanticRevealPlacement? = None
+    internal var textBinding: SemanticTextBinding? = None
     private var merging = false
     internal val generation: ULong get() = resource.contentRevision
 
@@ -91,6 +92,42 @@ public class SemanticsHandle internal constructor(
         actions: SemanticActions = SemanticActions(),
         relations: SemanticRelations = SemanticRelations()
     ) {
+        updateFacts(properties, actions, relations)
+        textBinding?.close()
+    }
+
+    internal fun updateText(
+        host: SemanticTextHost?,
+        properties: SemanticProperties,
+        actions: SemanticActions,
+        relations: SemanticRelations
+    ) {
+        updateFacts(properties, actions, relations)
+        when ((textBinding, host)) {
+            case(Some(val previous), Some(val current)) -> {
+                if (previous.host === current)
+                    return
+            }
+            else -> {}
+        }
+        textBinding?.close()
+        when (host) {
+            case Some(val current) -> {
+                current.binding?.close()
+                val binding = SemanticTextBinding(this, current)
+                textBinding = Some(binding)
+                current.binding = Some(binding)
+                owner.invalidateScene()
+            }
+            case None -> {}
+        }
+    }
+
+    private fun updateFacts(
+        properties: SemanticProperties,
+        actions: SemanticActions,
+        relations: SemanticRelations
+    ) {
         checkOpen()
         checkSemanticsMutation()
         val candidate = mergeCandidate
@@ -153,6 +190,7 @@ public class SemanticsHandle internal constructor(
         if (closed)
             return
         closed = true
+        textBinding?.close()
         actions = SemanticActions()
         revealPlacement = None
         declaredRelations = SemanticRelations()

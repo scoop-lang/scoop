@@ -27,6 +27,11 @@ public enum SemanticChecked {
     Off, On, Mixed
 }
 
+/** The active text endpoint's side of a shared visual-line boundary. */
+public enum SemanticTextAffinity {
+    Upstream, Downstream
+}
+
 /** Unknown strings differ from known empty strings. Protected text has no public value. */
 public struct SemanticProperties(
     val name: String? = None,
@@ -42,7 +47,8 @@ public struct SemanticProperties(
     val ignored: Boolean = false,
     val selection: Utf8Selection? = None,
     val required: Boolean = false,
-    val scroll: SemanticScrollRange? = None
+    val scroll: SemanticScrollRange? = None,
+    val cursorAffinity: SemanticTextAffinity = SemanticTextAffinity.Downstream
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")

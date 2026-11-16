@@ -1,6 +1,7 @@
 package scoop.tests.ui.accessibility.selectable
 
 import scoop.graphics.text.*
+import scoop.math.abs
 import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.tests.textfonts.testSansBytes
@@ -25,6 +26,7 @@ private class AccessibleSelectableTest {
                     host -> Application().run(host)
                 }
                 assertTrue(probe.finished)
+                assertTrue(probe.geometryChecked)
                 assertEquals(1, probe.mounts)
                 assertTrue(probe.host!!.isClosed)
                 assertTrue(probe.semantic!!.isClosed)
@@ -47,6 +49,8 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
     var scenes = 0
     var changes = 0
     var finished = false
+    var geometryChecked = false
+    private var waitingGeometry = false
     private var active: ActiveApplication? = None
     private var window: Window? = None
     private var ui: UiWindow? = None
@@ -101,6 +105,7 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
     }
 
     private fun initial() {
+        assertFalse(node!!.hasTextGeometry())
         assertEquals(7L, node!!.characterCount)
         assertTrue(node!!.text(1, Some("A😀图éZ")))
         assertTrue(node!!.selection(1L, 5L))
@@ -112,12 +117,61 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
             assertTrue(node!!.selection(1L, 3L))
             assertEquals(0, measures)
             assertEquals(0, scenes)
+            waitingGeometry = true
             window!!.setVisible(true)
             assertTrue(node!!.flag(6))
             assertFalse(node!!.flag(7))
             assertFalse(node!!.flag(8))
-            select(0, 3L, 1L)
         }
+    }
+
+    fun geometryReady() {
+        if (!waitingGeometry)
+            return
+        waitingGeometry = false
+        assertTrue(node!!.hasTextGeometry())
+        assertEquals(TextQueryRange(1L, 2L), node!!.rangeForIndex(1L))
+        assertEquals(TextQueryRange(3L, 1L), node!!.rangeForIndex(3L))
+        assertEquals(TextQueryRange(4L, 2L), node!!.rangeForIndex(5L))
+        assertEquals(TextQueryRange(0L, 7L), node!!.visibleRange())
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val expected =
+                        host!!.area.toWindow(host!!.layout.inlineObjects[0L].box!!.rect)!!
+                    val actual = node!!.boundsForRange(view, 3L, 1L)
+                    assertTrue(abs(actual.x - expected.x) < 0.001)
+                    assertTrue(abs(actual.y - expected.y) < 0.001)
+                    assertTrue(abs(actual.width - expected.width) < 0.001)
+                    assertTrue(abs(actual.height - expected.height) < 0.001)
+                    assertEquals(
+                        TextQueryRange(1L, 3L),
+                        node!!.rangeAtPoint(
+                            view,
+                            expected.x + 1.0,
+                            expected.y + expected.height / 2.0
+                        )
+                    )
+                    val silent = host!!.area.toWindow(host!!.layout.inlineObjects[1L].box!!.rect)!!
+                    assertEquals(
+                        TextQueryRange(6L, 0L),
+                        node!!.rangeAtPoint(view, silent.x + 1.0, silent.y + silent.height / 2.0)
+                    )
+                    val caret = host!!.area.toWindow(host!!.layout.caret(TextPosition(4L))!!)!!
+                    val mapped = node!!.boundsForRange(view, 3L, 0L)
+                    assertTrue(abs(mapped.x - caret.x) < 0.001)
+                }
+            }
+        }
+        assertFalse(host!!.focus.handle.hasFocus)
+        geometryChecked = true
+        select(0, 3L, 1L)
     }
 
     private fun completed(tag: Int, result: Int) {
@@ -168,6 +222,7 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
                 protectedText.value = true
                 afterUpdate {
                     assertFalse(node!!.flag(5))
+                    assertFalse(node!!.hasTextGeometry())
                     assertFalse(node!!.flag(6))
                     assertTrue(node!!.text(1, None))
                     assertTrue(node!!.text(4, None))
@@ -212,6 +267,8 @@ internal class SelectableProbe(val fonts: FontCollection): Closeable {
             }
             case 10 -> {
                 ui!!.close()
+                assertFalse(node!!.hasTextGeometry())
+                assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(0L))
                 assertTrue(node!!.range(0L, 1L, None))
                 assertFalse(node!!.flag(8))
                 select(11, 0L, 1L)

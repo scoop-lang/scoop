@@ -35,7 +35,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
 | 输入 | 物理键、当前布局逻辑键、重复、左右修饰键、未知键码、指针位置／按钮、序列取消、行／像素滚轮及 momentum、单调输入时间、基础光标和区域内隐藏 |
 | 文本 | 普通文字与 IME 共用编辑批次；marked／preedit、commit、候选窗位置、失焦及禁用时撤销组合 |
-| 无障碍基础 | macOS 的 `scoop.window.accessibility` 内容 provider、节点属性／几何发布、纯文本范围／选区与实际动作；完整 UI、文本几何及其他平台仍在实施 |
+| 无障碍基础 | macOS 的 `scoop.window.accessibility` 内容 provider、节点属性／几何发布、纯文本范围／选区与实际动作；已呈现文本几何可查询；完整 UI 及其他平台仍在实施 |
 | 绘制 | 合并重绘请求；隐藏／遮挡／零尺寸时保留 dirty；显式 native lease |
 
 `Window` 操作和原生句柄查询都要求 owner 线程。`RequestStatus.Requested` 表示已向系统提交请求，实际结果由事件或快照确认；例如焦点请求不保证系统一定授予焦点。
@@ -64,11 +64,13 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 本批角色包括 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar、Switch、ToggleButton、RadioButton 与 RadioGroup。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 用于 Checkbox／Switch／ToggleButton／RadioButton，Mixed 仅用于 Checkbox；protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
-Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
+Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。`cursorAffinity: SemanticTextAffinity` 默认 Downstream，保留活动 cursor 在软换行边界的实际偏向；AppKit 光标行号读取该偏向，按 index 请求则默认 Downstream。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 
 更新后调用 `publish()`，原生 getter 仅读取已发布状态。`node.geometry` 是可选的已接受布局几何，使用窗口内容逻辑坐标；可选 visibleBounds 描述自身裁剪，零面积不算可见。名称／值改变会清除旧几何，匹配布局可用后再设置；不能以外接矩形中心代替精确可点击点。发布不触发绘制，无变化不重复通知。
 
-自绘宿主可用 `@Unsafe node.setGeometry(geometry, hitTest, order = 0L)` 同时提供匹配的原生命中快照与场景顺序。`scoop.window.accessibility.native.NativeSemanticHitTest` 包含 context、retain、release 和 contains；函数必须是配套的原生只读实现，不进入 Scoop 或 UI 状态。节点和已发布投影分别保留引用，替换、内容失效及关闭时释放。普通 geometry 赋值只保留矩形并清除旧命中。AppKit 按场景顺序查询，支持路径孔洞、裁剪、ignored 祖先映射和独立后代；阅读顺序保持不变。UI 已使用 graphics 的 withNativeGeometry 接入这条路径，普通 UI Element 直接使用 SceneContext.semantics。
+自绘宿主可用 `@Unsafe node.setGeometry(geometry, hitTest, order = 0L)` 同时提供匹配的原生命中快照与场景顺序。`scoop.window.accessibility.native.NativeSemanticHitTest` 包含 context、retain、release 和 contains；函数必须是配套的原生只读实现，不进入 Scoop 或 UI 状态。节点和已发布投影分别保留引用，替换、内容失效及关闭时释放。普通 geometry 赋值只保留矩形，并清除旧命中和文本几何。AppKit 按场景顺序查询，支持路径孔洞、裁剪、ignored 祖先映射和独立后代；阅读顺序保持不变。UI 已使用 graphics 的 withNativeGeometry 接入这条路径，普通 UI Element 直接使用 SceneContext.semantics。
+
+自绘文本宿主可在 `setGeometry` 后用 `@Unsafe node.setTextGeometry(Some(queries))` 安装与正文和 Accepted 场景一致的原生只读查询。`NativeSemanticTextGeometry` 同属 `scoop.window.accessibility.native`，提供 UTF-8 字符／词／视觉行／逻辑行、行号、按点范围、逐片矩形和精确可见范围；节点及已发布投影各自保留原生引用。AppKit 负责 UTF-16 和屏幕坐标转换，范围查询不进入 Scoop；普通几何替换、内容失效或关闭同时撤下查询。Some 需要 Text／TextField、已知非保护 value 及节点几何；None 单独清除文本查询。UI 的两个文本宿主已自动接入，普通 UI 调用方无需自行准备函数表。
 
 `SemanticRelations(labelledBy = [label.id], describedBy = [hint.id], errorMessages = [error.id], controls = [target.id])` 使用同一 provider 的活动节点，保持数组顺序，替换时拒绝重复与自身引用。显式 name／description／error（包括空字符串）优先，否则由对应标签文字解析；静态 Text 的非受保护 value 可以被用作标签文字，未知与已知空文字分开。实际采用的名称依赖环在 publish 时拒绝，保留之前的原生投影，可修正后重试；显式名称已覆盖的依赖不构成实际名称环。目标改名更新依赖者，关闭目标清理引用；`node.relations` 返回清理后的关系。名称依赖变化同样清除旧几何并递增 `contentRevision`，调用方不能用旧版本场景重新发布位置。hidden 标签可贡献显式引用的文字，但不恢复到导航树中。
 
@@ -88,7 +90,7 @@ Switch／ToggleButton 在 AppKit 使用 Button 加 Switch／Toggle 子角色，P
 
 `SemanticRole.ScrollBar` 使用 `SemanticProperties.scroll = Some(SemanticScrollRange(orientation, offset, viewport, content))` 描述一个真实轴；方向为 SemanticOrientation.Horizontal／Vertical，尺寸与位置使用逻辑单位。AppKit 读取 Orientation 和 0～1 的 Value／MinValue／MaxValue，父节点的横／纵滚动条属性连接对应子项。setScrollPosition 接收有限的 0～1 比例，scrollBackward／scrollForward 使用实际控件步长；调用方登记请求后，仍从已接受的布局发布新位置。没有范围时不提供能力，视觉隐藏不必退休逻辑轴，缺少场景登记时不提供条的点击几何。
 
-当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、文本范围几何／单位导航／保留范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
+当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、保留文本范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 
 ## 多窗口、模态与窗框
 

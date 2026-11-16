@@ -47,6 +47,7 @@ internal fun selectableScene(
         if (host.options.clip)
             scene.clipRect(bounds)
         scene.place(host.area, bounds)
+        selectableSemantics(host, scene, frame, bounds)
         for (decoration in host.decorations) {
             val regions = frame.layout.selection(decoration.range)
             when (decoration.background) {

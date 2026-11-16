@@ -20,6 +20,8 @@ public class SelectableTextHost public constructor(
     internal var fonts = initialFonts
     internal var content = initialContent
     internal var semanticText: SelectableSemanticText? = None
+    internal val semantics = SemanticTextHost()
+    internal var semanticLayout: SelectableSemanticLayout? = None
     internal var options = initialOptions
     internal var closed = false
     internal val selected = state(EditorSelection(TextPosition(0L), TextPosition(0L)))
@@ -255,6 +257,8 @@ public class SelectableTextHost public constructor(
         semanticText = None
         selectableStopDrag(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { semantics.close() }
+        semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
         failure = cleanupUi(failure) { dataSource?.close() }
         failure = cleanupUi(failure) { activity.close() }

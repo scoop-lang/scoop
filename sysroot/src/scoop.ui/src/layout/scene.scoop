@@ -7,6 +7,7 @@ import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
 import scoop.surface.WindowRegionHandle
 import scoop.time.TimeMark
+import scoop.ui.text.NativeTextSource
 
 internal class ScenePass {
     var presentedChildren = false
@@ -72,6 +73,16 @@ public class SceneContext internal constructor(
         checkSemanticOwner(node, handle)
         pass.cacheable = false
         handle.controller.capture(handle, frame.canvas, shape, scrollPath)
+    }
+    internal fun textSemantics(
+        binding: SemanticTextBinding,
+        bounds: Rect,
+        source: NativeTextSource
+    ) {
+        checkActive()
+        checkSemanticOwner(node, binding.handle)
+        pass.cacheable = false
+        binding.handle.controller.captureText(binding, frame.canvas, bounds, source)
     }
     /** Runs after this frame ends, while this node remains mounted and its root remains open. */
     public fun onFrameComplete(action: (FrameCompletion) -> Unit) {

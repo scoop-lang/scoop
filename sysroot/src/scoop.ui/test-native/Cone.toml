@@ -25,3 +25,7 @@ when = { os = "darwin" }
 name = "AppKit"
 kind = "framework"
 when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/text_geometry.m"
+when = { os = "darwin" }

@@ -6,6 +6,16 @@ name = "scoop.ui"
 version = "0.1.0"
 kind = "library"
 
+[native]
+cxx = true
+cxx_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/text_semantics_source.cpp"
+
+[[native.sources]]
+path = "native/text_semantics_geometry.cpp"
+
 [[sources]]
 path = "src"
 when = { os = ["darwin", "windows"] }

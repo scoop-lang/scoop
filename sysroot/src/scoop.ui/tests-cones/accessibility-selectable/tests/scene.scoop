@@ -3,6 +3,7 @@ package scoop.tests.ui.accessibility.selectable
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.test.*
+import scoop.surface.FrameSubmission
 import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.*
@@ -119,6 +120,10 @@ private class SelectableField(
         probe.scenes += 1
         context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
         host.scene(context, measured)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.geometryReady()
+        }
     }
 }
 

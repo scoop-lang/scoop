@@ -8,6 +8,8 @@ import scoop.window.LogicalPosition
 import scoop.window.LogicalSize
 import scoop.window.accessibility.*
 import scoop.window.accessibility.native.NativeSemanticHitTest
+import scoop.window.accessibility.native.NativeSemanticTextGeometry
+import scoop.ui.text.NativeTextSource
 
 private class SemanticPlacement(
     val generation: ULong,
@@ -47,6 +49,41 @@ private class SemanticPlacement(
 /** A candidate owns immutable native snapshots until matching accepted geometry is installed. */
 internal class SemanticScene: Closeable {
     private val placements = HashMap<SemanticNodeId, SemanticPlacement>()
+    private val text = HashMap<SemanticNodeId, SemanticTextPlacement>()
+
+    fun captureText(
+        binding: SemanticTextBinding,
+        canvas: Canvas,
+        bounds: Rect,
+        source: NativeTextSource
+    ) {
+        val handle = binding.handle
+        requireUi(!text.containsKey(handle.id), "semantic text was already placed this frame")
+        @Unsafe
+        {
+            captureGeometry(canvas, bounds).use {
+                geometry -> @Unsafe
+                {
+                    geometry.withNativeGeometry {
+                        scene -> @Unsafe
+                        {
+                            source.withGeometry(scene) {
+                                native ->
+                                val placement =
+                                    SemanticTextPlacement(binding, handle.generation, native)
+                                try {
+                                    text[handle.id] = placement
+                                } catch (error: Throwable) {
+                                    placement.close()
+                                    throw error
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect, path: Array<ScrollReveal>) {
         check(handle)
@@ -108,6 +145,7 @@ internal class SemanticScene: Closeable {
             case Some(val value) -> if (value.generation == handle.generation) {
                 value.apply(handle.resource)
                 handle.revealPlacement = Some(value.reveal)
+                text[handle.id]?.apply(handle)
                 return
             }
             case None -> {}
@@ -120,6 +158,39 @@ internal class SemanticScene: Closeable {
         for (placement in placements.values)
             placement.close()
         placements.clear()
+        for (placement in text.values)
+            placement.close()
+        text.clear()
+    }
+}
+
+private class SemanticTextPlacement(
+    private val binding: SemanticTextBinding,
+    private val generation: ULong,
+    private val native: NativeSemanticTextGeometry
+): Closeable {
+    private var closed = false
+    init {
+        @Unsafe
+        {
+            native.retain(native.context)
+        }
+    }
+    fun apply(handle: SemanticsHandle) {
+        if (binding.active && generation == handle.generation)
+            @Unsafe
+            {
+                handle.resource.setTextGeometry(Some(native))
+            }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            native.release(native.context)
+        }
     }
 }
 

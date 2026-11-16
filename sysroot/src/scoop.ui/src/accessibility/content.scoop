@@ -111,6 +111,7 @@ internal fun semanticProperties(value: SemanticProperties, merged: Boolean): Sem
         ignored = true,
         selection = value.selection,
         required = value.required,
-        scroll = value.scroll
+        scroll = value.scroll,
+        cursorAffinity = value.cursorAffinity
     )
 }

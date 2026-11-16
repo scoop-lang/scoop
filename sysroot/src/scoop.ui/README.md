@@ -83,7 +83,7 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 自定义编辑 Element 可在正常 update 中调用 `semantic.updateTextEditor(host, properties, relations)`，扩展函数从 `scoop.ui.text` 导入。semantic 必须是同一挂载的 TextField；host 仍由原作用域管理。名称、说明、错误、required 和关系来自参数，正文、方向选区与实际焦点来自现有 TextEditHost。required 描述实际表单要求，不通过祖先自动继承，也不执行校验；两个文本投影与静态标签合并均保留它。禁用、只读和 protectedText 使用两者共同施加的限制；受保护用途即使明文显示或显式允许复制，也不向原生查询发布正文／长度／选区。调用方沿原 State 依赖更新控件；仅修改选区不要求新的几何。
 
-原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。正文范围几何、按点／词行查询和 retained range 继续随 S5 接入。
+原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。匹配 Accepted 排版的正文几何、按点／词行查询已接入；retained range 继续随 S5 推进。
 
 只读富文本 Element 使用 `semantic.updateSelectableText(host, properties, relations)`，semantic 为同一挂载的 Text 角色。正文包含 StyledText 的 alternateText，选区沿既有区间映射转换；选择替代文字的一部分时，宿主选择完整行内对象，caret 落到对象下游。它不改写宿主的选择通知；在正常 update 和 onSelectionChanged 中刷新语义，业务通知继续由调用方执行。同一不可变内容的正文／映射会复用，单纯拖选不重新复制全文；内容换绑、受保护发布与关闭清理该投影。标记为受保护时不公布正文或选区，也不提供写入动作。
 
@@ -92,6 +92,8 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、复杂控件关系、完整文本查询、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
 自定义滚动条可在同一挂载创建 ScrollBar 节点，并在正常 update 以及视口 Accepted 完成回调之后调用 `semantic.updateScrollBar(viewport, SemanticOrientation.Vertical, lineStep = 40.0)`；方向从 `scoop.window.accessibility` 导入，扩展函数位于 scoop.ui。文本编辑器的同名重载从 scoop.ui.text 导入，首参数为 TextEditHost，继续借用其原视口。范围来自真实 Accepted 快照，尚无范围或零范围时忽略条节点。动作沿原 ScrollState 的 User 请求，连续写入保留另一轴的待处理位置；换绑后旧回调不可操作新状态。滚动请求登记与位置呈现分别处理，视觉自动隐藏不移除逻辑能力。
+
+两个专用 update 入口同时绑定真实文本宿主。Scene 仍登记 `context.semantics(handle, bounds)` 并调用原 `host.scene`；宿主在自己的文字坐标、视口和 clip 下捕获文本查询，根仅在匹配内容的 Accepted 帧一起发布。滚动与变换复用同一排版，编辑投影、OTP 的 cell／caret 和行内替代文字采用原映射。AppKit 可查询字符范围、按点范围、屏幕矩形、视觉行与可见范围，查询不请求焦点或重新排版。正文改变、缺少节点／文字登记、解除绑定或关闭撤下旧坐标；普通 `handle.update` 解除专用绑定，恢复时再调用对应宿主入口。仅选区变化保留匹配排版，实际 cursor 的上下游偏向也会发布，软换行前后的光标行号不会混淆。详见[文本测试](tests-cones/accessibility-text/README.md)和[只读文本测试](tests-cones/accessibility-selectable/README.md)。
 
 ## 数据拖放
 

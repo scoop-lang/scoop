@@ -70,7 +70,13 @@ Scene 登记同时保存当次 ScrollViewport 路径，Rect 缓存重放重新�
 
 updateSelectableText 借用 host，不改写它的 onSelectionChanged。调用方在正常 update 以及选择通知后刷新语义；可先更新已持有的 handle，再执行业务通知。宿主按不可变 StyledText 身份复用正文与区间映射，单纯拖选不反复生成整份替代文字；内容替换、受保护发布与关闭释放不再需要的投影。正文或样式对象换绑后的旧动作返回 Unavailable，新 update 发布当前对象及动作。辅助技术选择走宿主同一 setSelection，停止拖选并保留正常选择通知；菜单复用 Copy／SelectAll 会话。
 
-正文与选区可在无 drawable 时发布；场景只负责当前节点的 Accepted 位置和命中。完整范围几何、文字单位、保留范围及行内子控件语义后续接入，同步见 Window 文本合同。
+正文与选区可在无 drawable 时发布。updateTextEditor／updateSelectableText 同时绑定当前宿主的范围查询来源；宿主在真实文字绘制处登记自己的局部视口、变换和 clip，根与节点位置一起在匹配内容版本的 Accepted 场景发布，Discarded 和过期候选释放自己的引用。未登记节点位置或文字、内容失配、解除绑定及关闭时不保留旧文本几何。普通 handle.update 解除专用宿主绑定；重新调用对应宿主入口可恢复。场景登记不创建 InputArea，也不修改正文、选区或真实焦点。
+
+排版查询通过 graphics.text 的 withNativeLayout 保留同一 TextLayout，几何使用 graphics 的 withNativeGeometry；原生 getter 不调用 Scoop、measure 或 render。文字来源按实际布局、正文与投影复用，单纯滚动／变换仅产生新的场景几何引用，不每帧复制正文、边界表或重建排版。文本编辑的 displayRange、选区 affinity、TextProjection 区间、OTP 的实际 cell／caret，以及可选文本的 alternateText 区间都来自既有宿主数据；不另造布局或可写文本模型。
+
+grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从实际排版映射回正文，软换行不变成正文换行。编辑器范围几何使用同一 displayRange 端点规则，投影中没有实际显示的范围不可用；可选文本的非空替代文字范围向外覆盖整个行内对象，caret 使用下游端点。按点查询返回该显示片段实际代表的正文范围，行内对象可以对应完整替代文字；无文本长度的装饰不制造正文字符。矩形保留实际 bidi 片段，原生 AppKit 按平台协议取其外接矩形；精确可见范围仍使用同一 Canvas clip，而非矩形重叠或采样点。
+
+受保护用途既不绑定原文范围也不向 native 发布正文长度或来源表；视觉显隐不改变这一点。两个专用入口把实际 cursor 的 TextAffinity 转为 SemanticProperties.cursorAffinity，软换行前一行末与后一行首不因字节偏移相同而混淆。仅选区或 cursor 偏向变化可复用与当前正文匹配的 Accepted 排版，正文变化立即撤下旧查询，不能把新偏移应用于旧文字。retained range 和行内子控件语义继续按 S5／S7 接入，同步见 Window 文本合同。
 
 ## 6. 滚动条节点
 

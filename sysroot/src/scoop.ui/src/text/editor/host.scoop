@@ -45,6 +45,8 @@ public class TextEditHost public constructor(
     internal var hintContent: StyledText? = None
     internal var staged: EditorFrame? = None
     internal var accepted: EditorFrame? = None
+    internal val semantics = SemanticTextHost()
+    internal var semanticLayout: EditorSemanticLayout? = None
     internal var revealNeeded = false
     internal var revealRevision = 0UL
     internal var caretVisible = true
@@ -399,6 +401,8 @@ public class TextEditHost public constructor(
         closed = true
         val owned = current.detachHost(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { semantics.close() }
+        semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
         failure = cleanupUi(failure) { preferenceObserver.close() }
         failure = cleanupUi(failure) { geometryObserver.close() }

@@ -79,7 +79,11 @@ public fun SemanticsHandle.updateSelectableText(
                         }
             }
     bindFocus(Some(host.focus))
-    update(
+    updateText(
+        if (properties.protectedText)
+            None
+        else
+            Some(host.semantics),
         SemanticProperties(
             name = properties.name,
             description = properties.description,
@@ -102,7 +106,12 @@ public fun SemanticsHandle.updateSelectableText(
             error = properties.error,
             ignored = properties.ignored,
             required = properties.required,
-            scroll = properties.scroll
+            scroll = properties.scroll,
+            cursorAffinity =
+                if (!properties.protectedText && host.cursor.affinity == TextAffinity.Upstream)
+                    SemanticTextAffinity.Upstream
+                else
+                    SemanticTextAffinity.Downstream
         ),
         SemanticActions(setSelection = select, showContextMenu = showContextMenu),
         relations
@@ -112,17 +121,17 @@ public fun SemanticsHandle.updateSelectableText(
 /** Immutable derived text is reused while pointer selection changes. */
 internal class SelectableSemanticText(content: StyledText) {
     val text = content.toPlainText()
-    val mapping =
-        EditorReplacementMap(
-            Array<TextEditReplacement>(content.inlineObjects.size) {
-                index ->
-                val item = content.inlineObjects[index]
-                TextEditReplacement(Utf8Range(item.range.start, item.range.end), item.alternateText)
-            }
-        )
+    val edits =
+        Array<TextEditReplacement>(content.inlineObjects.size) {
+            index ->
+            val item = content.inlineObjects[index]
+            TextEditReplacement(Utf8Range(item.range.start, item.range.end), item.alternateText)
+        }
+    val mapping = EditorReplacementMap(edits)
+    val boundaries = editorGraphemeBytes(text)
 }
 
-private fun selectableSemanticText(host: SelectableTextHost): SelectableSemanticText {
+internal fun selectableSemanticText(host: SelectableTextHost): SelectableSemanticText {
     when (host.semanticText) {
         case Some(val text) -> return text
         case None -> {}

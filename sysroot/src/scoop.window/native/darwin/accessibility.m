@@ -22,6 +22,20 @@
 @implementation SWAccessibilityState
 @end
 
+@implementation SWAccessibilityTextGeometry
+- (instancetype)initWithValue:(SWAccessibilityTextData)value {
+  if ((self = [super init])) {
+    _value = value;
+    _value.retain(_value.context);
+  }
+  return self;
+}
+- (void)dealloc {
+  if (_value.context)
+    _value.release(_value.context);
+}
+@end
+
 @implementation SWAccessibilityTree
 - (SWAccessibilityNode *)element:(int64_t)number {
   if (self.closed)
@@ -126,6 +140,24 @@ int64_t scoop_window_accessibility_hit(void *pointer, int64_t number,
         return -4;
       state.hit = [[SWAccessibilityHitGeometry alloc] initWithValue:value];
       return state.hit ? 0 : 1;
+    } @catch (NSException *exception) {
+      return 1;
+    }
+  }
+}
+
+int64_t
+scoop_window_accessibility_text_geometry(void *pointer, int64_t number,
+                                         SWAccessibilityTextData value) {
+  @autoreleasepool {
+    @try {
+      SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
+      SWAccessibilityState *state = tree.pending[@(number)];
+      if (!state || tree.closed)
+        return -4;
+      state.textGeometry =
+          [[SWAccessibilityTextGeometry alloc] initWithValue:value];
+      return state.textGeometry ? 0 : 1;
     } @catch (NSException *exception) {
       return 1;
     }
@@ -270,17 +302,21 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
       old.data.scroll_offset != next.data.scroll_offset ||
       old.data.scroll_viewport != next.data.scroll_viewport ||
       old.data.scroll_content != next.data.scroll_content ||
-      (old.data.flags & ~SWAXRequired) != (next.data.flags & ~SWAXRequired))
+      (old.data.flags & ~(SWAXRequired | SWAXCursorUpstream)) !=
+          (next.data.flags & ~(SWAXRequired | SWAXCursorUpstream)))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityValueChangedNotification);
   if ((next.data.role == 1 || next.data.role == 4) &&
       !(next.data.flags & SWAXProtected) &&
       (!NSEqualRanges(old.selection, next.selection) ||
-       (next.selection.location != NSNotFound && !same(old.value, next.value))))
+       (next.selection.location != NSNotFound &&
+        (!same(old.value, next.value) ||
+         ((old.data.flags ^ next.data.flags) & SWAXCursorUpstream)))))
     NSAccessibilityPostNotification(
         node, NSAccessibilitySelectedTextChangedNotification);
   if (old.data.geometry != next.data.geometry ||
-      old.data.visible != next.data.visible)
+      old.data.visible != next.data.visible ||
+      (old.textGeometry == nil) != (next.textGeometry == nil))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityLayoutChangedNotification);
   else if (next.data.geometry) {

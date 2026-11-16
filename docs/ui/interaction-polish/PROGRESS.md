@@ -1,6 +1,6 @@
 # UI 交互打磨与 accessibility 实施记录
 
-更新：2026-11-16。工作分支：`codex/ui-interaction-accessibility`。范围与完成条件以 [PLAN.md](PLAN.md) 为准。
+更新：2026-11-17。工作分支：`codex/ui-interaction-accessibility`。范围与完成条件以 [PLAN.md](PLAN.md) 为准。
 
 ## 执行约定
 
@@ -17,7 +17,7 @@
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；基础跨进程 AX 回归已通过；其余控件、复杂关系、激活点及完整外部／读屏器验收仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，两类宿主的真实文本菜单与 IME 组合实窗回归通过；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
-| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询和 AppKit 实窗回归已接入；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
@@ -27,7 +27,16 @@
 
 - 原生文本与几何查询已独立通过 [PR #144](https://github.com/scoop-lang/scoop/pull/144) 合入 main；本地 main、工作分支和开发 graphics／text 产物已更新。TextLayout.withNativeLayout 保留同一排版的 native 查询，普通资源关闭后仍可使用；绘制与并发查询共用排版缓存的串行访问边界，没有额外 shaping 或逐字符矩形副本。
 - 几何借用统一为 withNativeGeometry／NativeGeometry，包含原 contains 与新增 toLocal／完整或精确可见 mapRect。现有 UI 场景和 Window 测试调用同步迁移；Window 的独立 NativeSemanticHitTest 合同保持。
-- 底层 aarch64-apple-darwin release 的几何 3 项、文本库 66 项，以及格式、C++20 严格编译、Scoop 检查、生成 API／import 核对均通过。上层文本范围几何与单位导航仍需接入 S5 的 Accepted 场景并实际验证，不以此底层交付声明完成。
+- 底层 aarch64-apple-darwin release 的几何 3 项、文本库 66 项，以及格式、C++20 严格编译、Scoop 检查、生成 API／import 核对均通过。这一底层交付不包含上层场景；后续 S5 接入和实际验证见下节。
+
+### 原生文本范围与已呈现场景
+
+- Window 增加 NativeSemanticTextGeometry／NativeSemanticTextRange 和 setTextGeometry，节点、候选及已发布投影各自持有原生引用。AppKit 的公开字符／行／按点范围、范围屏幕矩形、caret 行号与可见范围使用同一正文，正确转换 UTF-8／UTF-16；原生 getter 不进入 Scoop，不取得焦点或重新排版。
+- UI 的 updateTextEditor／updateSelectableText 绑定真实宿主；文字视口与节点位置一起经 Accepted 发布，过期、缺失登记、解除绑定、正文更新和关闭撤下旧几何。普通 update 解除专用绑定，专用入口恢复；滚动只替换场景引用。投影区间、grapheme、OTP cell／caret 和 alternateText 均复用原宿主数据。
+- aarch64-apple-darwin release 的 5 项原生文本查询测试通过：投影与词／字符单位、原对象关闭后的引用、视觉／逻辑行和末尾空行、精确 clip 孔洞、RTL／空分格输入、行内替代文字。裁剪已存在的 glyph box 不再回退到旁边 caret，以免把完全隐藏的文字报告为可见。
+- 3 项实窗用例分别在独立进程通过：编辑器 Unicode 读取／写入／策略、只读替代文字与 caret、滚动／缩放／实际 Discarded／新正文先于布局／解除和恢复绑定／缺失登记／宿主关闭。原有只读、保护、撤销和 composition 验证保留。范围矩形与真实排版及 Accepted 输入几何逐项对照，查询不改变键盘焦点。软换行的上游 cursor 曾被报告为下一行，已复现并加入定向回归；两个宿主通过 SemanticTextAffinity 保留其真实偏向，单独偏向变化不撤下排版。
+- Window／UI 规范、原 accessibility 设计、计划、README 与编程导航同步；新增 Window 原生 API 和两个 UI 宿主入口已由生成文档查询核对。文本范围的跨进程 AX 查询、VoiceOver、逻辑 retained range 与其他平台继续按 S5／S10 推进。
+- 受影响的 Window、Window.asyncio、Surface、UI、Style、四套主题与 Component 开发产物已更新；内置控件既有语义用例以新产物通过，包含正文／选区与 Field 关系。Scoop 格式和检查、Objective-C／C++20 严格编译、生成 API 及本地文档链接检查通过。临时 API 站点、应用包和逐次报告已清理，保留共享产物、启动脚本与后续使用的 AX 客户端。
 
 ### 系统交互偏好的 Window 接口
 

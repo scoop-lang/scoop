@@ -1,0 +1,199 @@
+package scoop.ui.text
+
+import scoop.graphics.Rect
+import scoop.graphics.native.NativeGeometry
+import scoop.graphics.text.TextLayout
+import scoop.graphics.text.native.*
+import scoop.window.accessibility.native.*
+
+@CLayout
+internal struct SemanticTextMapping(
+    val sourceStart: Long,
+    val sourceEnd: Long,
+    val displayStart: Long,
+    val displayEnd: Long
+)
+
+@CLayout
+internal struct SemanticTextLine(
+    val start: Long,
+    val end: Long,
+    val visibleStart: Long,
+    val visibleEnd: Long
+)
+
+@CLayout
+internal struct SemanticTextCell(
+    val start: Long,
+    val end: Long,
+    val bounds: Rect,
+    val caret: Rect,
+    val hitX: Double
+)
+
+@CLayout
+private struct SemanticTextData(
+    val sourceLength: Long,
+    val displayLength: Long,
+    val cells: Int,
+    val expand: Int,
+    val caretWidth: Double,
+    val caretAspect: Double,
+    val graphemes: Ptr<Long>,
+    val graphemeCount: Long,
+    val mapping: Ptr<SemanticTextMapping>,
+    val mappingCount: Long,
+    val lines: Ptr<SemanticTextLine>,
+    val lineCount: Long,
+    val cellValues: Ptr<SemanticTextCell>,
+    val cellCount: Long
+)
+
+@CLayout
+private struct SemanticTextExport(
+    val context: Ptr<Unit>?,
+    val retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    val release: FunPtr<(Ptr<Unit>) -> Unit>,
+    val range: FunPtr<(Ptr<Unit>, Long, Int, Int) -> NativeSemanticTextRange>,
+    val lineRange: FunPtr<(Ptr<Unit>, Long) -> NativeSemanticTextRange>,
+    val lineIndex: FunPtr<(Ptr<Unit>, Long, Int) -> Long>,
+    val rangeAtPoint: FunPtr<(Ptr<Unit>, Double, Double) -> NativeSemanticTextRange>,
+    val boxes: FunPtr<
+        (
+            Ptr<Unit>,
+            Long,
+            Long,
+            Ptr<Unit>,
+            FunPtr<(Ptr<Unit>, Double, Double, Double, Double) -> Unit>
+        ) -> Int
+    >,
+    val visibleRange: FunPtr<(Ptr<Unit>) -> NativeSemanticTextRange>
+)
+
+/** Native layout and prepared mappings, reused across scene-only updates. */
+internal class NativeTextSource(private val pointer: Ptr<Unit>): Closeable {
+    private var closed = false
+    val isClosed: Boolean get() = closed
+
+    @Unsafe
+    fun <T> withGeometry(scene: NativeGeometry, block: (NativeSemanticTextGeometry) -> T): T {
+        if (isClosed)
+            throw IllegalStateException(Some("semantic text source is closed"))
+        val value = nativeTextGeometry(pointer, scene)
+        val context =
+            value.context ?:
+                throw IllegalStateException(Some("cannot retain semantic text geometry"))
+        try {
+            return block(
+                NativeSemanticTextGeometry(
+                    context,
+                    value.retain,
+                    value.release,
+                    value.range,
+                    value.lineRange,
+                    value.lineIndex,
+                    value.rangeAtPoint,
+                    value.boxes,
+                    value.visibleRange
+                )
+            )
+        } finally {
+            value.release(context)
+        }
+    }
+
+    public override fun close() {
+        if (isClosed)
+            return
+        closed = true
+        @Unsafe
+        {
+            nativeTextRelease(pointer)
+        }
+    }
+}
+
+internal fun semanticTextSource(
+    layout: TextLayout,
+    sourceLength: Long,
+    graphemes: Array<Long>,
+    mapping: Array<SemanticTextMapping>,
+    lines: Array<SemanticTextLine>,
+    cells: Array<SemanticTextCell> = [],
+    expand: Boolean = false,
+    caretWidth: Double = 1.0,
+    caretAspect: Double = 0.0
+): NativeTextSource {
+    @Unsafe
+    {
+        return layout.withNativeLayout {
+            native -> @Unsafe
+            {
+                return@withNativeLayout graphemes.withDataPointer {
+                    boundaries,
+                    boundaryCount -> @Unsafe
+                    {
+                        return@withDataPointer mapping.withDataPointer {
+                            replacements,
+                            replacementCount -> @Unsafe
+                            {
+                                return@withDataPointer lines.withDataPointer {
+                                    rows,
+                                    rowCount -> @Unsafe
+                                    {
+                                        return@withDataPointer cells.withDataPointer {
+                                            values,
+                                            valueCount -> @Unsafe
+                                            {
+                                                val data =
+                                                    SemanticTextData(
+                                                        sourceLength,
+                                                        layout.text.byteLength,
+                                                        if (valueCount > 0L)
+                                                            1
+                                                        else
+                                                            0,
+                                                        if (expand)
+                                                            1
+                                                        else
+                                                            0,
+                                                        caretWidth,
+                                                        caretAspect,
+                                                        boundaries,
+                                                        boundaryCount,
+                                                        replacements,
+                                                        replacementCount,
+                                                        rows,
+                                                        rowCount,
+                                                        values,
+                                                        valueCount
+                                                    )
+                                                return@withDataPointer NativeTextSource(
+                                                    nativeTextSource(native, data) ?:
+                                                        throw IllegalStateException(
+                                                            Some(
+                                                                "cannot retain semantic text source"
+                                                            )
+                                                        )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_ui_semantic_text_source")
+private fun nativeTextSource(layout: NativeTextLayout, data: SemanticTextData): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_semantic_text_source_release")
+private fun nativeTextRelease(source: Ptr<Unit>): Unit
+
+@Extern(name = "scoop_ui_semantic_text_geometry")
+private fun nativeTextGeometry(source: Ptr<Unit>, scene: NativeGeometry): SemanticTextExport

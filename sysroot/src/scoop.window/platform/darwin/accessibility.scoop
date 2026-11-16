@@ -2,6 +2,7 @@ package scoop.window.accessibility
 
 import scoop.window.*
 import scoop.window.accessibility.native.NativeSemanticHitTest
+import scoop.window.accessibility.native.NativeSemanticTextGeometry
 
 /** Attaches the native content subtree. The window closes it before native destruction. */
 public fun Window.createAccessibilityProvider(): AccessibilityProvider {
@@ -113,6 +114,13 @@ private class DarwinAccessibilityProjection(
                         case Some(val value) -> checkNativeStatus(
                             nativeAccessibilityHit(pointer, node.id.number, value.native),
                             "publish accessibility hit geometry"
+                        )
+                        case None -> {}
+                    }
+                    when (val geometry = node.textGeometry) {
+                        case Some(val value) -> checkNativeStatus(
+                            nativeAccessibilityTextGeometry(pointer, node.id.number, value.native),
+                            "publish accessibility text geometry"
                         )
                         case None -> {}
                     }
@@ -246,7 +254,9 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             32 *
             flag(value.ignored) +
             64 *
-            flag(value.required),
+            flag(value.required) +
+            128 *
+            flag(value.selection != None && value.cursorAffinity == SemanticTextAffinity.Upstream),
         node.actions.capabilities,
         when (value.checked) {
             case None -> -1;
@@ -343,6 +353,13 @@ private fun nativeAccessibilityHit(
 
 @Extern(name = "scoop_window_accessibility_remove")
 private fun nativeAccessibilityRemove(provider: Ptr<Unit>, number: Long): Long
+
+@Extern(name = "scoop_window_accessibility_text_geometry")
+private fun nativeAccessibilityTextGeometry(
+    provider: Ptr<Unit>,
+    number: Long,
+    geometry: NativeSemanticTextGeometry
+): Long
 
 @Extern(name = "scoop_window_accessibility_commit")
 private fun nativeAccessibilityCommit(provider: Ptr<Unit>, focused: Long): Long

@@ -3,6 +3,7 @@ package scoop.window.accessibility
 import scoop.collections.HashMap
 import scoop.window.*
 import scoop.window.accessibility.native.NativeSemanticHitTest
+import scoop.window.accessibility.native.NativeSemanticTextGeometry
 
 /** A semantic resource whose role and identity last until it is explicitly retired. */
 public class AccessibilityNode internal constructor(
@@ -28,6 +29,7 @@ public class AccessibilityNode internal constructor(
     internal var placement: SemanticGeometry? = None
     internal var order = 0L
     internal var hit: SemanticHitSnapshot? = None
+    internal var textGeometry: SemanticTextSnapshot? = None
     internal var sceneOrder = 0L
 
     public val isClosed: Boolean get() {
@@ -75,9 +77,9 @@ public class AccessibilityNode internal constructor(
     set(value) {
         checkOpen()
         if (placement == value)
-            when (hit) {
-                case None -> return
-                case Some(_) -> {}
+            when ((hit, textGeometry)) {
+                case(None, None) -> return
+                else -> {}
             }
         value?.check()
         invalidateGeometry()
@@ -99,6 +101,37 @@ public class AccessibilityNode internal constructor(
         placement = Some(geometry)
         hit = Some(next)
         sceneOrder = order
+        provider.changed(this)
+    }
+
+    /** Retains native text queries matching this node's known text and accepted geometry. */
+    @Unsafe
+    public fun setTextGeometry(geometry: NativeSemanticTextGeometry?) {
+        checkOpen()
+        val next =
+            when (geometry) {
+                case Some(val value) -> {
+                    requireWindow(
+                        (role == SemanticRole.Text || role == SemanticRole.TextField) &&
+                            properties.value !=
+                            None &&
+                            !properties.protectedText &&
+                            placement !=
+                            None,
+                        "text geometry requires known unprotected text and accepted node geometry"
+                    )
+                    Some(SemanticTextSnapshot(value))
+                }
+                case None -> {
+                    when (textGeometry) {
+                        case None -> return
+                        case Some(_) -> {}
+                    }
+                    None
+                }
+            }
+        textGeometry?.close()
+        textGeometry = next
         provider.changed(this)
     }
 
@@ -200,6 +233,8 @@ public class AccessibilityNode internal constructor(
         placement = None
         hit?.close()
         hit = None
+        textGeometry?.close()
+        textGeometry = None
         sceneOrder = 0L
     }
 

@@ -1,6 +1,7 @@
 package scoop.ui.text
 
 import scoop.graphics.text.TextPosition
+import scoop.graphics.text.TextAffinity
 import scoop.ui.*
 import scoop.window.*
 import scoop.window.accessibility.*
@@ -92,7 +93,11 @@ public fun SemanticsHandle.updateTextEditor(
                         }
             }
     bindFocus(Some(host.focus))
-    update(
+    updateText(
+        if (protectedText)
+            None
+        else
+            Some(host.semantics),
         SemanticProperties(
             name = properties.name,
             description = properties.description,
@@ -114,7 +119,12 @@ public fun SemanticsHandle.updateTextEditor(
             error = properties.error,
             ignored = properties.ignored,
             required = properties.required,
-            scroll = properties.scroll
+            scroll = properties.scroll,
+            cursorAffinity =
+                if (!protectedText && model.cursor.affinity == TextAffinity.Upstream)
+                    SemanticTextAffinity.Upstream
+                else
+                    SemanticTextAffinity.Downstream
         ),
         SemanticActions(
             setValue = setValue,

@@ -1,6 +1,7 @@
 package scoop.tests.ui.accessibility.text
 
 import scoop.graphics.Rect
+import scoop.surface.FrameSubmission
 import scoop.test.*
 import scoop.ui.*
 import scoop.ui.text.*
@@ -77,5 +78,9 @@ private class TextField(
         probe.scenes += 1
         context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
         host.scene(context, measured)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.geometryReady()
+        }
     }
 }

@@ -1,6 +1,7 @@
 package scoop.tests.ui.accessibility.text
 
 import scoop.graphics.text.*
+import scoop.math.abs
 import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.tests.textfonts.testSansBytes
@@ -28,6 +29,7 @@ private class AccessibleEditorTest {
                     host -> Application().run(host)
                 }
                 assertTrue(probe.finished)
+                assertTrue(probe.geometryChecked)
                 assertEquals(1, probe.mounts)
                 assertTrue(probe.editor!!.isClosed)
                 assertTrue(probe.semantic!!.isClosed)
@@ -53,6 +55,8 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
     var edits = 0
     var imports = 0
     var finished = false
+    var geometryChecked = false
+    private var waitingGeometry = false
     val policy =
         textEditPolicy {
             this.maxLength = Some(3L)
@@ -124,6 +128,7 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
     }
 
     private fun initial() {
+        assertFalse(node!!.hasTextGeometry())
         assertEquals(8L, node!!.characterCount)
         assertTrue(node!!.selection(1L, 5L))
         assertTrue(node!!.text(4, Some("😀é中")))
@@ -149,9 +154,55 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
             assertTrue(node!!.selection(3L, 0L))
             assertEquals(0, measures)
             assertEquals(0, scenes)
+            waitingGeometry = true
             window!!.setVisible(true)
-            select(0, 1L, 2L)
         }
+    }
+
+    fun geometryReady() {
+        if (!waitingGeometry)
+            return
+        waitingGeometry = false
+        assertTrue(node!!.hasTextGeometry())
+        assertEquals(TextQueryRange(1L, 2L), node!!.rangeForIndex(1L))
+        assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(2L))
+        assertEquals(TextQueryRange(3L, 2L), node!!.rangeForIndex(4L))
+        assertEquals(TextQueryRange(0L, 7L), node!!.rangeForLine(0L))
+        assertEquals(TextQueryRange(7L, 1L), node!!.rangeForLine(1L))
+        assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForLine(2L))
+        assertEquals(1L, node!!.lineForIndex(7L))
+        assertEquals(0L, node!!.insertionLine())
+        assertEquals(TextQueryRange(0L, 8L), node!!.visibleRange())
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val expected =
+                        editor!!.area.toWindow(
+                            editor!!.selectionBounds(Utf8Range(1L, 5L))[0L].rect
+                        )!!
+                    val actual = node!!.boundsForRange(view, 1L, 2L)
+                    assertTrue(abs(actual.x - expected.x) < 0.001)
+                    assertTrue(abs(actual.y - expected.y) < 0.001)
+                    assertTrue(abs(actual.width - expected.width) < 0.001)
+                    assertTrue(abs(actual.height - expected.height) < 0.001)
+                    assertEquals(
+                        TextQueryRange(1L, 2L),
+                        node!!.rangeAtPoint(view, actual.x + 1.0, actual.y + actual.height / 2.0)
+                    )
+                    assertEquals(TextQueryRange(-1L, 0L), node!!.rangeAtPoint(view, -1.0, -1.0))
+                    assertTrue(node!!.emptyTextBounds(2L, 0L))
+                }
+            }
+        }
+        assertFalse(editor!!.focus.handle.hasFocus)
+        geometryChecked = true
+        select(0, 1L, 2L)
     }
 
     private fun completed(tag: Int, result: Int) {
@@ -247,6 +298,8 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
                 protectedText.value = true
                 afterUpdate {
                     assertFalse(node!!.flag(5))
+                    assertFalse(node!!.hasTextGeometry())
+                    assertTrue(node!!.emptyTextBounds(0L, 1L))
                     assertFalse(node!!.flag(6))
                     assertEquals(0L, node!!.characterCount)
                     assertTrue(node!!.text(1, None))
@@ -264,6 +317,8 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
                 afterUpdate {
                     assertTrue(node!!.text(1, Some("new-secret")))
                     ui!!.close()
+                    assertFalse(node!!.hasTextGeometry())
+                    assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(0L))
                     assertFalse(node!!.flag(5))
                     assertTrue(node!!.range(0L, 1L, None))
                     select(13, 0L, 1L)
