@@ -217,7 +217,8 @@ inline SkRect sg_rect(SGRect r) {
                           (float)(r.y + r.height));
 }
 inline SGRect sg_rect(SkRect r) {
-  return {r.x(), r.y(), r.width(), r.height()};
+  return {r.x(), r.y(), static_cast<double>(r.right()) - r.left(),
+          static_cast<double>(r.bottom()) - r.top()};
 }
 inline SkRRect sg_round_rect(SGRect rect, SGPoint topLeft, SGPoint topRight,
                              SGPoint bottomRight, SGPoint bottomLeft) {
