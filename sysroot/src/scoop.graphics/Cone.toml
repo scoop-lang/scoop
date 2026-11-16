@@ -61,6 +61,8 @@ path = "tests/native_canvas.scoop"
 [[test.sources]]
 path = "tests/geometry_bounds.scoop"
 [[test.sources]]
+path = "tests/native_geometry.scoop"
+[[test.sources]]
 path = "tests/canvas_scope.scoop"
 [[test.sources]]
 path = "tests/recording.scoop"
@@ -115,6 +117,8 @@ path = "native/shared/path.cpp"
 path = "native/shared/drawing.cpp"
 [[native.sources]]
 path = "native/shared/geometry.cpp"
+[[native.sources]]
+path = "native/shared/geometry_hit.cpp"
 [[native.sources]]
 path = "native/shared/filter.cpp"
 [[native.sources]]

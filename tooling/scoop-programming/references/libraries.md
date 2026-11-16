@@ -46,6 +46,7 @@
 | 日志与控制台 provider                             | `scoop.log`、`scoop.log.console` 的 README／示例                                               |
 | 终端、异步终端与交互行编辑                        | `terminal/output`；`scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例           |
 | UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；独立控件修改借用模型前可调用 `State.checkMutation()`，`SceneContext.drawTextLayout` 在既有文字缓存路径绘制自有排版；使用当前目标可用的库  |
+| 原生宿主的精确几何查询 | `scoop.graphics.native` 的 `@Unsafe CanvasGeometry.withNativeHitTest` 借出 NativeGeometryHitTest；原生消费者以配套 retain／release 管理跨借用和跨线程寿命，contains 只读查询已捕获的变换、路径 clip 与 viewport，不回调 Scoop。普通 struct 复制不拥有额外引用，层叠与 Accepted 发布由宿主负责；完整合同见 graphics README 和 Surface 规范 |
 
 ## JSON 与 DTO
 

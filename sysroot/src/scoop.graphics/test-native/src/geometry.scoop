@@ -1,0 +1,12 @@
+package scoop.tests.graphics
+
+/** Holds a native reference while a foreign worker and the caller query the same snapshot. */
+@Extern(name = "scoop_graphics_test_geometry_query")
+public fun queryNativeGeometry(
+    context: Ptr<Unit>,
+    retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    release: FunPtr<(Ptr<Unit>) -> Unit>,
+    contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>,
+    x: Double,
+    y: Double
+): Int

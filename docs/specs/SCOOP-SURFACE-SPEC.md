@@ -48,6 +48,12 @@ Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其�
 
 独立文本库使用同一 package 的 `@Unsafe fun <T> Canvas.withSkiaCanvas(independentTiles: Boolean = false, block: (Ptr<Unit>) -> T): T`。它在当前有效 Canvas 的 owner 线程同步借出实际 SkCanvas 指针，调用前保存原生画布状态，正常返回或异常退出都恢复原状态；不施加第二次 DPI 变换。指针只在 block 内有效，不能保存、释放、跨线程或挂起使用。block 只通过该指针进行 Skia 绘制，不重入同一 Canvas 的 Scoop 操作或几何捕获，不恢复到借用入口保存层以下，不自行提交目标或变更 GPU context。调用方承担这项 Unsafe 约束；graphics 的私有包装、资源析构和 clip 记录不向另一 Cone 开放。
 
+原生 accessibility 等需要在绘制之外查询命中的消费者使用 `@Unsafe fun <T> CanvasGeometry.withNativeHitTest(block: (NativeGeometryHitTest) -> T): T`。它在几何资源的 owner 线程创建独立、只读的 native 快照，并在 block 中借出一个 GC-free、CLayout 的值：context 为 opaque Ptr<Unit>，retain／release 为 FunPtr<(Ptr<Unit>) -> Unit>，contains 为 FunPtr<(Ptr<Unit>, Double, Double) -> Int>。这三个函数直接操作 native 几何与引用计数，不进入 Scoop 回调、runtime、UI 状态或布局。
+
+正常返回和异常退出均释放本次借用引用。需要继续保存或交给其他线程的 native 消费者在借用结束前 retain(context)，每个拥有的引用最后 release(context) 一次；函数指针与 context 必须始终成套使用，普通 struct 复制不自动增加引用。保留的快照不借用原 Canvas、CanvasGeometry、绘制目标或 GPU；它们关闭后仍可并发只读查询，最后一个拥有者可在其线程释放。所有查询期间必须持有有效引用；框架不为这一 Unsafe 边界增加动态逃逸或线程登记。
+
+contains 的两个 Double 是窗口逻辑坐标，返回 1 表示命中、0 表示未命中；非有限坐标返回 0。原生查询与 CanvasGeometry.hitTest 复用同一份形状、变换、不可变裁剪前缀和目标 viewport，拒绝不可逆变换、孔洞及视口外的点；viewport 的右／下边界不属于命中范围。包围盒和栅格化矩形不能代替这一精确查询。窗口坐标换算、语义资格、层叠顺序及 Accepted 发布时机由实际宿主负责，graphics 不引入窗口或 UI 依赖。
+
 SkSL／SkRuntimeEffect 的公开接入列为后续 graphics 增强，见[SkSL 设计](../graphics/sksl/DESIGN.md)。本期先按[图像滤镜与图层规范](SCOOP-GRAPHICS-EFFECTS-SPEC.md)补齐 Skia Gaussian blur、alpha 阴影、混合与图层滤镜，供离屏和公共 UI style 消费；这批已在 macOS aarch64 实现并通过 Raster／Metal 定向验证，x86_64 的 Rosetta 补验也已通过，详见 [UI 实施记录](../ui/PROGRESS.md)。RuntimeEffect／shader 填充仍未接入，不作为基础效果前置。后续实现通过既有 Skia 后端与普通 FFI 扩展，不隐式创建时间驱动器，也不改变 Canvas 借用或第 4.1 节的按需停帧规则。
 
 ### 2.1 绘制记录与兼容离屏图像
