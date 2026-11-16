@@ -9,13 +9,13 @@ fn m60_documentation_warns_at_exact_source_spans_without_changing_compilation() 
     assert_eq!(docs.warnings.len(), 4, "{:?}", docs.warnings);
     assert!(docs.warnings.iter().all(|warning| warning.severity
         == ast::DiagnosticSeverity::Warning
-        && warning.source.as_deref() == Some(&test_source_identity("src/main.scoop"))));
+        && warning.source() == Some(&test_source_identity("src/main.scoop"))));
     let warning = docs
         .warnings
         .iter()
         .find(|warning| warning.message.contains("`Missing`"))
         .unwrap();
-    let span = warning.span.unwrap();
+    let span = warning.span().unwrap();
     assert_eq!(&source[span.start as usize..span.end as usize], "Missing");
     assert!(output.output().warnings.is_empty());
     let ordinary = lower_with_core(&core, source, false).unwrap();

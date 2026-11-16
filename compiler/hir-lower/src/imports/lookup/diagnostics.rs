@@ -7,9 +7,8 @@ use crate::{Lowerer, NominalTarget, namespace::TopLevelTypeTarget};
 pub(super) fn sort_candidate_notes(notes: &mut [ast::DiagnosticNote]) {
     // Presentation order never chooses a semantic winner.
     notes.sort_by(|left, right| {
-        (&left.source, left.file, left.span.start, left.span.end).cmp(&(
+        (&left.source, left.span.start, left.span.end).cmp(&(
             &right.source,
-            right.file,
             right.span.start,
             right.span.end,
         ))
@@ -36,7 +35,7 @@ impl Lowerer {
         let mut note =
             ast::DiagnosticNote::at(0, ast::Span::new(start, end), "candidate declared here");
         // A canonical source supersedes the stage-local file index.
-        note.source = Some(Box::new(origin.source().clone()));
+        note.source = scoop_source::LocalDiagnosticSource::Bound(Box::new(origin.source().clone()));
         Ok(note)
     }
 

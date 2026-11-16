@@ -156,7 +156,7 @@ impl WireDecode for DecodedNativeAppEntryIdentity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NativeAppEntryIdentityError {
     NotFunction,
     NotTopLevel,

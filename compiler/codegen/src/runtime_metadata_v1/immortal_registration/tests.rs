@@ -156,7 +156,7 @@ fn reports_missing_registration_input() {
 
     let error = emit_strong_immortal_object_registrations_v1(&context, &llvm, &plan).unwrap_err();
 
-    assert!(error.0.contains("is not defined"), "{error}");
+    assert!(error.to_string().contains("is not defined"), "{error}");
 }
 
 fn declare_immortal_object<'ctx>(

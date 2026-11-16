@@ -8,8 +8,9 @@ import scoop.platform.time.elapsedNow
 import scoop.time.Duration
 import scoop.url.Url
 
-private fun readOptions(): HttpCallOptions =
+private fun readOptions(observer: HttpObserver? = None): HttpCallOptions =
     httpCallOptions {
+        this.observer = observer
         this.timeouts = Some(httpTimeoutOptions { this.readIdle = Some(idleLimit()) })
     }
 
@@ -50,13 +51,22 @@ internal suspend fun idleGzip(client: HttpClient, url: Url) {
 }
 
 internal suspend fun idleIsolation(client: HttpClient, url: Url, scope: CoroutineScope) {
+    val sent = IdleSignal()
+    val observer =
+        HttpObserver(
+            suspend {
+                event -> if (event.kind == HttpCallEventKind.RequestHeaders)
+                    sent.signal()
+            }
+        )
     val waiting =
         scope.async<HttpTimeoutException> suspend {
             idleFailure suspend {
-                client.execute(httpRequest(url) { this.options = readOptions() });
+                client.execute(httpRequest(url) { this.options = readOptions(Some(observer)) });
                 Unit
             }
         }
+    sent.await()
     val second = client.execute(httpRequest(url))
     idleCheck(second.status == 200U)
     val error = waiting.await()

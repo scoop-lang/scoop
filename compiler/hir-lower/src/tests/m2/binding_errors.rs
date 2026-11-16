@@ -52,7 +52,7 @@ fn assign_to_immutable_variable_is_an_error_with_target_span() {
     let errors = lower_user(file).expect_err("assigning to a val must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].message, "cannot assign to immutable variable `x`");
-    assert_eq!(errors[0].span, Some(target_span));
+    assert_eq!(errors[0].span(), Some(target_span));
 }
 
 #[test]

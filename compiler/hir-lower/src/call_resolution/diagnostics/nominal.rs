@@ -217,12 +217,6 @@ pub(crate) fn render_nominal_constraint_failure(
                 "callable shape expects {expected} parameter(s), but the actual type has {actual}"
             ),
         },
-        ConstraintFailureKind::ForeignVariable(_) => {
-            "candidate references an inference variable from another session".to_string()
-        }
-        ConstraintFailureKind::ForeignTypeParameter(_) => {
-            "candidate references a type parameter outside its declaration".to_string()
-        }
         ConstraintFailureKind::UnresolvedTerm(term) => format!(
             "cannot resolve type term {}",
             render_type_term(lowerer, view, *term)

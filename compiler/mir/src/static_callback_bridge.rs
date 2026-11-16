@@ -168,7 +168,7 @@ impl CallbackBridge {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StaticCallbackBridgeIdentityError {
     SuspendSignature,
     ReceiverPresent,

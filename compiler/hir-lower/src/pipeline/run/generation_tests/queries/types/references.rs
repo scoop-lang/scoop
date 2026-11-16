@@ -181,10 +181,11 @@ fn invalid_type_references_return_query_diagnostics_without_poisoning_compilatio
                 diagnostics.iter().any(|d| d.message.contains(expected)),
                 "{expected}: {diagnostics:?}"
             );
-            assert!(
-                diagnostics.iter().all(|d| d.span == Some(location.span)
-                    && d.source.as_deref() == Some(&location.source))
-            );
+            assert!(diagnostics.iter().all(|d| d.span() == Some(location.span)
+                && d.source()
+                    == Some(&scoop_ast::LocalDiagnosticSource::Bound(Box::new(
+                        location.source.clone()
+                    )))));
             assert_eq!(resolve(queries, context, "Int"), integer_ty);
         }
         let diagnostics = queries

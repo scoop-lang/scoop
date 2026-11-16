@@ -11,7 +11,7 @@ fn lower(
     test_dependency: &str,
     production: &str,
     tests: &str,
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let mut core = trusted_core();
     let prepared = [
         ("production-provider", production_dependency),
@@ -106,10 +106,9 @@ fn test_dependency_types_and_values_do_not_complete_production_names() {
         };
         assert!(
             errors.iter().any(|error| error
-                .source
-                .as_deref()
+                .source()
                 .is_some_and(|source| source.logical_path().as_str() == "src/api.scoop")
-                && error.span.is_some()),
+                && error.span().is_some()),
             "{errors:#?}"
         );
     }

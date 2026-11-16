@@ -54,6 +54,7 @@ pub(super) fn check(
                         if matches!(
                             identity.nominal_record().key(),
                             GeneratedNominalKey::CoroutineFrame { .. }
+                                | GeneratedNominalKey::CoroutineStartWork { .. }
                                 | GeneratedNominalKey::ContinuationAdapterEnvironment { .. }
                         ) =>
                     {

@@ -58,7 +58,7 @@ fn unrelated_objects_and_private_base_constructors_remain_inaccessible() {
             .find(|error| error.message == expected)
             .unwrap();
         assert_eq!(
-            diagnostic.span.unwrap().start as usize,
+            diagnostic.span().unwrap().start as usize,
             source.find(occurrence).unwrap()
         );
     }

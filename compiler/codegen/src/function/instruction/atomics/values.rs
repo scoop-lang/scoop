@@ -9,7 +9,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             || location.offset < 16
             || location.offset % u64::from(location.kind.bytes()) != 0
         {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "atomic access requires an aligned managed object field".into(),
             ));
         }
@@ -42,7 +42,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         expected: LirType,
     ) -> Result<(), CodegenError> {
         if self.function.temps[out].ty != expected {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "atomic result must have type {}",
                 expected.dump()
             )));
@@ -56,7 +56,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         value: Value,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         if self.function.value_ty(self.globals_arena, value) != location.value_type() {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "atomic operand must have type {}",
                 location.value_type().dump()
             )));
@@ -71,7 +71,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     "atomic_bool_byte",
                 )
                 .map(Into::into)
-                .map_err(|error| CodegenError(format!("atomic Boolean storage: {error}")));
+                .map_err(|error| {
+                    CodegenError::backend(format!("atomic Boolean storage: {error}"), error)
+                });
         }
         Ok(value)
     }
@@ -90,7 +92,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     "atomic_bool",
                 )
                 .map(Into::into)
-                .map_err(|error| CodegenError(format!("atomic Boolean result: {error}")));
+                .map_err(|error| {
+                    CodegenError::backend(format!("atomic Boolean result: {error}"), error)
+                });
         }
         Ok(value)
     }

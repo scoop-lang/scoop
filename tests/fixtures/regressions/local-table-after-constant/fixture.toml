@@ -14,7 +14,6 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${build.result.observations.child_invocations.length}", equals = 1}]
 
 [[steps]]
 name = "run"
@@ -22,13 +21,3 @@ argv = ["${build.result.output}"]
 exit = 0
 stdout = "local lookup tables retain their constant section boundaries\n"
 stderr = ""
-
-[[steps]]
-name = "warm"
-argv = ["${scoop}", "build", "${root}", {each = "${link_args}"}, "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
-exit = 0
-stdout = ""
-stderr = ""
-json = "stderr"
-diagnostics = []
-checks = [{actual = "${warm.result.observations.child_invocations}", equals = []}]

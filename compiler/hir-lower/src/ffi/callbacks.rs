@@ -10,7 +10,7 @@ impl Lowerer {
         let mut signatures = Vec::new();
         for function in self.top_level.clone() {
             let declaration = &self.functions[function];
-            if !self.source_function_declarations.contains_key(&function)
+            if !self.functions.source(function).is_some()
                 || self.intrinsic_sources[self.function_files[&function]]
                     .identity
                     .cone()

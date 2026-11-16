@@ -1,5 +1,9 @@
 //! Fixed-point inference with unique expressible solutions.
 
+use crate::call_resolution::constraints::{
+    InferenceFailure, InferenceInvariantError, InferenceInvariantErrorKind,
+};
+
 mod incorporation;
 mod materialization;
 mod projections;
@@ -128,7 +132,7 @@ impl Lowerer {
     pub(crate) fn solve_constraints(
         &mut self,
         session: &InferenceSession,
-    ) -> Result<InferenceSolution, ConstraintFailure> {
+    ) -> Result<InferenceSolution, InferenceFailure> {
         let bindings = self.solve_constraint_bindings(session, CompletionMode::Complete)?;
         Ok(InferenceSolution {
             session: session.id(),
@@ -146,9 +150,15 @@ impl Lowerer {
     /// MSC asks whether a forwarding relation is satisfiable, not for a
     /// concrete call application. Declaration variables absent from every
     /// forwarding parameter may therefore remain existentially unconstrained.
-    pub(crate) fn constraints_are_satisfiable(&mut self, session: &InferenceSession) -> bool {
-        self.solve_constraint_bindings(session, CompletionMode::Satisfiable)
-            .is_ok()
+    pub(crate) fn constraints_are_satisfiable(
+        &mut self,
+        session: &InferenceSession,
+    ) -> Result<bool, InferenceInvariantError> {
+        match self.solve_constraint_bindings(session, CompletionMode::Satisfiable) {
+            Ok(_) => Ok(true),
+            Err(InferenceFailure::Constraint(_)) => Ok(false),
+            Err(InferenceFailure::Internal(error)) => Err(error),
+        }
     }
 
     /// Propagate every currently decidable relation without requiring the
@@ -159,7 +169,7 @@ impl Lowerer {
         &mut self,
         session: &InferenceSession,
         environment: InferenceEnvironmentId,
-    ) -> Result<PartialInferenceArguments, ConstraintFailure> {
+    ) -> Result<PartialInferenceArguments, InferenceFailure> {
         let bindings = self.solve_constraint_bindings(session, CompletionMode::Partial)?;
         let lookup = |variable: InferenceVariableId| {
             bindings[session
@@ -188,7 +198,7 @@ impl Lowerer {
         &mut self,
         session: &InferenceSession,
         completion: CompletionMode,
-    ) -> Result<Vec<Option<hir::TypeId>>, ConstraintFailure> {
+    ) -> Result<Vec<Option<hir::TypeId>>, InferenceFailure> {
         let atomic = reduce_constraints(self, session)?;
         let mut atomic = incorporation::incorporate_bounds(self, session, atomic)?;
         let mut states: Vec<_> = session
@@ -290,19 +300,19 @@ impl Lowerer {
         session: &InferenceSession,
         bindings: &[Option<hir::TypeId>],
         state: &VariableState,
-    ) -> Result<Option<hir::TypeId>, ConstraintFailure> {
+    ) -> Result<Option<hir::TypeId>, InferenceFailure> {
         let exact = self.materialized_bounds(session, bindings, &state.exact)?;
         if let Some(&candidate) = exact.first() {
             for &other in &exact[1..] {
                 if !self.types_equal(candidate, other) {
-                    return Err(ConstraintFailure {
+                    return Err(InferenceFailure::Constraint(ConstraintFailure {
                         origin: state.failure_origin(),
                         kind: ConstraintFailureKind::ConflictingExactBounds {
                             variable: state.variable,
                             first: candidate,
                             second: other,
                         },
-                    });
+                    }));
                 }
             }
             return Ok(Some(candidate));
@@ -347,7 +357,7 @@ impl Lowerer {
         session: &InferenceSession,
         bindings: &[Option<hir::TypeId>],
         state: &VariableState,
-    ) -> ConstraintFailure {
+    ) -> InferenceFailure {
         let lower = self
             .materialized_bounds(session, bindings, &state.lower)
             .unwrap_or_default();
@@ -362,7 +372,7 @@ impl Lowerer {
         } else {
             Vec::new()
         };
-        ConstraintFailure {
+        InferenceFailure::Constraint(ConstraintFailure {
             origin: state.failure_origin(),
             kind: ConstraintFailureKind::NoUniqueSolution {
                 variable: state.variable,
@@ -370,7 +380,7 @@ impl Lowerer {
                 upper_bounds: upper,
                 solution_frontier,
             },
-        }
+        })
     }
 
     fn solution_frontier(
@@ -434,7 +444,7 @@ fn distribute_constraints(
     atomic: Vec<AtomicConstraint>,
     states: &mut [VariableState],
     checks: &mut Vec<AtomicConstraint>,
-) -> Result<(), ConstraintFailure> {
+) -> Result<(), InferenceFailure> {
     for constraint in atomic {
         let (variable, destination) = match constraint.kind {
             AtomicConstraintKind::Exact(variable, term) => (variable, Some((0, term))),
@@ -443,10 +453,12 @@ fn distribute_constraints(
             AtomicConstraintKind::ClassBound(variable, term) => (variable, Some((3, term))),
             AtomicConstraintKind::Implements(variable, term) => (variable, Some((4, term))),
             AtomicConstraintKind::Kind(variable, kind) => {
-                let index = session.variable_index(variable).ok_or(ConstraintFailure {
-                    origin: constraint.origin,
-                    kind: ConstraintFailureKind::ForeignVariable(variable),
-                })?;
+                let index = session
+                    .variable_index(variable)
+                    .ok_or(InferenceFailure::Internal(InferenceInvariantError {
+                        origin: constraint.origin,
+                        kind: InferenceInvariantErrorKind::ForeignVariable(variable),
+                    }))?;
                 states[index].kinds.push((kind, constraint.origin));
                 continue;
             }
@@ -460,10 +472,12 @@ fn distribute_constraints(
                 continue;
             }
         };
-        let index = session.variable_index(variable).ok_or(ConstraintFailure {
-            origin: constraint.origin,
-            kind: ConstraintFailureKind::ForeignVariable(variable),
-        })?;
+        let index = session
+            .variable_index(variable)
+            .ok_or(InferenceFailure::Internal(InferenceInvariantError {
+                origin: constraint.origin,
+                kind: InferenceInvariantErrorKind::ForeignVariable(variable),
+            }))?;
         let (destination, term) = destination.expect("variable constraint has a bound");
         let bound = Bound {
             term,

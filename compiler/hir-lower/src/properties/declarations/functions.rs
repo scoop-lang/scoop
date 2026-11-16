@@ -75,27 +75,33 @@ impl Lowerer {
             || declaration.name.text.clone(),
             |owner| format!("{}.{}", owner.describe_name(self), declaration.name.text),
         );
-        let function = self.functions.alloc(Function {
-            signature: hir::CallableSignature {
-                context_parameters: Vec::new(),
-                release_callability: Default::default(),
-                name,
-                is_suspend: false,
-                modifiers: hir::CallableModifiers::default(),
-                params: Vec::new(),
-                return_ty: self.unit,
-                attributes: checked.attributes,
-                span: declaration.span,
-            },
+        let function = self.functions.alloc(
+            Function {
+                signature: hir::CallableSignature {
+                    context_parameters: Vec::new(),
+                    release_callability: Default::default(),
+                    name,
+                    is_suspend: false,
+                    modifiers: hir::CallableModifiers::default(),
+                    params: Vec::new(),
+                    return_ty: self.unit,
+                    attributes: checked.attributes,
+                    span: declaration.span,
+                },
 
-            access,
-            genericity: hir::FunctionGenericity::Plain,
-            kind: FunctionKind::User(hir::Body {
-                locals: la_arena::Arena::new(),
-                statements: Vec::new(),
-            }),
-            method,
-        });
+                access,
+                genericity: hir::FunctionGenericity::Plain,
+                kind: FunctionKind::User(hir::Body {
+                    locals: la_arena::Arena::new(),
+                    statements: Vec::new(),
+                }),
+                method,
+            },
+            match kind {
+                PropertyAccessorKind::Getter => crate::FunctionOrigin::Getter(property),
+                PropertyAccessorKind::Setter => crate::FunctionOrigin::Setter(property),
+            },
+        );
         if let Some(owner) = method_owner {
             self.function_owner.insert(function, owner);
             match owner {

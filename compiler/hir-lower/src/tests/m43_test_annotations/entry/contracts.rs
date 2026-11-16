@@ -35,10 +35,10 @@ fn a_selection_function_must_return_boolean_before_building_hir_control_flow() {
         "test execution requires isTestSelected to return Boolean"
     );
     assert_eq!(
-        errors[0].source.as_ref().unwrap().logical_path().as_str(),
+        errors[0].source().as_ref().unwrap().logical_path().as_str(),
         "tests/check.scoop"
     );
-    assert_eq!(errors[0].span, Some(scoop_ast::Span::new(43, 48)));
+    assert_eq!(errors[0].span(), Some(scoop_ast::Span::new(43, 48)));
 }
 
 #[test]
@@ -85,8 +85,8 @@ fn an_incompatible_execution_function_is_diagnosed_instead_of_skipping_the_case(
         "no applicable candidate for `runReportedTestCase` in implicit-import candidate layer:\n  - fun runReportedTestCase(): TestResult — expects 0 argument(s), but 3 were supplied"
     );
     assert_eq!(
-        errors[0].source.as_ref().unwrap().logical_path().as_str(),
+        errors[0].source().as_ref().unwrap().logical_path().as_str(),
         "tests/check.scoop"
     );
-    assert_eq!(errors[0].span, Some(scoop_ast::Span::new(43, 48)));
+    assert_eq!(errors[0].span(), Some(scoop_ast::Span::new(43, 48)));
 }

@@ -101,10 +101,9 @@ fn boolean_invoke() -> Function {
     let Instruction::Call { site } = block.instructions.pop().unwrap() else {
         unreachable!("boolean caller ends with its call");
     };
-    block.instructions.push(Instruction::Invoke {
+    block.terminator = Terminator::Invoke {
         site: managed_invoke(site, normal, unwind),
-    });
-    block.terminator = Terminator::Br(normal);
+    };
     function
 }
 

@@ -4,7 +4,6 @@ use super::*;
 enum RootPlan {
     None,
     Statepoint(lir::StatepointLiveSet),
-    Exceptional(lir::ExceptionalRootSet),
     NativeSafe(lir::NativeSafeRootSet),
     NativeBorrowed(Vec<lir::CallerRoot>),
 }
@@ -34,13 +33,14 @@ pub(super) fn annotate_root_plans(
             }
             block_defs.extend(instruction_defs(instruction));
         }
-        terminator_uses(&block.terminator, |value| {
+        terminator_uses(&block.terminator, function, |value| {
             if let Some(value) = LiveValue::from_value(value)
                 && !block_defs.contains(&value)
             {
                 block_uses.insert(value);
             }
         });
+        block_defs.extend(terminator_defs(&block.terminator));
         uses[index] = block_uses;
         defs[index] = block_defs;
         successors[index] = block_successors(block);
@@ -68,6 +68,7 @@ pub(super) fn annotate_root_plans(
         }
     }
 
+    let mut exceptional_plans = vec![None; block_count];
     let mut plans: Vec<Vec<RootPlan>> = function
         .blocks
         .iter()
@@ -76,7 +77,18 @@ pub(super) fn annotate_root_plans(
     for (id, block) in function.blocks.iter() {
         let block_index = arena_index(id);
         let mut live = live_out[block_index].clone();
-        terminator_uses(&block.terminator, |value| {
+        for definition in terminator_defs(&block.terminator) {
+            live.remove(&definition);
+        }
+        if let lir::Terminator::Invoke {
+            site: lir::InvokeSite::Managed(site),
+        } = &block.terminator
+        {
+            exceptional_plans[block_index] = Some(exceptional_root_set(
+                context, site, &live_in, function, structs, enums,
+            )?);
+        }
+        terminator_uses(&block.terminator, function, |value| {
             if let Some(value) = LiveValue::from_value(value) {
                 live.insert(value);
             }
@@ -241,18 +253,6 @@ pub(super) fn annotate_root_plans(
                         )?)
                     }
                 },
-                lir::Instruction::Invoke { site } => match site {
-                    lir::InvokeSite::Managed(site) => RootPlan::Exceptional(exceptional_root_set(
-                        context,
-                        instruction,
-                        site,
-                        &live_in,
-                        function,
-                        structs,
-                        enums,
-                    )?),
-                    lir::InvokeSite::NoGc(_) => RootPlan::None,
-                },
                 lir::Instruction::NativeGlobalLoad {
                     protocol: lir::NativeStorageProtocol::NativeSafe { .. },
                     ..
@@ -279,6 +279,14 @@ pub(super) fn annotate_root_plans(
 
     for (id, block) in function.blocks.iter_mut() {
         let block_index = arena_index(id);
+        if let lir::Terminator::Invoke {
+            site: lir::InvokeSite::Managed(site),
+        } = &mut block.terminator
+        {
+            site.roots = exceptional_plans[block_index]
+                .take()
+                .expect("managed invoke has its computed root plan");
+        }
         for (instruction_index, instruction) in block.instructions.iter_mut().enumerate() {
             let plan =
                 std::mem::replace(&mut plans[block_index][instruction_index], RootPlan::None);
@@ -336,12 +344,6 @@ pub(super) fn annotate_root_plans(
                     RootPlan::NativeBorrowed(roots),
                 ) => site.roots = lir::NativeBorrowedRootSet::new(roots),
                 (
-                    lir::Instruction::Invoke {
-                        site: lir::InvokeSite::Managed(site),
-                    },
-                    RootPlan::Exceptional(roots),
-                ) => site.roots = roots,
-                (
                     lir::Instruction::NativeGlobalLoad {
                         protocol: lir::NativeStorageProtocol::NativeSafe { roots, .. },
                         ..
@@ -359,12 +361,6 @@ pub(super) fn annotate_root_plans(
                 (
                     lir::Instruction::Call {
                         site: lir::CallSite::NoGc(_),
-                    },
-                    RootPlan::None,
-                )
-                | (
-                    lir::Instruction::Invoke {
-                        site: lir::InvokeSite::NoGc(_),
                     },
                     RootPlan::None,
                 )

@@ -316,7 +316,7 @@ fn exact_dependency_extension_result_does_not_select_a_lower_scope() {
             errors[0].message,
             "body of `consumer` must be of type Int, found (Int, Int)"
         );
-        assert_eq!(errors[0].span, Some(sp()));
+        assert_eq!(errors[0].span(), Some(sp()));
     });
 }
 
@@ -452,7 +452,7 @@ fn extension_provider(
 fn inspect_extensions<R>(
     providers: Vec<DependencyExtensionProvider>,
     consumer: scoop_ast::SourceFile,
-    inspect: impl FnOnce(Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::Diagnostic>>) -> R,
+    inspect: impl FnOnce(Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>>) -> R,
 ) -> R {
     let mut core = trusted_core();
     let prepared = providers

@@ -110,7 +110,7 @@ impl Lowerer {
         id: FunctionId,
         generate: impl FnOnce(&mut Self) -> Vec<hir::Statement>,
     ) -> hir::Body {
-        let name = self.source_function_declarations.get(&id).map_or_else(
+        let name = self.functions.source(id).map_or_else(
             || self.functions[id].name.clone(),
             |source| source.name.clone(),
         );
@@ -134,7 +134,12 @@ impl Lowerer {
         block: &ast::Block,
         source_file: usize,
     ) -> hir::Body {
-        let name = self.source_function_declarations[&id].name.clone();
+        let name = self
+            .functions
+            .source(id)
+            .expect("source function declaration")
+            .name
+            .clone();
         self.with_function_body(id, &name, |lowerer| {
             let previous_source = lowerer.generated_source_file.replace(source_file);
             let previous_context = lowerer.current_source_context;

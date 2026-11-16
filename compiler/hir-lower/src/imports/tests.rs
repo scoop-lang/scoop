@@ -10,8 +10,9 @@ mod resolution;
 mod type_lookup;
 mod value_lookup;
 use crate::tests::{
-    call, core_source_identity, enum_decl, field, file, fun, ident, identified_test_sources, sp,
-    stmt, str_lit, test_source_identity, ty_named, val, var, variant_positional, variant_unit,
+    bound_source, call, core_source_identity, diagnostic_source, enum_decl, field, file, fun,
+    ident, identified_test_sources, sp, stmt, str_lit, test_source_identity, ty_named, val, var,
+    variant_positional, variant_unit,
 };
 use crate::{IntrinsicDeclarationPolicy, Lowerer, SourceKind, SourceProvider};
 

@@ -76,14 +76,6 @@ pub(crate) fn root_storage_sources(function: &Function) -> Vec<scoop_lir::Caller
                     | scoop_lir::CallSite::NativeGcLeaf(_)
                     | scoop_lir::CallSite::ReleaseNativeLeaf(_) => {}
                 },
-                Instruction::Invoke {
-                    site: scoop_lir::InvokeSite::Managed(site),
-                } => {
-                    sources.extend(site.roots.as_slice().iter().map(|root| root.root.source));
-                }
-                Instruction::Invoke {
-                    site: scoop_lir::InvokeSite::NoGc(_),
-                } => {}
                 Instruction::NativeGlobalLoad { protocol, .. }
                 | Instruction::NativeGlobalStore { protocol, .. }
                 | Instruction::NativeGlobalAddress { protocol, .. } => {
@@ -91,6 +83,14 @@ pub(crate) fn root_storage_sources(function: &Function) -> Vec<scoop_lir::Caller
                 }
                 _ => {}
             }
+        }
+    }
+    for (_, block) in function.blocks.iter() {
+        if let Terminator::Invoke {
+            site: scoop_lir::InvokeSite::Managed(site),
+        } = &block.terminator
+        {
+            sources.extend(site.roots.as_slice().iter().map(|root| root.root.source));
         }
     }
     let mut sources = sources.into_iter().collect::<Vec<_>>();
@@ -160,7 +160,6 @@ pub(crate) fn instruction_temp_defs(instruction: &Instruction) -> [Option<TempId
         | Instruction::VariantTest { out, .. }
         | Instruction::VariantPayloadProject { out, .. } => Some(*out),
         Instruction::Call { site } => site.result_temp(),
-        Instruction::Invoke { site } => site.result_temp(),
         Instruction::LandingPad { record, .. } | Instruction::CleanupPad { record, .. } => {
             Some(*record)
         }
@@ -200,8 +199,8 @@ pub(crate) fn compiler_unwind_plan(
     let mut sources = HashMap::<_, HashSet<_>>::new();
     let mut blocks = HashSet::new();
     for (_, block) in function.blocks.iter() {
-        for instruction in &block.instructions {
-            let Instruction::Invoke { site } = instruction else {
+        {
+            let Terminator::Invoke { site } = &block.terminator else {
                 continue;
             };
             blocks.insert(site.unwind());

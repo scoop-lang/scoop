@@ -13,7 +13,11 @@ mod span;
 mod text;
 mod version;
 
-pub use diagnostic::{Diagnostic, DiagnosticNote, DiagnosticSeverity};
+pub use diagnostic::{
+    Diagnostic, DiagnosticBindingError, DiagnosticKind, DiagnosticLocation, DiagnosticNote,
+    DiagnosticSeverity, LocalDiagnosticSource, SourceDiagnostic, SourceDiagnosticNote,
+    bind_diagnostics,
+};
 pub use edit::SourceEdit;
 pub use line_index::LineIndex;
 pub use position::{PositionEncoding, PositionError, TextPosition};

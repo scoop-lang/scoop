@@ -20,7 +20,7 @@ fn applications(source: &str) -> Vec<ast::Annotation> {
     declaration.annotations.clone()
 }
 
-fn bootstrap(files: Vec<ast::SourceFile>) -> Result<hir::Output, Vec<ast::Diagnostic>> {
+fn bootstrap(files: Vec<ast::SourceFile>) -> Result<hir::Output, Vec<scoop_ast::SourceDiagnostic>> {
     let mut parsed = Vec::new();
     let mut texts = Vec::new();
     let mut contexts = Vec::new();

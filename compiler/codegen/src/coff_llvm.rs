@@ -41,7 +41,7 @@ pub(crate) fn prepare(llvm: &Module<'_>, symbols: &SymbolPlanIndex) -> Result<()
         if let Some(previous) = owners.insert(owner.as_value_ref() as usize, group.clone())
             && previous != group
         {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "COFF storage belongs to both {previous} and {group}"
             )));
         }
@@ -56,7 +56,7 @@ pub(crate) fn prepare(llvm: &Module<'_>, symbols: &SymbolPlanIndex) -> Result<()
                 ComdatSelectionKind::NoDuplicates
             }
             LinkageClass::RuntimeAbi => {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "runtime declaration cannot own compiler storage".into(),
                 ));
             }

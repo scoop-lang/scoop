@@ -38,7 +38,7 @@ pub(super) fn emit_object_set_with_production<
         &foundation,
         production.canonical_definitions(),
     )
-    .map_err(|error| CodegenError(error.to_string()))?;
+    .map_err(|error| CodegenError::internal_cause(error.to_string(), error))?;
     let metadata_context = Context::create();
     let machine = profile.create_target_machine()?;
     let metadata_llvm = prepare_non_callable_strong_llvm_module(
@@ -116,7 +116,7 @@ fn finish_callable_object(
         .filter_map(|id| surface.plan(*id))
         .find(|plan| plan.definition_role() == scoop_lir::StrongDefinitionRole::CallableBody)
         .ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "callable object for {body} has no canonical symbol plan"
             ))
         })?;

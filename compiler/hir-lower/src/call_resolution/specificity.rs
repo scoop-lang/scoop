@@ -115,9 +115,9 @@ impl Lowerer {
         &self,
         source: DeclarationForwardingView<'_>,
         target: DeclarationForwardingView<'_>,
-    ) -> bool {
+    ) -> Result<bool, super::constraints::InferenceInvariantError> {
         if source.parameter_types.len() != target.parameter_types.len() {
-            return false;
+            return Ok(false);
         }
         let mut probe = self.clone();
         // `is_subtype(Type::Param(..), ..)` consumes declaration bounds from

@@ -100,6 +100,9 @@ impl Lowerer {
             }
             PropertyExtensionInvokeOutcome::NoApplicable(failure) => {
                 if let Some(failure) = failure {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return Err(());
+                    }
                     first_failure.get_or_insert(failure);
                 }
                 Ok(None)

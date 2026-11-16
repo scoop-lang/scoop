@@ -272,7 +272,7 @@ fn member(
     CborIdentityRecord::from_key(key).map_err(ContinuationAdapterIdentityError::OdrMemberRecord)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContinuationAdapterIdentityError {
     InvalidSuccessSignature,
     InvalidFailureSignature,

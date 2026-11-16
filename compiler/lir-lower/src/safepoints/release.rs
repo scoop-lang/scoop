@@ -55,7 +55,7 @@ fn validate_body(module: &lir::Module, function: &lir::Function) -> StorageResul
             ));
         }
         let mut valid_operands = true;
-        terminator_uses(&block.terminator, |value| {
+        terminator_uses(&block.terminator, function, |value| {
             valid_operands &= operand(module, value)
         });
         for instruction in &block.instructions {

@@ -403,17 +403,6 @@ pub enum Instruction {
     ManagedPoll {
         site: ManagedPollSite,
     },
-    /// Call that may throw (inside a `try`): control transfers to
-    /// `normal` on success and to the `unwind` landing pad on a
-    /// thrown exception (spec 11.7, runtime spec 5). Terminator-like:
-    /// must be the last instruction of its block; the block's
-    /// `Terminator` is the redundant `Br(normal)` — it only restates
-    /// the normal successor for dump readability, and codegen uses
-    /// this instruction as the LLVM terminator without emitting the
-    /// branch.
-    Invoke {
-        site: InvokeSite,
-    },
     /// Catch-all landing pad. It captures the opaque unwind record and
     /// raw exception pointer but does not begin the catch; `BeginCatch`
     /// is explicit in the ordinary dispatch block.
@@ -627,9 +616,6 @@ impl Instruction {
                 | CallSite::ReleaseNativeLeaf(_) => None,
             },
             Self::ManagedPoll { site } => Some((SafepointSiteRole::ManagedPoll, site.safepoint)),
-            Self::Invoke {
-                site: InvokeSite::Managed(site),
-            } => Some((SafepointSiteRole::ManagedInvoke, site.safepoint)),
             Self::ArrayAllocDynamic { safepoint, .. }
             | Self::ArrayAlloc { safepoint, .. }
             | Self::ArrayAssembly { safepoint, .. }
@@ -721,6 +707,11 @@ pub enum IntegerShiftOperation {
 
 #[derive(Debug)]
 pub enum Terminator {
+    /// A throwing call ends the block and transfers to exactly one of its
+    /// normal and unwind successors. Its result exists on the normal edge.
+    Invoke {
+        site: InvokeSite,
+    },
     Br(BlockId),
     CondBr {
         cond: Value,
@@ -737,4 +728,38 @@ pub enum Terminator {
     },
     /// After a noreturn call (e.g. the trap function).
     Unreachable,
+}
+
+impl Terminator {
+    pub fn safepoint(&self) -> Option<(SafepointSiteRole, SafepointSiteRef)> {
+        match self {
+            Self::Invoke {
+                site: InvokeSite::Managed(site),
+            } => Some((SafepointSiteRole::ManagedInvoke, site.safepoint)),
+            _ => None,
+        }
+    }
+
+    pub fn successors(&self) -> impl Iterator<Item = BlockId> {
+        let targets = match self {
+            Self::Br(target) => [Some(*target), None],
+            Self::CondBr {
+                then_block,
+                else_block,
+                ..
+            } => [Some(*then_block), Some(*else_block)],
+            Self::Invoke { site } => [Some(site.normal()), Some(site.unwind())],
+            Self::Return { .. } | Self::Resume { .. } | Self::Unreachable => [None, None],
+        };
+        targets.into_iter().flatten()
+    }
+}
+
+impl BasicBlock {
+    pub fn safepoints(&self) -> impl Iterator<Item = (SafepointSiteRole, SafepointSiteRef)> {
+        self.instructions
+            .iter()
+            .filter_map(Instruction::safepoint)
+            .chain(self.terminator.safepoint())
+    }
 }

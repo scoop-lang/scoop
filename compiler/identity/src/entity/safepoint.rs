@@ -149,7 +149,7 @@ macro_rules! impl_derived_id_encoding {
 impl_derived_id_encoding!(RuntimeTypeId);
 impl_derived_id_encoding!(SafepointId);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DerivedIdError {
     Zero,
     Hash(HashError),

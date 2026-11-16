@@ -3,7 +3,7 @@ use super::*;
 pub(in crate::request::preflight) struct CurrentConeHir {
     pub hir: scoop_hir::DependencyHirOutput,
     pub generated_sources: Vec<scoop_hir::GeneratedMethodSource>,
-    pub generator_warnings: Vec<scoop_ast::Diagnostic>,
+    pub generator_warnings: Vec<scoop_ast::SourceDiagnostic>,
     pub used_generators: Vec<scoop_protocol::GeneratorToolInputV1>,
     pub compiler_inputs: Vec<scoop_protocol::CompilerInputV1>,
 }
@@ -47,7 +47,11 @@ impl CurrentConeHir {
         Ok(Self {
             hir,
             generated_sources: generator.sources,
-            generator_warnings: generator.warnings,
+            generator_warnings: crate::CurrentConeDiagnosticSet::bind_local(
+                generator.warnings,
+                parsed,
+            )
+            .map_err(CurrentConeHirStageError::Diagnostics)?,
             used_generators: generator.used,
             compiler_inputs: inputs.compiler_inputs(),
         })
@@ -75,7 +79,11 @@ impl CurrentConeHir {
         Ok(Self {
             hir,
             generated_sources: generator.sources,
-            generator_warnings: generator.warnings,
+            generator_warnings: crate::CurrentConeDiagnosticSet::bind_local(
+                generator.warnings,
+                parsed_sources,
+            )
+            .map_err(CurrentConeHirStageError::Diagnostics)?,
             used_generators: generator.used,
             compiler_inputs: inputs.compiler_inputs(),
         })
@@ -83,18 +91,24 @@ impl CurrentConeHir {
 }
 
 fn finish_lowering(
-    result: Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::Diagnostic>>,
+    result: Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>>,
     parsed: &scoop_ast::CurrentConeParsedSources,
     generator: &mut crate::generation::ExternalGenerator<'_>,
 ) -> Result<scoop_hir::DependencyHirOutput, CurrentConeHirStageError> {
     result.map_err(|mut diagnostics| {
-        diagnostics.append(&mut generator.warnings);
-        match crate::CurrentConeDiagnosticSet::try_new_with_generated(
-            diagnostics,
+        let warnings = crate::CurrentConeDiagnosticSet::bind_local(
+            std::mem::take(&mut generator.warnings),
             parsed,
-            &generator.sources,
-        ) {
-            Ok(diagnostics) => CurrentConeHirStageError::Lowering(diagnostics),
+        );
+        match warnings {
+            Ok(warnings) => {
+                diagnostics.extend(warnings);
+                CurrentConeHirStageError::Lowering(crate::CurrentConeDiagnosticSet::from_bound(
+                    diagnostics,
+                    parsed,
+                    &generator.sources,
+                ))
+            }
             Err(error) => CurrentConeHirStageError::Diagnostics(error),
         }
     })

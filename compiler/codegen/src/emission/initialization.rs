@@ -38,7 +38,7 @@ pub(super) fn initialization_unit_requests<D, C, I>(
                 .copied()
                 .map(|request| (id, request))
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "initialization unit {} has no strong production plan",
                         unit.identity.id()
                     ))
@@ -46,7 +46,7 @@ pub(super) fn initialization_unit_requests<D, C, I>(
         })
         .collect::<Result<BTreeMap<_, _>, _>>()?;
     if requests.len() != plans.len() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "strong initialization declaration coverage mismatch: LIR {}, planned {}",
             requests.len(),
             plans.len(),
@@ -71,7 +71,7 @@ pub(super) fn declare_initialization_unit_globals<'ctx>(
             if llvm.get_global(symbol.as_str()).is_some()
                 || llvm.get_function(symbol.as_str()).is_some()
             {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "initialization registration declaration `{symbol}` collides with an LLVM value"
                 )));
             }
@@ -90,7 +90,7 @@ pub(crate) fn initialization_unit_globals_from_pairs<'ctx>(
     let mut by_unit = std::collections::BTreeMap::new();
     for (unit, descriptor) in emitted {
         if by_unit.insert(unit, descriptor).is_some() {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "strong initialization emission contains duplicate unit ids".to_string(),
             ));
         }
@@ -104,7 +104,7 @@ pub(crate) fn initialization_unit_globals_from_pairs<'ctx>(
                 .copied()
                 .map(|global| (id, global))
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "initialization unit {} has no emitted initialization registration",
                         unit.identity.id()
                     ))
@@ -112,7 +112,7 @@ pub(crate) fn initialization_unit_globals_from_pairs<'ctx>(
         })
         .collect::<Result<BTreeMap<_, _>, _>>()?;
     if globals.len() != by_unit.len() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "strong initialization coverage mismatch: LIR {}, emitted {}",
             globals.len(),
             by_unit.len()

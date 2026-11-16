@@ -39,7 +39,7 @@ fn shebang_requires_the_first_byte_of_the_file() {
         let source = format!("{prefix}#!scoop run\nfun main() {{}}");
         let diagnostics = parse(&source).unwrap_err();
         assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.span == Some(Span::new(prefix.len() as u32, prefix.len() as u32 + 1))
+            diagnostic.span() == Some(Span::new(prefix.len() as u32, prefix.len() as u32 + 1))
         }));
     }
 }
@@ -50,5 +50,5 @@ fn diagnostic_after_shebang_uses_original_byte_span() {
     let diagnostics = parse(source).unwrap_err();
     assert_eq!(diagnostics.len(), 1);
     let offset = source.find('=').unwrap() as u32;
-    assert_eq!(diagnostics[0].span, Some(Span::new(offset, offset + 1)));
+    assert_eq!(diagnostics[0].span(), Some(Span::new(offset, offset + 1)));
 }

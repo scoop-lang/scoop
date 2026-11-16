@@ -28,7 +28,7 @@ impl Lowerer {
         };
         methods
             .into_iter()
-            .filter(|function| self.source_function_declarations.contains_key(function))
+            .filter(|function| self.functions.source(*function).is_some())
             .collect::<Vec<_>>()
             .into_iter()
             .map(|function| self.query_source_method(function, receiver, substitutions))

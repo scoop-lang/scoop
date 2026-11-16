@@ -201,7 +201,7 @@ fn validates_all_prerequisites_before_emitting_owned_definitions() {
     )
     .unwrap_err();
 
-    assert!(error.0.contains("is not declared"), "{error}");
+    assert!(error.to_string().contains("is not declared"), "{error}");
     assert_owned_definitions_absent(&llvm, expected);
 }
 

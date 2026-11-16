@@ -135,7 +135,7 @@ fn apply_parameter_attributes(
             .ok()
             .and_then(|index| index.checked_add(parameter_offset))
             .ok_or_else(|| {
-                CodegenError("Scoop ABI parameter index exceeds u32::MAX".to_string())
+                CodegenError::internal("Scoop ABI parameter index exceeds u32::MAX".to_string())
             })?;
         let attribute_name = match parameter.origin() {
             AbiPhysicalParameterOrigin::IndirectReturn => Some("sret"),
@@ -280,7 +280,7 @@ pub(crate) fn declare_or_get<'ctx>(
     let function = match llvm.get_function(symbol) {
         Some(function) if function.get_type() == expected => function,
         Some(_) => {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "typed target `{symbol}` disagrees with its Scoop ABI declaration"
             )));
         }

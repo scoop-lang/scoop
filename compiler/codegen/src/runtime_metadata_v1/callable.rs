@@ -76,7 +76,7 @@ pub(crate) fn emit_strong_callable_registrations_v1<'ctx>(
                 .runtime_scans()
                 .callable(registration.body())
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "missing callable support plan {}",
                         registration.body()
                     ))
@@ -120,7 +120,7 @@ fn emit_registration<'ctx>(
     let entry_request = plan.entry_symbol();
     let entry_symbol = entry_request.symbol();
     let entry = llvm.get_function(entry_symbol.as_str()).ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "callable entry `{entry_symbol}` is not declared in the LLVM module"
         ))
     })?;

@@ -250,7 +250,8 @@ fn illegal_visibility_positions_and_hidden_obligations_are_diagnosed() {
         fun("main", Vec::new()),
     ]))
     .expect_err("invalid access declarations must fail");
-    assert!(errors.iter().all(|diagnostic| diagnostic.file == 1));
+    assert!(errors.iter().all(|diagnostic| diagnostic_source(diagnostic)
+        == &scoop_identity::SourceIdentity::single_file()));
     let messages = errors
         .into_iter()
         .map(|diagnostic| diagnostic.message)
@@ -432,7 +433,8 @@ fn signature_and_default_dependencies_must_cover_the_full_call_domain() {
         fun("main", Vec::new()),
     ]))
     .expect_err("public signatures and defaults cannot leak narrower declarations");
-    assert!(errors.iter().all(|diagnostic| diagnostic.file == 1));
+    assert!(errors.iter().all(|diagnostic| diagnostic_source(diagnostic)
+        == &scoop_identity::SourceIdentity::single_file()));
     let messages = errors
         .into_iter()
         .map(|diagnostic| diagnostic.message)

@@ -35,7 +35,7 @@ pub(super) fn convert(
                 }
                 .into(),
                 diagnostic.message.clone(),
-                origin(&path, diagnostic.span)?,
+                origin(&path, diagnostic.span())?,
                 notes,
             )
             .map_err(config)

@@ -34,14 +34,12 @@ impl Lowerer {
             hir::MethodModifier::Final,
             ast::DeclaredVisibility::Public,
             span,
-        );
-        self.source_function_declarations.insert(
-            function,
-            crate::SourceFunctionDeclaration {
+            crate::FunctionOrigin::Source(crate::SourceFunctionDeclaration {
                 name: member.signature.name.clone(),
                 name_span: None,
-            },
+            }),
         );
+
         let mut diagnostic = ast::Diagnostic::at(
             span,
             format!(
@@ -50,7 +48,7 @@ impl Lowerer {
                 member.signature.name,
             ),
         );
-        diagnostic.file = self.current_file;
+        diagnostic.set_file(self.current_file);
         self.generation.methods.insert(
             function,
             PendingGenerationMethod {

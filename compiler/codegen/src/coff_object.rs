@@ -261,5 +261,5 @@ fn field(bytes: &[u8], offset: usize) -> Result<u32, CodegenError> {
 }
 
 pub(crate) fn error(message: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("COFF object: {message}"))
+    CodegenError::internal(format!("COFF object: {message}"))
 }

@@ -13,28 +13,27 @@ pub(super) fn finalize(
     let mut sites = BTreeMap::new();
     let mut identities = BTreeMap::<u64, BTreeSet<(u8, u32, u64)>>::new();
     for function in module.get_functions() {
-        let function_name = function
-            .get_name()
-            .to_str()
-            .map_err(|error| CodegenError(format!("LLVM function name: {error}")))?;
+        let function_name = function.get_name().to_str().map_err(|error| {
+            CodegenError::backend(format!("LLVM function name: {error}"), error)
+        })?;
         for block in function.get_basic_blocks() {
             for instruction in block.get_instructions() {
                 retain_merge_base(instruction, profile)?;
                 if let Some((id, root)) = root_identity::read(instruction, metadata)? {
                     let site = expected.sites.get(&id).ok_or_else(|| {
-                        CodegenError(format!(
+                        CodegenError::internal(format!(
                             "root restoration refers to unknown SafepointId {id}"
                         ))
                     })?;
                     if site.function != function_name
                         || !matches!(site.statepoint, ExpectedStatepoint::Relocating(_))
                     {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "root restoration for {id} has the wrong owner or call protocol"
                         )));
                     }
                     if !identities.entry(id).or_default().insert(root.key()) {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "statepoint {id} repeats typed root identity {root:?}"
                         )));
                     }
@@ -45,7 +44,7 @@ pub(super) fn finalize(
                     if !constant_roots::is_constant_root(value)
                         && !constant_roots::mark_base_merge(value)?
                     {
-                        return Err(CodegenError(
+                        return Err(CodegenError::internal(
                             "a final managed root merge contains a derived address".into(),
                         ));
                     }
@@ -54,12 +53,12 @@ pub(super) fn finalize(
                     continue;
                 };
                 let site = expected.sites.get(&id).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "optimized LLVM contains unexpected SafepointId {id}"
                     ))
                 })?;
                 if site.function != function_name {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "optimized SafepointId {id} changed its callable owner"
                     )));
                 }
@@ -67,7 +66,7 @@ pub(super) fn finalize(
                     .get_next_instruction()
                     .is_some_and(|next| next.get_opcode() == InstructionOpcode::Unreachable);
                 if sites.insert(id, terminal).is_some() {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "optimization duplicated SafepointId {id}"
                     )));
                 }
@@ -85,14 +84,14 @@ pub(super) fn finalize(
         // directly in unreachable. Returning and exceptional paths still need
         // all restorations; a terminal site cannot introduce unplanned roots.
         if actual != required && (!*terminal || !actual.is_subset(&required)) {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "optimized statepoint {id} in {} has incomplete typed leaf restorations: expected {:?}, observed {actual:?}",
                 site.function, required
             )));
         }
     }
     if let Some(id) = identities.keys().next() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "restoration remains for deleted SafepointId {id}"
         )));
     }
@@ -139,7 +138,7 @@ fn site_id(instruction: InstructionValue<'_>) -> Result<Option<u64>, CodegenErro
             .ok()
             .and_then(|text| text.parse().ok())
             .map(Some)
-            .ok_or_else(|| CodegenError("invalid statepoint-id call attribute".into()));
+            .ok_or_else(|| CodegenError::internal("invalid statepoint-id call attribute".into()));
     }
     let Some(callee) = call.get_called_fn_value() else {
         return Ok(None);
@@ -153,11 +152,15 @@ fn site_id(instruction: InstructionValue<'_>) -> Result<Option<u64>, CodegenErro
     }
     let raw = instruction.as_value_ref();
     if unsafe { LLVMGetNumArgOperands(raw) } == 0 {
-        return Err(CodegenError("statepoint id operand is missing".into()));
+        return Err(CodegenError::internal(
+            "statepoint id operand is missing".into(),
+        ));
     }
     let operand = unsafe { LLVMGetOperand(raw, 0) };
     if unsafe { LLVMIsAConstantInt(operand) }.is_null() {
-        return Err(CodegenError("statepoint id operand is not constant".into()));
+        return Err(CodegenError::internal(
+            "statepoint id operand is not constant".into(),
+        ));
     }
     Ok(Some(unsafe { LLVMConstIntGetZExtValue(operand) }))
 }

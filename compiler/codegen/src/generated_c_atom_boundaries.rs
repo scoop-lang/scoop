@@ -35,7 +35,7 @@ pub(crate) fn materialize_v1(
         })
         .map(|atom| {
             definitions.get(&atom.id()).copied().ok_or_else(|| {
-                CodegenError(format!("generated-C atom {} has no symbol plan", atom.id()))
+                CodegenError::internal(format!("generated-C atom {} has no symbol plan", atom.id()))
             })
         })
         .collect::<Result<Vec<_>, _>>()?;

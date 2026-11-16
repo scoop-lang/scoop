@@ -49,7 +49,8 @@ fun check(value: Boolean) { if (!value) { throw IllegalStateException() } }
 }
 
 @Unsafe fun main() {
-    val count = if (stressMode()) { 64L } else { 32768L }
+    // Keep stress arrays above the marker's inline scan threshold.
+    val count = if (stressMode()) { 128L } else { 32768L }
     exercise(count)
     gcCollect()
     exercise(count)

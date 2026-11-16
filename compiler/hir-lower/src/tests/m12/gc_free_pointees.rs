@@ -488,8 +488,12 @@ fn constructor_regions_and_default_templates_propagate_callable_pointee_requirem
             })
             .collect::<Vec<_>>();
         assert_eq!(application_errors.len(), 1, "{name}: {errors:#?}");
-        assert_eq!(application_errors[0].file, 1, "{name}");
-        assert_eq!(application_errors[0].span, Some(expected_span), "{name}");
+        assert_eq!(
+            diagnostic_source(application_errors[0]),
+            &scoop_identity::SourceIdentity::single_file(),
+            "{name}"
+        );
+        assert_eq!(application_errors[0].span(), Some(expected_span), "{name}");
     }
 }
 

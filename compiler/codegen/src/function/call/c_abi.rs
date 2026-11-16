@@ -34,12 +34,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let allocation = pointer
                 .as_instruction_value()
                 .expect("caller copy is an alloca");
-            let alignment = allocation
-                .get_alignment()
-                .map_err(|error| CodegenError(format!("read caller-copy alignment: {error}")))?;
+            let alignment = allocation.get_alignment().map_err(|error| {
+                CodegenError::backend(format!("read caller-copy alignment: {error}"), error)
+            })?;
             allocation
                 .set_alignment(alignment.max(16))
-                .map_err(|error| CodegenError(format!("align Win64 caller copy: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("align Win64 caller copy: {error}"), error)
+                })?;
         }
         if let Some(DirectCArgument::Indirect {
             value,
@@ -55,7 +57,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .as_instruction_value()
                 .expect("local storage is an alloca")
                 .set_alignment(alignment.get() as u32)
-                .map_err(|error| CodegenError(format!("align C byval copy: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("align C byval copy: {error}"), error)
+                })?;
         }
         Ok(pointer)
     }
@@ -105,9 +109,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     1
                 }
             };
-            index = index
-                .checked_add(count)
-                .ok_or_else(|| CodegenError("C ABI parameter index exceeds u32::MAX".to_owned()))?;
+            index = index.checked_add(count).ok_or_else(|| {
+                CodegenError::internal("C ABI parameter index exceeds u32::MAX".to_owned())
+            })?;
         }
         // A source extern always calls its selected native symbol, including
         // names that LLVM would otherwise recognize as library builtins.

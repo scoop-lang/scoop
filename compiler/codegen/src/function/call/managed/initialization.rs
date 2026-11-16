@@ -98,5 +98,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn init_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("initialization ready path: {error}"))
+    CodegenError::internal(format!("initialization ready path: {error}"))
 }

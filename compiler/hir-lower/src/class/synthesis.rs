@@ -3,6 +3,7 @@
 use super::*;
 
 impl Lowerer {
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::class) fn allocate_synthesized_method(
         &mut self,
         owner: Owner,
@@ -11,6 +12,7 @@ impl Lowerer {
         modifier: hir::MethodModifier,
         visibility: ast::DeclaredVisibility,
         span: ast::Span,
+        origin: crate::FunctionOrigin,
     ) -> FunctionId {
         let host = self.owner_ty(owner);
         let parameters = self.owner_type_params(owner);
@@ -24,31 +26,34 @@ impl Lowerer {
             self.current_file,
             crate::visibility::MemberSlotAccess::Override,
         );
-        let function = self.functions.alloc(hir::Function {
-            signature: hir::CallableSignature {
-                context_parameters: signature.context_parameters.clone(),
-                release_callability: Default::default(),
-                name: format!("{}.{}", owner.describe_name(self), name),
-                is_suspend: signature.is_suspend,
-                modifiers: signature.modifiers,
-                params: Vec::new(),
-                return_ty: signature.return_ty,
-                attributes: signature.attributes,
-                span,
+        let function = self.functions.alloc(
+            hir::Function {
+                signature: hir::CallableSignature {
+                    context_parameters: signature.context_parameters.clone(),
+                    release_callability: Default::default(),
+                    name: format!("{}.{}", owner.describe_name(self), name),
+                    is_suspend: signature.is_suspend,
+                    modifiers: signature.modifiers,
+                    params: Vec::new(),
+                    return_ty: signature.return_ty,
+                    attributes: signature.attributes,
+                    span,
+                },
+                access,
+                genericity: hir::FunctionGenericity::Plain,
+                kind: hir::FunctionKind::User(hir::Body {
+                    locals: la_arena::Arena::new(),
+                    statements: Vec::new(),
+                }),
+                method: Some(hir::Method {
+                    availability: None,
+                    owner: host,
+                    modifier,
+                    dispatch: hir::MethodDispatch::Direct,
+                }),
             },
-            access,
-            genericity: hir::FunctionGenericity::Plain,
-            kind: hir::FunctionKind::User(hir::Body {
-                locals: la_arena::Arena::new(),
-                statements: Vec::new(),
-            }),
-            method: Some(hir::Method {
-                availability: None,
-                owner: host,
-                modifier,
-                dispatch: hir::MethodDispatch::Direct,
-            }),
-        });
+            origin,
+        );
         self.register_method_parameters(function, parameters, Vec::new());
         self.function_owner.insert(function, owner);
         self.record_function_file(function, self.current_file);

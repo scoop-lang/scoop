@@ -12,7 +12,7 @@ pub enum DeclarationAnalysisError {
     Cancelled,
     MissingSource(SourceId),
     SourceLength(scoop_source::SourceLengthError),
-    Input(Vec<ast::Diagnostic>),
+    Input(Vec<ast::SourceDiagnostic>),
 }
 
 impl From<Cancelled> for DeclarationAnalysisError {

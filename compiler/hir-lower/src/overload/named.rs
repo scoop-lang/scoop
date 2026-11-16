@@ -196,7 +196,12 @@ impl Lowerer {
                     materialize_arguments,
                 });
             }
-            Err(failure) => *failure,
+            Err(probe::CandidateProbeError::Rejected(failure)) => *failure,
+            Err(probe::CandidateProbeError::Internal(error)) => {
+                let mut failure = self.clone();
+                failure.diagnostics.push(error);
+                return Err(Box::new(failure));
+            }
         };
         let mut failure = self.clone();
         failure.candidate_failures_diagnostic(

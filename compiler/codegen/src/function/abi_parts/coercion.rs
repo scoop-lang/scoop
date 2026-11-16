@@ -11,7 +11,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .map(|i| {
                     self.builder
                         .build_extract_value(value.into_struct_value(), i, "interface_part")
-                        .map_err(|e| CodegenError(format!("extract interface part: {e}")))
+                        .map_err(|e| {
+                            CodegenError::backend(format!("extract interface part: {e}"), e)
+                        })
                 })
                 .collect();
         }
@@ -37,7 +39,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.copy_coercion_bytes(temporary, 1, source, part.alignment(), part.extent())?;
                 self.builder
                     .build_load(carrier, temporary, "argument_part")
-                    .map_err(|e| CodegenError(format!("read ABI carrier: {e}")))
+                    .map_err(|e| CodegenError::backend(format!("read ABI carrier: {e}"), e))
             })
             .collect()
     }
@@ -60,7 +62,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 value = self
                     .builder
                     .build_insert_value(value, *part, i as u32, "interface_value")
-                    .map_err(|e| CodegenError(format!("assemble interface value: {e}")))?
+                    .map_err(|e| {
+                        CodegenError::backend(format!("assemble interface value: {e}"), e)
+                    })?
                     .into_struct_value();
             }
             return Ok(value.into());
@@ -71,13 +75,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let temporary = self.entry_alloca(value.get_type(), "coercion_return_part")?;
             self.builder
                 .build_store(temporary, *value)
-                .map_err(|e| CodegenError(format!("store ABI carrier: {e}")))?;
+                .map_err(|e| CodegenError::backend(format!("store ABI carrier: {e}"), e))?;
             let destination = self.coercion_offset(storage, part.byte_offset())?;
             self.copy_coercion_bytes(destination, part.alignment(), temporary, 1, part.extent())?;
         }
         self.builder
             .build_load(ty, storage, "coercion_value")
-            .map_err(|e| CodegenError(format!("reconstruct ABI value: {e}")))
+            .map_err(|e| CodegenError::backend(format!("reconstruct ABI value: {e}"), e))
     }
 
     pub(in crate::function) fn encode_direct_result(
@@ -104,7 +108,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             result = self
                 .builder
                 .build_insert_value(result, *value, i as u32, "return_part")
-                .map_err(|e| CodegenError(format!("assemble return carrier: {e}")))?
+                .map_err(|e| CodegenError::backend(format!("assemble return carrier: {e}"), e))?
                 .into_struct_value();
         }
         Ok(result.into())
@@ -125,7 +129,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .map(|i| {
                 self.builder
                     .build_extract_value(value.into_struct_value(), i as u32, "return_part")
-                    .map_err(|e| CodegenError(format!("extract return carrier: {e}")))
+                    .map_err(|e| CodegenError::backend(format!("extract return carrier: {e}"), e))
             })
             .collect::<Result<Vec<_>, _>>()?;
         self.value_from_parts(parts, &values)
@@ -143,7 +147,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.context.i8_type().const_zero(),
                 self.context.i64_type().const_int(size, false),
             )
-            .map_err(|e| CodegenError(format!("zero ABI coercion storage: {e}")))?;
+            .map_err(|e| CodegenError::backend(format!("zero ABI coercion storage: {e}"), e))?;
         Ok(())
     }
 
@@ -163,7 +167,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 src_align as u32,
                 self.context.i64_type().const_int(size, false),
             )
-            .map_err(|e| CodegenError(format!("copy ABI coercion bytes: {e}")))?;
+            .map_err(|e| CodegenError::backend(format!("copy ABI coercion bytes: {e}"), e))?;
         Ok(())
     }
 
@@ -181,7 +185,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 "coercion_address",
             )
         }
-        .map_err(|e| CodegenError(format!("address ABI coercion bytes: {e}")))
+        .map_err(|e| CodegenError::backend(format!("address ABI coercion bytes: {e}"), e))
     }
 
     /// Store fields separately so source-level padding stays zero instead of
@@ -212,7 +216,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     aggregate = self
                         .builder
                         .build_extract_value(aggregate, 1, "coercion_payload")
-                        .map_err(|e| CodegenError(format!("extract C payload: {e}")))?
+                        .map_err(|e| CodegenError::backend(format!("extract C payload: {e}"), e))?
                         .into_struct_value();
                 }
                 (0..definition.field_count())
@@ -232,7 +236,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             self.builder
                                 .build_extract_value(aggregate, index, "coercion_field")
                                 .map_err(|e| {
-                                    CodegenError(format!("extract ABI source field: {e}"))
+                                    CodegenError::backend(
+                                        format!("extract ABI source field: {e}"),
+                                        e,
+                                    )
                                 })?,
                         ))
                     })
@@ -251,7 +258,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 .expect("tuple field has an offset"),
                             self.builder
                                 .build_extract_value(aggregate, i as u32, "coercion_field")
-                                .map_err(|e| CodegenError(format!("extract tuple field: {e}")))?,
+                                .map_err(|e| {
+                                    CodegenError::backend(format!("extract tuple field: {e}"), e)
+                                })?,
                         ))
                     })
                     .collect::<Result<Vec<_>, CodegenError>>()?
@@ -259,9 +268,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             _ => {
                 self.builder
                     .build_store(pointer, value)
-                    .map_err(|e| CodegenError(format!("store ABI source scalar: {e}")))?
+                    .map_err(|e| CodegenError::backend(format!("store ABI source scalar: {e}"), e))?
                     .set_alignment(1)
-                    .map_err(|e| CodegenError(format!("align ABI source: {e}")))?;
+                    .map_err(|e| CodegenError::backend(format!("align ABI source: {e}"), e))?;
                 return Ok(());
             }
         };

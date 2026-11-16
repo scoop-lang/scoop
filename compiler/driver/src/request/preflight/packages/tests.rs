@@ -56,9 +56,12 @@ fn rejects_missing_or_unrelated_packages_without_string_prefix_matching() {
         };
         assert_eq!(diagnostics.diagnostics().len(), 1);
         let diagnostic = &diagnostics.diagnostics()[0];
-        assert_eq!(diagnostic.file, 0);
+        assert_eq!(
+            diagnostic.source().unwrap().logical_path().as_str(),
+            "src/main.scoop"
+        );
         assert!(diagnostic.message.contains("Cone group `dev.example`"));
-        let span = diagnostic.span.unwrap();
+        let span = diagnostic.span().unwrap();
         if text.starts_with("package") {
             assert_eq!(&text[span.start as usize..span.end as usize], text);
         } else {
@@ -127,7 +130,7 @@ fn single_file_warning_preserves_original_text_and_syntax() {
     ));
     let warnings = single_file_warnings(&sources);
     assert_eq!(warnings.len(), 1);
-    assert_eq!(warnings[0].span, Some(Span::new(12, 29)));
+    assert_eq!(warnings[0].span(), Some(Span::new(12, 29)));
     std::fs::write(&path, "package .bad\n").unwrap();
     assert!(matches!(
         parse_single_file_current(&locator),

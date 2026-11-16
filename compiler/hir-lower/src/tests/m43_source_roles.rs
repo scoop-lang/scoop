@@ -5,7 +5,10 @@ use scoop_identity::{RequestedConeKind, SourceRole};
 
 use super::m23_ordinary_core_only::support::trusted_core;
 
-fn lower(production: &str, tests: &str) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+fn lower(
+    production: &str,
+    tests: &str,
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     lower_sources(&[
         ("cases/check.scoop", tests, SourceRole::Test),
         ("src/api.scoop", production, SourceRole::Production),
@@ -14,7 +17,7 @@ fn lower(production: &str, tests: &str) -> Result<hir::DependencyHirOutput, Vec<
 
 fn lower_sources(
     inputs: &[(&str, &str, SourceRole)],
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let core = trusted_core();
     let identities = inputs
         .iter()
@@ -116,11 +119,10 @@ fn production_lookup_cannot_use_test_functions_types_values_or_qualified_types()
         };
         assert!(
             errors.iter().any(|error| error
-                .source
-                .as_deref()
+                .source()
                 .is_some_and(|source| source.logical_path().as_str() == "src/api.scoop")
                 && error.message.contains(name)
-                && error.span.is_some()),
+                && error.span().is_some()),
             "{errors:#?}"
         );
     }

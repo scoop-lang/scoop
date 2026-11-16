@@ -16,7 +16,7 @@ pub(super) fn split<'ctx>(
     builder.position_at_end(block);
     builder
         .build_unconditional_branch(successor)
-        .map_err(|error| CodegenError(format!("CFG edge branch: {error}")))?;
+        .map_err(|error| CodegenError::backend(format!("CFG edge branch: {error}"), error))?;
     let branch = predecessor
         .get_terminator()
         .expect("predecessor terminates");
@@ -38,7 +38,7 @@ pub(super) fn split<'ctx>(
         builder.position_before(&instruction);
         let new = builder
             .build_phi(old.as_basic_value().get_type(), "edge.incoming")
-            .map_err(|error| CodegenError(format!("CFG edge phi: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("CFG edge phi: {error}"), error))?;
         for (value, incoming) in old.get_incomings() {
             new.add_incoming(&[(
                 &value,

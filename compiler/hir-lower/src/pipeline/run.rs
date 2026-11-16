@@ -113,11 +113,11 @@ impl Lowerer {
         }
 
         self.warnings.sort_by_key(|diagnostic| {
-            let span = diagnostic.span.unwrap_or(Span {
+            let span = diagnostic.span().unwrap_or(Span {
                 start: u32::MAX,
                 end: u32::MAX,
             });
-            (diagnostic.file, span.start, span.end)
+            (diagnostic.source().cloned(), span.start, span.end)
         });
         if !self.diagnostics.is_empty() {
             self.diagnostics.append(&mut self.warnings);
@@ -155,9 +155,7 @@ impl Lowerer {
             CoreLoweringAuthority::Imported(authority) => hir::CoreProtocols::Imported(authority),
         };
         let sources = self.diagnostic_source_identities();
-        let documentation = self
-            .finish_documentation(world, check)
-            .map_err(PhaseFailure::Cancelled)?;
+        let documentation = self.finish_documentation(world, check)?;
         PhaseFailure::check(check)?;
         self.finish(
             current_cone,

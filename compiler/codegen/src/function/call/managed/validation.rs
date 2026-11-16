@@ -20,13 +20,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 | CallProtocol::ReleaseNativeLeaf
         );
         if is_native && has_invoke {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "typed call @{}: native calls cannot unwind through managed code",
                 self.function.symbol()
             )));
         }
         if call.args().len() != params.len() {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "typed call @{}: signature has {} parameters but call has {} arguments",
                 self.function.symbol(),
                 params.len(),
@@ -51,7 +51,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .function
                 .value_ty(self.globals_arena, argument.logical_value());
             if !convention_matches || &argument_ty != parameter.logical_storage_type() {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "typed call @{}: argument {} convention/type does not match {}",
                     self.function.symbol(),
                     index,
@@ -78,7 +78,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             | scoop_lir::CallDestination::Dispatch { .. } => false,
         };
         if carries_c_argument_storage && !is_c_extern {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "typed call @{} uses a C argument-storage address outside a C extern call",
                 self.function.symbol()
             )));
@@ -87,7 +87,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         match destination {
             scoop_lir::CallDestination::Local(id) => {
                 let declaration = self.functions.get(id.into_u32() as usize).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "typed local call @{} has invalid function id {}",
                         self.function.symbol(),
                         id.into_u32()
@@ -102,7 +102,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         }
                     )
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed local call @{} ABI does not match `{}`",
                         self.function.symbol(),
                         declaration.symbol()
@@ -117,14 +117,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     | CallProtocol::NativeBorrowed { .. }
                     | CallProtocol::NativeGcLeaf
                     | CallProtocol::ReleaseNativeLeaf => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "typed local call @{} cannot use a native transition protocol",
                             self.function.symbol()
                         )));
                     }
                 };
                 if declaration.gc_effect != expected_effect {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed local call @{} protocol does not match the GC effect of `{}`",
                         self.function.symbol(),
                         declaration.symbol()
@@ -142,7 +142,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         }
                     )
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed external call @{} ABI does not match `{}`",
                         self.function.symbol(),
                         declaration.expected_symbol().symbol()
@@ -157,14 +157,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     | CallProtocol::NativeBorrowed { .. }
                     | CallProtocol::NativeGcLeaf
                     | CallProtocol::ReleaseNativeLeaf => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "typed external call @{} cannot use a native transition protocol",
                             self.function.symbol()
                         )));
                     }
                 };
                 if declaration.gc_effect() != expected_effect {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed external call @{} protocol does not match the GC effect of `{}`",
                         self.function.symbol(),
                         declaration.expected_symbol().symbol()
@@ -193,7 +193,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     ),
                 };
                 if !params_match || !result_matches || !protocol_matches {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed extern call @{} ABI does not match the declaration of `{}`",
                         self.function.symbol(),
                         declaration.source_name
@@ -271,7 +271,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     let shape = match function {
                         scoop_lir::NoGcRuntimeFunction::UnboxZst
                         | scoop_lir::NoGcRuntimeFunction::UnboxValue => {
-                            return Err(CodegenError(
+                            return Err(CodegenError::internal(
                                 "boxing runtime calls require a descriptor-refined operation"
                                     .into(),
                             ));
@@ -337,7 +337,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         matches!(argument, scoop_lir::AbiArgument::Direct(value) if value.storage_type() == expected)
                     });
             if !params_match || !result_matches || !protocol_matches {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "typed runtime call @{} has a signature or protocol outside the closed runtime ABI for `{}`",
                     self.function.symbol(),
                     runtime.symbol()
@@ -349,7 +349,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             TypedCallResult::Void => {}
             TypedCallResult::ElidedZst { out, value } => {
                 if &self.function.temps[*out].ty != value.storage_type() {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed call @{}: elided ZST result temp does not match its signature",
                         self.function.symbol()
                     )));
@@ -357,7 +357,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             TypedCallResult::Direct { out, value } => {
                 if &self.function.temps[*out].ty != value.storage_type() {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed call @{}: direct result temp does not match its signature",
                         self.function.symbol()
                     )));
@@ -365,7 +365,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             TypedCallResult::Indirect { storage, value, .. } => {
                 if self.function.locals[*storage].ty() != value.storage_type() {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed call @{}: result storage does not match its signature",
                         self.function.symbol()
                     )));

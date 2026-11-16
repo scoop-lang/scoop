@@ -17,9 +17,16 @@ pub(crate) struct DeclarationInference {
     properties: imbl::HashMap<hir::PropertyId, properties::InferredProperty>,
     pub(crate) ready: bool,
     lowered_accessors: std::collections::HashSet<FunctionId>,
-    pub(crate) lowered_initializers: std::collections::HashSet<hir::InitializationUnitId>,
+    pub(crate) lowered_initializers:
+        std::collections::HashMap<hir::InitializationUnitId, InitializerOutcome>,
     pub(crate) field_initializers: imbl::HashMap<hir::PropertyId, hir::ClassInitializationStep>,
     contracts: Vec<contracts::ResultContract>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InitializerOutcome {
+    Complete,
+    Failed,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

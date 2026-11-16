@@ -32,7 +32,7 @@ pub(super) fn build_arguments(
         signature,
     });
     let out = temps.alloc(Temp { ty: MANAGED_PTR });
-    blocks[entry].instructions.push(Instruction::Invoke {
+    blocks[entry].terminator = Terminator::Invoke {
         site: InvokeSite::Managed(ManagedInvokeSite {
             call: ManagedTypedCall::Direct {
                 target,
@@ -44,7 +44,6 @@ pub(super) fn build_arguments(
             normal,
             unwind,
         }),
-    });
-    blocks[entry].terminator = Terminator::Br(normal);
+    };
     vec![AbiCallArgument::Direct(Value::Temp(out))]
 }

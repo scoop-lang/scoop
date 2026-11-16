@@ -38,9 +38,8 @@ fn unavailable_headers_preserve_file_indexes_and_independent_bodies() {
                 .into_iter()
                 .find(|error| error.message.contains("package or imports"))
                 .unwrap();
-            assert_eq!(diagnostic.file, bad_index);
             assert_eq!(
-                diagnostic.source.as_deref(),
+                diagnostic.source(),
                 Some(&crate::tests::test_source_identity("src/broken.scoop"))
             );
             let index = analysis.reference_index(|| false).unwrap();
@@ -161,14 +160,14 @@ fn an_incomplete_core_header_uses_its_real_diagnostic_range() {
         analysis
             .diagnostics()
             .iter()
-            .all(|diagnostic| diagnostic.source.as_deref() == Some(&identity))
+            .all(|diagnostic| diagnostic.source() == Some(&identity))
     );
     assert!(
         analysis
             .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.message.contains("Option")
-                && diagnostic.span == Some(ast::Span::new(0, text.len() as u32)))
+                && diagnostic.span() == Some(ast::Span::new(0, text.len() as u32)))
     );
     assert!(
         !analysis

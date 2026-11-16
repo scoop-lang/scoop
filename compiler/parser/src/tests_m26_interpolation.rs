@@ -93,7 +93,7 @@ fn malformed_interpolation_reports_the_delimiter_in_the_original_file() {
         "expected expression, found interpolation closing `}`"
     );
     let at = source.find('}').unwrap() as u32;
-    assert_eq!(errors[0].span, Some(Span::new(at, at + 1)));
+    assert_eq!(errors[0].span(), Some(Span::new(at, at + 1)));
 }
 
 #[test]
@@ -112,7 +112,7 @@ fn unfinished_string_modes_have_finite_spanned_diagnostics() {
         assert!(matches!(tokens.last().unwrap().kind, TokenKind::Eof));
         assert_eq!(errors.len(), 1, "{source}: {errors:?}");
         assert_eq!(errors[0].message, message);
-        assert!(errors[0].span.is_some());
+        assert!(errors[0].span().is_some());
     }
 }
 

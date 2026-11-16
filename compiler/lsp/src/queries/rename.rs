@@ -120,6 +120,7 @@ fn error(error: RenameError) -> ResponseError {
         | RenameError::Edit(scoop_analysis::SnapshotEditError::Cancelled) => {
             ErrorCode::RequestCanceled
         }
+        RenameError::Internal(_) => ErrorCode::InternalError,
         RenameError::InvalidName => ErrorCode::InvalidParams,
         RenameError::Edit(scoop_analysis::SnapshotEditError::SourceChanged(_)) => {
             ErrorCode::ContentModified

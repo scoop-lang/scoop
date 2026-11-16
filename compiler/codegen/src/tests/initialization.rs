@@ -231,7 +231,7 @@ fn unsealed_initialization_units_have_no_codegen_path() {
         .expect_err("initialization values require the closed production section");
     assert!(
         error
-            .0
+            .to_string()
             .contains("initialization units require a sealed strong production section"),
         "{error}"
     );
@@ -331,8 +331,10 @@ fn storage_global_rejects_machine_scalar_type() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("compiler-only scalar domains must not acquire global storage");
     assert!(
-        error.0.contains("invalid strong static-storage semantics")
-            && error.0.contains("kind: MachineScalar"),
+        error
+            .to_string()
+            .contains("invalid strong static-storage semantics")
+            && error.to_string().contains("kind: MachineScalar"),
         "unexpected error: {error}"
     );
 }

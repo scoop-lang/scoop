@@ -96,7 +96,7 @@ fn core_child_plan_uses_the_actual_manifest_root() {
     write_core(&sysroot);
     write_manifest(&root, "root", "");
     write_fake_compiler(&workspace.join("bin/scoopc"));
-    let mut prepared = prepare(&root, workspace).unwrap();
+    let prepared = prepare(&root, workspace).unwrap();
     let request_id = RequestCorrelationId::from_array([4; 16]);
 
     let plan = prepared
@@ -125,9 +125,8 @@ fn core_child_plan_uses_the_actual_manifest_root() {
         plan.request().build().target().canonical_triple(),
         scoop_toolchain::host_target_triple().unwrap()
     );
-    prepared.source_inputs.remove(&ConeIdentity::CORE).unwrap();
-    assert!(matches!(
-        prepared.child_invocation_plan(ConeIdentity::CORE, request_id, &[]),
-        Err(crate::ChildRequestPlanError::MissingSourceProjection(identity)) if identity == ConeIdentity::CORE
-    ));
+    let dependencies = prepared.source_dependencies(ConeIdentity::CORE).unwrap();
+    assert!(dependencies.direct().is_empty());
+    assert!(dependencies.support().is_empty());
+    prepared.compile_cache_key(ConeIdentity::CORE, &[]).unwrap();
 }

@@ -367,7 +367,7 @@ impl WireDecode for DecodedSourceIdentity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SemanticSourceNameError {
     Hash(HashError),
     ConeMismatch,
@@ -388,7 +388,7 @@ impl fmt::Display for SemanticSourceNameError {
 
 impl std::error::Error for SemanticSourceNameError {}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SourceIdentityDecodeError {
     Hash(HashError),
     ConeMismatch(PersistentIdMismatch<ConeIdentity>),

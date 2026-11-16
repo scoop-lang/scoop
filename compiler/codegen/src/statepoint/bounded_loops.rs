@@ -76,7 +76,9 @@ pub(super) fn optimize(
             .get_terminator()
             .expect("qualified loop has a branch")
             .set_metadata(node, context.get_kind_id("llvm.loop"))
-            .map_err(|error| CodegenError(format!("bounded loop metadata: {error:?}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("bounded loop metadata: {error:?}"), error)
+            })?;
         vectorize |= scalar;
         unroll |= !scalar;
     }
@@ -85,7 +87,7 @@ pub(super) fn optimize(
         function.run_passes(
             "loop-simplify,lcssa,loop-vectorize<interleave-forced-only;vectorize-forced-only>,instcombine<no-verify-fixpoint>,adce",
             machine, PassBuilderOptions::create(),
-        ).map_err(|error| CodegenError(format!("bounded inner loop optimization failed: {error}")))?;
+        ).map_err(|error| CodegenError::backend(format!("bounded inner loop optimization failed: {error}"), error))?;
     }
     if unroll {
         let _remarks = remarks::Quiet::new(context);
@@ -94,7 +96,7 @@ pub(super) fn optimize(
         function.run_passes(
             "loop-simplify,lcssa,loop-unroll<O2;full-unroll-max=0;no-partial;no-peeling;no-profile-peeling;no-runtime;no-upperbound>,instcombine<no-verify-fixpoint>,adce",
             machine, PassBuilderOptions::create(),
-        ).map_err(|error| CodegenError(format!("bounded reference loop optimization failed: {error}")))?;
+        ).map_err(|error| CodegenError::backend(format!("bounded reference loop optimization failed: {error}"), error))?;
     }
     Ok(())
 }

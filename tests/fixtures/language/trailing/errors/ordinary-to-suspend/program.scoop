@@ -1,2 +1,6 @@
-fun f(action: suspend () -> Int) {}
-fun main() { f { 1 } }
+fun f(action: suspend () -> Int, after: () -> Int) {}
+
+fun main() {
+    val ordinary: () -> Int = { 1 }
+    f(ordinary) { 2 }
+}

@@ -49,7 +49,7 @@ fn windows_generated_c_bridges_have_real_boundaries_and_execute() {
             |source, object| {
                 invocation
                     .compile_object(source, object)
-                    .map_err(|error| CodegenError(error.to_string()))
+                    .map_err(|error| CodegenError::internal_cause(error.to_string(), error))
             },
         )
         .unwrap_or_else(|error| panic!("{:?} {optimization:?}: {error}", target.id()));

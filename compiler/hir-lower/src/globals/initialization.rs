@@ -9,25 +9,28 @@ impl Lowerer {
         span: ast::Span,
         file: usize,
     ) -> (hir::FunctionId, hir::FunctionId) {
-        let allocate = |this: &mut Self, display_role: &str, kind| {
-            let function = this.functions.alloc(Function {
-                signature: hir::CallableSignature {
-                    context_parameters: Vec::new(),
-                    release_callability: Default::default(),
-                    name: format!("$init${display_role}${}", unit.into_raw()),
-                    is_suspend: false,
-                    modifiers: hir::CallableModifiers::default(),
-                    params: Vec::new(),
-                    return_ty: this.unit,
-                    attributes: hir::FunctionAttributes::default(),
-                    span,
-                },
+        let allocate = |this: &mut Self, display_role: &str, kind, role| {
+            let function = this.functions.alloc(
+                Function {
+                    signature: hir::CallableSignature {
+                        context_parameters: Vec::new(),
+                        release_callability: Default::default(),
+                        name: format!("$init${display_role}${}", unit.into_raw()),
+                        is_suspend: false,
+                        modifiers: hir::CallableModifiers::default(),
+                        params: Vec::new(),
+                        return_ty: this.unit,
+                        attributes: hir::FunctionAttributes::default(),
+                        span,
+                    },
 
-                access: this.local_declaration_access(),
-                genericity: hir::FunctionGenericity::Plain,
-                kind,
-                method: None,
-            });
+                    access: this.local_declaration_access(),
+                    genericity: hir::FunctionGenericity::Plain,
+                    kind,
+                    method: None,
+                },
+                crate::FunctionOrigin::Initialization { unit, role },
+            );
             this.record_function_file(function, file);
             this.signatures.insert(
                 function,
@@ -55,8 +58,14 @@ impl Lowerer {
                     locals: la_arena::Arena::new(),
                     statements: Vec::new(),
                 }),
+                scoop_identity::InitializationCallableRole::Initializer,
             ),
-            allocate(self, "ensure", FunctionKind::InitializationEnsure),
+            allocate(
+                self,
+                "ensure",
+                FunctionKind::InitializationEnsure,
+                scoop_identity::InitializationCallableRole::Ensure,
+            ),
         )
     }
 
@@ -65,7 +74,7 @@ impl Lowerer {
             if !self
                 .declaration_inference
                 .lowered_initializers
-                .contains(&pending.unit)
+                .contains_key(&pending.unit)
             {
                 self.lower_runtime_initializer(&pending);
             }
@@ -77,6 +86,7 @@ impl Lowerer {
         &mut self,
         pending: &PendingRuntimeInitializer,
     ) -> Option<hir::TypeId> {
+        let diagnostics_before = self.diagnostics.len();
         self.current_file = pending.file;
         let outer_loop_targets = std::mem::take(&mut self.loop_targets);
         let outer_source_context = self.current_source_context;
@@ -201,9 +211,18 @@ impl Lowerer {
         debug_assert!(self.loop_targets.is_empty());
         self.loop_targets = outer_loop_targets;
         self.type_params_in_scope = outer_type_params;
+        let outcome = if value_type.is_some()
+            && !self.diagnostics[diagnostics_before..]
+                .iter()
+                .any(|diagnostic| diagnostic.severity == ast::DiagnosticSeverity::Error)
+        {
+            crate::declaration_inference::InitializerOutcome::Complete
+        } else {
+            crate::declaration_inference::InitializerOutcome::Failed
+        };
         self.declaration_inference
             .lowered_initializers
-            .insert(pending.unit);
+            .insert(pending.unit, outcome);
         value_type
     }
 

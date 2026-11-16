@@ -21,7 +21,7 @@ pub(crate) struct CandidateInput<'a, D> {
 
 impl Lowerer {
     pub(crate) fn editing_signature_candidate<D: Copy>(
-        &self,
+        &mut self,
         call: &ast::RecoveredCall,
         input: CandidateInput<'_, D>,
     ) -> Candidate {
@@ -119,6 +119,11 @@ impl Lowerer {
         let (values, hints) = match facts {
             Ok(facts) => (facts.values, Some(facts.hints)),
             Err(failure) => match failure.kind {
+                ArgumentInferenceFailureKind::Internal(error) => {
+                    self.diagnostics
+                        .push(scoop_ast::Diagnostic::internal(error));
+                    return Err(U::BodyFailure);
+                }
                 ArgumentInferenceFailureKind::Constraint(_) => return Ok(None),
                 ArgumentInferenceFailureKind::Declaration { .. } => {
                     return Err(U::SignatureFailure);

@@ -330,7 +330,7 @@ fn emit_llvm_module_with_surface<'ctx, R>(
             let runtime_scan_plan = runtime_scan_plans
                 .callable(function.callable_body.id())
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "callable {} has no runtime scan plan",
                         function.callable_body.id()
                     ))
@@ -392,16 +392,24 @@ pub(crate) fn emit_cone_trap_message<'ctx>(
         scoop_lir::StrongDefinitionEntity::cone_image(producer),
         scoop_lir::StrongDefinitionRole::ImageDescriptor,
     )
-    .map_err(|error| CodegenError(format!("cannot derive Cone image plan: {error}")))?;
-    let plan = scoop_lir::ObjectDefinitionPlanId::from_key(&plan_key)
-        .map_err(|error| CodegenError(format!("cannot derive Cone image plan id: {error}")))?;
+    .map_err(|error| {
+        CodegenError::internal_cause(format!("cannot derive Cone image plan: {error}"), error)
+    })?;
+    let plan = scoop_lir::ObjectDefinitionPlanId::from_key(&plan_key).map_err(|error| {
+        CodegenError::internal_cause(format!("cannot derive Cone image plan id: {error}"), error)
+    })?;
     let atom =
         scoop_lir::ObjectDefinitionAtomId::from_key(&scoop_lir::ObjectDefinitionAtomKey::new(
             plan,
             scoop_lir::DefinitionAtomRole::AddressTakenConstant,
             scoop_lir::DefinitionAtomSubkey::ConeImageSupport(support),
         ))
-        .map_err(|error| CodegenError(format!("cannot derive Cone trap-message atom: {error}")))?;
+        .map_err(|error| {
+            CodegenError::internal_cause(
+                format!("cannot derive Cone trap-message atom: {error}"),
+                error,
+            )
+        })?;
     let boundary = surface
         .plan(plan)
         .and_then(|plan| {
@@ -410,10 +418,12 @@ pub(crate) fn emit_cone_trap_message<'ctx>(
                 .find(|boundary| boundary.atom() == atom)
         })
         .copied()
-        .ok_or_else(|| CodegenError(format!("Cone trap-message atom {atom} is unplanned")))?;
+        .ok_or_else(|| {
+            CodegenError::internal(format!("Cone trap-message atom {atom} is unplanned"))
+        })?;
     let symbol = boundary.start().symbol();
     if llvm.get_global(symbol.as_str()).is_some() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "Cone trap-message symbol `{symbol}` is already declared"
         )));
     }
@@ -443,16 +453,24 @@ pub(crate) fn emit_llvm_module<'ctx>(
 ) -> Result<LlvmModule<'ctx>, CodegenError> {
     profile.validate_lir_target_profile(module.meta.target_profile)?;
     if !module.initialization_units.is_empty() {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "initialization units require a sealed strong production section".to_string(),
         ));
     }
-    let foundation = scoop_lir::ConeLirFoundation::from_module(module)
-        .map_err(|error| CodegenError(format!("strong LIR projection failed: {error}")))?;
-    let surface = scoop_lir::ObjectSymbolSurfaceV1::from_foundation(&foundation)
-        .map_err(|error| CodegenError(format!("strong symbol projection failed: {error}")))?;
+    let foundation = scoop_lir::ConeLirFoundation::from_module(module).map_err(|error| {
+        CodegenError::internal_cause(format!("strong LIR projection failed: {error}"), error)
+    })?;
+    let surface =
+        scoop_lir::ObjectSymbolSurfaceV1::from_foundation(&foundation).map_err(|error| {
+            CodegenError::internal_cause(format!("strong symbol projection failed: {error}"), error)
+        })?;
     let runtime_scans = scoop_lir::StrongCallableRuntimeScanPlanSetV1::from_module(module)
-        .map_err(|error| CodegenError(format!("callable runtime scan planning failed: {error}")))?;
+        .map_err(|error| {
+            CodegenError::internal_cause(
+                format!("callable runtime scan planning failed: {error}"),
+                error,
+            )
+        })?;
     let symbol_plans = crate::symbol_plan::SymbolPlanIndex::new(&surface);
     emit_llvm_module_with_surface(
         context,
@@ -490,7 +508,7 @@ pub(crate) fn apply_persistent_linkage(
             Linkage::External
         }),
         LinkageClass::RuntimeAbi => {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "persistent symbol `{}` cannot use runtime ABI linkage",
                 request.symbol()
             )));

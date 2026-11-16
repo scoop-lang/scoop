@@ -150,7 +150,6 @@ pub(super) fn include_managed_operands(
 
 pub(super) fn exceptional_root_set(
     context: &LoweringContext,
-    instruction: &lir::Instruction,
     site: &lir::ManagedInvokeSite,
     live_in: &[HashSet<LiveValue>],
     function: &lir::Function,
@@ -158,7 +157,7 @@ pub(super) fn exceptional_root_set(
     enums: &lir::EnumDefs,
 ) -> StorageResult<lir::ExceptionalRootSet> {
     let mut normal = live_in[arena_index(site.normal)].clone();
-    for definition in instruction_defs(instruction) {
+    for definition in call_defs(site.call.result()) {
         normal.remove(&definition);
     }
     let unwind = &live_in[arena_index(site.unwind)];

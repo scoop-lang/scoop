@@ -148,9 +148,6 @@ pub(super) fn instruction_uses(instruction: &Instruction, function: &Function) -
         Instruction::Call { site } => {
             call_uses(site.args(), site.destination(&function.call_targets))
         }
-        Instruction::Invoke { site } => {
-            call_uses(site.args(), site.destination(&function.call_targets))
-        }
         Instruction::HeapStore { object, value, .. }
         | Instruction::MachineHeapStore { object, value, .. }
         | Instruction::MachineAtomicStore { object, value, .. } => vec![*object, *value],
@@ -270,7 +267,6 @@ pub(super) fn instruction_defs(instruction: &Instruction) -> Vec<LiveValue> {
         | Instruction::VariantPayloadProject { out, .. }
         | Instruction::ForeignCallbackRegister { out, .. } => Some(*out),
         Instruction::Call { site } => return call_defs(site.result()),
-        Instruction::Invoke { site } => return call_defs(site.result()),
         Instruction::ForeignCallbackOperation(operation) => operation.out(),
         Instruction::Store { local, .. } => return vec![LiveValue::Local(*local)],
         Instruction::MaybeUninit { out, .. } => return vec![LiveValue::Local(*out)],
@@ -307,8 +303,17 @@ fn call_defs(result: scoop_lir::TypedCallResult) -> Vec<LiveValue> {
     }
 }
 
-pub(super) fn terminator_uses(terminator: &Terminator, mut use_value: impl FnMut(Value)) {
+pub(super) fn terminator_uses(
+    terminator: &Terminator,
+    function: &Function,
+    mut use_value: impl FnMut(Value),
+) {
     match terminator {
+        Terminator::Invoke { site } => {
+            for value in call_uses(site.args(), site.destination(&function.call_targets)) {
+                use_value(value);
+            }
+        }
         Terminator::CondBr { cond, .. } => use_value(*cond),
         Terminator::Return { value: Some(value) } => use_value(*value),
         Terminator::Resume { exception } => use_value(*exception),

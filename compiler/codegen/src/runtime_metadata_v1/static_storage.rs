@@ -131,7 +131,7 @@ fn emit_registration<'ctx>(
     let semantic = plan.semantic();
     let symbol = semantic.symbol().symbol();
     let storage_value = llvm.get_global(symbol.as_str()).ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "static storage `{symbol}` is not defined in the LLVM module"
         ))
     })?;
@@ -255,13 +255,17 @@ fn scan_type<'ctx>(
         RefScan::None => 1,
         RefScan::References(offsets) if !offsets.is_empty() => offsets.len() + 1,
         RefScan::References(_) | RefScan::Sequence(_) | RefScan::Array { .. } => {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "static scan plan is not in canonical None/References form".to_string(),
             ));
         }
     };
-    let length = u32::try_from(length)
-        .map_err(|_| CodegenError("static scan program exceeds LLVM array bounds".to_string()))?;
+    let length = u32::try_from(length).map_err(|cause| {
+        CodegenError::internal_cause(
+            "static scan program exceeds LLVM array bounds".to_string(),
+            cause,
+        )
+    })?;
     Ok(context.i64_type().array_type(length))
 }
 

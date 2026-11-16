@@ -19,7 +19,7 @@ fn another_llvm_minor_is_rejected_structurally() {
     })
     .expect_err("LLVM 23 must be rejected");
     assert_eq!(
-        error.0,
+        error.to_string(),
         "unsupported LLVM backend 23.1.0; Scoop requires LLVM 22.1"
     );
 }
@@ -187,7 +187,7 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
         assert!(
             ValidatedBackendProfile::for_selection(selection)
                 .unwrap_err()
-                .0
+                .to_string()
                 .contains("unsupported target/backend contract")
         );
     }
@@ -227,7 +227,7 @@ fn canonical_unknown_target_is_not_a_codegen_registration() {
     assert!(
         ValidatedBackendProfile::for_selection(selection)
             .unwrap_err()
-            .0
+            .to_string()
             .contains("unsupported target/backend")
     );
 }
@@ -255,7 +255,7 @@ fn catalog_codegen_deployment_rejects_a_different_native_platform() {
     )
     .unwrap_err();
     assert_eq!(
-        error.0,
+        error.to_string(),
         "codegen deployment and native toolchain platform differ"
     );
 }

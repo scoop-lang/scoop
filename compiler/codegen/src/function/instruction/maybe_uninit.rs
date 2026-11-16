@@ -14,7 +14,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             ..
         }) = &definition.representation
         else {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "MaybeUninit operation requires an intrinsic wrapper".into(),
             ));
         };
@@ -24,7 +24,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             _ => &wrapper_ty,
         };
         if self.function.locals[out].ty() != result_ty {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "MaybeUninit operation result type mismatch".into(),
             ));
         }
@@ -34,7 +34,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 _ => &wrapper_ty,
             };
             if self.function.value_ty(self.globals_arena, *operand) != *expected {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "MaybeUninit operation operand type mismatch".into(),
                 ));
             }
@@ -54,7 +54,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             Operation::Initialized(value) => {
                 self.builder
                     .build_store(storage, storage_ty.const_zero())
-                    .map_err(|e| CodegenError(format!("zero MaybeUninit storage: {e}")))?;
+                    .map_err(|e| {
+                        CodegenError::backend(format!("zero MaybeUninit storage: {e}"), e)
+                    })?;
                 if let Value::Local(local) = value {
                     self.builder
                         .build_memcpy(
@@ -64,7 +66,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             definition.align as u32,
                             self.context.i64_type().const_int(definition.size, false),
                         )
-                        .map_err(|e| CodegenError(format!("copy MaybeUninit payload: {e}")))?;
+                        .map_err(|e| {
+                            CodegenError::backend(format!("copy MaybeUninit payload: {e}"), e)
+                        })?;
                 } else {
                     self.store_coercion_source(payload, self.value(*value)?, storage)?;
                 }
@@ -72,12 +76,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             Operation::AssumeInit(value) => {
                 self.builder
                     .build_store(storage, self.value(*value)?)
-                    .map_err(|e| CodegenError(format!("copy MaybeUninit wrapper: {e}")))?;
+                    .map_err(|e| {
+                        CodegenError::backend(format!("copy MaybeUninit wrapper: {e}"), e)
+                    })?;
             }
             Operation::Uninit => {
                 self.builder
                     .build_store(storage, storage_ty.const_zero())
-                    .map_err(|e| CodegenError(format!("zero MaybeUninit storage: {e}")))?;
+                    .map_err(|e| {
+                        CodegenError::backend(format!("zero MaybeUninit storage: {e}"), e)
+                    })?;
             }
         }
         Ok(())

@@ -16,7 +16,7 @@ pub(super) fn fixture(name: &str) -> PathBuf {
 
 pub(super) fn with_output<T>(
     case: &str,
-    inspect: impl FnOnce(Result<hir::DependencyHirOutput, Vec<scoop_ast::Diagnostic>>) -> T,
+    inspect: impl FnOnce(Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>>) -> T,
 ) -> T {
     let mut core = trusted_core();
     let provider = scoop_identity::ConeCoordinate::new("test", "any-calls", "1.0.0").unwrap();

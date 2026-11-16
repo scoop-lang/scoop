@@ -36,7 +36,7 @@ fn assert_rejected(text: &str, token: &str) {
         .iter()
         .find(|error| error.message.contains(DIAGNOSTIC))
         .unwrap_or_else(|| panic!("missing outer receiver diagnostic: {errors:#?}"));
-    let span = error.span.expect("receiver diagnostic has a source span");
+    let span = error.span().expect("receiver diagnostic has a source span");
     assert_eq!(&text[span.start as usize..span.end as usize], token);
 }
 

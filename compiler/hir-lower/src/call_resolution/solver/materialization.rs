@@ -1,5 +1,9 @@
 //! Substitution of a complete solver assignment back into canonical HIR types.
 
+use crate::call_resolution::constraints::{
+    InferenceFailure, InferenceInvariantError, InferenceInvariantErrorKind,
+};
+
 use scoop_hir as hir;
 
 use super::Bound;
@@ -15,7 +19,7 @@ impl Lowerer {
         session: &InferenceSession,
         bindings: &[Option<hir::TypeId>],
         bounds: &[Bound],
-    ) -> Result<Vec<hir::TypeId>, ConstraintFailure> {
+    ) -> Result<Vec<hir::TypeId>, InferenceFailure> {
         let mut result = Vec::new();
         for bound in bounds {
             if let Some(ty) = self.materialize_term(session, bindings, bound.term, bound.origin)? {
@@ -33,12 +37,12 @@ impl Lowerer {
         session: &InferenceSession,
         bindings: &[Option<hir::TypeId>],
         bound: &Bound,
-    ) -> Result<hir::TypeId, ConstraintFailure> {
+    ) -> Result<hir::TypeId, InferenceFailure> {
         self.materialize_term(session, bindings, bound.term, bound.origin)?
-            .ok_or(ConstraintFailure {
+            .ok_or(InferenceFailure::Constraint(ConstraintFailure {
                 origin: bound.origin,
                 kind: ConstraintFailureKind::UnresolvedTerm(bound.term),
-            })
+            }))
     }
 
     pub(super) fn materialize_term(
@@ -47,7 +51,7 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         term: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> Result<Option<hir::TypeId>, ConstraintFailure> {
+    ) -> Result<Option<hir::TypeId>, InferenceFailure> {
         match term {
             TypeTerm::Variable(variable) => self.binding_for(session, bindings, variable, origin),
             TypeTerm::Type(ty) => self.materialize_type(session, bindings, ty, origin),
@@ -61,7 +65,7 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         ty: hir::TypeId,
         origin: ConstraintOrigin,
-    ) -> Result<Option<hir::TypeId>, ConstraintFailure> {
+    ) -> Result<Option<hir::TypeId>, InferenceFailure> {
         if let Some(application) = self.nominal_application(ty) {
             let Some(arguments) =
                 self.materialize_types(session, bindings, &application.arguments, origin)?
@@ -78,32 +82,42 @@ impl Lowerer {
             return self
                 .apply_nominal_type(application.template, arguments)
                 .map(Some)
-                .map_err(|_| ConstraintFailure {
-                    origin,
-                    kind: ConstraintFailureKind::UnresolvedTerm(TypeTerm::Type(ty)),
+                .map_err(|_| {
+                    InferenceFailure::Constraint(ConstraintFailure {
+                        origin,
+                        kind: ConstraintFailureKind::UnresolvedTerm(TypeTerm::Type(ty)),
+                    })
                 });
         }
         match self.types[ty].clone() {
             Type::Companion(parameter) => {
-                let variable = session.variable_for(parameter).ok_or(ConstraintFailure {
-                    origin,
-                    kind: ConstraintFailureKind::ForeignTypeParameter(parameter),
-                })?;
+                let variable =
+                    session
+                        .variable_for(parameter)
+                        .ok_or(InferenceFailure::Internal(InferenceInvariantError {
+                            origin,
+                            kind: InferenceInvariantErrorKind::ForeignTypeParameter(parameter),
+                        }))?;
                 let Some(host) = self.binding_for(session, bindings, variable, origin)? else {
                     return Ok(None);
                 };
                 self.projected_companion_type(host)
                     .map(Some)
-                    .map_err(|message| ConstraintFailure {
-                        origin,
-                        kind: ConstraintFailureKind::Companion { variable, message },
+                    .map_err(|message| {
+                        InferenceFailure::Constraint(ConstraintFailure {
+                            origin,
+                            kind: ConstraintFailureKind::Companion { variable, message },
+                        })
                     })
             }
             Type::Param(parameter) => {
-                let variable = session.variable_for(parameter).ok_or(ConstraintFailure {
-                    origin,
-                    kind: ConstraintFailureKind::ForeignTypeParameter(parameter),
-                })?;
+                let variable =
+                    session
+                        .variable_for(parameter)
+                        .ok_or(InferenceFailure::Internal(InferenceInvariantError {
+                            origin,
+                            kind: InferenceInvariantErrorKind::ForeignTypeParameter(parameter),
+                        }))?;
                 self.binding_for(session, bindings, variable, origin)
             }
             Type::Tuple(elements) => {
@@ -192,7 +206,7 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         types: &[hir::TypeId],
         origin: ConstraintOrigin,
-    ) -> Result<Option<Vec<hir::TypeId>>, ConstraintFailure> {
+    ) -> Result<Option<Vec<hir::TypeId>>, InferenceFailure> {
         let mut result = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(ty) = self.materialize_type(session, bindings, ty, origin)? else {
@@ -209,14 +223,14 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         variable: InferenceVariableId,
         origin: ConstraintOrigin,
-    ) -> Result<Option<hir::TypeId>, ConstraintFailure> {
+    ) -> Result<Option<hir::TypeId>, InferenceFailure> {
         session
             .variable_index(variable)
             .map(|index| bindings[index])
-            .ok_or(ConstraintFailure {
+            .ok_or(InferenceFailure::Internal(InferenceInvariantError {
                 origin,
-                kind: ConstraintFailureKind::ForeignVariable(variable),
-            })
+                kind: InferenceInvariantErrorKind::ForeignVariable(variable),
+            }))
     }
 
     pub(super) fn materialize_application(
@@ -225,15 +239,15 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         application: &NominalApplication,
         origin: ConstraintOrigin,
-    ) -> Result<hir::TypeId, ConstraintFailure> {
+    ) -> Result<hir::TypeId, InferenceFailure> {
         let terms = &application.arguments;
         let mut arguments = Vec::with_capacity(terms.len());
         for &term in terms {
             let Some(argument) = self.materialize_term(session, bindings, term, origin)? else {
-                return Err(ConstraintFailure {
+                return Err(InferenceFailure::Constraint(ConstraintFailure {
                     origin,
                     kind: ConstraintFailureKind::NonConcreteApplication(application.clone()),
-                });
+                }));
             };
             arguments.push(argument);
         }
@@ -242,15 +256,17 @@ impl Lowerer {
             Some(hir::IntrinsicTypeKind::FunPtr | hir::IntrinsicTypeKind::GcLeafFunPtr)
         ) && !matches!(arguments.as_slice(), [function] if matches!(self.types[*function], Type::Function(_)))
         {
-            return Err(ConstraintFailure {
+            return Err(InferenceFailure::Constraint(ConstraintFailure {
                 origin,
                 kind: ConstraintFailureKind::NonConcreteApplication(application.clone()),
-            });
+            }));
         }
         self.apply_nominal_type(application.template, arguments)
-            .map_err(|_| ConstraintFailure {
-                origin,
-                kind: ConstraintFailureKind::NonConcreteApplication(application.clone()),
+            .map_err(|_| {
+                InferenceFailure::Constraint(ConstraintFailure {
+                    origin,
+                    kind: ConstraintFailureKind::NonConcreteApplication(application.clone()),
+                })
             })
     }
 }

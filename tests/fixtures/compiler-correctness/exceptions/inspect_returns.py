@@ -24,7 +24,7 @@ for name in selected:
     for line in body.group().splitlines()[1:]:
         if re.match(
             r"\s+(bb\d+ |return$|unreachable$|goto |branch |throw |landing_pad |"
-            r"begin_catch$|end_catch$|resume$|call |IntegerLiteral )",
+            r"begin_catch eh\d+$|end_catch$|resume eh\d+$|call |IntegerLiteral )",
             line,
         ):
             line = re.sub(r"@fn\d+", lambda match: "@" + names[match[0]], line)

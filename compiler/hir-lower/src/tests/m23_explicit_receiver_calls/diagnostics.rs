@@ -3,13 +3,26 @@ use super::*;
 fn check_local_and_imported(
     provider: &str,
     consumer: &str,
-) -> [Result<(), Vec<ast::Diagnostic>>; 2] {
+) -> [Result<(), Vec<ast::SourceDiagnostic>>; 2] {
     [
         lower(&[
             complete_core_file(),
             scoop_parser::parse(&format!("{provider}\n{consumer}")).unwrap(),
         ])
-        .map(|_| ()),
+        .map(|_| ())
+        .map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| {
+                    error
+                        .bind(&[
+                            core_source_identity("src/core.scoop"),
+                            scoop_identity::SourceIdentity::single_file(),
+                        ])
+                        .unwrap()
+                })
+                .collect()
+        }),
         crate::tests::m23_generic_body_consumption::with_provider_consumer(
             &format!("package extensiondiagnostics\n{provider}"),
             &format!("import extensiondiagnostics.*\n{consumer}"),
@@ -76,7 +89,7 @@ fn non_callable_properties_report_the_property_type() {
             assert_eq!(errors.len(), 1, "{errors:#?}");
             assert_eq!(errors[0].message, "value of type Long is not callable");
             let span = errors[0]
-                .span
+                .span()
                 .expect("the property error has a source span");
             assert_eq!(span.end - span.start, "count".len() as u32);
         }

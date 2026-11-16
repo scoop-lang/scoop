@@ -228,7 +228,6 @@ fn array_nodes_become_array_instructions() {
         poll gateway managed-void-target1 sp<managed-poll:0> live=[]
         call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(td12)
         invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn0() normal @success unwind @failure
-        br @success
       block success
         raw_store param2 integer<Int>(0x00000000) align 4
         ret integer<UInt>(0x00000000)
@@ -247,7 +246,7 @@ fn array_nodes_become_array_instructions() {
       td td9 UInt @scoop$1$td$cd33e50d4bee20d1122a80e678258fafccbdcf60a258a56f92d698b61932d841 type-id=18175881444594673019 shape=BoxedValue minimum-size=24 align=8 parent=none vtable=[] itables=[]
       td td10 UInt8 @scoop$1$td$e9b2707b5c4d75570191bbd4adbfff0c67aeef329cffb1987b73a4d7e813681e type-id=16653769684987306371 shape=BoxedValue minimum-size=24 align=8 parent=none vtable=[] itables=[]
       td td11 Long @scoop$1$td$ecd8b585ebc7fc3d76d9765f2fe1d8dec433276d11f6de158399c5b02e14f55c type-id=3262026339401001817 shape=BoxedValue minimum-size=24 align=8 parent=none vtable=[] itables=[]
-      td td12 task-context @scoop$1$td$db9fdace23f2040d3622172122120f4e46c6786180d6495caf23e609df021eac type-id=11462109518987149384 shape=FixedObject minimum-size=24 align=8 parent=none vtable=[] itables=[]
+      td td12 task-context @scoop$1$td$db9fdace23f2040d3622172122120f4e46c6786180d6495caf23e609df021eac type-id=11462109518987149384 shape=FixedObject minimum-size=32 align=8 parent=none vtable=[] itables=[]
       array-type array0 Array<Int> kind=immutable element=i32 size=4 align=4 scan=none td=td0
       array-type array1 MutableArray<Int> kind=mutable element=i32 size=4 align=4 scan=none td=td1
       layout String size=24 align=8 refs=[]
@@ -261,7 +260,7 @@ fn array_nodes_become_array_instructions() {
       layout ULong size=8 align=8 refs=[]
       layout Boolean size=1 align=1 refs=[]
       layout task-context value size=8 align=8 refs=[0]
-      layout task-context size=24 align=8 refs=[16]
+      layout task-context size=32 align=8 refs=[16, 24]
       layout Array<Int> value size=8 align=8 refs=[0]
       layout MutableArray<Int> value size=8 align=8 refs=[0]
       layout String value size=8 align=8 refs=[0]

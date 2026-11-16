@@ -14,9 +14,9 @@ impl Lowerer {
     pub(crate) fn most_specific_declarations(
         &self,
         candidates: &[ApplicableDeclaration<'_>],
-    ) -> Vec<usize> {
+    ) -> Result<Vec<usize>, super::super::constraints::InferenceInvariantError> {
         if candidates.len() < 2 {
-            return (0..candidates.len()).collect();
+            return Ok((0..candidates.len()).collect());
         }
         let mut forwards = vec![vec![false; candidates.len()]; candidates.len()];
         for (source, row) in forwards.iter_mut().enumerate() {
@@ -25,7 +25,7 @@ impl Lowerer {
                     || self.declaration_forwards(
                         candidates[source].declaration,
                         candidates[target].declaration,
-                    );
+                    )?;
             }
         }
         let mut pool = (0..candidates.len())
@@ -50,6 +50,6 @@ impl Lowerer {
                 pool.retain(|&index| !candidates[index].vararg);
             }
         }
-        pool
+        Ok(pool)
     }
 }

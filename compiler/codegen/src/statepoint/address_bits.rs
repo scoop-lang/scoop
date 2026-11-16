@@ -124,5 +124,5 @@ pub(super) fn lower(module: &LlvmModule<'_>) -> Result<(), CodegenError> {
 }
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("managed address conversion: {error}"))
+    CodegenError::internal(format!("managed address conversion: {error}"))
 }

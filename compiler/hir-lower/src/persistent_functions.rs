@@ -1,8 +1,8 @@
 use scoop_hir as hir;
 use scoop_identity::{
     CanonicalIdentifier, DeclarationScope, DefinitionOwnerAtom, DefinitionOwnerChain,
-    GeneratedCallableKey, InitializationCallableRole, LexicalCallableParent, LexicalCallableRole,
-    PackagePath, SourceDeclarationKey, SourceDeclarationSite, StructuralDefinitionPath,
+    GeneratedCallableKey, InitializationCallableRole, LexicalCallableParent, PackagePath,
+    SourceDeclarationKey, SourceDeclarationSite, StructuralDefinitionPath,
 };
 
 use crate::persistent_types::{SignatureBinder, SignatureTypeMapper};
@@ -34,7 +34,13 @@ pub(crate) fn direct_source_identity(
         nominals,
         type_mapper: &type_mapper,
     }
-    .direct_identity(function, &lowerer.source_function_declarations[&function])
+    .direct_identity(
+        function,
+        lowerer
+            .functions
+            .source(function)
+            .expect("source function declaration"),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -70,13 +76,6 @@ struct CallableContext {
     parent: LexicalCallableParent,
     owners: Vec<DefinitionOwnerAtom>,
     binders: Vec<SignatureBinder>,
-}
-
-#[derive(Clone)]
-struct LexicalSite {
-    root: hir::LexicalDefinitionRoot,
-    path: StructuralDefinitionPath,
-    role: LexicalCallableRole,
 }
 
 struct FunctionIdentityBuilder<'a> {
@@ -157,52 +156,42 @@ impl FunctionIdentityBuilder<'_> {
             return Err(self.failure(function, Detail::CyclicLexicalParent));
         }
 
-        let source = self.lowerer.source_function_declarations.get(&function);
-        let accessor = self.accessor(function)?;
-        let lexical = self.lexical_site(function)?;
-        let initialization = self.initialization(function)?;
-        let test_entry = self
-            .lowerer
-            .test_compilation
-            .as_ref()
-            .and_then(|tests| tests.entry)
-            == Some(function);
-        let derived = matches!(
-            self.lowerer.functions[function].kind,
-            hir::FunctionKind::DerivedEquality
-        );
-        let kinds = usize::from(source.is_some())
-            + usize::from(accessor.is_some())
-            + usize::from(lexical.is_some())
-            + usize::from(initialization.is_some())
-            + usize::from(test_entry)
-            + usize::from(derived);
-        if kinds != 1 {
-            return Err(self.failure(function, Detail::InvalidFunctionOrigin));
-        }
-
-        let identity = if let Some(source) = source.cloned() {
-            hir::HirFunctionIdentity::source(self.source_identity(function, &source)?)
-        } else if let Some(accessor) = accessor {
-            hir::HirFunctionIdentity::property_accessor(accessor)
-        } else if let Some(site) = lexical {
-            let parent = self
-                .context_for_site(function, site.root, &site.path)?
-                .parent;
-            hir::HirFunctionIdentity::lexical_generated(parent, site.role, site.path)
+        let identity = match self.lowerer.functions.origin(function).clone() {
+            crate::FunctionOrigin::Source(source) => {
+                hir::HirFunctionIdentity::source(self.source_identity(function, &source)?)
+            }
+            crate::FunctionOrigin::Getter(property) => hir::HirFunctionIdentity::property_accessor(
+                hir::HirPropertyAccessorFunction::Getter(
+                    self.lowerer.properties[property].capability.getter(),
+                ),
+            ),
+            crate::FunctionOrigin::Setter(property) => {
+                let setter = self.lowerer.properties[property]
+                    .capability
+                    .setter()
+                    .ok_or_else(|| self.failure(function, Detail::InvalidAccessorCapability))?;
+                hir::HirFunctionIdentity::property_accessor(
+                    hir::HirPropertyAccessorFunction::Setter(setter),
+                )
+            }
+            crate::FunctionOrigin::Lexical { root, path, role } => {
+                let parent = self.context_for_site(function, root, &path)?.parent;
+                hir::HirFunctionIdentity::lexical_generated(parent, role, path)
+                    .map_err(|error| self.failure(function, Detail::InvalidIdentity(error)))?
+            }
+            crate::FunctionOrigin::Initialization { unit, role } => {
+                hir::HirFunctionIdentity::initialization(
+                    unit,
+                    self.initialization_units[unit].id(),
+                    role,
+                )
                 .map_err(|error| self.failure(function, Detail::InvalidIdentity(error)))?
-        } else if let Some((unit, role)) = initialization {
-            hir::HirFunctionIdentity::initialization(
-                unit,
-                self.initialization_units[unit].id(),
-                role,
-            )
-            .map_err(|error| self.failure(function, Detail::InvalidIdentity(error)))?
-        } else if test_entry {
-            hir::HirFunctionIdentity::test_entry(self.lowerer.current_cone())
-                .map_err(|error| self.failure(function, Detail::InvalidIdentity(error)))?
-        } else {
-            self.derived_identity(function)?
+            }
+            crate::FunctionOrigin::TestEntry => {
+                hir::HirFunctionIdentity::test_entry(self.lowerer.current_cone())
+                    .map_err(|error| self.failure(function, Detail::InvalidIdentity(error)))?
+            }
+            crate::FunctionOrigin::DerivedEquality => self.derived_identity(function)?,
         };
         self.visiting[index] = false;
         self.identities[index] = Some(identity.clone());

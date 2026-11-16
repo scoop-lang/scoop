@@ -2,7 +2,23 @@
   {
     "code": "SCOOPC_HIR_ERROR",
     "message": "unknown function `env`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "notes": [
+      {
+        "importPath": [
+          "scoop",
+          "compiler",
+          "env"
+        ],
+        "message": "available with import `scoop`.`compiler`.`env`",
+        "origin": {
+          "cone": "5ea5f5e8ff248182c8f8c7e1043caae20f163bcefd34cca4e97d8c6a03bf620d",
+          "end": 646,
+          "kind": "source",
+          "path": "src/compiler/environment.scoop",
+          "start": 576
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 28,

@@ -142,22 +142,18 @@ impl Lowerer {
                 .collect(),
             return_ty: result,
         };
-        let function = self.allocate_synthesized_method(
+        self.allocate_synthesized_method(
             owner,
             name,
             signature,
             hir::MethodModifier::Final,
             ast::DeclaredVisibility::Public,
             span,
-        );
-        self.source_function_declarations.insert(
-            function,
-            crate::SourceFunctionDeclaration {
+            crate::FunctionOrigin::Source(crate::SourceFunctionDeclaration {
                 name: name.into(),
                 name_span: None,
-            },
-        );
-        function
+            }),
+        )
     }
 
     pub(crate) fn core_coding_nominal(&self, name: &str) -> Option<hir::SourceNominalId> {

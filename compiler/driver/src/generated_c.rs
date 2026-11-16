@@ -13,7 +13,10 @@ pub(crate) fn emit_c_bridge_object_set(
     invocation
         .validate_target(input.module().meta.target_profile)
         .map_err(|error| {
-            CodegenError(format!("invalid generated-C toolchain projection: {error}"))
+            CodegenError::internal_cause(
+                format!("invalid generated-C toolchain projection: {error}"),
+                error,
+            )
         })?;
     scoop_codegen::emit_c_bridge_object_set(
         input,
@@ -22,7 +25,7 @@ pub(crate) fn emit_c_bridge_object_set(
         |source, object| {
             invocation
                 .compile_object(source, object)
-                .map_err(|error| CodegenError(error.to_string()))
+                .map_err(|error| CodegenError::tool(error.to_string(), error))
         },
     )
 }

@@ -376,7 +376,7 @@ impl WireEncode for FieldIdentityKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FieldIdentityError {
     ExpectedSourceStruct,
     ExpectedSourceClass,

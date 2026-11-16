@@ -39,7 +39,7 @@ impl SlibObjects {
             emit_c_bridge_object_set(&input, directory, invocation.profile(), |source, object| {
                 invocation
                     .compile_object(source, object)
-                    .map_err(|error| CodegenError(error.to_string()))
+                    .map_err(|error| CodegenError::internal_cause(error.to_string(), error))
             })
             .unwrap();
         let partition =

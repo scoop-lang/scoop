@@ -6,7 +6,7 @@ pub(super) fn require_callable_entry<'ctx>(
 ) -> Result<FunctionValue<'ctx>, CodegenError> {
     let symbol = plan.entry_symbol().symbol();
     llvm.get_function(symbol.as_str()).ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "initialization callable `{symbol}` is not declared in the LLVM module"
         ))
     })

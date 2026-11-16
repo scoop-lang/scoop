@@ -333,7 +333,11 @@ impl Lowerer {
                 expected_result,
             ) {
                 Ok(candidate) => applicable.push(candidate),
-                Err(failure) => failures.push(*failure),
+                Err(probe::CandidateProbeError::Internal(error)) => {
+                    self.diagnostics.push(error);
+                    return OverloadResolutionOutcome::Failed;
+                }
+                Err(probe::CandidateProbeError::Rejected(failure)) => failures.push(*failure),
             }
         }
 
@@ -365,7 +369,13 @@ impl Lowerer {
                     .iter()
                     .map(|candidate| candidate.candidate)
                     .collect::<Vec<_>>();
-                let mut tied = self.most_specific_candidates(&prepared, &indices);
+                let mut tied = match self.most_specific_candidates(&prepared, &indices) {
+                    Ok(tied) => tied,
+                    Err(error) => {
+                        self.diagnostics.push(ast::Diagnostic::internal(error));
+                        return OverloadResolutionOutcome::Failed;
+                    }
+                };
                 if tied.len() > 1
                     && let OverloadArguments::Source(source_arguments) = &arguments
                 {

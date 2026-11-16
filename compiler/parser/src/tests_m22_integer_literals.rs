@@ -248,7 +248,7 @@ fn overflows_report_the_complete_literal_span() {
         let crate::lexer::Lexed { diagnostics, .. } = lex(&source);
         assert_eq!(diagnostics.len(), 1, "source: {source}");
         let diagnostic = &diagnostics[0];
-        let span = diagnostic.span.expect("lexical diagnostics have spans");
+        let span = diagnostic.span().expect("lexical diagnostics have spans");
         assert_eq!(span.start, 0, "source: {source}");
         assert_eq!(span.end as usize, source.len(), "source: {source}");
         assert_eq!(
@@ -300,7 +300,7 @@ fn rejects_missing_digits_invalid_digits_and_bad_separators() {
         let crate::lexer::Lexed { diagnostics, .. } = lex(source);
         assert_eq!(diagnostics.len(), 1, "source: {source}");
         let diagnostic = &diagnostics[0];
-        let actual = diagnostic.span.expect("lexical diagnostics have spans");
+        let actual = diagnostic.span().expect("lexical diagnostics have spans");
         assert_eq!((actual.start, actual.end), span, "source: {source}");
         assert_eq!(diagnostic.message, message, "source: {source}");
     }
@@ -320,7 +320,7 @@ fn rejects_long_before_unsigned_and_unknown_suffixes_as_one_lexeme() {
         assert!(matches!(tokens[0].kind, TokenKind::Error));
         assert!(matches!(tokens[1].kind, TokenKind::Eof));
         let diagnostic = &diagnostics[0];
-        let span = diagnostic.span.expect("lexical diagnostics have spans");
+        let span = diagnostic.span().expect("lexical diagnostics have spans");
         assert_eq!((span.start, span.end as usize), (1, source.len()));
         assert_eq!(
             diagnostic.message,
@@ -349,7 +349,7 @@ fn lexer_recovers_multiple_malformed_integer_lexemes_in_source_order() {
     assert_eq!(diagnostics.len(), 3);
     let spans: Vec<_> = diagnostics
         .iter()
-        .map(|diagnostic| diagnostic.span.expect("spanned"))
+        .map(|diagnostic| diagnostic.span().expect("spanned"))
         .collect();
     assert_eq!(
         spans,

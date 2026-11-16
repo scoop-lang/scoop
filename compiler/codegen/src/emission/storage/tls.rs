@@ -28,7 +28,11 @@ pub(in crate::emission) fn boundaries(
             {
                 (format!("_{symbol}$tlv$init"), size)
             }
-            role => return Err(CodegenError(format!("unexpected TLS atom role: {role:?}"))),
+            role => {
+                return Err(CodegenError::internal(format!(
+                    "unexpected TLS atom role: {role:?}"
+                )));
+            }
         };
         for (request, offset) in [(boundary.start(), 0), (boundary.end(), extent)] {
             let name = normalization.compiler_generated_object_symbol(request.symbol().as_str());

@@ -103,87 +103,86 @@ pub(crate) fn expectations(module: &scoop_lir::Module) -> Result<ExpectedSafepoi
             .insert(function.symbol().to_string(), function.gc_effect)
             .is_some()
         {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "duplicate LIR function symbol `{}` in statepoint manifest",
                 function.symbol()
             )));
         }
         for (_, block) in function.blocks.iter() {
-            for instruction in &block.instructions {
-                let expectation = match instruction {
-                    scoop_lir::Instruction::ManagedPoll { site } => {
-                        Some((site.safepoint, relocating_roots(&site.live)))
-                    }
-                    scoop_lir::Instruction::Call { site } => match site {
-                        scoop_lir::CallSite::Managed(site) => {
+            let instruction_sites =
+                block
+                    .instructions
+                    .iter()
+                    .filter_map(|instruction| match instruction {
+                        scoop_lir::Instruction::ManagedPoll { site } => {
                             Some((site.safepoint, relocating_roots(&site.live)))
                         }
-                        scoop_lir::CallSite::NativeSafe(site) => Some((
-                            site.safepoint,
-                            ExpectedStatepoint::NativeTransition(
-                                scoop_lir::RuntimeAbiSymbolV1::EnterNativeSafe,
-                            ),
-                        )),
-                        scoop_lir::CallSite::NativeBorrowed(site) => Some((
-                            site.safepoint,
-                            ExpectedStatepoint::NativeTransition(
-                                scoop_lir::RuntimeAbiSymbolV1::EnterNativeBorrowed,
-                            ),
-                        )),
-                        scoop_lir::CallSite::NoGc(_)
-                        | scoop_lir::CallSite::ReleaseScoop(_)
-                        | scoop_lir::CallSite::NativeGcLeaf(_)
-                        | scoop_lir::CallSite::ReleaseNativeLeaf(_) => None,
-                    },
-                    scoop_lir::Instruction::Invoke { site } => match site {
-                        scoop_lir::InvokeSite::Managed(site) => {
-                            Some((site.safepoint, ExpectedStatepoint::ZeroLiveInvoke))
-                        }
-                        scoop_lir::InvokeSite::NoGc(_) => None,
-                    },
-                    scoop_lir::Instruction::NativeGlobalLoad { protocol, .. }
-                    | scoop_lir::Instruction::NativeGlobalStore { protocol, .. }
-                    | scoop_lir::Instruction::NativeGlobalAddress { protocol, .. } => {
-                        protocol.safepoint().map(|safepoint| {
-                            (
-                                safepoint,
+                        scoop_lir::Instruction::Call { site } => match site {
+                            scoop_lir::CallSite::Managed(site) => {
+                                Some((site.safepoint, relocating_roots(&site.live)))
+                            }
+                            scoop_lir::CallSite::NativeSafe(site) => Some((
+                                site.safepoint,
                                 ExpectedStatepoint::NativeTransition(
                                     scoop_lir::RuntimeAbiSymbolV1::EnterNativeSafe,
                                 ),
-                            )
-                        })
-                    }
-                    scoop_lir::Instruction::BoxValue {
-                        safepoint, live, ..
-                    }
-                    | scoop_lir::Instruction::ArrayAllocDynamic {
-                        safepoint, live, ..
-                    }
-                    | scoop_lir::Instruction::ArrayAlloc {
-                        safepoint, live, ..
-                    }
-                    | scoop_lir::Instruction::StringConcat {
-                        safepoint, live, ..
-                    }
-                    | scoop_lir::Instruction::StringCopy {
-                        safepoint, live, ..
-                    }
-                    | scoop_lir::Instruction::ArrayAssembly {
-                        safepoint, live, ..
-                    }
-                    | scoop_lir::Instruction::ArrayClone {
-                        safepoint, live, ..
-                    } => Some((*safepoint, relocating_roots(live))),
-                    _ => None,
-                };
-                let Some((safepoint, expectation)) = expectation else {
-                    continue;
-                };
+                            )),
+                            scoop_lir::CallSite::NativeBorrowed(site) => Some((
+                                site.safepoint,
+                                ExpectedStatepoint::NativeTransition(
+                                    scoop_lir::RuntimeAbiSymbolV1::EnterNativeBorrowed,
+                                ),
+                            )),
+                            scoop_lir::CallSite::NoGc(_)
+                            | scoop_lir::CallSite::ReleaseScoop(_)
+                            | scoop_lir::CallSite::NativeGcLeaf(_)
+                            | scoop_lir::CallSite::ReleaseNativeLeaf(_) => None,
+                        },
+                        scoop_lir::Instruction::NativeGlobalLoad { protocol, .. }
+                        | scoop_lir::Instruction::NativeGlobalStore { protocol, .. }
+                        | scoop_lir::Instruction::NativeGlobalAddress { protocol, .. } => {
+                            protocol.safepoint().map(|safepoint| {
+                                (
+                                    safepoint,
+                                    ExpectedStatepoint::NativeTransition(
+                                        scoop_lir::RuntimeAbiSymbolV1::EnterNativeSafe,
+                                    ),
+                                )
+                            })
+                        }
+                        scoop_lir::Instruction::BoxValue {
+                            safepoint, live, ..
+                        }
+                        | scoop_lir::Instruction::ArrayAllocDynamic {
+                            safepoint, live, ..
+                        }
+                        | scoop_lir::Instruction::ArrayAlloc {
+                            safepoint, live, ..
+                        }
+                        | scoop_lir::Instruction::StringConcat {
+                            safepoint, live, ..
+                        }
+                        | scoop_lir::Instruction::StringCopy {
+                            safepoint, live, ..
+                        }
+                        | scoop_lir::Instruction::ArrayAssembly {
+                            safepoint, live, ..
+                        }
+                        | scoop_lir::Instruction::ArrayClone {
+                            safepoint, live, ..
+                        } => Some((*safepoint, relocating_roots(live))),
+                        _ => None,
+                    });
+            let invoke_site = block
+                .terminator
+                .safepoint()
+                .map(|(_, site)| (site, ExpectedStatepoint::ZeroLiveInvoke));
+            for (safepoint, expectation) in instruction_sites.chain(invoke_site) {
                 let safepoint = function
                     .safepoints
                     .get(safepoint)
                     .ok_or_else(|| {
-                        CodegenError(format!(
+                        CodegenError::internal(format!(
                             "LIR function `{}` references missing safepoint site {}",
                             function.symbol(),
                             safepoint.into_u32()
@@ -191,7 +190,7 @@ pub(crate) fn expectations(module: &scoop_lir::Module) -> Result<ExpectedSafepoi
                     })?
                     .runtime_id();
                 if function.gc_effect == GcEffect::NoGc {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "NoGc LIR function `{}` contains safepoint {}",
                         function.symbol(),
                         safepoint.get()
@@ -247,7 +246,7 @@ fn insert_expectation(
         )
         .is_some()
     {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "duplicate image SafepointId {} in complete LIR",
             id.get()
         )));

@@ -47,10 +47,19 @@ impl Lowerer {
         }
         check()?;
         let sources = self.diagnostic_source_identities();
-        for warning in &mut warnings {
-            warning.resolve_sources(&sources);
-        }
-        self.warnings.extend(warnings.iter().cloned());
+        let warnings = warnings
+            .into_iter()
+            .filter_map(|warning| match warning.clone().bind(&sources) {
+                Ok(bound) => {
+                    self.warnings.push(warning);
+                    Some(bound)
+                }
+                Err(error) => {
+                    self.diagnostics.push(ast::Diagnostic::internal(error));
+                    None
+                }
+            })
+            .collect();
         Ok(Some(hir::SemanticDocumentation {
             declarations,
             source_locations,

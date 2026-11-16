@@ -14,15 +14,15 @@ impl ElfObject<'_> {
             || self.original_symbols.contains_key(name.as_bytes())
             || !self.names.insert(name.to_owned())
         {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "invalid or repeated ELF symbol `{name}`"
             )));
         }
         let symbol = self
             .original_symbol(previous)
-            .ok_or_else(|| CodegenError(format!("missing ELF symbol `{previous}`")))?;
+            .ok_or_else(|| CodegenError::internal(format!("missing ELF symbol `{previous}`")))?;
         if symbol.is_local() || symbol.section_index().is_none() {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "renamed ELF contribution must be an external definition".into(),
             ));
         }

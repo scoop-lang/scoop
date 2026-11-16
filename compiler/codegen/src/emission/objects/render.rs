@@ -14,7 +14,10 @@ pub fn render_llvm_ir_members(
     let mut production = input
         .build_production_section(coordinate.clone(), direct_dependencies, entry_source)
         .map_err(|error| {
-            CodegenError(format!("cannot build strong production section: {error}"))
+            CodegenError::backend(
+                format!("cannot build strong production section: {error}"),
+                error,
+            )
         })?;
     let expected_safepoints = statepoint::expectations(module)?;
     let metadata_safepoints = expected_safepoints.without_body_sites();
@@ -63,7 +66,7 @@ pub fn render_llvm_ir_members(
         &foundation,
         production.canonical_definitions(),
     )
-    .map_err(|error| CodegenError(error.to_string()))?;
+    .map_err(|error| CodegenError::internal_cause(error.to_string(), error))?;
     let metadata_context = Context::create();
     let machine = profile.create_target_machine()?;
     let metadata_llvm = prepare_non_callable_strong_llvm_module(

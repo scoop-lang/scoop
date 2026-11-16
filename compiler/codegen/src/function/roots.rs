@@ -13,16 +13,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let builder = self.builder;
         let current = builder
             .get_insert_block()
-            .ok_or_else(|| CodegenError("builder has no insertion block".to_string()))?;
+            .ok_or_else(|| CodegenError::internal("builder has no insertion block".to_string()))?;
         match self.entry_block.get_first_instruction() {
             Some(first) => builder.position_at(self.entry_block, &first),
             None => builder.position_at_end(self.entry_block),
         }
         let alloca = builder.build_alloca(ty, name).map_err(|e| {
-            CodegenError(format!(
-                "alloca {name} @{symbol}: {e}",
-                symbol = self.function.symbol()
-            ))
+            CodegenError::backend(
+                format!(
+                    "alloca {name} @{symbol}: {e}",
+                    symbol = self.function.symbol()
+                ),
+                e,
+            )
         })?;
         builder.position_at_end(current);
         Ok(alloca)
@@ -39,7 +42,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .arguments()
                 .get(index as usize)
                 .map(scoop_lir::AbiArgument::logical_storage_type)
-                .ok_or_else(|| CodegenError(format!("statepoint param {index} is out of range"))),
+                .ok_or_else(|| {
+                    CodegenError::internal(format!("statepoint param {index} is out of range"))
+                }),
             scoop_lir::CallerRootSource::Local(id) => Ok(self.function.locals[id].ty()),
             scoop_lir::CallerRootSource::Temp(id) => Ok(&self.function.temps[id].ty),
         }
@@ -51,7 +56,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
     ) -> Result<RootStorage<'ctx>, CodegenError> {
         let source_ty = self.statepoint_source_type(source)?;
         if machine_types::contains_machine_scalar(self.structs, self.enums, source_ty) {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "root source in @{} cannot contain an internal machine scalar",
                 self.function.symbol()
             )));
@@ -67,11 +72,11 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.function.locals[id].ty(),
                 )?,
             }),
-            scoop_lir::CallerRootSource::Param(_) | scoop_lir::CallerRootSource::Temp(_) => self
-                .root_storage
-                .get(&source)
-                .copied()
-                .ok_or_else(|| CodegenError("root source has no canonical storage".to_string())),
+            scoop_lir::CallerRootSource::Param(_) | scoop_lir::CallerRootSource::Temp(_) => {
+                self.root_storage.get(&source).copied().ok_or_else(|| {
+                    CodegenError::internal("root source has no canonical storage".to_string())
+                })
+            }
         }
     }
 
@@ -88,13 +93,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         for item in live.as_slice() {
             let source_ty = self.statepoint_source_type(item.source)?;
             if source_ty != &item.ty {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "statepoint {} source type is incomplete or inconsistent",
                     safepoint.get()
                 )));
             }
             if machine_types::contains_machine_scalar(self.structs, self.enums, &item.ty) {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "statepoint {} cannot treat an internal machine scalar as a managed root",
                     safepoint.get()
                 )));
@@ -110,13 +115,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 scoop_lir::CallerRootSource::Local(id) => self.local_pointer(id)?,
                 scoop_lir::CallerRootSource::Param(_) | scoop_lir::CallerRootSource::Temp(_) => {
                     let canonical = self.root_storage.get(&item.source).ok_or_else(|| {
-                        CodegenError(format!(
+                        CodegenError::internal(format!(
                             "statepoint {} source lacks canonical root storage",
                             safepoint.get()
                         ))
                     })?;
                     if canonical.ty != llvm_ty {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "statepoint {} root storage disagrees with source type",
                             safepoint.get()
                         )));
@@ -131,7 +136,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     .checked_add(8)
                     .is_none_or(|end| end > source_size)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "statepoint {} managed leaf offset {} is outside its concrete type",
                         safepoint.get(),
                         leaf.byte_offset
@@ -147,7 +152,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &format!("statepoint_{}_leaf", safepoint.get()),
                     )
                 }
-                .map_err(|error| CodegenError(format!("address statepoint leaf: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("address statepoint leaf: {error}"), error)
+                })?;
                 let source_value = self
                     .builder
                     .build_load(
@@ -155,7 +162,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         leaf_storage,
                         &format!("statepoint_{}_source", safepoint.get()),
                     )
-                    .map_err(|error| CodegenError(format!("load statepoint leaf: {error}")))?
+                    .map_err(|error| {
+                        CodegenError::backend(format!("load statepoint leaf: {error}"), error)
+                    })?
                     .into_pointer_value();
                 leaves.push(StatepointLiveLeaf {
                     storage: leaf_storage,
@@ -193,7 +202,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &format!("statepoint_{}_argument", safepoint.get()),
                     )
                     .map_err(|error| {
-                        CodegenError(format!("reload materialized statepoint source: {error}"))
+                        CodegenError::backend(
+                            format!("reload materialized statepoint source: {error}"),
+                            error,
+                        )
                     })?,
             };
             arguments.insert(item.source, value);
@@ -223,16 +235,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .builder
                 .build_store(leaf.storage, leaf.value)
                 .map_err(|error| {
-                    CodegenError(format!(
-                        "restore statepoint {} leaf: {error}",
-                        safepoint.get()
-                    ))
+                    CodegenError::backend(
+                        format!("restore statepoint {} leaf: {error}", safepoint.get()),
+                        error,
+                    )
                 })?;
             store.set_volatile(true).map_err(|error| {
-                CodegenError(format!(
-                    "make statepoint {} leaf store volatile: {error}",
-                    safepoint.get()
-                ))
+                CodegenError::backend(
+                    format!(
+                        "make statepoint {} leaf store volatile: {error}",
+                        safepoint.get()
+                    ),
+                    error,
+                )
             })?;
             statepoint::mark_storage_access(self.context, store)?;
         }
@@ -261,7 +276,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         .arguments()
                         .get(logical_index)
                         .ok_or_else(|| {
-                            CodegenError(format!("rooted param {index} is out of range"))
+                            CodegenError::internal(format!("rooted param {index} is out of range"))
                         })?;
                     let location = self
                         .function
@@ -278,7 +293,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             let initial = self.incoming_direct_parts(parts, first)?;
                             let pointer = self.entry_alloca(ty, "managed_root_storage")?;
                             self.builder.build_store(pointer, initial).map_err(|e| {
-                                CodegenError(format!("initialize interface root: {e}"))
+                                CodegenError::backend(format!("initialize interface root: {e}"), e)
                             })?;
                             RootStorage { pointer, ty }
                         }
@@ -286,16 +301,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::Direct(_),
                             scoop_lir::AbiArgumentLocation::Parameter(physical_index),
                         ) => {
-                            let physical_index = u32::try_from(physical_index).map_err(|_| {
-                                CodegenError(format!(
+                            let physical_index = u32::try_from(physical_index).map_err(|cause| {
+                                CodegenError::internal_cause(format!(
                                     "physical parameter for rooted param {index} exceeds u32::MAX"
-                                ))
+                                ), cause)
                             })?;
                             let initial = self
                                 .llvm_function
                                 .get_nth_param(physical_index)
                                 .ok_or_else(|| {
-                                    CodegenError(format!(
+                                    CodegenError::internal(format!(
                                         "physical parameter for rooted param {index} is out of range"
                                     ))
                                 })?;
@@ -303,9 +318,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             self.builder
                                 .build_store(pointer, initial)
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "initialize managed root storage: {error}"
-                                    ))
+                                    CodegenError::backend(
+                                        format!("initialize managed root storage: {error}"),
+                                        error,
+                                    )
                                 })?;
                             RootStorage { pointer, ty }
                         }
@@ -313,21 +329,21 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::Indirect(_),
                             scoop_lir::AbiArgumentLocation::Parameter(physical_index),
                         ) => {
-                            let physical_index = u32::try_from(physical_index).map_err(|_| {
-                                CodegenError(format!(
+                            let physical_index = u32::try_from(physical_index).map_err(|cause| {
+                                CodegenError::internal_cause(format!(
                                     "physical parameter for rooted param {index} exceeds u32::MAX"
-                                ))
+                                ), cause)
                             })?;
                             let parameter = self
                                 .llvm_function
                                 .get_nth_param(physical_index)
                                 .ok_or_else(|| {
-                                    CodegenError(format!(
+                                    CodegenError::internal(format!(
                                         "physical parameter for rooted param {index} is out of range"
                                     ))
                                 })?;
                             let BasicValueEnum::PointerValue(pointer) = parameter else {
-                                return Err(CodegenError(format!(
+                                return Err(CodegenError::internal(format!(
                                     "indirect rooted param {index} does not use pointer storage"
                                 )));
                             };
@@ -337,12 +353,12 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::ElidedZst(_),
                             scoop_lir::AbiArgumentLocation::Elided,
                         ) => {
-                            return Err(CodegenError(format!(
+                            return Err(CodegenError::internal(format!(
                                 "elided param {index} appears in a root plan despite its empty scan"
                             )));
                         }
                         _ => {
-                            return Err(CodegenError(format!(
+                            return Err(CodegenError::internal(format!(
                                 "rooted param {index} has an inconsistent Scoop ABI location"
                             )));
                         }
@@ -353,18 +369,21 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.builder
                         .build_store(pointer, ty.const_zero())
                         .map_err(|error| {
-                            CodegenError(format!("initialize managed root storage: {error}"))
+                            CodegenError::backend(
+                                format!("initialize managed root storage: {error}"),
+                                error,
+                            )
                         })?;
                     RootStorage { pointer, ty }
                 }
                 scoop_lir::CallerRootSource::Local(_) => {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "local root storage must reuse its ordinary alloca".to_string(),
                     ));
                 }
             };
             if self.root_storage.insert(source, storage).is_some() {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "complete root plans repeat one canonical source".to_string(),
                 ));
             }
@@ -391,7 +410,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .runtime_scans
                 .emit(root.scan.as_ref_scan())?
                 .ok_or_else(|| {
-                    CodegenError("exceptional root has an empty runtime scan".to_string())
+                    CodegenError::internal("exceptional root has an empty runtime scan".to_string())
                 })?;
             entries.push((storage.pointer, descriptor));
         }
@@ -400,14 +419,20 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let entries_pointer = if entries.is_empty() {
             ptr.const_null()
         } else {
-            let entry_count = u32::try_from(entries.len()).map_err(|_| {
-                CodegenError("compiler-root entry count exceeds u32::MAX".to_string())
+            let entry_count = u32::try_from(entries.len()).map_err(|cause| {
+                CodegenError::internal_cause(
+                    "compiler-root entry count exceeds u32::MAX".to_string(),
+                    cause,
+                )
             })?;
             let array_type = entry_type.array_type(entry_count);
             let array = self.entry_alloca(array_type.into(), "compiler_root_entries")?;
             for (entry_index, (base, scan)) in entries.into_iter().enumerate() {
-                let entry_index = u64::try_from(entry_index).map_err(|_| {
-                    CodegenError("compiler-root entry index exceeds u64::MAX".to_string())
+                let entry_index = u64::try_from(entry_index).map_err(|cause| {
+                    CodegenError::internal_cause(
+                        "compiler-root entry index exceeds u64::MAX".to_string(),
+                        cause,
+                    )
                 })?;
                 // SAFETY: `entry_index` is within the fixed entries array.
                 let entry = unsafe {
@@ -421,20 +446,29 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         "compiler_root_entry",
                     )
                 }
-                .map_err(|error| CodegenError(format!("compiler-root entry GEP: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("compiler-root entry GEP: {error}"), error)
+                })?;
                 let base_field = self
                     .builder
                     .build_struct_gep(entry_type, entry, 0, "compiler_root_base")
-                    .map_err(|error| CodegenError(format!("compiler-root base GEP: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("compiler-root base GEP: {error}"), error)
+                    })?;
                 let scan_field = self
                     .builder
                     .build_struct_gep(entry_type, entry, 1, "compiler_root_scan")
-                    .map_err(|error| CodegenError(format!("compiler-root scan GEP: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("compiler-root scan GEP: {error}"), error)
+                    })?;
                 self.builder
                     .build_store(base_field, base)
                     .and_then(|_| self.builder.build_store(scan_field, scan))
                     .map_err(|error| {
-                        CodegenError(format!("publish compiler-root entry: {error}"))
+                        CodegenError::backend(
+                            format!("publish compiler-root entry: {error}"),
+                            error,
+                        )
                     })?;
             }
             array
@@ -444,20 +478,27 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let entry_field = self
             .builder
             .build_struct_gep(table_type, table, 0, "invoke_root_entries")
-            .map_err(|error| CodegenError(format!("root table entries GEP: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("root table entries GEP: {error}"), error)
+            })?;
         let count_field = self
             .builder
             .build_struct_gep(table_type, table, 1, "invoke_root_count")
-            .map_err(|error| CodegenError(format!("root table count GEP: {error}")))?;
-        let count = u64::try_from(roots.len())
-            .map_err(|_| CodegenError("root table count exceeds u64::MAX".to_string()))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("root table count GEP: {error}"), error)
+            })?;
+        let count = u64::try_from(roots.len()).map_err(|cause| {
+            CodegenError::internal_cause("root table count exceeds u64::MAX".to_string(), cause)
+        })?;
         self.builder
             .build_store(entry_field, entries_pointer)
             .and_then(|_| {
                 self.builder
                     .build_store(count_field, i64_type.const_int(count, false))
             })
-            .map_err(|error| CodegenError(format!("initialize invoke root table: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("initialize invoke root table: {error}"), error)
+            })?;
         Ok(Some(CompilerRootTable { pointer: table }))
     }
 
@@ -470,7 +511,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 continue;
             }
             if !self.root_storage.contains_key(&source) {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "compiler-root edge names a source without canonical storage".to_string(),
                 ));
             }
@@ -491,13 +532,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let value = self
                 .builder
                 .build_load(storage.ty, storage.pointer, "published_root_reload")
-                .map_err(|error| CodegenError(format!("reload published root: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("reload published root: {error}"), error)
+                })?;
             value
                 .as_instruction_value()
                 .expect("a root reload is an instruction")
                 .set_volatile(true)
                 .map_err(|error| {
-                    CodegenError(format!("make published root reload volatile: {error}"))
+                    CodegenError::backend(
+                        format!("make published root reload volatile: {error}"),
+                        error,
+                    )
                 })?;
             reloaded.push(ReloadedRoot { storage, value });
         }
@@ -512,9 +558,11 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let store = self
                 .builder
                 .build_store(root.storage.pointer, root.value)
-                .map_err(|error| CodegenError(format!("restore reloaded root: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("restore reloaded root: {error}"), error)
+                })?;
             store.set_volatile(true).map_err(|error| {
-                CodegenError(format!("make reloaded root store volatile: {error}"))
+                CodegenError::backend(format!("make reloaded root store volatile: {error}"), error)
             })?;
         }
         Ok(())

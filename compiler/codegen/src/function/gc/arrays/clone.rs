@@ -25,7 +25,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     || source_metadata.element != array_metadata.element
                     || source_metadata.layout != array_metadata.layout
                 {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "array clone source and target element storage disagree".to_string(),
                     ));
                 }
@@ -34,7 +34,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     || operand_ty != scoop_lir::MANAGED_PTR
                     || machine_types::contains_machine_scalar(self.structs, self.enums, &element)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "array_clone @{} requires a machine-scalar-free managed array -> managed array",
                         function.symbol()
                     )));
@@ -92,5 +92,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn clone_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("array clone emission: {error}"))
+    CodegenError::internal(format!("array clone emission: {error}"))
 }

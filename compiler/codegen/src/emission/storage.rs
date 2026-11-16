@@ -108,7 +108,7 @@ impl<'ctx> StorageEmitter<'_, 'ctx> {
                         && plan.definition_role() == scoop_lir::StrongDefinitionRole::StaticStorage
                 })
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "raw storage @{} has no definition plan",
                         global.symbol()
                     ))

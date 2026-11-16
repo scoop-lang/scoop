@@ -114,6 +114,7 @@ mod editing;
 mod effects;
 mod expr;
 mod ffi;
+mod function_declarations;
 mod generation;
 mod generic_entities;
 mod globals;
@@ -159,6 +160,7 @@ mod semantic_queries;
 mod shared;
 mod signatures;
 mod snapshot_arena;
+use function_declarations::{FunctionDeclarations, FunctionOrigin};
 mod source_dependencies;
 mod stmt;
 mod test_annotations;
@@ -369,6 +371,17 @@ pub(crate) fn lower_defined_for_test(
     let world =
         hir::ImportedSemanticWorld::from_dependencies(export.cone, Vec::new(), Vec::new()).unwrap();
     let export = seal_export_output(export, output_kind, None)?;
+    let identities = export
+        .module()
+        .source_files
+        .iter()
+        .map(|source| source.identity.clone())
+        .collect::<Vec<_>>();
+    let warnings = warnings
+        .into_iter()
+        .map(|warning| warning.bind(&identities))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![Diagnostic::internal(error)])?;
     finish_output(export, warnings, &world, None)
 }
 
@@ -376,7 +389,7 @@ pub(crate) fn lower_defined_for_test(
 #[cfg(test)]
 pub(crate) fn lower_core_bootstrap(
     input: &ast::CurrentConeParsedSources,
-) -> Result<hir::Output, Vec<Diagnostic>> {
+) -> Result<hir::Output, Vec<scoop_source::SourceDiagnostic>> {
     let world = hir::ImportedSemanticWorld::from_dependencies(input.cone(), Vec::new(), Vec::new())
         .unwrap();
     let sources =
@@ -415,7 +428,7 @@ fn seal_export_output(
 
 fn finish_output(
     mut export: hir::ExportHirOutput,
-    warnings: Vec<Diagnostic>,
+    warnings: Vec<scoop_source::SourceDiagnostic>,
     dependencies: &hir::ImportedSemanticWorld<'_>,
     selected: Option<&hir::SelectedImportedDependencySet>,
 ) -> Result<hir::Output, Vec<Diagnostic>> {
@@ -711,10 +724,7 @@ pub(crate) struct Lowerer {
     pub(crate) interface_applications: Arena<hir::InterfaceApplication>,
     pub(crate) interface_application_by_key:
         HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::InterfaceApplicationId>,
-    pub(crate) functions: SnapshotArena<Function>,
-    /// Typed source-declaration provenance. Display names cannot substitute
-    /// for this relation because member and lifted-local names are decorated.
-    pub(crate) source_function_declarations: Shared<HashMap<FunctionId, SourceFunctionDeclaration>>,
+    pub(crate) functions: FunctionDeclarations,
     pub(crate) query_source_function_identities:
         HashMap<FunctionId, hir::HirSourceFunctionIdentity>,
     pub(crate) query_imported_method_parameters:

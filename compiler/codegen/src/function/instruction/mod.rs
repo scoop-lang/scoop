@@ -98,7 +98,6 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             Instruction::Call { site } => self.emit_call_site(site),
             Instruction::ManagedPoll { site } => self.safepoint_poll(site),
-            Instruction::Invoke { site } => self.emit_invoke_site(site),
             Instruction::LandingPad { .. }
             | Instruction::CleanupPad { .. }
             | Instruction::BeginCatch { .. }

@@ -133,7 +133,12 @@ impl Lowerer {
                         state.lower_resolved_value_target(name, target, expected)
                     }) {
                         Ok(layer) => return Some(self.commit_expr_layer(layer, sink)),
-                        Err(failure) => prelude_failure = Some(failure),
+                        Err(failure) => {
+                            if self.retain_internal_diagnostics(&failure) {
+                                return None;
+                            }
+                            prelude_failure = Some(failure);
+                        }
                     }
                 } else {
                     return self.lower_resolved_value_target(name, target, expected);

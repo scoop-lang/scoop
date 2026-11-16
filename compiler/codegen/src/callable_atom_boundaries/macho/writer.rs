@@ -94,11 +94,16 @@ impl MachOLayout {
                 &old_symbols[index * NLIST_64_SIZE..(index + 1) * NLIST_64_SIZE],
             );
         }
-        let new_string_offset = u32::try_from(bytes.len())
-            .map_err(|_| CodegenError("callable object exceeds Mach-O u32 offsets".to_string()))?;
+        let new_string_offset = u32::try_from(bytes.len()).map_err(|cause| {
+            CodegenError::internal_cause(
+                "callable object exceeds Mach-O u32 offsets".to_string(),
+                cause,
+            )
+        })?;
         bytes.extend_from_slice(&strings);
-        let new_string_size = u32::try_from(strings.len())
-            .map_err(|_| CodegenError("callable string table exceeds u32".to_string()))?;
+        let new_string_size = u32::try_from(strings.len()).map_err(|cause| {
+            CodegenError::internal_cause("callable string table exceeds u32".to_string(), cause)
+        })?;
 
         write_u32(bytes, self.symtab.command_offset + 12, new_symbol_count)?;
         write_u32(bytes, self.symtab.command_offset + 16, new_string_offset)?;
@@ -135,7 +140,7 @@ impl MachOLayout {
                     .ok_or_else(malformed)?;
                 let address_word = read_u32(bytes, offset)?;
                 if address_word & macho::R_SCATTERED != 0 {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "callable object uses a scattered relocation".to_string(),
                     ));
                 }
@@ -145,13 +150,13 @@ impl MachOLayout {
                 }
                 let target = info & 0x00ff_ffff;
                 if target >= self.symtab.symbol_count {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "callable relocation symbol index is out of bounds".to_string(),
                     ));
                 }
                 let shifted = remap[target as usize];
                 if shifted > 0x00ff_ffff {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "callable relocation symbol index overflows".into(),
                     ));
                 }
@@ -167,7 +172,7 @@ fn validate_additions(
     additions: &mut [BoundaryDefinitionV1],
 ) -> Result<(), CodegenError> {
     if additions.is_empty() {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "callable object has no backend boundary symbols to materialize".to_string(),
         ));
     }
@@ -176,7 +181,7 @@ fn validate_additions(
         .windows(2)
         .any(|pair| pair[0].name == pair[1].name)
     {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "callable boundary plan repeats a Mach-O symbol".to_string(),
         ));
     }
@@ -193,7 +198,7 @@ fn validate_additions(
                 || symbol.section_ordinal != 0
                 || symbol.value != 0
             {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "callable boundary symbol `{}` is already defined",
                     String::from_utf8_lossy(&addition.name)
                 )));
@@ -206,7 +211,7 @@ fn validate_additions(
             || addition.section_ordinal == 0
             || usize::from(addition.section_ordinal) > layout.sections.len()
     }) {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "callable boundary plan contains an invalid Mach-O definition".to_string(),
         ));
     }
@@ -217,14 +222,17 @@ fn encode_additions(
     additions: &[BoundaryDefinitionV1],
     strings: &mut Vec<u8>,
 ) -> Result<Vec<u8>, CodegenError> {
-    let capacity = additions
-        .len()
-        .checked_mul(NLIST_64_SIZE)
-        .ok_or_else(|| CodegenError("callable symbol table size overflows".to_string()))?;
+    let capacity = additions.len().checked_mul(NLIST_64_SIZE).ok_or_else(|| {
+        CodegenError::internal("callable symbol table size overflows".to_string())
+    })?;
     let mut encoded = Vec::with_capacity(capacity);
     for addition in additions {
-        let string_index = u32::try_from(strings.len())
-            .map_err(|_| CodegenError("callable boundary string table exceeds u32".to_string()))?;
+        let string_index = u32::try_from(strings.len()).map_err(|cause| {
+            CodegenError::internal_cause(
+                "callable boundary string table exceeds u32".to_string(),
+                cause,
+            )
+        })?;
         strings.extend_from_slice(&addition.name);
         strings.push(0);
         encoded.extend_from_slice(&string_index.to_le_bytes());

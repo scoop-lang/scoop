@@ -21,7 +21,7 @@ fn with_source(source: &str, verify: impl FnOnce(&hir::ExportHir)) {
         .unwrap_or_else(|errors| {
             let messages = errors
                 .iter()
-                .map(|error| (&error.span, &error.message))
+                .map(|error| (error.span(), &error.message))
                 .collect::<Vec<_>>();
             panic!("{messages:#?}\n{source}")
         });

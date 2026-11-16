@@ -16,7 +16,7 @@ pub(super) fn enum_constant<'ctx>(
     fields: &[LirConstantImage],
 ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
     if expected != &LirType::Enum(variant.definition()) || !enums.contains_variant(variant) {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "enum constant does not match its storage type".into(),
         ));
     }
@@ -61,8 +61,11 @@ pub(super) fn enum_constant<'ctx>(
             }
         }
         EnumRepr::Tagged { size, .. } => {
-            let length = usize::try_from(*size).map_err(|_| {
-                CodegenError("enum constant size exceeds addressable memory".into())
+            let length = usize::try_from(*size).map_err(|cause| {
+                CodegenError::internal_cause(
+                    "enum constant size exceeds addressable memory".into(),
+                    cause,
+                )
             })?;
             encoder.bytes.resize(length, 0);
             encoder.enumeration(variant, fields, 0)?;
@@ -89,7 +92,7 @@ pub(super) fn enum_constant<'ctx>(
                             .remove(&(offset as u64))
                             .unwrap_or_else(|| ty.const_null());
                         if pointer.get_type() != ty {
-                            return Err(CodegenError(
+                            return Err(CodegenError::internal(
                                 "enum constant reference has the wrong pointer provenance".into(),
                             ));
                         }
@@ -105,12 +108,16 @@ pub(super) fn enum_constant<'ctx>(
                         offset = end;
                         context.const_string(bytes, false).into()
                     }
-                    _ => return Err(CodegenError("invalid enum constant storage carrier".into())),
+                    _ => {
+                        return Err(CodegenError::internal(
+                            "invalid enum constant storage carrier".into(),
+                        ));
+                    }
                 };
                 values.push(value);
             }
             if offset != length || !encoder.references.is_empty() {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "enum constant fields do not fit their storage carrier".into(),
                 ));
             }
@@ -138,7 +145,7 @@ impl<'ctx> EnumConstantEncoder<'_, 'ctx> {
         base: u64,
     ) -> Result<(), CodegenError> {
         if !self.enums.contains_variant(variant) {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "enum constant carries an invalid variant reference".into(),
             ));
         }
@@ -187,7 +194,7 @@ impl<'ctx> EnumConstantEncoder<'_, 'ctx> {
         match value {
             LirConstantImage::Aggregate(fields) => {
                 let LirType::Aggregate(types) = ty else {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "tuple constant does not match its storage type".into(),
                     ));
                 };
@@ -277,7 +284,7 @@ impl<'ctx> EnumConstantEncoder<'_, 'ctx> {
                 self.references.insert(offset, pointer);
                 Ok(())
             }
-            _ => Err(CodegenError(
+            _ => Err(CodegenError::internal(
                 "enum constant field does not match its storage type".into(),
             )),
         }
@@ -298,12 +305,12 @@ fn require_fields(fields: &[LirConstantImage], expected: usize) -> Result<(), Co
     if fields.len() == expected {
         Ok(())
     } else {
-        Err(CodegenError(
+        Err(CodegenError::internal(
             "enum constant has the wrong field count".into(),
         ))
     }
 }
 
 fn bounds_error() -> CodegenError {
-    CodegenError("enum constant field exceeds its storage extent".into())
+    CodegenError::internal("enum constant field exceeds its storage extent".into())
 }

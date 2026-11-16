@@ -135,7 +135,7 @@ fn malformed_tags_report_exact_original_spans() {
         "@since",
         "@unknown",
     ]) {
-        assert_eq!(original(source, warning.span.unwrap()), spelling);
+        assert_eq!(original(source, warning.span().unwrap()), spelling);
     }
 }
 
@@ -150,7 +150,7 @@ fn invalid_symbol_and_subject_spellings_have_document_warnings() {
         .iter()
         .zip(["[not a symbol]", "a.b", "Broken<Type>"])
     {
-        assert_eq!(original(source, warning.span.unwrap()), expected);
+        assert_eq!(original(source, warning.span().unwrap()), expected);
     }
 }
 

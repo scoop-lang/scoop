@@ -75,7 +75,7 @@ fn lower_alias_fixture(
     provider_name: &str,
     provider_source: scoop_ast::SourceFile,
     consumer: scoop_ast::SourceFile,
-) -> Result<AliasLoweringSummary, Vec<scoop_ast::Diagnostic>> {
+) -> Result<AliasLoweringSummary, Vec<scoop_ast::SourceDiagnostic>> {
     let mut core = trusted_core();
     let provider = ConeCoordinate::new("test", provider_name, "1.0.0").unwrap();
     let (foundation, interface) = project_dependency(&core, &provider, provider_source, &[]);

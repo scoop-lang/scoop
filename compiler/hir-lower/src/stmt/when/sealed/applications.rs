@@ -187,12 +187,19 @@ impl Lowerer {
         );
         match self.solve_constraints(&session) {
             Ok(_) => true,
-            Err(failure) => matches!(
-                failure.kind,
-                ConstraintFailureKind::NoUniqueSolution { .. }
-                    | ConstraintFailureKind::UnresolvedTerm(_)
-                    | ConstraintFailureKind::NonConcreteApplication(_)
-            ),
+            Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
+                self.diagnostics
+                    .push(scoop_ast::Diagnostic::internal(error));
+                false
+            }
+            Err(crate::call_resolution::constraints::InferenceFailure::Constraint(failure)) => {
+                matches!(
+                    failure.kind,
+                    ConstraintFailureKind::NoUniqueSolution { .. }
+                        | ConstraintFailureKind::UnresolvedTerm(_)
+                        | ConstraintFailureKind::NonConcreteApplication(_)
+                )
+            }
         }
     }
 

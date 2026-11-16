@@ -34,6 +34,10 @@ impl Lowerer {
             .probe_expr_layer(|state, _| state.member_property_read(receiver.clone(), name))
         {
             Ok(layer) => Some(layer),
+            Err(failure) if failure.has_internal_diagnostics() => {
+                self.retain_internal_diagnostics(&failure);
+                return None;
+            }
             Err(failure) if failure.diagnostics.len() > self.diagnostics.len() => {
                 first_failure = Some(failure);
                 None

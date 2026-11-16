@@ -48,7 +48,7 @@ impl Lowerer {
         &self,
         prepared: &[Candidate],
         applicable: &[usize],
-    ) -> Vec<usize> {
+    ) -> Result<Vec<usize>, crate::call_resolution::constraints::InferenceInvariantError> {
         let declarations = applicable
             .iter()
             .map(|&index| {
@@ -70,9 +70,10 @@ impl Lowerer {
                 }
             })
             .collect::<Vec<_>>();
-        self.most_specific_declarations(&declarations)
+        Ok(self
+            .most_specific_declarations(&declarations)?
             .into_iter()
             .map(|index| applicable[index])
-            .collect()
+            .collect())
     }
 }

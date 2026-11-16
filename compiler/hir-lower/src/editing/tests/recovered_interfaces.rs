@@ -20,7 +20,11 @@ fn recovered_interface_defaults_preserve_slot_order_private_scope_and_sibling_bo
         .map(|member| {
             let member = &analysis.lowerer.interface_method_entities[*member];
             (
-                analysis.lowerer.source_function_declarations[&member.function]
+                analysis
+                    .lowerer
+                    .functions
+                    .source(member.function)
+                    .expect("source function declaration")
                     .name
                     .as_str(),
                 member.implementation,

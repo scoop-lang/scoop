@@ -189,5 +189,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn copy_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("String copy emission: {error}"))
+    CodegenError::internal(format!("String copy emission: {error}"))
 }

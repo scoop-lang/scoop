@@ -377,13 +377,7 @@ pub(super) fn emit_function<'ctx>(
         emitter.young_allocation = young_successors.remove(&block_id);
         emitter.interface_values.clear();
         builder.position_at_end(blocks[arena_index(block_id)]);
-        // Invoke is an LLVM terminator even though it
-        // are LIR instructions: one must be the last instruction of its
-        // block, and the block's LIR terminator must be the redundant
-        // `Br` to the invoke's normal target (kept so dumps stay
-        // readable); it is not emitted. A LandingPad instruction must be
-        // the first of its block (LLVM requires the landingpad first).
-        let mut invoke_terminated = false;
+        // LLVM requires a landing pad to be the first instruction.
         for (index, instruction) in block.instructions.iter().enumerate() {
             if let Some(debug) = &emitter.debug {
                 debug
@@ -391,20 +385,12 @@ pub(super) fn emit_function<'ctx>(
                     .set_location(builder, block.instructions.origin(index));
             }
             emitter.current_instruction = index;
-            let is_invoke = matches!(instruction, Instruction::Invoke { .. });
-            if is_invoke && index + 1 != block.instructions.len() {
-                return Err(CodegenError(format!(
-                    "invoke @{}: must be the last instruction of block {}",
-                    function.symbol(),
-                    block.name
-                )));
-            }
             if matches!(
                 instruction,
                 Instruction::LandingPad { .. } | Instruction::CleanupPad { .. }
             ) && index != 0
             {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "landing pad @{}: must be the first instruction of block {}",
                     function.symbol(),
                     block.name
@@ -413,9 +399,7 @@ pub(super) fn emit_function<'ctx>(
             emitter.instruction(instruction)?;
             emitter.finish_debug_safepoint(instruction)?;
             for temp in instruction_temp_defs(instruction).into_iter().flatten() {
-                if !is_invoke {
-                    emitter.sync_root_temp(temp)?;
-                }
+                emitter.sync_root_temp(temp)?;
                 if let Some(debug) = &emitter.debug
                     && let Some(value) = emitter.temps.get(&temp)
                 {
@@ -429,35 +413,34 @@ pub(super) fn emit_function<'ctx>(
                     );
                 }
             }
-            invoke_terminated = is_invoke;
         }
-        if invoke_terminated {
-            let normal = match block.instructions.last() {
-                Some(Instruction::Invoke { site }) => site.normal(),
-                _ => continue,
-            };
-            match &block.terminator {
-                Terminator::Br(target) if *target == normal => {}
-                _ => {
-                    return Err(CodegenError(format!(
-                        "invoke block @{}:{}: terminator must be `br` to the invoke's normal target",
-                        function.symbol(),
-                        block.name
-                    )));
-                }
-            }
-            continue;
-        }
+        emitter.current_instruction = block.instructions.len();
         if let Some(debug) = &emitter.debug {
             debug
                 .borrow_mut()
                 .set_location(builder, &block.terminator_origin);
         }
         match &block.terminator {
+            Terminator::Invoke { site } => {
+                emitter.young_allocation = None;
+                emitter.emit_invoke_site(site)?;
+                emitter.finish_debug_invoke(site)?;
+                if let Some(temp) = site.result_temp()
+                    && let Some(debug) = &emitter.debug
+                    && let Some(value) = emitter.temps.get(&temp)
+                {
+                    debug.borrow().value(
+                        scoop_lir::DebugStorage::Temporary(temp),
+                        *value,
+                        None,
+                        builder.get_insert_block().expect("invoke continuation"),
+                    );
+                }
+            }
             Terminator::Br(target) => {
                 builder
                     .build_unconditional_branch(blocks[arena_index(*target)])
-                    .map_err(|e| CodegenError(format!("br @{}: {e}", block.name)))?;
+                    .map_err(|e| CodegenError::backend(format!("br @{}: {e}", block.name), e))?;
                 if let Some(young) = emitter.young_allocation.take()
                     && arena_index(*target) > arena_index(block_id)
                     && initialization_successors
@@ -476,7 +459,7 @@ pub(super) fn emit_function<'ctx>(
                 // logical LIR condition type before materializing it.
                 let cond_ty = function.value_ty(module_ctx.globals_arena, *cond);
                 if cond_ty != LirType::I1 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "cbr @{} has condition type {}, expected i1",
                         block.name,
                         cond_ty.dump()
@@ -489,7 +472,7 @@ pub(super) fn emit_function<'ctx>(
                         blocks[arena_index(*then_block)],
                         blocks[arena_index(*else_block)],
                     )
-                    .map_err(|e| CodegenError(format!("cbr @{}: {e}", block.name)))?;
+                    .map_err(|e| CodegenError::backend(format!("cbr @{}: {e}", block.name), e))?;
             }
             Terminator::Return { value } => {
                 let logical_result_ty = function.signature.result().logical_storage_type();
@@ -497,7 +480,7 @@ pub(super) fn emit_function<'ctx>(
                     (Some(value), Some(expected)) => {
                         let actual = function.value_ty(module_ctx.globals_arena, *value);
                         if &actual != expected {
-                            return Err(CodegenError(format!(
+                            return Err(CodegenError::internal(format!(
                                 "ret @{} has value type {}, but function returns {}",
                                 function.symbol(),
                                 actual.dump(),
@@ -506,14 +489,14 @@ pub(super) fn emit_function<'ctx>(
                         }
                     }
                     (None, Some(expected)) => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "ret @{} has no value, but function returns {}",
                             function.symbol(),
                             expected.dump()
                         )));
                     }
                     (Some(_), None) => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "ret @{} has a value, but function returns void",
                             function.symbol()
                         )));
@@ -524,14 +507,14 @@ pub(super) fn emit_function<'ctx>(
                 match function.signature.result() {
                     scoop_lir::AbiReturn::UnitVoid | scoop_lir::AbiReturn::ElidedZst(_) => {
                         builder.build_return(None).map_err(|e| {
-                            CodegenError(format!("ret @{}: {e}", function.symbol()))
+                            CodegenError::backend(format!("ret @{}: {e}", function.symbol()), e)
                         })?;
                     }
                     scoop_lir::AbiReturn::Direct(plan) => {
                         let value = emitter.value(value.expect("direct result was validated"))?;
                         let value = emitter.encode_direct_result(plan, value)?;
                         builder.build_return(Some(&value)).map_err(|e| {
-                            CodegenError(format!("ret @{}: {e}", function.symbol()))
+                            CodegenError::backend(format!("ret @{}: {e}", function.symbol()), e)
                         })?;
                     }
                     scoop_lir::AbiReturn::Indirect(_) => {
@@ -540,10 +523,13 @@ pub(super) fn emit_function<'ctx>(
                             .return_slot
                             .expect("indirect-result function has its sret parameter");
                         builder.build_store(slot, value).map_err(|e| {
-                            CodegenError(format!("ret slot @{}: {e}", function.symbol()))
+                            CodegenError::backend(
+                                format!("ret slot @{}: {e}", function.symbol()),
+                                e,
+                            )
                         })?;
                         builder.build_return(None).map_err(|e| {
-                            CodegenError(format!("ret @{}: {e}", function.symbol()))
+                            CodegenError::backend(format!("ret @{}: {e}", function.symbol()), e)
                         })?;
                     }
                 }
@@ -551,20 +537,20 @@ pub(super) fn emit_function<'ctx>(
             Terminator::Resume { exception } => {
                 let exception_ty = function.value_ty(module_ctx.globals_arena, *exception);
                 if exception_ty != LirType::ExceptionRecord {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "resume @{} requires exception_record, got {}",
                         function.symbol(),
                         exception_ty.dump()
                     )));
                 }
                 let exception = emitter.value(*exception)?;
-                builder
-                    .build_resume(exception)
-                    .map_err(|e| CodegenError(format!("resume @{}: {e}", function.symbol())))?;
+                builder.build_resume(exception).map_err(|e| {
+                    CodegenError::backend(format!("resume @{}: {e}", function.symbol()), e)
+                })?;
             }
             Terminator::Unreachable => {
                 builder.build_unreachable().map_err(|e| {
-                    CodegenError(format!("unreachable @{}: {e}", function.symbol()))
+                    CodegenError::backend(format!("unreachable @{}: {e}", function.symbol()), e)
                 })?;
             }
         }

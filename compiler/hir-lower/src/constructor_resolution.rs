@@ -91,7 +91,12 @@ impl Lowerer {
                 },
             ) {
                 Ok(probe) => applicable.push(probe.candidate),
-                Err(failure) => failures.push((view, failure)),
+                Err(failure) => {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return None;
+                    }
+                    failures.push((view, failure));
+                }
             }
         }
 
@@ -155,7 +160,14 @@ impl Lowerer {
                     .any(|parameter| parameter.is_vararg()),
             })
             .collect::<Vec<_>>();
-        let pool = self.most_specific_declarations(&declarations);
+        let pool = match self.most_specific_declarations(&declarations) {
+            Ok(pool) => pool,
+            Err(error) => {
+                self.diagnostics
+                    .push(scoop_ast::Diagnostic::internal(error));
+                return None;
+            }
+        };
         let effects = applicable
             .iter()
             .map(|candidate| {

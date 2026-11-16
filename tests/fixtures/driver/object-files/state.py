@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 
 mode, root, saved = sys.argv[1:]
-paths = sorted((Path(root) / "link-archives-v2").glob("members-*/part-*"))
+paths = sorted(Path(root).glob("toolchains/*/link-archives-v2/members-*/part-*"))
 assert paths, "no linked archives"
-assert not (Path(root) / "objects-v1").exists(), "loose objects were materialized"
+assert not list(Path(root).glob("toolchains/*/objects-v1")), "loose objects were materialized"
 state = {str(p): [p.stat().st_size, p.stat().st_mtime_ns] for p in paths}
 if mode == "save":
     Path(saved).write_text(json.dumps(state))

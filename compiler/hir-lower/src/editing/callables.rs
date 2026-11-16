@@ -40,10 +40,7 @@ impl Lowerer {
         use hir::{DefaultCallableDeclarationV1 as D, SemanticCallable as C};
         match callable {
             C::Current(function) => {
-                let span = self
-                    .source_function_declarations
-                    .get(&function)?
-                    .name_span?;
+                let span = self.functions.source(function)?.name_span?;
                 let file = self.function_definition_file(function)?;
                 Some(hir::SemanticSourceLocation {
                     source: self.source_identity(file).clone(),

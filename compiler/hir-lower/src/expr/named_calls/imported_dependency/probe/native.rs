@@ -69,6 +69,10 @@ impl Lowerer {
         }) {
             Ok(arguments) => arguments,
             Err(failure) => {
+                if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
+                    self.diagnostics
+                        .push(scoop_ast::Diagnostic::internal(error));
+                }
                 if let ArgumentInferenceFailureKind::Constraint(constraint) = &failure.kind {
                     if alias_signature.is_some() {
                         let message = self.render_imported_constraint_failure(
@@ -122,7 +126,7 @@ impl Lowerer {
                         && let Some(hint) = Self::primitive_integer_conversion_hint(expected, found)
                         && let Some(diagnostic) = self.diagnostics[diagnostics_before..]
                             .iter_mut()
-                            .find(|diagnostic| diagnostic.span == Some(expression.span))
+                            .find(|diagnostic| diagnostic.span() == Some(expression.span))
                     {
                         diagnostic.message.push_str(&hint);
                     }

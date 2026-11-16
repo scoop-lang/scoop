@@ -386,14 +386,21 @@ fn missing_executable_entry_lists_invalid_mains_in_persistent_location_order() {
         errors[0].message,
         "missing executable entry: declare exactly one ordinary `fun main(): Unit`, `fun main(): Int`, `fun main(args: Array<String>): Unit`, or `fun main(args: Array<String>): Int`"
     );
-    assert_eq!(errors[0].file, 2);
-    assert_eq!(errors[0].span, Some(Span::new(0, 0)));
+    assert_eq!(errors[0].local_file().unwrap(), 2);
+    assert_eq!(errors[0].span(), Some(Span::new(0, 0)));
     assert_eq!(errors[0].notes.len(), 3);
     assert_eq!(
         errors[0]
             .notes
             .iter()
-            .map(|note| (note.file, note.span, note.message.as_str()))
+            .map(|note| (
+                (match &note.source {
+                    scoop_ast::LocalDiagnosticSource::Index(index) => *index,
+                    source => panic!("expected local source, got {source:?}"),
+                }),
+                note.span,
+                note.message.as_str()
+            ))
             .collect::<Vec<_>>(),
         vec![
             (
@@ -486,10 +493,19 @@ fn multiple_entries_are_reported_in_persistent_source_location_order() {
         errors[0].message,
         "multiple executable entries: declare exactly one ordinary `fun main(): Unit`, `fun main(): Int`, `fun main(args: Array<String>): Unit`, or `fun main(args: Array<String>): Int`"
     );
-    assert_eq!((errors[0].file, errors[0].span), (2, Some(low_span)));
+    assert_eq!(
+        (errors[0].local_file().unwrap(), errors[0].span()),
+        (2, Some(low_span))
+    );
     assert_eq!(errors[0].notes.len(), 1);
     assert_eq!(
-        (errors[0].notes[0].file, errors[0].notes[0].span),
+        (
+            (match &errors[0].notes[0].source {
+                scoop_ast::LocalDiagnosticSource::Index(index) => *index,
+                source => panic!("expected local source, got {source:?}"),
+            }),
+            errors[0].notes[0].span
+        ),
         (1, high_span)
     );
 }

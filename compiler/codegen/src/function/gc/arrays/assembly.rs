@@ -25,7 +25,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &array_metadata.element,
                     )
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "array_assembly @{} has an invalid result or internal machine-scalar element type",
                         function.symbol()
                     )));
@@ -35,7 +35,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         scoop_lir::ArrayAssemblyPart::Element(value) => {
                             let actual = function.value_ty(self.globals_arena, *value);
                             if actual != array_metadata.element {
-                                return Err(CodegenError(format!(
+                                return Err(CodegenError::internal(format!(
                                     "array_assembly @{} element part {} has type {}, expected {}",
                                     function.symbol(),
                                     index,
@@ -48,7 +48,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             if function.value_ty(self.globals_arena, *value)
                                 != scoop_lir::MANAGED_PTR =>
                         {
-                            return Err(CodegenError(format!(
+                            return Err(CodegenError::internal(format!(
                                 "array_assembly @{} copy part {} is not a managed array",
                                 function.symbol(),
                                 index
@@ -73,9 +73,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         .filter(|part| matches!(part, scoop_lir::ArrayAssemblyPart::Element(_)))
                         .count(),
                 )
-                .map_err(|_| CodegenError("array assembly element count exceeds u64".into()))?;
+                .map_err(|cause| {
+                    CodegenError::internal_cause(
+                        "array assembly element count exceeds u64".into(),
+                        cause,
+                    )
+                })?;
                 if element_count > i64::MAX as u64 {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "array assembly element count exceeds INT64_MAX".into(),
                     ));
                 }
@@ -89,19 +94,25 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     let size = builder
                         .build_load(i64_ty, size_ptr, "assembly_source_size")
                         .map_err(|error| {
-                            CodegenError(format!(
-                                "load array assembly source size @{symbol}: {error}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!(
+                                    "load array assembly source size @{symbol}: {error}",
+                                    symbol = function.symbol()
+                                ),
+                                error,
+                            )
                         })?
                         .into_int_value();
                     let next_total = builder
                         .build_int_add(total, size, "assembly_total_size")
                         .map_err(|error| {
-                            CodegenError(format!(
-                                "sum array assembly size @{symbol}: {error}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!(
+                                    "sum array assembly size @{symbol}: {error}",
+                                    symbol = function.symbol()
+                                ),
+                                error,
+                            )
                         })?;
                     let overflow = builder
                         .build_int_compare(
@@ -111,10 +122,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             "assembly_total_overflow",
                         )
                         .map_err(|error| {
-                            CodegenError(format!(
-                                "check array assembly size sum @{symbol}: {error}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!(
+                                    "check array assembly size sum @{symbol}: {error}",
+                                    symbol = function.symbol()
+                                ),
+                                error,
+                            )
                         })?;
                     self.array_size_check(
                         overflow,
@@ -129,10 +143,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             "assembly_long_size_overflow",
                         )
                         .map_err(|error| {
-                            CodegenError(format!(
-                                "check array assembly Long size limit @{symbol}: {error}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!(
+                                    "check array assembly Long size limit @{symbol}: {error}",
+                                    symbol = function.symbol()
+                                ),
+                                error,
+                            )
                         })?;
                     self.array_size_check(
                         exceeds_long_max,
@@ -158,10 +175,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let array = array.object;
                 let size_ptr = self.byte_gep(array, 16, "assembly_size_ptr")?;
                 builder.build_store(size_ptr, total).map_err(|error| {
-                    CodegenError(format!(
-                        "store array assembly size @{symbol}: {error}",
-                        symbol = function.symbol()
-                    ))
+                    CodegenError::backend(
+                        format!(
+                            "store array assembly size @{symbol}: {error}",
+                            symbol = function.symbol()
+                        ),
+                        error,
+                    )
                 })?;
 
                 let mut destination_index = i64_ty.const_zero();
@@ -183,10 +203,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             builder
                                 .build_store(destination, self.value(*value)?)
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "store array assembly element @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "store array assembly element @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             destination_index = builder
                                 .build_int_add(
@@ -195,10 +218,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     "assembly_next_destination",
                                 )
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "advance array assembly destination @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "advance array assembly destination @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                         }
                         scoop_lir::ArrayAssemblyPart::CopyArray(source) => {
@@ -207,14 +233,17 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             let size = builder
                                 .build_load(i64_ty, size_ptr, "assembly_copy_size")
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "load array assembly copy size @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "load array assembly copy size @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?
                                 .into_int_value();
                             let preheader = builder.get_insert_block().ok_or_else(|| {
-                                CodegenError("builder has no insertion block".to_string())
+                                CodegenError::internal("builder has no insertion block".to_string())
                             })?;
                             let condition = context.append_basic_block(
                                 self.llvm_function,
@@ -231,15 +260,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             builder
                                 .build_unconditional_branch(condition)
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "enter array assembly copy @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "enter array assembly copy @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             builder.position_at_end(condition);
                             let index = builder.build_phi(i64_ty, "assembly_copy_index").map_err(
                                 |error| {
-                                    CodegenError(format!(
+                                    CodegenError::internal(format!(
                                         "build array assembly copy index @{symbol}: {error}",
                                         symbol = function.symbol()
                                     ))
@@ -255,18 +287,24 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     "assembly_copy_has_next",
                                 )
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "check array assembly copy @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "check array assembly copy @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             builder
                                 .build_conditional_branch(has_next, body, done)
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "branch array assembly copy @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "branch array assembly copy @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             builder.position_at_end(body);
                             let source_element = self.element_ptr(
@@ -278,10 +316,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             let copied = builder
                                 .build_load(element_ty, source_element, "assembly_copied_element")
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "load array assembly element @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "load array assembly element @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             let destination = builder
                                 .build_int_add(
@@ -290,10 +331,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     "assembly_copy_destination_index",
                                 )
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "index array assembly destination @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "index array assembly destination @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             let destination = self.element_ptr(
                                 array,
@@ -302,10 +346,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 "assembly_copy_destination_ptr",
                             )?;
                             builder.build_store(destination, copied).map_err(|error| {
-                                CodegenError(format!(
-                                    "store array assembly copied element @{symbol}: {error}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "store array assembly copied element @{symbol}: {error}",
+                                        symbol = function.symbol()
+                                    ),
+                                    error,
+                                )
                             })?;
                             let next = builder
                                 .build_int_add(
@@ -314,18 +361,24 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     "assembly_copy_next",
                                 )
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "advance array assembly copy @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "advance array assembly copy @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             builder
                                 .build_unconditional_branch(condition)
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "continue array assembly copy @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "continue array assembly copy @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                             index.add_incoming(&[(&next, body)]);
                             builder.position_at_end(done);
@@ -336,10 +389,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     "assembly_after_copy_destination",
                                 )
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "advance copied array destination @{symbol}: {error}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "advance copied array destination @{symbol}: {error}",
+                                            symbol = function.symbol()
+                                        ),
+                                        error,
+                                    )
                                 })?;
                         }
                     }

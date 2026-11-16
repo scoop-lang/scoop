@@ -90,7 +90,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             .map_err(string_error)?;
                         store
                             .set_alignment(1)
-                            .map_err(|error| CodegenError(error.to_string()))?;
+                            .map_err(|error| CodegenError::backend(error.to_string(), error))?;
                     }
                 }
                 StringConcatPart::Value(value) => {
@@ -112,5 +112,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn string_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("String concatenation emission: {error}"))
+    CodegenError::internal(format!("String concatenation emission: {error}"))
 }

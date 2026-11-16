@@ -136,21 +136,18 @@ pub(super) fn lower_initialization_startup_gateway(
             )),
         },
     });
-    blocks[entry]
-        .instructions
-        .push(scoop_lir::Instruction::Invoke {
-            site: scoop_lir::InvokeSite::Managed(scoop_lir::ManagedInvokeSite {
-                call: scoop_lir::ManagedTypedCall::Void {
-                    target,
-                    args: Vec::new(),
-                },
-                safepoint: pending_safepoints.allocate(scoop_lir::SafepointSiteRole::ManagedInvoke),
-                roots: scoop_lir::ExceptionalRootSet::default(),
-                normal: success,
-                unwind: failure,
-            }),
-        });
-    blocks[entry].terminator = scoop_lir::Terminator::Br(success);
+    blocks[entry].terminator = scoop_lir::Terminator::Invoke {
+        site: scoop_lir::InvokeSite::Managed(scoop_lir::ManagedInvokeSite {
+            call: scoop_lir::ManagedTypedCall::Void {
+                target,
+                args: Vec::new(),
+            },
+            safepoint: pending_safepoints.allocate(scoop_lir::SafepointSiteRole::ManagedInvoke),
+            roots: scoop_lir::ExceptionalRootSet::default(),
+            normal: success,
+            unwind: failure,
+        }),
+    };
     let mut temps = Arena::new();
     let exception_record = temps.alloc(scoop_lir::Temp {
         ty: scoop_lir::LirType::ExceptionRecord,

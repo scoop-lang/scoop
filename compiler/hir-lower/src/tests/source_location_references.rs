@@ -8,12 +8,12 @@ fun managed() { val reference: () -> SourceLocation = ::location }
 fun native() { val reference: FunPtr<() -> Int> = ::location }
 "#;
 
-fn check_diagnostics(source: &str, diagnostics: &[Diagnostic]) {
-    assert_eq!(diagnostics.len(), 3, "{diagnostics:?}");
+fn check_diagnostics<S>(source: &str, diagnostics: &[Diagnostic<S>]) {
+    assert_eq!(diagnostics.len(), 3, "unexpected diagnostic count");
     let references = source.match_indices("::").collect::<Vec<_>>();
     for (diagnostic, (start, _)) in diagnostics.iter().zip(references) {
         assert_eq!(
-            diagnostic.span.expect("reference span").start as usize,
+            diagnostic.span().expect("reference span").start as usize,
             start
         );
         assert!(diagnostic.message.starts_with(

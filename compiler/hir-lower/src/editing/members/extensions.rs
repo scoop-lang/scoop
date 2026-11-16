@@ -118,7 +118,14 @@ impl Lowerer {
             explicit_arguments: &[],
             bound_receiver: Some((declared, receiver)),
         });
-        self.constraints_are_satisfiable(&session)
+        match self.constraints_are_satisfiable(&session) {
+            Ok(applies) => applies,
+            Err(error) => {
+                self.diagnostics
+                    .push(scoop_ast::Diagnostic::internal(error));
+                false
+            }
+        }
     }
 
     fn editing_imported_extension_property(

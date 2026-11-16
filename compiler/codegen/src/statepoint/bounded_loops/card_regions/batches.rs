@@ -191,7 +191,9 @@ impl<'ctx> Batch<'ctx> {
             .build_store(slot, byte.const_int(1, false))
             .map_err(error)?
             .set_atomic_ordering(AtomicOrdering::Monotonic)
-            .map_err(|error| CodegenError(format!("batched card store: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("batched card store: {error}"), error)
+            })?;
         builder
             .build_call(
                 self.record.callee,
@@ -249,5 +251,5 @@ fn sink<'ctx>(
 }
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("card batch: {error}"))
+    CodegenError::internal(format!("card batch: {error}"))
 }

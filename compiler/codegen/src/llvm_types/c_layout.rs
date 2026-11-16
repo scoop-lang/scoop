@@ -21,7 +21,7 @@ pub(crate) fn c_field_size(
             kind.width().bytes()
         }
         other => {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "non-C field type {} reached a C-layout struct",
                 other.dump()
             )));
@@ -42,7 +42,7 @@ pub(crate) fn c_payload_fields<'ctx>(
     let fields = layout.fields;
     for field in fields {
         let padding = field.layout.offset.checked_sub(cursor).ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "overlapping fields in C layout `{}`",
                 definition.name
             ))
@@ -60,10 +60,9 @@ pub(crate) fn c_payload_fields<'ctx>(
         )?);
         cursor = field.layout.offset + c_field_size(structs, enums, &storage_type)?;
     }
-    let tail = definition
-        .size
-        .checked_sub(cursor)
-        .ok_or_else(|| CodegenError(format!("fields exceed C layout `{}`", definition.name)))?;
+    let tail = definition.size.checked_sub(cursor).ok_or_else(|| {
+        CodegenError::internal(format!("fields exceed C layout `{}`", definition.name))
+    })?;
     if tail != 0 {
         physical.push(context.i8_type().array_type(tail as u32).into());
     }
@@ -93,7 +92,7 @@ pub(crate) fn c_physical_field_index(
         physical_index += 1;
         cursor = field.layout.offset + c_field_size(structs, enums, &field.ty.storage_type())?;
     }
-    Err(CodegenError(format!(
+    Err(CodegenError::internal(format!(
         "field {logical_index} out of range for C layout `{}`",
         definition.name
     )))

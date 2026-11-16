@@ -194,7 +194,7 @@ impl WireEncode for ConeRecord {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ConeRecordError {
     SingleFileCoordinateMismatch,
     WindowsSubsystemOnLibrary,

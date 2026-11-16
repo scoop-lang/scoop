@@ -217,7 +217,11 @@ impl Lowerer {
     ) -> Result<SuccessfulExprLayer, Box<Lowerer>> {
         let mut state = self.probe_state();
         let mut sink = Vec::new();
-        match lower(&mut state, &mut sink) {
+        let expression = lower(&mut state, &mut sink);
+        if state.has_internal_diagnostics() {
+            return Err(state);
+        }
+        match expression {
             Some(expression) => Ok(SuccessfulExprLayer {
                 state,
                 expression,
@@ -235,6 +239,25 @@ impl Lowerer {
         *self = *layer.state;
         sink.extend(layer.sink);
         layer.expression
+    }
+
+    pub(crate) fn has_internal_diagnostics(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+    }
+
+    pub(crate) fn retain_internal_diagnostics(&mut self, failed: &Lowerer) -> bool {
+        let has_internal = failed.has_internal_diagnostics();
+        let errors = failed
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+            .filter(|diagnostic| !self.diagnostics.contains(diagnostic))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.diagnostics.extend(errors);
+        has_internal
     }
 
     pub(crate) fn commit_layer_diagnostics(&mut self, failed: &Lowerer) {

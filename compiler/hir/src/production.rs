@@ -248,7 +248,7 @@ impl WireDecode for DecodedHirOutputContractV1 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HirOutputContractValidationError {
     UnknownEntry([u8; 32]),
     InvalidSignature,

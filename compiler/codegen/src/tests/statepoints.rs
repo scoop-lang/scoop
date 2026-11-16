@@ -84,7 +84,7 @@ fn typed_local_call_signature_cannot_be_replaced_by_a_callsite_guess() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("the local declaration and typed call target disagree");
     assert!(
-        error.0.contains("ABI does not match"),
+        error.to_string().contains("ABI does not match"),
         "unexpected error: {error}"
     );
 }
@@ -408,7 +408,10 @@ fn continuation_state_atomics_keep_their_llvm_orderings() {
     let context = Context::create();
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("machine state atomics require 8-byte aligned fields");
-    assert!(error.0.contains("not an aligned object field"), "{error}");
+    assert!(
+        error.to_string().contains("not an aligned object field"),
+        "{error}"
+    );
 
     {
         let Instruction::MachineAtomicLoad { offset, kind, .. } =
@@ -424,7 +427,7 @@ fn continuation_state_atomics_keep_their_llvm_orderings() {
         .expect_err("non-state machine domains cannot use state atomics");
     assert!(
         error
-            .0
+            .to_string()
             .contains("must produce its declared 64-bit machine state ByteSize"),
         "{error}"
     );

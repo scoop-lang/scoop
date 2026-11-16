@@ -60,7 +60,7 @@ pub(crate) fn declare_external_callable<'ctx>(
 ) -> Result<(), CodegenError> {
     let symbol = callable.expected_symbol().symbol();
     if llvm.get_function(symbol.as_str()).is_some() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "external callable `{symbol}` collides with an existing declaration"
         )));
     }
@@ -188,11 +188,11 @@ fn declare_c_callback_trampoline<'ctx>(
     };
     let function = llvm.add_function(declaration.symbol, fn_ty, None);
     for (index, ty) in declaration.params.iter().enumerate() {
-        let index = u32::try_from(index).map_err(|_| {
-            CodegenError(format!(
-                "C callback @{} has too many parameters",
-                declaration.symbol
-            ))
+        let index = u32::try_from(index).map_err(|cause| {
+            CodegenError::internal_cause(
+                format!("C callback @{} has too many parameters", declaration.symbol),
+                cause,
+            )
         })?;
         add_c_abi_integer_extension(context, function, AttributeLoc::Param(index), ty);
     }

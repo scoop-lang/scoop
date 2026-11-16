@@ -1,5 +1,9 @@
 //! Structural reduction from type relations to variable bounds.
 
+use crate::call_resolution::constraints::{
+    InferenceFailure, InferenceInvariantError, InferenceInvariantErrorKind,
+};
+
 use scoop_hir as hir;
 
 use super::constraints::{
@@ -34,7 +38,7 @@ pub(super) struct AtomicConstraint {
 pub(super) fn reduce_constraints(
     lowerer: &mut Lowerer,
     session: &InferenceSession,
-) -> Result<Vec<AtomicConstraint>, ConstraintFailure> {
+) -> Result<Vec<AtomicConstraint>, InferenceFailure> {
     let mut reducer = RelationReducer {
         lowerer,
         session,
@@ -53,7 +57,7 @@ pub(super) fn reduce_relation(
     left: TypeTerm,
     right: TypeTerm,
     origin: ConstraintOrigin,
-) -> Result<Vec<AtomicConstraint>, ConstraintFailure> {
+) -> Result<Vec<AtomicConstraint>, InferenceFailure> {
     let mut reducer = RelationReducer {
         lowerer,
         session,
@@ -73,7 +77,7 @@ struct RelationReducer<'a> {
 }
 
 impl RelationReducer<'_> {
-    fn reduce(&mut self, record: &ConstraintRecord) -> Result<(), ConstraintFailure> {
+    fn reduce(&mut self, record: &ConstraintRecord) -> Result<(), InferenceFailure> {
         match &record.constraint {
             Constraint::Equal(left, right) => self.equal(*left, *right, record.origin),
             Constraint::Subtype(left, right) => self.subtype(*left, *right, record.origin),
@@ -141,7 +145,7 @@ impl RelationReducer<'_> {
         left: TypeTerm,
         right: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         match (self.root(left, origin)?, self.root(right, origin)?) {
             (RelationRoot::Variable(left), RelationRoot::Variable(right)) if left == right => {
                 Ok(())
@@ -178,7 +182,7 @@ impl RelationReducer<'_> {
         right: TypeTerm,
         right_ty: hir::TypeId,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         if [left, right].into_iter().any(|term| {
             matches!(term,
             TypeTerm::Type(ty) if matches!(self.lowerer.types[ty], Type::Companion(_)))
@@ -278,7 +282,7 @@ impl RelationReducer<'_> {
         left_arguments: Vec<hir::TypeId>,
         right_arguments: Vec<hir::TypeId>,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         if !same_template || left_arguments.len() != right_arguments.len() {
             return Err(self.relation_failure(RelationKind::Equal, left_term, right_term, origin));
         }
@@ -299,7 +303,7 @@ impl RelationReducer<'_> {
         left: TypeTerm,
         right: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         match (self.root(left, origin)?, self.root(right, origin)?) {
             (RelationRoot::Variable(left), RelationRoot::Variable(right)) if left == right => {
                 Ok(())
@@ -325,7 +329,7 @@ impl RelationReducer<'_> {
         right: TypeTerm,
         right_ty: hir::TypeId,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         if [left, right].into_iter().any(|term| {
             matches!(term,
             TypeTerm::Type(ty) if matches!(self.lowerer.types[ty], Type::Companion(_)))
@@ -437,7 +441,7 @@ impl RelationReducer<'_> {
         shape: &CallableShape,
         expected: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         self.push(
             AtomicConstraintKind::CallableShape(shape.clone(), expected),
             origin,
@@ -451,28 +455,28 @@ impl RelationReducer<'_> {
                 self.lowerer.function_types[signature].clone()
             }
             _ => {
-                return Err(ConstraintFailure {
+                return Err(InferenceFailure::Constraint(ConstraintFailure {
                     origin,
                     kind: ConstraintFailureKind::CallableShape(
                         CallableShapeMismatch::ExpectedCallable,
                     ),
-                });
+                }));
             }
         };
         if shape.is_suspend != signature.is_suspend {
-            return Err(ConstraintFailure {
+            return Err(InferenceFailure::Constraint(ConstraintFailure {
                 origin,
                 kind: ConstraintFailureKind::CallableShape(CallableShapeMismatch::Suspend),
-            });
+            }));
         }
         if shape.parameters.len() != signature.arity() {
-            return Err(ConstraintFailure {
+            return Err(InferenceFailure::Constraint(ConstraintFailure {
                 origin,
                 kind: ConstraintFailureKind::CallableShape(CallableShapeMismatch::Arity {
                     expected: signature.arity(),
                     actual: shape.parameters.len(),
                 }),
-            });
+            }));
         }
         for (actual, expected_parameter) in
             shape.parameters.iter().zip(signature.parameters().copied())
@@ -491,7 +495,7 @@ impl RelationReducer<'_> {
         &self,
         term: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> Result<RelationRoot, ConstraintFailure> {
+    ) -> Result<RelationRoot, InferenceFailure> {
         match term {
             TypeTerm::Variable(variable) => {
                 self.check_variable(variable, origin)?;
@@ -502,10 +506,10 @@ impl RelationReducer<'_> {
                     .session
                     .variable_for(parameter)
                     .map(RelationRoot::Variable)
-                    .ok_or(ConstraintFailure {
+                    .ok_or(InferenceFailure::Internal(InferenceInvariantError {
                         origin,
-                        kind: ConstraintFailureKind::ForeignTypeParameter(parameter),
-                    }),
+                        kind: InferenceInvariantErrorKind::ForeignTypeParameter(parameter),
+                    })),
                 _ => Ok(RelationRoot::Type(ty)),
             },
             TypeTerm::Rigid(ty) => Ok(RelationRoot::Type(ty)),
@@ -516,14 +520,14 @@ impl RelationReducer<'_> {
         &self,
         variable: InferenceVariableId,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         if self.session.variable_index(variable).is_some() {
             Ok(())
         } else {
-            Err(ConstraintFailure {
+            Err(InferenceFailure::Internal(InferenceInvariantError {
                 origin,
-                kind: ConstraintFailureKind::ForeignVariable(variable),
-            })
+                kind: InferenceInvariantErrorKind::ForeignVariable(variable),
+            }))
         }
     }
 
@@ -537,15 +541,15 @@ impl RelationReducer<'_> {
         left: TypeTerm,
         right: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> ConstraintFailure {
-        ConstraintFailure {
+    ) -> InferenceFailure {
+        InferenceFailure::Constraint(ConstraintFailure {
             origin,
             kind: ConstraintFailureKind::Relation {
                 relation,
                 left,
                 right,
             },
-        }
+        })
     }
 }
 

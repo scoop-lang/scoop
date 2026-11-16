@@ -61,12 +61,12 @@ impl Lowerer {
 
     fn install_generated_method(&mut self, generated: hir::GeneratedMethodBody) {
         let function = generated.function;
-        let Some(pending) = self.generation.methods.remove(&function) else {
+        let Some(_) = self.generation.methods.remove(&function) else {
             let mut diagnostic = Diagnostic::at(
                 generated.origin.span,
                 "generated body does not name a remaining implementation method",
             );
-            diagnostic.source = Some(Box::new(generated.origin.source));
+            diagnostic.set_source(generated.origin.source);
             self.diagnostics.push(diagnostic);
             return;
         };
@@ -105,8 +105,7 @@ impl Lowerer {
         self.functions[function].kind = hir::FunctionKind::User(body);
         self.current_file = previous_file;
         let note = DiagnosticNote {
-            file: pending.diagnostic.file,
-            source: Some(Box::new(generated.origin.source)),
+            source: scoop_source::LocalDiagnosticSource::Bound(Box::new(generated.origin.source)),
             span: generated.origin.span,
             message: "implementation requested here".into(),
             import_path: Vec::new(),
@@ -115,8 +114,8 @@ impl Lowerer {
             .iter_mut()
             .chain(&mut self.warnings[before_warnings..])
         {
-            if diagnostic.source.is_none() && diagnostic.file == lexical_file {
-                diagnostic.file = source_file;
+            if diagnostic.local_file() == Some(lexical_file) {
+                diagnostic.set_file(source_file);
             }
             diagnostic.notes.push(note.clone());
         }

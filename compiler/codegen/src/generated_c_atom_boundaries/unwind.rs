@@ -10,7 +10,7 @@ type Function = (usize, u64);
 pub(super) type Ranges = BTreeMap<Function, (u64, u64)>;
 
 fn error(message: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("generated-C unwind: {message}"))
+    CodegenError::internal(format!("generated-C unwind: {message}"))
 }
 
 fn unsigned(data: &[u8], offset: usize, size: usize) -> Result<u64, CodegenError> {

@@ -307,7 +307,7 @@ impl fmt::Display for SourceDeclarationKeyError {
 
 impl std::error::Error for SourceDeclarationKeyError {}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SourceDeclarationIdentityError {
     ExpectedNominal,
     ExpectedNonGeneric,

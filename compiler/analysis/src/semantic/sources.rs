@@ -34,10 +34,10 @@ pub(super) fn complete(
             .parse()
             .map_err(|error| Error::Declarations(DeclarationAnalysisError::SourceLength(*error)))?;
         let Some(syntax) = parsed.ast() else {
-            diagnostics.extend(parsed.diagnostics().iter().cloned().map(|mut diagnostic| {
-                diagnostic.resolve_sources(std::slice::from_ref(&file.identity));
-                diagnostic
-            }));
+            diagnostics.extend(scoop_source::bind_diagnostics(
+                parsed.diagnostics().iter().cloned(),
+                std::slice::from_ref(&file.identity),
+            ));
             continue;
         };
         sources.push(
@@ -63,9 +63,8 @@ pub(super) fn complete(
         });
     }
     if cone.sources.is_empty() {
-        diagnostics.push(ast::Diagnostic::without_span(
+        diagnostics.push(ast::SourceDiagnostic::without_location(
             ast::DiagnosticSeverity::Error,
-            0,
             "no source files to compile",
         ));
     }

@@ -105,7 +105,7 @@ fn reports_missing_type_descriptors() {
 
     let llvm = context.create_module("missing-type-descriptor");
     let error = emit_strong_type_registrations_v1(&context, &llvm, &plan).unwrap_err();
-    assert!(error.0.contains("is not declared"), "{error}");
+    assert!(error.to_string().contains("is not declared"), "{error}");
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn reports_missing_registration_input() {
     declare_type_descriptor(&context, &llvm, plan.registrations()[0].descriptor_symbol());
 
     let error = emit_strong_type_registrations_v1(&context, &llvm, &plan).unwrap_err();
-    assert!(error.0.contains("is not declared"), "{error}");
+    assert!(error.to_string().contains("is not declared"), "{error}");
 }
 
 fn declare_type_descriptor<'ctx>(

@@ -112,7 +112,7 @@ impl ParserDiagnosticContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseAllDiagnostic {
     identity: SourceIdentity,
-    diagnostic: Diagnostic,
+    diagnostic: scoop_source::SourceDiagnostic,
 }
 
 impl ParseAllDiagnostic {
@@ -120,11 +120,11 @@ impl ParseAllDiagnostic {
         &self.identity
     }
 
-    pub const fn diagnostic(&self) -> &Diagnostic {
+    pub const fn diagnostic(&self) -> &scoop_source::SourceDiagnostic {
         &self.diagnostic
     }
 
-    pub fn into_diagnostic(self) -> Diagnostic {
+    pub fn into_diagnostic(self) -> scoop_source::SourceDiagnostic {
         self.diagnostic
     }
 }
@@ -163,10 +163,12 @@ pub fn parse_all(
                 .push(IdentifiedParsedSource::new(identity.clone(), ast).with_role(input.role)),
             Err(source_diagnostics) => {
                 diagnostics.extend(source_diagnostics.into_iter().map(|mut diagnostic| {
-                    diagnostic.reattribute_single_source(source_index);
+                    diagnostic.reattribute_single_source(0);
                     ParseAllDiagnostic {
                         identity: identity.clone(),
-                        diagnostic,
+                        diagnostic: diagnostic
+                            .bind(std::slice::from_ref(identity))
+                            .unwrap_or_else(scoop_source::SourceDiagnostic::internal),
                     }
                 }));
             }
@@ -338,16 +340,14 @@ impl std::error::Error for ParseCurrentConeError {
 
 fn input_error(
     identity: &SourceIdentity,
-    source_index: usize,
+    _source_index: usize,
     message: String,
 ) -> ParseAllDiagnostic {
     ParseAllDiagnostic {
         identity: identity.clone(),
-        diagnostic: Diagnostic::without_span(
-            scoop_ast::DiagnosticSeverity::Error,
-            source_index,
-            message,
-        ),
+        diagnostic: Diagnostic::without_span(scoop_ast::DiagnosticSeverity::Error, 0, message)
+            .bind(std::slice::from_ref(identity))
+            .unwrap_or_else(scoop_source::SourceDiagnostic::internal),
     }
 }
 
@@ -439,6 +439,9 @@ mod current_cone_tests {
         };
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].identity(), &second);
-        assert_eq!(diagnostics[0].diagnostic().file, 1);
+        assert_eq!(
+            diagnostics[0].diagnostic().source(),
+            Some(diagnostics[0].identity())
+        );
     }
 }

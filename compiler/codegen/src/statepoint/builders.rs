@@ -45,11 +45,14 @@ pub(crate) fn build_zero_live_call<'ctx>(
     } = call;
     let statepoint = intrinsic_declaration(module, "llvm.experimental.gc.statepoint", &[callee])?;
     let mut arguments = zero_live_arguments(context, callee, call_args, safepoint)?;
-    let operand_count = u32::try_from(arguments.len()).map_err(|_| {
-        CodegenError(format!(
-            "statepoint {} operand count exceeds u32::MAX",
-            safepoint.get()
-        ))
+    let operand_count = u32::try_from(arguments.len()).map_err(|cause| {
+        CodegenError::internal_cause(
+            format!(
+                "statepoint {} operand count exceeds u32::MAX",
+                safepoint.get()
+            ),
+            cause,
+        )
     })?;
     let name = CString::new("statepoint_token").expect("static name has no NUL");
     // SAFETY: the declaration is LLVM's overloaded statepoint intrinsic and
@@ -96,11 +99,14 @@ pub(crate) fn build_managed_invoke<'ctx>(
     let statepoint = intrinsic_declaration(module, "llvm.experimental.gc.statepoint", &[callee])?;
     let mut arguments = zero_live_arguments(context, callee, call_args, safepoint)?;
     let name = CString::new("statepoint_token").expect("static name has no NUL");
-    let operand_count = u32::try_from(arguments.len()).map_err(|_| {
-        CodegenError(format!(
-            "statepoint {} operand count exceeds u32::MAX",
-            safepoint.get()
-        ))
+    let operand_count = u32::try_from(arguments.len()).map_err(|cause| {
+        CodegenError::internal_cause(
+            format!(
+                "statepoint {} operand count exceeds u32::MAX",
+                safepoint.get()
+            ),
+            cause,
+        )
     })?;
     let bundle =
         root_table.map(|table| inkwell::values::OperandBundle::create("deopt", &[table.into()]));
@@ -160,11 +166,14 @@ fn zero_live_arguments<'ctx>(
     safepoint: scoop_lir::SafepointId,
 ) -> Result<Vec<inkwell::llvm_sys::prelude::LLVMValueRef>, CodegenError> {
     let i32_type = context.i32_type();
-    let call_argument_count = u32::try_from(call_args.len()).map_err(|_| {
-        CodegenError(format!(
-            "statepoint {} has more than u32::MAX call arguments",
-            safepoint.get()
-        ))
+    let call_argument_count = u32::try_from(call_args.len()).map_err(|cause| {
+        CodegenError::internal_cause(
+            format!(
+                "statepoint {} has more than u32::MAX call arguments",
+                safepoint.get()
+            ),
+            cause,
+        )
     })?;
     let mut arguments = vec![
         context
@@ -217,8 +226,11 @@ fn build_gc_result<'ctx>(
         result_type.as_type_ref(),
     )?;
     let mut result_arguments = [token];
-    let result_name = CString::new(name).map_err(|_| {
-        CodegenError("internal gc.result instruction name contains a NUL byte".to_string())
+    let result_name = CString::new(name).map_err(|cause| {
+        CodegenError::internal_cause(
+            "internal gc.result instruction name contains a NUL byte".to_string(),
+            cause,
+        )
     })?;
     // SAFETY: `token` is the immediately dominating statepoint invoke and the
     // overloaded intrinsic was declared for the original call's result type.
@@ -269,13 +281,15 @@ fn intrinsic_declaration_raw(
     // this call; both slices remain alive for its duration.
     let id = unsafe { LLVMLookupIntrinsicID(name.as_ptr().cast(), name.len()) };
     if id == 0 {
-        return Err(CodegenError(format!("unknown LLVM intrinsic `{name}`")));
+        return Err(CodegenError::internal(format!(
+            "unknown LLVM intrinsic `{name}`"
+        )));
     }
     let function = unsafe {
         LLVMGetIntrinsicDeclaration(module.as_mut_ptr(), id, types.as_mut_ptr(), types.len())
     };
     if function.is_null() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "failed to declare LLVM intrinsic `{name}`"
         )));
     }

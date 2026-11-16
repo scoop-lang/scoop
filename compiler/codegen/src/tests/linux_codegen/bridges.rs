@@ -52,7 +52,7 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
             |source, object| {
                 invocation
                     .compile_object(source, object)
-                    .map_err(|error| CodegenError(error.to_string()))
+                    .map_err(|error| CodegenError::internal_cause(error.to_string(), error))
             },
         )
         .unwrap();

@@ -3,7 +3,7 @@ use inference::CandidateInput;
 
 impl Lowerer {
     pub(super) fn editing_source_call_candidate(
-        &self,
+        &mut self,
         call: &ast::RecoveredCall,
         candidate: &crate::CallableCandidate,
         receiver: Option<hir::TypeId>,

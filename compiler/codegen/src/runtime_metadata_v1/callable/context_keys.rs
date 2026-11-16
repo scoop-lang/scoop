@@ -25,7 +25,7 @@ pub(super) fn emit<'ctx>(
     let symbols = surface
         .plan(registration.body_definition_plan())
         .ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "Context key table has no callable definition {}",
                 plan.body()
             ))
@@ -36,7 +36,9 @@ pub(super) fn emit<'ctx>(
             .iter()
             .find(|boundary| boundary.atom() == atom)
             .copied()
-            .ok_or_else(|| CodegenError(format!("Context key atom {atom} has no boundary")))
+            .ok_or_else(|| {
+                CodegenError::internal(format!("Context key atom {atom} has no boundary"))
+            })
     };
     let i64 = context.i64_type();
     let digest = context.struct_type(&[context.i8_type().array_type(32).into()], false);
@@ -64,7 +66,7 @@ pub(super) fn emit<'ctx>(
         );
     }
     let atom = scoop_lir::context_key_table_atom(registration.body_definition_plan())
-        .map_err(|error| CodegenError(error.to_string()))?;
+        .map_err(|error| CodegenError::internal_cause(error.to_string(), error))?;
     let symbol = boundary(atom)?.start();
     let name = symbol.symbol();
     let value = entry.const_array(&entries);

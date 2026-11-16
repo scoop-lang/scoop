@@ -4,7 +4,7 @@ use crate::{
     AnnotationTargetV1, DeclaredVisibility, DefinitionOrigin, FunctionId, SourceAnnotationTarget,
     TypeId, TypeParamId,
 };
-use scoop_ast::{Diagnostic, DocText, NonEmptyVec, Span};
+use scoop_ast::{DocText, NonEmptyVec, SourceDiagnostic as Diagnostic, Span};
 use scoop_identity::PersistentAnnotationId;
 
 mod source;

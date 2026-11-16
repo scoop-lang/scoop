@@ -293,17 +293,19 @@ fn generated_type_errors_point_into_fragment_and_keep_request_note() {
         .find(|error| error.message.contains("Int") && error.message.contains("Boolean"))
         .expect("ordinary result type diagnostic");
     assert!(
-        error
-            .source
-            .as_ref()
-            .unwrap()
-            .logical_path()
-            .as_str()
-            .starts_with("generated/")
+        (match error.source().unwrap() {
+            scoop_ast::LocalDiagnosticSource::Bound(source) => source,
+            source => panic!("unbound diagnostic: {source:?}"),
+        })
+        .logical_path()
+        .as_str()
+        .starts_with("generated/")
     );
-    assert!(error.span.unwrap().end as usize <= fragment.len());
+    assert!(error.span().unwrap().end as usize <= fragment.len());
     assert_eq!(
-        error.notes.last().unwrap().source.as_deref(),
-        Some(&crate::tests::test_source_identity("src/user.scoop"))
+        &error.notes.last().unwrap().source,
+        &scoop_ast::LocalDiagnosticSource::Bound(Box::new(crate::tests::test_source_identity(
+            "src/user.scoop"
+        )))
     );
 }

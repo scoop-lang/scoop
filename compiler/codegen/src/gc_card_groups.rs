@@ -123,7 +123,9 @@ pub(crate) fn inline_fast_paths(
     next.as_instruction_value()
         .expect("group state is a load")
         .set_atomic_ordering(AtomicOrdering::Monotonic)
-        .map_err(|error| CodegenError(format!("card group atomic load: {error}")))?;
+        .map_err(|error| {
+            CodegenError::backend(format!("card group atomic load: {error}"), error)
+        })?;
     let absent = builder
         .build_is_null(next.into_pointer_value(), "card.group_absent")
         .map_err(error)?;
@@ -139,9 +141,11 @@ pub(crate) fn inline_fast_paths(
     builder.build_return(None).map_err(error)?;
     module
         .run_passes("always-inline", machine, PassBuilderOptions::create())
-        .map_err(|error| CodegenError(format!("card group fast-path inlining: {error}")))
+        .map_err(|error| {
+            CodegenError::backend(format!("card group fast-path inlining: {error}"), error)
+        })
 }
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("card group guard: {error}"))
+    CodegenError::internal(format!("card group guard: {error}"))
 }

@@ -13,7 +13,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let parameter = u32::try_from(first + index)
                 .ok()
                 .and_then(|index| self.llvm_function.get_nth_param(index))
-                .ok_or_else(|| CodegenError("direct part parameter is out of range".into()))?;
+                .ok_or_else(|| {
+                    CodegenError::internal("direct part parameter is out of range".into())
+                })?;
             values.push(parameter);
         }
         self.value_from_parts(parts, &values)
@@ -57,13 +59,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     storage,
                     "interface_object",
                 )
-                .map_err(|e| CodegenError(format!("load interface object: {e}")))?;
+                .map_err(|e| CodegenError::backend(format!("load interface object: {e}"), e))?;
             let access = object
                 .as_instruction_value()
                 .expect("a load is an instruction");
             access
                 .set_volatile(true)
-                .map_err(|e| CodegenError(format!("volatile interface object: {e}")))?;
+                .map_err(|e| CodegenError::backend(format!("volatile interface object: {e}"), e))?;
             statepoint::mark_storage_access(self.context, access)?;
             return self.interface_with_object(storage, object);
         }
@@ -76,7 +78,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         )?;
         self.builder
             .build_load(ty, storage, name)
-            .map_err(|e| CodegenError(format!("load {name}: {e}")))
+            .map_err(|e| CodegenError::backend(format!("load {name}: {e}"), e))
     }
 
     pub(super) fn interface_with_object(
@@ -95,18 +97,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let table_address = self
             .builder
             .build_struct_gep(ty, storage, 1, "interface_table_address")
-            .map_err(|e| CodegenError(format!("address interface table: {e}")))?;
+            .map_err(|e| CodegenError::backend(format!("address interface table: {e}"), e))?;
         let table = self
             .builder
             .build_load(ptr_ty(self.context), table_address, "interface_table")
-            .map_err(|e| CodegenError(format!("load interface table: {e}")))?;
+            .map_err(|e| CodegenError::backend(format!("load interface table: {e}"), e))?;
         let value = self
             .builder
             .build_insert_value(ty.const_zero(), object, 0, "interface_object_part")
-            .map_err(|e| CodegenError(format!("assemble interface object: {e}")))?;
+            .map_err(|e| CodegenError::backend(format!("assemble interface object: {e}"), e))?;
         self.builder
             .build_insert_value(value, table, 1, "interface_value")
             .map(|value| value.into_struct_value().into())
-            .map_err(|e| CodegenError(format!("assemble interface table: {e}")))
+            .map_err(|e| CodegenError::backend(format!("assemble interface table: {e}"), e))
     }
 }

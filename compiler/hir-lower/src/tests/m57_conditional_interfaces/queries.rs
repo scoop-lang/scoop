@@ -35,9 +35,13 @@ fn m57_query_cycle_points_to_its_declaration_file() {
         .iter()
         .find(|error| error.message.contains("cyclic conditional interface proof"))
         .unwrap_or_else(|| panic!("{errors:#?}"));
-    assert_eq!(cycle.file, 1, "{cycle:?}");
     assert_eq!(
-        cycle.span.unwrap().start as usize,
+        diagnostic_source(cycle),
+        &core_source_identity("src/core-extra.scoop"),
+        "{cycle:?}"
+    );
+    assert_eq!(
+        cycle.span().unwrap().start as usize,
         text.find("override").unwrap()
     );
 }
@@ -56,7 +60,7 @@ fn m57_query_cycle_keeps_the_dependency_source_identity() {
     let provider =
         scoop_identity::ConeCoordinate::new("test", "generic-provider", "1.0.0").unwrap();
     assert_eq!(
-        cycle.source.as_ref().unwrap().cone(),
+        cycle.source().as_ref().unwrap().cone(),
         provider.identity().unwrap()
     );
 }

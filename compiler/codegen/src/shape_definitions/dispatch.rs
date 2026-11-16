@@ -31,7 +31,7 @@ pub(crate) fn emit_dispatch_definition_v1<'ctx>(
     crate::emission::apply_persistent_linkage(&global, definition.primary_symbol(), true)?;
     let result = EmittedDispatchDefinitionV1 { global, is_empty };
     if emitted.dispatch_tables.insert(table, result).is_some() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "dispatch-table definition {table} was emitted more than once"
         )));
     }
@@ -57,7 +57,7 @@ pub(crate) fn emit_dispatch_view_v1<'ctx>(
         .dispatch_tables
         .get(&table.layout().storage())
         .ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "missing interface table storage {}",
                 table.layout().storage()
             ))
@@ -77,12 +77,14 @@ pub(crate) fn emit_dispatch_view_v1<'ctx>(
     let ty = context
         .ptr_type(inkwell::AddressSpace::default())
         .array_type(
-            u32::try_from(table.physical_slots().len())
-                .map_err(|_| CodegenError("interface table is too large".into()))?,
+            u32::try_from(table.physical_slots().len()).map_err(|cause| {
+                CodegenError::internal_cause("interface table is too large".into(), cause)
+            })?,
         );
     let symbol = definition.primary_symbol().symbol();
-    let name = std::ffi::CString::new(symbol.as_str())
-        .map_err(|_| CodegenError("interface table symbol contains NUL".into()))?;
+    let name = std::ffi::CString::new(symbol.as_str()).map_err(|cause| {
+        CodegenError::internal_cause("interface table symbol contains NUL".into(), cause)
+    })?;
     let alias = unsafe {
         llvm_sys::core::LLVMAddAlias2(
             llvm.as_mut_ptr(),
@@ -101,7 +103,9 @@ pub(crate) fn emit_dispatch_view_v1<'ctx>(
         is_empty: false,
     };
     if emitted.dispatch_tables.insert(id, result).is_some() {
-        return Err(CodegenError(format!("duplicate interface view {id}")));
+        return Err(CodegenError::internal(format!(
+            "duplicate interface view {id}"
+        )));
     }
     emitted.record_atom(definition.primary_atom(), global);
     Ok(result)

@@ -48,15 +48,15 @@ pub(crate) fn range(
     })
 }
 
-pub(crate) fn diagnostic(
+pub(crate) fn diagnostic<S>(
     text: &SourceText,
-    diagnostic: &scoop_source::Diagnostic,
+    diagnostic: &scoop_source::Diagnostic<S>,
     encoding: PositionEncoding,
     mut note_location: impl FnMut(
-        &scoop_source::DiagnosticNote,
+        &scoop_source::DiagnosticNote<S>,
     ) -> Result<Option<Location>, ResponseError>,
 ) -> Result<Option<Diagnostic>, ResponseError> {
-    let Some(span) = diagnostic.span else {
+    let Some(span) = diagnostic.span() else {
         return Ok(None);
     };
     let mut notes = Vec::new();

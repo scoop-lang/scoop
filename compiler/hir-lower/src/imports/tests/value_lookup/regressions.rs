@@ -350,13 +350,15 @@ fn core_const_fallback_enforces_complete_access_domain() {
         } else {
             let errors = result.expect_err("internal core const is not current-unit internal");
             assert!(
-                errors
-                    .iter()
-                    .any(|error| error.file == 1 && error.message.contains("not accessible")),
+                errors.iter().any(|error| diagnostic_source(error)
+                    == &test_source_identity("src/first.scoop")
+                    && error.message.contains("not accessible")),
                 "{errors:#?}"
             );
             assert!(
-                !errors.iter().any(|error| error.file == 0),
+                !errors.iter().any(
+                    |error| diagnostic_source(error) == &core_source_identity("src/core.scoop")
+                ),
                 "same-provider core uses remain valid"
             );
         }
