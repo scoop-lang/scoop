@@ -55,7 +55,7 @@ DPI 缩放由目标根部施加一次，geometry 快照仍使用逻辑坐标。�
 
 文本等原生绘图适配通过 `scoop.graphics.native` 的 `@Unsafe Canvas.withSkiaCanvas` 同步借用实际 SkCanvas。借用保留现有坐标／裁剪，正常返回和异常退出都恢复原生状态，不增加 DPI 缩放。指针仅限回调内使用；回调不能重入同一 Canvas 的 Scoop 操作、越过借用的保存边界、提交目标或变更 context。详细合同见 [Surface 规范](../../../docs/specs/SCOOP-SURFACE-SPEC.md#2-几何与绘制)。
 
-需要向原生宿主交付精确命中查询时，在几何的 owner 线程调用 `@Unsafe geometry.withNativeHitTest { hit -> ... }`。NativeGeometryHitTest 包含配套的 context、retain、release、contains 原生函数指针；contains(context, x, y) 使用窗口逻辑坐标，返回 1／0。要跨越 block 保存或交给其他线程，先 retain，每份拥有的引用最后 release 一次；普通值复制不增加引用。借用结束或抛错自动释放本次临时引用，保留的只读快照独立于 CanvasGeometry、画布和目标，不进入 Scoop 回调或布局。
+需要向原生宿主交付精确几何查询时，在几何的 owner 线程调用 `@Unsafe geometry.withNativeGeometry { geometry -> ... }`。NativeGeometry 包含配套的 context、retain、release、contains、toLocal 和 mapRect 原生函数指针；contains(context, x, y) 使用窗口逻辑坐标，返回 1／0。toLocal 返回同一变换下的局部点，mapRect 对局部矩形返回完整窗口外接矩形，或按 clipped=1 求同一形状、路径 clip 和 viewport 的精确可见交集。两个查询的 status 为 1（成功）、0（不可用）、-1（参数无效）、-2（原生失败）。要跨越 block 保存或交给其他线程，先 retain，每份拥有的引用最后 release 一次；普通值复制不增加引用。借用结束或抛错自动释放本次临时引用，保留的只读快照独立于 CanvasGeometry、画布和目标，不进入 Scoop 回调或布局。
 
 普通 hitTest 与原生 contains 共用形状、变换和完整 clip，并排除 viewport 外的点（包含右／下边界）。孔洞、不可逆变换和非有限的原生坐标不产生命中；窗口的层叠顺序、语义状态与实际呈现时机仍由消费者处理。
 

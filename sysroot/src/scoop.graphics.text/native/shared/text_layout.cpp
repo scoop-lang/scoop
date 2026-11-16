@@ -3,6 +3,7 @@
 STTextLayout::STTextLayout(const STParagraph &source, double width, bool wrap,
                            const STInlineMetrics *inline_metrics, size_t count)
     : data(source.data), style(source.style) {
+  const std::lock_guard<std::recursive_mutex> guard(data->mutex);
   auto builder =
       sgt::ParagraphBuilder::make(style, source.fonts, data->unicode);
   if (!builder)
@@ -175,8 +176,10 @@ void scoop_graphics_text_graphemes(void *pointer, int64_t *output) {
 }
 int32_t scoop_graphics_text_paint(void *pointer, void *target, STPoint origin) {
   try {
-    static_cast<STTextLayout *>(pointer)->paragraph->paint(
-        static_cast<SkCanvas *>(target), (float)origin.x, (float)origin.y);
+    auto *layout = static_cast<STTextLayout *>(pointer);
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
+    layout->paragraph->paint(static_cast<SkCanvas *>(target), (float)origin.x,
+                             (float)origin.y);
     return 1;
   } catch (...) {
     return 0;

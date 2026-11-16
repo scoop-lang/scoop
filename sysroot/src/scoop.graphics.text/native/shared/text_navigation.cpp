@@ -159,6 +159,7 @@ STCaretMove scoop_graphics_text_move_caret(void *pointer, int64_t byte,
                                            bool has_x, double preferred_x) {
   try {
     auto layout = static_cast<STTextLayout *>(pointer);
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
     if (!layout->data->grapheme(byte))
       return {0, 0, 1, -1};
     auto current = located(layout, byte, affinity);
@@ -213,6 +214,7 @@ STRangeQuery scoop_graphics_text_logical_line(void *pointer, int64_t byte,
                                               int32_t affinity) {
   try {
     auto layout = static_cast<STTextLayout *>(pointer);
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
     auto &data = *layout->data;
     if (!data.grapheme(byte))
       return {{}, -1};

@@ -81,6 +81,8 @@ Label 接受纯文本或 StyledText，并把行内 View 作为普通 children �
 
 ParagraphHost 只拥有自己的 Paragraph／TextLayout 和临时缓存，字体来源、子 View 和图片资源按明确借用关系使用。scope 在卸载时关闭宿主；替换布局不会关闭子组件。最外层 host.use 的所有权链保持。
 
+原生宿主在绘制之外读取文字位置时，通过 `scoop.graphics.text.native.withNativeLayout` 保留同一排版的纯 native 查询，不把 UI 或 Scoop handler 带进原生 getter。引用在原公开资源关闭后仍可用，原查询／绘制与原生线程共用排版派生缓存的串行边界；它不创建另一份文档或字符矩形表。宿主负责当前正文、投影与 Accepted 场景的对应，几何变换和精确裁剪复用 graphics 的 NativeGeometry。具体 ABI、单位、错误和寿命见[文本规范 §6.2](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md#62-原生只读查询)。
+
 ## 6. 源码与 native 迁移
 
 | 当前归属 | 目标归属及必要工作 |

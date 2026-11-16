@@ -9,10 +9,12 @@
 #include "modules/skunicode/include/SkUnicode_icu.h"
 #include "src/core/SkUTF.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -30,6 +32,7 @@ struct STColor {
 };
 struct STObject {
   virtual ~STObject() = default;
+  virtual void release() { delete this; }
 };
 inline SkColor4f st_color(STColor value) {
   return {(float)value.red, (float)value.green, (float)value.blue,
@@ -89,6 +92,7 @@ struct STParagraphBuilder : STObject {
       : fonts(std::move(source)) {}
 };
 struct STTextData {
+  std::recursive_mutex mutex;
   std::string text;
   sk_sp<SkUnicode> unicode;
   std::vector<size_t> to16, to8;
@@ -184,6 +188,7 @@ struct STVisualCaret {
   bool right_edge;
 };
 struct STTextLayout : STObject {
+  std::atomic<uint64_t> references{1};
   std::unique_ptr<sgt::Paragraph> paragraph;
   std::shared_ptr<STTextData> data;
   sgt::ParagraphStyle style;
@@ -197,6 +202,11 @@ struct STTextLayout : STObject {
   std::vector<std::vector<STVisualCaret>> carets;
   STTextLayout(const STParagraph &source, double width, bool wrap,
                const STInlineMetrics *metrics, size_t count);
+  void retain() { references.fetch_add(1, std::memory_order_relaxed); }
+  void release() override {
+    if (references.fetch_sub(1, std::memory_order_acq_rel) == 1)
+      delete this;
+  }
   void place_inlines();
   void find_carets();
   size_t visible_end() const;
@@ -206,3 +216,10 @@ struct STTextLayout : STObject {
 extern "C" STCaret scoop_graphics_text_caret(void *pointer, int64_t byte,
                                              int32_t affinity,
                                              double thickness);
+extern "C" STTextHit scoop_graphics_text_hit(void *pointer, STPoint point);
+extern "C" STSelection
+scoop_graphics_text_selection(void *pointer, int64_t start, int64_t end);
+extern "C" STRangeQuery
+scoop_graphics_text_word_range(void *pointer, int64_t byte, int32_t affinity);
+extern "C" STRangeQuery
+scoop_graphics_text_logical_line(void *pointer, int64_t byte, int32_t affinity);

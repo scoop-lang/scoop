@@ -155,7 +155,7 @@ int32_t scoop_graphics_geometry_hit(const SGGeometry *value, SGPoint point) {
       return 0;
   return value->shape.contains(value->inverse.mapPoint(window));
 }
-SGSample scoop_graphics_geometry_point(SGGeometry *value, SGPoint point,
+SGSample scoop_graphics_geometry_point(const SGGeometry *value, SGPoint point,
                                        bool inverse) {
   if (inverse && !value->invertible)
     return {};
@@ -165,7 +165,7 @@ SGSample scoop_graphics_geometry_point(SGGeometry *value, SGPoint point,
     return {};
   return {1, sg_point(result), {0, 0}};
 }
-SGRect scoop_graphics_geometry_rect_map(SGGeometry *value, SGRect rect) {
+SGRect scoop_graphics_geometry_rect_map(const SGGeometry *value, SGRect rect) {
   return sg_rect(value->matrix.mapRect(sg_rect(rect)));
 }
 SGRect scoop_graphics_geometry_bounds(SGGeometry *value) {
