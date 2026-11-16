@@ -19,6 +19,7 @@ public open class TypographyBuilder internal constructor() {
     public var onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
     public var inlines: Array<InlineView> = []
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun textStyle(configure: SpanStyleBuilder.() -> Unit): Unit {
         textStyle = Some((textStyle ?: spanStyle()).copy(configure))
     }
@@ -50,7 +51,8 @@ public open class TypographyBuilder internal constructor() {
             actions,
             decorations,
             onSelectionChanged,
-            objects
+            objects,
+            semantics
         )
 }
 

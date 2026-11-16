@@ -24,7 +24,8 @@ public class TypographyProps public constructor(
     public val actions: Array<TextRangeAction> = [],
     public val decorations: Array<TextRangeDecoration> = [],
     public val onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit },
-    public val inlines: Array<InlineView> = []
+    public val inlines: Array<InlineView> = [],
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Typography public constructor(
@@ -51,12 +52,14 @@ public class Typography public constructor(
                     this.actions = input.actions
                     this.decorations = input.decorations
                     this.onSelectionChanged = input.onSelectionChanged
+                    this.semantics = input.semantics
                 }
             else
                 label(content) {
                     this.fonts = input.fonts
                     this.settings = input.settings
                     this.inlines = input.inlines
+                    this.semantics = input.semantics
                 }
         val framed =
             frame(body) {

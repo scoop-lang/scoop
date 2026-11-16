@@ -14,10 +14,10 @@
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；Label／Button／Checkbox／Input／Textarea 默认语义的原生回归通过，场景构建通过但实窗待验；滚动及其余控件、复杂关系、激活点和外部客户端仍待完成 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件及 SelectableStyledText／Typography 默认语义的原生回归通过，场景构建通过但实窗待验；滚动及其余控件、复杂关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
-| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；实际菜单呈现、范围几何／单位导航／保留范围、Field 关系、复杂焦点与模态待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；实际菜单呈现、范围几何／单位导航／保留范围、Field 关系、复杂焦点与模态待继续 |
 | S6～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -196,3 +196,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - 场景程序完成 release 构建；真实呈现、焦点、外部 AX／VoiceOver 和其他平台仍未据进程内结果记为通过。组件只在下层已有 provider 的 Darwin 目标创建真实资源，Windows／Linux 的 provider 及其余控件继续按 S2／S5／S10／S11 推进，不以透明的未接入目标关闭计划。
 
 正式 UI／Component spec、设计、计划、README 与编程导航已同步。Component API 经 search／show 核对覆盖值、Props／builder、默认值和 import，README 示例实际检查通过；临时站点与示例在核对后清理，保留后续所需开发产物、缓存和实窗程序。
+
+
+### 内置只读文本默认语义
+
+- SelectableStyledText 使用原 SelectableTextHost 发布正文、选区及真实菜单能力；选择通知先刷新同一语义资源，再调用一次最新业务回调。Props／builder 提供 ComponentSemantics，Typography 的可选与不可选两分支传递相同覆盖值，切换分支退休旧对象。
+- 六个 Scoop 文件格式检查、Component 及扩展测试 Cone 源码检查通过；组件 release 开发产物已更新。基础控件原生回归实际通过，新增覆盖行内替代文字的部分选择映射、最新回调、只读写入拒绝、禁用选择，以及 Typography 分支替换后的正文、名称和旧对象失效。
+- 正式规范、设计、计划、README 与编程导航已同步；API search／show 核对两类 Props／builder 的新字段、默认值及 import，84 个本地 Markdown 目标检查通过。临时 API 站点及不再使用的输出已清理，保留后续需要的开发产物和共享缓存。
+
+本批未改变下层文本范围映射；真实呈现、菜单焦点、外部 AX／VoiceOver、标题级别和行内范围动作的专门语义仍按 S5／S11 验收。

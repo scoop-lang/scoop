@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-Label、Button、Checkbox、Input／Textarea 已接入默认语义。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored；角色、checked、禁用、只读、文本和动作仍取实际控件。当前原生资源使用 macOS provider，其他平台及其余控件按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续接入。
+Label、Button、Checkbox、Input／Textarea、SelectableStyledText 与 Typography 已接入默认语义。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored；角色、checked、禁用、只读、文本和动作仍取实际控件。当前原生资源使用 macOS provider，其他平台及其余控件按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续接入。
 
 ```kotlin
 import scoop.ui.View
@@ -83,6 +83,8 @@ Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate�
 Input／Textarea／InputOtp 默认提供原生文本菜单。使用 `contextMenu { mode = TextContextMenuMode.StandardNative; selection = TextContextMenuSelection.Preserve }` 可选择标准菜单并保留选区外点击的选择；Disabled 关闭内建入口，PreferSystem 尽量复用可执行的系统模板。相关类型位于 `scoop.ui.text`，可选标签覆盖使用 `scoop.window.TextContextMenuLabels`。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传当前配置；需要应用自定义菜单时先关闭内建入口，再使用现有菜单包装。编辑动作始终进入同一个 TextEditorState，OTP 的长度与模式限制仍然有效。
 
 SelectableStyledText 的 `options = SelectableTextOptions(contextMenu = textContextMenu { selection = TextContextMenuSelection.Preserve })` 配置只读 Copy／SelectAll 菜单，默认也使用 PreferSystem。Typography 的 selection 接收同一 SelectableTextOptions。正文与行内替代文字来自共享只读宿主，辅助点击不触发行内主按钮，键盘菜单沿现有焦点与 Accepted 选区定位。
+
+SelectableStyledText 默认发布共享宿主的正文、选区和只读菜单动作；`onSelectionChanged` 在语义刷新后仍调用一次最新业务回调。选择部分行内替代文字会覆盖整个对象，禁用选择立即撤下对应能力，不提供文本写入。Typography 的两种 selectable 分支都保留 `semantics` 配置，切换分支后旧原生对象退休。标题级别、范围几何及行内范围动作的专门语义继续按计划接入。
 
 密码输入使用 `input(editor) { protectedText = true; projection = textMask() }`；显示密码时只把 projection 换成 textProjection()，继续保留 protectedText=true。Input／Textarea／InputOtp 及组合输入都提供这个独立标记，默认 false。受保护用途或内置遮罩默认禁止 Copy／Cut；Input／Textarea 可用 `copy = TextCopyPolicy.Allow` 明确允许复制原文，该选择不清除保护标记。显隐与用途更新保留模型、选区、撤销和 IME；粘贴及普通编辑继续使用原策略。
 

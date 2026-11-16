@@ -33,7 +33,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 
 ### 1.1 默认无障碍语义
 
-Label、Button、Checkbox、Input／Textarea 的 Props 与 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
+Label、Button、Checkbox、Input／Textarea、SelectableStyledText 与 Typography 的 Props 和 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
 
 - Label 使用 Text，正文取 StyledText.toPlainText，包括行内 alternateText；行内交互子控件保留独立语义。名称覆盖不修改正文。正文投影按不可变内容身份复用，纯语义覆盖变化不重新测量段落。
 - Button 使用 Button，并合并自己声明的纯静态 Label 后代；名称优先显式覆盖、labelledBy，最后内容标签。Custom／Resolved 中的独立交互内容不被合并。Invoke 调用现有最新 onClick，不模拟指针或隐式获得焦点；仅换 handler 仍可复用渲染。
@@ -165,7 +165,9 @@ Label 的 settings 为 None 时通过 ParagraphHost 继承有效布局方向；�
 
 ### 3.1 SelectableStyledText
 
-SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content) 是公共 SelectableTextHost 的普通组件适配。receiver builder 提供 fonts、settings、inlines、options、focus、actions、decorations、onSelectionChanged 和 key；StyledText 保留全部样式及行内对象，通过 inlineChildren 构造相同的 keyed 子描述。它自己不复制文本选择、命中或剪贴板算法，也不持有额外编辑模型。
+SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content) 是公共 SelectableTextHost 的普通组件适配。receiver builder 提供 fonts、settings、inlines、options、focus、actions、decorations、onSelectionChanged、semantics 和 key；semantics 默认为 ComponentSemantics()。StyledText 保留全部样式及行内对象，通过 inlineChildren 构造相同的 keyed 子描述。它自己不复制文本选择、命中或剪贴板算法，也不持有额外编辑模型。
+
+绘制 Element 在自己的 scope 创建 Text 语义资源，正常 update 调用 updateSelectableText，选择通知先刷新语义，再恰好调用一次最新业务 onSelectionChanged。正文、行内替代文字映射、选区、真实焦点、禁用和菜单沿原宿主；不提供写入动作。行内控件归入该语义节点，保留独立能力；Scene 登记当前段落区域，卸载沿原 scope 退休。TypographyProps／TypographyBuilder 也提供同一 semantics 覆盖值，选择与静态正文两个分支均传递它；切换分支使用对应实际宿主并退休旧引用。标题级别及范围动作的专门语义仍按 S5／S11 推进，不把正文接入等同于完整富文本 provider。
 
 options.contextMenu 直接配置只读文本的原生 Copy／SelectAll 菜单，默认 PreferSystem；使用 SelectableTextOptions(contextMenu = textContextMenu { ... }) 选择模式、选区策略和标签。Typography 的 selection 选项沿用同一入口，不另建菜单状态或编辑宿主。
 

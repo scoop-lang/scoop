@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.text.*
+import scoop.window.Utf8Selection
 import scoop.window.accessibility.*
 
 internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentScope): Component(
@@ -39,6 +40,8 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
         val protectInput = probe.protectedText.value
         val hidden = probe.hidden.value
         val labelName = probe.labelName.value
+        val selectionEnabled = probe.selectionEnabled.value
+        val typographySelectable = probe.typographySelectable.value
         val views =
             [
                 buttonGroup {
@@ -96,6 +99,42 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
                     placeholder = "Not a label"
                     contextMenu { mode = TextContextMenuMode.Disabled }
                     semantics = ComponentSemantics(automationId = Some("textarea"))
+                },
+                selectableStyledText(probe.labelText) {
+                    inlines =
+                        [
+                            inlineView(
+                                InlineKey.Text("badge"),
+                                element({ mount -> InlineBox(mount) })
+                            )
+                        ]
+                    options =
+                        SelectableTextOptions(
+                            enabled = selectionEnabled,
+                            contextMenu =
+                                TextContextMenuOptions(mode = TextContextMenuMode.Disabled)
+                        )
+                    semantics =
+                        ComponentSemantics(
+                            name = Some("Read only"),
+                            automationId = Some("selectable")
+                        )
+                    onSelectionChanged =
+                        {
+                            anchor, cursor ->
+                            probe.selectionChanges += 1
+                            probe.selectionHandler = version
+                            probe.selected = Utf8Selection(anchor.byteOffset, cursor.byteOffset)
+                        }
+                },
+                typography("Paragraph") {
+                    selectable = typographySelectable
+                    semantics =
+                        ComponentSemantics(
+                            name = Some("Reading"),
+                            automationId = Some("typography")
+                        )
+                    onSelectionChanged = { _, _ -> probe.typographyChanges += 1 }
                 }
             ]
         return element({ mount -> ControlsPanel(probe, views.size, mount) }, views)

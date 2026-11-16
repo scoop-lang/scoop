@@ -14,6 +14,7 @@ public class SelectableStyledTextBuilder internal constructor() {
     public var decorations: Array<TextRangeDecoration> = []
     public var onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
         settings = Some((settings ?: paragraphStyle()).copy(configure))
     }
@@ -30,6 +31,7 @@ public class SelectableStyledTextBuilder internal constructor() {
             focus,
             actions,
             decorations,
-            onSelectionChanged
+            onSelectionChanged,
+            semantics
         )
 }

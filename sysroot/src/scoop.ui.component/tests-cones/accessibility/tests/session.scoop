@@ -47,6 +47,8 @@ internal class ControlsProbe: Closeable {
     val readOnly = state(false)
     val protectedText = state(false)
     val hidden = state(false)
+    val selectionEnabled = state(true)
+    val typographySelectable = state(true)
     val editor = TextEditorState("A😀é")
     val multiline = TextEditorState("One\nTwo")
     val labelText =
@@ -61,6 +63,10 @@ internal class ControlsProbe: Closeable {
     var innerClicks = 0
     var outerClicks = 0
     var finished = false
+    var selectionChanges = 0
+    var selectionHandler = -1
+    var selected = Utf8Selection(0L, 0L)
+    var typographyChanges = 0
     var relatedHandle: SemanticsHandle? = None
     private var active: ActiveApplication? = None
     private var window: Window? = None
@@ -74,6 +80,8 @@ internal class ControlsProbe: Closeable {
     private var textarea: NativeNode? = None
     private var outer: NativeNode? = None
     private var inner: NativeNode? = None
+    private var selectable: NativeNode? = None
+    private var typography: NativeNode? = None
     private var calls: NativeCalls? = None
     private val retained = ArrayList<NativeNode>()
 
@@ -115,6 +123,8 @@ internal class ControlsProbe: Closeable {
                 textarea = Some(find("textarea"))
                 outer = Some(find("outer"))
                 inner = Some(find("inner"))
+                selectable = Some(find("selectable"))
+                typography = Some(find("typography"))
                 calls =
                     Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
                 native.setVisible(false)
@@ -149,6 +159,13 @@ internal class ControlsProbe: Closeable {
             assertEquals(1L, outer!!.count)
             assertEquals(0L, input!!.count)
             assertFalse(input!!.flag(8))
+            assertTrue(selectable!!.text(0, Some("Read only")))
+            assertTrue(selectable!!.text(1, Some("A😀图Z")))
+            assertTrue(selectable!!.flag(6))
+            assertFalse(selectable!!.flag(7))
+            assertFalse(selectable!!.flag(8))
+            assertTrue(typography!!.text(0, Some("Reading")))
+            assertTrue(typography!!.text(1, Some("Paragraph")))
             calls!!.post(button!!, 0)
         }
     }
@@ -265,12 +282,51 @@ internal class ControlsProbe: Closeable {
             case 12 -> {
                 assertEquals(0, result)
                 assertEquals(7, clicked)
+                calls!!.post(selectable!!, 13, 4, selectionStart = 1L, selectionLength = 2L)
+            }
+            case 13 -> {
+                assertEquals(1, selectionChanges)
+                assertEquals(7, selectionHandler)
+                assertEquals(Utf8Selection(1L, 4L), selected)
+                assertTrue(selectable!!.selection(1L, 3L))
+                assertTrue(selectable!!.text(4, Some("😀图")))
+                calls!!.post(selectable!!, 14, 5, "Forbidden")
+            }
+            case 14 -> {
+                assertTrue(selectable!!.text(1, Some("A😀图Z")))
+                assertEquals(1, selectionChanges)
+                selectionEnabled.value = false
+                afterUpdate {
+                    assertFalse(selectable!!.flag(6))
+                    calls!!.post(selectable!!, 15, 4, selectionStart = 0L, selectionLength = 1L)
+                }
+            }
+            case 15 -> {
+                assertTrue(selectable!!.selection(1L, 3L))
+                assertEquals(1, selectionChanges)
+                calls!!.post(typography!!, 16, 4, selectionStart = 0L, selectionLength = 4L)
+            }
+            case 16 -> {
+                assertEquals(1, typographyChanges)
+                assertTrue(typography!!.text(4, Some("Para")))
+                typographySelectable.value = false
+                afterUpdate {
+                    assertFalse(typography!!.flag(0))
+                    val current = find("typography")
+                    assertTrue(current.text(0, Some("Reading")))
+                    assertTrue(current.text(1, Some("Paragraph")))
+                    assertFalse(current.flag(6))
+                    calls!!.post(typography!!, 17, 4, selectionStart = 4L, selectionLength = 5L)
+                }
+            }
+            case 17 -> {
+                assertEquals(1, typographyChanges)
                 ui!!.close()
                 assertFalse(input!!.flag(0))
                 assertFalse(checkbox!!.flag(0))
-                calls!!.post(outer!!, 13)
+                calls!!.post(outer!!, 18)
             }
-            case 13 -> {
+            case 18 -> {
                 assertEquals(0, result)
                 finished = true
                 window!!.requestDestroy()

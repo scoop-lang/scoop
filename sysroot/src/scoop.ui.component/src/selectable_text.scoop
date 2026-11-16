@@ -1,8 +1,10 @@
 package scoop.ui.component
 
+import scoop.graphics.Rect
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.text.*
+import scoop.window.accessibility.SemanticRole
 
 public class SelectableStyledTextProps public constructor(
     public val content: StyledText,
@@ -13,7 +15,8 @@ public class SelectableStyledTextProps public constructor(
     public val focus: FocusOptions = FocusOptions(),
     public val actions: Array<TextRangeAction> = [],
     public val decorations: Array<TextRangeDecoration> = [],
-    public val onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
+    public val onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit },
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 /** Styled selection delegates layout, input and lifetime to the public text host. */
@@ -58,6 +61,24 @@ private class SelectableStyledTextInk(
         scope.resource {
             SelectableTextHost(scope, fonts(), props.value.content, props.value.options)
         }
+    private val semantics = createComponentSemantics(scope, SemanticRole.Text)
+    private val selectionChanged: (TextPosition, TextPosition) -> Unit =
+        {
+            anchor, cursor ->
+            updateSemantics()
+            props.value.onSelectionChanged(anchor, cursor)
+        }
+    init {
+        scope.routeSemanticsChildren(semantics)
+    }
+    private fun updateSemantics() {
+        val input = props.value
+        semantics?.updateSelectableText(
+            host,
+            input.semantics.properties(),
+            input.semantics.relations
+        )
+    }
     public override fun update(): UiInvalidation {
         val input = props.value
         host.update(
@@ -67,8 +88,9 @@ private class SelectableStyledTextInk(
             input.focus,
             input.actions,
             input.decorations,
-            input.onSelectionChanged
+            selectionChanged
         )
+        updateSemantics()
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -79,6 +101,13 @@ private class SelectableStyledTextInk(
         return LayoutResult(measured.metrics, measured, { measured.close() })
     }
     public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         host.scene(context, measured)
     }
 }
