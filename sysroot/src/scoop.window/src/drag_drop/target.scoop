@@ -1,0 +1,119 @@
+package scoop.window
+
+internal interface NativeDropTarget: Closeable {
+    fun update(enabled: Boolean)
+    fun leave()
+}
+
+/** One native destination owned by a window; the renderer supplies its own hit routing. */
+public class DropTarget internal constructor(
+    internal val owner: WindowOwner,
+    initial: DropHandlers
+): Closeable {
+    private var current: DropHandlers? = Some(initial)
+    private var accepts = true
+    private var closed = false
+    private var native: NativeDropTarget? = None
+
+    internal fun bind(value: NativeDropTarget) {
+        native = Some(value)
+    }
+    public val isClosed: Boolean get() {
+        owner.application.checkThread();
+        return closed
+    }
+    public var handlers: DropHandlers
+    get() {
+        checkOpen();
+        return current!!
+    }
+    set(value) {
+        checkOpen()
+        current = Some(value)
+        native!!.update(accepts)
+    }
+    public var enabled: Boolean
+    get() {
+        checkOpen();
+        return accepts
+    }
+    set(value) {
+        checkOpen()
+        if (value == accepts)
+            return
+        accepts = value
+        native!!.update(value)
+        if (!value)
+            owner.application.deferNativeOperation {
+                if (!closed && !accepts)
+                    native!!.leave()
+            }
+    }
+    private fun checkOpen() {
+        owner.requireOpen()
+        if (closed)
+            throw IllegalStateException(Some("drop target is closed"))
+    }
+    internal fun perform(action: () -> Int, leaving: Boolean = false): Int {
+        val application = owner.application
+        if (
+            !application.isCurrentThread() ||
+                closed ||
+                application.exiting ||
+                owner.phase !=
+                WindowState.Open
+        )
+            return 0
+        if (
+            !leaving &&
+                (
+                    !accepts ||
+                        owner.inputBlocked ||
+                        !owner.requestedVisible ||
+                        owner.visibilitySuppressed
+                )
+        )
+            return 0
+        val nativeOperation =
+            application.nativeOperationDepth == 1 && application.nativeCallbackDepth == 1
+        if (
+            application.dispatchDepth !=
+                0 ||
+                application.pumping ||
+                (application.nativeCallbackDepth != 0 && !nativeOperation)
+        )
+            return 0
+        application.dispatchDepth += 1
+        try {
+            return action()
+        } catch (error: Throwable) {
+            application.recordFailure(error)
+            application.beginExit()
+            return 0
+        } finally {
+            application.dispatchDepth -= 1
+            if (application.exiting)
+                application.mailbox.wake()
+        }
+    }
+    internal fun offer(value: DropOffer): Int = dropDecisionCode(value, current!!.offer(value))
+    internal fun drop(value: DropRequest): Int =
+        if (current!!.drop(value))
+            1
+        else
+            0
+    internal fun leave(): Int {
+        current!!.leave();
+        return 0
+    }
+    public override fun close() {
+        owner.application.checkThread()
+        if (closed)
+            return
+        closed = true
+        current = None
+        owner.dropTarget = None
+        native?.close()
+        native = None
+    }
+}

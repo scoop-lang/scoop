@@ -118,6 +118,18 @@ desktopCapabilities().fileDialogs 报告入口和选项能力。AppKit 使用 NS
 
 macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏标题；内容延伸统一由 WindowFrame.System(Extended) 表达，Client 窗口仍可接收键盘焦点。Windows 的边框色、标题栏色、文字色与圆角偏好在 platform.windows 中分别查询 DWM 能力和设置。当前接口见[窗口规范第 4.1～4.3 节](../../../docs/specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。
 
+## 接收原生拖放
+
+Darwin 的 Open 窗口通过 `window.registerDropTarget(DropHandlers(offer, drop, leave))` 注册一个接收资源；声明从 `scoop.window` 导入。`DropOffer` 只包含 `DragFormats`、`DragEffects`、接收窗口逻辑位置、修饰键和 local。local 仅表示来源在当前进程，不确定文档或业务节点。offer 返回 Reject 或 Accept(format, effect)，只能选择实际可用的 Text／Url／Files 和 Copy／Move／Link；接收方自行命中自己的场景。
+
+Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 `DragContent.Text(String)`、`Url(String)` 或 `Files(Array<Path>)`，并调用 `drop(DropRequest): Boolean`。true 表示已实际接受；尚在排队的业务不能返回 true。单项可同时提供文本和 URL；首批不合并多个文本项目。Files 要求完整的本地路径列表，拒绝混合或部分可读项目，不读取文件正文。文本保留原值，编辑目标自己的导入策略负责清洗。
+
+返回 false、表示不可读或状态失效均拒收。已经协商 Move 时，Drop 阶段只能实际接受或拒绝，不能仅在内部改成 Copy。文件的后续打开、上传或持久化由业务负责；只有实际实现对应操作时才选择 Link。
+
+`DropTarget.handlers` 可替换，`enabled` 默认 true，修改后旧协商失效。禁用沿已有 owner 延迟通路结束 offer；正常离开／结束／Drop 收尾至多通知一次 leave，关闭不再调用业务 leave。拥有者在自身关闭时清除高亮。close 幂等，关窗自动关闭资源，旧原生引用不调用已退休 Context。所有资源访问遵守 Window owner；回调同步完成，不等待自身队列或递归 pump。
+
+正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。此入口当前只提供 AppKit 接收端；source、UI 路由、文本事务、Windows／Linux 和真实系统会话继续按交互打磨 S6 实现，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
+
 ## 文本输入
 
 `ActiveApplication.clipboard`／`Window.clipboard` 提供系统文本剪贴板：`readText(mediaType = "text/plain")` 返回 `String?`，没有该格式为 None，已有空文本为 Some("")；`writeText(text)` 替换为标准纯文本。`writeTexts` 同时发布同一项内容的多个文本表示，例如所见文字和可继续编辑的 Markdown：

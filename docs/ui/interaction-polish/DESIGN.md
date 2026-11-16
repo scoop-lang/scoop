@@ -159,6 +159,8 @@ S0.3 本地原型已确认 AppKit 公开的 `NSTextView.defaultMenu` 可以在�
 
 首批标准内容为纯文本、URL 和真实文件列表；格式协商允许一个来源提供多个表示。Window 做实际 UTType／clipboard format／MIME 转换，不将进程内对象地址编码成跨进程数据。当前本地重排需要的条目 key 可以由 source 的正常会话上下文持有，不建立通用对象序列化或跨进程对象桥。
 
+AppKit 接收边界的正式类型、owner 与收尾见[Window 数据拖放规范](../../specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)。registerDropTarget 先提供 metadata offer 与 Drop 时自有内容的同步接收；替换、禁用、关闭及重入使旧协商失效。单项可协商文本／URL 多表示，文件列表完整接收，已协商 Move 不在 BOOL 接收阶段偷换 Copy。该入口不新增命中树，后续 UI 使用自己的 Accepted 场景；source、文本事务和三个范围的系统会话验收仍保持本节完整范围。
+
 ### 6.2 路由、读取与完成
 
 1. 达到拖动阈值前仍是点击／选区候选；接管后取消冲突的 Press、文本拖选或滚动候选，松开时不额外点击。

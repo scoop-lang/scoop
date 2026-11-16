@@ -1,6 +1,6 @@
 # UI 交互打磨与 accessibility 实施计划
 
-日期：2026-11-16。状态：S0～S5 进行中，S6～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
+日期：2026-11-16。状态：S0～S6 进行中，S7～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
 
 本计划统一安排[交互打磨设计](DESIGN.md)与[accessibility 设计](../accessibility/DESIGN.md)的实现、消费者迁移和验收。两份设计规定行为与技术边界，本文规定任务拆分、依赖、交付顺序和完成条件；设计中的 U0～U5、P0～P5 仅作为来源分组对照，后续按本文记录实施状态。
 
@@ -162,6 +162,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 **主要范围：** Window 原生拖放与数据格式、Surface 路由／取消、UI source／target 和文本事务、现有列表／文本／文件接收消费者。先改 Window、Surface、UI、Component spec。
 
+- [x] 首批 Window／AppKit 接收资源：metadata 协商、Drop 时复制 Text／Url／完整 Files、真实 Boolean 接收结果及 handler 替换／禁用／关窗／重入收尾；进程内公开协议方法测试通过。合同见[数据拖放规范](../../specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)；这不关闭下面的 source、UI／文本与三个范围验收。
 - [ ] 定义一份公共 offer／effect／结果合同，支持纯文本、URL、真实文件列表及多表示；按实际需要延迟读取，native 格式转换归 Window，Link 只在有业务含义时提供。
 - [ ] 分别完成窗口内、同程序跨窗口、跨程序 source／target；允许离窗的 source 从起始使用原生会话，各接收根只命中自己的 Accepted 场景。
 - [ ] 完成阈值接管、Enter／Over／Leave／Drop、拒绝后的父目标规则、预览／高亮／光标及修饰键协商；接管后不额外点击，不对每次 move 读取全文／文件。

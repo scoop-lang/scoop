@@ -18,7 +18,8 @@
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及四个原生场景的源码检查／构建通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；Reveal、滚动实窗及平台验收待继续 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
-| S6～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
+| S6 | 进行中 | 首批 Window／AppKit 接收资源已接入，格式与 effect 协商、延迟数据读取和生命周期协议方法测试通过；source、UI 路由、文本事务、三个范围的真实系统会话与其他平台继续推进 |
+| S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
 
@@ -245,3 +246,13 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 新 choice-accessibility Cone 的源码检查与实际运行通过，覆盖角色／子角色、Field 动态命名和必填、绑定拒绝／转换、重复选择、禁用／隐藏、按 key 重排／删除／重建、单选／多选及保留旧对象。StyledToggle 使用真实 StyledText 重载配置继承的 semantics，并通过同一运行回归；已有基础控件原生回归一并通过。
 
 规范、两份设计、计划、README 与编程导航已同步；API 查询核对六类 Props／条目及实际声明 builder 的字段、默认值、访问器和导入路径，继承调用由真实消费者编译与运行验证。临时原生查询程序和 API 站点已清理，保留开发产物与共享缓存。本批没有把进程内方法结果记为 Accepted 几何、真实焦点操作、VoiceOver／外部 AX 或其他平台通过；这些范围及其余控件继续按 S2／S5／S11 推进。
+
+### Window 的 AppKit 拖放接收边界
+
+- 新增 DragFormat／DragEffect、metadata DropOffer、自有 DragContent／DropRequest 和 Window.registerDropTarget。每窗一个资源；单项文本／URL 支持多表示，Files 要求完整列表，Enter／Over／prepare 不读正文，Drop 返回实际接收结果。已协商 Move 不在 BOOL 阶段改成 Copy。
+- AppKit destination 处理当前格式／effect、窗口逻辑位置、修饰键及同进程标记；handler 替换、禁用、读取期间状态变化、关窗、迟到调用和重入撤销旧协商。业务同步完成，数据复制后归接收者，不保留 pasteboard 指针。正常延迟原生操作允许在普通 pump 退栈后完成 leave，业务与更深原生重入仍拒绝。
+- 新增[拖放测试 Cone](../../../sysroot/src/scoop.window/tests-cones/drag-drop/README.md)，24 个主队列协议步骤通过：真实独立 pasteboard、延迟正文、Unicode／空串／URL／真实文件、多表示、拒收与不部分接收、重入、handler 自关／关窗、保留旧 view、Context 与异常收尾；在 native payload 释放后的 owner 回调继续读取已接收值。测试自行清理临时文件和 pasteboard。
+- Window 生产源码检查与 release 构建、测试源码检查、新增原生运行及既有 Window accessibility 原生回归通过。7 个 Scoop 文件和 5 个 native 文件格式检查、Objective-C 严格编译通过；API 查询核对工厂、公共值、handler 默认值及资源访问器和导入。
+- 同步 Window 拖放规范、主规范、设计、计划、README 与编程导航，局部 Markdown 链接核查通过；临时 API 站点清理，保留开发产物和共享缓存。
+
+本批仅交付 AppKit 接收边界。source、Surface／UI 路由、文本事务、三个范围的真实 dragging session、独立进程双向操作及其他平台仍按 S6 推进，不把进程内协议方法调用记成系统会话验收。

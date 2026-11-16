@@ -35,7 +35,7 @@ typedef struct {
   int64_t error;
 } SWResult;
 
-@class SWApplication, SWWindow, SWMenu;
+@class SWApplication, SWWindow, SWMenu, SWDropTarget;
 
 @interface SWTextSnapshot : NSObject
 @property(nonatomic, strong) NSString *text;
@@ -77,6 +77,7 @@ typedef struct {
 @interface SWView : NSView
 @property(nonatomic, weak) SWWindow *owner;
 @property(nonatomic, strong) NSAccessibilityElement *semanticRoot;
+@property(nonatomic, strong) SWDropTarget *dropTarget;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWEvent *> *pressedKeys;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *pressedButtons;

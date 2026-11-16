@@ -315,3 +315,8 @@ Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 Gt
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
 
 WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 copy 产生新配置。macOS 的 ApplicationOptionsBuilder.macOSActivationPolicy 属性与 WindowAttributesBuilder.macOSTitlebar(TitlebarOptionsBuilder.() -> Unit) 配置平台字段；macOSTitlebar 块基于当前 flags，三个布尔字段默认 false。创建配置上的 setMacOSActivationPolicy／setMacOSTitlebar 删除，Window.setMacOSTitlebar 仍是对现有窗口的显式操作。配置不激活应用、不请求焦点、不创建窗口；Application／ActiveApplication.createWindow 的执行合同不变。
+
+
+## 13. 数据拖放
+
+Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。首批提供 AppKit destination；完整 source、UI 路由、文本事务和三平台验收继续按交互打磨 S6 推进。

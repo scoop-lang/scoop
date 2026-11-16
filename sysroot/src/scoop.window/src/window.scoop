@@ -216,6 +216,7 @@ public class Window internal constructor(internal val owner: WindowOwner) {
 internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, native: Ptr<Unit>) {
     val semanticIdentity = SemanticIdentity()
     var accessibility: AccessibilityProvider? = None
+    var dropTarget: DropTarget? = None
     var owningWindow: WindowOwner? = None
     var role: WindowRole = WindowRole.Normal
     var requestedVisible: Boolean = false
@@ -264,6 +265,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
             return
         phase = WindowState.Closing
         accessibility?.close()
+        dropTarget?.close()
         for (lease in closingLeases.toArray())
             lease.requestClose()
         application.cancelOwnedFileDialogs(

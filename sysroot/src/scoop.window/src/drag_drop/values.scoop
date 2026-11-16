@@ -1,0 +1,79 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+
+public enum DragFormat {
+    Text, Url, Files
+}
+
+public enum DragEffect {
+    Copy, Move, Link
+}
+
+public struct DragFormats(val text: Boolean, val url: Boolean, val files: Boolean) {
+    public fun contains(format: DragFormat): Boolean =
+        when (format) {
+            case Text -> text
+            case Url -> url
+            case Files -> files
+        }
+}
+
+public struct DragEffects(val copy: Boolean, val move: Boolean, val link: Boolean) {
+    public fun allows(effect: DragEffect): Boolean =
+        when (effect) {
+            case Copy -> copy
+            case Move -> move
+            case Link -> link
+        }
+}
+
+/** Metadata only; payloads are copied after an actual drop. */
+public struct DropOffer(
+    val formats: DragFormats,
+    val effects: DragEffects,
+    val position: LogicalPosition,
+    val modifiers: Modifiers,
+    val local: Boolean
+)
+
+public enum DropDecision {
+    Reject, Accept(DragFormat, DragEffect)
+}
+
+/** Owned data. File paths do not imply that their contents have been read. */
+public enum DragContent {
+    Text(String), Url(String), Files(Array<Path>)
+}
+
+public struct DropRequest(val offer: DropOffer, val effect: DragEffect, val content: DragContent)
+
+public struct DropHandlers(
+    val offer: (DropOffer) -> DropDecision,
+    val drop: (DropRequest) -> Boolean,
+    val leave: () -> Unit = {}
+)
+
+internal fun dragFormatCode(format: DragFormat): Int =
+    when (format) {
+        case Text -> 1
+        case Url -> 2
+        case Files -> 3
+    }
+
+internal fun dragEffectCode(effect: DragEffect): Int =
+    when (effect) {
+        case Copy -> 1
+        case Move -> 2
+        case Link -> 4
+    }
+
+internal fun dropDecisionCode(offer: DropOffer, decision: DropDecision): Int =
+    when (decision) {
+        case Reject -> 0
+        case Accept(val format, val effect) ->
+        if (offer.formats.contains(format) && offer.effects.allows(effect))
+            256 * dragFormatCode(format) + dragEffectCode(effect)
+        else
+            0
+    }

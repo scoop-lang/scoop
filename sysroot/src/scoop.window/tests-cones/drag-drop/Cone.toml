@@ -1,0 +1,33 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "window-drag-drop"
+version = "0.1.0"
+kind = "library"
+
+[[test.sources]]
+path = "test-darwin"
+when = { os = "darwin" }
+
+[test-dependencies]
+"scoop:scoop.window" = { version = "0.1.0", path = "../.." }
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.test" = "0.1.0"
+
+[native]
+objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/probe.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/session.m"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "AppKit"
+kind = "framework"
+when = { os = "darwin" }
