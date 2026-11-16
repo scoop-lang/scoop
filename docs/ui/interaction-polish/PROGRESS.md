@@ -23,6 +23,11 @@
 
 ## 已交付变更
 
+### 平台输入边界调研
+
+- 依用户建议完成 `window-clicks` 与三平台输入路径、公共解码、NativeInputDelivery、Surface claim 的源码核对，并查阅 Apple／Microsoft／GTK 官方输入资料。选用 Window 内部的平台输入子系统，统一载荷与寿命，保留平台原生入口；Surface 负责接触路由，UI 负责原始触摸手势识别。
+- 调研确认 `window-clicks` 当前是计数测试 Cone；另发现 GTK begin／scroll／end 的 0／1／2 与公共 AppKit 位值解码不一致。该修复和输入状态整理已加入 S1，作为 S8 的前置工作；具体范围与验收见[输入边界方案](INPUT-BOUNDARY.md)。本次仅完成调研和选型，尚未改变运行时实现或新增平台设备通过记录。
+
 ### 文本范围查询所需的底层接入
 
 - 原生文本与几何查询已独立通过 [PR #144](https://github.com/scoop-lang/scoop/pull/144) 合入 main；本地 main、工作分支和开发 graphics／text 产物已更新。TextLayout.withNativeLayout 保留同一排版的 native 查询，普通资源关闭后仍可使用；绘制与并发查询共用排版缓存的串行访问边界，没有额外 shaping 或逐字符矩形副本。

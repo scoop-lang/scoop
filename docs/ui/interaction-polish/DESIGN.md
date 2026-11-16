@@ -54,6 +54,8 @@
 | `scoop.ui.component` | ScrollArea／VirtualList／Textarea 等共享策略；Input／Textarea 默认菜单、控件触摸行为及必要的替代操作 |
 | `scoop.ui.style` 与主题 | 收缩／展开的几何、颜色、透明度、过渡及对比度；不持有隐藏计时器、拖放会话或可写编辑模型 |
 
+输入事件的具体重构选择见 [Window 输入边界方案](INPUT-BOUNDARY.md)：在 Window 内统一平台输入转换与状态生命周期，保留平台原生入口；Surface 按 contact 路由，UI 组合触摸手势。当前 `window-clicks` 是 Windows 计数的测试 Cone，生产职责由 Window 内部 input 模块承担。
+
 系统偏好由 Window 读取并通过已有 owner 通知变化，UI 根解析后向实际消费者传播。未知／不可查询与明确关闭是不同值；上层不导入 AppKit、Win32 或 GTK，也不在每帧查询 OS。偏好接口不依赖 accessibility provider 已启用，普通应用启动时就应生效。
 
 原生设置的单位在 Window 边界明确转换，包括点击距离、拖动阈值、caret 物理宽度，以及闪烁的整周期与单次切换间隔。滚轮按 OS 已应用的方向和实际行／像素单位消费，不再次反转“自然滚动”，也不把用户文字缩放当作显示器 DPI。
