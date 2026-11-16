@@ -25,14 +25,19 @@ private class InputPressTest {
                     order.add("front")
                     rig.log.record("front", context, event)
                 }
-            rig.router.rootScope.beforePointerPress =
+            rig.router.rootScope.beforePress =
                 {
                     press ->
                     order.add("filter")
                     assertTrue(press.target === front.scope)
-                    assertEquals(MouseButton.Left, press.button)
-                    assertEquals(1, press.clickCount)
-                    assertEquals(LogicalPosition(30.0, 10.0), press.pointer.state.logicalPosition)
+                    when (press.source) {
+                        case Mouse(val pointer, val button, val clicks) -> {
+                            assertEquals(MouseButton.Left, button)
+                            assertEquals(1, clicks)
+                            assertEquals(LogicalPosition(30.0, 10.0), pointer.state.logicalPosition)
+                        }
+                        else -> fail(Some("expected a mouse press source"))
+                    }
                     rig.frame {
                         frame, canvas ->
                         frame.place(canvas, background, Rect(0.0, 0.0, 300.0, 200.0))
@@ -59,7 +64,7 @@ private class InputPressTest {
             val area = rig.area("area")
             val presses = ArrayList<InputPress>()
             val root = rig.router.rootScope
-            root.beforePointerPress =
+            root.beforePress =
                 {
                     press ->
                     presses.add(press);
@@ -67,7 +72,7 @@ private class InputPressTest {
                 }
             rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 40.0)) }
             rig.button(10.0, 10.0, ElementState.Pressed)
-            root.beforePointerPress =
+            root.beforePress =
                 {
                     press ->
                     presses.add(press);
@@ -99,14 +104,14 @@ private class InputPressTest {
             val area = rig.area("background")
             val boundaries = ArrayList<InputBoundary>()
             val calls = ArrayList<String>()
-            root.beforePointerPress =
+            root.beforePress =
                 {
                     _ ->
                     calls.add("root")
                     boundaries.add(InputBoundary(group))
                     false
                 }
-            group.beforePointerPress =
+            group.beforePress =
                 {
                     press ->
                     calls.add("group")
@@ -132,10 +137,10 @@ private class InputPressTest {
             rig ->
             val area = rig.area("area")
             rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 40.0)) }
-            rig.router.rootScope.beforePointerPress =
+            rig.router.rootScope.beforePress =
                 { _ -> throw IllegalStateException(Some("expected press failure")) }
             assertFailsWith<IllegalStateException> { rig.button(10.0, 10.0, ElementState.Pressed) }
-            rig.router.rootScope.beforePointerPress = { _ -> false }
+            rig.router.rootScope.beforePress = { _ -> false }
             rig.button(10.0, 10.0, ElementState.Released)
             assertEquals("", boundaryTrace(rig.log))
             rig.button(10.0, 10.0, ElementState.Pressed)

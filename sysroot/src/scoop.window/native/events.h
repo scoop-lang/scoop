@@ -21,6 +21,7 @@ typedef union {
   SWKeyboardData keyboard;
   SWPointerData pointer;
   SWGestureData gesture;
+  SWContactData contact;
   int64_t modifiers;
 } SWEventPayload;
 

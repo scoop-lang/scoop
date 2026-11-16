@@ -30,6 +30,7 @@ public enum ApplicationEvent {
 
 /** Events whose final notification is Destroyed. */
 public enum WindowEvent {
+    Contact(ContactEvent),
     CloseRequested, Closing, Destroyed, RedrawRequested, FrameChanged,
     FrameButtonChanged(WindowSystemButton, Boolean, Boolean),
     InputBlockedChanged(Boolean),

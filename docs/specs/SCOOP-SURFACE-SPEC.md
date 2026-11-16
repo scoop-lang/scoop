@@ -196,7 +196,7 @@ InputArea.toLocal(windowPoint)／toWindow(localRect) 使用同一成功帧几何
 
 `SurfaceWindow.hitInput(windowPoint: Point): Array<InputHit>` 只查询当前已接受场景，按前景命中区域到当前 AllInput 边界根的顺序返回逻辑路径。InputHit 保存 scope: InputScope 与 localPosition: Point?；非区域 scope 的位置为 None，区域位置在返回前用同一份已接受几何换算。查询复用普通输入的路径、形状／裁剪、ignoreSelf、禁用、关闭和不可逆变换规则，不使用鼠标 capture，不修改 pointer／hover／焦点，不调用输入处理器；未命中、非有限坐标或 Surface 已关闭返回空数组。FocusOnly 不限制该路径。返回值不借出 CanvasGeometry，也不延长 scope 的活动资格。数据拖放可以沿该数组尝试逻辑父目标，某个接收处理器拒绝不触发对后方兄弟的第二次命中。
 
-InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
+InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput、hasContact 及 isEmpty；分别查询逻辑焦点、鼠标按钮序列起点、尚保留的滚动路由起点、文本输入会话和活动原始触点的归属。hasContact 按每个触点的当前路由目标查询，claim 后从后代移到取得归属的祖先；观察者跟踪触点身份与所属 scope，单纯坐标移动不通知。虚拟条目因活动触点保持，直到正常结束、取消或归属移出。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
 InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的 AllInput／FocusOnly。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
 
@@ -242,7 +242,7 @@ SurfaceWindow.inputBoundary 返回最新启用的 AllInput，focusBoundary 返�
 
 input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续保持其对应的输入／焦点约束，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
 
-InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前指针域根（无 AllInput 边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
+InputScope.beforePress: (InputPress) -> Boolean 默认为 false，仅在当前输入域根（无 AllInput 边界时为窗口根）执行。InputPress 是只读值，包含 target 与 InputPressSource；鼠标来源保存 InputPointer、button 和 clickCount，直接接触见第 6.8 节。target、路由及坐标先固定，鼠标预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
@@ -299,6 +299,18 @@ InputEvent.Gesture(InputGestureEvent) 沿既有 Capture／Target／Bubble／Defa
 Magnify 与 Rotate 在 Began 时分别记录最近 Accepted 几何中的命中路径及当前边界；后续 Changed／Ended／Cancelled 沿该路径交付，不因鼠标移动重新命中。两类序列可由同一消费者明确组合。无 Began 的更新不新建路由，None 相位和离散 Swipe 只按本次位置路由。手势不改变鼠标 hover、按下集合、焦点或滚轮 momentum。
 
 目标卸载、禁用、路径或模态边界变化、窗口失焦／关闭时取消并移除活动路由；无新的 Began 不恢复，迟到事件不能转交另一目标。路由处理中的逻辑变化同样停止余下失效交付。位置按各接收区域当前 Accepted 变换转换；缩放倍率和旋转弧度保持原单位，不作为滚轮残量消费。Surface 不在此识别直接触摸，也不把自定义手势写入平台枚举。
+
+### 6.8 原始接触与归属
+
+InputEvent.Contact 的 InputContactEvent 为 Began／Moved／Ended(ContactState) 和 Cancelled(ContactId, InputCancelReason, InputTime)。每个 ContactId 在 Began 时固定最近 Accepted 场景中的目标路径，更新与结束沿原路径交付；没有开始的迟到事件丢弃，不重新命中。不同接触独立，不改鼠标 hover、按钮、滚轮或其归属。失焦、关闭、边界或原路径失效取消相应路由；系统单触点取消不会终止其他接触。
+
+InputScope.claimContacts(ids: Array<ContactId>): Boolean 仅接管调用 scope 所在的原始路径，且必须一次取得全部所列活动接触；任一接触不存在、路径失效或已由其他 scope 拥有时返回 false，保持其余归属。数组必须非空且无重复身份。同一 owner 重复取得已有接触是幂等操作。成功时先公布全部新归属，再向被移除的后代交付各接触的不可取消通知；同一次普通交付也停止访问已经失去归属的后代。该方法不取得 OS 全局捕获，不识别手势种类。
+
+cancelContactClaim(id) 仅取消调用 scope 已取得的该接触，不交还旧子项，也不影响同 scope 的其他接触。原始接触序列保持可供 UI 识别，内建和后续自定义逻辑使用同一归属边界；多触点相关性由实际消费者决定，不增加平台手势变体。
+
+若取消回调抛错或使成组接管失效，终止本次新取得的其余接触并清理后传播错误或返回 false；已经收到取消的后代不恢复。调用前已归该 scope 所有的其他接触保持其原职责。Ended 正在交付的接触已不能取得新归属，完成通知和必要取消仍交付后才移除记录。
+
+InputArea.hitTest(windowPoint) 根据最近 Accepted 的精确几何、clip、逻辑有效性和前景遮挡判断该区域是否在本次命中路径上，供无 hover 的结束命中使用。输入域的 beforePress(InputPress) 在首个鼠标按钮和每个新接触开始传播前执行；InputPress.source 区分 Mouse(InputPointer, MouseButton, clickCount) 与 Contact(ContactState)，保留真实来源。消费开始使该序列后续不再转交目标；弹层关闭等仍沿原输入边界规则。
 
 ## 7. 原生资源与错误
 

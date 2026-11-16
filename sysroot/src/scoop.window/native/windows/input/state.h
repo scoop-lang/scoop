@@ -1,11 +1,13 @@
 #ifndef SCOOP_WINDOW_WINDOWS_INPUT_STATE_H
 #define SCOOP_WINDOW_WINDOWS_INPUT_STATE_H
 
+#include "../../contacts.h"
 #include "../../input.h"
 #include "clicks.h"
 #include <windows.h>
 
 typedef struct {
+  SWContactEntry *contacts;
   uint64_t modifiers;
   SWKeyboardData pressed[512];
   bool key_down[512];

@@ -58,7 +58,7 @@ internal class OverlayFocusSession(
         try {
             proxy.ignoreSelf = true
             node.scope.routeChildren(proxy)
-            input.beforePointerPress = { press -> root.overlays.beforePress(press) }
+            input.beforePress = { press -> root.overlays.beforePress(press) }
             dismissal =
                 Some(
                     input.addDefaultAction {

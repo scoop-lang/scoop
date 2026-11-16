@@ -12,12 +12,16 @@ static void pointer_state(SWWindow *window, GtkEventController *controller,
 }
 static void pointer_enter(GtkEventControllerMotion *controller, double x,
                           double y, gpointer data) {
+  if (sw_emulated_pointer(GTK_EVENT_CONTROLLER(controller)))
+    return;
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
   emit_pointer(window, (SWPointerData){.kind = SWPointerEntered}, NULL);
 }
 static void pointer_motion(GtkEventControllerMotion *controller, double x,
                            double y, gpointer data) {
+  if (sw_emulated_pointer(GTK_EVENT_CONTROLLER(controller)))
+    return;
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
   emit_pointer(window, (SWPointerData){.kind = SWPointerMoved}, NULL);
@@ -30,6 +34,8 @@ static int pointer_button(guint button) {
 }
 static void pointer_pressed(GtkGestureClick *gesture, int count, double x,
                             double y, gpointer data) {
+  if (sw_emulated_pointer(GTK_EVENT_CONTROLLER(gesture)))
+    return;
   SWWindow *window = data;
   GdkEvent *event =
       gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(gesture));
@@ -50,6 +56,8 @@ static void pointer_pressed(GtkGestureClick *gesture, int count, double x,
 }
 static void pointer_released(GtkGestureClick *gesture, int count, double x,
                              double y, gpointer data) {
+  if (sw_emulated_pointer(GTK_EVENT_CONTROLLER(gesture)))
+    return;
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(gesture), x, y);
   emit_pointer(window,
@@ -62,6 +70,8 @@ static void pointer_released(GtkGestureClick *gesture, int count, double x,
 }
 static void pointer_cancel(GtkGesture *gesture, GdkEventSequence *sequence,
                            gpointer data) {
+  if (sequence)
+    return;
   SWWindow *window = data;
   bool resetting = window->input.resetting_click;
   window->input.resetting_click = true;

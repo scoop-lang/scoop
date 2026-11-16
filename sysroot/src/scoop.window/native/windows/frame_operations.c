@@ -19,6 +19,7 @@ SWResult scoop_window_system_operation_prepare(SWWindow *window,
   if (!operation)
     return (SWResult){NULL, ERROR_NOT_ENOUGH_MEMORY};
   *operation = (SWFrameOperation){window, *input, kind, edge};
+  sw_cancel_contacts(window, SWPointerSystemOperation);
   window->input.pressed_buttons = 0;
   if (GetCapture() == window->hwnd)
     ReleaseCapture();

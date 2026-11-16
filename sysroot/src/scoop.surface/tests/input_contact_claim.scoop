@@ -1,0 +1,164 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputContactClaimTest {
+    @Test
+    fun `a failed extension preserves contacts already owned before the call`() {
+        InputRig().use {
+            rig ->
+            val group = rig.area("group")
+            val child = rig.area("child", parent = Some(group.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, group, Rect(0.0, 0.0, 200.0, 60.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 40.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            assertTrue(group.scope.claimContacts([ContactId(1L)]))
+            rig.contact(ContactEvent.Began(contactInput(2L, 20.0)))
+            child.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Contact(
+                            InputContactEvent.Cancelled(_, InputCancelReason.Claimed, _)
+                        ) ->
+                        throw IllegalStateException(Some("contact cancellation failed"))
+                        else -> {}
+                    }
+                }
+            assertFailsWith<IllegalStateException> {
+                group.scope.claimContacts([ContactId(1L), ContactId(2L)])
+            }
+            assertEquals(1L, rig.router.contactRoutes.size)
+            assertTrue(rig.router.findContact(ContactId(1L))!!.claimant!! === group.scope)
+        }
+    }
+
+    @Test
+    fun `a group claim publishes every owner before cancelling descendants`() {
+        InputRig().use {
+            rig ->
+            val group = rig.area("group")
+            val a = rig.area("a", parent = Some(group.scope))
+            val b = rig.area("b", parent = Some(group.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, group, Rect(0.0, 0.0, 200.0, 60.0))
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 40.0))
+                frame.place(canvas, b, Rect(100.0, 0.0, 50.0, 40.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 110.0)))
+            rig.log.events.clear()
+            assertFalse(group.scope.claimContacts([ContactId(1L), ContactId(99L)]))
+            assertEquals(0L, contactRecords(rig.log).size)
+            assertTrue(sameScope(rig.router.findContact(ContactId(1L))!!.claimant, None))
+            val cancellations = ContactTestCount()
+            a.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Contact(InputContactEvent.Cancelled(_, val reason, _)) -> {
+                            assertEquals(InputCancelReason.Claimed, reason)
+                            cancellations.value += 1
+                            assertTrue(group.scope.claimContacts([ContactId(2L), ContactId(1L)]))
+                        }
+                        else -> {}
+                    }
+                }
+            assertTrue(group.scope.claimContacts([ContactId(1L), ContactId(2L)]))
+            assertEquals(1, cancellations.value)
+            assertFalse(a.scope.claimContacts([ContactId(1L)]))
+            rig.log.events.clear()
+            rig.contact(ContactEvent.Moved(contactInput(1L, 120.0)))
+            val records = contactRecords(rig.log)
+            assertEquals(1L, records.size)
+            assertEquals("group", records[0L].name)
+            assertTrue(records[0L].target === group.scope)
+            group.scope.cancelContactClaim(ContactId(1L))
+            assertEquals(1L, rig.router.contactRoutes.size)
+            assertTrue(rig.router.findContact(ContactId(2L))!!.claimant!! === group.scope)
+        }
+    }
+
+    @Test
+    fun `a failed cancellation callback releases all newly acquired contacts`() {
+        InputRig().use {
+            rig ->
+            val group = rig.area("group")
+            val a = rig.area("a", parent = Some(group.scope))
+            val b = rig.area("b", parent = Some(group.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, group, Rect(0.0, 0.0, 200.0, 60.0))
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 40.0))
+                frame.place(canvas, b, Rect(100.0, 0.0, 50.0, 40.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 110.0)))
+            val notified = ContactTestCount()
+            a.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Contact(
+                            InputContactEvent.Cancelled(_, _, _)
+                        ) -> throw IllegalStateException(Some("contact consumer failed"))
+                        else -> {}
+                    }
+                }
+            b.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Contact(InputContactEvent.Cancelled(_, _, _)) -> notified.value += 1
+                        else -> {}
+                    }
+                }
+            var failed = false
+            try {
+                group.scope.claimContacts([ContactId(1L), ContactId(2L)])
+            }
+            catch (_: IllegalStateException) {
+                failed = true
+            }
+            assertTrue(failed)
+            assertEquals(1, notified.value)
+            assertEquals(0L, rig.router.contactRoutes.size)
+        }
+    }
+
+    @Test
+    fun `focus modal and router closure terminate active contact routes`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            rig.frame { frame, canvas -> frame.place(canvas, a, Rect(0.0, 0.0, 80.0, 40.0)) }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.router.event(WindowEvent.Focused(false))
+            assertEquals(0L, rig.router.contactRoutes.size)
+            rig.router.event(WindowEvent.Focused(true))
+            rig.contact(ContactEvent.Began(contactInput(2L)))
+            rig.router.event(WindowEvent.InputBlockedChanged(true))
+            assertEquals(0L, rig.router.contactRoutes.size)
+            rig.router.event(WindowEvent.InputBlockedChanged(false))
+            rig.contact(ContactEvent.Began(contactInput(3L)))
+            rig.log.events.clear()
+            rig.router.close()
+            val records = contactRecords(rig.log)
+            assertEquals(1L, records.size)
+            when (records[0L].event) {
+                case Contact(InputContactEvent.Cancelled(_, val reason, _)) -> assertEquals(
+                    InputCancelReason.Closed,
+                    reason
+                )
+                else -> fail(Some("expected contact close notification"))
+            }
+        }
+    }
+}

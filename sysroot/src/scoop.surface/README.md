@@ -78,7 +78,7 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 `InputBoundary(scope)` 将输入限制到该 scope 的逻辑后代，命中、焦点、capture／bubble／default 和空白处的缺省目标都停在当前域。边界按建立顺序叠放，`isCurrent` 与 `SurfaceWindow.inputBoundary` 查询当前屏障；关闭恢复前一域。域改变会完整取消原来的按下路径，剩余按钮事件保持空路径。域外的区域不必有场景几何，但逻辑祖先的禁用／关闭仍然生效；`scope.isInputAllowed` 可在首次放置前判断准入。上层通过 `SurfaceWindow.reserveFocusRequest()` 为待处理或被拒绝的显式焦点意图推进同一个 focusRevision，不改变当前焦点，也不改写 InputArea 的成功历史。
 
-边界所属 scope 已退休时，屏障仍持续到 InputBoundary.close，便于 UI 等待弹层移除帧成功提交。当前域根的 `beforePointerPress` 在首次按钮按下的派发前读取 InputPress，返回 true 消费整段按下序列，返回 false 沿已固定的目标和坐标继续。外部点击策略可以据此关闭最上层弹层；追加按钮不再次执行预处理，回调中改变边界也不能把旧事件投向背景。
+边界所属 scope 已退休时，屏障仍持续到 InputBoundary.close，便于 UI 等待弹层移除帧成功提交。当前域根的 `beforePress` 在首次鼠标按钮按下或每个触点开始的派发前读取 InputPress，返回 true 消费整段按下序列，返回 false 沿已固定的目标和坐标继续。InputPress.source 区分 Mouse 和 Contact。外部按下策略可以据此关闭最上层弹层；同一鼠标序列的追加按钮不再次执行预处理，回调中改变边界也不能把旧事件投向背景。
 
 macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，UI 可通过 `scope.resource { ShortcutScope(scope.input, bindings) }` 管理它。ShortcutKey 显式选择 logical 或 physical；ShortcutModifiers.primary 在 macOS 为 Command、Linux 为 Ctrl，完整修饰组合匹配，文字大小写比较复用 Window 的 Unicode 处理。默认忽略重复和合成输入，canExecute=false 向外层继续；无焦点时可使用窗口根。每个输入节点的普通 defaultAction 和 addDefaultAction 登记先执行，ShortcutScope 最后匹配，文本编辑命令可以先消费事件。
 
@@ -122,3 +122,11 @@ macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快�
 在已准备 GNU sysroot 的图形会话中，使用 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 运行应用及 `scoop test sysroot/src/scoop.surface --release`。Wayland 使用 frame callback 和 EGL swap interval，X11 使用 EGL swap interval；没有帧需求时停止请求，不建立固定刷新定时器。Wayland 的 PendingConfigure 窗口可以先附着，首次 configure 后才取得可绘制目标，隐藏重显同样等待有效配置。
 
 窗口 surface、GPU 工作和 native lease 按关闭顺序释放，同一宿主的窗口共享 GLES context。原始 GPU 资源不能越过借用 display 的生命周期；SurfaceHost 收尾时显式释放该 context 的 native 资源。两种显示协议的真实呈现、像素读回及限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
+
+## 原始触点的路由与归属
+
+`InputEvent.Contact` 保留 Began／Moved／Ended 和不可取消的 Cancelled。每个 ContactId 在首次命中时固定 Accepted 路径，移到兄弟区域也不重投，不改变鼠标 hover。`InputArea.hitTest(windowPoint)` 查询当前精确命中路径，供抬起时确认 tap；它使用形状、裁剪、变换、前景及输入边界。
+
+`InputScope.claimContacts(ids)` 要求非空且无重复的身份数组；整组均为活动且原路径包含该 scope 才能取得归属。新归属先全部发布，再通知原后代取消。回调失败或收尾时归属失效会取消本次新取得的触点，保留调用前已经拥有的其他触点；正在 Ended 中的接触不可新接管。`cancelContactClaim(id)` 只撤销本 scope 拥有的一个触点。普通阶段仍允许多个候选观察同一序列，识别策略由 UI 决定。
+
+`InputActivity.hasContact` 及 observeActivity 跟踪触点身份和所属 scope，让虚拟子项在活动期间保持；移动不触发归属通知。取消、模态、失焦、路径失效和关闭均从原路径收尾，迟到更新不重新命中。实际使用与组合测试见 [UI Press／Drag](../scoop.ui/tests-cones/press-drag/tests/contact.scoop)。

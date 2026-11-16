@@ -261,14 +261,18 @@ int64_t scoop_window_hit_regions(SWWindow *window, const SWHitRect *rects,
 }
 
 bool sw_frame_pointer(SWWindow *window, GdkEvent *event, double x, double y) {
-  if (!event || gdk_event_get_event_type(event) != GDK_BUTTON_PRESS ||
-      gdk_button_event_get_button(event) != 1)
+  if (!event)
+    return false;
+  bool touch = gdk_event_get_event_type(event) == GDK_TOUCH_BEGIN;
+  if (!touch && (gdk_event_get_event_type(event) != GDK_BUTTON_PRESS ||
+                 gdk_button_event_get_button(event) != 1))
     return false;
   int role = sw_frame_hit(window->hit_rects, window->hit_count, x, y);
   if (role == 0 ||
       (role >= 2 && (!window->resizable || window->snapshot.maximized)))
     return false;
   sw_cancel_pointer(window, SWPointerSystemOperation);
+  sw_cancel_contacts(window, SWPointerSystemOperation);
   double native_x, native_y;
   gdk_event_get_position(event, &native_x, &native_y);
   if (role == 1)

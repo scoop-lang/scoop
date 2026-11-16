@@ -36,7 +36,7 @@ InputScope.activity 查询其逻辑子树实际持有的焦点、按下序列、
 
 每个活动模态域／窗口根的默认动作还包含该域的弹层关闭代理，先于该处的普通 ShortcutBinding。它在内层输入行为未消费 Escape 时选择最上层适用弹层，即使焦点仍在触发器而非 portal 内也能关闭；一次只执行一个关闭动作。模态截断 capture／bubble／default 的域外路径，不改变挂载归属。
 
-Surface 的 InputBoundary 先提供上述输入域：最后登记的未关闭边界生效，scope 退休后保持背景屏障，直到上层在适当帧完成边界显式 close。InputScope.isInputAllowed 为尚未放置的目标提供同一准入判断。当前域根的 beforePointerPress 在首次按钮按下前作出消费／继续决策，不更换已固定的目标，也不在同一按钮序列里反复执行；完整弹层策略由 UI 层会话接入。
+Surface 的 InputBoundary 先提供上述输入域：最后登记的未关闭边界生效，scope 退休后保持背景屏障，直到上层在适当帧完成边界显式 close。InputScope.isInputAllowed 为尚未放置的目标提供同一准入判断。当前域根的 beforePress 在首次鼠标按钮按下或每个触点开始前作出消费／继续决策，不更换已固定的目标，也不在同一鼠标按钮序列里反复执行；InputPress.source 区分 Mouse／Contact；完整弹层策略由 UI 层会话接入。
 
 不同事件的可取消性明确区分：
 

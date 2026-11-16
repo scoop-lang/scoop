@@ -69,8 +69,8 @@ public class InputScope internal constructor(
         owner.activityObservers.add(value)
         return value
     }
-    /** Only the current domain root receives the first press of a button sequence. */
-    public var beforePointerPress: (InputPress) -> Boolean
+    /** Only the current domain root decides a new mouse or contact press. */
+    public var beforePress: (InputPress) -> Boolean
     get() {
         owner.checkThread()
         return press

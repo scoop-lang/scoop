@@ -25,6 +25,12 @@
 - (void)setGesture:(SWGestureData)value {
   _payload.gesture = value;
 }
+- (SWContactData)contact {
+  return _payload.contact;
+}
+- (void)setContact:(SWContactData)value {
+  _payload.contact = value;
+}
 - (int64_t)modifiers {
   return _payload.modifiers;
 }
@@ -233,6 +239,9 @@ SWPointerData scoop_window_event_pointer(void *pointer) {
 }
 SWGestureData scoop_window_event_gesture(void *pointer) {
   return [(__bridge SWEvent *)pointer gesture];
+}
+SWContactData scoop_window_event_contact(void *pointer) {
+  return [(__bridge SWEvent *)pointer contact];
 }
 int64_t scoop_window_event_modifiers(void *pointer) {
   return [(__bridge SWEvent *)pointer modifiers];

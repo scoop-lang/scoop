@@ -128,6 +128,11 @@ public class InputArea internal constructor(
         else
             owner.currentCaret(this).rect
     }
+    /** Tests the current accepted hit path, including clipping and foreground areas. */
+    public fun hitTest(windowPoint: Point): Boolean {
+        owner.checkThread()
+        return !closed && containsScope(owner.hit(windowPoint), scope)
+    }
     /** Maps a window point through the current successful placement. */
     public fun toLocal(windowPoint: Point): Point? {
         owner.checkThread()

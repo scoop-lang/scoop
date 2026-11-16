@@ -6,6 +6,7 @@ void sw_input_init(SWWindow *window) {
 }
 
 void sw_input_destroy(SWWindow *window) {
+  sw_contacts_clear(&window->input.contacts);
   for (size_t index = 0;
        index < sizeof(window->input.pressed) / sizeof(window->input.pressed[0]);
        ++index)
@@ -15,6 +16,7 @@ void sw_input_destroy(SWWindow *window) {
 bool sw_input(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
               LRESULT *result) {
   *result = 0;
+  sw_contact_message(window, message, wp);
   switch (message) {
   case WM_KEYDOWN:
   case WM_KEYUP:
@@ -29,6 +31,7 @@ bool sw_input(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
 }
 
 void sw_reset_input(SWWindow *window) {
+  sw_cancel_contacts(window, SWPointerFocusLost);
   sw_cancel_pointer(window, SWPointerFocusLost);
   sw_cancel_composition(window);
   uint64_t locks = sw_modifiers() & 112;

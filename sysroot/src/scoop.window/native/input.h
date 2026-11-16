@@ -4,7 +4,27 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum { SWKeyboard = 10, SWModifiers = 11, SWPointer = 12, SWGesture = 20 };
+enum {
+  SWKeyboard = 10,
+  SWModifiers = 11,
+  SWPointer = 12,
+  SWGesture = 20,
+  SWContact = 21
+};
+
+typedef enum { SWContactTouch, SWContactPen } SWContactKind;
+typedef enum {
+  SWContactBegan,
+  SWContactMoved,
+  SWContactEnded,
+  SWContactCancelled
+} SWContactPhase;
+
+typedef struct {
+  int64_t id, device, modifiers;
+  int32_t kind, phase, cancel_reason, has_device, has_pressure;
+  double x, y, physical_x, physical_y, scale, pressure;
+} SWContactData;
 
 typedef enum {
   SWGestureMagnify,

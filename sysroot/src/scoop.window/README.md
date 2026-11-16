@@ -48,11 +48,15 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 `PointerEvent.Button` 的最后一项是至少为 1 的连续点击次数，释放沿用对应按下的次数。AppKit／GTK 使用原生 count；Windows 按系统的时间、双击矩形和拖动容差补齐三击及更多次点击，正常释放鼠标捕获不打断序列。失焦、取消、按钮变化、超时、点击越界或实际拖动结束旧计数；不要在每个编辑控件再用固定时间／距离重算。底层计数定向测试位于 `tests-cones/clicks`，实际 Win32 和 GTK X11 输入用例分别位于 `tests-cones/input`、`test-linux`；平台通过范围见 [UI 实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 
-滚轮的 `PixelDelta` 使用事件 scale 对应的物理像素，`LineDelta` 不随 DPI 缩放；滚动与 momentum 各自保留开始、更新、结束或取消阶段。没有原生阶段的普通 wheel 使用 `ScrollPhase.None`。平台适配在 `native/<platform>/input/` 内完成转换、采集和资源管理，公共层只解码 Window 自己的载荷。后续触摸和自定义手势的分层接入见[输入边界方案](../../../docs/ui/interaction-polish/INPUT-BOUNDARY.md)，当前未新增自定义手势 API。
+滚轮的 `PixelDelta` 使用事件 scale 对应的物理像素，`LineDelta` 不随 DPI 缩放；滚动与 momentum 各自保留开始、更新、结束或取消阶段。没有原生阶段的普通 wheel 使用 `ScrollPhase.None`。平台适配在 `native/<platform>/input/` 内完成转换、采集和资源管理，公共层只解码 Window 自己的载荷。触点与自定义手势的分层边界见[输入边界方案](../../../docs/ui/interaction-polish/INPUT-BOUNDARY.md)，当前未新增自定义手势 API。
 
 `WindowEvent.Gesture` 提供 AppKit 已识别的 Magnify／Rotate／Swipe。前两者保留独立开始、更新、结束／取消相位，None 是单次事件；Magnify 的实际倍率为 `1 + delta`，Rotate 为顺时针弧度。Swipe 是向右／下为正的离散方向，不能当作像素位移。位置复用 PointerState，手势不改变鼠标按钮或伪造接触身份。焦点、模态及系统操作中断后不会因迟到 Changed 恢复；示例与上层组合见 [UI 手势示例](../scoop.ui/examples/gestures/README.md)。
 
-全屏控制／显示模式切换、全局 raw device、直接触摸／应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收与 Window 拖出接口，UI source、文本事务和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+`WindowEvent.Contact` 提供 Began／Moved／Ended(ContactState) 和 Cancelled(id, reason, time)。ContactId 在窗口内一次实际接触中稳定，原生值之后可复用；kind 区分 Touch／Pen，PointerState 保留逻辑／物理位置、缩放、修饰键、时间和可选 device，pressure 仅在系统提供规范化值时存在。单触点取消不结束其他触点或鼠标序列，关窗、失焦、模态和系统操作会统一取消。
+
+Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交回 DefWindowProc，并过滤 UI 的兼容鼠标副本；GTK 使用原始 GdkEventSequence／笔工具，通过捕获阶段的 GtkEventControllerLegacy 避免 GtkGestureClick 重复交付。AppKit 继续交付已识别的触控板手势，不把 NSTouch 设备坐标假装成窗口内直接触摸。Windows／GTK 原生实现和真实设备验收范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
+
+全屏控制／显示模式切换、全局 raw device、更多应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收与 Window 拖出接口，UI source、文本事务和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
 
 ## 系统交互偏好
 

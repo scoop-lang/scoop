@@ -1,0 +1,73 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputContactActivityTest {
+    @Test
+    fun `contact ownership retains a subtree and only ownership changes notify`() {
+        InputRig().use {
+            rig ->
+            val group = rig.area("group")
+            val child = rig.area("child", parent = Some(group.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, group, Rect(0.0, 0.0, 200.0, 60.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 40.0))
+            }
+            val changes = ArrayList<InputActivity>()
+            val observer = group.scope.observeActivity { changes.add(group.scope.activity) }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            assertTrue(child.scope.activity.hasContact)
+            assertFalse(child.scope.activity.hasPress)
+            assertFalse(child.scope.activity.hasFocus)
+            assertFalse(child.scope.activity.isEmpty)
+            assertEquals(1L, changes.size)
+            rig.contact(ContactEvent.Moved(contactInput(1L, 15.0)))
+            assertEquals(1L, changes.size)
+            rig.contact(ContactEvent.Began(contactInput(2L, 20.0)))
+            assertEquals(2L, changes.size)
+            assertTrue(group.scope.claimContacts([ContactId(1L), ContactId(2L)]))
+            assertTrue(child.scope.activity.isEmpty)
+            assertTrue(group.scope.activity.hasContact)
+            assertEquals(3L, changes.size)
+            rig.contact(ContactEvent.Ended(contactInput(1L)))
+            assertEquals(4L, changes.size)
+            assertTrue(group.scope.activity.hasContact)
+            group.scope.cancelContactClaim(ContactId(2L))
+            assertEquals(5L, changes.size)
+            assertTrue(group.scope.activity.isEmpty)
+            observer.close()
+        }
+    }
+
+    @Test
+    fun `an activity callback invalidating one acquired contact releases the rest of the new group`() {
+        InputRig().use {
+            rig ->
+            val group = rig.area("group")
+            val child = rig.area("child", parent = Some(group.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, group, Rect(0.0, 0.0, 200.0, 60.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 40.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 20.0)))
+            val calls = ContactTestCount()
+            val observer =
+                group.scope.observeActivity {
+                    calls.value += 1
+                    if (calls.value == 1)
+                        group.scope.cancelContactClaim(ContactId(1L))
+                }
+            assertFalse(group.scope.claimContacts([ContactId(1L), ContactId(2L)]))
+            assertEquals(0L, rig.router.contactRoutes.size)
+            assertTrue(group.scope.activity.isEmpty)
+            assertTrue(calls.value >= 2)
+            observer.close()
+        }
+    }
+}

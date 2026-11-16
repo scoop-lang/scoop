@@ -92,6 +92,9 @@ SWPointerData scoop_window_event_pointer(SWEvent *event) {
 SWGestureData scoop_window_event_gesture(SWEvent *event) {
   return event->gesture;
 }
+SWContactData scoop_window_event_contact(SWEvent *event) {
+  return event->contact;
+}
 int64_t scoop_window_event_modifiers(SWEvent *event) {
   return event->modifiers;
 }

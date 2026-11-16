@@ -35,6 +35,7 @@ internal class InputRouter(
     internal var pointerClaim: InputScope? = None
     internal var scrollRoute: InputScrollRoute? = None
     internal val gestureRoutes = ArrayList<InputGestureRoute>()
+    internal val contactRoutes = ArrayList<InputContactRoute>()
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
@@ -170,7 +171,8 @@ internal class InputRouter(
                     when (event) {
                         case Pointer(val value) -> pointerEvent(value)
                         case Gesture(val value) -> gestureEvent(value)
-                        case InputBlockedChanged(true) -> cancelGestures(
+                        case Contact(val value) -> contactEvent(value)
+                        case InputBlockedChanged(true) -> cancelWindowInput(
                             InputCancelReason.Window(PointerCancelReason.Modal),
                             inputObservation()
                         )
@@ -178,7 +180,7 @@ internal class InputRouter(
                             osFocused = value
                             pending = true
                             if (!value)
-                                cancelPointerInput(
+                                cancelWindowInput(
                                     InputCancelReason.Window(PointerCancelReason.FocusLost),
                                     inputObservation()
                                 )
@@ -241,6 +243,9 @@ internal class InputRouter(
                     reconcileGestures()
                     if (closed)
                         continue
+                    reconcileContacts()
+                    if (closed)
+                        continue
                     reconcileFocus()
                     if (closed)
                         continue
@@ -266,7 +271,7 @@ internal class InputRouter(
     }
     private fun finishClose() {
         val time = inputObservation()
-        var failure = cleanupFailure(None) { cancelPointerInput(InputCancelReason.Closed, time) }
+        var failure = cleanupFailure(None) { cancelWindowInput(InputCancelReason.Closed, time) }
         failure = cleanupFailure(failure) { replaceHover([], time) }
         val previous = activeFocus
         logicalFocus = None

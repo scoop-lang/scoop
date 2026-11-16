@@ -9,7 +9,11 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
             cancelPointerInput(InputCancelReason.Window(reason), time)
             return
         }
-        case Wheel(val state, _, val phase, val momentum) -> prepareScroll(phase, momentum, state.time)
+        case Wheel(val state, _, val phase, val momentum) -> prepareScroll(
+            phase,
+            momentum,
+            state.time
+        )
         else -> {}
     }
     if (closed)
@@ -132,8 +136,11 @@ private fun InputRouter.interceptPress(
         return false
     try {
         val consumed =
-            root.beforePointerPress(
-                InputPress(chain[0L].scope, InputPointer(state, state.time), button, clicks)
+            root.beforePress(
+                InputPress(
+                    chain[0L].scope,
+                    InputPressSource.Mouse(InputPointer(state, state.time), button, clicks)
+                )
             )
         if (consumed)
             pressed = Some([])

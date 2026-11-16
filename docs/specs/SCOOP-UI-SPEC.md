@@ -708,7 +708,7 @@ LazyElement 的每份布局结果分别保存已测项、所选子结果和放�
 
 measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再运行其 build／render、onMount 和 update，随后恢复普通纯测量。生命周期可以沿既有规则登记资源和写 State，其产生的其他失效留到下一逻辑更新轮，不递归 flush；build／render 和父子 measure 仍禁止 State 写入。每项使用普通挂载子树保存依赖、Props 与资源，滚动复用已实现项时不重跑其 build。真实 source 替换在逻辑更新阶段通过 indexOfKey 更新已实现项、退休删除项，再更新存活项；即使没有 drawable 也完成删除和输入取消。source.build 返回描述的 shape／key 改变时按普通子树规则替换。
 
-缺省 Dispose 下，离开本次选择范围且无活动交互的条目正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由、文本输入会话或输入边界所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
+缺省 Dispose 下，离开本次选择范围且无活动交互的条目正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、鼠标按钮序列、活动原始触点、保留滚动路由、文本输入会话或输入边界所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。触点在 claim 后跟随当前归属，结束／取消后释放。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
 
 框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；未挂载项按 key 聚焦和键盘导航见第 7.8.1／7.8.2 节，绘制缓存按后续批次扩展。
 
@@ -756,23 +756,27 @@ ParagraphHost.measure 的 settings 为 `ParagraphStyle? = None`；缺省时以�
 
 ### 7.10 公共 Press 与交互状态
 
-`InteractionState(hovered=false, pressed=false, focused=false, focusVisible=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
+`InteractionState(hovered=false, pressed=false, focused=false, focusVisible=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true, touchThreshold=8)` 配置可用性、Enter 激活及有限非负的接触移动阈值（逻辑距离）；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
 
 Press 通过 Surface 的独立事件／默认动作／完成登记组合，不替换调用方原 handler。鼠标主按钮在已提交 hover 路径内按下建立候选，移出暂停 pressed、移回恢复；同一有效序列在区域内释放后激活。平台认定为上下文菜单的辅助按下（如 AppKit Control+左键）不建立候选、不消费该次按下，让祖先菜单正常处理；释放不补做主动作。取消、禁用、失焦和卸载立即清理。传播中止或默认行为取消时，完成通知仍清除已经结束的序列，不补做激活。
 
 键盘使用 window 的精确 ShortcutChord：普通 Space 在真实 key-up 激活，Enter 在真实 key-down 激活，acceptsEnter=false 时忽略 Enter；额外修饰键不匹配。重复按下不追加激活，synthetic 不激活，释放必须对应先前物理键。Enter 已触发的按键只等待释放收尾，Space 候选在释放前失焦／禁用即失效。指针与键盘候选互斥。
 
+直接触摸与笔尖从同一 Surface Contact 路由建立独立候选，不写入 hover 或鼠标按钮。首个接触在最近 Accepted 命中中开始，移动超过 touchThreshold、同一区域出现第二个接触、归属被接管或取消时放弃 tap；移回原位置不恢复已放弃的候选。正常结束且仍在区域的精确命中路径中才激活；被阻止的结束仍清理，不补动作。鼠标、接触与键盘候选互斥。接触开始使用现有 Pointer 焦点来源和输入域外部按下规则，保持键盘和语义入口。
+
 触发动作前先收束本次激活资格并发布状态，再调用最新动作；动作可同步替换 Props、移除自身或关闭根，返回后不得继续假定原 area 存活。enabled=false 是行为输入，不替调用方决定整个 area 子树的可用性；控件自身仍显式设置 area.scope.enabled。
 
 ### 7.11 公共轴向 Drag
 
-`ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。
+`ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left, contacts=true)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。button 选择鼠标按钮，contacts 独立控制直接触摸／笔尖。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。
 
 Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到阈值且主轴位移不少于交叉轴位移时调用 Surface claim。反向主导移动放弃候选，小幅移动继续保留原点击。threshold=0 可在按下默认阶段开始，例如滚动条 thumb。默认阶段仍按目标到祖先顺序决定谁先接管，不建立新的优先级或 gesture arena。
 
 `DragEvent` 包含 Started／Moved／Ended(DragSample) 和 Cancelled(DragSample, reason)。样本包含局部 start／position、主轴 displacement／velocity 和 InputTime；开始、上一位置和当前位置都由原窗口点通过当前已提交几何转换，避免布局／缩放变化后混用不同坐标系。速度按现有单调输入时间计算，重复或倒退时间为零；无可用几何或无法表示有限结果时取消，不输出无穷速度。不会从未提交布局推算拖动。
 
-`Drag.isDragging` 只表示已经 claim 的阶段。`update` 更换最新 accepts／handler；禁用、改变 axis／threshold／button、关闭或输入取消都会终止当前状态。CancelReason 区分 Input、Disabled、ConfigurationChanged、GeometryUnavailable、Explicit、Closed 和 PreventedRelease；被阻止的 release 通过不可取消的完成通知收尾。未 claim 的候选放弃不发 Started／Cancelled。cancel() 显式取消当前候选／拖动；关闭行为取消自己已经取得的序列，注销登记，保留调用方 area。行为不创建时钟或永久帧需求；需要吸附时调用方驱动现有 Animatable，需要边缘滚动时仅在实际可推进期间预约 owner deadline。
+DragSample.input 为 DragInput.Mouse(MouseButton) 或 Contact(ContactId, ContactKind)，保留本次真实来源。接触按同样的轴向阈值取得 claimContacts([id])，被接管的后代收到取消；第二个接触取消单接触候选或活动拖动，交由明确组合的多接触行为处理。单接触拖动不从两个触点中猜选新的主指。取消与关闭只撤销本行为实际取得的接触，不取消同区域或窗口的其他接触。
+
+`Drag.isDragging` 只表示已经 claim 的阶段。`update` 更换最新 accepts／handler；禁用、改变 axis／threshold／button／contacts、关闭或输入取消都会终止当前状态。CancelReason 区分 Input、Disabled、ConfigurationChanged、GeometryUnavailable、AdditionalContact、Explicit、Closed 和 PreventedRelease；被阻止的 release 通过不可取消的完成通知收尾。未 claim 的候选放弃不发 Started／Cancelled。cancel() 显式取消当前候选／拖动；关闭行为取消自己已经取得的序列，注销登记，保留调用方 area。行为不创建时钟或永久帧需求；需要吸附时调用方驱动现有 Animatable，需要边缘滚动时仅在实际可推进期间预约 owner deadline。
 
 ### 7.12 Presence
 

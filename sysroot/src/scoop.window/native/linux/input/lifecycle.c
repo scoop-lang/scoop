@@ -13,6 +13,7 @@ void sw_input_init(SWWindow *window) {
   window->input.cursor_visible = true;
   sw_keyboard_install(window);
   sw_pointer_install(window);
+  sw_contact_install(window);
   GtkEventController *focus = gtk_event_controller_focus_new();
   g_signal_connect(focus, "enter", G_CALLBACK(focus_enter), window);
   g_signal_connect(focus, "leave", G_CALLBACK(focus_leave), window);
@@ -28,11 +29,13 @@ void sw_input_destroy(SWWindow *window) {
   }
   g_object_unref(controllers);
   g_clear_object(&window->input.click_controller);
+  sw_contacts_clear(&window->input.contacts);
   for (size_t index = 0; index < G_N_ELEMENTS(window->input.pressed); ++index)
     free((void *)window->input.pressed[index].text);
 }
 
 void sw_reset_input(SWWindow *window) {
+  sw_cancel_contacts(window, SWPointerFocusLost);
   sw_cancel_pointer(window, SWPointerFocusLost);
   sw_cancel_composition(window);
   uint64_t locks = window->input.modifiers & (SW_CAPS | SW_NUM | SW_SCROLL |

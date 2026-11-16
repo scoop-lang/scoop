@@ -41,6 +41,7 @@ typedef struct {
 @property(nonatomic) SWKeyboardData keyboard;
 @property(nonatomic) SWPointerData pointer;
 @property(nonatomic) SWGestureData gesture;
+@property(nonatomic) SWContactData contact;
 @property(nonatomic) int64_t modifiers;
 @property(nonatomic, strong) NSEvent *nativeInput;
 @property(nonatomic, strong) NSData *text;

@@ -22,6 +22,7 @@ SWResult scoop_window_system_operation_prepare(SWWindow *window,
   if (!operation)
     return (SWResult){NULL, ENOMEM};
   *operation = (SWFrameOperation){window, gdk_event_ref(event), kind, edge};
+  sw_cancel_contacts(window, SWPointerSystemOperation);
   window->input.pressed_buttons = 0;
   return (SWResult){operation, 0};
 }

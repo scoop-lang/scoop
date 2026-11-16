@@ -1,23 +1,29 @@
 package scoop.surface
 
+import scoop.window.ContactId
+
 /** Ownership that keeps a logical subtree involved in an input session. */
 public struct InputActivity(
     val hasFocus: Boolean = false,
     val hasPress: Boolean = false,
     val hasScrollRoute: Boolean = false,
     val hasTextInput: Boolean = false,
-    val hasBoundary: Boolean = false
+    val hasBoundary: Boolean = false,
+    val hasContact: Boolean = false
 ) {
     public val isEmpty: Boolean get() =
-        !hasFocus && !hasPress && !hasScrollRoute && !hasTextInput && !hasBoundary
+        !hasFocus && !hasPress && !hasScrollRoute && !hasTextInput && !hasBoundary && !hasContact
 }
+
+internal struct InputContactActivity(val id: ContactId, val scope: InputScope)
 
 internal class InputActivitySnapshot(
     val focus: InputScope? = None,
     val press: InputScope? = None,
     val scroll: InputScope? = None,
     val text: InputScope? = None,
-    val boundaries: Array<InputBoundary> = []
+    val boundaries: Array<InputBoundary> = [],
+    val contacts: Array<InputContactActivity> = []
 ) {
     val value: InputActivity get() =
         InputActivity(
@@ -25,13 +31,22 @@ internal class InputActivitySnapshot(
             present(press),
             present(scroll),
             present(text),
-            boundaries.size > 0L
+            boundaries.size > 0L,
+            contacts.size > 0L
         )
     fun same(other: InputActivitySnapshot): Boolean {
-        if (boundaries.size != other.boundaries.size)
+        if (boundaries.size != other.boundaries.size || contacts.size != other.contacts.size)
             return false
         for (index in 0L ..< boundaries.size)
             if (boundaries[index] !== other.boundaries[index])
+                return false
+        for (index in 0L ..< contacts.size)
+            if (
+                contacts[index].id !=
+                    other.contacts[index].id ||
+                    contacts[index].scope !==
+                    other.contacts[index].scope
+            )
                 return false
         return sameScope(focus, other.focus) &&
             sameScope(press, other.press) &&
@@ -88,12 +103,22 @@ internal fun InputRouter.activityFor(scope: InputScope): InputActivitySnapshot {
     for (boundary in boundaries)
         if (boundary.accepts && present(insideActivity(Some(boundary.input), scope)))
             ownedBoundaries.add(boundary)
+    val ownedContacts = ArrayList<InputContactActivity>()
+    for (route in contactRoutes)
+        if (
+            !route.cancelled &&
+                route.scopes.size >
+                0L &&
+                present(insideActivity(Some(route.scopes[0L]), scope))
+        )
+            ownedContacts.add(InputContactActivity(route.latest.id, route.scopes[0L]))
     return InputActivitySnapshot(
         insideActivity(logicalFocus?.scope, scope),
         insideActivity(firstActivity(pressed), scope),
         insideActivity(scroll, scope),
         insideActivity(text, scope),
-        ownedBoundaries.toArray()
+        ownedBoundaries.toArray(),
+        ownedContacts.toArray()
     )
 }
 

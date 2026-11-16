@@ -70,7 +70,7 @@ AppKit 读取 NSScroller.preferredScrollerStyle、NSWorkspace 的减少动画／
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、InteractionPreferencesChanged(InteractionPreferences)、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
 
-WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、Gesture(GestureEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。原始触摸和平台专有激活结果随对应能力后续增加；数据拖放使用独立会话合同。
+WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、Contact(ContactEvent)、Gesture(GestureEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。平台专有激活结果随对应能力后续增加；数据拖放使用独立会话合同。
 
 NewEvents 原因区分 Init、Poll、Wake 与 Deadline；平台没有信息时不伪造输入硬件时间。允许合并 redraw、连续 geometry 和 pointer move，但不得跨过按键／按钮、IME 编辑、焦点、close 等顺序边界；Commit、drop、button、touch 的开始／结束及 lifecycle 不得丢弃。
 
@@ -181,11 +181,17 @@ Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像
 
 WindowEvent.Gesture(GestureEvent) 交付系统已经识别的手势。GestureEvent.Magnify(PointerState, GesturePhase, Double) 的值为相对缩放增量，当前事件的缩放倍率是 1 + delta；Rotate 的同形载荷使用顺时针为正的弧度增量。两者的 GesturePhase 为 None／Began／Changed／Ended／Cancelled；None 表示系统未提供序列相位，该事件独立消费。GestureEvent.Swipe(PointerState, Double, Double) 是离散方向动作，x 向右、y 向下；方向值不冒充像素位移、速度或接触轨迹。PointerState 在此只保存位置、DPI、修饰键、时间和可得设备身份，不修改鼠标按钮状态或伪造触点。
 
-AppKit 的 magnifyWithEvent／rotateWithEvent／swipeWithEvent 在 Window input 内转换；旋转角度和 swipe 的坐标方向只在平台边界转换一次。连续缩放／旋转分别维护实际活动状态；失焦、模态、菜单跟踪或系统窗口操作取消仍活动的序列，重复取消不再发事件，结束／取消后的迟到更新不重启序列。无原生独立手势流的平台继续报告实际取得的滚轮／接触事实，不从普通滚轮合成缩放或 swipe。直接触摸识别及自定义手势仍属于 Surface／UI 的后续接入。
+AppKit 的 magnifyWithEvent／rotateWithEvent／swipeWithEvent 在 Window input 内转换；旋转角度和 swipe 的坐标方向只在平台边界转换一次。连续缩放／旋转分别维护实际活动状态；失焦、模态、菜单跟踪或系统窗口操作取消仍活动的序列，重复取消不再发事件，结束／取消后的迟到更新不重启序列。无原生独立手势流的平台继续报告实际取得的滚轮／接触事实，不从普通滚轮合成缩放或 swipe。原始触摸的识别及自定义手势属于 Surface／UI 的输入消费层。
 
-平台输入沿原 Application 队列与 owner 交付。native 事件头保存窗口、种类和观察时间；载荷按窗口事件、键盘、修饰键与鼠标种类分别保存，不把键盘和鼠标字段叠加到一份无名参数表。三平台共用 native 输入结构和对应的 Scoop CLayout 声明；公共解码只处理 Scoop 的输入种类与相位，平台键码和修饰位通过各自的既有适配函数解释。原生输入附件由输入模块管理，复制、交付及释放仍遵守原系统窗口操作／拖放的时序。
+WindowEvent.Contact 交付直接接触的 Began／Moved／Ended(ContactState) 和 Cancelled(ContactId, PointerCancelReason, InputTime)。ContactState 保存 id、kind: ContactKind.Touch／Pen、位置快照 pointer: PointerState 和 pressure: Double?。ContactId 是窗口内一次实际接触的身份，结束后平台可以复用数值；不能跨窗口比较或把它当作永久设备身份。pointer 保存发生时的逻辑／物理位置、DPI、修饰键、时间及可得设备身份，pressure 仅在系统提供有效的归一化 0～1 值时为 Some。笔尖接触与鼠标按钮保持不同来源；不以触点合成鼠标 hover 或按钮。
 
-平台 input 模块负责键盘／鼠标采集、输入状态初始化与释放、焦点切换的输入收尾以及原生输入附件。Windows 和 GTK 的窗口输入状态随原窗口保存；GTK 的布局与修饰键来源状态仍随 Application 保存。AppKit 沿 SWView 的原生 responder 与对象寿命维护状态，不增加平行宿主。销毁时先停止相应回调，再释放输入资源；窗口事件循环、模态过滤和原生默认处理顺序保持，文本模块继续拥有 IME 文档事务。后续 contact 与原生 gesture 在同一平台输入边界扩展，识别和控件间归属由 Surface／UI 承担。
+Windows 使用 WM_POINTER 及 GetPointerInfo／GetPointerTouchInfo／GetPointerPenInfo；原生取消标记和捕获变化终止对应接触。整个原生 pointer 序列保持一致的默认处理，兼容鼠标消息按实际设备来源去重，不再次进入 UI 队列；原生消息处理路径保留，后续触摸 OLE 来源须从系统要求的合成鼠标入口启动。GTK 使用原始 GdkTouchEvent 序列和笔尖事件，表面坐标转换到实际内容视图；已接收的接触不再由 GtkGestureClick 发出另一份点击。原始触点不经平台内建手势枚举裁剪。
+
+无活动 Began 的更新和结束不新建接触；接触取消、窗口失焦、模态或系统接管后清理活动记录，迟到输入不复活。单接触捕获丢失只取消该接触，普通鼠标捕获变化不终止无关触点。AppKit 触控板归一化位置不冒充窗口中的直接触屏坐标；没有实际接触事件时不伪造 Contact。
+
+平台输入沿原 Application 队列与 owner 交付。native 事件头保存窗口、种类和观察时间；载荷按窗口事件、键盘、修饰键、鼠标、接触与原生手势分别保存，不把不同输入的字段叠加到一份无名参数表。三平台共用 native 输入结构和对应的 Scoop CLayout 声明；公共解码只处理 Scoop 的输入种类与相位，平台键码和修饰位通过各自的既有适配函数解释。原生输入附件由输入模块管理，复制、交付及释放仍遵守原系统窗口操作／拖放的时序。
+
+平台 input 模块负责键盘／鼠标／接触／原生手势采集、输入状态初始化与释放、焦点切换的输入收尾以及原生输入附件。Windows 和 GTK 的窗口输入状态随原窗口保存；GTK 的布局与修饰键来源状态仍随 Application 保存。AppKit 沿 SWView 的原生 responder 与对象寿命维护状态，不增加平行宿主。销毁时先停止相应回调，再释放输入资源；窗口事件循环、模态过滤和原生默认处理顺序保持，文本模块继续拥有 IME 文档事务。新增输入继续沿同一平台边界转换，识别和控件间归属由 Surface／UI 承担。
 
 滚动相位使用 Window 自己的 None／MayBegin／Began／Stationary／Changed／Ended／Cancelled 编码。AppKit 在平台入口显式转换 NSEventPhase；GTK 的连续滚动开始、更新和结束分别转换为 Began／Changed／Ended，传统 wheel 或没有原生阶段的事件保持 None。PixelDelta 使用当前事件 scale 对应的物理像素；AppKit／GTK 的逻辑表面像素只在平台入口乘一次 scale，Surface 转为局部逻辑像素时再除一次，LineDelta 不随 DPI 缩放。contact 与 momentum 相位独立，不把 begin／end 合并成一个普通滚动更新。
 

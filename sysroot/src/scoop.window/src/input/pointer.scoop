@@ -25,7 +25,7 @@ public enum ScrollPhase {
     None, MayBegin, Began, Stationary, Changed, Ended, Cancelled
 }
 
-/** Ends the aggregate mouse-button sequence without synthesizing a successful release. */
+/** Ends native positional input without synthesizing a successful release. */
 public enum PointerCancelReason {
     FocusLost, CaptureLost, SystemOperation, Modal
 }

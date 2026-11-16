@@ -1,6 +1,6 @@
 # UI 交互打磨与 accessibility 实施计划
 
-日期：2026-11-16。状态：S0～S6、S8 进行中，S7、S9～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
+日期：2026-11-17。状态：S0～S6、S8 进行中，S7、S9～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
 
 本计划统一安排[交互打磨设计](DESIGN.md)与[accessibility 设计](../accessibility/DESIGN.md)的实现、消费者迁移和验收。两份设计规定行为与技术边界，本文规定任务拆分、依赖、交付顺序和完成条件；设计中的 U0～U5、P0～P5 仅作为来源分组对照，后续按本文记录实施状态。
 
@@ -199,11 +199,14 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 **主要范围：** Window touch／原生 gesture、Surface contact 路由、UI 公共行为、文本宿主及现有交互控件。先改 Window、Surface、UI、Component spec。
 
 - [x] 接通 AppKit 原生 Magnify／Rotate／Swipe、Surface 连续手势路由和 UI 内容变换行为；原生边界／路由／消费者的本地回归与示例见实施记录。用户已确认真实触控板捏合／旋转及松手停止正常，Swipe 和其余设备矩阵继续单独验收。
-- [ ] 提供 contact 生命周期、设备来源、时间、位置及真实可得的压力等字段；区分鼠标、直接触摸、笔和触控板原生 gesture，不伪造缺失设备事实。
-- [ ] 按接触序列或相关 contact 组扩展归属／取消；支持 tap／多击、long press、pan、pinch、rotate、swipe，保留明确的同时识别组合和失败候选取消。
-- [ ] 为后续自定义手势保留同一输入与归属边界：原始 contact 可在 UI 消费，内建识别器与平台采集／具体控件解耦；新识别逻辑无需新增 Window 手势枚举，仍遵守取消、同时识别及命令／accessibility 规则。本轮不提前增加空 API 或插件框架。
+- [x] 提供 contact 生命周期、设备来源、时间、位置及真实可得的压力字段，区分鼠标、直接触摸、笔和触控板原生 gesture。Windows／GTK 原生入口已实现；本地 ABI／队列验证通过，目标平台与真实触屏仍待集中验收。
+- [x] 按接触序列固定起始路径，以 claimContacts 成组接管并单独取消；失败清理新归属，保留原有接触。活动触点纳入 InputActivity，域外按下、精确结束命中及取消沿同一路径。
+- [x] Press 的单接触 tap 和公共轴向 Drag 已接入 Touch／Pen，保留真实来源，处理阈值、第二触点、被阻止的结束及重入关闭。
+- [ ] 继续实现直接触摸的多击、long press、滚动 pan、pinch、rotate、swipe，保留明确的同时识别组合和失败候选取消。
+- [x] 为后续自定义手势保留同一输入与归属边界：原始 contact 可在 UI 消费，内建识别器与平台采集／具体控件解耦；新识别逻辑无需新增 Window 手势枚举，仍遵守取消、同时识别及命令／accessibility 规则。本轮不提前增加空 API 或插件框架。
 - [ ] 原生与合成鼠标去重；Windows OLE 仍可使用系统要求的合成鼠标启动路径，UI 只收到一次语义交互。第二触点、数量变化、几何失效、系统接管都有明确出口。
-- [ ] 将 Press、ScrollArea／VirtualList、Slider、Resizable、Drawer／Carousel 等迁到公共触摸行为；落实起始区域、轴向接管、阈值和嵌套残量，滚动结束不误点按钮。
+- [x] Slider 通过公共 Drag 接入 Touch／Pen；触点和鼠标分别通过同一组键盘、提交、取消、外部更新、方向、焦点与卸载回归。取消直接读取业务模型，不查询已经退休的主题上下文。
+- [ ] 将 ScrollArea／VirtualList、Resizable、Drawer／Carousel 等迁到公共触摸行为；落实起始区域、轴向接管、阈值和嵌套残量，滚动结束不误点按钮。
 - [ ] 长按接入 S3 的菜单和文本选词；增加选区端点调整、caret 定位、边缘滚动，复用同一文档／投影。接入 S6 的触摸拖放可用路径。
 - [ ] 补足触摸命中、无 hover 的操作入口与键盘／语义等价动作；pinch／rotate 使用普通图像／内容变换消费者，不自动缩放全应用。
 - [ ] 按实际平台能力接入数字／邮件／密码等输入用途、软键盘和视口遮挡；字母／数字合法性仍用输入策略。平台辅助触摸探索和保留手势不由应用接管。

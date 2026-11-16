@@ -10,7 +10,15 @@
 
 `scope.transformGesture(area, TransformGestureOptions()) { event -> ... }` 将 macOS 的原生缩放／旋转沿同一 InputArea 组合，返回随挂载关闭的行为。`enabled`、`magnify`、`rotate` 可分别配置；`update` 替换配置和回调，`cancel` 结束当前会话，`isTransforming` 查询是否仍活动。Started／Changed／Ended／Cancelled／Discrete 提供局部位置、累计 scale／rotation 与本次 scaleDelta／rotationDelta；倍率相乘，旋转为顺时针弧度相加。结束或取消被其他处理器阻止时也会收尾，晚到更新不会重启。
 
-行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，AppKit 离散 swipe 沿 Surface 的普通 Gesture 事件消费。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。原始触点、直接触摸识别和自定义识别器继续按交互计划实现，不能把原生手势回归当作触屏验收。
+行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，AppKit 离散 swipe 沿 Surface 的普通 Gesture 事件消费。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。直接触摸的长按、滚动和多指识别继续按交互计划实现，不能把原生手势回归当作触屏验收。
+
+## 直接触摸与笔尖
+
+`scope.press` 从 Surface 的 Contact 路由处理单接触 tap，`PressOptions.touchThreshold` 默认 8 个窗口逻辑单位，可配置为有限非负值。接触不产生 hover；移动超阈值后移回不会恢复点击，第二触点、取消或被拦截的结束也不会补触发。鼠标、触点和键盘候选互斥，原来的键盘及语义动作继续使用相同业务入口。
+
+`scope.drag` 默认接受直接触摸／笔尖；`DragOptions.contacts=false` 单独关闭此来源，`button` 仍只选择鼠标按钮。达到轴向阈值后接管原触点路径，取消后代点击候选；`DragSample.input` 保留 `DragInput.Mouse(button)` 或 `Contact(id, kind)`。第二触点使单接触拖动以 AdditionalContact 取消，不重新猜选主指。已有 Slider、滚动条 thumb 等使用该公共行为的消费者沿同一路径接入。
+
+应用需要自己的识别逻辑时，可从 `InputEvent.Contact` 读取原始触点，沿 `scope.claimContacts(ids)` 成组接管，并处理不可取消的 Cancelled 和事件完成通知；不需要向 Window 增加手势枚举。`InputActivity.hasContact` 让活动触点所属的虚拟条目保持。真实触屏与其他平台仍按设备矩阵验收；受控队列组合验证见 [Press／Drag 测试](tests-cones/press-drag/tests/contact.scoop)。
 
 ## 组合与状态
 

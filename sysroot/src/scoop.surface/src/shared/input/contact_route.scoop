@@ -1,0 +1,198 @@
+package scoop.surface
+
+import scoop.graphics.Point
+import scoop.window.*
+
+internal class InputContactRoute(
+    var latest: ContactState,
+    var scopes: Array<InputScope>,
+    val boundaryRevision: ULong
+) {
+    var claimant: InputScope? = None
+    var cancelled = false
+    var ending = false
+}
+
+internal fun InputRouter.findContact(id: ContactId): InputContactRoute? {
+    for (route in contactRoutes)
+        if (route.latest.id == id)
+            return Some(route)
+    return None
+}
+
+private fun InputRouter.removeContact(route: InputContactRoute) {
+    for (index in 0L ..< contactRoutes.size)
+        if (contactRoutes[index] === route) {
+            contactRoutes.removeAt(index)
+            return
+        }
+}
+
+internal fun InputRouter.contactAllowed(route: InputContactRoute): Boolean =
+    !closed &&
+        !route.cancelled &&
+        route.boundaryRevision ==
+        boundaryRevision &&
+        route.scopes.size >
+        0L &&
+        samePath(route.scopes, path(route.scopes[0L]))
+
+internal fun InputRouter.contactUsable(route: InputContactRoute): Boolean =
+    contactAllowed(route) &&
+        deliveries(route.scopes, Some(contactPosition(route.latest))).size ==
+        route.scopes.size
+
+internal fun InputRouter.contactDeliveryAllowed(
+    route: InputContactRoute?,
+    scope: InputScope
+): Boolean =
+    when (route) {
+        case Some(val value) -> contactAllowed(value) && containsScope(value.scopes, scope)
+        case None -> true
+    }
+
+private fun contactPosition(value: ContactState): Point =
+    Point(value.pointer.logicalPosition.x, value.pointer.logicalPosition.y)
+
+internal fun InputRouter.contactEvent(event: ContactEvent) {
+    when (event) {
+        case Cancelled(val id, val reason, val time) -> {
+            when (findContact(id)) {
+                case Some(val current) -> cancelContact(
+                    current,
+                    InputCancelReason.Window(reason),
+                    time
+                )
+                case None -> {}
+            }
+            return
+        }
+        else -> {}
+    }
+    val(value, began, ending, input) =
+        when (event) {
+            case Began(val state) -> (state, true, false, InputContactEvent.Began(state))
+            case Moved(val state) -> (state, false, false, InputContactEvent.Moved(state))
+            case Ended(val state) -> (state, false, true, InputContactEvent.Ended(state))
+            case Cancelled(_, _, _) -> return
+        }
+    if (began) {
+        when (findContact(value.id)) {
+            case Some(val old) -> cancelContact(
+                old,
+                InputCancelReason.ContactInterrupted,
+                value.pointer.time
+            )
+            case None -> {}
+        }
+    }
+    if (closed)
+        return
+    val point = contactPosition(value)
+    val current =
+        if (began) {
+            val target = hit(point)
+            val scopes =
+                if (target.size > 0L)
+                    target
+                else
+                    path(inputRoot)
+            if (scopes.size == 0L)
+                return
+            val route = InputContactRoute(value, scopes, boundaryRevision)
+            contactRoutes.add(route)
+            route
+        } else
+            findContact(value.id) ?: return
+    current.latest = value
+    current.ending = ending
+    if (!contactAllowed(current)) {
+        cancelContact(current, contactInvalidReason(current), value.pointer.time)
+        return
+    }
+    val chain = deliveries(current.scopes, Some(point))
+    if (chain.size == 0L) {
+        cancelContact(current, InputCancelReason.AreaChanged, value.pointer.time)
+        return
+    }
+    if (began) {
+        try {
+            if (
+                inputRoot.beforePress(InputPress(chain[0L].scope, InputPressSource.Contact(value)))
+            ) {
+                removeContact(current)
+                return
+            }
+        } catch (error: Throwable) {
+            removeContact(current)
+            throw error
+        }
+    }
+    try {
+        route(chain, InputEvent.Contact(input), value.pointer.time, contact = Some(current))
+    } finally {
+        if (!contactUsable(current))
+            cancelContact(current, contactInvalidReason(current), value.pointer.time)
+        else
+            if (ending)
+                removeContact(current)
+    }
+}
+
+private fun InputRouter.contactInvalidReason(route: InputContactRoute): InputCancelReason =
+    if (route.boundaryRevision != boundaryRevision)
+        InputCancelReason.BoundaryChanged
+    else
+        if (closed)
+            InputCancelReason.Closed
+        else
+            InputCancelReason.AreaChanged
+
+internal fun InputRouter.cancelContact(
+    current: InputContactRoute,
+    reason: InputCancelReason,
+    time: InputTime
+) {
+    if (current.cancelled)
+        return
+    current.cancelled = true
+    removeContact(current)
+    var failure: Throwable? = None
+    for (scope in current.scopes)
+        failure =
+            cleanupFailure(failure) {
+                notify(
+                    scope,
+                    InputEvent.Contact(
+                        InputContactEvent.Cancelled(current.latest.id, reason, time)
+                    ),
+                    time,
+                    Some(current.scopes[0L]),
+                    terminal = true
+                )
+            }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.cancelContacts(reason: InputCancelReason, time: InputTime) {
+    var failure: Throwable? = None
+    for (current in contactRoutes.toArray())
+        failure = cleanupFailure(failure) { cancelContact(current, reason, time) }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.reconcileContacts() {
+    var failure: Throwable? = None
+    for (current in contactRoutes.toArray())
+        if (!contactUsable(current))
+            failure =
+                cleanupFailure(failure) {
+                    cancelContact(current, contactInvalidReason(current), inputObservation())
+                }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.cancelWindowInput(reason: InputCancelReason, time: InputTime) {
+    val failure = cleanupFailure(None) { cancelPointerInput(reason, time) }
+    throwFailure(cleanupFailure(failure) { cancelContacts(reason, time) })
+}

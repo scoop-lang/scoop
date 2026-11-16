@@ -44,6 +44,10 @@ static void pointer(SWWindow *window, SWPointerKind kind, POINT position,
 bool sw_pointer_message(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
                         LRESULT *result) {
   *result = 0;
+  // Preserve the native compatibility-message path without duplicating UI
+  // input.
+  if (sw_compat_mouse_message(msg))
+    return false;
   POINT position = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
   switch (msg) {
   case WM_CAPTURECHANGED:
@@ -51,6 +55,7 @@ bool sw_pointer_message(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
       sw_cancel_pointer(window, SWPointerCaptureLost);
     return false;
   case WM_CANCELMODE:
+    sw_cancel_contacts(window, SWPointerCaptureLost);
     sw_cancel_pointer(window, SWPointerCaptureLost);
     return false;
   case WM_SETCURSOR:

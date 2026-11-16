@@ -85,7 +85,8 @@ void sw_stamp_event(SWEventHeader *data) {
 SWEvent *sw_event(SWWindow *window, int32_t kind) {
   SWEvent *event = [SWEvent new];
   SWEventHeader header = {.window = window.identity, .kind = kind};
-  if (kind == SWKeyboard || kind == SWPointer || kind == SWGesture)
+  if (kind == SWKeyboard || kind == SWPointer || kind == SWGesture ||
+      kind == SWContact)
     sw_stamp_event(&header);
   event.header = header;
   return event;

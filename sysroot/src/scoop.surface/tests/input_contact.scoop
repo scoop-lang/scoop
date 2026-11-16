@@ -1,0 +1,252 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+internal fun contactInput(
+    id: Long,
+    x: Double = 10.0,
+    y: Double = 10.0,
+    kind: ContactKind = ContactKind.Touch
+): ContactState = ContactState(ContactId(id), kind, inputPointer(x, y, 1.5), Some(0.75))
+
+internal fun InputRig.contact(value: ContactEvent) {
+    router.event(WindowEvent.Contact(value))
+}
+
+internal fun contactRecords(log: InputLog): Array<InputRecord> {
+    val values = ArrayList<InputRecord>()
+    for (record in log.events)
+        when (record.event) {
+            case Contact(_) -> values.add(record)
+            else -> {}
+        }
+    return values.toArray()
+}
+
+internal class ContactTestCount(var value: Int = 0)
+
+@Test
+private class InputContactRouteTest {
+    @Test
+    fun `contacts retain independent starting paths without changing mouse hover`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a", focusable = true)
+            val b = rig.area("b", focusable = true)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 60.0, 40.0))
+                canvas.translate(100.0, 0.0)
+                frame.place(canvas, b, Rect(0.0, 0.0, 60.0, 40.0))
+            }
+            rig.move(10.0, 10.0)
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 110.0, kind = ContactKind.Pen)))
+            assertTrue(a.scope.isHovered)
+            assertFalse(b.scope.isHovered)
+            assertTrue(b.isFocusActive)
+            assertEquals(0L, rig.router.buttons.size)
+            rig.log.events.clear()
+            rig.contact(ContactEvent.Moved(contactInput(1L, 120.0)))
+            val events = contactRecords(rig.log)
+            assertEquals(1L, events.size)
+            assertTrue(events[0L].target === a.scope)
+            assertEquals(Some(Point(120.0, 10.0)), events[0L].position)
+            when (events[0L].event) {
+                case Contact(InputContactEvent.Moved(val value)) -> assertEquals(
+                    Some(0.75),
+                    value.pressure
+                )
+                else -> fail(Some("expected contact movement"))
+            }
+            rig.contact(ContactEvent.Ended(contactInput(1L, 120.0)))
+            assertEquals(ContactId(2L), rig.router.findContact(ContactId(2L))!!.latest.id)
+            rig.contact(ContactEvent.Ended(contactInput(2L, 110.0, kind = ContactKind.Pen)))
+            assertEquals(0L, rig.router.contactRoutes.size)
+        }
+    }
+
+    @Test
+    fun `single contact cancellation leaves another contact and mouse press intact`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            rig.frame { frame, canvas -> frame.place(canvas, a, Rect(0.0, 0.0, 80.0, 40.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 20.0)))
+            rig.log.events.clear()
+            rig.contact(
+                ContactEvent.Cancelled(
+                    ContactId(1L),
+                    PointerCancelReason.CaptureLost,
+                    inputObservation()
+                )
+            )
+            assertEquals(1L, contactRecords(rig.log).size)
+            assertEquals(1L, rig.router.buttons.size)
+            assertEquals(ContactId(2L), rig.router.findContact(ContactId(2L))!!.latest.id)
+            rig.contact(ContactEvent.Moved(contactInput(1L, 20.0)))
+            assertEquals(1L, contactRecords(rig.log).size)
+            rig.pointer(PointerEvent.Cancelled(PointerCancelReason.CaptureLost, inputObservation()))
+            assertEquals(ContactId(2L), rig.router.findContact(ContactId(2L))!!.latest.id)
+        }
+    }
+
+    @Test
+    fun `disabled targets cancel once and late movement does not reach a sibling`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            val b = rig.area("b")
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 60.0, 40.0))
+                frame.place(canvas, b, Rect(100.0, 0.0, 60.0, 40.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 110.0)))
+            rig.log.events.clear()
+            a.scope.enabled = false
+            rig.contact(ContactEvent.Moved(contactInput(1L, 120.0)))
+            rig.contact(ContactEvent.Ended(contactInput(1L, 120.0)))
+            val events = contactRecords(rig.log)
+            assertEquals(1L, events.size)
+            assertEquals("a", events[0L].name)
+            when (events[0L].event) {
+                case Contact(InputContactEvent.Cancelled(val id, val reason, _)) -> {
+                    assertEquals(ContactId(1L), id)
+                    assertEquals(InputCancelReason.AreaChanged, reason)
+                }
+                else -> fail(Some("expected contact cancellation"))
+            }
+            assertEquals(ContactId(2L), rig.router.findContact(ContactId(2L))!!.latest.id)
+        }
+    }
+
+    @Test
+    fun `contact press interception preserves its source and consumes the entire sequence`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            rig.frame { frame, canvas -> frame.place(canvas, a, Rect(0.0, 0.0, 80.0, 40.0)) }
+            val decisions = ContactTestCount()
+            rig.router.rootScope.beforePress =
+                {
+                    press ->
+                    decisions.value += 1
+                    assertTrue(press.target === a.scope)
+                    when (press.source) {
+                        case Contact(val value) -> {
+                            assertEquals(ContactId(9L), value.id)
+                            assertEquals(ContactKind.Pen, value.kind)
+                            assertEquals(LogicalPosition(20.0, 10.0), value.pointer.logicalPosition)
+                        }
+                        else -> fail(Some("contact became a mouse press"))
+                    }
+                    true
+                }
+            rig.contact(ContactEvent.Began(contactInput(9L, 20.0, kind = ContactKind.Pen)))
+            rig.contact(ContactEvent.Moved(contactInput(9L, 30.0, kind = ContactKind.Pen)))
+            rig.contact(ContactEvent.Ended(contactInput(9L, 30.0, kind = ContactKind.Pen)))
+            assertEquals(1, decisions.value)
+            assertEquals(0L, contactRecords(rig.log).size)
+            assertEquals(0L, rig.router.contactRoutes.size)
+        }
+    }
+
+    @Test
+    fun `ending contacts cannot be newly claimed and prevented ends still retire`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            rig.frame { frame, canvas -> frame.place(canvas, a, Rect(0.0, 0.0, 80.0, 40.0)) }
+            val ends = ContactTestCount()
+            a.scope.handler =
+                {
+                    context,
+                    event -> when (event) {
+                        case Contact(InputContactEvent.Ended(val value)) -> {
+                            ends.value += 1
+                            assertFalse(a.scope.claimContacts([value.id]))
+                            context.consume()
+                        }
+                        else -> {}
+                    }
+                }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Ended(contactInput(1L)))
+            rig.contact(ContactEvent.Moved(contactInput(1L)))
+            assertEquals(1, ends.value)
+            assertEquals(0L, rig.router.contactRoutes.size)
+        }
+    }
+
+    @Test
+    fun `a boundary opened during an end cancels before the route is removed`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            val modal = rig.area("modal")
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 80.0, 40.0))
+                frame.place(canvas, modal, Rect(100.0, 0.0, 80.0, 40.0))
+            }
+            val defaults = ContactTestCount()
+            val cancelled = ContactTestCount()
+            a.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Contact(InputContactEvent.Ended(_)) -> {
+                            val boundary = InputBoundary(modal.scope);
+                            boundary.close()
+                        }
+                        case Contact(InputContactEvent.Cancelled(_, val reason, _)) -> {
+                            assertEquals(InputCancelReason.BoundaryChanged, reason)
+                            cancelled.value += 1
+                        }
+                        else -> {}
+                    }
+                }
+            a.scope.defaultAction =
+                {
+                    _,
+                    event -> when (event) {
+                        case Contact(InputContactEvent.Ended(_)) -> defaults.value += 1
+                        else -> {}
+                    }
+                }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Ended(contactInput(1L)))
+            assertEquals(0, defaults.value)
+            assertEquals(1, cancelled.value)
+            assertEquals(0L, rig.router.contactRoutes.size)
+        }
+    }
+
+    @Test
+    fun `contact end hit testing honors clipping transforms and foreground areas`() {
+        InputRig().use {
+            rig ->
+            val back = rig.area("back")
+            val front = rig.area("front")
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(20.0, 10.0)
+                canvas.clipRect(Rect(0.0, 0.0, 60.0, 40.0))
+                frame.place(canvas, back, Rect(0.0, 0.0, 100.0, 60.0))
+                frame.place(canvas, front, Rect(20.0, 0.0, 20.0, 40.0))
+            }
+            assertTrue(back.hitTest(Point(25.0, 20.0)))
+            assertFalse(back.hitTest(Point(45.0, 20.0)))
+            assertTrue(front.hitTest(Point(45.0, 20.0)))
+            assertFalse(back.hitTest(Point(85.0, 20.0)))
+            front.scope.enabled = false
+            assertTrue(back.hitTest(Point(45.0, 20.0)))
+        }
+    }
+}

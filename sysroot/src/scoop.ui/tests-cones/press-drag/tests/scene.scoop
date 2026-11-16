@@ -2,6 +2,7 @@ package scoop.tests.ui.gestures
 
 import scoop.graphics.*
 import scoop.surface.*
+import scoop.test.*
 import scoop.ui.*
 import scoop.window.*
 
@@ -45,6 +46,14 @@ private class GesturePanel(
                         if (probe.preventRelease)
                             context.consume()
                     }
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (probe.preventRelease)
+                            context.consume()
+                    }
+                    case Contact(InputContactEvent.Moved(_)) -> {
+                        if (probe.preventMovement)
+                            context.consume()
+                    }
                     else -> {}
                 }
             }
@@ -83,11 +92,20 @@ private class GestureChild(private val probe: GestureProbe, scope: ComponentScop
                         case Pointer(
                             InputPointerEvent.Cancelled(InputCancelReason.Claimed, _)
                         ) -> probe.childCancellations += 1
+                        case Contact(
+                            InputContactEvent.Cancelled(_, InputCancelReason.Claimed, _)
+                        ) -> probe.childCancellations += 1
                         else -> {}
                     }
                 }
             )
         scope.focusTarget(probe.area!!)
+        for (threshold in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> {
+                scope.press(probe.area!!, PressOptions(touchThreshold = threshold)) {
+                    probe.clicks += 1000
+                }
+            }
         probe.press = Some(scope.press(probe.area!!) { probe.clicks += 1 })
         probe.mounts += 1
     }

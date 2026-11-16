@@ -20,6 +20,8 @@ private class SliderGesture(
 
 internal class SliderControl(
     private val scope: ComponentScope,
+    private val model: () -> SliderProps,
+    private val activeThumb: State<Long?>,
     private val input: () -> SliderInput
 ) {
     private val area = scope.createArea()
@@ -224,19 +226,21 @@ internal class SliderControl(
     fun cancel(reason: DragCancelReason) {
         val active = gesture ?: return
         gesture = None
-        input().active.value = None
+        activeThumb.value = None
         drag?.cancel()
-        val current = input().props.values.value
+        // Retirement keeps the business model, but no longer permits theme queries.
+        val props = model()
+        val current = props.values.value
         if (
-            sameSliderRange(active.range, input().props.range) &&
+            sameSliderRange(active.range, props.range) &&
                 sameSliderValues(current, active.expected) &&
                 !sameSliderValues(current, active.initial)
         )
-            input().props.values.value = active.initial
-        input().props.onValueCancel(input().props.values.value, reason)
+            props.values.value = active.initial
+        props.onValueCancel(props.values.value, reason)
     }
     fun lostFocus(index: Long) {
-        if (input().active.value == Some(index))
+        if (activeThumb.value == Some(index))
             cancel(DragCancelReason.Explicit)
     }
     fun key(index: Long, context: RoutedEventContext, key: KeyEvent) {

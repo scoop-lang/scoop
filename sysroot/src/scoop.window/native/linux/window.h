@@ -64,6 +64,7 @@ typedef struct SWEvent {
     SWKeyboardData keyboard;
     SWPointerData pointer;
     SWGestureData gesture;
+    SWContactData contact;
     int64_t modifiers;
   };
   GdkEvent *native_input;
@@ -181,6 +182,9 @@ GdkSurface *sw_surface(SWWindow *window);
 void sw_reset_input(SWWindow *window);
 void sw_focus(SWWindow *window, bool focused);
 void sw_cancel_pointer(SWWindow *window, int reason);
+void sw_contact_install(SWWindow *window);
+void sw_cancel_contacts(SWWindow *window, int reason);
+bool sw_emulated_pointer(GtkEventController *controller);
 void sw_cancel_composition(SWWindow *window);
 SWEvent *sw_text_batch(SWWindow *window);
 bool sw_text_append(SWEvent *event, int kind, const char *text, size_t length,

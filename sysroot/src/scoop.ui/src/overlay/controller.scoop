@@ -38,7 +38,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         return None
     }
     fun start() {
-        root.surface.input.beforePointerPress = { press -> beforePress(press) }
+        root.surface.input.beforePress = { press -> beforePress(press) }
         registration =
             Some(root.surface.input.addDefaultAction { context, event -> dismiss(context, event) })
     }

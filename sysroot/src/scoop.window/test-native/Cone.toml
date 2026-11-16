@@ -34,6 +34,10 @@ path = "native/gesture.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/contact.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/drag.m"
 when = { os = "darwin" }
 

@@ -44,6 +44,7 @@ typedef struct SWEvent {
     SWKeyboardData keyboard;
     SWPointerData pointer;
     SWGestureData gesture;
+    SWContactData contact;
     int64_t modifiers;
   };
   bool native_input;
@@ -162,6 +163,9 @@ bool sw_pointer_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
                         LRESULT *result);
 void sw_reset_input(SWWindow *window);
 void sw_cancel_pointer(SWWindow *window, int reason);
+void sw_contact_message(SWWindow *window, UINT message, WPARAM wp);
+void sw_cancel_contacts(SWWindow *window, int reason);
+bool sw_compat_mouse_message(UINT message);
 bool sw_modal_input_message(UINT message);
 void sw_cancel_composition(SWWindow *window);
 uint64_t sw_modifiers(void);

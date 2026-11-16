@@ -260,6 +260,10 @@ path = "native/windows/input/pointer.c"
 when = { os = "windows" }
 
 [[native.sources]]
+path = "native/windows/input/contact.c"
+when = { os = "windows" }
+
+[[native.sources]]
 path = "native/windows/input/lifecycle.c"
 when = { os = "windows" }
 
@@ -374,6 +378,10 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/linux/input/pointer.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input/contact.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]

@@ -54,22 +54,19 @@ internal fun copyKeyEvent(
     )
 }
 
+internal fun copyPointerCancelReason(reason: Int): PointerCancelReason =
+    when (reason) {
+        0 -> PointerCancelReason.FocusLost
+        1 -> PointerCancelReason.CaptureLost
+        2 -> PointerCancelReason.SystemOperation
+        3 -> PointerCancelReason.Modal
+        else -> throw WindowException("unknown pointer cancellation", WindowErrorKind.NativeFailure)
+    }
+
 internal fun copyPointerEvent(header: NativeEventHeader, event: NativePointerData): PointerEvent {
     val time = copyInputTime(header)
     if (event.kind == 7)
-        return PointerEvent.Cancelled(
-            when (event.cancelReason) {
-                0 -> PointerCancelReason.FocusLost
-                1 -> PointerCancelReason.CaptureLost
-                2 -> PointerCancelReason.SystemOperation
-                3 -> PointerCancelReason.Modal
-                else -> throw WindowException(
-                    "unknown pointer cancellation",
-                    WindowErrorKind.NativeFailure
-                )
-            },
-            time
-        )
+        return PointerEvent.Cancelled(copyPointerCancelReason(event.cancelReason), time)
     val state =
         PointerState(
             LogicalPosition(event.x, event.y),

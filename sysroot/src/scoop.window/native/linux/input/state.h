@@ -1,6 +1,7 @@
 #ifndef SCOOP_WINDOW_LINUX_INPUT_STATE_H
 #define SCOOP_WINDOW_LINUX_INPUT_STATE_H
 
+#include "../../contacts.h"
 #include "../../input.h"
 #include <gtk/gtk.h>
 
@@ -13,6 +14,7 @@ typedef struct {
 
 typedef struct {
   double pointer_x, pointer_y;
+  SWContactEntry *contacts;
   GtkEventController *click_controller;
   bool resetting_click, scroll_active;
   int pressed_clicks[32];

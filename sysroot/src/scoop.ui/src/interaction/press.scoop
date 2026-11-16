@@ -1,5 +1,7 @@
 package scoop.ui
 
+import scoop.graphics.Point
+import scoop.math.hypot
 import scoop.surface.*
 import scoop.window.*
 
@@ -10,7 +12,19 @@ public struct InteractionState(
     val focusVisible: Boolean = false
 )
 
-public struct PressOptions(val enabled: Boolean = true, val acceptsEnter: Boolean = true)
+public struct PressOptions(
+    val enabled: Boolean = true,
+    val acceptsEnter: Boolean = true,
+    val touchThreshold: Double = 8.0
+)
+
+private fun checkedPressOptions(value: PressOptions): PressOptions {
+    requireUi(
+        value.touchThreshold.isFinite() && value.touchThreshold >= 0.0,
+        "press touch threshold must be finite and nonnegative"
+    )
+    return value
+}
 
 /** Owns subscriptions and activation state, borrowing the caller's input area. */
 public class Press internal constructor(
@@ -19,10 +33,13 @@ public class Press internal constructor(
     action: () -> Unit
 ): Closeable {
     private val visual = state(InteractionState())
-    private var options = initial
+    private var options = checkedPressOptions(initial)
     private var activate = action
     private var closed = false
     private var pointer = false
+    private val contacts = ArrayList<ContactId>()
+    private var contact: ContactState? = None
+    private var contactPosition: PointerState? = None
     private var key: PhysicalKey? = None
     private var releaseActivates = false
     private val space = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)))
@@ -42,18 +59,39 @@ public class Press internal constructor(
 
     public fun update(value: PressOptions, onPress: () -> Unit) {
         requireUi(!closed && !area.isClosed, "press behavior is closed")
-        options = value
+        options = checkedPressOptions(value)
         activate = onPress
         if (!value.enabled || (!value.acceptsEnter && key != None && !releaseActivates))
             cancel()
         publish()
     }
     private fun notification(context: RoutedEventContext, event: InputEvent) {
-        if (closed || context.phase != RoutedPhase.Notification)
+        if (closed)
             return
+        if (context.phase != RoutedPhase.Notification) {
+            when (event) {
+                case Contact(InputContactEvent.Began(val value)) -> {
+                    rememberContact(contacts, value.id)
+                    if (contacts.size > 1L)
+                        clearContact()
+                    publish()
+                }
+                else -> {}
+            }
+            return
+        }
         when (event) {
-            case FocusChanged(false) -> cancel()
-            case Pointer(InputPointerEvent.Cancelled(_, _)) -> cancel()
+            case FocusChanged(false) -> {
+                pointer = false
+                key = None
+                releaseActivates = false
+            }
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                pointer = false
+                key = None
+                releaseActivates = false
+            }
+            case Contact(InputContactEvent.Cancelled(val id, _, _)) -> finishContact(id)
             else -> {}
         }
         publish()
@@ -69,7 +107,7 @@ public class Press internal constructor(
                         publish()
                         return
                     }
-                    if (key == None && area.scope.isHovered)
+                    if (key == None && contacts.size == 0L && area.scope.isHovered)
                         pointer = true
                     publish()
                     context.consume()
@@ -82,9 +120,63 @@ public class Press internal constructor(
                         activate()
                 }
             }
+            case Contact(val value) -> touch(context, value)
             case Keyboard(val value) -> keyboard(context, value)
             else -> {}
         }
+    }
+    private fun touch(context: RoutedEventContext, event: InputContactEvent) {
+        when (event) {
+            case Began(val value) -> {
+                if (contacts.size == 1L && !pointer && key == None && hits(value.pointer)) {
+                    contact = Some(value)
+                    contactPosition = Some(value.pointer)
+                    publish()
+                    context.consume()
+                }
+            }
+            case Moved(val value) -> {
+                if (contact?.id == Some(value.id)) {
+                    contactPosition = Some(value.pointer)
+                    if (!withinThreshold(value.pointer))
+                        clearContact()
+                    publish()
+                }
+            }
+            case Ended(val value) -> {
+                val fire =
+                    contact?.id ==
+                        Some(value.id) &&
+                        contacts.size ==
+                        1L &&
+                        withinThreshold(value.pointer) &&
+                        hits(value.pointer)
+                finishContact(value.id)
+                publish()
+                if (fire) {
+                    context.consume()
+                    activate()
+                }
+            }
+            case Cancelled(_, _, _) -> {}
+        }
+    }
+    private fun withinThreshold(value: PointerState): Boolean {
+        val origin = contact ?: return false
+        val start = origin.pointer.logicalPosition
+        val point = value.logicalPosition
+        return hypot(point.x - start.x, point.y - start.y) <= options.touchThreshold
+    }
+    private fun hits(value: PointerState): Boolean =
+        area.hitTest(Point(value.logicalPosition.x, value.logicalPosition.y))
+    private fun clearContact() {
+        contact = None
+        contactPosition = None
+    }
+    private fun finishContact(id: ContactId) {
+        forgetContact(contacts, id)
+        if (contact?.id == Some(id))
+            clearContact()
     }
     private fun keyboard(context: RoutedEventContext, event: KeyEvent) {
         if (!area.isFocusActive)
@@ -110,6 +202,8 @@ public class Press internal constructor(
                 event.isRepeat ||
                 event.synthetic ||
                 pointer ||
+                contacts.size >
+                0L ||
                 key !=
                 None
         )
@@ -133,6 +227,18 @@ public class Press internal constructor(
                     releaseActivates = false
                 }
             }
+            case Contact(InputContactEvent.Ended(val value)) -> finishContact(value.id)
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (contact?.id != Some(value.id))
+                    clearContact()
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (contact?.id == Some(value.id)) {
+                    contactPosition = Some(value.pointer)
+                    if (!withinThreshold(value.pointer))
+                        clearContact()
+                }
+            }
             else -> {}
         }
         publish()
@@ -141,15 +247,21 @@ public class Press internal constructor(
         pointer = false;
         key = None;
         releaseActivates = false
+        clearContact()
     }
     private fun publish() {
         val enabled =
             !closed && !area.isClosed && options.enabled && area.scope.isEnabledInHierarchy
         val hovered = enabled && area.scope.isHovered
+        val touching =
+            when (contactPosition) {
+                case Some(val point) -> withinThreshold(point) && hits(point)
+                case None -> false
+            }
         val next =
             InteractionState(
                 hovered,
-                enabled && ((pointer && hovered) || key != None),
+                enabled && ((pointer && hovered) || key != None || touching),
                 enabled && area.isFocusActive,
                 enabled && area.isFocusVisible
             )
@@ -162,6 +274,7 @@ public class Press internal constructor(
             return
         closed = true
         cancel()
+        contacts.clear()
         events.close()
         defaults.close()
         finished.close()

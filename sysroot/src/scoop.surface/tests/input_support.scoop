@@ -140,6 +140,7 @@ internal fun inputKind(event: InputEvent): String =
         case Pointer(InputPointerEvent.ScrollCancelled(_, _)) -> "scroll-cancel"
         case Keyboard(_) -> "key"
         case Gesture(_) -> "gesture"
+        case Contact(_) -> "contact"
         case ModifiersChanged(_) -> "modifiers"
         case TextCommand(_) -> "text-command"
         case TextInput(TextInputEvent.Enabled(_)) -> "enabled"

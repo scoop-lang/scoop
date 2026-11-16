@@ -140,6 +140,7 @@ int64_t scoop_window_menu_popup(SWMenu *menu, SWWindow *window, double x,
   gtk_popover_set_pointing_to(GTK_POPOVER(menu->popup), &rect);
   g_signal_connect(menu->popup, "closed", G_CALLBACK(popup_closed), menu);
   menu->presenting = true;
+  sw_cancel_contacts(window, SWPointerSystemOperation);
   gtk_popover_popup(GTK_POPOVER(menu->popup));
   return 0;
 }

@@ -1,0 +1,90 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.collections.listOf
+
+@Extern(name = "scoop_window_test_contact_data")
+private fun nativeContactData(kind: Int, phase: Int, available: Int): NativeContactData
+
+@Test
+private class NativeContactDataTest {
+    @Test
+    fun `contact C payload preserves identity source coordinates and optional device facts`() {
+        @Unsafe
+        {
+            for (kind in listOf(0, 1))
+                for (phase in listOf(0, 1, 2))
+                    for (available in listOf(0, 1)) {
+                        val event =
+                            copyContactEvent(
+                                NativeEventHeader(17L, 21, 1L, 250L),
+                                nativeContactData(kind, phase, available)
+                            )
+                        val value =
+                            when (event) {
+                                case Began(val state) -> {
+                                    assertEquals(0, phase);
+                                    state
+                                }
+                                case Moved(val state) -> {
+                                    assertEquals(1, phase);
+                                    state
+                                }
+                                case Ended(val state) -> {
+                                    assertEquals(2, phase);
+                                    state
+                                }
+                                else -> throw IllegalStateException(Some("unexpected cancellation"))
+                            }
+                        assertEquals(ContactId(4294967311L), event.id)
+                        assertEquals(event.id, value.id)
+                        assertEquals(
+                            if (kind == 0)
+                                ContactKind.Touch
+                            else
+                                ContactKind.Pen,
+                            value.kind
+                        )
+                        assertEquals(LogicalPosition(12.5, 9.25), value.pointer.logicalPosition)
+                        assertEquals(
+                            PhysicalPosition(18.75, 13.875),
+                            value.pointer.physicalPosition
+                        )
+                        assertEquals(1.5, value.pointer.scaleFactor)
+                        assertEquals(
+                            if (available != 0)
+                                Some(DeviceId(9000000007L))
+                            else
+                                None,
+                            value.pointer.deviceId
+                        )
+                        assertEquals(
+                            if (available != 0)
+                                Some(0.75)
+                            else
+                                None,
+                            value.pressure
+                        )
+                        assertEquals(event.time, value.pointer.time)
+                        assertTrue(modalInputAllowed(WindowEvent.Contact(event)) == false)
+                    }
+        }
+    }
+
+    @Test
+    fun `contact cancellation needs identity and reason without fabricating positional state`() {
+        @Unsafe
+        {
+            val event =
+                copyContactEvent(NativeEventHeader(17L, 21, 1L, 250L), nativeContactData(99, 3, 0))
+            when (event) {
+                case Cancelled(val id, val reason, _) -> {
+                    assertEquals(ContactId(4294967311L), id)
+                    assertEquals(PointerCancelReason.SystemOperation, reason)
+                }
+                else -> fail(Some("expected contact cancellation"))
+            }
+            assertTrue(modalInputAllowed(WindowEvent.Contact(event)))
+        }
+    }
+}

@@ -7,7 +7,8 @@ import scoop.window.InputTime
 internal class RouteFlags(
     val cancelable: Boolean,
     val scroll: ScrollConsumption? = None,
-    val gesture: InputGestureRoute? = None
+    val gesture: InputGestureRoute? = None,
+    val contact: InputContactRoute? = None
 ) {
     var stopped = false
     var prevented = false

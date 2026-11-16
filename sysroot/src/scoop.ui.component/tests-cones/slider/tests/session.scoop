@@ -7,18 +7,27 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.sendNativeContact
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class SliderWindowTest {
     @Test
     fun `native slider preserves thumb identity and separates commit cancellation and external updates`() {
-        val p = SliderProbe()
+        run(false)
+    }
+    @Test
+    fun `contact slider shares keyboard commits cancellation geometry and focus behavior`() {
+        run(true)
+    }
+    private fun run(contacts: Boolean) {
+        val p = SliderProbe(contacts)
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }
         try {
             context(p.theme) {
@@ -48,7 +57,7 @@ private class SliderWindowTest {
     }
 }
 
-internal class SliderProbe {
+internal class SliderProbe(private val contactInput: Boolean = false) {
     val theme = ThemeSource(shadcnTheme())
     val fonts = FontCollection(false)
     val values = state<Array<Double>>([20.0, 80.0])
@@ -84,6 +93,8 @@ internal class SliderProbe {
     var frames: FrameProbe? = None
     var view: ViewProbe? = None
     var quiet: FrameSnapshot? = None
+    private var contactId = 0L
+    private var contactDown = false
     val deadline = MonotonicTimeSource.markNow() + Duration.seconds(80L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
@@ -165,11 +176,40 @@ internal class SliderProbe {
         assertTrue(sendSurfaceKey(native!!, code, false, shift = shift))
     }
     fun press(x: Double, down: Boolean, y: Double = 76.0) {
-        move(x, y)
-        assertTrue(view!!.button(x, y, down))
+        if (contactInput) {
+            if (down) {
+                contactId += 1L
+                contactDown = true
+                contact(0, x, y)
+            } else {
+                move(x, y)
+                contact(2, x, y)
+                contactDown = false
+            }
+        } else {
+            move(x, y)
+            assertTrue(view!!.button(x, y, down))
+        }
     }
     fun move(x: Double, y: Double = 76.0) {
-        assertTrue(moveSurfacePointer(native!!, x, y))
+        if (contactInput) {
+            if (contactDown)
+                contact(1, x, y)
+        } else
+            assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    private fun contact(phase: Int, x: Double, y: Double) {
+        @Unsafe
+        {
+            val lease = native!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(view, contactId, 0, phase, x, y)
+                }
+            } finally {
+                lease.close()
+            }
+        }
     }
     fun expect(expected: Array<Double>) {
         assertEquals(expected.size, values.value.size)

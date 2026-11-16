@@ -115,11 +115,22 @@ private class SliderTestLayout(
                         p.lastY = point.state.logicalPosition.y;
                         p.moves += 1
                     }
+                    case Contact(InputContactEvent.Moved(val value)) -> {
+                        p.lastX = value.pointer.logicalPosition.x
+                        p.lastY = value.pointer.logicalPosition.y
+                        p.moves += 1
+                    }
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                     ) -> {
                         if (p.preventRelease) {
                             p.preventRelease = false;
+                            context.preventDefault()
+                        }
+                    }
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (p.preventRelease) {
+                            p.preventRelease = false
                             context.preventDefault()
                         }
                     }

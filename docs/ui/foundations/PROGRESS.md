@@ -130,7 +130,7 @@ OverlayHandle 管理一次挂载会话，当前回调只收到一次关闭通知
 
 Surface 提供显式 InputBoundary 登记，当前域统一限制命中、capture／bubble／default、快捷键与程序化聚焦；没有区域几何的域根仍接收键盘和空白指针输入。更换域会在当前回调退出后向完整旧路径发送 BoundaryChanged 取消，剩余按键序列不改投背景。关闭 scope 不自动释放屏障，供下一批在层移除成功后解除；嵌套登记支持非当前项先关闭。
 
-InputScope.beforePointerPress 只在当前域根处理一串鼠标按钮的第一次按下，先于 hover 和普通路由。返回值选择消费整串按钮或让冻结的原目标继续，不重新命中；异常同样结束该次捕获，避免孤立的释放事件。UI FocusTarget／FocusScope 使用独立的 isInputAllowed 查询拒绝域外 pending。回调内安装边界后重入的键盘事件回落到新域根，旧焦点的终结通知仍在正常收尾边界交付。
+InputScope.beforePress 在当前域根处理一串鼠标按钮的第一次按下；后续 S8 同样接入每个触点开始，并以 InputPress.source 区分来源，先于 hover 和普通路由。返回值选择消费整串按钮或让冻结的原目标继续，不重新命中；异常同样结束该次捕获，避免孤立的释放事件。UI FocusTarget／FocusScope 使用独立的 isInputAllowed 查询拒绝域外 pending。回调内安装边界后重入的键盘事件回落到新域根，旧焦点的终结通知仍在正常收尾边界交付。
 
 修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。44 项定向 scoop.test 通过：Surface 输入 41 项，以及 UI focus、既有 portal、原生 IME 各 1 项。覆盖域外祖先缺少几何、所有传播阶段截断、边界嵌套与关闭顺序、旧捕获取消、旧 IME 排队事务、安装失败清理、预处理坐标冻结／消费／异常，以及真实窗口中背景直接和待聚焦请求被拒绝。
 

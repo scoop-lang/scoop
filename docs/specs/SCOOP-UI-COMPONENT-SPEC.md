@@ -790,9 +790,9 @@ spacing=0 时沿轴连接边框和圆角，Outline 相邻处只画一条边，�
 
 每个 thumb 有独立 FocusTarget 和正常 Tab 停靠点。仅真实、无修饰的 key-down／repeat 执行动作：水平 Left／Right、垂直 Down／Up 分别减少／增加，水平 RTL 和 reversed 各反转一次；Home／End 到当前 thumb 允许的最小／最大值，PageUp／PageDown 增减十个步长。其他轴箭头、Space／Enter 及 key-up 保留给外层。只移动当前 thumb，保持邻居和身份，达到边界仍消费已认领的键。每次实际被 Binding 采纳的键盘变化调用 onValueCommit 一次，拒绝或无变化不通知。
 
-指针输入复用 threshold=0 的轴向 Drag，覆盖轨道和 thumb 扩展命中区。轨道按下选取最近可移动 thumb，同距优先当前聚焦项，再按下标；点击 thumb 保留抓取位置，点击轨道立即移动最近 thumb。移动使用最近 Accepted 的轨道／thumb 几何和该次样本，不从待提交布局推算；横向与纵向的端点将 thumb 保留在控件尺寸内。只有正常 release 提交一次实际最终变化；onValueCommit 接收当前采纳的完整数组，外部同步更新不合成通知。
+鼠标、直接触摸和笔尖输入复用 threshold=0 的轴向 Drag，覆盖轨道和 thumb 扩展命中区。轨道按下选取最近可移动 thumb，同距优先当前聚焦项，再按下标；点击 thumb 保留抓取位置，点击轨道立即移动最近 thumb。第二触点沿公共 Drag 规则取消单接触拖动。移动使用最近 Accepted 的轨道／thumb 几何和该次样本，不从待提交布局推算；横向与纵向的端点将 thumb 保留在控件尺寸内。只有正常 release 提交一次实际最终变化；onValueCommit 接收当前采纳的完整数组，外部同步更新不合成通知。
 
-取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；输入资源随挂载收尾，没有常驻时钟或第二份受控值。
+取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；取消只读取仍有效的业务配置和值，不依赖已卸载作用域的主题或几何查询。输入资源随挂载收尾，没有常驻时钟或第二份受控值。
 
 SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160／4／12／8（按主题 body 字号／14 缩放）；长度有限非负。有限主轴填充可用空间，无界主轴使用 length；交叉轴取 thumbSize，父约束优先，包括零尺寸。纵向最小值在下端，reversed 翻转；单 thumb 的 range 从数值最小端延伸到 thumb，多 thumb 在首末之间填充。track／range 使用普通 StyleOverride，默认 muted.background／primary.background 与全圆角；thumb 使用普通 StyleOverride 并映射为现有 SurfaceOptions，默认白底、ring 色 1 单位边框。hover／pressed／focus-visible 使用 3 单位主题 ring，invalid 使用统一 validation。主题及样式更新走现有 geometry／StylePainter／ThemePainter；disabled 透明度对整控件覆盖一次。动画只平滑交互颜色／光环，值位置立即响应绑定；reduced motion 遵循主题，静止后停止请求帧。
 

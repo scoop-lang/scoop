@@ -59,6 +59,8 @@ private fun InputRouter.invoke(
         return
     if (!terminal && !gestureDeliveryAllowed(flags.gesture))
         return
+    if (!terminal && !contactDeliveryAllowed(flags.contact, scope))
+        return
     val context =
         RoutedEventContext(
             this,
@@ -89,9 +91,10 @@ internal fun InputRouter.route(
     event: InputEvent,
     time: InputTime,
     scroll: InputScrollRoute? = None,
-    gesture: InputGestureRoute? = None
+    gesture: InputGestureRoute? = None,
+    contact: InputContactRoute? = None
 ) {
-    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll, gesture) }
+    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll, gesture, contact) }
     for (delivery in chain) {
         val scope = delivery.scope
         if (!closed && !scope.closed && path(scope).size > 0L)
@@ -105,12 +108,13 @@ private fun InputRouter.routeStages(
     event: InputEvent,
     time: InputTime,
     scroll: InputScrollRoute?,
-    gesture: InputGestureRoute?
+    gesture: InputGestureRoute?,
+    contact: InputContactRoute?
 ) {
     if (chain.size == 0L)
         return
     val target = chain[0L].scope
-    val flags = RouteFlags(true, scrollConsumption(event, scroll), gesture)
+    val flags = RouteFlags(true, scrollConsumption(event, scroll), gesture, contact)
     var index = chain.size
     while (index > 1L && !flags.stopped) {
         index -= 1L
@@ -127,9 +131,9 @@ private fun InputRouter.routeStages(
     for (delivery in chain) {
         if (flags.prevented || closed)
             break
-        if (path(delivery.scope).size == 0L)
+        if (path(delivery.scope).size == 0L || !contactDeliveryAllowed(contact, delivery.scope))
             continue
-        if (!focused && focusesOnPress(event) && containsScope(hover, delivery.scope)) {
+        if (!focused && focusesOnPress(event, delivery.scope)) {
             when (delivery.scope.area) {
                 case Some(val area) -> if (area.focusable) {
                     focus(area, FocusOrigin.Pointer)
@@ -167,9 +171,12 @@ private fun InputRouter.routeStages(
     }
 }
 
-private fun focusesOnPress(event: InputEvent): Boolean =
+private fun InputRouter.focusesOnPress(event: InputEvent, scope: InputScope): Boolean =
     when (event) {
-        case Pointer(InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)) -> true
+        case Pointer(
+            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+        ) -> containsScope(hover, scope)
+        case Contact(InputContactEvent.Began(_)) -> true
         else -> false
     }
 

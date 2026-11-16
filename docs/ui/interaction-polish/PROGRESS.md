@@ -387,3 +387,16 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 修正客户端焦点断言，直接核对应用的 AXFocusedUIElement／AXFocusedWindow 及目标 AXFocused。窗口自身 AXFocused 可以为 false，而当前子节点确实拥有焦点，不能要求两者相等。
 - 独立标准 AppKit 禁用 NSButton 对照复现 AXUIElementPerformAction 返回 kAXErrorSuccess 的平台行为。客户端允许这一系统确认，同时严格验证值不变和业务未再次执行；退休后继续验证旧引用不可读取。库的 BOOL／SemanticActionResult 合同未改变，未把系统确认改报成业务成功。
 - 客户端 C11 严格编译和格式检查通过，测试使用当前 Window release 产物；规范、设计和 README 同步平台边界，本地文档目标检查通过。原生对照程序、临时应用包和逐次报告已清理，保留后续使用的 AX 客户端与构建缓存。完整关系／文本几何／虚拟集合的外部查询、VoiceOver 与其他平台仍按原计划验收。
+
+
+### 原始触点、成组归属与按压／拖动
+
+- Window 增加 ContactId、Touch／Pen 和 Began／Moved／Ended／Cancelled，保留 PointerState 与系统真实提供的可选压力。Windows 使用 WM_POINTER 和对应查询，统一交回 DefWindowProc，UI 过滤兼容鼠标副本；GTK 在捕获阶段通过 GtkEventControllerLegacy 读取 GdkEventSequence／笔工具，转换到内容视图坐标，避免 GtkGestureClick 再次交付。单点、失焦、模态和系统窗口操作各有取消入口。AppKit 继续使用真实原生 gesture，不把 NSTouch 设备坐标映射成假触屏。
+- Surface 按触点固定 Accepted 路径，claimContacts 先整体发布新归属再取消原后代；回调错误或收尾失效清理本次新归属，原先持有的其他触点保留。Ended 不能新取得归属，晚到事件不重投。beforePress／InputPressSource 统一鼠标和触点的域外按下，hitTest 为无 hover 的抬起提供精确命中。InputActivity.hasContact 跟踪身份与所属 scope，让虚拟条目在接触期间保持。
+- Press 提供有限非负的 touchThreshold；创建时先校验再注册处理器，非法创建／更新不会留下继续响应的动作。移出阈值再移回、第二触点、取消和被阻止的结束均不补点击。公共 Drag 的 contacts 选项独立于鼠标 button，DragSample.input 保留 Mouse 或 Contact 来源；第二触点结束单接触拖动，取消只撤销自己持有的接触。自定义识别继续复用原始事件、成组归属和终止规则，无需在 Window 枚举中加入业务手势。
+- Slider 复用同一个 Drag 消费触摸和笔尖，保留键盘、绑定、焦点与提交／取消语义。鼠标和触点的卸载场景共同发现取消时读取已退休主题的问题；取消改为只读取当前业务配置和值，保留原有回滚条件，不放宽 ComponentScope 或 ThemeSource 的存活检查。
+- Window 的 2 项 C ABI／解码测试和 Surface 的 13 项新触点测试通过；另有 21 项既有归属、域外按下、原生手势和输入活动回归通过。Press／Drag 的触点与原鼠标两个窗口用例通过，覆盖普通 tap、超阈值／被拦截的移动、第二触点、笔尖、独立鼠标取消、非法配置、阻止结束、同步关闭及键盘与鼠标重叠时的取消。取消组合建立真实的鼠标按下路径，保持 Surface 只向活动路径通知的规则。
+- Slider 的触点和鼠标两个窗口用例分别通过同一组 64 阶段场景，包括键盘、提交／回滚、业务拒绝与外部更新、配置／方向、焦点、被阻止的释放和卸载收尾。四个最终 UI 用例均在独立 Application 进程执行，正式测试事件包含无失败的 end 和 complete；本批共 40 项定向测试通过。
+- Window／Surface／UI／Component 规范、库 README、输入边界方案和编程导航同步；离线 API 文档生成，5 项查询核对 ContactState、claimContacts、InputPressSource、hasContact 和 DragSample 的签名与导入。源码与受影响测试 Cone 检查、release 构建通过；Window、Window.asyncio、Surface、UI、Style、四套主题及 Component 共 10 份开发产物按依赖更新。37 个 Scoop 文件与 26 个 native 文件的格式检查、本地可编译 native 代码的严格编译以及 225 个本地 Markdown 目标检查通过。临时应用包与逐次报告已清理，保留后续使用的启动脚本、API 文档、配套产物与共享缓存。
+
+本批触点窗口测试使用受控 native payload 经过实际队列、解码、Surface 和 UI，不能代表 macOS 直接触屏或 Windows／GTK 的设备输入。Windows／GTK 原生编译、兼容鼠标去重、OLE 触摸启动和真触屏仍按集中平台验收执行。直接触摸的长按、正文滚动、多指识别、文本端点／软键盘、其他控件组合及辅助技术设备行为继续属于 S8／S10／S11。

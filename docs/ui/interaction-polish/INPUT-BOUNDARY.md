@@ -1,6 +1,6 @@
 # Window 输入事件边界调研与重构方案
 
-日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，AppKit 原生 gesture、Surface 路由与 UI 内容变换已接入；原始 contact 按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
+日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，AppKit 原生 gesture、Surface 路由与 UI 内容变换已接入；原始 contact、成组归属及 Press／Drag 已接入，直接触摸的长按、滚动及多指识别按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
 
 ## 1. 结论
 
@@ -56,7 +56,7 @@ flowchart LR
 
 ### Window 平台输入适配
 
-同一平台的鼠标、键盘和输入状态放在 `native/<platform>/input/`，触摸与原生手势后续沿此边界接入。按当前实际职责拆文件，不为了目录对称新增空实现。平台类型、系统枚举和消息处理返回值留在这一层。
+同一平台的鼠标、键盘和输入状态放在 `native/<platform>/input/`，触点与原生手势沿此边界接入。按当前实际职责拆文件，不为了目录对称新增空实现。平台类型、系统枚举和消息处理返回值留在这一层。
 
 - 鼠标负责位置、进入／离开、按钮、连续次数、滚轮和平台捕获；Windows 的 clicks 算法由其调用。
 - 键盘与现有文本服务协作，保留菜单快捷键、IME 消费与普通 Keyboard／TextInput 的顺序。输入子系统统一协调，IME 文档事务仍由专门模块维护。
@@ -64,7 +64,7 @@ flowchart LR
 - 原生手势负责 phase、位置、增量／累计量的明确转换。滚动与 momentum 保持独立相位。
 - 平台输入状态统一拥有按下记录、controller／tracking 资源和原生捕获。失焦、模态、系统接管、关窗走明确的取消与释放入口；单触点取消与全窗口取消分开。
 
-应用／窗口的一般事件循环、resize、redraw、显示器变化仍由 Application／Window 管理。Win32 的 frame／menu／text／input 处理次序、NSResponder 传播以及 GTK 的系统级 sequence 规则继续保留，输入适配器不得吞掉原生默认行为。
+应用／窗口的一般事件循环、resize、redraw、显示器变化仍由 Application／Window 管理。Win32 的 frame／menu／text／input 处理次序、NSResponder 传播以及 GTK 的系统级 sequence 规则继续保留，输入适配器保留系统窗口操作、菜单与文本服务所需的默认处理；是否消费本控件的输入遵循对应平台契约。
 
 ### Window 公共内部边界
 
@@ -80,6 +80,8 @@ Surface 延续最近 Accepted 几何、Capture／Target／Bubble、模态边界�
 
 UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等实际需要的识别。滚动、按压、文本选区和 Slider 对同一接触的竞争在这里协调；Window 不决定哪个控件赢得手势。原生 gesture 与从原始触摸识别的 gesture 进入相同的控件行为入口，并保留来源，防止重复消费。
 
+当前入口为 `InputEvent.Contact`、`InputScope.claimContacts(ids)` 和 `cancelContactClaim(id)`。组归属先整体发布，再取消原后代；失败仅回退本次新取得的触点。`beforePress` 将鼠标和触点的域外按下放入同一决策，source 保留真实来源。`InputActivity.hasContact` 跟踪当前归属，使虚拟条目在触点结束前保持。Press 和 Drag 已作为实际消费者，后续识别器复用这些入口。
+
 ### 自定义手势的后续接入
 
 本轮保留自定义手势的接入边界，具体公共 API 随实际消费者再设计。Window 交付的原始 contact 序列不被内建手势枚举替代；开始、更新、结束／取消、稳定的接触标识、时间、坐标与来源保留到 Surface 路由。系统只提供已识别手势时如实转交，不承诺取得 OS 没有暴露的原始触点。
@@ -94,9 +96,9 @@ UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等
 | --- | --- | --- |
 | macOS | 保留鼠标／键盘 NSResponder 回调；已接入 magnifyWithEvent／rotateWithEvent／swipeWithEvent 原生手势入口 | 触控板手势与直接触屏不同；滚动 phase 与 momentumPhase 分开。原始 NSTouch 的设备位置不能冒充窗口内容中的触摸坐标 |
 | Windows | 普通鼠标保留现有 WM_MOUSE*；触摸／笔沿 WM_POINTER* 及对应查询取得信息，处理每个 pointer 的捕获与取消 | 明确处理与默认处理的边界；关联兼容鼠标消息，既避免重复点击，又保留 OLE 从合成鼠标消息启动拖放所需的原生上下文 |
-| GTK 4 | 鼠标继续使用 GtkGestureClick 的计数；直接触摸沿 GdkTouchEvent／GdkEventSequence；原生触控板使用 GdkTouchpadEvent 的 phase／delta | GtkGestureClick 本身也可能处理触摸，需在输入适配边界确定单一交付路径。GTK 原生 sequence 的传播与 UI 控件间的 claim 分层处理 |
+| GTK 4 | 鼠标继续使用 GtkGestureClick 的计数；直接触摸沿 GdkTouchEvent／GdkEventSequence；原生触控板使用 GdkTouchpadEvent 的 phase／delta | GtkGestureClick 本身也可能处理触摸，需在输入适配边界确定单一交付路径。GtkEventControllerLegacy 在捕获阶段读取原始触点／笔尖，避免 GTK 识别器先决定 UI 的归属；内容坐标经过 native surface 平移与控件转换 |
 
-Windows 当前来源可通过 GetCurrentInputMessageSource 查询，但不可用值不能被猜成真实设备；具体去重必须结合正在接收的原生消息和接触生命周期。Windows 触控板没有提供独立手势事实的路径继续按实际滚轮输入处理，不从普通滚轮臆造完整 contact。
+Windows 触点路径读取 WM_POINTER 后一致交回 DefWindowProc，不选择性地消费同一序列的一部分消息。当前来源可通过 GetCurrentInputMessageSource 查询，但不可用值不能被猜成真实设备；具体去重必须结合正在接收的原生消息和接触生命周期。Windows 触控板没有提供独立手势事实的路径继续按实际滚轮输入处理，不从普通滚轮臆造完整 contact。
 
 ## 6. 实施顺序与验收
 
@@ -112,6 +114,6 @@ Windows 当前来源可通过 GetCurrentInputMessageSource 查询，但不可用
 - 本文链接的仓库源码，以及 [Window spec](../../specs/SCOOP-WINDOW-SPEC.md)、[交互设计](DESIGN.md)的第 3／7 节和 [S1／S8 计划](PLAN.md)。
 - Apple [Handling Multi-Touch Events](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingTouchEvents/HandlingTouchEvents.html)：NSResponder 手势入口、触摸与手势的区别、取消、滚动与 momentum。
 - Microsoft [WM_POINTERDOWN](https://learn.microsoft.com/en-us/windows/win32/inputmsg/wm-pointerdown)、[GetCurrentInputMessageSource](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getcurrentinputmessagesource) 和 [DoDragDrop](https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-dodragdrop)：指针接触／捕获、来源读取和触摸／笔的 OLE 启动限制。
-- GTK [GdkTouchEvent](https://docs.gtk.org/gdk4/class.TouchEvent.html)、[GdkTouchpadEvent](https://docs.gtk.org/gdk4/class.TouchpadEvent.html) 和 [GtkGesture](https://docs.gtk.org/gtk4/class.Gesture.html)：接触 sequence、兼容指针信息、系统识别的触控板手势及传播／claim 规则。
+- GTK [GtkEventControllerLegacy](https://docs.gtk.org/gtk4/class.EventControllerLegacy.html)、[GtkNative.get_surface_transform](https://docs.gtk.org/gtk4/method.Native.get_surface_transform.html)、[GdkTouchEvent](https://docs.gtk.org/gdk4/class.TouchEvent.html)、[GdkTouchpadEvent](https://docs.gtk.org/gdk4/class.TouchpadEvent.html) 和 [GtkGesture](https://docs.gtk.org/gtk4/class.Gesture.html)：接触 sequence、兼容指针信息、系统识别的触控板手势及传播／claim 规则。
 
 首批重构与本地回归结果见 [PROGRESS](PROGRESS.md#平台输入边界与载荷)。触摸、自定义手势 API 及其他平台的真实设备验收仍按对应批次推进。
