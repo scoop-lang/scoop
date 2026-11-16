@@ -38,7 +38,7 @@ private fun appearanceFocus(probe: AreaProbe, active: ActiveApplication) {
             probe.input(active) { probe.click(25.0, 120.0) }
         }
         case 26 -> {
-            assertEquals(Point(0.0, 120.0), probe.outer.offset)
+            assertEquals(Point(0.0, probe.outer.snapshot.visibleSize.height), probe.outer.offset)
             assertTrue(probe.leafFocus.hasFocus)
             assertTrue(probe.outerFocus.requestFocus())
             probe.phase += 1
@@ -65,13 +65,19 @@ private fun appearanceFocus(probe: AreaProbe, active: ActiveApplication) {
         case 30 -> {
             assertTrue(probe.outerFocus.isFocusVisible)
             assertTrue(probe.ringPixel != 16777215L)
-            assertEquals(Point(0.0, 240.0), probe.outer.offset)
+            assertEquals(
+                Point(0.0, 2.0 * probe.outer.snapshot.visibleSize.height),
+                probe.outer.offset
+            )
             probe.direction.value = LayoutDirection.Ltr
             probe.phase += 1
         }
         case 31 -> {
             assertTrue(probe.outerFocus.hasFocus)
-            assertEquals(Point(0.0, 240.0), probe.outer.offset)
+            assertEquals(
+                Point(0.0, 2.0 * probe.outer.snapshot.visibleSize.height),
+                probe.outer.offset
+            )
             val start = probe.at(probe.bar().thumb.bounds)
             probe.input(active) {
                 assertTrue(moveSurfacePointer(probe.window!!, start.x, start.y))
@@ -92,7 +98,13 @@ private fun appearanceLifecycle(probe: AreaProbe, active: ActiveApplication) {
             assertTrue(moveSurfacePointer(probe.window!!, 25.0, 30.0))
         }
         case 34 -> {
-            assertEquals(Point(0.0, 240.0), probe.outer.offset)
+            assertEquals(
+                Point(
+                    probe.outer.snapshot.padding.left,
+                    2.0 * probe.outer.snapshot.visibleSize.height
+                ),
+                probe.outer.offset
+            )
             probe.theme.current.value = shadcnTheme(ThemeMode.Dark)
             probe.visibility.value = FocusVisibility.Always
             probe.input(active) { assertTrue(probe.view!!.button(25.0, 30.0, false)) }

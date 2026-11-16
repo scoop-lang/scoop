@@ -8,6 +8,7 @@ import scoop.ui.style.*
 
 internal class TextFieldDrawing(
     val geometry: SurfaceGeometry,
+    val viewport: Rect,
     val horizontal: Rect?,
     val vertical: Rect?,
     val editor: TextEditMeasurement
@@ -80,23 +81,22 @@ internal fun measureTextField(
             0.0
     nonnegative(gap, "invalid text field description spacing")
     val after = (description?.size?.height ?: 0.0) + gap
-    val bars = input.options.multiline && input.scrollbars != ScrollbarVisibility.Hidden
-    val thickness =
-        if (bars)
-            ink.scrollbarFeedback.options.thickness
+    val axes =
+        if (input.options.wrap)
+            ScrollAxes.Vertical
         else
-            0.0
-    val horizontal = bars && !input.options.wrap
+            ScrollAxes.Both
+    val visibility =
+        if (input.options.multiline)
+            input.scrollbars
+        else
+            ScrollbarVisibility.Hidden
+    val behavior = ink.scrollbarFeedback.options
+    val gutter = scrollbarGutter(axes, visibility, behavior.thickness, behavior.input.placement)
     val rowHeight = ink.lineHeight.measure(ink.fonts, value.text)
     val naturalHeight =
         lowerBound(
-            rowHeight *
-                input.rows.toDouble() +
-                insets.height +
-                if (horizontal)
-                    thickness
-                else
-                    0.0,
+            rowHeight * input.rows.toDouble() + insets.height + gutter.height,
             lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
         )
     val size = constraints.constrain(Size(width, naturalHeight + after))
@@ -114,33 +114,42 @@ internal fun measureTextField(
         else
             groupSurfaceGeometry(original, metrics, input.group, context.layoutDirection)
     val content = geometry.content
-    val right =
-        if (bars)
-            upperBound(thickness, content.width)
-        else
-            0.0
-    val bottom =
-        if (horizontal)
-            upperBound(thickness, content.height)
-        else
-            0.0
-    val viewport = Size(content.width - right, content.height - bottom)
+    val outer = Size(content.width, content.height)
+    val viewport = scrollbarViewport(outer, gutter, context.layoutDirection)
     if (context.childCount == 1L)
         context.placeChild(0L, Point(0.0, fieldHeight + gap))
-    val text = ink.host.measure(Constraints.tight(viewport))
-    val snapshot = text.scrollSnapshot
-    val drawing =
-        TextFieldDrawing(
-            geometry,
-            if (horizontal && showScrollbar(input.scrollbars, snapshot.maximum.x))
-                Some(Rect(0.0, viewport.height, viewport.width, bottom))
-            else
-                None,
-            if (bars && showScrollbar(input.scrollbars, snapshot.maximum.y))
-                Some(Rect(viewport.width, 0.0, right, viewport.height))
-            else
-                None,
-            text
+    val text =
+        ink.host.measure(
+            Constraints.tight(Size(viewport.width, viewport.height)),
+            scrollPadding =
+                {
+                    size,
+                    body -> scrollbarPadding(
+                        size,
+                        body,
+                        axes,
+                        visibility,
+                        behavior.thickness,
+                        behavior.input.placement,
+                        context.layoutDirection
+                    )
+                }
         )
-    return LayoutResult(offsetMetrics(text.metrics, size, content.y), drawing, { text.close() })
+    val snapshot = text.scrollSnapshot
+    val bars =
+        ScrollBarsLayout(
+            outer,
+            snapshot,
+            axes,
+            visibility,
+            behavior.thickness,
+            context.layoutDirection,
+            behavior.input.placement
+        )
+    val drawing = TextFieldDrawing(geometry, viewport, bars.horizontal, bars.vertical, text)
+    return LayoutResult(
+        offsetMetrics(text.metrics, size, content.y + viewport.y),
+        drawing,
+        { text.close() }
+    )
 }

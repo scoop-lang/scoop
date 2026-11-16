@@ -1,0 +1,102 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class ScrollPaddingTest {
+    @Test
+    fun `end and start edges reveal within the unobscured viewport and the real range`() {
+        val viewport = Size(100.0, 80.0)
+        val content = Size(212.0, 314.0)
+        for (rtl in [false, true]) {
+            val padding =
+                if (rtl)
+                    ScrollPadding(left = 12.0, bottom = 14.0)
+                else
+                    ScrollPadding(right = 12.0, bottom = 14.0)
+            val frame = ScrollSnapshot(Point(20.0, 30.0), viewport, content, padding)
+            assertEquals(Size(200.0, 300.0), frame.bodySize)
+            assertEquals(Size(88.0, 66.0), frame.visibleSize)
+            assertEquals(Point(112.0, 234.0), frame.maximum)
+            assertEquals(frame.maximum, frame.revealedOffset(Rect(199.0, 299.0, 1.0, 1.0)))
+            assertEquals(Point(0.0, 0.0), frame.revealedOffset(Rect(0.0, 0.0, 1.0, 1.0)))
+            assertEquals(frame.offset, frame.revealedOffset(Rect(0.0, 0.0, 200.0, 300.0)))
+            assertEquals(
+                Point(56.0, 67.0),
+                frame.revealedOffset(
+                    Rect(90.0, 90.0, 20.0, 20.0),
+                    ScrollAlignment.Center,
+                    ScrollAlignment.Center
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `leading margin changes preserve body position until a newer explicit request`() {
+        val state = ScrollState()
+        val viewport = Size(100.0, 80.0)
+        val content = Size(212.0, 314.0)
+        val left = ScrollPadding(left = 12.0, bottom = 14.0)
+        val right = ScrollPadding(right = 12.0, bottom = 14.0)
+        val first = state.plan(viewport, content, left)
+        assertEquals(Point(12.0, 0.0), first.offset)
+        assertFalse(state.hasSnapshot)
+        assertFalse(state.hasPositionRequest)
+        state.publish(first, true)
+        val revision = state.requestRevision
+        val changed = state.plan(viewport, content, right)
+        assertEquals(Point(0.0, 0.0), changed.offset)
+        assertEquals(first, state.snapshot)
+        assertEquals(revision, state.requestRevision)
+        state.scrollTo(Point(5.0, 20.0))
+        assertEquals(Point(5.0, 20.0), state.plan(viewport, content, right).offset)
+        state.publish(state.plan(viewport, content, right), true)
+        assertEquals(Point(17.0, 20.0), state.plan(viewport, content, left).offset)
+        val explicit = ScrollState(Point(7.0, 9.0))
+        assertEquals(Point(7.0, 9.0), explicit.plan(viewport, content, left).offset)
+        val zero = ScrollState()
+        zero.scrollTo(Point(0.0, 0.0))
+        assertEquals(Point(0.0, 0.0), zero.plan(viewport, content, left).offset)
+    }
+
+    @Test
+    fun `pending reveals and accumulated scroll retain one copy of padding`() {
+        val state = ScrollState()
+        val viewport = Size(100.0, 80.0)
+        val content = Size(212.0, 314.0)
+        val padding = ScrollPadding(left = 12.0, bottom = 14.0)
+        state.reveal(Rect(199.0, 299.0, 1.0, 1.0))
+        val last = state.plan(viewport, content, padding)
+        assertEquals(Point(112.0, 234.0), last.offset)
+        state.publish(last, true)
+        assertEquals(Point(-10.0, -20.0), state.scrollBy(Point(-10.0, -20.0)))
+        assertEquals(Point(-5.0, -5.0), state.scrollBy(Point(-5.0, -5.0)))
+        val next = state.plan(viewport, content, padding)
+        assertEquals(Point(97.0, 209.0), next.offset)
+        assertEquals(content, next.content)
+        assertEquals(padding, next.padding)
+        state.publish(next, true)
+        state.reveal(Rect(0.0, 0.0, 1.0, 1.0))
+        assertEquals(Point(0.0, 0.0), state.plan(viewport, content, padding).offset)
+    }
+
+    @Test
+    fun `small viewports clamp usable space and invalid margins fail locally`() {
+        val snapshot =
+            ScrollSnapshot(
+                Point(0.0, 0.0),
+                Size(5.0, 4.0),
+                Size(12.0, 15.0),
+                ScrollPadding(left = 5.0, bottom = 4.0)
+            )
+        assertEquals(Size(0.0, 0.0), snapshot.visibleSize)
+        assertEquals(Point(7.0, 11.0), snapshot.revealedOffset(Rect(30.0, 50.0, 1.0, 1.0)))
+        assertFailsWith<IllegalArgumentException> { ScrollPadding(left = -1.0).extent() }
+        assertFailsWith<IllegalArgumentException> { ScrollPadding(bottom = 1.0e308 * 2.0).extent() }
+        assertFailsWith<IllegalArgumentException> {
+            ScrollPadding(left = 1.0e308, right = 1.0e308).extent()
+        }
+    }
+}

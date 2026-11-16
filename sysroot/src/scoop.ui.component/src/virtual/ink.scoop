@@ -148,7 +148,7 @@ internal class VirtualListInk(
                 item
             ).measure()
         val drawing = frame
-        return LayoutResult(LayoutMetrics(frame.snapshot.viewport), drawing)
+        return LayoutResult(LayoutMetrics(frame.size), drawing)
     }
     public override fun scene(context: SceneContext, drawing: VirtualListFrame) {
         val frame = drawing

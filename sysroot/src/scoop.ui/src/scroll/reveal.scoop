@@ -15,16 +15,24 @@ internal class ScrollReveal(
 ) {
     val active: Boolean get() =
         viewport.matches(state, layout.binding) &&
-            layout.snapshot.viewport.width >
+            layout.snapshot.visibleSize.width >
             0.0 &&
-            layout.snapshot.viewport.height >
+            layout.snapshot.visibleSize.height >
             0.0
     val current: Boolean get() = active && state.requestRevision == layout.revision
 
     fun local(window: Rect): Rect? {
         val rect = localReveal(geometry, window) ?: return None
         val offset = layout.snapshot.offset
-        return Some(Rect(rect.x + offset.x, rect.y + offset.y, rect.width, rect.height))
+        val padding = layout.snapshot.padding
+        return Some(
+            Rect(
+                rect.x + offset.x - padding.left,
+                rect.y + offset.y - padding.top,
+                rect.width,
+                rect.height
+            )
+        )
     }
     fun needsMove(rect: Rect): Boolean {
         val snapshot = layout.snapshot
@@ -36,8 +44,8 @@ internal class ScrollReveal(
                     Rect(
                         snapshot.offset.x,
                         snapshot.offset.y,
-                        snapshot.viewport.width,
-                        snapshot.viewport.height
+                        snapshot.visibleSize.width,
+                        snapshot.visibleSize.height
                     )
                 )
             ) {

@@ -74,7 +74,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
     public var tab: TextTabBehavior = TextTabBehavior.Navigate
     public var submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter
     public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
-    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public var scrollbarBehavior: ScrollbarBehavior =
+        scrollbarBehavior().copy { placement = ScrollbarPlacement.Gutter }
 
     public fun scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit): Unit {
         scrollbarBehavior = scrollbarBehavior.copy(configure)

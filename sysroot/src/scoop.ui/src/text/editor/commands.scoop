@@ -14,7 +14,7 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                     movement,
                     extend,
                     host.preferredX,
-                    host.scroll.viewport.height
+                    host.scroll.snapshot.visibleSize.height
                 )
             host.perform({ editorSetSelection(host, result.selection) }, endComposition = true)
             host.invalidate()

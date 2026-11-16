@@ -138,6 +138,8 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和活动动画优先。按 key 主动定位先用 `beginLayoutRequest()` 登记请求，通知返回后检查返回的 revision 仍为最新，再保存待布局解析的目标；数据变化后的自动修正沿用已有 revision。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。
 
+`ScrollViewport.layout(viewport, content, adjustment=None, padding=ScrollPadding())` 接收不含留白的正文尺寸。ScrollPadding 的 left／top／right／bottom 同时扩展范围并排除显露边缘，供 Overlay 滚动条使用；snapshot.content 含留白，bodySize 不含留白，visibleSize 用于显露和翻页。`reveal` 的 Rect 仍是正文坐标，present 自动施加留白和平移，调用方不另加视觉 offset。无新定位请求时，左／上留白变化在 Accepted 后以 LayoutCorrection 保持正文位置；显式位置意图优先。TextEditHost.measure 的 scrollPadding 回调在一次排版后接收 viewport 与原始正文尺寸，默认返回零，可用于组合控件的遮挡计算。
+
 输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。

@@ -311,9 +311,9 @@ internal class ScrollBarControl(
                 case Increment -> props().lineStep
                 case Track -> pageDirection *
                     if (orientation == Orientation.Horizontal)
-                        currentState.viewport.width
+                        currentState.snapshot.visibleSize.width
                     else
-                        currentState.viewport.height
+                        currentState.snapshot.visibleSize.height
                 case Thumb -> return false
             }
         return moveBy(distance)

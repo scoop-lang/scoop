@@ -125,6 +125,8 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S4 可配置滚动条与滚动语义
 
+当前进展：共享行为、Overlay／Gutter 和边缘显露已接入；按[实施记录](PROGRESS.md)完成定向验证。经 S2 接入的滚动语义及真实窗口／平台验收仍未完成，不以基础 API 或构建通过替代本批通过条件。
+
 **主要范围：** UI scroll、Component 共享 ScrollControl／ScrollBarControl、Textarea、VirtualList、主题 metrics／geometry／painter。先改 UI、Component、Theme spec。
 
 - [ ] 分开可见条件、平台预设、Overlay／固定 gutter、出现触发、闲置时间、淡入淡出；与已有 Auto／Always／Hidden 的实际含义完成统一迁移。

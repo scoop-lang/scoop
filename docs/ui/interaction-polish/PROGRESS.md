@@ -16,7 +16,7 @@
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
 | S2 | 进行中 | Window 语义节点、发布／退休和 AppKit 基础投影已接入；UI scope／场景／控件、关系／内容合并、精确命中和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection 角色／命令、三种文本菜单模式、宿主与模型绑定、选区策略、键盘入口和各输入控件透传已实现；AppKit 菜单与 UI 定向测试通过，真实编辑菜单因锁屏待验；受保护用途、多击组合、系统文本服务和其他平台仍待继续 |
-| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入，20 项定向测试通过，实窗验证待完成；统一 gutter／Overlay、遮挡显露和滚动语义待继续 |
+| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
 | S5～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -103,3 +103,12 @@
 - 本批保留现有 ScrollArea／VirtualList 的 Overlay 与 Textarea 固定占位；统一布局选项、Overlay 对 caret／焦点显露的遮挡处理和经 S2 接入的滚动语义仍属于 S4 未完成部分。真实设备／平台验证按总计划进行，不以值测试或构建通过代替。
 
 已生成并查询 Style／Component API，核对 ScrollbarBehavior 的完整默认值、构造方式、Textarea／ScrollArea builder 重载、VirtualList／MessageScroller Props 和 showTrack；临时 API 站点已清理。
+
+### 滚动条占位与边缘显露
+
+- ScrollbarPlacement 提供 Overlay／Gutter，ScrollArea／VirtualList／MessageScroller 默认 Overlay，Textarea 默认 Gutter；receiver copy 保留既有选择。Gutter 在一次正文测量前扣除固定最大条带，End 侧和双轴角部使用共享几何，范围与反馈过渡不改变占位；虚拟列表分别保留外尺寸和实际正文视口。
+- ScrollPadding 同时扩展可滚动范围与排除显露边缘，snapshot 区分含留白的 content、不含留白的 bodySize 和有效 visibleSize。Auto 只按原始正文溢出生成条，不由留白生成另一条。默认位置及无新定位意图时的左／上留白变化按 LayoutCorrection 保持正文位置；明确位置和动画意图优先。
+- FocusTarget、文本 caret／拖选／翻页沿同一快照，正文输入区域和 Accepted 显露边界同步变换。TextEditHost 的纯测量回调在排版后一次解析留白；Textarea 无须反复排版。虚拟阅读锚点仅修正主轴，保留交叉轴显露位置。accessibility 设计明确 provider 的 Reveal 复用这条路径，不自行计算未扣遮挡的区域。
+- UI 生产／测试语义检查与生产构建通过，滚动定向测试 13 项全部通过；公共滚动原生场景已增加首尾焦点显露、正文位置保持和 LayoutCorrection 验证，源码检查与 release 可执行文件构建通过。组件生产／测试源码检查和生产构建通过，30 项定向测试全部通过，覆盖占位、滚动几何、活动反馈、消息阅读模型、receiver 默认值和文本尺寸；Style 与四套主题已按依赖更新。普通滚动区、虚拟列表、文本控件三个原生场景分别补充占位热切换、RTL、阅读锚点／交叉轴保持、文档末端及实例／选区保留；三个场景的源码检查和 release 可执行文件构建全部通过。本机仍锁屏，四个场景的前台实际运行尚未完成，未据构建结果声明交互验收通过。
+
+UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding／bodySize／visibleSize、ScrollViewport.layout、TextEditHost.measure，以及 ScrollbarPlacement、Behavior／builder 的 placement 和 Textarea 的 Gutter 默认值、receiver 入口与导入路径。新增纯值测试已登记 Windows／Linux GNU 的目标选择；这些目标在集中跨平台轮次运行，Darwin 源选择保持不变。临时 API 站点已清理，保留开发产物与待前台运行的测试程序。

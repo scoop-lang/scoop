@@ -9,7 +9,8 @@ internal class ScrollMeasure(
     private val parent: Constraints,
     axes: ScrollAxes,
     width: Double?,
-    height: Double?
+    height: Double?,
+    private val gutter: Size = Size(0.0, 0.0)
 ) {
     private val minimum = parent.constrain(Size(0.0, 0.0))
     private val x = scrollExtent(width, minimum.width, parent.maxWidth, axes.horizontal)
@@ -19,21 +20,30 @@ internal class ScrollMeasure(
             if (axes.horizontal)
                 0.0
             else
-                x ?: minimum.width,
+                lowerBound((x ?: minimum.width) - gutter.width, 0.0),
             if (axes.horizontal)
                 None
             else
-                x,
+                when (x) {
+                    case Some(val value) -> Some(lowerBound(value - gutter.width, 0.0))
+                    case None -> None
+                },
             if (axes.vertical)
                 0.0
             else
-                y ?: minimum.height,
+                lowerBound((y ?: minimum.height) - gutter.height, 0.0),
             if (axes.vertical)
                 None
             else
-                y
+                when (y) {
+                    case Some(val value) -> Some(lowerBound(value - gutter.height, 0.0))
+                    case None -> None
+                }
         )
-    fun size(content: Size): Size = parent.constrain(Size(x ?: content.width, y ?: content.height))
+    fun size(content: Size): Size =
+        parent.constrain(
+            Size(x ?: content.width + gutter.width, y ?: content.height + gutter.height)
+        )
 }
 
 internal fun scrollExtent(

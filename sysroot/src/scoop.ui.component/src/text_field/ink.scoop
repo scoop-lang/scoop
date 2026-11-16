@@ -138,7 +138,13 @@ internal class TextFieldInk(
         content.scene(context, geometry.bounds, geometry.contentStyle) {
             local ->
             local.translate(geometry.content.x, geometry.content.y)
-            host.scene(local, current.editor)
+            local.save()
+            try {
+                local.translate(current.viewport.x, current.viewport.y)
+                host.scene(local, current.editor)
+            } finally {
+                local.restore()
+            }
             scrollbarFeedback.scene(
                 local,
                 Rect(0.0, 0.0, geometry.content.width, geometry.content.height),

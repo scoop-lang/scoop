@@ -105,6 +105,7 @@ private class ComponentReceiverDslTests {
         captured[0L].scrollbarBehavior { autoHide = Some(true) }
         assertEquals(Some(false), props.scrollbarBehavior.autoHide)
         assertEquals(Some(24.0), props.scrollbarBehavior.minimumHitThickness)
+        assertEquals(ScrollbarPlacement.Gutter, props.scrollbarBehavior.placement)
         assertFalse(props.wrap)
         assertTrue(props.readOnly)
         assertEquals("details", props.description)

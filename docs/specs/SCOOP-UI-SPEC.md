@@ -550,7 +550,7 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 TextEditOptions.contextMenu 及 TextEditHost.showContextMenu 接入原生文本菜单，模式、选区、已接受锚点、目标绑定与收尾遵守[原生菜单规范第 6 节](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。默认 PreferSystem，无可复用系统项目时使用标准原生模板；Disabled 允许调用方完全接管上下文菜单。
 
-`TextEditHost(scope, state, appearance, options = TextEditOptions(), onInteractionChanged = { _ -> Unit })` 是普通 Closeable，由呈现它的 Element 在构造中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
+`TextEditHost(scope, state, appearance, options = TextEditOptions(), onInteractionChanged = { _ -> Unit })` 是普通 Closeable，由呈现它的 Element 在构造中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints, cells=None, scrollPadding={ _, _ -> ScrollPadding() })` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
 `onInteractionChanged: (TextEditInteraction) -> Unit` 仅在真实交互值变化并更新 interaction 后同步通知，不为初始默认值补发一次。组合组件可据此保存用于外观的交互 State，使宿主及滚动视口仍归实际呈现的 Element 所有；该 State 保存 focused／hovered／focusVisible，不发布 scope、宿主或其他资源引用。回调沿当前 UI 错误通路处理，宿主初始化不触发编辑、提交或交互通知。
 
@@ -564,7 +564,7 @@ update 最后可传 `onCommitted: (TextEditorState) -> Unit = {}`，只在宿主
 
 组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
 
-TextEditMeasurement.scrollSnapshot 返回本次测量确定的 ScrollSnapshot。组合滚动条在 scene 使用所选 measurement 的快照，与正文共享 viewport、content 和 offset。TextEditHost.scrollSnapshot 与持久 ScrollState 的公开 snapshot 对应最近 Accepted 的结果；测量过程中不使用旧的已发布尺寸拼凑本帧滚动条。
+TextEditHost.measure 的 scrollPadding 回调在本次正文排版后接收实际 viewport 与不含留白的 content Size，返回 ScrollPadding；它处于纯测量阶段，每次测量调用一次，不修改模型或已发布滚动状态。组合控件由此解析浮层遮挡而无需第二次排版；默认返回零，cells 仍只适用于单行。TextEditMeasurement.scrollSnapshot 返回本次测量确定的 ScrollSnapshot。组合滚动条在 scene 使用所选 measurement 的快照，与正文共享 viewport、content 和 offset。TextEditHost.scrollSnapshot 与持久 ScrollState 的公开 snapshot 对应最近 Accepted 的结果；测量过程中不使用旧的已发布尺寸拼凑本帧滚动条。
 
 同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。宿主根据 restartTextInput 的实际会话归属决定是否等待旧 Disabled；新区域取得焦点后立即更换文档时，不能把尚未开启的首个连接标成旧会话。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
 
@@ -658,7 +658,11 @@ OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true�
 
 整改 P1：ScrollViewport.layout 返回不可变 ScrollLayout，其中 snapshot 为该请求的 ScrollSnapshot，内部保留本视口、绑定与请求 revision。present(context, layout, content=None, contentOrigin=Point(0,0)) 显式接收所选结果；不读取或消耗最近一次试测的可变槽。一个视口在同一场景中只呈现一次，跨帧可继续呈现有效结果；换绑后的旧结果不能发布到新状态，跨视口使用报告参数错误。内容坐标、clip 与 Accepted 发布沿原合同。
 
-`ScrollState(initialOffset: Point = Point(0, 0))` 是独立于挂载的 owner 线程状态。snapshot 返回最近 Accepted 的 `ScrollSnapshot(offset: Point, viewport: Size, content: Size)`，maximum 为每轴 max(0, content - viewport)；offset／viewport／content／maximum 是对应便利属性，hasSnapshot 区分首个 Accepted 前的零值，isAttached 和 isAnimating 查询当前绑定。render 读取这些属性建立普通 State 依赖，仅结果改变时通知。滚动容器不必在 render 读取 offset，偏移可直接请求场景帧而不重建内容。
+`ScrollState(initialOffset: Point = Point(0, 0))` 是独立于挂载的 owner 线程状态。snapshot 返回最近 Accepted 的 `ScrollSnapshot(offset: Point, viewport: Size, content: Size, padding: ScrollPadding = ScrollPadding())`，maximum 为每轴 max(0, content - viewport)；offset／viewport／content／maximum 是对应便利属性，hasSnapshot 区分首个 Accepted 前的零值，isAttached 和 isAnimating 查询当前绑定。render 读取这些属性建立普通 State 依赖，仅结果改变时通知。滚动容器不必在 render 读取 offset，偏移可直接请求场景帧而不重建内容。
+
+`ScrollPadding(left=0, top=0, right=0, bottom=0)` 表示物理边缘的显露留白，长度以逻辑单位计。它同时扩展实际内容范围、在呈现正文前加入 left／top 平移，并从焦点显露与翻页使用的有效视口排除对应边缘；因此最后一个字符或边缘焦点目标也有合法空间避开浮层滚动条。snapshot.content 含留白，bodySize 为不含留白的内容尺寸，visibleSize 为 viewport 扣除两侧留白后逐轴收敛到零的尺寸。显露的 Rect 继续使用正文局部坐标；offset 是含留白内容的物理滚动位置，始终位于零与 maximum 之间。留白不改变正文测量约束，不是另一份视觉偏移或超出范围的位置。
+
+`ScrollViewport.layout(viewport, content, adjustment=None, padding=ScrollPadding())` 的 content 参数为正文尺寸，由视口一次加入留白；不可把 snapshot.content 再作为同一正文尺寸加第二次。每边必须有限且非负，总长度和实际内容尺寸必须有限。没有较新的位置请求且没有活动动画时，left／top 改变按差量修正位置，尽可能保持正文的窗口位置；默认零构造位置首次布局也采用该规则，显式构造／定位与动画保持其物理位置意图。修正只在 Accepted 发布，已有快照的位置变化通知 LayoutCorrection，不推进 requestRevision；新的显式请求仍优先。
 
 `scrollTo(Point, origin = Programmatic)`、`scrollBy(Point, origin = Programmatic)` 和 `reveal(Rect, horizontal = Nearest, vertical = Nearest, origin = Programmatic)` 更新位置意图，origin 的类型为 `ScrollOrigin.User／Programmatic`。请求立即生效并安排帧，但不提前改写可观察的 snapshot。ScrollAlignment 支持 Nearest／Start／Center／End，Rect 使用物理内容局部坐标；Nearest 对已完整可见或已包含视口的超大目标保持原位置。范围未建立前 offset／extent 为零，构造位置、绝对定位和 reveal 延迟到首个成功布局；scrollBy 在当前尚未呈现的位置请求上累加，活动动画则从最后 Accepted 位置接管。它返回本次按最近已知范围收敛的实际请求位移，供 wheel 计算残量；首个范围之前返回零，不把尚未呈现的位置作为画面快照。范围改变时位置收敛；State 脱离视口后保留最后结果供再次挂载。
 
@@ -666,9 +670,9 @@ OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true�
 
 `ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 `layout(viewport, content): ScrollLayout` 与 `present(context, layout, content = None, contentOrigin = Point(0, 0))`：自绘容器在使用偏移选择子项的 measure，或只施加滚动变换的 scene 中取得不可变滚动布局，并在自己的 scene 显式选择它并登记提交。位置请求使曾在 measure 使用该视口的节点布局失效；只在 scene 使用的视口保留已有子项布局。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext 和同一视口、同一绑定产生的 ScrollLayout；每个视口在一次场景中至多登记一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
 
-present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
+present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin + padding 的 left／top - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
 
-边界几何、snapshot 和内容内区域的所属路径仅在 Accepted 后一起生效；输入区域的位置仍复用 Surface 已提交的几何，不复制输入状态。焦点请求把目标的窗口包围盒映回最近视口的内容坐标，以 Nearest 调整；一次只改变最近一个尚需滚动的视口，再等下一 Accepted 后继续外层。已满足的内层将目标区域限制在自己的视口后交给外层；任意变换使用实际场景几何，已可见时容忍图形后端的浮点误差，不因亚像素差异持续排帧。无法反变换、零视口、未放置或不能通过滚动显露的目标不能靠周期重试变为有效。
+显露边界使用扣除 padding 的有效视口，零有效尺寸不继续显露；正文的绘制与命中仍裁剪到完整 viewport。边界几何、snapshot 和内容内区域的所属路径仅在 Accepted 后一起生效；输入区域的位置仍复用 Surface 已提交的几何，不复制输入状态。焦点请求把目标的窗口包围盒映回最近视口的内容坐标，以 Nearest 调整；一次只改变最近一个尚需滚动的视口，再等下一 Accepted 后继续外层。已满足的内层将目标区域限制在自己的视口后交给外层；任意变换使用实际场景几何，已可见时容忍图形后端的浮点误差，不因亚像素差异持续排帧。无法反变换、零视口、未放置或不能通过滚动显露的目标不能靠周期重试变为有效。
 
 显露复用 ScrollState 的同一位置意图序号。由本次显露调整过的视口若收到更新的显式滚动／动画请求，或登记被关闭／换绑，则取消旧显露；不覆盖更新的用户位置意图。焦点请求或等待新位置发布可以要求必要的下一帧，隐藏／遮挡时仍依赖正常恢复，不启动定时轮询。ScrollState 的可观察发布与用户 onFrameComplete 动作保持原登记顺序；焦点依据的是同一 Accepted 帧的几何及 snapshot，不依赖这些用户回调先执行。
 

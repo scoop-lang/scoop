@@ -30,6 +30,7 @@ public class ScrollbarBehaviorBuilder internal constructor(initial: ScrollbarBeh
     public var trackPress: ScrollbarTrackPress = initial.trackPress
     public var repeatDelay: Duration? = initial.repeatDelay
     public var repeatInterval: Duration = initial.repeatInterval
+    public var placement: ScrollbarPlacement = initial.placement
 
     internal fun snapshot(): ScrollbarBehavior =
         ScrollbarBehavior(
@@ -58,7 +59,8 @@ public class ScrollbarBehaviorBuilder internal constructor(initial: ScrollbarBeh
             showTrack = showTrack,
             trackPress = trackPress,
             repeatDelay = repeatDelay,
-            repeatInterval = repeatInterval
+            repeatInterval = repeatInterval,
+            placement = placement
         )
 }
 

@@ -12,6 +12,8 @@ import scoop.window.*
 
 /** Continues the existing native scenario on its original mounted viewport. */
 internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplication): Boolean {
+    if (probe.behaviorPhase == 17)
+        return true
     when (probe.behaviorPhase) {
         case 0 -> {
             probe.styled.value = false

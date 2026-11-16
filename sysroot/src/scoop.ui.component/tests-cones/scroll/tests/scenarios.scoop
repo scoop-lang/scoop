@@ -17,9 +17,11 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
     when (probe.phase) {
         case 0 -> {
             assertEquals(Size(200.0, 120.0), probe.outer.viewport)
-            assertEquals(Size(400.0, 600.0), probe.outer.content)
-            assertEquals(Point(200.0, 480.0), probe.outer.maximum)
-            assertEquals(Point(0.0, 180.0), probe.inner.maximum)
+            val band = probe.bar().bounds.width
+            assertEquals(Size(400.0, 600.0), probe.outer.snapshot.bodySize)
+            assertEquals(Size(400.0 + band, 600.0 + band), probe.outer.content)
+            assertEquals(Point(200.0 + band, 480.0 + band), probe.outer.maximum)
+            assertEquals(Point(band, 180.0), probe.inner.maximum)
             probe.baselineRenders = probe.renders
             probe.baselineContent = probe.contentRenders
             probe.input(active) { probe.click(80.0, 65.0) }
@@ -74,12 +76,12 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             probe.input(active) { probe.key(121) }
         }
         case 8 -> {
-            assertEquals(Point(0.0, 120.0), probe.outer.offset)
+            assertEquals(Point(0.0, probe.outer.snapshot.visibleSize.height), probe.outer.offset)
             assertUserIntent(probe.outerIntents)
             probe.input(active) { probe.key(119) }
         }
         case 9 -> {
-            assertEquals(Point(200.0, 480.0), probe.outer.offset)
+            assertEquals(probe.outer.maximum, probe.outer.offset)
             probe.input(active) { probe.key(115) }
         }
         case 10 -> {
@@ -102,7 +104,10 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             }
         }
         case 12 -> {
-            assertTrue(probe.outer.offset.y > 239.99 && probe.outer.offset.y < 240.01)
+            val midpoint = probe.outer.maximum.y / 2.0
+            assertTrue(
+                probe.outer.offset.y > midpoint - 0.01 && probe.outer.offset.y < midpoint + 0.01
+            )
             assertUserIntent(probe.outerIntents)
             assertTrue(probe.innerFocus.hasFocus)
             probe.previousOffset = probe.outer.offset
@@ -121,7 +126,8 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             }
         }
         case 15 -> {
-            assertTrue(probe.outer.offset.y > 359.99 && probe.outer.offset.y < 360.01)
+            val page = probe.previousOffset.y + probe.outer.snapshot.visibleSize.height
+            assertTrue(probe.outer.offset.y > page - 0.01 && probe.outer.offset.y < page + 0.01)
             probe.outer.scrollTo(Point(0.0, 0.0))
             probe.theme.current.value = fluentTheme()
             probe.phase += 1
@@ -142,8 +148,13 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             probe.phase += 1
         }
         case 19 -> {
-            assertEquals(Point(90.0, 310.0), probe.outer.offset)
-            assertEquals(Some(Rect(170.0, 110.0, 50.0, 30.0)), probe.leafArea!!.visibleBounds)
+            val visible = probe.outer.snapshot.visibleSize
+            assertEquals(Point(290.0 - visible.width, 430.0 - visible.height), probe.outer.offset)
+            assertEquals(
+                Some(Rect(20.0 + visible.width - 50.0, 20.0 + visible.height - 30.0, 50.0, 30.0)),
+                probe.leafArea!!.visibleBounds
+            )
+            probe.previousOffset = probe.outer.offset
             probe.input(active) { probe.click(180.0, 120.0) }
         }
         case 20 -> {
@@ -159,7 +170,10 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
         }
         case 22 -> {
             assertFalse(probe.outer.isAnimating)
-            assertEquals(Point(90.0, 330.0), probe.outer.offset)
+            assertEquals(
+                Point(probe.previousOffset.x, probe.previousOffset.y + 20.0),
+                probe.outer.offset
+            )
             probe.outer.animateTo(Point(0.0, 0.0), AnimationSpec.Tween(Duration.seconds(3L)))
             probe.input(active) {
                 assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, phase = 128))
@@ -167,13 +181,18 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
         }
         case 23 -> {
             assertFalse(probe.outer.isAnimating)
-            assertEquals(Point(90.0, 330.0), probe.outer.offset)
+            assertEquals(
+                Point(probe.previousOffset.x, probe.previousOffset.y + 20.0),
+                probe.outer.offset
+            )
             probe.input(active) {
                 assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, phase = 4))
             }
         }
         case 48 -> {
             if (!advanceScrollbarBehavior(probe, active))
+                return
+            if (!advanceScrollbarPlacement(probe, active))
                 return
             probe.outer.animateTo(Point(200.0, 480.0), AnimationSpec.Tween(Duration.seconds(3L)))
             probe.generation.value = 3

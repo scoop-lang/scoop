@@ -10,6 +10,10 @@ public enum ScrollbarTrackPress {
     Page, Jump
 }
 
+public enum ScrollbarPlacement {
+    Overlay, Gutter
+}
+
 /** Immutable activity and feedback options; shape and colors stay in the theme. */
 public class ScrollbarBehavior internal constructor(
     public val preset: ScrollbarPreset = ScrollbarPreset.FollowSystem,
@@ -37,7 +41,8 @@ public class ScrollbarBehavior internal constructor(
     public val showTrack: Boolean? = None,
     public val trackPress: ScrollbarTrackPress = ScrollbarTrackPress.Page,
     public val repeatDelay: Duration? = Some(Duration.milliseconds(400L)),
-    public val repeatInterval: Duration = Duration.milliseconds(60L)
+    public val repeatInterval: Duration = Duration.milliseconds(60L),
+    public val placement: ScrollbarPlacement = ScrollbarPlacement.Overlay
 ) {
     init {
         for (value in [idleDelay, fadeIn, fadeOut, expandDuration, contractDuration, shadeDuration])

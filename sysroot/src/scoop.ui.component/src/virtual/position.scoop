@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.graphics.Size
 import scoop.ui.*
 import scoop.ui.style.Orientation
 
@@ -27,6 +28,7 @@ internal class VirtualReadingPosition(
 
 internal class VirtualListFrame(
     val props: VirtualListInkProps,
+    val size: Size,
     val layout: ScrollLayout,
     val revision: ULong,
     val hasViewport: Boolean,

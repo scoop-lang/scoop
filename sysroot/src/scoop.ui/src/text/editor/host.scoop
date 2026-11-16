@@ -256,7 +256,8 @@ public class TextEditHost public constructor(
 
     public fun measure(
         constraints: Constraints,
-        cells: TextEditCells? = None
+        cells: TextEditCells? = None,
+        scrollPadding: (Size, Size) -> ScrollPadding = { _, _ -> ScrollPadding() }
     ): TextEditMeasurement {
         checkOpen()
         when (cells) {
@@ -266,7 +267,7 @@ public class TextEditHost public constructor(
             )
             case None -> {}
         }
-        return editorMeasure(this, constraints, cells)
+        return editorMeasure(this, constraints, cells, scrollPadding)
     }
     public fun scene(context: SceneContext, measurement: TextEditMeasurement) {
         checkOpen()

@@ -39,6 +39,8 @@ internal class ScrollControl(
     private val horizontal = ScrollBarControl(scope, props, area, Orientation.Horizontal, feedback)
     private val vertical = ScrollBarControl(scope, props, area, Orientation.Vertical, feedback)
     private var direction = scope.layoutDirection
+    private var reservation = Size(0.0, 0.0)
+    val gutter: Size get() = reservation
 
     init {
         area.scope.defaultAction = { context, event -> handle(context, event) }
@@ -50,7 +52,7 @@ internal class ScrollControl(
         if (scope.isMounted)
             scope.requestFrame()
     }
-    fun update() {
+    fun update(): Boolean {
         val value = props()
         requireComponent(
             value.lineStep.isFinite() && value.lineStep > 0.0,
@@ -64,17 +66,43 @@ internal class ScrollControl(
         horizontal.update()
         vertical.update()
         painters.get(value.theme)
+        val next =
+            scrollbarGutter(
+                value.axes,
+                value.scrollbars,
+                feedback.options.thickness,
+                value.scrollbarBehavior.placement
+            )
+        val changed = next != gutter
+        reservation = next
+        return changed
     }
+    fun contentViewport(outer: Size, direction: LayoutDirection): Rect =
+        scrollbarViewport(outer, gutter, direction)
     fun layout(
         viewportSize: Size,
         contentSize: Size,
         adjustment: ScrollAdjustment? = None
-    ): ScrollLayout = viewport.layout(viewportSize, contentSize, adjustment)
+    ): ScrollLayout {
+        val value = props()
+        val padding =
+            scrollbarPadding(
+                viewportSize,
+                contentSize,
+                value.axes,
+                value.scrollbars,
+                feedback.options.thickness,
+                value.scrollbarBehavior.placement,
+                scope.layoutDirection
+            )
+        return viewport.layout(viewportSize, contentSize, adjustment, padding)
+    }
     fun scene(context: SceneContext, layout: ScrollLayout, contentOrigin: Point = Point(0.0, 0.0)) {
         val value = props()
         val snapshot = layout.snapshot
-        val size = snapshot.viewport
+        val size = context.size
         val presentedDirection = context.layoutDirection
+        val body = contentViewport(size, presentedDirection)
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
                 if (direction != presentedDirection) {
@@ -100,11 +128,13 @@ internal class ScrollControl(
         val painter = painters.get(value.theme)
         val bars =
             ScrollBarsLayout(
+                size,
                 snapshot,
                 value.axes,
                 value.scrollbars,
                 feedback.options.thickness,
-                presentedDirection
+                presentedDirection,
+                value.scrollbarBehavior.placement
             )
         context.draw {
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
@@ -112,7 +142,18 @@ internal class ScrollControl(
         decoration.scene(context, bounds, geometry.contentStyle) {
             local ->
             local.place(area, bounds)
-            viewport.present(local, layout, Some { content -> content.children() }, contentOrigin)
+            local.save()
+            try {
+                local.translate(body.x, body.y)
+                viewport.present(
+                    local,
+                    layout,
+                    Some { content -> content.children() },
+                    contentOrigin
+                )
+            } finally {
+                local.restore()
+            }
             feedback.scene(local, bounds, bars.horizontal, bars.vertical)
             horizontal.scene(local, snapshot, bars.horizontal, painter)
             vertical.scene(local, snapshot, bars.vertical, painter)
@@ -196,13 +237,13 @@ private fun scrollKey(
     val reversed = !axes.vertical && direction == LayoutDirection.Rtl
     val step =
         if (axes.vertical)
-            Point(0.0, current.viewport.height)
+            Point(0.0, current.visibleSize.height)
         else
             Point(
                 if (reversed)
-                    -current.viewport.width
+                    -current.visibleSize.width
                 else
-                    current.viewport.width,
+                    current.visibleSize.width,
                 0.0
             )
     when (key.logicalKey) {

@@ -132,7 +132,8 @@ private fun editorWidth(host: TextEditHost, viewport: Double?, padding: Double):
 internal fun editorMeasure(
     host: TextEditHost,
     constraints: Constraints,
-    cells: TextEditCells?
+    cells: TextEditCells?,
+    scrollPadding: (Size, Size) -> ScrollPadding
 ): TextEditMeasurement {
     constraints.check()
     val caretStyle = editorCaretStyle(host)
@@ -167,7 +168,7 @@ internal fun editorMeasure(
         contentWidth = max(contentWidth, line.rect.x + line.rect.width)
     val content =
         Size(max(size.width, contentWidth + caretPadding), max(size.height, layout.size.height))
-    val scroll = host.viewport.layout(size, content)
+    val scroll = host.viewport.layout(size, content, padding = scrollPadding(size, content))
     return TextEditMeasurement(
         LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline)),
         layout.retain(),
@@ -247,8 +248,8 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             content.place(
                 host.area,
                 Rect(
-                    snapshot.offset.x,
-                    snapshot.offset.y,
+                    snapshot.offset.x - snapshot.padding.left,
+                    snapshot.offset.y - snapshot.padding.top,
                     snapshot.viewport.width,
                     snapshot.viewport.height
                 )

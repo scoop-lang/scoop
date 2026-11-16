@@ -10,7 +10,7 @@
 
 | 项目 | 当前已具备 | 本轮需要完成 |
 | --- | --- | --- |
-| 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带和重复操作 | 当前验证见实施记录；统一 Overlay／gutter、遮挡显露、滚动语义及实窗／平台验收待继续 |
+| 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带、重复操作及统一 Overlay／Gutter、边缘显露留白 | 当前验证见实施记录；滚动语义及实窗／平台验收待继续 |
 | 原生文本菜单 | 原生 popup、七种编辑角色及可用性；文本宿主与输入控件已接入三种菜单模式、右键选区、键盘入口和目标会话 | 前台实窗与 Windows／GTK 验证、触摸入口、受保护用途及系统文本服务；已验证范围见实施记录 |
 | 多击选择 | 公共编辑器已有双击选词、三击选逻辑行、按词／行继续拖选，且已有实窗用例 | Windows 连续点击计数、Linux 系统阈值、平台真实事件及 Unicode／投影组合回归 |
 | 拖动 | 公共轴向 `Drag`、阈值接管、取消、速度；用于滚动条、Slider、Resizable 等 | 数据 offer、drop target、Copy／Move 协商、预览、完成与取消，覆盖窗口内、同程序跨窗口及跨程序 |
@@ -21,7 +21,7 @@
 
 源码核查的几个具体结论：
 
-- [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)现已接入独立宽度／透明度过渡、闲置隐藏和按住重复，共享行为由 ScrollbarFeedback 管理；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。Textarea 仍固定预留解析后的最大条宽；行为已共享，统一占位选项与遮挡显露待继续。
+- [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)现已接入独立宽度／透明度过渡、闲置隐藏和按住重复，共享行为由 ScrollbarFeedback 管理；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。三个消费者已共享 Overlay／Gutter 配置和布局计算，Textarea 默认 Gutter；浮层遮挡通过 ScrollPadding 接入同一 ScrollViewport 与焦点显露。原生场景验证边界见实施记录。
 - [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。S1 已在 [Windows 输入](../../../sysroot/src/scoop.window/native/windows/input.c)补齐三击及更多次数，并将 [Linux 输入](../../../sysroot/src/scoop.window/native/linux/input.c)改为消费 GTK 自身 count，移除固定 0.5 秒和 5 个物理像素的重复判断。Windows 生产计数算法的本地定向测试已通过；两个平台的原生输入用例仍待目标环境运行，不能据共享编辑行为或算法测试声明整条输入链通过。
 - [公共 Drag](../../../sysroot/src/scoop.ui/src/interaction/drag.scoop)只负责一段鼠标轴向交互，没有跨应用传输和落放目标。[PointerEvent](../../../sysroot/src/scoop.window/src/input/pointer.scoop)也尚无 touch contact 或数据拖放事件。
 - S1 已将 Window 系统偏好经 UI 根传给 [ThemeSource.read(scope)](../../../sysroot/src/scoop.ui.style/src/theme/source.scoop)和[文本选项](../../../sysroot/src/scoop.ui/src/text/editor/options.scoop)。caret 默认继承；四套主题消费减少动画、高对比度、减少透明度和文字缩放。已通过的离屏／实窗范围与剩余系统热切换验证分别记录，不以公共接口接入代替全部控件及设备验收。
@@ -97,7 +97,7 @@
 5. 完全隐藏的条不能用透明输入区域截走正文点击。边缘 hover 唤醒可以观察指针而不消费按下；重新出现的可操作几何仍须等待 Accepted。
 6. thumb 拖动保持按下点相对 thumb 的比例；尺寸、内容范围、DPI 或主题变化时重算合法几何，目标失效按原取消通路结束。
 
-Overlay 条覆盖正文边缘时，caret／焦点自动显露应计入实际遮挡；固定 gutter 的布局在 idle／hover／hidden 之间保持稳定。RTL 的垂直条位置及双轴角部仍沿现有方向规则。
+Overlay 条覆盖正文边缘时，通过 ScrollPadding 同时扩展可滚动范围与排除显露边缘，使文档末端的 caret／焦点也能避开遮挡。留白按原始正文溢出和最大条带确定，不随透明度变化，不反过来触发另一轴滚动条。固定 gutter 在测量前扣除最大条带，idle／hover／hidden 之间保持稳定。竖条与 gutter 位于 End；左侧留白改变按 LayoutCorrection 保持正文位置，不刷新闲置计时或产生用户滚动意图。ScrollArea／VirtualList 默认 Overlay，Textarea 默认 Gutter，使用同一 placement 配置显式切换。
 
 ### 4.3 回弹、惯性与嵌套滚动
 
@@ -265,7 +265,7 @@ S0.3 本地原型已确认 AppKit 公开的 `NSTextView.defaultMenu` 可以在�
 
 | 组合 | 必须观察到的结果 |
 | --- | --- |
-| 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带和重复操作 | 当前验证见实施记录；统一 Overlay／gutter、遮挡显露、滚动语义及实窗／平台验收待继续 |
+| 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带、重复操作及统一 Overlay／Gutter、边缘显露留白 | 当前验证见实施记录；滚动语义及实窗／平台验收待继续 |
 | 输入与运动 | 传统鼠标轮、触控板含 momentum、直接触摸、键盘、语义滚动；新输入中断旧运动，嵌套不双重消费或双重回弹 |
 | 多击 | OS 真实连续点击抵达共享编辑器；系统阈值变化、二／三击继续拖选、Unicode／换行／投影、失焦与取消 |
 | 文本菜单 | 选区内外右键、辅助点击、键盘、长按；只读／密码／禁用、Undo／Redo／Delete、剪贴板变更、菜单期间 composition、目标切换及关闭 |

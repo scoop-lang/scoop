@@ -49,22 +49,26 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                         Input(current, scope = mount)
                     }
                 ),
-                component(
-                    TextareaProps(
-                        probe.secondary,
-                        rows = probe.editorRows,
-                        wrap = probe.wrap,
-                        fonts = Some(probe.fonts),
-                        focus = FocusOptions(Some(probe.focus[1L])),
-                        scrollbars = probe.scrollbars,
-                        caretBlink = Some(Duration.milliseconds(0L)),
-                        paintCache = PaintCachePolicy.Tiles(64, 0)
+                direction(
+                    component(
+                        TextareaProps(
+                            probe.secondary,
+                            rows = probe.editorRows,
+                            wrap = probe.wrap,
+                            fonts = Some(probe.fonts),
+                            focus = FocusOptions(Some(probe.focus[1L])),
+                            scrollbars = probe.scrollbars,
+                            scrollbarBehavior = probe.scrollbarBehavior,
+                            caretBlink = Some(Duration.milliseconds(0L)),
+                            paintCache = PaintCachePolicy.Tiles(64, 0)
+                        ),
+                        {
+                            current, mount ->
+                            probe.textareaCreates += 1;
+                            Textarea(current, scope = mount)
+                        }
                     ),
-                    {
-                        current, mount ->
-                        probe.textareaCreates += 1;
-                        Textarea(current, scope = mount)
-                    }
+                    probe.fieldDirection
                 ),
                 input(probe.primary) {
                     this.readOnly = true

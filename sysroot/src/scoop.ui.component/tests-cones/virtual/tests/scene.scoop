@@ -20,6 +20,7 @@ internal class ListScene(private val probe: ListProbe, scope: ComponentScope): C
                             this.orientation = this @ListScene.probe.orientation.value
                             this.overscan = 20.0
                             this.lineStep = this @ListScene.probe.lineStep.value
+                            this.scrollbarBehavior = this @ListScene.probe.behavior.value
                             this.theme = Some(this @ListScene.probe.theme)
                             this.handle = Some(this @ListScene.probe.handle)
                             this.focus =

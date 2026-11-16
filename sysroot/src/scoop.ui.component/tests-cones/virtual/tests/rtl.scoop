@@ -109,8 +109,12 @@ internal fun advanceRtlList(probe: ListProbe, active: ActiveApplication) {
             probe.input(active) { probe.key(121) }
         }
         case 24 -> {
-            assertEquals(Point(0.0, 0.0), probe.rtlScroll.offset)
-            assertTrue(probe.rtlScroll.requestRevision > probe.boundaryRevision)
+            if (probe.placementPhase == 0) {
+                assertEquals(Point(0.0, 0.0), probe.rtlScroll.offset)
+                assertTrue(probe.rtlScroll.requestRevision > probe.boundaryRevision)
+            }
+            if (!advanceListPlacement(probe, active))
+                return
             probe.show.value = false
             probe.refresh()
         }

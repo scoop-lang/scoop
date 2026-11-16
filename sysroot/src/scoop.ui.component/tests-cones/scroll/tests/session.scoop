@@ -44,6 +44,8 @@ private class ScrollAreaTest {
 internal class AreaProbe {
     val behavior = state(scrollbarBehavior { preset = ScrollbarPreset.Static })
     var behaviorPhase = 0
+    var placementPhase = 0
+    var placementIntent = 0L
     var behaviorWaiter: WindowDeadline? = None
     var idleFrames = 0
     var expectedJump = 0.0

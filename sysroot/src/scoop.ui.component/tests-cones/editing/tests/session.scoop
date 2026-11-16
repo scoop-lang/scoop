@@ -120,6 +120,14 @@ internal class FieldProbe {
     var wrap = true
     var editorRows = 4L
     var scrollbars = ScrollbarVisibility.Auto
+    var scrollbarBehavior =
+        scrollbarBehavior {
+            preset = ScrollbarPreset.Static;
+            placement = ScrollbarPlacement.Gutter
+        }
+    var fieldDirection = LayoutDirection.Ltr
+    var placementPhase = 0
+    var placementText = ""
     var dialogOpen = false
     var callbackVersion = 0
     var editedVersion = -1
@@ -271,6 +279,12 @@ internal class FieldProbe {
     }
     fun next(block: () -> Unit) {
         phase += 1
+        waiting = true
+        block()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    fun nextPlacement(block: () -> Unit) {
+        placementPhase += 1
         waiting = true
         block()
         assertTrue(active!!.proxy().post { _ -> waiting = false })

@@ -148,6 +148,14 @@ path = "tests/scroll_intents.scoop"
 when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
+path = "tests/scroll_padding.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll_padding.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
 path = "tests/text_edit_policy.scoop"
 when = { os = "linux", env = "gnu" }
 

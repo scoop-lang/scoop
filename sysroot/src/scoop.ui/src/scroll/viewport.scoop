@@ -92,20 +92,25 @@ public class ScrollViewport internal constructor(
     public fun layout(
         viewport: Size,
         content: Size,
-        adjustment: ScrollAdjustment? = None
+        adjustment: ScrollAdjustment? = None,
+        padding: ScrollPadding = ScrollPadding()
     ): ScrollLayout {
         checkOpen()
         observeScroll(this)
-        var result = sample(viewport, content)
+        checkLayoutSize(content)
+        val margin = padding.extent()
+        val extent = Size(content.width + margin.width, content.height + margin.height)
+        var result = sample(viewport, extent, padding)
         when (adjustment) {
             case Some(val value) -> {
                 checkScrollPoint(value.offset)
                 if (value.requestRevision == current.revision && !moving)
                     result =
                         ScrollSnapshot(
-                            clampScroll(value.offset, viewport, content),
+                            clampScroll(value.offset, viewport, extent),
                             viewport,
-                            content
+                            extent,
+                            padding
                         )
             }
             case None -> {}
@@ -135,13 +140,18 @@ public class ScrollViewport internal constructor(
             case None -> {}
         }
     }
-    private fun sample(viewport: Size, content: Size): ScrollSnapshot {
+    private fun sample(viewport: Size, content: Size, padding: ScrollPadding): ScrollSnapshot {
         checkLayoutSize(viewport)
         checkLayoutSize(content)
         return if (motion?.started ?: false)
-            ScrollSnapshot(clampScroll(animation.value, viewport, content), viewport, content)
+            ScrollSnapshot(
+                clampScroll(animation.value, viewport, content),
+                viewport,
+                content,
+                padding
+            )
         else
-            current.plan(viewport, content)
+            current.plan(viewport, content, padding)
     }
     private fun complete(layout: ScrollLayout) {
         val offered = layout.snapshot

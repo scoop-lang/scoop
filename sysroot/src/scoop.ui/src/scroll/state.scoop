@@ -133,7 +133,7 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
                 current.offset
             else
                 if (initialized)
-                    plan(current.viewport, current.content).offset
+                    plan(current.viewport, current.content, current.padding).offset
                 else
                     when (request) {
                         case Position(val value) -> value
@@ -191,8 +191,34 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         notifyRequest(origin, token)
         return token
     }
-    internal fun plan(viewport: Size, content: Size): ScrollSnapshot =
-        resolveScroll(request, current.offset, viewport, content)
+    internal fun plan(
+        viewport: Size,
+        content: Size,
+        padding: ScrollPadding = ScrollPadding()
+    ): ScrollSnapshot {
+        val dx = padding.left - current.padding.left
+        val dy = padding.top - current.padding.top
+        val preserve =
+            if (initialized)
+                revision == publishedRevision
+            else
+                revision == 0UL
+        val next =
+            when (request) {
+                case Position(val point) -> if (preserve)
+                    ScrollRequest.Position(Point(point.x + dx, point.y + dy))
+                else
+                    request
+                case Reveal(_, _, _) -> request
+            }
+        return resolveScroll(
+            next,
+            Point(current.offset.x + dx, current.offset.y + dy),
+            viewport,
+            content,
+            padding
+        )
+    }
 
     internal fun publish(
         value: ScrollSnapshot,

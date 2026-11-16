@@ -35,7 +35,8 @@ public class TextareaProps public constructor(
     public val group: GroupPosition? = None,
     public val chrome: TextFieldChrome = TextFieldChrome.Framed,
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
-    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public val scrollbarBehavior: ScrollbarBehavior =
+        scrollbarBehavior { placement = ScrollbarPlacement.Gutter }
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")

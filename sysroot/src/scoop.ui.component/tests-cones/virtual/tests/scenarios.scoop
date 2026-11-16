@@ -15,7 +15,9 @@ internal fun advanceList(probe: ListProbe, active: ActiveApplication) {
     when (probe.phase) {
         case 0 -> {
             assertEquals(Size(160.0, 60.0), probe.scroll.viewport)
-            assertEquals(Size(160.0, 2000000000.0), probe.scroll.content)
+            assertEquals(Size(160.0, 2000000000.0), probe.scroll.snapshot.bodySize)
+            assertTrue(probe.scroll.content.width > probe.scroll.viewport.width)
+            assertEquals(2000000000.0, probe.scroll.content.height)
             probe.assertLive([0L, 1L, 2L, 3L])
             assertEquals(4, probe.builds)
             probe.initialRenders = probe.renders
@@ -98,14 +100,16 @@ internal fun advanceList(probe: ListProbe, active: ActiveApplication) {
             probe.refresh()
         }
         case 10 -> {
-            assertEquals(Size(2000000000.0, 60.0), probe.scroll.content)
-            assertEquals(Point(0.0, 0.0), probe.scroll.offset)
+            assertEquals(Size(2000000000.0, 60.0), probe.scroll.snapshot.bodySize)
+            assertEquals(2000000000.0, probe.scroll.content.width)
+            assertTrue(probe.scroll.content.height > probe.scroll.viewport.height)
+            assertEquals(Point(0.0, probe.scroll.maximum.y), probe.scroll.offset)
             probe.assertLive([0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L])
             assertSame(probe.six!!, probe.row(6L))
             probe.input(active) { assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, -4, 0)) }
         }
         case 11 -> {
-            assertEquals(Point(40.0, 0.0), probe.scroll.offset)
+            assertEquals(Point(40.0, probe.scroll.maximum.y), probe.scroll.offset)
             probe.assertLive([1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L])
             probe.scrollTo(Point(2000.0, 0.0))
         }
