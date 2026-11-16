@@ -60,7 +60,9 @@ TextRange 和 TextPosition 使用 **UTF-8 字节偏移**，与 String 的标量�
 
 公共编辑查询同样使用这份布局：`wordRange` 取得 ICU 分词段，`moveWord` 按逻辑方向跳过沿途纯空白段，`moveGrapheme` 返回相邻 grapheme 边界。`moveCaret(position, CaretMovement, preferredX)` 支持视觉字符／词移动、上下、逻辑／物理行边界及文档起止，返回新 TextPosition 与可传给下一次上下移动的 preferredX；经过短行时不会丢失原列。WordLeft／WordRight 依实际字形方向遍历 ICU 词段；LineLeft／LineRight 使用物理左右边缘，与 LineStart／LineEnd 的逻辑起止分开。`logicalLineRange` 合并软换行片段并包含末尾显式换行，供整行选择使用。查询保留混合 bidi 与软换行 affinity，不建立选择状态或编辑历史；完整规则见[导航规范](../../../docs/specs/SCOOP-GRAPHICS-TEXT-SPEC.md#61-公共编辑导航)。
 
-字体、Paragraph 和 TextLayout 限创建线程使用及关闭，通过 Closeable／use 管理。文本库拥有自己的 native 资源；Canvas.drawText 只在同步回调内借用 graphics 的公开原生画布接口，正常返回或异常退出后恢复调用方状态，不依赖 graphics 的私有包装或 internal 成员。
+原生宿主可导入 `scoop.graphics.text.native.*`，在布局的 owner 线程调用 `@Unsafe layout.withNativeLayout { native -> ... }`，借出包含 context、retain／release、hit、caret、boxes、range、lineRange／lineIndex 的 CLayout 值。它读取同一份已排版结果；需要跨借用保存时先 retain，每份拥有的引用最后 release，普通值复制不增加引用。保留引用在原 TextLayout／Paragraph／字体来源关闭后仍有效，native 线程可以并发查询；boxes 使用同步的纯 native visitor，不回调 Scoop。偏移仍为原布局 UTF-8 字节，转换为编辑文档、替代文字及屏幕坐标由宿主负责。状态码、单位和寿命见[原生查询规范](../../../docs/specs/SCOOP-GRAPHICS-TEXT-SPEC.md#62-原生只读查询)。
+
+字体、Paragraph 和 TextLayout 的普通方法限创建线程使用及关闭，通过 Closeable／use 管理。原生查询与这些方法共用排版缓存的串行访问边界，不将普通 Skia 句柄直接交给其他线程。文本库拥有自己的 native 资源；Canvas.drawText 只在同步回调内借用 graphics 的公开原生画布接口，正常返回或异常退出后恢复调用方状态，不依赖 graphics 的私有包装或 internal 成员。
 
 准备[目标资源](../../../scripts/README.md)后运行 `scoop test sysroot/src/scoop.graphics.text --release --sysroot sysroot`。测试覆盖真实离屏文本、固定字体、Unicode／bidi、独立布局和资源边界；macOS 另验证真实 Metal 目标。字体来源与许可见 [FONTS.md](tests/data/FONTS.md)，运行结果和平台范围见 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
 

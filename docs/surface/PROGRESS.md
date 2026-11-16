@@ -95,6 +95,12 @@ ARM64 与 Rosetta 示例都已运行，观察到正确的 Skia 路径、旋转�
 
 ## 2026-11-16：原生命中快照
 
-graphics.native.CanvasGeometry.withNativeHitTest 为原生宿主借出可保留的只读几何；context 与 retain／release／contains 组成普通 C ABI 值，不回调 Scoop 或借用 GPU／画布。独立引用支持原始几何关闭后的并发 native 查询，继续共享不可变裁剪前缀。普通 hitTest 与 native contains 共用同一实现，并补齐目标 viewport 排除，右／下边界及视口外不再返回命中。
+graphics.native.CanvasGeometry.withNativeGeometry 为原生宿主借出可保留的只读几何；context 与 retain／release／contains 组成普通 C ABI 值，不回调 Scoop 或借用 GPU／画布。独立引用支持原始几何关闭后的并发 native 查询，继续共享不可变裁剪前缀。普通 hitTest 与 native contains 共用同一实现，并补齐目标 viewport 排除，右／下边界及视口外不再返回命中。后续文本接入同时复用该快照的 toLocal 与完整／可见 mapRect；新增查询的实际验证单独记录。
 
 本批 aarch64-apple-darwin release 验证通过：生产／测试源码检查、Scoop 与 C++ 格式检查、C++ 严格编译检查，以及 13 项定向测试（10 项几何、3 项原生画布借用）。新增用例从真实 native 工作线程与调用线程查询同一快照，覆盖源对象关闭、变换、路径孔洞、视口边界、不可逆变换、非有限坐标及异常借用收尾。API 站点已生成并核对 Unsafe 方法、返回类型、函数指针签名与 import，规范、README 和编程导航已同步；临时站点在核对后清理。其他目标留到本轮集中平台验证，未以这些离屏结果声明 accessibility 场景或实窗命中已经完成。
+
+## 2026-11-16：原生文本与范围几何查询
+
+TextLayout.withNativeLayout 提供同一排版的 hit、caret、selection boxes、grapheme／word／视觉行／逻辑行查询，成套原生引用可以在公开布局、段落和字体来源关闭后继续使用。文本数据上的互斥访问覆盖共享 ICU 和 SkParagraph 的派生缓存，普通 Scoop 资源仍限制 owner 线程；没有额外 shaping、文档或逐字符矩形副本。CanvasGeometry 的原生入口统一演进为 withNativeGeometry／NativeGeometry，并补 toLocal 和完整／精确可见 mapRect，保留原 contains、引用与裁剪规则。
+
+本批 aarch64-apple-darwin release：几何 3 项、文本库 66 项全部通过，包含 Unicode／bidi／软换行／行内对象、截断与空文本、非法参数、异常借用、关闭后的 foreign-thread 查询，以及原生查询与 owner 绘制／导航／新布局并行。Scoop 检查、格式、C++20 严格编译及生成 API 的签名／import 核对通过。规范、设计、README 和编程导航已同步；其他平台与上层 accessibility 的实际场景继续分别验证。

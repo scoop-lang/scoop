@@ -1,17 +1,29 @@
 package scoop.graphics.native
 
 import scoop.graphics.GraphicsException
+import scoop.graphics.Point
+import scoop.graphics.Rect
+
+/** Native query status: 1 success, 0 unavailable, -1 invalid argument, -2 native failure. */
+@CLayout
+public struct NativeGeometryPoint(val status: Int, val position: Point)
+
+@CLayout
+public struct NativeGeometryRect(val status: Int, val rect: Rect)
 
 /**
  * A borrowed native snapshot. Retain before saving or handing off; release each owned reference.
  * The paired functions support concurrent native queries without entering Scoop or its runtime.
  */
 @CLayout
-public struct NativeGeometryHitTest(
+public struct NativeGeometry(
     val context: Ptr<Unit>,
     val retain: FunPtr<(Ptr<Unit>) -> Unit>,
     val release: FunPtr<(Ptr<Unit>) -> Unit>,
-    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>
+    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>,
+    val toLocal: FunPtr<(Ptr<Unit>, Double, Double) -> NativeGeometryPoint>,
+    /** clipped is 0 for full transformed bounds or 1 for the exact visible intersection. */
+    val mapRect: FunPtr<(Ptr<Unit>, Rect, Int) -> NativeGeometryRect>
 )
 
 @CLayout
@@ -19,21 +31,30 @@ private struct NativeGeometryExport(
     val context: Ptr<Unit>?,
     val retain: FunPtr<(Ptr<Unit>) -> Unit>,
     val release: FunPtr<(Ptr<Unit>) -> Unit>,
-    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>
+    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>,
+    val toLocal: FunPtr<(Ptr<Unit>, Double, Double) -> NativeGeometryPoint>,
+    val mapRect: FunPtr<(Ptr<Unit>, Rect, Int) -> NativeGeometryRect>
 )
 
 @Unsafe
-internal fun <T> withGeometryHitTest(pointer: Ptr<Unit>, block: (NativeGeometryHitTest) -> T): T {
+internal fun <T> withGeometry(pointer: Ptr<Unit>, block: (NativeGeometry) -> T): T {
     val exported = nativeGeometryExport(pointer)
     val context = exported.context ?: throw GraphicsException("export native hit geometry")
     try {
         return block(
-            NativeGeometryHitTest(context, exported.retain, exported.release, exported.contains)
+            NativeGeometry(
+                context,
+                exported.retain,
+                exported.release,
+                exported.contains,
+                exported.toLocal,
+                exported.mapRect
+            )
         )
     } finally {
         exported.release(context)
     }
 }
 
-@Extern(name = "scoop_graphics_geometry_export_hit")
+@Extern(name = "scoop_graphics_geometry_export")
 private fun nativeGeometryExport(geometry: Ptr<Unit>): NativeGeometryExport

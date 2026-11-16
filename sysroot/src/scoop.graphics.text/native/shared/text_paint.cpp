@@ -5,6 +5,7 @@
 
 extern "C" STCaret scoop_graphics_text_paint_bounds(STTextLayout *layout) {
   try {
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
     if (!layout->paint_bounds_known) {
       SkPictureRecorder recorder;
       SkRTreeFactory factory;

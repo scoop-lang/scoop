@@ -58,6 +58,7 @@ STRangeQuery scoop_graphics_text_word_range(void *pointer, int64_t byte,
                                             int32_t affinity) {
   try {
     auto &data = *static_cast<STTextLayout *>(pointer)->data;
+    const std::lock_guard<std::recursive_mutex> guard(data.mutex);
     if (!data.scalar(byte))
       return {{}, -1};
     const auto *word = data.word_at(byte, affinity);
@@ -71,6 +72,7 @@ STRangeQuery scoop_graphics_text_move_word(void *pointer, int64_t byte,
                                            bool forward) {
   try {
     auto &data = *static_cast<STTextLayout *>(pointer)->data;
+    const std::lock_guard<std::recursive_mutex> guard(data.mutex);
     if (!data.scalar(byte))
       return {{}, -1};
     data.find_words();

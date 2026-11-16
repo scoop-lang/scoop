@@ -42,6 +42,8 @@ path = "tests/navigation.scoop"
 [[test.sources]]
 path = "tests/navigation_words.scoop"
 [[test.sources]]
+path = "tests/native_layout.scoop"
+[[test.sources]]
 path = "tests/boundaries.scoop"
 [[test.sources]]
 path = "tests/paint_bounds.scoop"
@@ -69,6 +71,8 @@ path = "native/shared/text.cpp"
 path = "native/shared/text_layout.cpp"
 [[native.sources]]
 path = "native/shared/text_queries.cpp"
+[[native.sources]]
+path = "native/shared/text_native.cpp"
 [[native.sources]]
 path = "native/shared/text_navigation.cpp"
 [[native.sources]]

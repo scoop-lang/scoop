@@ -41,7 +41,7 @@ STTextData::STTextData(std::string value, std::vector<STRange> objects,
 
 extern "C" {
 void scoop_graphics_text_drop(void *pointer) {
-  delete static_cast<STObject *>(pointer);
+  static_cast<STObject *>(pointer)->release();
 }
 void *scoop_graphics_text_style_create(STTextStyleData value) {
   try {

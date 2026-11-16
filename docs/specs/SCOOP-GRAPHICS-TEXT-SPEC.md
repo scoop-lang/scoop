@@ -220,6 +220,18 @@ Up／Down 使用 preferredX 或原 caret 的 x，在相邻视觉行选最近的�
 
 末尾显式换行之后的空行，其 range／contentRange／visibleRange 均为文档末端的空范围；换行属于前一行，不能重复占据末尾空行。换行不生成虚构的字形边缘，空行本身仍有合法 caret，字符、词、行边界及上下导航使用同一行表。
 
+### 6.2 原生只读查询
+
+原生 accessibility 等消费者通过 `@Unsafe TextLayout.withNativeLayout(block)` 借用 `scoop.graphics.text.native.NativeTextLayout`。该 CLayout 值保存 opaque context、配套 retain／release，以及 hit、caret、boxes、range、lineRange、lineIndex 函数指针；函数及返回值不含 Scoop 对象。入口在 TextLayout 所属线程使用，查询复用已经排好的同一个结果，不重新 shaping、不保存 UI、编辑器、正文版本或选择状态。
+
+block 正常返回或抛错均释放本次借用。需要在 block 外保存的消费者先 retain，每份拥有的引用最后 release 一次；普通 struct 复制不增加引用。保留引用独立于公开 TextLayout、Paragraph 和字体来源的寿命，可以由 native 线程查询及释放。并发只读查询和原有绘制／查询共用文本数据上的串行访问边界，保护 SkParagraph 与 ICU 的派生缓存；普通 Scoop 资源仍遵守原有 owner 线程规则。native 调用及 boxes visitor 不进入 Scoop、布局、run loop 或业务回调，不抛出跨 ABI 异常。
+
+所有偏移为原布局正文的 UTF-8 字节，坐标为段落局部逻辑坐标；文本投影、替代文字、屏幕变换、clip、内容版本与 Accepted 发布由实际宿主负责。affinity 的原生值为 0（Upstream）和 1（Downstream）。hit 返回 NativeTextPosition；caret 返回 NativeTextRect。boxes 对同一 selection 查询的每个实际矩形调用 native visitor(context, Rect, direction)，direction 为 0（Rtl）或 1（Ltr），不合并 bidi 的独立矩形；空范围可以成功且没有矩形。visitor 的 context 仅在此次同步调用期间借用。
+
+range 的 unit 为 0（grapheme）、1（ICU word）、2（视觉行）、3（逻辑行），沿既有边界和 affinity 选择单位。文档末端的 Downstream grapheme 是空范围，Upstream 选择前一 grapheme；空正文两者均为空。lineRange 按零起始视觉行号返回包含行尾换行的范围，lineIndex 返回位置所属视觉行号；软换行处按 affinity 选择前／后行，末尾空行保留自己的行号。grapheme／word 不要求已显示该位置，视觉行／逻辑行遵守现有截断可用性；caret 仍要求 grapheme 边界。
+
+NativeTextPosition、NativeTextRect、NativeTextRange 的 status 以及 boxes 的返回值统一为 1（成功）、0（该布局中不可用）、-1（参数无效）、-2（原生查询失败）；仅成功结果中的数据有效。lineIndex 成功返回非负行号，-1 表示不可用、-2 表示参数无效、-3 表示原生失败。非法偏移、切断 UTF-8、非法 affinity／unit、非有限坐标或负 caret 宽度不得进入引擎；失败不改变布局或发布部分业务状态。
+
 ## 7. 绘制、缓存与所有权
 
 定义在 `scoop.graphics.text` 的 Canvas.drawText 绘制 TextLayout 中的文字，行内对象留给调用方按 inlineObjects 绘制或放置。调用方使用同一个结果提供对象位置、文字选择及输入几何，不能分别测量两份段落。对象的绘制不触发文本引擎回调，也不在排版中调用组件 render／paint。
@@ -230,7 +242,7 @@ Up／Down 使用 preferredX 或原 caret 的 x，在相邻视觉行选最近的�
 
 具体入口为 `Canvas.withSkiaCanvas`，签名及原生借用约束见 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)。Canvas.drawText 在这段借用内绘制同一 TextLayout，只使用公开的 Point／Rect／Color 值布局及 Skia 头文件，不包含 graphics 的私有 native 头文件。
 
-FontCollection、Paragraph 和 TextLayout 在创建线程串行使用与关闭；不可变结果不自动获得底层 Skia 缓存的并发保证。native 持有跨调用需要的数据或原生引用，不能保存移动 GC 对象的裸地址。关闭幂等，失败与清理继续遵守既有 GraphicsException、参数／状态异常和 ResourceUseException 合同。
+FontCollection、Paragraph 和 TextLayout 的普通 Scoop API 在创建线程使用与关闭；跨线程 native 查询只经第 6.2 节的成套引用接口，不将普通不可变结果误作任意 Skia 并发保证。native 持有跨调用需要的数据或原生引用，不能保存移动 GC 对象的裸地址。关闭幂等，失败与清理继续遵守既有 GraphicsException、参数／状态异常和 ResourceUseException 合同。
 
 缓存由实际宿主拥有。内容、样式、段落设置或字体集合／revision 改变时重建 Paragraph；宽度、行内尺寸或基线改变时重排。仅位置、Canvas 变换、整体透明度及不改变尺寸的行内绘制变化复用排版。颜色等已经保存在 Paragraph 中的样式变化可以走重建路径，本期不要求另建绘制样式增量系统。
 
