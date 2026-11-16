@@ -1,6 +1,6 @@
 # Scoop Window 数据拖放规范
 
-本文规定普通 Window 的原生数据边界；完整 source、UI 路由、文本事务、其他平台与设备验收仍按 [S6 计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)交付。首批实现 AppKit destination，不把该接收边界视为三个范围的完整拖放已完成。
+本文规定普通 Window 的原生数据边界，当前提供 Darwin 的 destination 和 Window source 接口。UI source、文本事务、其他平台与设备验收仍按 [S6 计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)交付；接口、准备／收尾测试和实际系统会话的完成状态分别记录。
 
 ## 1. 内容、协商与接收
 
@@ -33,3 +33,17 @@ prepareForDragOperation 只复核元数据和已协商选择；performDragOperat
 原生方法在 offer／drop／leave 回调或内容读取尚未退栈时拒绝新的拖放调用，不让重入的 perform 重复插入或消费外层 offer 的收尾。AppKit 可用空 sender 结束 offer；重复结束仍只通知一次。
 
 原生关闭先清除 callback／context，再通过已有 owner control 队列在调用退栈后释放 ForeignCallback。保留旧 destination、关闭期间读取、handler 自关与迟到方法均不能访问已退休应用状态。macOS 的真实 dragging session、跨进程接收及 source Move 删除仍须独立验证，不以直接调用 NSDraggingDestination 方法替代系统会话验收。
+
+## 4. Window 拖出源
+
+Darwin 提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键按下或左键拖动事件的 owner 派发中调用；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
+
+数据在返回前复制给 native。Text 发布一个原值文本项；Url 要求绝对 URL，在同一项发布 URL 与其文本表示；Files 要求非空绝对本地路径列表，每个路径发布一个 FileURL 项，不读取文件内容、检查来源或创建文件承诺。格式无法表示、空操作集及无效数据为参数错误，失败不接管普通按下序列，也不留下半份来源。源不改系统普通剪贴板，拖放 pasteboard 归系统会话。
+
+准备成功后沿已有 SystemOperation 取消通知结束普通鼠标序列，再在 owner 的延迟原生操作边界调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。原生预览使用系统图标及实际项目数，光标和修饰键操作选择交给 AppKit。
+
+DragSession 的 isStarted 表示原生已确认开始，result: DragResult? 保存终态，isClosed 可查询；所有访问要求 owner。DragResult 为 Dropped(DragEffect)、NotDropped 或 Failed(WindowException)。Dropped 仅表示系统报告目标接受了允许的操作，绝不隐含删除来源；NotDropped 合并系统未接受、拒收及用户取消，因为 AppKit 不区分其原因。Failed 表示实际启动失败。完成结果通过普通 owner 队列交付 onCompleted 一次，交付前释放源登记；处理器仍沿正常应用错误边界执行。Copy 不删源，Move 的文档版本确认与一次删除由实际 UI／业务实现；Window 不擅自删除文字或文件。
+
+`cancelPending(): Boolean` 只取消尚未启动的请求，成功后产生 NotDropped；已启动、已有终态或已关闭返回 false。`close()` 幂等，撤销后续业务回调，关窗自动执行；尚未启动时撤销请求。AppKit 的公开 NSDraggingSession 没有强制取消方法，因此关闭已启动资源不宣称系统会话已取消，也不合成 Escape 或调用私有接口：native 保留系统仍在使用的数据与源对象直到真实 ended 回调，只清除 Scoop context。此时尚无实际终态的 result 保持 None；后续没有来源删除回调。已经保存的终态在关闭后保留。
+
+原生 sourceOperationMask 查询只读取复制后的允许操作，不进入 Scoop。系统实际结束才报告 Dropped／NotDropped；窗口失活或普通鼠标 capture 结束本身不结束跨程序会话。关闭期间的 native 引用不能保留业务 closure，待系统结束后释放剩余原生数据。实际会话、关闭中继续拖放、同程序接收与外部 Move 均须独立桌面验收，不能用协议方法测试替代。

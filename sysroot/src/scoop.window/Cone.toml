@@ -142,6 +142,14 @@ when = { os = "darwin" }
 path = "native/darwin/drop.m"
 when = { os = "darwin" }
 
+[[native.sources]]
+path = "native/darwin/drag.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/drag_data.m"
+when = { os = "darwin" }
+
 [[native.libraries]]
 name = "AppKit"
 kind = "framework"

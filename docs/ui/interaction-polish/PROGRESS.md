@@ -267,3 +267,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 14 个 Scoop 文件及 2 个 native 文件的格式检查、Objective-C 严格编译通过；Surface／UI 含测试检查及 Window→Surface→UI 的开发 release 产物完成更新。API 文档及查询核对 hitInput、InputHit、periodicUpdates、dropTarget、DropArea／handlers／hover 的签名、访问器、默认值和导入路径；规范、设计、计划、README 和编程导航同步，局部 Markdown 目标检查通过。
 
 本批的实际桌面 Accepted 接收、外部 dragging session、VoiceOver 操作及其他平台尚未验收；原生协议方法、离屏几何、挂载逻辑与示例构建分别记录，不能互相替代。source、文本事务及三个范围的双向系统会话仍按 S6 继续。临时 API 站点清理，保留后续需要的开发产物与共享缓存。
+
+### Window 拖出接口与准备／完成收尾
+
+- 新增 Window.beginDrag、DragSession 和 DragResult，使用当前左键 Down／Dragged 的原生事件，准备时复制 Text／Url／非空绝对 Files，再沿已有延迟原生操作通路启动。Url 同项提供 URL 和文本，路径转换核对原值，不读文件正文；原生预览和修饰键交给 AppKit。
+- 普通指针沿 SystemOperation 通知结束，窗口系统移动仍只接受原来的 Down。完成结果回普通 owner 队列且只交付一次，先释放登记再执行业务。Dropped(Move) 不自动删除源；Native source 查询不进入 Scoop，源窗口失活不取消跨程序会话。
+- 明确 AppKit 公开 API 的取消边界：cancelPending 只取消未启动请求，close 清除业务回调；活动 OS 会话的数据与对象保留到真实 ended，不伪造 Cancelled 或完整 Move，未知结果保留 None。关窗自动撤销业务入口，原生迟到引用不保留 Scoop context。
+- 两个 DragSourceTest 实际通过。原生 item writer 使用独立 pasteboard 和真实临时文件，验证 Unicode／空串、URL 多表示、完整文件列表与无效输入；真实窗口事件方法验证 Down／Dragged、错误参数、窗口归属、启动前取消／关窗及窗口移动限制。显式 NativeDragSource 替身单独验证 Copy／Move／Link／NotDropped、失败、重复／迟到通知、关闭和完成处理器异常；这些替身结果不表示 AppKit 会话已运行。测试清理其临时文件和 pasteboard。
+- Window 含测试检查、生产 release 构建、源定向测试及既有 destination 的 24 阶段回归通过；[两窗口拖出／接收示例](../../../sysroot/src/scoop.window/examples/drag-drop/README.md)的完整 release 检查和链接通过。8 个 Scoop 文件、6 个 native 文件的格式检查与 Objective-C 严格编译通过；API 查询核对 beginDrag、结果／资源类型、取消、查询及关闭的签名、默认值、访问器与导入。
+- 同步 Window 主规范与拖放规范、设计、计划、README 和编程导航，局部 Markdown 目标检查通过；临时 API 站点清理，保留开发产物与共享缓存。
+
+实际 NSDraggingSession、外部程序的双向 Copy／Move、活动源关闭和跨窗口系统会话尚未验收。UI source、文本拖出与落点事务、其他平台继续按 S6 实现，不以本批准备通路或替身测试关闭对应条目。

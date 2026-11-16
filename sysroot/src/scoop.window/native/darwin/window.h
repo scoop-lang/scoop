@@ -35,7 +35,7 @@ typedef struct {
   int64_t error;
 } SWResult;
 
-@class SWApplication, SWWindow, SWMenu, SWDropTarget;
+@class SWApplication, SWWindow, SWMenu, SWDropTarget, SWDragSource;
 
 @interface SWTextSnapshot : NSObject
 @property(nonatomic, strong) NSString *text;
@@ -69,6 +69,7 @@ typedef struct {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, id> *watches;
 @property(nonatomic, weak) SWMenu *menuBar;
 @property(nonatomic, weak) NSMenu *dockMenu;
+@property(nonatomic, weak) SWDragSource *dragSource;
 @property(nonatomic, strong) NSMutableArray *modalStack;
 @property(nonatomic, strong) NSMutableArray *preferenceObservers;
 - (void)enqueue:(SWEvent *)event;

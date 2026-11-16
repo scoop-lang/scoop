@@ -38,7 +38,8 @@ static void pointer(SWView *view, NSEvent *native, int32_t kind) {
     data.dy = native.scrollingDeltaY * (kind == 6 ? data.scale : 1);
   }
   event.data = data;
-  if (kind == 3)
+  if (kind == 3 || (kind == 2 && native.type == NSEventTypeLeftMouseDragged &&
+                    [view.pressedButtons containsObject:@0]))
     event.nativeInput = native;
   [view.owner.application enqueue:event];
 }

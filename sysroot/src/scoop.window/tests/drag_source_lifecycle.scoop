@@ -1,0 +1,103 @@
+package scoop.window
+
+import scoop.test.*
+
+/** A managed lifecycle test double; it does not claim an AppKit drag ran. */
+private class DragNativeProbe(
+    private val mode: Int,
+    private val afterClose: () -> Unit
+): NativeDragSource {
+    var session: DragSession? = None
+    var starts = 0
+    var closes = 0
+    public override fun start() {
+        starts += 1
+        if (mode == 5)
+            throw WindowException("expected start failure", WindowErrorKind.NativeFailure)
+        session!!.nativeEvent(0, 0)
+        assertTrue(session!!.isStarted)
+        assertFalse(session!!.cancelPending())
+        if (mode == 6) {
+            session!!.close()
+            assertEquals(1, closes)
+            session!!.nativeEvent(1, 1)
+            assertNoResult(session!!)
+            afterClose()
+        } else {
+            val effect =
+                if (mode == 7)
+                    1
+                else
+                    mode
+            session!!.nativeEvent(1, effect)
+            session!!.nativeEvent(1, effect)
+        }
+    }
+    public override fun close() {
+        closes += 1
+    }
+}
+
+internal class DragLogicProbe(
+    private val window: Window,
+    private val application: ActiveApplication,
+    private val time: InputTime
+) {
+    private var step = -1
+    var completions = 0
+    var finished = false
+    var last: DragSession? = None
+
+    fun next() {
+        step += 1
+        val mode = step - 1
+        val native = DragNativeProbe(mode, { assertTrue(application.proxy().post { _ -> next() }) })
+        val session =
+            DragSession(window.owner) {
+                result ->
+                completions += 1
+                assertTrue(last!!.isClosed)
+                assertEquals(1, native.closes)
+                assertEquals(
+                    if (mode == -1)
+                        0
+                    else
+                        1,
+                    native.starts
+                )
+                assertEquals(mode != -1 && mode != 5, last!!.isStarted)
+                when (result) {
+                    case Dropped(val effect) -> {
+                        assertTrue(mode == 1 || mode == 2 || mode == 4 || mode == 7)
+                        assertEquals(
+                            when (mode) {
+                                case 2 -> DragEffect.Move
+                                case 4 -> DragEffect.Link
+                                else -> DragEffect.Copy
+                            },
+                            effect
+                        )
+                    }
+                    case NotDropped -> assertTrue(mode == -1 || mode == 0 || mode == 3)
+                    case Failed(val error) -> {
+                        assertEquals(5, mode)
+                        assertEquals(WindowErrorKind.NativeFailure, error.kind)
+                    }
+                }
+                if (mode == 7) {
+                    finished = true
+                    throw DragCompletionFailure()
+                }
+                next()
+            }
+        native.session = Some(session)
+        last = Some(session)
+        session.bind(native)
+        session.schedule(time)
+        assertNoResult(session)
+        if (mode == -1) {
+            assertTrue(session.cancelPending())
+            assertEquals(1, native.closes)
+        }
+    }
+}

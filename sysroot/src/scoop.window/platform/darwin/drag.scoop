@@ -1,0 +1,180 @@
+package scoop.window
+
+/** Begins native data dragging from the currently dispatched left-button input. */
+public fun Window.beginDrag(
+    content: DragContent,
+    effects: DragEffects = DragEffects(true, false, false),
+    onCompleted: (DragResult) -> Unit = {}
+): DragSession {
+    owner.requireInteractive()
+    val input =
+        owner.currentInput ?: throw WindowException("begin data drag", WindowErrorKind.InvalidState)
+    val pointer =
+        input.pointer ?: throw WindowException("begin data drag", WindowErrorKind.InvalidState)
+    if (owner.systemOperationPending)
+        throw WindowException("begin data drag", WindowErrorKind.ResourceBusy)
+    when (owner.application.dragSource) {
+        case Some(_) -> throw WindowException("begin data drag", WindowErrorKind.ResourceBusy)
+        case None -> {}
+    }
+    requireWindow(effects.copy || effects.move || effects.link, "drag effects must not be empty")
+    when (content) {
+        case Files(val paths) -> {
+            requireWindow(paths.size > 0L, "drag file list must not be empty")
+            for (path in paths)
+                requireWindow(path.isAbsolute, "drag file paths must be absolute")
+        }
+        else -> {}
+    }
+    val session = DragSession(owner, onCompleted)
+    session.bind(prepareDragSource(owner, pointer, content, effects, session))
+    session.schedule(input.time)
+    return session
+}
+
+private fun prepareDragSource(
+    owner: WindowOwner,
+    input: Ptr<Unit>,
+    content: DragContent,
+    effects: DragEffects,
+    session: DragSession
+): NativeDragSource {
+    @Unsafe
+    {
+        val callback =
+            foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
+                { phase: Int, effect: Int -> session.nativeEvent(phase, effect) },
+                0,
+                ForeignCallbackMode.Reusable
+            )
+        var allocated: Ptr<Unit>? = None
+        try {
+            val mask =
+                (
+                    if (effects.copy)
+                        1
+                    else
+                        0
+                ) +
+                    (
+                        if (effects.move)
+                            2
+                        else
+                            0
+                    ) +
+                    (
+                        if (effects.link)
+                            4
+                        else
+                            0
+                    )
+            val pointer =
+                created(
+                    nativeDragCreate(
+                        owner.pointer!!,
+                        input,
+                        mask,
+                        callback.function,
+                        callback.context
+                    ),
+                    "prepare data drag"
+                )
+            allocated = Some(pointer)
+            when (content) {
+                case Text(val value) -> addDragText(pointer, 1, value)
+                case Url(val value) -> addDragText(pointer, 2, value)
+                case Files(val paths) -> for (path in paths) {
+                    val status =
+                        withDialogString(path.toOsString()) {
+                            bytes,
+                            count -> @Unsafe
+                            {
+                                return@withDialogString nativeDragAddPath(pointer, bytes, count)
+                            }
+                        }
+                    checkDragContent(status)
+                }
+            }
+            checkNativeStatus(nativeDragReady(pointer), "prepare data drag")
+            return DarwinDragSource(owner.application, pointer, callback)
+        } catch (error: Throwable) {
+            when (allocated) {
+                case Some(val value) -> nativeDragClose(value)
+                case None -> {}
+            }
+            releaseForeignCallback(callback)
+            throw error
+        }
+    }
+}
+
+private fun addDragText(pointer: Ptr<Unit>, format: Int, text: String) {
+    @Unsafe
+    {
+        val status =
+            text.withUtf8Bytes {
+                bytes,
+                count -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeDragAdd(pointer, format, bytes, count)
+                }
+            }
+        checkDragContent(status)
+    }
+}
+
+private fun checkDragContent(status: Long) {
+    if (status == -8L)
+        throw IllegalArgumentException(Some("drag content cannot be represented by the platform"))
+    checkNativeStatus(status, "copy drag content")
+}
+
+private class DarwinDragSource(
+    private val application: ApplicationOwner,
+    private val pointer: Ptr<Unit>,
+    private val callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>
+): NativeDragSource {
+    public override fun start() {
+        @Unsafe
+        {
+            checkNativeStatus(nativeDragStart(pointer), "start data drag")
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeDragClose(pointer)
+        }
+        val owned = callback
+        application.mailbox.postControl {
+            @Unsafe
+            {
+                releaseForeignCallback(owned)
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_window_drag_create")
+private fun nativeDragCreate(
+    window: Ptr<Unit>,
+    input: Ptr<Unit>,
+    effects: Int,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+): NativeCreateResult
+
+@Extern(name = "scoop_window_drag_add")
+private fun nativeDragAdd(source: Ptr<Unit>, format: Int, bytes: Ptr<UInt8>, length: Long): Long
+
+@Extern(name = "scoop_window_drag_add_path")
+private fun nativeDragAddPath(source: Ptr<Unit>, bytes: Ptr<Byte>, length: Long): Long
+
+@Extern(name = "scoop_window_drag_ready")
+private fun nativeDragReady(source: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_drag_start")
+private fun nativeDragStart(source: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_drag_close")
+private fun nativeDragClose(source: Ptr<Unit>)

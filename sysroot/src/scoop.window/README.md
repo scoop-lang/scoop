@@ -48,7 +48,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 `PointerEvent.Button` 的最后一项是至少为 1 的连续点击次数，释放沿用对应按下的次数。AppKit／GTK 使用原生 count；Windows 按系统的时间、双击矩形和拖动容差补齐三击及更多次点击，正常释放鼠标捕获不打断序列。失焦、取消、按钮变化、超时、点击越界或实际拖动结束旧计数；不要在每个编辑控件再用固定时间／距离重算。底层计数定向测试位于 `tests-cones/clicks`，实际 Win32 和 GTK X11 输入用例分别位于 `tests-cones/input`、`test-linux`；平台通过范围见 [UI 实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 
-全屏控制／显示模式切换、全局 raw device、触摸／高级手势、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收入口，source 和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+全屏控制／显示模式切换、全局 raw device、触摸／高级手势、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收与 Window 拖出接口，UI source、文本事务和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
 
 ## 系统交互偏好
 
@@ -130,7 +130,17 @@ Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 
 
 `periodicUpdates` 默认 false；设为 true 后，AppKit 在活动拖放期间继续请求 draggingUpdated，使内容或 Accepted 场景变化可以更新静止指针下的选择。禁用或关闭目标时不请求；切换此选项本身不撤销当前协商，也不创建空闲轮询。
 
-正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。此入口当前只提供 AppKit 接收端；UI 已通过 scope.dropTarget 接到自己的 Accepted 输入路由，见 [UI 接收示例](../scoop.ui/examples/drop-target/README.md)。source、文本事务、Windows／Linux 和真实系统会话继续按交互打磨 S6 实现，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
+正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。UI 已通过 scope.dropTarget 接到自己的 Accepted 输入路由，见 [UI 接收示例](../scoop.ui/examples/drop-target/README.md)。UI source、文本事务、Windows／Linux 和真实系统会话继续按交互打磨 S6 实现，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
+
+## 发起原生数据拖放
+
+macOS 的 `window.beginDrag(content, effects = DragEffects(true, false, false), onCompleted = {})` 只能在该窗口当前左键 Down 或 Dragged 的 owner 派发中调用，上层负责阈值。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。
+
+准备成功后取消普通鼠标序列，并在已有延迟原生操作边界启动系统会话。返回的 DragSession 提供 isStarted、result、isClosed；结果为 Dropped(effect)、NotDropped 或 Failed(error)。onCompleted 在普通 owner 队列交付一次，登记和原生回调先退休。Dropped(Move) 只表示目标接受 Move，Window 不删源；实际文档或文件业务必须独立确认自己的版本和完成条件。
+
+`cancelPending()` 只取消未启动请求，返回 true 并产生 NotDropped；已启动返回 false。`close()` 撤销未来回调，关窗自动调用。AppKit 没有公开强制取消接口，关闭已启动资源时 native 继续持有系统使用的数据直到真实结束，清除 Scoop context；未知结果保持 None，也不会再触发来源删除。源窗口失活本身不取消跨程序拖放。
+
+完整两窗口消费者见 [drag-drop 示例](examples/drag-drop/README.md)，原生 item 与准备通路测试见 [drag_source.scoop](tests/drag_source.scoop)。完成状态机的替身测试单独标明；系统拖动、外部程序和关闭中继续拖放的实际结果仍需桌面验收。
 
 ## 文本输入
 

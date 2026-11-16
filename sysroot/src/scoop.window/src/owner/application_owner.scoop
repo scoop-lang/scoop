@@ -28,6 +28,7 @@ internal class ApplicationOwner(
     var nextPopup = 1L
     val pendingInputs = ArrayList<NativeInputDelivery>()
     val nativeOperations = ArrayList<() -> Unit>()
+    var dragSource: DragSession? = None
     var nativeOperationDepth = 0
     val deadlines = ArrayList<WindowDeadline>()
     var armedDeadline: TimeMark? = None

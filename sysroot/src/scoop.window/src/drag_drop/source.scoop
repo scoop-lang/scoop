@@ -1,0 +1,156 @@
+package scoop.window
+
+/** The native destination result. A Move still requires the source's own commit. */
+public enum DragResult {
+    Dropped(DragEffect), NotDropped, Failed(WindowException)
+}
+
+internal interface NativeDragSource: Closeable {
+    fun start()
+}
+
+/** Closing disconnects callbacks; it does not claim to cancel an active system drag. */
+public class DragSession internal constructor(
+    private val owner: WindowOwner,
+    onCompleted: (DragResult) -> Unit
+): Closeable {
+    private var native: NativeDragSource? = None
+    private var completion: ((DragResult) -> Unit)? = Some(onCompleted)
+    private var pending = true
+    private var started = false
+    private var queued = false
+    private var closed = false
+    private var outcome: DragResult? = None
+
+    public val isStarted: Boolean get() {
+        owner.application.checkThread();
+        return started
+    }
+    public val isClosed: Boolean get() {
+        owner.application.checkThread();
+        return closed
+    }
+    public val result: DragResult? get() {
+        owner.application.checkThread();
+        return outcome
+    }
+
+    internal fun bind(value: NativeDragSource) {
+        native = Some(value)
+    }
+
+    internal fun schedule(time: InputTime) {
+        owner.dragSource = Some(this)
+        owner.application.dragSource = Some(this)
+        owner.systemOperationPending = true
+        owner.systemOperationCancelled = false
+        owner.pendingSystemCancellation = Some(time)
+        owner.leases += 1L
+        owner.application.deferNativeOperation {
+            try {
+                start()
+            } finally {
+                owner.systemOperationPending = false
+                owner.leases -= 1L
+                owner.application.mailbox.wake()
+            }
+        }
+    }
+
+    private fun start() {
+        if (closed || !pending)
+            return
+        if (
+            owner.phase !=
+                WindowState.Open ||
+                owner.application.exiting ||
+                owner.inputBlocked ||
+                owner.systemOperationCancelled ||
+                !owner.requestedVisible ||
+                owner.visibilitySuppressed
+        ) {
+            cancelPending()
+            return
+        }
+        pending = false
+        try {
+            native!!.start()
+        } catch (error: WindowException) {
+            complete(DragResult.Failed(error))
+        }
+    }
+
+    internal fun nativeEvent(phase: Int, effect: Int): Int {
+        if (!owner.application.isCurrentThread() || closed || pending || queued)
+            return 0
+        if (phase == 0) {
+            started = true
+        } else
+            if (phase == 1) {
+                complete(
+                    when (effect) {
+                        case 1 -> DragResult.Dropped(DragEffect.Copy)
+                        case 2 -> DragResult.Dropped(DragEffect.Move)
+                        case 4 -> DragResult.Dropped(DragEffect.Link)
+                        else -> DragResult.NotDropped
+                    }
+                )
+            }
+        return 0
+    }
+
+    private fun complete(value: DragResult) {
+        if (closed || queued)
+            return
+        outcome = Some(value)
+        pending = false
+        queued = true
+        if (
+            !owner.application.mailbox.post {
+                if (!closed) {
+                    val action = completion
+                    close()
+                    action?.invoke(value)
+                }
+            }
+        )
+            close()
+    }
+
+    /** Cancels only work that has not entered the system drag session. */
+    public fun cancelPending(): Boolean {
+        owner.application.checkThread()
+        if (closed || !pending || queued)
+            return false
+        pending = false
+        releaseNative()
+        complete(DragResult.NotDropped)
+        return true
+    }
+
+    private fun releaseNative() {
+        val value = native
+        native = None
+        value?.close()
+    }
+
+    public override fun close() {
+        owner.application.checkThread()
+        if (closed)
+            return
+        closed = true
+        pending = false
+        completion = None
+        when (val current = owner.dragSource) {
+            case Some(val value) -> if (value === this)
+                owner.dragSource = None
+            case None -> {}
+        }
+        when (val current = owner.application.dragSource) {
+            case Some(val value) -> if (value === this)
+                owner.application.dragSource = None
+            case None -> {}
+        }
+        releaseNative()
+    }
+}

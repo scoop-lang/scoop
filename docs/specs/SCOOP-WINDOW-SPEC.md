@@ -319,4 +319,4 @@ WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 cop
 
 ## 13. 数据拖放
 
-Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。首批提供 AppKit destination；完整 source、UI 路由、文本事务和三平台验收继续按交互打磨 S6 推进。
+Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。Darwin 提供 registerDropTarget 和从当前左键输入启动的 beginDrag；源结果报告系统实际接受的操作，不自动删除来源。UI 接收沿 Accepted 路由，UI source、文本事务和三平台系统验收继续按交互打磨 S6 推进。

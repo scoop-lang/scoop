@@ -164,6 +164,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 - [x] 首批 Window／AppKit 接收资源：metadata 协商、Drop 时复制 Text／Url／完整 Files、真实 Boolean 接收结果及 handler 替换／禁用／关窗／重入收尾；进程内公开协议方法测试通过。合同见[数据拖放规范](../../specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)；这不关闭下面的 source、UI／文本与三个范围验收。
 - [x] UI 接收资源与共享命中查询：DropArea 借用 InputArea，使用 Surface Accepted 路径与冻结坐标，支持逻辑父目标回退、局部反馈、读取期间重新确认及挂载收尾；定向几何和真实挂载逻辑测试通过。合同见[UI 数据拖放规范](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md)，独立消费者见[接收示例](../../../sysroot/src/scoop.ui/examples/drop-target/README.md)；实际窗口命中、source／文本与系统会话仍按下面条目验收。
+- [x] Window／AppKit 拖出接口与准备／收尾：beginDrag 使用当前左键输入、复制标准表示并延后启动；cancelPending 与 close 分开，结果不隐含来源删除。原生 item writer、启动前取消／关窗和显式替身完成测试通过；两窗口消费者见 [drag-drop](../../../sysroot/src/scoop.window/examples/drag-drop/README.md)。这不关闭下面的实际系统会话、UI source 与文本移动验收。
 - [ ] 定义一份公共 offer／effect／结果合同，支持纯文本、URL、真实文件列表及多表示；按实际需要延迟读取，native 格式转换归 Window，Link 只在有业务含义时提供。
 - [ ] 分别完成窗口内、同程序跨窗口、跨程序 source／target；允许离窗的 source 从起始使用原生会话，各接收根只命中自己的 Accepted 场景。
 - [ ] 完成阈值接管、Enter／Over／Leave／Drop、拒绝后的父目标规则、预览／高亮／光标及修饰键协商；接管后不额外点击，不对每次 move 读取全文／文件。

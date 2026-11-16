@@ -13,7 +13,7 @@
 | 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带、重复操作及统一 Overlay／Gutter、边缘显露留白 | 逻辑轴范围、原生位置与增减动作已接入；当前验证见实施记录，滚动实窗／平台验收待继续 |
 | 原生文本菜单 | 原生 popup、七种编辑角色及可用性；编辑／只读选择宿主共用三种菜单模式、右键选区、键盘入口和目标会话，输入控件提供独立 protectedText 用途 | 前台实窗与 Windows／GTK 验证、触摸入口、受保护文本的 provider／拖放及系统文本服务；已验证范围见实施记录 |
 | 多击选择 | 公共编辑器已有双击选词、三击选逻辑行、按词／行继续拖选，且已有实窗用例 | Windows 连续点击计数、Linux 系统阈值、平台真实事件及 Unicode／投影组合回归 |
-| 拖动 | 公共轴向 `Drag`；Window／AppKit metadata 协商与自有内容接收；UI DropArea 沿 Surface Accepted 输入路径接收、反馈和收尾 | source、预览与完成／取消、文本事务，及窗口内、同程序跨窗口、跨程序的真实系统会话；已验证范围见实施记录 |
+| 拖动 | 公共轴向 `Drag`；Window／AppKit metadata 接收与 Window 拖出接口、启动前取消和完成收尾；UI DropArea 沿 Surface Accepted 输入路径接收、反馈和收尾 | UI source、预览与文本事务，及窗口内、同程序跨窗口、跨程序的真实系统会话；已验证范围见实施记录 |
 | 文本拖放 | 已有拖选和越界自动滚动 | 从选区发起数据拖动、落点 caret、移动／复制、编辑策略与撤销 |
 | 触摸／手势 | 鼠标指针及带相位的滚轮；控件已有部分鼠标拖动交互 | 独立 contact、取消、触摸滚动、长按、缩放／旋转等手势，以及既有控件接入 |
 | 视觉效果 | 动画、spring、部分控件回弹、主题 `Full／Reduced` | 通用滚动回弹、惯性来源去重、跟随系统减少动画；完善高对比度、缩放与命中体验 |
@@ -173,6 +173,8 @@ AppKit 接收边界的正式类型、owner 与收尾见[Window 数据拖放规�
 跨窗口与外部拖放不能依靠全局屏幕坐标推算 target，特别是 Wayland。OS 给出目标窗口中的事件位置，各根只转换自己的逻辑／物理坐标。预览及不可投放光标遵守 OS ownership；原生 preview 与本地 preview 不重复绘制。
 
 原生拖放可能进入 tracking loop 或同步调用 target。沿已有 deferred native operation／owner 控制通路启动，不能在 render／layout 内进入系统拖放循环。同步请求需要实际结果时，复用 accessibility 设计中的有限 owner 派发边界，分别规定查询、动作和等待；不允许 owner 等待自己的队列，不在持锁时等 managed 回调，也不另建事件循环。原生回调数据的保留使用既有 ForeignCallback／handle 与 native 所有权。
+
+AppKit 的公开 NSDraggingSession 不提供强制取消。Window 因而分开 cancelPending 与 close：前者只取消尚未启动的请求，后者撤销业务回调，活动系统会话的数据仍由 native 保留到真实结束。关闭活动来源不伪造“已取消”或“已完整移动”，不能再执行来源删除；关闭前未得知的实际结果保持未知。其他平台使用各自公开取消能力，不以伪造键盘事件统一差异。
 
 ### 6.3 文本拖放
 
