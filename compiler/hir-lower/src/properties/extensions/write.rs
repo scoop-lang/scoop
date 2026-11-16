@@ -54,6 +54,7 @@ impl Lowerer {
         self.record_property_initialization_dependency(&declaration, span);
         let Some(setter) = declaration.capability.setter() else {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 span,
                 format!("cannot assign to immutable property `{}`", declaration.name),
             );
@@ -66,6 +67,7 @@ impl Lowerer {
             Some(receiver.static_type),
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!(
                     "setter of property `{}` is not accessible",

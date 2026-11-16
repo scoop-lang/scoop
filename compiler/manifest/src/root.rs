@@ -173,6 +173,21 @@ pub struct ManifestRootError {
 }
 
 impl ManifestRootError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use ManifestRootErrorKind::*;
+        use scoop_source::DiagnosticCode as C;
+        match &self.kind {
+            InvalidManifestFileName
+            | UnsupportedRootFileType
+            | RootNotDirectory
+            | ManifestNotRegularFile => C::E2002,
+            Io { .. } => C::E2201,
+            InvalidUtf8 => C::E2003,
+            Identity(_) => C::ICE0401,
+            Parse(error) => error.code(),
+        }
+    }
+
     fn new(path: PathBuf, kind: ManifestRootErrorKind) -> Self {
         Self { path, kind }
     }

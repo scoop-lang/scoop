@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0916",
     "message": "a when subject declaration cannot be delegated",
     "notes": [],
     "origin": {

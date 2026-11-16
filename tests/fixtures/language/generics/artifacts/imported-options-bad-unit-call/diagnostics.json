@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unit variant `None` of `Option` does not take arguments; use `None` without parentheses",
-    "notes": [],
+    "code": "E0732",
+    "message": "unit variant `None` of `Option` does not take arguments",
+    "notes": [
+      {
+        "code": "H0704",
+        "kind": "help",
+        "message": "use `None` without parentheses",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "6ef154651d2184e33aec5046f971f7babfe9b5b02ca1fbeab13e8769676717b5",
       "end": 72,

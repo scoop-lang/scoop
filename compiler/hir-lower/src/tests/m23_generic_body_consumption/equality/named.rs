@@ -41,9 +41,9 @@ fn imported_derived_equality_member_participates_in_normal_overload_selection() 
     .expect_err("unrelated Point and String parameters must remain ambiguous");
     assert!(
         errors.iter().any(|error| {
-            error.message.contains("call to `equals` is ambiguous")
-                && error.message.contains("Point")
-                && error.message.contains("String")
+            crate::tests::diagnostic_text(error).contains("call to `equals` is ambiguous")
+                && crate::tests::diagnostic_text(error).contains("Point")
+                && crate::tests::diagnostic_text(error).contains("String")
         }),
         "{errors:?}"
     );

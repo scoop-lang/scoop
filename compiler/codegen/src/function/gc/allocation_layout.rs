@@ -108,4 +108,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 
 fn layout_error(error: impl std::fmt::Display) -> CodegenError {
     CodegenError::internal(format!("allocation layout: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

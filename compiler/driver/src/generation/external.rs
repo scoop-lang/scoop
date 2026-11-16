@@ -43,9 +43,10 @@ impl hir::MethodBodyGenerator for ExternalGenerator<'_> {
             let program = self
                 .programs
                 .program(&batch.generator)
-                .map_err(|error| vec![diagnostic(origin, error.to_string())])?
+                .map_err(|error| vec![diagnostic(error.code(), origin, error.to_string())])?
                 .ok_or_else(|| {
                     vec![diagnostic(
+                        scoop_source::DiagnosticCode::E2509,
                         origin,
                         format!(
                             "no host program is registered for generator `{}`",
@@ -58,14 +59,14 @@ impl hir::MethodBodyGenerator for ExternalGenerator<'_> {
                 &program,
                 scoop_generator_protocol::PROTOCOL_VERSION,
             )
-            .map_err(|error| vec![diagnostic(origin, error.to_string())])?;
+            .map_err(|error| vec![diagnostic(error.code(), origin, error.to_string())])?;
             let Generated {
                 bodies,
                 diagnostics,
             } = session::generate(queries, &batch, &program).map_err(|error| vec![error])?;
             self.used.push(used);
             for reported in diagnostics {
-                match diagnostics::resolve(queries, reported, origin) {
+                match diagnostics::resolve(queries, reported, &batch.generator, origin) {
                     Ok(diagnostic)
                         if diagnostic.severity == scoop_ast::DiagnosticSeverity::Warning =>
                     {

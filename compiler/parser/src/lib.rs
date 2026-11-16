@@ -186,6 +186,7 @@ fn strict<T, D>(
     result
         .map_err(|error| {
             vec![scoop_ast::Diagnostic::without_span(
+                scoop_source::DiagnosticCode::E2205,
                 scoop_ast::DiagnosticSeverity::Error,
                 0,
                 error.to_string(),

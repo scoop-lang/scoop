@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0311",
     "message": "object declarations cannot declare constructors",
     "notes": [],
     "origin": {

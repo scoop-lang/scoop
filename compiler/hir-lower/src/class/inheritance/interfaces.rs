@@ -104,6 +104,7 @@ impl Lowerer {
                 {
                     if reported_mutable.insert((member.owner, property.clone())) {
                         self.error(
+                            scoop_source::DiagnosticCode::E1507,
                             span,
                             format!(
                                 "{host} cannot implement mutable interface property `{property}`"
@@ -347,7 +348,7 @@ impl Lowerer {
                                     })
                                     .collect::<Vec<_>>()
                                     .join(" and ");
-                                self.error(span, format!("{host} inherits conflicting defaults for `{}` from {providers}; declare an explicit override", member.signature.name));
+                                self.error_with_note(scoop_source::DiagnosticCode::E1010, span, format!("{host} inherits conflicting defaults for `{__diagnostic_arg0}` from {providers}" , __diagnostic_arg0 = member.signature.name), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1001, "declare an explicit override".to_owned()));
                             }
                             None
                         }
@@ -396,7 +397,7 @@ impl Lowerer {
                     sig.name
                 )
             };
-            self.error(span, message);
+            self.error(scoop_source::DiagnosticCode::E1008, span, message);
         }
     }
 

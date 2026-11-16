@@ -11,6 +11,7 @@ pub(super) type Ranges = BTreeMap<Function, (u64, u64)>;
 
 fn error(message: impl std::fmt::Display) -> CodegenError {
     CodegenError::internal(format!("generated-C unwind: {message}"))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
 }
 
 fn unsigned(data: &[u8], offset: usize, size: usize) -> Result<u64, CodegenError> {

@@ -1,8 +1,46 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `call` in current-unit top-level candidate layer:\n  - fun call(action: () -> Unit): Unit — argument for `action` (expected () -> Unit): cannot capture mutable local `value`; bind its current value to a `val` snapshot or capture explicit reference state",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `call` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun call(action: () -> Unit): Unit",
+        "notes": [
+          {
+            "code": "E1502",
+            "kind": "cause",
+            "message": "argument for `action` (expected () -> Unit): cannot capture mutable local `value`",
+            "notes": [
+              {
+                "code": "H1501",
+                "kind": "help",
+                "message": "bind its current value to a `val` snapshot or capture explicit reference state",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 108,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 103
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 60,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 108,

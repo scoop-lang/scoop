@@ -40,7 +40,7 @@ pub(super) fn select(source: &plan::Source) -> BuildResult<Overview> {
     };
     if state.is_none() {
         if source.readme.is_some() {
-            return Err(io_error(&path, "declared readme does not exist"));
+            return Err(resource_error(&path, "declared readme does not exist"));
         }
         return Ok(overview);
     }
@@ -68,7 +68,7 @@ pub(super) fn select(source: &plan::Source) -> BuildResult<Overview> {
         let input = path
             .parent()
             .unwrap_or(&source.root)
-            .join(decode_path(relative).map_err(|e| io_error(&path, e))?);
+            .join(decode_path(relative).map_err(|e| resource_error(&path, e))?);
         let state = plan::file_state(&input)?;
         states.push((url.clone(), state.clone()));
         let destination = if state.is_some() {
@@ -85,7 +85,7 @@ pub(super) fn select(source: &plan::Source) -> BuildResult<Overview> {
             overview.warnings.push(
                 StructuredDiagnosticV1::new(
                     scoop_protocol::DiagnosticSeverityV1::Warning,
-                    "SCOOP_DOC_RESOURCE".into(),
+                    scoop_source::DiagnosticCode::W1813.to_string(),
                     format!("README resource {url:?} does not exist"),
                     scoop_protocol::DiagnosticOriginV1::HostPathSpan {
                         path: scoop_protocol::HostPathCarrier::from_path(&path).map_err(error)?,

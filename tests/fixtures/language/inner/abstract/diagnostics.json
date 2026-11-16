@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0510",
     "message": "abstract class `Inner` cannot be instantiated",
     "notes": [],
     "origin": {

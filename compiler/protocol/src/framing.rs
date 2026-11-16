@@ -205,7 +205,12 @@ mod tests {
             "sample warning".to_owned(),
             DiagnosticOriginV1::None,
             vec![
-                DiagnosticNoteV1::new("sample note".to_owned(), DiagnosticOriginV1::None).unwrap(),
+                DiagnosticNoteV1::new(
+                    scoop_source::DiagnosticCode::N0001,
+                    "sample note".to_owned(),
+                    DiagnosticOriginV1::None,
+                )
+                .unwrap(),
             ],
         )
         .unwrap()
@@ -214,7 +219,7 @@ mod tests {
     fn error() -> StructuredDiagnosticV1 {
         StructuredDiagnosticV1::new(
             DiagnosticSeverityV1::Error,
-            "SCOOPC_SAMPLE_ERROR".to_owned(),
+            "VENDOR_SAMPLE_RULE".to_owned(),
             "sample error".to_owned(),
             DiagnosticOriginV1::None,
             Vec::new(),

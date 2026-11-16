@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "cannot assign value of type Boolean to property `value` of type Int",
     "notes": [],
     "origin": {

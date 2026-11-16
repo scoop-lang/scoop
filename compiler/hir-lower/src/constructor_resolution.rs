@@ -68,7 +68,11 @@ impl Lowerer {
             span,
         } = call;
         if candidates.is_empty() {
-            self.error(span, format!("type `{name}` has no source constructor"));
+            self.error(
+                scoop_source::DiagnosticCode::E0510,
+                span,
+                format!("type `{name}` has no source constructor"),
+            );
             return None;
         }
         let mut applicable = Vec::new();
@@ -104,6 +108,7 @@ impl Lowerer {
             0 => {
                 if failures.is_empty() && inaccessible {
                     self.error(
+                        scoop_source::DiagnosticCode::E0403,
                         span,
                         format!("constructor of type `{name}` is not accessible here"),
                     );
@@ -112,24 +117,27 @@ impl Lowerer {
                 if failures.len() == 1 {
                     self.commit_layer_diagnostics(&failures.pop().expect("one failure").1);
                 } else {
-                    let traces = failures
-                        .iter()
-                        .map(|(view, state)| {
-                            let reason = state
-                                .diagnostics
-                                .last()
-                                .map(|diagnostic| diagnostic.message.as_str())
-                                .unwrap_or("candidate is not applicable");
-                            format!("  - {} — {reason}", nominal_source_signature(self, view))
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    self.error(
+                    let mut diagnostic = ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E0711,
+                        self.current_text_file(),
                         span,
                         format!(
-                            "no applicable candidate for constructor `{name}` in nominal constructor candidate layer:\n{traces}"
+                            "no applicable candidate for constructor `{name}` in nominal constructor candidate layer"
                         ),
                     );
+                    for (view, state) in &failures {
+                        let mut candidate = scoop_ast::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::N0002,
+                            nominal_source_signature(self, view),
+                        );
+                        candidate.notes = state.diagnostics[self.diagnostics.len()..]
+                            .iter()
+                            .cloned()
+                            .map(|d| d.into_note())
+                            .collect();
+                        diagnostic.notes.push(candidate);
+                    }
+                    self.diagnostics.push(diagnostic);
                 }
                 return None;
             }
@@ -163,8 +171,10 @@ impl Lowerer {
         let pool = match self.most_specific_declarations(&declarations) {
             Ok(pool) => pool,
             Err(error) => {
-                self.diagnostics
-                    .push(scoop_ast::Diagnostic::internal(error));
+                self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0601,
+                    error,
+                ));
                 return None;
             }
         };
@@ -201,20 +211,26 @@ impl Lowerer {
         if let [winner] = pool.as_slice() {
             return Some(*winner);
         }
-        let signatures = pool
+        let mut diagnostic = ast::Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E0712,
+            self.current_text_file(),
+            span,
+            format!("ambiguous constructor call `{name}`"),
+        );
+        diagnostic.notes = pool
             .iter()
             .map(|&candidate| {
-                format!(
-                    "  - {}",
-                    nominal_source_signature(self, &applicable[candidate].view)
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0002,
+                    nominal_source_signature(self, &applicable[candidate].view),
                 )
+                .with_note(scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0703,
+                    "candidate remains tied after overload ranking",
+                ))
             })
-            .collect::<Vec<_>>()
-            .join("\n");
-        self.error(
-            span,
-            format!("ambiguous constructor call `{name}`:\n{signatures}"),
-        );
+            .collect();
+        self.diagnostics.push(diagnostic);
         None
     }
 }

@@ -13,18 +13,19 @@ pub(crate) fn read(
 ) -> Result<Vec<Arc<DynamicProvider>>, LinkError> {
     if text {
         return scoop_toolchain::read_text_stubs(
-            scoop_slib::MachOArchitecture::for_target(profile.target().id()).map_err(error)?,
+            scoop_slib::MachOArchitecture::for_target(profile.target().id())
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?,
             bytes,
             profile
                 .startup_toolchain()
                 .profile()
                 .contract()
                 .deployment()
-                .map_err(error)?
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
                 .minimum_os(),
             system,
         )
-        .map_err(error)?
+        .map_err(|cause| error(cause.code(), cause))?
         .into_iter()
         .map(|record| {
             let id = DynamicProvider::id(input, &record.install_name, profile)?;
@@ -44,9 +45,10 @@ pub(crate) fn read(
         })
         .collect();
     }
-    let machine =
-        scoop_slib::MachOArchitecture::for_target(profile.target().id()).map_err(error)?;
-    let file = MachOFile64::parse(bytes).map_err(error)?;
+    let machine = scoop_slib::MachOArchitecture::for_target(profile.target().id())
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?;
+    let file = MachOFile64::parse(bytes)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     let endian = file.endian();
     if file.kind() != ObjectKind::Dynamic
         || !file.is_little_endian()
@@ -54,6 +56,7 @@ pub(crate) fn read(
         || file.macho_header().cpusubtype.get(endian) != machine.cpu_subtype()
     {
         return Err(error(
+            scoop_source::DiagnosticCode::E2305,
             "native dynamic input must be a little-endian MH_DYLIB for the selected target",
         ));
     }
@@ -63,9 +66,10 @@ pub(crate) fn read(
         let value = match export.target {
             ExportTarget::Reexport { ordinal, imported } => {
                 if ordinal == 0 || ordinal > commands.dependencies.len() {
-                    return Err(error(format!(
-                        "native re-export {name} has invalid dependency ordinal {ordinal}"
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        format!("native re-export {name} has invalid dependency ordinal {ordinal}"),
+                    ));
                 }
                 DynamicExport::Reexport {
                     dependency: ordinal - 1,
@@ -76,10 +80,12 @@ pub(crate) fn read(
                 offset,
                 thread_local,
             } => {
-                let address = commands
-                    .base
-                    .checked_add(offset)
-                    .ok_or_else(|| error("native export address overflow"))?;
+                let address = commands.base.checked_add(offset).ok_or_else(|| {
+                    error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "native export address overflow",
+                    )
+                })?;
                 let section = file.sections().find(|section| {
                     address >= section.address() && address - section.address() < section.size()
                 });
@@ -98,14 +104,19 @@ pub(crate) fn read(
                             object::SectionKind::Text
                                 | object::SectionKind::ReadOnlyData
                                 | object::SectionKind::ReadOnlyString
-                        ) || section.segment_name().map_err(error)?
+                        ) || section
+                            .segment_name()
+                            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
                             == Some("__DATA_CONST"),
                         binding: crate::NativeSymbolBinding::from_weak(export.weak),
                     })
                 } else if thread_local {
                     ExportStorage::InterfaceOnly
                 } else {
-                    return Err(error(format!("native export {name} is outside its image")));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        format!("native export {name} is outside its image"),
+                    ));
                 };
                 DynamicExport::Symbol {
                     interface: NativeExport {
@@ -120,9 +131,10 @@ pub(crate) fn read(
                 }
             }
             ExportTarget::Absolute => {
-                return Err(error(format!(
-                    "native absolute export {name} has no function or data storage"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    format!("native absolute export {name} has no function or data storage"),
+                ));
             }
         };
         exports.insert(name, value);

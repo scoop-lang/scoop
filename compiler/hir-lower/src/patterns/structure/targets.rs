@@ -12,6 +12,7 @@ impl Lowerer {
     ) -> Option<PatternTarget> {
         let Some((name, qualifier)) = path.split_last() else {
             self.error(
+                scoop_source::DiagnosticCode::E0905,
                 span,
                 format!(
                     "a field pattern without a type name can only match a struct, found {}",
@@ -30,6 +31,7 @@ impl Lowerer {
                 .expect("an enum pattern retains its nominal application");
             let owner_name = self.nominal_template_name(owner.template);
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 name.span,
                 format!("enum `{owner_name}` has no variant `{}`", name.text,),
             );
@@ -66,6 +68,7 @@ impl Lowerer {
             .join(".");
         let span = if path.len() == 1 { path[0].span } else { span };
         self.error(
+            scoop_source::DiagnosticCode::E0501,
             span,
             format!(
                 "pattern `{name}` does not match a subject of type {}",

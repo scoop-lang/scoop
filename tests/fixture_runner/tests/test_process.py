@@ -54,7 +54,7 @@ class ProcessTests(unittest.TestCase):
 
     def test_structured_prefix_does_not_consume_program_json(self):
         diagnostic = {
-            "schema": 1,
+            "schema": 2,
             "kind": "diagnostic",
             "severity": "warning",
             "code": "W1",
@@ -69,8 +69,8 @@ class ProcessTests(unittest.TestCase):
                 }
             ],
         }
-        tool = {"schema": 1, "kind": "executable", "output": "/tmp/program"}
-        program = b'{"schema":1,"kind":"diagnostic","message":"program bytes"}\n'
+        tool = {"schema": 2, "kind": "executable", "output": "/tmp/program"}
+        program = b'{"schema":2,"kind":"diagnostic","message":"program bytes"}\n'
         stderr = (json.dumps(diagnostic) + "\n" + json.dumps(tool) + "\n").encode() + program
         result = decode_streams(b"stdout", stderr, "stderr")
         self.assertEqual(result["stderr"], program)
@@ -103,7 +103,7 @@ class ProcessTests(unittest.TestCase):
                 self.assertIsNotNone(process.child.returncode)
 
     def test_documentation_result_ends_the_structured_prefix(self):
-        tool = {"schema": 1, "kind": "documentation", "output": "site/index.html"}
+        tool = {"schema": 2, "kind": "documentation", "output": "site/index.html"}
         stderr = (json.dumps(tool) + "\n").encode()
         result = decode_streams(b"", stderr, "stderr")
         self.assertEqual(result["result"], tool)
@@ -111,40 +111,40 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(result["diagnostics"], [])
 
     def test_native_app_result_preserves_the_shared_library_output(self):
-        tool = {"schema": 1, "kind": "native-app", "output": "libapp.so"}
+        tool = {"schema": 2, "kind": "native-app", "output": "libapp.so"}
         result = decode_streams(b"", (json.dumps(tool) + "\n").encode(), "stderr")
         self.assertEqual(result["result"], tool)
         self.assertEqual(result["stderr"], b"")
 
     def test_check_result_has_no_artifact_and_ends_the_structured_prefix(self):
-        tool = {"schema": 1, "kind": "check", "success": True}
+        tool = {"schema": 2, "kind": "check", "success": True}
         result = decode_streams(b"", (json.dumps(tool) + "\n").encode(), "stderr")
         self.assertEqual(result["result"], tool)
         self.assertEqual(result["stderr"], b"")
         self.assertEqual(result["diagnostics"], [])
 
     def test_format_result_preserves_differences_and_failed_status(self):
-        tool = {"schema": 1, "kind": "format", "success": False, "mode": "check"}
+        tool = {"schema": 2, "kind": "format", "success": False, "mode": "check"}
         result = decode_streams(b"", (json.dumps(tool) + "\n").encode(), "stderr")
         self.assertEqual(result["result"], tool)
         self.assertEqual(result["stderr"], b"")
         self.assertEqual(result["diagnostics"], [])
 
     def test_clean_result_preserves_the_selected_directory_and_missing_state(self):
-        tool = {"schema": 1, "kind": "clean", "target_dir": "project/target", "removed": False}
+        tool = {"schema": 2, "kind": "clean", "target_dir": "project/target", "removed": False}
         result = decode_streams(b"", (json.dumps(tool) + "\n").encode(), "stderr")
         self.assertEqual(result["result"], tool)
         self.assertEqual(result["stderr"], b"")
         self.assertEqual(result["diagnostics"], [])
 
     def test_test_report_preserves_build_result_and_captured_json_bytes(self):
-        build = {"schema": 1, "kind": "executable", "output": "program"}
+        build = {"schema": 2, "kind": "executable", "output": "program"}
         report = {
-            "schema": 1,
+            "schema": 2,
             "kind": "test-report",
-            "output": {"stderr": {"text": '{"schema":1,"kind":"diagnostic"}\n'}},
+            "output": {"stderr": {"text": '{"schema":2,"kind":"diagnostic"}\n'}},
         }
-        diagnostic = {"schema": 1, "kind": "diagnostic", "message": "incomplete test run"}
+        diagnostic = {"schema": 2, "kind": "diagnostic", "message": "incomplete test run"}
         raw = b"\n".join(json.dumps(record).encode() for record in [build, report, diagnostic])
         result = decode_streams(b"", raw, "test-stderr")
         self.assertEqual(result["result"], build)
@@ -154,20 +154,20 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(result["records"], [build, report, diagnostic])
 
     def test_test_mode_handles_compile_errors_and_rejects_duplicate_reports(self):
-        diagnostic = b'{"schema":1,"kind":"diagnostic","message":"compile failed"}\n'
+        diagnostic = b'{"schema":2,"kind":"diagnostic","message":"compile failed"}\n'
         result = decode_streams(b"", diagnostic, "test-stderr")
         self.assertIsNone(result["result"])
         self.assertIsNone(result["test_result"])
-        report = b'{"schema":1,"kind":"test-report"}\n'
+        report = b'{"schema":2,"kind":"test-report"}\n'
         with self.assertRaisesRegex(AssertionFailure, "multiple test result"):
             decode_streams(b"", report * 2, "test-stderr")
 
     def test_batch_mode_preserves_each_workspace_result_and_report(self):
         records = [
-            {"schema": 1, "kind": "executable", "output": "one"},
-            {"schema": 1, "kind": "test-report", "passed": 1},
-            {"schema": 1, "kind": "executable", "output": "two"},
-            {"schema": 1, "kind": "test-report", "passed": 2},
+            {"schema": 2, "kind": "executable", "output": "one"},
+            {"schema": 2, "kind": "test-report", "passed": 1},
+            {"schema": 2, "kind": "executable", "output": "two"},
+            {"schema": 2, "kind": "test-report", "passed": 2},
         ]
         raw = b"\n".join(json.dumps(record).encode() for record in records) + b"\nplain\n"
         result = decode_streams(b"", raw, "batch-stderr")

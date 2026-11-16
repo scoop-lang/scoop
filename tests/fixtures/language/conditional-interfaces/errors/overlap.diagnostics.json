@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1022",
     "message": "interface implementations of `Mark` and `Mark` on struct `Box` may overlap; a stronger condition does not override another implementation",
     "notes": [
       {
+        "code": "N0001",
+        "kind": "note",
         "message": "the other implementation is here",
+        "notes": [],
         "origin": {
           "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
           "end": 111,

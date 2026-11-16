@@ -18,7 +18,7 @@ impl Lowerer {
                 ast::PropertyBodySyntax::OptionalOmitted => {
                     if !declaration.declaration.mutable || self.as_option(declaration.ty).is_none()
                     {
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E1509,
                             declaration.declaration.span,
                             format!(
                                 "property `{}` without an initializer must be a mutable Option property",

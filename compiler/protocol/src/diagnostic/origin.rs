@@ -14,10 +14,17 @@ mod tests {
         };
         let diagnostic = StructuredDiagnosticV1::new(
             DiagnosticSeverityV1::Error,
-            "SCOOPC_HIR_ERROR".into(),
+            "E0501".into(),
             "unknown binding".into(),
             origin.clone(),
-            vec![DiagnosticNoteV1::new("in the same fragment".into(), origin).unwrap()],
+            vec![
+                DiagnosticNoteV1::new(
+                    scoop_source::DiagnosticCode::N0001,
+                    "in the same fragment".into(),
+                    origin,
+                )
+                .unwrap(),
+            ],
         )
         .unwrap();
         assert_eq!(

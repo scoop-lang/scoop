@@ -274,24 +274,28 @@ fn setter_markers(module: &hir::Module, body: &hir::Body) -> Vec<i64> {
 }
 
 fn assert_candidate_notes(diagnostic: &ast::Diagnostic, count: usize) {
-    assert_eq!(diagnostic.notes.len(), count, "{diagnostic:?}");
+    let notes = diagnostic
+        .notes
+        .iter()
+        .filter(|note| note.code == ast::DiagnosticCode::N0002)
+        .collect::<Vec<_>>();
+    assert_eq!(notes.len(), count, "{diagnostic:?}");
     assert!(
-        diagnostic
-            .notes
+        notes
             .iter()
             .all(|note| note.message == "candidate declared here"),
         "{diagnostic:?}"
     );
     assert!(
-        diagnostic.notes.windows(2).all(|notes| {
+        notes.windows(2).all(|notes| {
             (
-                bound_source(&notes[0].source),
-                notes[0].span.start,
-                notes[0].span.end,
+                bound_source(notes[0].source().unwrap()),
+                notes[0].span().unwrap().start,
+                notes[0].span().unwrap().end,
             ) <= (
-                bound_source(&notes[1].source),
-                notes[1].span.start,
-                notes[1].span.end,
+                bound_source(notes[1].source().unwrap()),
+                notes[1].span().unwrap().start,
+                notes[1].span().unwrap().end,
             )
         }),
         "candidate notes must have stable source order: {diagnostic:?}"
@@ -437,7 +441,7 @@ fn applicable_exact_property_ambiguity_is_terminal() {
     assert!(
         errors
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("ambiguous")),
+            .any(|diagnostic| crate::tests::diagnostic_text(diagnostic).contains("ambiguous")),
         "{errors:?}"
     );
 }

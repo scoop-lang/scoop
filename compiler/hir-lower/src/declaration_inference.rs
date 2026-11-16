@@ -205,6 +205,7 @@ impl Lowerer {
                 .unwrap_or(self.current_file);
             let previous = std::mem::replace(&mut self.current_file, file);
             self.error(
+                scoop_source::DiagnosticCode::E2505,
                 self.functions[id].span,
                 format!(
                     "return type of `{}` is unavailable because its expression body is incomplete",
@@ -220,10 +221,13 @@ impl Lowerer {
             InferenceState::Active => {
                 let names = self.declaration_inference_path(DeclarationKey::Function(id));
                 let file = std::mem::replace(&mut self.current_file, self.function_files[&id]);
-                self.error(
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E0609,
                     inference.declaration.name.span,
-                    format!(
-                        "recursive declaration type inference: {names}; add an explicit return type"
+                    format!("recursive declaration type inference: {names}"),
+                    scoop_source::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H0502,
+                        "add an explicit return type".to_owned(),
                     ),
                 );
                 self.current_file = file;

@@ -6,7 +6,9 @@ pub(super) fn collect(
     compiler: &FileState,
 ) -> BuildResult<BTreeMap<ConeIdentity, Source>> {
     let selection =
-        scoop_toolchain::select_target(request.target.canonical_triple()).map_err(error)?;
+        scoop_toolchain::select_target(request.target.canonical_triple()).map_err(|cause| {
+            BuildFailure::tool(cause.code(), BuildFailurePhase::SourceSnapshot, &cause)
+        })?;
     let mut sources = BTreeMap::new();
     let mut keys = BTreeMap::new();
     for identity in graph.dependency_first() {
@@ -21,7 +23,10 @@ pub(super) fn collect(
             continue;
         };
         let selected = scoop_manifest::select_manifest_sources(manifest, selection.target().id())
-            .map_err(|failure| io_error(failure.path(), &failure))?;
+            .map_err(|cause| {
+            BuildFailure::tool(cause.code(), BuildFailurePhase::SourceSnapshot, &cause)
+                .at_host(cause.path())
+        })?;
         let input_sources = selected
             .iter()
             .map(|source| {

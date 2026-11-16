@@ -16,6 +16,7 @@ impl ProjectBuilder {
                     *position += 1;
                     if !self.project.cones.contains_key(&next) {
                         return Err(LoadError::new(
+                            scoop_source::DiagnosticCode::E2101,
                             &self.manifest,
                             format!("dependency input {next} is unavailable"),
                         ));
@@ -25,6 +26,7 @@ impl ProjectBuilder {
                     }
                     if !visiting.insert(next) {
                         return Err(LoadError::new(
+                            scoop_source::DiagnosticCode::E2105,
                             &self.manifest,
                             format!(
                                 "dependency cycle reaches {:?}",

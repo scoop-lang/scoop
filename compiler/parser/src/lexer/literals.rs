@@ -17,6 +17,7 @@ impl Lexer<'_> {
         let Some(end) = self.source[content..].find("\"\"\"") else {
             self.pos = self.source.len();
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0102,
                 self.span_from(start),
                 "unterminated raw string literal",
             ));
@@ -39,6 +40,7 @@ impl Lexer<'_> {
         match (chars.next(), chars.next()) {
             (Some(value), None) => Ok(TokenKind::Char(value)),
             _ => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0108,
                 self.span_from(start),
                 "a character literal must contain exactly one Unicode scalar value",
             )),
@@ -53,6 +55,7 @@ impl Lexer<'_> {
             match self.peek_char() {
                 None | Some('\n' | '\r') => {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0102,
                         self.span_from(start),
                         format!("unterminated {subject} literal"),
                     ));
@@ -99,12 +102,14 @@ impl Lexer<'_> {
         self.pos += 1;
         let Some(c) = self.peek_char() else {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0102,
                 self.span_from(start),
                 "unterminated escape sequence",
             ));
         };
         if matches!(c, '\n' | '\r') {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0102,
                 self.span_from(start),
                 "unterminated escape sequence",
             ));
@@ -122,6 +127,7 @@ impl Lexer<'_> {
             'u' => return self.unicode_escape(start),
             _ => {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0109,
                     self.span_from(start),
                     format!("unsupported escape sequence `\\{c}`"),
                 ));
@@ -151,12 +157,14 @@ impl Lexer<'_> {
         };
         if !valid_length {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0109,
                 self.span_from(start),
                 "Unicode escape requires four hex digits or one to six hex digits in braces",
             ));
         }
         char::from_u32(value).ok_or_else(|| {
             Diagnostic::at(
+                scoop_source::DiagnosticCode::E0109,
                 self.span_from(start),
                 "Unicode escape must name a Unicode scalar value",
             )

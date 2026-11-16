@@ -61,6 +61,7 @@ impl Lowerer {
             )
         {
             self.error(
+                scoop_source::DiagnosticCode::E0405,
                 name.span,
                 format!("value `{}` cannot qualify a type application", name.text),
             );
@@ -92,6 +93,7 @@ impl Lowerer {
             })
         {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 expression.span(),
                 "generic companion access requires complete host type arguments".into(),
             );

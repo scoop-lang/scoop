@@ -4,7 +4,7 @@ impl Lowerer {
     pub(super) fn build_member_requirement(
         &mut self,
         contract: &Contract,
-    ) -> Result<hir::MemberRequirementImplementation, String> {
+    ) -> Result<hir::MemberRequirementImplementation, RequirementFailure> {
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_paths = std::mem::take(&mut self.definition_paths);
         let outer_smart_casts = std::mem::take(&mut self.smart_casts);

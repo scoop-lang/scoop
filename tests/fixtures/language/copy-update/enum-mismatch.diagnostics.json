@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found UnitChoice",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found PositionalChoice",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found NamedChoice",
     "notes": [],
     "origin": {

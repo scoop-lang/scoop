@@ -28,6 +28,7 @@ impl Lowerer {
             _ => {
                 let found = self.type_name(callee.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0502,
                     callee.span,
                     format!("value of type {found} is not callable"),
                 );
@@ -43,6 +44,7 @@ impl Lowerer {
             .find(|argument| matches!(argument.name, ast::CallArgumentName::Named(_)))
         {
             self.error(
+                scoop_source::DiagnosticCode::E0706,
                 argument.span,
                 "function values do not accept named arguments".to_string(),
             );
@@ -53,6 +55,7 @@ impl Lowerer {
             .find(|argument| matches!(argument.spread, ast::SpreadSyntax::Spread(_)))
         {
             self.error(
+                scoop_source::DiagnosticCode::E0707,
                 argument.span,
                 "function values do not accept spread arguments".to_string(),
             );
@@ -62,6 +65,7 @@ impl Lowerer {
         let argument_count = args.len() + bound_receiver_count;
         if signature.arity() != argument_count {
             self.error(
+                scoop_source::DiagnosticCode::E0701,
                 span,
                 format!(
                     "function value takes exactly {} argument(s), but {} were supplied",
@@ -94,6 +98,7 @@ impl Lowerer {
                     }
                 };
                 self.error(
+                    scoop_source::DiagnosticCode::E1103,
                     span,
                     format!("suspend function value cannot be called from {location}"),
                 );
@@ -106,6 +111,7 @@ impl Lowerer {
             let parameter_ty = *parameters.next().expect("receiver arity was checked");
             if !self.is_subtype(receiver.ty, parameter_ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     receiver.span,
                     format!(
                         "function receiver must be of type {}, found {}",
@@ -124,6 +130,7 @@ impl Lowerer {
                 let expected = self.type_name(parameter_ty);
                 let found = self.type_name(value.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     arg.span,
                     format!("function argument must be of type {expected}, found {found}"),
                 );

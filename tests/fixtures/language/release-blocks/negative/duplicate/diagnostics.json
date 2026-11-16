@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1110",
     "message": "a class may declare only one `release` block",
     "notes": [],
     "origin": {

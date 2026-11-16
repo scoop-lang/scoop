@@ -35,6 +35,7 @@ impl Lowerer {
             }
             if capture == Some(true) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1220,
                     declaration.span,
                     "`captureErrno = true` is not allowed on an extern variable".into(),
                 );
@@ -58,6 +59,7 @@ impl Lowerer {
         }
         if !self.extern_functions[external].abi.is_c() {
             self.error(
+                scoop_source::DiagnosticCode::E1220,
                 declaration.span,
                 "`captureErrno = true` requires a C ABI extern function".into(),
             );
@@ -76,6 +78,7 @@ impl Lowerer {
             }
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1220,
                     declaration.span,
                     "an errno-capturing extern must return `(R, Int)`".into(),
                 );

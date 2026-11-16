@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0716",
     "message": "label `ordinary` has no receiver",
     "notes": [],
     "origin": {

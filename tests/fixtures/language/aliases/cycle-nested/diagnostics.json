@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0608",
     "message": "typealias cycle: First -> Second -> First",
     "notes": [],
     "origin": {

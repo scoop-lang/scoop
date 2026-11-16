@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1522",
     "message": "duplicate integral enum value",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2017",
     "message": "native compilation: duplicate native source native.c",
     "notes": [],
     "origin": {

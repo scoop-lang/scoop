@@ -12,7 +12,7 @@ impl Lowerer {
         types: &[hir::RequiredTypeArgument],
         arguments: &[ast::CallArgument],
         span: Span,
-    ) -> Result<Vec<NamedApplicable>, String> {
+    ) -> Result<Vec<NamedApplicable>, RequirementFailure> {
         self.resolve_imported_member_receiver(subject, span)
             .map_err(|()| self.requirement_failure("invalid member receiver"))?;
         let explicit = types
@@ -36,7 +36,9 @@ impl Lowerer {
         let mut candidates = self.public_requirement_methods(subject, name);
         let imported = self
             .imported_requirement_members(subject, hir::ImportedMemberLookup::Name(name))
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| {
+                RequirementFailure::new(scoop_source::DiagnosticCode::ICE0501, error.to_string())
+            })?;
         let mut probes = Vec::new();
         let mut failure = None;
         if name == "equals" {
@@ -63,7 +65,12 @@ impl Lowerer {
                 Ok(Some(DerivedEqualityCandidate::TypeOwned { function, .. })) => {
                     candidates.push(crate::CallableCandidate::type_owned(function, subject))
                 }
-                Err(error) => failure = Some(error),
+                Err(error) => {
+                    failure = Some(RequirementFailure::new(
+                        scoop_source::DiagnosticCode::E0621,
+                        error,
+                    ))
+                }
                 _ => {}
             }
         }

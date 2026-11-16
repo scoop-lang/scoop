@@ -22,8 +22,13 @@ pub(super) fn read(
             let bytes = graph
                 .envelope
                 .member(member)
-                .map_err(error)?
-                .ok_or_else(|| error(format!("missing native object {member}")))?;
+                .map_err(|cause| error(crate::SlibDiagnostic::code(&cause), cause))?
+                .ok_or_else(|| {
+                    error(
+                        scoop_source::DiagnosticCode::E2403,
+                        format!("missing native object {member}"),
+                    )
+                })?;
             Ok(NativeLinkObject {
                 member,
                 source,

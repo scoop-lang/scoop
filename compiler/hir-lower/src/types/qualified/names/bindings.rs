@@ -121,7 +121,11 @@ impl Lowerer {
                 .map(Some)
                 .ok_or(()),
             _ => {
-                self.error(name.span, format!("ambiguous nested type `{}`", name.text));
+                self.error(
+                    scoop_source::DiagnosticCode::E0404,
+                    name.span,
+                    format!("ambiguous nested type `{}`", name.text),
+                );
                 Err(())
             }
         }

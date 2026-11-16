@@ -97,7 +97,7 @@ fn mutable_local_capture_is_rejected_at_the_use() {
     .expect_err("mutable capture must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "cannot capture mutable local `value`; bind its current value to a `val` snapshot or capture explicit reference state"
     );
 }

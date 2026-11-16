@@ -38,7 +38,11 @@ impl Lowerer {
                 hir::ImportedMemberLookup::PropertyGetter(&name.text),
             )
             .map_err(|error| {
-                self.error(name.span, format!("invalid dependency property: {error}"))
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    name.span,
+                    format!("invalid dependency property: {error}"),
+                )
             })?;
         let mut candidates = candidates.into_iter();
         let Some(getter) = candidates.next() else {
@@ -46,6 +50,7 @@ impl Lowerer {
         };
         if candidates.next().is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E0404,
                 name.span,
                 format!("ambiguous dependency property `{}`", name.text),
             );
@@ -88,7 +93,13 @@ impl Lowerer {
             .collect();
         let value_type = self
             .imported_signature_type_with_bindings(getter.interface().result(), &bindings)
-            .map_err(|error| self.error(name.span, error.diagnostic("dependency property")))?;
+            .map_err(|error| {
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    name.span,
+                    error.diagnostic("dependency property"),
+                )
+            })?;
         let storage =
             match (&self.types[owner], property.declaration()) {
                 (hir::Type::Struct(_), _) => self
@@ -137,6 +148,7 @@ impl Lowerer {
             && !self.is_subtype(property.value_type, expected)
         {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "dependency property `{}` has type {}, expected {}",
@@ -225,6 +237,7 @@ impl Lowerer {
             && interface.modality() == hir::CallableModalityV1::Abstract
         {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 span,
                 "abstract interface accessor cannot be called with qualified `super`".into(),
             );
@@ -249,7 +262,7 @@ impl Lowerer {
             };
             let template = self
                 .request_imported_generic_template(candidate)
-                .map_err(|error| self.error(span, error))
+                .map_err(|error| self.error(scoop_source::DiagnosticCode::ICE0501, span, error))
                 .ok()?;
             let application = self.record_imported_callable_application(
                 hir::ImportedGenericCallableApplication {
@@ -283,6 +296,7 @@ impl Lowerer {
             .select_imported_callable_declaration_use_with_kind(candidate, kind)
             .map_err(|error| {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid dependency property accessor: {error}"),
                 );

@@ -68,6 +68,7 @@ impl Lowerer {
                                 hir::InheritanceCallableDeclarationV1::Setter(_) => "setter",
                             };
                             self.error(
+                                scoop_source::DiagnosticCode::E1008,
                                 span,
                                 format!(
                                     "{host} does not implement abstract {kind} `{}.{}`",
@@ -110,6 +111,7 @@ impl Lowerer {
                             && method.modifier == hir::MethodModifier::Abstract
                         {
                             self.error(
+                                scoop_source::DiagnosticCode::E1008,
                                 span,
                                 format!(
                                     "{host} does not implement abstract method `{}`",

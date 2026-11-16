@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::fmt;
 
 use scoop_identity::{CapabilityId, ConeIdentity};
 use scoop_wire::{WireError, WireErrorKind, WirePath};
@@ -12,95 +11,7 @@ use crate::{
     SemanticFingerprintValidationError, SlibMemberId, SlibReadError,
 };
 
-/// Closed stable diagnostic codes for the M23-2 `.slib` reader and validators.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum SlibErrorCode {
-    InputIo,
-    ContainerBadMagic,
-    ContainerTruncated,
-    ContainerNonCanonical,
-    ContainerInvalidLength,
-    WireUnexpectedEnd,
-    WireWrongType,
-    WireIndefiniteLength,
-    WireNonCanonical,
-    WireTrailingData,
-    WireInvalidField,
-    WireUnknownTag,
-    WireInvalidLength,
-    WireIntegerOutOfRange,
-
-    Allocation,
-    DirectoryMismatch,
-    DirectoryNonCanonicalOrder,
-    CapabilityInvalid,
-    CapabilityUnsupported,
-    CapabilityNativeBoundaryClosureRequired,
-    CompatibilitySchema,
-    CompatibilityMangling,
-    CompatibilityProfile,
-    IdentityMismatch,
-    IdentityDuplicate,
-    IdentityMissing,
-    IdentityCycle,
-    IdentityInvalid,
-    ReferenceMissing,
-    ReferenceFutureLayer,
-    ReferenceInvalid,
-    BridgeMismatch,
-    FingerprintMismatch,
-    SessionConflict,
-}
-
-impl SlibErrorCode {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::InputIo => "SLIB_INPUT_IO",
-            Self::ContainerBadMagic => "SLIB_CONTAINER_BAD_MAGIC",
-            Self::ContainerTruncated => "SLIB_CONTAINER_TRUNCATED",
-            Self::ContainerNonCanonical => "SLIB_CONTAINER_NON_CANONICAL",
-            Self::ContainerInvalidLength => "SLIB_CONTAINER_INVALID_LENGTH",
-            Self::WireUnexpectedEnd => "SLIB_WIRE_UNEXPECTED_END",
-            Self::WireWrongType => "SLIB_WIRE_WRONG_TYPE",
-            Self::WireIndefiniteLength => "SLIB_WIRE_INDEFINITE_LENGTH",
-            Self::WireNonCanonical => "SLIB_WIRE_NON_CANONICAL",
-            Self::WireTrailingData => "SLIB_WIRE_TRAILING_DATA",
-            Self::WireInvalidField => "SLIB_WIRE_INVALID_FIELD",
-            Self::WireUnknownTag => "SLIB_WIRE_UNKNOWN_TAG",
-            Self::WireInvalidLength => "SLIB_WIRE_INVALID_LENGTH",
-            Self::WireIntegerOutOfRange => "SLIB_WIRE_INTEGER_OUT_OF_RANGE",
-
-            Self::Allocation => "SLIB_ALLOCATION",
-            Self::DirectoryMismatch => "SLIB_DIRECTORY_MISMATCH",
-            Self::DirectoryNonCanonicalOrder => "SLIB_DIRECTORY_NON_CANONICAL_ORDER",
-            Self::CapabilityInvalid => "SLIB_CAPABILITY_INVALID",
-            Self::CapabilityUnsupported => "SLIB_CAPABILITY_UNSUPPORTED",
-            Self::CapabilityNativeBoundaryClosureRequired => {
-                "SLIB_CAPABILITY_NATIVE_BOUNDARY_CLOSURE_REQUIRED"
-            }
-            Self::CompatibilitySchema => "SLIB_COMPAT_SCHEMA",
-            Self::CompatibilityMangling => "SLIB_COMPAT_MANGLING",
-            Self::CompatibilityProfile => "SLIB_COMPAT_PROFILE",
-            Self::IdentityMismatch => "SLIB_IDENTITY_MISMATCH",
-            Self::IdentityDuplicate => "SLIB_IDENTITY_DUPLICATE",
-            Self::IdentityMissing => "SLIB_IDENTITY_MISSING",
-            Self::IdentityCycle => "SLIB_IDENTITY_CYCLE",
-            Self::IdentityInvalid => "SLIB_IDENTITY_INVALID",
-            Self::ReferenceMissing => "SLIB_REFERENCE_MISSING",
-            Self::ReferenceFutureLayer => "SLIB_REFERENCE_FUTURE_LAYER",
-            Self::ReferenceInvalid => "SLIB_REFERENCE_INVALID",
-            Self::BridgeMismatch => "SLIB_BRIDGE_MISMATCH",
-            Self::FingerprintMismatch => "SLIB_FINGERPRINT_MISMATCH",
-            Self::SessionConflict => "SLIB_SESSION_CONFLICT",
-        }
-    }
-}
-
-impl fmt::Display for SlibErrorCode {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
+pub use scoop_source::DiagnosticCode;
 
 /// Stable origin of the primary failing value when one is already trusted.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -123,7 +34,7 @@ pub enum SlibPrimaryOrigin {
 /// Renderer-independent projection of one typed `.slib` failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SlibDiagnosticRecord {
-    code: SlibErrorCode,
+    code: DiagnosticCode,
     path: WirePath,
     byte_offset: Option<u64>,
     primary_origin: Option<SlibPrimaryOrigin>,
@@ -146,7 +57,7 @@ impl PartialOrd for SlibDiagnosticRecord {
 }
 
 impl SlibDiagnosticRecord {
-    pub const fn code(&self) -> SlibErrorCode {
+    pub const fn code(&self) -> DiagnosticCode {
         self.code
     }
 
@@ -162,7 +73,7 @@ impl SlibDiagnosticRecord {
         self.primary_origin.as_ref()
     }
 
-    fn new(code: SlibErrorCode, path: WirePath) -> Self {
+    fn new(code: DiagnosticCode, path: WirePath) -> Self {
         Self {
             code,
             path,
@@ -179,6 +90,9 @@ impl SlibDiagnosticRecord {
 
 /// Produces stable machine-readable diagnostics without parsing `Display`.
 pub trait SlibDiagnostic {
+    fn code(&self) -> DiagnosticCode {
+        self.diagnostic().code()
+    }
     fn diagnostic(&self) -> SlibDiagnosticRecord;
 }
 
@@ -190,7 +104,7 @@ use record_helpers::{
 };
 
 pub(super) fn root_diagnostic(
-    code: SlibErrorCode,
+    code: DiagnosticCode,
     origin: SlibPrimaryOrigin,
 ) -> SlibDiagnosticRecord {
     SlibDiagnosticRecord::new(code, WirePath::root()).with_origin(origin)
@@ -202,22 +116,22 @@ mod tests;
 impl SlibDiagnostic for WireError {
     fn diagnostic(&self) -> SlibDiagnosticRecord {
         let code = match self.kind() {
-            WireErrorKind::UnexpectedEnd => SlibErrorCode::WireUnexpectedEnd,
-            WireErrorKind::WrongType { .. } => SlibErrorCode::WireWrongType,
-            WireErrorKind::IndefiniteLength { .. } => SlibErrorCode::WireIndefiniteLength,
-            WireErrorKind::NonCanonicalCbor => SlibErrorCode::WireNonCanonical,
-            WireErrorKind::TrailingData => SlibErrorCode::WireTrailingData,
+            WireErrorKind::UnexpectedEnd => DiagnosticCode::E2401,
+            WireErrorKind::WrongType { .. } => DiagnosticCode::E2401,
+            WireErrorKind::IndefiniteLength { .. } => DiagnosticCode::E2401,
+            WireErrorKind::NonCanonicalCbor => DiagnosticCode::E2401,
+            WireErrorKind::TrailingData => DiagnosticCode::E2401,
             WireErrorKind::DuplicateField { .. }
             | WireErrorKind::MissingField { .. }
             | WireErrorKind::ExtraField { .. }
-            | WireErrorKind::UnexpectedField { .. } => SlibErrorCode::WireInvalidField,
-            WireErrorKind::UnknownTag { .. } => SlibErrorCode::WireUnknownTag,
-            WireErrorKind::InvalidLength { .. } => SlibErrorCode::WireInvalidLength,
+            | WireErrorKind::UnexpectedField { .. } => DiagnosticCode::E2401,
+            WireErrorKind::UnknownTag { .. } => DiagnosticCode::E2401,
+            WireErrorKind::InvalidLength { .. } => DiagnosticCode::E2401,
             WireErrorKind::IntegerOutOfRange | WireErrorKind::InvalidIndex { .. } => {
-                SlibErrorCode::WireIntegerOutOfRange
+                DiagnosticCode::E2401
             }
 
-            WireErrorKind::Allocation => SlibErrorCode::Allocation,
+            WireErrorKind::Allocation => DiagnosticCode::E2205,
         };
         SlibDiagnosticRecord {
             code,
@@ -231,22 +145,18 @@ impl SlibDiagnostic for WireError {
 impl SlibDiagnostic for ArchiveReadError {
     fn diagnostic(&self) -> SlibDiagnosticRecord {
         match self {
-            Self::BadMagic => root_diagnostic(
-                SlibErrorCode::ContainerBadMagic,
-                SlibPrimaryOrigin::Container,
-            ),
+            Self::BadMagic => root_diagnostic(DiagnosticCode::E2401, SlibPrimaryOrigin::Container),
             Self::TruncatedHeader { member } | Self::TruncatedPayload { member } => {
-                archive_member_diagnostic(SlibErrorCode::ContainerTruncated, *member)
+                archive_member_diagnostic(DiagnosticCode::E2401, *member)
             }
             Self::Compression { member, .. } => {
-                archive_member_diagnostic(SlibErrorCode::ContainerNonCanonical, *member)
+                archive_member_diagnostic(DiagnosticCode::E2410, *member)
             }
-            Self::LengthOverflow => root_diagnostic(
-                SlibErrorCode::ContainerInvalidLength,
-                SlibPrimaryOrigin::Container,
-            ),
+            Self::LengthOverflow => {
+                root_diagnostic(DiagnosticCode::E2401, SlibPrimaryOrigin::Container)
+            }
             Self::NonIncreasingDirectory { second_index, .. } => SlibDiagnosticRecord::new(
-                SlibErrorCode::DirectoryNonCanonicalOrder,
+                DiagnosticCode::E2401,
                 WirePath::root()
                     .field(8)
                     .index(u64::try_from(*second_index).unwrap_or(u64::MAX)),
@@ -259,10 +169,10 @@ impl SlibDiagnostic for ArchiveReadError {
 impl SlibDiagnostic for SlibReadError {
     fn diagnostic(&self) -> SlibDiagnosticRecord {
         match self {
-            Self::Io(_) => SlibDiagnosticRecord::new(SlibErrorCode::InputIo, WirePath::root())
+            Self::Io(_) => SlibDiagnosticRecord::new(DiagnosticCode::E2201, WirePath::root())
                 .with_origin(SlibPrimaryOrigin::Container),
             Self::TestDirectory(_) => {
-                SlibDiagnosticRecord::new(SlibErrorCode::ReferenceInvalid, WirePath::root())
+                SlibDiagnosticRecord::new(DiagnosticCode::E2405, WirePath::root())
                     .with_origin(SlibPrimaryOrigin::Manifest)
             }
             Self::Container(error) | Self::Directory(error) => error.diagnostic(),
@@ -278,29 +188,27 @@ impl SlibDiagnostic for BootstrapManifestValidationError {
     fn diagnostic(&self) -> SlibDiagnosticRecord {
         let manifest = SlibPrimaryOrigin::Manifest;
         match self {
-            Self::BadMagic => SlibDiagnosticRecord::new(
-                SlibErrorCode::WireNonCanonical,
-                WirePath::root().field(1),
-            )
-            .with_origin(manifest),
+            Self::BadMagic => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2401, WirePath::root().field(1))
+                    .with_origin(manifest)
+            }
             Self::UnsupportedSchema { kind, .. } => SlibDiagnosticRecord::new(
-                SlibErrorCode::CompatibilitySchema,
+                DiagnosticCode::E2402,
                 WirePath::root().field(match kind {
                     SchemaKind::Manifest => 2,
                     SchemaKind::Container => 3,
                 }),
             )
             .with_origin(manifest),
-            Self::Producer(ProducerRecordError::TooLong { .. }) => SlibDiagnosticRecord::new(
-                SlibErrorCode::WireInvalidLength,
-                WirePath::root().field(4).field(1),
-            )
-            .with_origin(manifest),
+            Self::Producer(ProducerRecordError::TooLong { .. }) => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2401, WirePath::root().field(4).field(1))
+                    .with_origin(manifest)
+            }
             Self::Compatibility(error) => compatibility_diagnostic(error),
             Self::Cone(error) => cone_record_diagnostic(error),
             Self::Dependency { index, error } => dependency_record_diagnostic(*index, error),
             Self::NonIncreasingDependency { second_index, .. } => SlibDiagnosticRecord::new(
-                SlibErrorCode::ReferenceInvalid,
+                DiagnosticCode::E2405,
                 WirePath::root()
                     .field(7)
                     .index(u64::try_from(*second_index).unwrap_or(u64::MAX)),
@@ -308,14 +216,14 @@ impl SlibDiagnostic for BootstrapManifestValidationError {
             .with_origin(manifest),
             Self::Member { index, error } => member_record_diagnostic(*index, error),
             Self::NonIncreasingMember { second_index, .. } => SlibDiagnosticRecord::new(
-                SlibErrorCode::DirectoryNonCanonicalOrder,
+                DiagnosticCode::E2401,
                 WirePath::root()
                     .field(8)
                     .index(u64::try_from(*second_index).unwrap_or(u64::MAX)),
             )
             .with_origin(manifest),
             Self::SemanticFingerprints(error) => SlibDiagnosticRecord::new(
-                SlibErrorCode::FingerprintMismatch,
+                DiagnosticCode::E2108,
                 WirePath::root().field(9).field(match error {
                     SemanticFingerprintValidationError::CodeMustBeAvailable => 4,
                     SemanticFingerprintValidationError::RuntimeImageMustBeAvailable => 5,
@@ -327,7 +235,7 @@ impl SlibDiagnostic for BootstrapManifestValidationError {
                 second_index: index,
                 ..
             } => SlibDiagnosticRecord::new(
-                SlibErrorCode::CapabilityInvalid,
+                DiagnosticCode::E2401,
                 WirePath::root()
                     .field(10)
                     .index(u64::try_from(*index).unwrap_or(u64::MAX)),
@@ -343,30 +251,27 @@ impl SlibDiagnostic for MetadataReadError {
     fn diagnostic(&self) -> SlibDiagnosticRecord {
         match self {
             Self::CanonicalWire(error) => error.diagnostic(),
-            Self::InvalidIdTable => SlibDiagnosticRecord::new(
-                SlibErrorCode::WireNonCanonical,
-                WirePath::root().field(4),
-            ),
-            Self::BadMagic { expected } => SlibDiagnosticRecord::new(
-                SlibErrorCode::WireNonCanonical,
-                WirePath::root().field(1),
-            )
-            .with_origin(SlibPrimaryOrigin::Metadata(*expected)),
-            Self::UnsupportedSchema { .. } => SlibDiagnosticRecord::new(
-                SlibErrorCode::CompatibilitySchema,
-                WirePath::root().field(2),
-            ),
+            Self::InvalidIdTable => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2401, WirePath::root().field(4))
+            }
+            Self::BadMagic { expected } => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2401, WirePath::root().field(1))
+                    .with_origin(SlibPrimaryOrigin::Metadata(*expected))
+            }
+            Self::UnsupportedSchema { .. } => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2402, WirePath::root().field(2))
+            }
             Self::Section { index, error } => {
                 metadata_section_diagnostic(error).with_metadata_index(*index)
             }
             Self::NonIncreasingSection { second_index, .. } => SlibDiagnosticRecord::new(
-                SlibErrorCode::CapabilityInvalid,
+                DiagnosticCode::E2401,
                 WirePath::root()
                     .field(3)
                     .index(u64::try_from(*second_index).unwrap_or(u64::MAX)),
             ),
             Self::Allocation => {
-                SlibDiagnosticRecord::new(SlibErrorCode::Allocation, WirePath::root().field(3))
+                SlibDiagnosticRecord::new(DiagnosticCode::E2205, WirePath::root().field(3))
             }
         }
     }
@@ -384,26 +289,22 @@ impl SlibDiagnosticRecord {
 impl SlibDiagnostic for GraphValidationError {
     fn diagnostic(&self) -> SlibDiagnosticRecord {
         match self {
-            Self::SelfDependency { cone } => SlibDiagnosticRecord::new(
-                SlibErrorCode::ReferenceInvalid,
-                WirePath::root().field(7),
-            )
-            .with_origin(SlibPrimaryOrigin::Cone(*cone)),
-            Self::SingleFileDependency => SlibDiagnosticRecord::new(
-                SlibErrorCode::ReferenceInvalid,
-                WirePath::root().field(7),
-            ),
+            Self::SelfDependency { cone } => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2405, WirePath::root().field(7))
+                    .with_origin(SlibPrimaryOrigin::Cone(*cone))
+            }
+            Self::SingleFileDependency => {
+                SlibDiagnosticRecord::new(DiagnosticCode::E2405, WirePath::root().field(7))
+            }
         }
     }
 }
 
 fn compatibility_diagnostic(error: &CompatibilityValidationError) -> SlibDiagnosticRecord {
     let (code, field) = match error {
-        CompatibilityValidationError::UnsupportedSelection => {
-            (SlibErrorCode::CompatibilityProfile, 5)
-        }
+        CompatibilityValidationError::UnsupportedSelection => (DiagnosticCode::E2404, 5),
         CompatibilityValidationError::UnsupportedSchema { kind, .. } => (
-            SlibErrorCode::CompatibilitySchema,
+            DiagnosticCode::E2402,
             match kind {
                 CompatibilitySchemaKind::Identity => 3,
                 CompatibilitySchemaKind::Hir => 9,
@@ -411,26 +312,20 @@ fn compatibility_diagnostic(error: &CompatibilityValidationError) -> SlibDiagnos
                 CompatibilitySchemaKind::Lir => 11,
             },
         ),
-        CompatibilityValidationError::ManglingSchema { .. } => {
-            (SlibErrorCode::CompatibilityMangling, 4)
-        }
-        CompatibilityValidationError::Capability(_) => (SlibErrorCode::CapabilityInvalid, 5),
+        CompatibilityValidationError::ManglingSchema { .. } => (DiagnosticCode::E2402, 4),
+        CompatibilityValidationError::Capability(_) => (DiagnosticCode::E2401, 5),
         CompatibilityValidationError::TargetProfile(_)
-        | CompatibilityValidationError::BackendProfile(_) => {
-            (SlibErrorCode::CompatibilityProfile, 5)
-        }
+        | CompatibilityValidationError::BackendProfile(_) => (DiagnosticCode::E2404, 5),
         CompatibilityValidationError::ProfileMismatch { kind, .. } => (
-            SlibErrorCode::CompatibilityProfile,
+            DiagnosticCode::E2404,
             match kind {
                 crate::CompatibilityProfileKind::Target => 5,
                 crate::CompatibilityProfileKind::Backend => 7,
             },
         ),
-        CompatibilityValidationError::ArtifactProfile(_) => {
-            (SlibErrorCode::CompatibilityProfile, 13)
-        }
+        CompatibilityValidationError::ArtifactProfile(_) => (DiagnosticCode::E2404, 13),
         CompatibilityValidationError::FingerprintMismatch { kind, .. } => (
-            SlibErrorCode::FingerprintMismatch,
+            DiagnosticCode::E2108,
             match kind {
                 crate::CompatibilityFingerprintKind::LanguageAbi => 1,
                 crate::CompatibilityFingerprintKind::RuntimeAbi => 2,
@@ -440,7 +335,7 @@ fn compatibility_diagnostic(error: &CompatibilityValidationError) -> SlibDiagnos
                 crate::CompatibilityFingerprintKind::ArtifactProfile => 14,
             },
         ),
-        CompatibilityValidationError::Hash(_) => (SlibErrorCode::FingerprintMismatch, 5),
+        CompatibilityValidationError::Hash(_) => (DiagnosticCode::E2108, 5),
         CompatibilityValidationError::Resource(error) => {
             return error.diagnostic().with_origin(SlibPrimaryOrigin::Manifest);
         }
@@ -452,12 +347,12 @@ fn compatibility_diagnostic(error: &CompatibilityValidationError) -> SlibDiagnos
 fn manifest_build_diagnostic(error: &BootstrapManifestError) -> SlibDiagnosticRecord {
     let (code, path, origin) = match error {
         BootstrapManifestError::DuplicateDependency { identity } => (
-            SlibErrorCode::ReferenceInvalid,
+            DiagnosticCode::E2405,
             WirePath::root().field(7),
             Some(SlibPrimaryOrigin::Cone(*identity)),
         ),
         BootstrapManifestError::DuplicateMember { id } => (
-            SlibErrorCode::DirectoryMismatch,
+            DiagnosticCode::E2401,
             WirePath::root().field(8).key("slib-member", *id.as_array()),
             Some(SlibPrimaryOrigin::Member(*id)),
         ),
@@ -465,12 +360,12 @@ fn manifest_build_diagnostic(error: &BootstrapManifestError) -> SlibDiagnosticRe
         BootstrapManifestError::MissingMetadata { .. }
         | BootstrapManifestError::DuplicateMetadata { .. }
         | BootstrapManifestError::DuplicateObjectDictionary => (
-            SlibErrorCode::DirectoryMismatch,
+            DiagnosticCode::E2401,
             WirePath::root().field(8),
             Some(SlibPrimaryOrigin::Manifest),
         ),
         BootstrapManifestError::DuplicateSection { capability } => (
-            SlibErrorCode::CapabilityInvalid,
+            DiagnosticCode::E2401,
             WirePath::root().field(10),
             Some(SlibPrimaryOrigin::Capability {
                 location: None,
@@ -478,7 +373,7 @@ fn manifest_build_diagnostic(error: &BootstrapManifestError) -> SlibDiagnosticRe
             }),
         ),
         BootstrapManifestError::Hash(_) => (
-            SlibErrorCode::FingerprintMismatch,
+            DiagnosticCode::E2108,
             WirePath::root().field(11),
             Some(SlibPrimaryOrigin::Manifest),
         ),
@@ -494,20 +389,20 @@ fn manifest_build_diagnostic(error: &BootstrapManifestError) -> SlibDiagnosticRe
 fn metadata_section_diagnostic(error: &MetadataSectionValidationError) -> SlibDiagnosticRecord {
     match error {
         MetadataSectionValidationError::Capability(_) => {
-            SlibDiagnosticRecord::new(SlibErrorCode::CapabilityInvalid, WirePath::root())
+            SlibDiagnosticRecord::new(DiagnosticCode::E2401, WirePath::root())
         }
         MetadataSectionValidationError::Section(error) => match error {
             MetadataSectionError::InvalidPurpose { .. }
             | MetadataSectionError::KnownCapabilityWrongLocation { .. }
             | MetadataSectionError::KnownCapabilityWrongPurpose { .. } => {
-                SlibDiagnosticRecord::new(SlibErrorCode::CapabilityInvalid, WirePath::root())
+                SlibDiagnosticRecord::new(DiagnosticCode::E2401, WirePath::root())
             }
         },
     }
 }
 
 fn archive_member_diagnostic(
-    code: SlibErrorCode,
+    code: DiagnosticCode,
     member: ArchiveMemberOrdinal,
 ) -> SlibDiagnosticRecord {
     let (path, origin) = match member {
@@ -518,4 +413,104 @@ fn archive_member_diagnostic(
         ),
     };
     SlibDiagnosticRecord::new(code, path).with_origin(origin)
+}
+
+impl crate::ArtifactManifestSummaryError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::Envelope(e) => e.code(),
+            Self::Io(_) => DiagnosticCode::E2201,
+            Self::TestDirectory(_) => DiagnosticCode::E2406,
+        }
+    }
+}
+
+impl crate::CrossConeArtifactPublishError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::MissingParent { .. } => DiagnosticCode::E2020,
+            Self::Io { .. } => DiagnosticCode::E2201,
+        }
+    }
+}
+
+impl crate::CrossConeArtifactClosureValidationError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::Layout(e) => e.code(),
+            Self::Commit(e) => e.code(),
+            Self::MissingCompletedCurrentArtifact => DiagnosticCode::ICE2401,
+        }
+    }
+}
+
+impl crate::CrossConeSemanticCommitError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::StateCountMismatch { .. } => DiagnosticCode::ICE2401,
+            Self::Allocation { .. } => DiagnosticCode::E2205,
+            Self::IdentityPreparation { source, .. } => source.code(),
+            Self::SemanticImport(e) => e.code(),
+        }
+    }
+}
+
+impl crate::CrossConeLayoutArtifactValidationError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::Envelope { source, .. } => source.code(),
+            Self::Graph { source, .. } => source.code(),
+            Self::LinkSections { .. } => DiagnosticCode::E2409,
+            Self::CompileSections { .. } => DiagnosticCode::E2406,
+            Self::Semantic { source, .. } => source.code(),
+            Self::Physical { .. } => DiagnosticCode::E2408,
+            Self::Resource { source } => source.code(),
+            Self::TestDirectory(_) => DiagnosticCode::E2406,
+            Self::MissingCurrentArtifact => DiagnosticCode::ICE2401,
+        }
+    }
+}
+
+impl crate::CrossConeLayoutSemanticClosureError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::Graph(e) => e.code(),
+            Self::Identity(_) => DiagnosticCode::E2405,
+            Self::Foundation(_)
+            | Self::HirResolution(_)
+            | Self::HirProduction(_)
+            | Self::HirDeclarations(_) => DiagnosticCode::E2406,
+            Self::SourceCallables(_) | Self::MirDependencies(_) => DiagnosticCode::E2407,
+            Self::LirLayouts(_)
+            | Self::LirCallableAbis(_)
+            | Self::LirDispatch(_)
+            | Self::LirDescriptors(_)
+            | Self::LirShapeSupport(_)
+            | Self::OrdinaryLirBridges(_)
+            | Self::LirStrongProduction(_)
+            | Self::LirDependencies(_) => DiagnosticCode::E2408,
+        }
+    }
+}
+
+impl crate::CrossConeClosureGraphError {
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            Self::NonCanonicalDirectProviders { .. } | Self::InvalidDependencyFirstOrder { .. } => {
+                DiagnosticCode::E2401
+            }
+            Self::TargetMismatch { .. } => DiagnosticCode::E2404,
+            Self::MultipleVersions { .. } => DiagnosticCode::E2104,
+            Self::InvalidProviderKind { .. } => DiagnosticCode::E2103,
+            Self::MissingDirectArtifact { .. } | Self::MissingDependencyArtifact { .. } => {
+                DiagnosticCode::E2101
+            }
+            Self::StaleDependency { .. } => DiagnosticCode::E2108,
+            Self::DuplicateArtifact { .. }
+            | Self::CurrentArtifactPresent { .. }
+            | Self::CurrentArtifactIdentityMismatch { .. }
+            | Self::CurrentDirectSetMismatch { .. }
+            | Self::UnreachableSupport { .. } => DiagnosticCode::E2405,
+        }
+    }
 }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Broken` does not implement interface method `HasValue.$get$value`",
     "notes": [],
     "origin": {

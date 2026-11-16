@@ -35,6 +35,7 @@ impl Lowerer {
         };
         if selected.is_none() {
             self.error(
+                scoop_source::DiagnosticCode::E1301,
                 site.span,
                 format!(
                     "annotation use-site `{}` has no target on this declaration",
@@ -71,6 +72,7 @@ impl Lowerer {
                 "this annotation target"
             };
             self.error(
+                scoop_source::DiagnosticCode::E1301,
                 annotation.span,
                 format!("`@{}` is not allowed on {location}", annotation.name),
             );

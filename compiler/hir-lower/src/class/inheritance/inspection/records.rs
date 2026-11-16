@@ -18,6 +18,7 @@ impl Lowerer {
         let application = self.nominal_application(target).unwrap();
         if self.nominal_intrinsic_kind(application.template).is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1310,
                 span,
                 "an intrinsic type requires an explicit inspect implementation".into(),
             );
@@ -61,6 +62,7 @@ impl Lowerer {
                     .inspection_field(value, &field.name, span)
                     .or_else(|| {
                         state.error(
+                            scoop_source::DiagnosticCode::E0403,
                             span,
                             format!(
                                 "automatic inspect cannot read member `{}` from this inspector",

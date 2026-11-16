@@ -10,12 +10,17 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         .map(|node| {
             let summary = node.artifact().summary();
             Ok((
-                encode(&summary.cone().identity()).map_err(failure)?,
-                encode(&summary.code_fingerprint_availability()).map_err(failure)?,
+                encode(&summary.cone().identity())
+                    .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
+                encode(&summary.code_fingerprint_availability())
+                    .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
             ))
         })
         .collect::<BuildResult<Vec<_>>>()?;
-    let path = |path: &Path| HostPathCarrier::from_path(path).map_err(failure);
+    let path = |path: &Path| {
+        HostPathCarrier::from_path(path)
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))
+    };
     let options = request.options;
     let mode = match options.mode {
         None => "default",
@@ -28,13 +33,15 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
     };
     let configuration = (
         artifacts,
-        encode(request.graph.root().artifact().summary().cone()).map_err(failure)?,
+        encode(request.graph.root().artifact().summary().cone())
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
         (
             runtime,
             request.enable_gc_stress,
             request.enable_startup_stats,
         ),
-        encode(&request.target.lir_target().wire_id()).map_err(failure)?,
+        encode(&request.target.lir_target().wire_id())
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
         request.profile.as_str(),
         request.keep_symbols(),
         request.enable_stack_trace(),
@@ -63,6 +70,7 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
             .map(|p| path(p))
             .collect::<BuildResult<Vec<_>>>()?,
     );
-    let bytes = serde_json::to_vec(&configuration).map_err(failure)?;
+    let bytes = serde_json::to_vec(&configuration)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?;
     Ok(sha256(&bytes))
 }

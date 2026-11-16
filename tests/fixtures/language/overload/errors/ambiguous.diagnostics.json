@@ -1,8 +1,73 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `m` is ambiguous in current-unit top-level candidate layer:\n  - fun m(a: Int, b: Any): Int — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int\n  - fun m(a: Any, b: Int): Int — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `m` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun m(a: Int, b: Any): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 30,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun m(a: Any, b: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 61,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 31
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 95,

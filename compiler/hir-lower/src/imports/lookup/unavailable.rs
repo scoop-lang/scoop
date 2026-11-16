@@ -175,6 +175,7 @@ impl Lowerer {
             )
         });
         let mut diagnostic = ast::Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E2505,
             self.current_file,
             name.span,
             if has_import_failure {
@@ -186,6 +187,7 @@ impl Lowerer {
         diagnostic.notes.extend(bindings.iter().map(|&binding| {
             let declaration = self.imports.binding(binding);
             ast::DiagnosticNote::at(
+                scoop_source::DiagnosticCode::N0001,
                 declaration.file,
                 declaration.span,
                 if matches!(declaration.target, CurrentUnitTarget::UnavailableImport) {

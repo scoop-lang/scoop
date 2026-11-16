@@ -110,7 +110,7 @@ name = "bad_group"
 argv = ["${scoop}", "new", "${work}/invalid/bad-group", "--group", "Dev.example"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_NEW_INPUT]: invalid Cone coordinate group: segment must start with a lowercase ASCII letter\n"
+stderr = "error[E2001]: invalid Cone coordinate group: segment must start with a lowercase ASCII letter\n"
 checks = [{"file" = "${work}/invalid", "exists" = false}]
 
 [[steps]]
@@ -118,7 +118,7 @@ name = "bad_version"
 argv = ["${scoop}", "new", "${work}/invalid/bad-version", "--group", "dev.example", "--version", "01.2.3"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_NEW_INPUT]: invalid Cone coordinate semantic version\n"
+stderr = "error[E2001]: invalid Cone coordinate semantic version\n"
 checks = [{"file" = "${work}/invalid", "exists" = false}]
 
 [[steps]]
@@ -126,7 +126,7 @@ name = "bad_package"
 argv = ["${scoop}", "new", "${work}/invalid/bad-package", "--group", "dev.example", "--package", "dev.examples"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_NEW_INPUT]: package must equal Cone group `dev.example` or one of its subpackages\n"
+stderr = "error[E2001]: package must equal Cone group `dev.example` or one of its subpackages\n"
 checks = [{"file" = "${work}/invalid", "exists" = false}]
 
 [[steps]]
@@ -134,7 +134,7 @@ name = "quoted_package"
 argv = ["${scoop}", "new", "${work}/invalid/quoted-package", "--group", "dev.example", "--package", "`dev.example`"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_NEW_INPUT]: package must equal Cone group `dev.example` or one of its subpackages\n"
+stderr = "error[E2001]: package must equal Cone group `dev.example` or one of its subpackages\n"
 checks = [{"file" = "${work}/invalid", "exists" = false}]
 
 [[steps]]
@@ -142,7 +142,7 @@ name = "bad_name"
 argv = ["${scoop}", "new", "${work}/invalid/bad-name", "--group", "dev.example", "--name", "BadName"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_NEW_INPUT]: invalid Cone coordinate name: segment must start with a lowercase ASCII letter\n"
+stderr = "error[E2001]: invalid Cone coordinate name: segment must start with a lowercase ASCII letter\n"
 checks = [{"file" = "${work}/invalid", "exists" = false}]
 
 [[steps]]
@@ -154,7 +154,7 @@ name = "existing"
 argv = ["${scoop}", "new", "${work}/hello", "--group", "dev.example"]
 exit = 1
 stdout = ""
-stderr = "${work}/hello: error[SCOOP_NEW_IO]: File exists (os error 17)\n"
+stderr = "${work}/hello: error[E2201]: File exists (os error 17)\n"
 checks = [{"file" = "${work}/hello/src/main.scoop", "contains" = "Hello, Scoop!"}]
 
 [[steps]]
@@ -162,7 +162,7 @@ name = "empty"
 argv = ["${scoop}", "new", "${work}/empty", "--group", "dev.example"]
 exit = 1
 stdout = ""
-stderr = "${work}/empty: error[SCOOP_NEW_IO]: File exists (os error 17)\n"
+stderr = "${work}/empty: error[E2201]: File exists (os error 17)\n"
 checks = [{"glob" = "${work}/empty/*", "equals" = []}]
 
 [[steps]]
@@ -170,7 +170,7 @@ name = "file"
 argv = ["${scoop}", "new", "${work}/file", "--group", "dev.example"]
 exit = 1
 stdout = ""
-stderr = "${work}/file: error[SCOOP_NEW_IO]: File exists (os error 17)\n"
+stderr = "${work}/file: error[E2201]: File exists (os error 17)\n"
 checks = [{"file" = "${work}/file", "equals" = "keep"}]
 
 [[steps]]
@@ -178,5 +178,5 @@ name = "parent_file"
 argv = ["${scoop}", "new", "${work}/file/child", "--group", "dev.example"]
 exit = 1
 stdout = ""
-stderr = "${work}/file: error[SCOOP_NEW_IO]: File exists (os error 17)\n"
+stderr = "${work}/file: error[E2201]: File exists (os error 17)\n"
 checks = [{"file" = "${work}/file", "equals" = "keep"}]

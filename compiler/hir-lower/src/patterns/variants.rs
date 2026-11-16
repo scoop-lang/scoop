@@ -10,17 +10,23 @@ impl Lowerer {
         let variant = self.enum_variant(application);
         let count = variant.fields.len();
         if count != 0 {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0906,
                 name.span,
                 format!(
-                    "variant `{}` of `{}` has {count} field(s); use `{}(...)` to match it",
-                    name.text, variant.owner_name, name.text,
+                    "variant `{}` of `{}` has {count} field(s)",
+                    name.text, variant.owner_name
+                ),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0901,
+                    format!("use `{}(...)` to match it", name.text),
                 ),
             );
             return None;
         }
         if !ctx.in_when {
             self.error(
+                scoop_source::DiagnosticCode::E0902,
                 name.span,
                 "refutable patterns are only allowed in `when`".into(),
             );
@@ -41,15 +47,24 @@ impl Lowerer {
         ctx: PatternCtx,
     ) -> Option<hir::Pattern> {
         if !ctx.in_when {
-            self.error(span, "refutable patterns are only allowed in `when`".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0902,
+                span,
+                "refutable patterns are only allowed in `when`".into(),
+            );
             return None;
         }
         let variant = self.enum_variant(application);
         let description = variant_owner(&variant.owner_name, &variant.name);
         if variant.style == VariantStyle::Named {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0910,
                 span,
-                format!("{description} has named fields; use a named field pattern"),
+                format!("{description} has named fields"),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0901,
+                    "use a named field pattern".to_string(),
+                ),
             );
             return None;
         }
@@ -75,15 +90,24 @@ impl Lowerer {
         ctx: PatternCtx,
     ) -> Option<hir::Pattern> {
         if !ctx.in_when {
-            self.error(span, "refutable patterns are only allowed in `when`".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0902,
+                span,
+                "refutable patterns are only allowed in `when`".into(),
+            );
             return None;
         }
         let variant = self.enum_variant(application);
         let description = variant_owner(&variant.owner_name, &variant.name);
         if matches!(variant.style, VariantStyle::Unit | VariantStyle::Positional) {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0910,
                 span,
-                format!("{description} has no named fields; use a positional pattern"),
+                format!("{description} has no named fields"),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0901,
+                    "use a positional pattern".to_string(),
+                ),
             );
             return None;
         }

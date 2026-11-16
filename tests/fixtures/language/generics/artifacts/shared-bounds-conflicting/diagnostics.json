@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0605",
     "message": "dependency function `readBound`: conflicting types for `T`: Int and String",
     "notes": [],
     "origin": {

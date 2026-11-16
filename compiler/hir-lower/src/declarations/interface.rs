@@ -25,7 +25,7 @@ impl Lowerer {
                     decl.name.text
                 )
             };
-            self.error(decl.name.span, what);
+            self.error(scoop_source::DiagnosticCode::E0301, decl.name.span, what);
             return None;
         }
         let mut type_params = self.local_type_parameters();
@@ -35,6 +35,7 @@ impl Lowerer {
                 .any(|existing: &hir::TypeParamDecl| existing.name == param.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     param.span,
                     format!("duplicate type parameter `{}`", param.name.text),
                 );

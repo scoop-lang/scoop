@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "concrete `@CLayout` type is not C-FFI-safe: CBox<String>.value: ref type `String` is managed",
     "notes": [],
     "origin": {

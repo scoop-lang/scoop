@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "signature of function `Derived.leak` exposes type `Exposed` outside its access domain",
     "notes": [],
     "origin": {

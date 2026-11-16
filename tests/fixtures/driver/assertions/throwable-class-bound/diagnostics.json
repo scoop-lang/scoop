@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0603",
     "message": "dependency function `assertFailsWith`: type argument `Ordinary` for `E` must satisfy upper bound `Throwable`",
     "notes": [],
     "origin": {

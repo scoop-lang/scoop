@@ -128,6 +128,7 @@ fn accessor_function(implementation: hir::PropertyAccessorImplementation) -> hir
 
 fn projection_error(error: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::at(
+        scoop_source::DiagnosticCode::E2505,
         Span::new(0, 0),
         format!("cannot project queried body: {error}"),
     )

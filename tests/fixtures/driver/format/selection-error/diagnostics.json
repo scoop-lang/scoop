@@ -1,3 +1,15 @@
 [
-  {"code":"SCOOP_FMT_INPUT","message":"source discovery failed at ${missing_source.canonical}: cannot inspect: ${file_not_found_error}","notes":[],"origin":{"kind":"host","path":"${missing_source.canonical}","start":null,"end":null},"phase":"Request","severity":"error"}
+  {
+    "code": "E2201",
+    "message": "source discovery failed at ${missing_source.canonical}: cannot inspect: ${file_not_found_error}",
+    "notes": [],
+    "origin": {
+      "kind": "host",
+      "path": "${missing_source.canonical}",
+      "start": null,
+      "end": null
+    },
+    "phase": "Request",
+    "severity": "error"
+  }
 ]

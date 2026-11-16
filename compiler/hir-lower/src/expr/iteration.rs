@@ -44,11 +44,19 @@ impl Lowerer {
                 let candidate = match candidate {
                     Ok(Some(candidate)) => candidate,
                     Ok(None) => {
-                        self.error(span, "missing imported Iterator.next declaration".into());
+                        self.error(
+                            scoop_source::DiagnosticCode::E1404,
+                            span,
+                            "missing imported Iterator.next declaration".into(),
+                        );
                         return None;
                     }
                     Err(error) => {
-                        self.error(span, format!("invalid imported Iterator.next: {error}"));
+                        self.error(
+                            scoop_source::DiagnosticCode::E0811,
+                            span,
+                            format!("invalid imported Iterator.next: {error}"),
+                        );
                         return None;
                     }
                 };

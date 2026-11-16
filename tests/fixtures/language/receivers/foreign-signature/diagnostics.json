@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "foreign callback signature must not declare a receiver",
     "notes": [],
     "origin": {

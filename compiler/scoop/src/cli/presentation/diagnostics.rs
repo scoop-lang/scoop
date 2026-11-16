@@ -48,17 +48,13 @@ impl Reporter {
             };
             match self.0 {
                 MessageFormat::Json => {
-                    let notes = diagnostic.notes().iter().map(|note| {
-                        let mut value = json!({
-                        "message": note.message(), "origin": origin(note.origin()), "display": display(note.origin(), sources, contents),
-                        });
-                        if !note.import_path().is_empty() {
-                            value["importPath"] = json!(note.import_path());
-                        }
-                        value
-                    }).collect::<Vec<_>>();
+                    let notes = diagnostic
+                        .notes()
+                        .iter()
+                        .map(|note| note_json(note, sources, contents))
+                        .collect::<Vec<_>>();
                     write_json(&json!({
-                        "schema": 1, "kind": "diagnostic", "severity": severity, "code": diagnostic.code(),
+                        "schema": 2, "kind": "diagnostic", "severity": severity, "code": diagnostic.code(),
                         "message": diagnostic.message(), "origin": origin(diagnostic.origin()), "notes": notes,
                         "display": display(diagnostic.origin(), sources, contents),
                     }))?;
@@ -275,4 +271,21 @@ mod tests {
             );
         }
     }
+}
+
+pub(super) fn note_json(
+    note: &scoop_protocol::DiagnosticNoteV1,
+    sources: &[SelectedSource],
+    contents: &mut SourceContents,
+) -> serde_json::Value {
+    let notes = note
+        .notes()
+        .iter()
+        .map(|child| note_json(child, sources, contents))
+        .collect::<Vec<_>>();
+    let mut value = json!({ "code": note.code().as_str(), "kind": note.code().role().as_str(), "message": note.message(), "origin": origin(note.origin()), "display": display(note.origin(), sources, contents), "notes": notes });
+    if !note.import_path().is_empty() {
+        value["importPath"] = json!(note.import_path());
+    }
+    value
 }

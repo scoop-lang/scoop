@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "generic class `Box` requires 1 type argument(s)",
     "notes": [],
     "origin": {

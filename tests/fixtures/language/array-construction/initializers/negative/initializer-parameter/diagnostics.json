@@ -1,8 +1,79 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `Array` in core prelude layer:\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(size: Long, init: (Long) -> T) — argument for `init` has type (Int) -> Int: Long is not a subtype of Int\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — expects 1 argument(s), but 2 were supplied",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `Array` in core prelude layer",
+    "notes": [
+      {
+        "code": "E0711",
+        "kind": "cause",
+        "message": "no applicable candidate for constructor `Array` in nominal constructor candidate layer",
+        "notes": [
+          {
+            "code": "N0002",
+            "kind": "note",
+            "message": "class Array<T>(size: Long, init: (Long) -> T)",
+            "notes": [
+              {
+                "code": "E0501",
+                "kind": "cause",
+                "message": "argument for `init` has type (Int) -> Int: Long is not a subtype of Int",
+                "notes": [],
+                "origin": {
+                  "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+                  "end": 89,
+                  "kind": "source",
+                  "path": "main.scoop",
+                  "start": 85
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 89,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 85
+        }
+      },
+      {
+        "code": "E0711",
+        "kind": "cause",
+        "message": "no applicable candidate for constructor `Array` in nominal constructor candidate layer",
+        "notes": [
+          {
+            "code": "N0002",
+            "kind": "note",
+            "message": "class Array<T>(source: MutableArray<T>)",
+            "notes": [
+              {
+                "code": "E0701",
+                "kind": "cause",
+                "message": "expects 1 argument(s), but 2 were supplied",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 90,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 70
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 90,

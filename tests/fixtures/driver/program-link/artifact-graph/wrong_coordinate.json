@@ -1,0 +1,14 @@
+[
+  {
+    "code": "E2102",
+    "message": "artifact ${work}/locator/dev.programlink/library/0.1.0/cone.slib has coordinate dev.programlink:extra:0.1.0, expected dev.programlink:library:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "artifact",
+      "member": "manifest:cone.coordinate",
+      "path": "${work}/locator/dev.programlink/library/0.1.0/cone.slib"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

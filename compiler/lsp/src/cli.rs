@@ -1,4 +1,7 @@
+use error::QueryError;
+use scoop_source::DiagnosticCode as C;
 mod client;
+mod error;
 mod query;
 mod render;
 
@@ -151,7 +154,7 @@ pub fn run() -> i32 {
             return failure(
                 if json { Format::Json } else { Format::Text },
                 "usage",
-                error,
+                QueryError::new(C::E2001, error),
                 2,
             );
         }
@@ -159,7 +162,7 @@ pub fn run() -> i32 {
     match cli.command {
         None => match scoop_lsp::run_stdio() {
             Ok(code) => code,
-            Err(error) => failure(Format::Text, "server", error, 1),
+            Err(error) => failure(Format::Text, "server", QueryError::new(C::E2204, error), 1),
         },
         Some(Command::Query(query)) => match query::execute(&query) {
             Ok(result) => {
@@ -170,9 +173,16 @@ pub fn run() -> i32 {
                 match output {
                     Ok(text) => match std::io::stdout().lock().write_all(text.as_bytes()) {
                         Ok(()) => 0,
-                        Err(error) => failure(query.format, "output", error, 1),
+                        Err(error) => {
+                            failure(query.format, "output", QueryError::new(C::E2201, error), 1)
+                        }
                     },
-                    Err(error) => failure(query.format, "output", error, 1),
+                    Err(error) => failure(
+                        query.format,
+                        "output",
+                        QueryError::new(C::ICE2501, error),
+                        1,
+                    ),
                 }
             }
             Err(error) => failure(query.format, "query", error, 1),
@@ -180,12 +190,12 @@ pub fn run() -> i32 {
     }
 }
 
-fn failure(format: Format, kind: &str, error: impl std::fmt::Display, code: i32) -> i32 {
+fn failure(format: Format, kind: &str, error: QueryError, code: i32) -> i32 {
     match format {
-        Format::Text => eprintln!("scoop-lsp: {error}"),
+        Format::Text => eprintln!("error[{}]: {error}", error.code),
         Format::Json => eprintln!(
             "{}",
-            json!({"schema": 1, "kind": "error", "error": {"kind": kind, "message": error.to_string()}})
+            json!({"schema": 2, "kind": "error", "error": {"kind": kind, "code": error.code, "message": error.message}})
         ),
     }
     code

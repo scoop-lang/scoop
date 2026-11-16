@@ -19,14 +19,22 @@ impl GeneratorPrograms {
         for option in options {
             let bytes = option.as_encoded_bytes();
             let Some(separator) = bytes.iter().position(|&byte| byte == b'=') else {
-                return Err(error("generator registration must be NAME=PATH"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2001,
+                    "generator registration must be NAME=PATH",
+                ));
             };
-            let name = std::str::from_utf8(&bytes[..separator])
-                .map_err(|_| error("generator name must be valid UTF-8"))?;
+            let name = std::str::from_utf8(&bytes[..separator]).map_err(|_| {
+                error(
+                    scoop_source::DiagnosticCode::E2001,
+                    "generator name must be valid UTF-8",
+                )
+            })?;
             // Splitting at ASCII '=' preserves the platform OsStr encoding boundary.
             let path = unsafe { OsStr::from_encoded_bytes_unchecked(&bytes[separator + 1..]) };
             if name.trim().is_empty() || path.is_empty() {
                 return Err(error(
+                    scoop_source::DiagnosticCode::E2001,
                     "generator registration requires a nonempty name and path",
                 ));
             }
@@ -35,7 +43,10 @@ impl GeneratorPrograms {
                 .insert(name.to_owned(), cwd.join(path))
                 .is_some()
             {
-                return Err(error(format!("duplicate generator registration `{name}`")));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2001,
+                    format!("duplicate generator registration `{name}`"),
+                ));
             }
         }
         Ok(programs)
@@ -47,9 +58,13 @@ impl GeneratorPrograms {
         let explicit = registrations
             .iter()
             .map(|registration| {
-                let path = registration.program().to_path_buf().map_err(error)?;
+                let path = registration
+                    .program()
+                    .to_path_buf()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
                 if !path.is_absolute() {
                     return Err(error(
+                        scoop_source::DiagnosticCode::E2001,
                         "generator program path must be absolute in a machine request",
                     ));
                 }
@@ -65,9 +80,10 @@ impl GeneratorPrograms {
             .map(|(name, path)| {
                 GeneratorRegistrationV1::new(
                     name.clone(),
-                    HostPathCarrier::from_path(path).map_err(error)?,
+                    HostPathCarrier::from_path(path)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2501, cause))?,
                 )
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2501, cause))
             })
             .collect()
     }
@@ -92,8 +108,8 @@ impl GeneratorPrograms {
     }
 }
 
-fn error(message: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(message.to_string())
+fn error(code: scoop_source::DiagnosticCode, message: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, message.to_string())
 }
 
 #[cfg(test)]

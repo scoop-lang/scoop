@@ -67,10 +67,16 @@ impl<'a> ProgramInputs<'a> {
         if (closure.root_kind() == scoop_slib::ConeKind::NativeApp)
             != (profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary)
         {
-            return Err(error("root Cone kind differs from final-link output kind"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2404,
+                "root Cone kind differs from final-link output kind",
+            ));
         }
         if runtime.target() != profile.target() {
-            return Err(error("runtime target differs from final-link target"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2404,
+                "runtime target differs from final-link target",
+            ));
         }
         let target_os = scoop_target_data::definition(profile.target().id())
             .filter(|definition| definition.selection.target() == profile.target())
@@ -123,7 +129,10 @@ impl<'a> ProgramInputs<'a> {
             final_images.push(image);
             if let Some(entry) = artifact.production().entry_symbol {
                 if cone != closure.root() || root.is_some() {
-                    return Err(error(format!("multiple executable entries at Cone {cone}")));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2412,
+                        format!("multiple executable entries at Cone {cone}"),
+                    ));
                 }
                 root = Some(object_symbol(entry, profile));
                 windows_subsystem = artifact
@@ -140,7 +149,12 @@ impl<'a> ProgramInputs<'a> {
                 let directory = artifact.manifest().members();
                 let position = directory
                     .binary_search_by_key(&member, |record| record.id())
-                    .map_err(|_| error(format!("missing object member {member} in Cone {cone}")))?;
+                    .map_err(|_| {
+                        error(
+                            scoop_source::DiagnosticCode::E2403,
+                            format!("missing object member {member} in Cone {cone}"),
+                        )
+                    })?;
                 let record = &directory[position];
                 objects.push(InputObject {
                     origin: ObjectOrigin::Cone { cone, member },
@@ -152,12 +166,16 @@ impl<'a> ProgramInputs<'a> {
                 if !selected.contains(cone, definition.member()) {
                     continue;
                 }
-                let name = String::from_utf8(definition.symbol().to_vec()).map_err(error)?;
+                let name = String::from_utf8(definition.symbol().to_vec())
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
                 let owner = DefinitionOwner::Scoop(definition.owner());
                 if let Some(previous) = definitions.insert(name.clone(), owner) {
-                    return Err(error(format!(
-                        "multiple or conflicting selected owners for {name}: {previous:?}, {owner:?}; Cone {cone}"
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2412,
+                        format!(
+                            "multiple or conflicting selected owners for {name}: {previous:?}, {owner:?}; Cone {cone}"
+                        ),
+                    ));
                 }
             }
             for alias in symbols.link_support().runtime_data_aliases() {
@@ -169,20 +187,28 @@ impl<'a> ProgramInputs<'a> {
                         record.owner() == LinkDefinitionOwnerV1::StrongDefinition(alias.owner())
                     })
                     .ok_or_else(|| {
-                        error(format!(
-                            "Cone {cone}: runtime String alias has no physical TD definition"
-                        ))
+                        error(
+                            scoop_source::DiagnosticCode::E2409,
+                            format!(
+                                "Cone {cone}: runtime String alias has no physical TD definition"
+                            ),
+                        )
                     })?;
-                let target = String::from_utf8(record.symbol().to_vec()).map_err(error)?;
+                let target = String::from_utf8(record.symbol().to_vec())
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
                 if string_target.replace(target).is_some() {
-                    return Err(error("runtime String alias has more than one provider"));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2412,
+                        "runtime String alias has more than one provider",
+                    ));
                 }
             }
             for requirement in symbols.requirements() {
                 if !selected.contains(cone, requirement.member()) {
                     continue;
                 }
-                let symbol = String::from_utf8(requirement.symbol().to_vec()).map_err(error)?;
+                let symbol = String::from_utf8(requirement.symbol().to_vec())
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
                 requirement_origins
                     .entry(symbol.clone())
                     .or_default()
@@ -203,11 +229,14 @@ impl<'a> ProgramInputs<'a> {
                     std::collections::btree_map::Entry::Occupied(entry) => {
                         // RuntimeObjectSet already resolved coalescible definitions.
                         if !matches!(entry.get(), DefinitionOwner::Runtime(_)) {
-                            return Err(error(format!(
-                                "runtime object {} conflicts with {:?} at {symbol}",
-                                object.id(),
-                                entry.get()
-                            )));
+                            return Err(error(
+                                scoop_source::DiagnosticCode::E2412,
+                                format!(
+                                    "runtime object {} conflicts with {:?} at {symbol}",
+                                    object.id(),
+                                    entry.get()
+                                ),
+                            ));
                         }
                     }
                 }
@@ -220,9 +249,18 @@ impl<'a> ProgramInputs<'a> {
                     .push(format!("runtime object {}", object.id()));
             }
         }
-        let root = root.ok_or_else(|| error("executable closure has no root entry"))?;
-        let string_target = string_target
-            .ok_or_else(|| error("executable closure has no typed runtime String alias"))?;
+        let root = root.ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2308,
+                "executable closure has no root entry",
+            )
+        })?;
+        let string_target = string_target.ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2409,
+                "executable closure has no typed runtime String alias",
+            )
+        })?;
         requirements.extend([
             root.clone(),
             profile

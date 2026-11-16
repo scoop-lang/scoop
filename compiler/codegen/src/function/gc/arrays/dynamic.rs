@@ -23,7 +23,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         {
             return Err(CodegenError::internal(
                 "dynamic array allocation requires a Long count and managed result".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE1101));
         }
         let (metadata, descriptor) = self.array_type(*array_type);
         let layout = metadata.layout.clone();

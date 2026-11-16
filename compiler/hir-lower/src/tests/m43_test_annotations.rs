@@ -13,11 +13,13 @@ fn rejects(source: &str, message: &str) -> Vec<ast::SourceDiagnostic> {
         Err(errors) => errors,
     };
     assert!(
-        errors.iter().any(|error| error.message.contains(message)
-            && error
-                .source()
-                .is_some_and(|source| source.logical_path().as_str() == "tests/check.scoop")
-            && error.span().is_some()),
+        errors.iter().any(
+            |error| crate::tests::diagnostic_text(error).contains(message)
+                && error
+                    .source()
+                    .is_some_and(|source| source.logical_path().as_str() == "tests/check.scoop")
+                && error.span().is_some()
+        ),
         "expected {message}: {errors:#?}"
     );
     errors
@@ -65,7 +67,7 @@ fn official_markers_are_rejected_in_production_sources() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.message.contains("only allowed in test sources")),
+                .any(|e| crate::tests::diagnostic_text(e).contains("only allowed in test sources")),
             "{errors:#?}"
         );
     }
@@ -153,7 +155,7 @@ fn ignore_without_test_points_to_the_ignore_annotation() {
         let errors = rejects(&source, "requires `@Test`");
         let diagnostic = errors
             .iter()
-            .find(|error| error.message.contains("requires `@Test`"))
+            .find(|error| crate::tests::diagnostic_text(error).contains("requires `@Test`"))
             .unwrap();
         let span = diagnostic.span().unwrap();
         let full_source = format!("import scoop.test.*\n{source}");
@@ -173,10 +175,10 @@ fn duplicate_hooks_report_both_declarations() {
         let errors = rejects(&source, "at most one");
         let diagnostic = errors
             .iter()
-            .find(|e| e.message.contains("at most one"))
+            .find(|e| crate::tests::diagnostic_text(e).contains("at most one"))
             .unwrap();
         assert_eq!(diagnostic.notes.len(), 1);
-        assert_ne!(diagnostic.span(), Some(diagnostic.notes[0].span));
+        assert_ne!(diagnostic.span(), Some(diagnostic.notes[0].span().unwrap()));
     }
 }
 

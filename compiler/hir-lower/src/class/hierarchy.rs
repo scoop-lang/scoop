@@ -12,6 +12,7 @@ impl Lowerer {
             if self.interface_reaches(interface, interface, &mut visiting) {
                 self.fail_editing_owner(Owner::Interface(interface));
                 self.error(
+                    scoop_source::DiagnosticCode::E1009,
                     declaration.span,
                     format!(
                         "interface `{}` directly or indirectly inherits from itself",

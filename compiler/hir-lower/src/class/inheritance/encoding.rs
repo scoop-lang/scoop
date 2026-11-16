@@ -42,7 +42,7 @@ impl Lowerer {
                         span,
                     });
                 } else if state.diagnostics.len() == before {
-                    state.error(span, "automatic encode could not resolve the required core codec or field access".into());
+                    state.error(scoop_source::DiagnosticCode::E1310, span, "automatic encode could not resolve the required core codec or field access".into());
                 }
                 statements
             });
@@ -72,7 +72,7 @@ impl Lowerer {
                 self.encode_tuple(context, &codecs, value, encoder, span, sink)
             }
             _ => {
-                self.error(span, format!("automatic encode requires a struct, enum, tuple, or final class without a class base; target {} requires an explicit implementation", self.type_name(context.target)));
+                self.error(scoop_source::DiagnosticCode::E1310, span, format!("automatic encode requires a struct, enum, tuple, or final class without a class base; target {} requires an explicit implementation", self.type_name(context.target)));
                 None
             }
         }

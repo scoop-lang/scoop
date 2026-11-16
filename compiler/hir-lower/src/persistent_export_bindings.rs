@@ -89,6 +89,13 @@ pub(crate) enum PersistentExportBindingIdentityError {
 }
 
 impl PersistentExportBindingIdentityError {
+    pub(crate) fn code(&self) -> scoop_source::DiagnosticCode {
+        match self {
+            Self::DestinationConflict { .. } => scoop_source::DiagnosticCode::E0409,
+            _ => scoop_source::DiagnosticCode::ICE0401,
+        }
+    }
+
     pub(crate) const fn file(&self) -> usize {
         match self {
             Self::InvalidReexportTarget { file, .. }

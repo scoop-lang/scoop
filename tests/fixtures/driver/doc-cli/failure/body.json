@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "severity": "error",
     "message": "body of `value` must be of type Int, found String",
     "origin": {

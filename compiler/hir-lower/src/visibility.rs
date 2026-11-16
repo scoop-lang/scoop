@@ -64,6 +64,7 @@ impl Lowerer {
         let mut declared = Self::normalized_visibility(syntax);
         if declared == hir::DeclaredVisibility::Protected {
             self.error(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!("top-level {declaration_kind} cannot be protected"),
             );
@@ -108,6 +109,7 @@ impl Lowerer {
         let mut declared = Self::normalized_visibility(syntax);
         if declared == hir::DeclaredVisibility::Protected && !matches!(owner, Owner::Class(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!(
                     "nested {declaration_kind} on {} cannot be protected",
@@ -175,6 +177,7 @@ impl Lowerer {
         let mut declared = Self::normalized_visibility(syntax);
         if declared == hir::DeclaredVisibility::Protected && !matches!(owner, Owner::Class(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!(
                     "{declaration_kind} on {} cannot be protected",

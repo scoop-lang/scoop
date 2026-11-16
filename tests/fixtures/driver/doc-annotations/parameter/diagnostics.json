@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "annotation `@DocHidden` is not allowed on ValueParameter",
     "notes": [],
     "origin": {

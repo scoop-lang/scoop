@@ -123,6 +123,7 @@ impl Parser {
             let name = self.expect_ident("catch parameter name")?;
             if !matches!(self.peek().kind, TokenKind::Colon) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0814,
                     self.peek().span,
                     "catch parameter requires a type annotation",
                 ));

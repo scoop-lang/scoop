@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1207",
     "message": "`@CLayout` alignment values must be one of 0, 1, 2, 4, 8 or 16",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1207",
     "message": "`@CLayout` alignment values must be one of 0, 1, 2, 4, 8 or 16",
     "notes": [],
     "origin": {

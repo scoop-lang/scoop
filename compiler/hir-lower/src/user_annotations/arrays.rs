@@ -51,6 +51,7 @@ impl Lowerer {
         };
         let ast::AnnotationLiteral::Array(source) = value else {
             self.error(
+                scoop_source::DiagnosticCode::E1304,
                 span,
                 "annotation array argument must use an array literal".into(),
             );

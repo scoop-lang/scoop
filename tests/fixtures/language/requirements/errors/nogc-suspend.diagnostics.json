@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1118",
     "message": "`@NoGC` cannot be used on a suspend member requirement",
     "notes": [],
     "origin": {

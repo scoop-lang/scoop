@@ -83,7 +83,11 @@ impl Lowerer {
         };
         if !state.active.insert(key) {
             self.current_file = key.file;
-            self.error(key.span(), "recursive type annotation expansion".into());
+            self.error(
+                scoop_source::DiagnosticCode::E1306,
+                key.span(),
+                "recursive type annotation expansion".into(),
+            );
             return Vec::new();
         }
         let mut nodes = if let Some(alias) = &usage.alias {

@@ -110,7 +110,7 @@ def main():
     assert request["method"] == "generator/generate"
     assert isinstance(request["id"], str)
     params = request["params"]
-    assert params["protocolVersion"] == 1
+    assert params["protocolVersion"] == 2
     methods = [(task, method) for task in params["tasks"] for method in task["methods"]]
     assert methods
     if MODE in {"cache", "fragment-warning"}:
@@ -173,6 +173,7 @@ def main():
         diagnostics.append(
             {
                 "severity": "warning",
+                "code": "PEER_WARNING",
                 "message": "fragment warning",
                 "location": {
                     "source": {

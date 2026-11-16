@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0721",
     "message": "override function `answer` inherits conflicting default expressions for parameter `value`",
     "notes": [],
     "origin": {

@@ -3,7 +3,7 @@ use scoop_identity::{ConeIdentity, SourceIdentity};
 use scoop_source::{DiagnosticSeverity, Span};
 use serde::{Deserialize, Serialize};
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 pub const QUERY_ERROR: i32 = -32000;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -66,6 +66,8 @@ pub enum GeneratorSeverity {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GeneratorDiagnostic {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<scoop_source::DiagnosticIdentifier>,
     pub severity: GeneratorSeverity,
     pub message: String,
     pub location: Option<SourceLocation>,
@@ -75,13 +77,20 @@ pub struct GeneratorDiagnostic {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GeneratorNote {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<scoop_source::DiagnosticIdentifier>,
+    #[serde(default)]
+    pub notes: Vec<GeneratorNote>,
+    #[serde(default)]
+    pub import_path: Vec<String>,
     pub message: String,
-    pub location: SourceLocation,
+    pub location: Option<SourceLocation>,
 }
 
 impl GeneratorDiagnostic {
     pub fn from_diagnostic(diagnostic: &scoop_source::SourceDiagnostic) -> Self {
         Self {
+            code: Some(diagnostic.code.clone()),
             severity: match diagnostic.severity {
                 DiagnosticSeverity::Error => GeneratorSeverity::Error,
                 DiagnosticSeverity::Warning => GeneratorSeverity::Warning,
@@ -94,11 +103,23 @@ impl GeneratorDiagnostic {
             notes: diagnostic
                 .notes
                 .iter()
-                .map(|note| GeneratorNote {
-                    message: note.message.clone(),
-                    location: SourceLocation::new(&note.source, note.span),
-                })
+                .map(GeneratorNote::from_diagnostic)
                 .collect(),
+        }
+    }
+}
+
+impl GeneratorNote {
+    pub fn from_diagnostic(note: &scoop_source::SourceDiagnosticNote) -> Self {
+        Self {
+            code: Some(note.code.clone()),
+            location: note
+                .source()
+                .zip(note.span())
+                .map(|(source, span)| SourceLocation::new(source, span)),
+            message: note.message.clone(),
+            import_path: note.import_path.clone(),
+            notes: note.notes.iter().map(Self::from_diagnostic).collect(),
         }
     }
 }

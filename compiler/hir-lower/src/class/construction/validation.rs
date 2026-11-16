@@ -20,6 +20,7 @@ impl Lowerer {
                     if self.same_constructor_parameter_types(&left, &right) {
                         let signature = self.class_constructor_signature(constructor);
                         self.error(
+                            scoop_source::DiagnosticCode::E0302,
                             self.class_constructors[constructor].span,
                             format!(
                                 "duplicate constructor signature `{signature}` in class `{}`",
@@ -44,6 +45,7 @@ impl Lowerer {
                     if self.same_constructor_parameter_types(&left, &right) {
                         let signature = self.struct_constructor_signature(constructor);
                         self.error(
+                            scoop_source::DiagnosticCode::E0302,
                             self.struct_constructors[constructor].span,
                             format!(
                                 "duplicate constructor signature `{signature}` in struct `{}`",
@@ -117,6 +119,7 @@ impl Lowerer {
                             .collect::<Vec<_>>();
                         signatures.push(signatures[0].clone());
                         self.error(
+                            scoop_source::DiagnosticCode::E1002,
                             self.class_constructors[current].span,
                             format!("constructor delegation cycle: {}", signatures.join(" -> ")),
                         );
@@ -167,6 +170,7 @@ impl Lowerer {
                             .collect::<Vec<_>>();
                         signatures.push(signatures[0].clone());
                         self.error(
+                            scoop_source::DiagnosticCode::E1002,
                             self.struct_constructors[current].span,
                             format!("constructor delegation cycle: {}", signatures.join(" -> ")),
                         );

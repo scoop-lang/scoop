@@ -27,4 +27,5 @@ scoop-identity.workspace = true
 scoop-manifest.workspace = true
 scoop-process.workspace = true
 scoop-protocol.workspace = true
+scoop-source.workspace = true
 scoop-toolchain.workspace = true

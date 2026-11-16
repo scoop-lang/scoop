@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1216",
     "message": "`FunPtr` requires a function type without a receiver",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1216",
     "message": "`GCLeafFunPtr` requires a function type without a receiver",
     "notes": [],
     "origin": {

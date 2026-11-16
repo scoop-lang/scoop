@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0106",
     "message": "invalid floating literal suffix",
     "notes": [],
     "origin": {

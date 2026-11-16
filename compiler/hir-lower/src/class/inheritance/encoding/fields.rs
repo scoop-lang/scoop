@@ -14,6 +14,7 @@ impl Lowerer {
             .expect("a struct has a nominal application");
         if self.nominal_intrinsic_kind(application.template).is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1310,
                 span,
                 "an intrinsic type requires an explicit encode implementation".into(),
             );
@@ -92,6 +93,7 @@ impl Lowerer {
     ) -> Option<()> {
         if !names.insert(wire.into()) {
             self.error(
+                scoop_source::DiagnosticCode::E1314,
                 span,
                 format!("automatic encode has duplicate {kind} name `{wire}`"),
             );

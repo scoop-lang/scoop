@@ -53,19 +53,23 @@ pub fn plan_generators(
     plan::plan(queries, annotations)
 }
 
-fn diagnostic(origin: &hir::SemanticSourceLocation, message: impl Into<String>) -> Diagnostic {
-    let mut diagnostic = Diagnostic::at(origin.span, message);
+fn diagnostic(
+    code: scoop_source::DiagnosticCode,
+    origin: &hir::SemanticSourceLocation,
+    message: impl Into<String>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::at(code, origin.span, message);
     diagnostic.set_source(origin.source.clone());
     diagnostic
 }
 
 fn related(origin: &hir::SemanticSourceLocation, message: impl Into<String>) -> DiagnosticNote {
-    DiagnosticNote {
-        source: scoop_source::LocalDiagnosticSource::Bound(Box::new(origin.source.clone())),
-        span: origin.span,
-        message: message.into(),
-        import_path: Vec::new(),
-    }
+    DiagnosticNote::at_source(
+        scoop_source::DiagnosticCode::N0003,
+        origin.source.clone(),
+        origin.span,
+        message,
+    )
 }
 
 #[cfg(test)]

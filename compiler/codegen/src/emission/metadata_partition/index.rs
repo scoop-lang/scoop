@@ -26,6 +26,7 @@ pub(super) fn collect(
         let primary = plan.primary_symbol().symbol();
         let primary_name = CString::new(primary.as_str()).map_err(|cause| {
             CodegenError::internal_cause("metadata symbol contains NUL".into(), cause)
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
         let primary_is_view = !unsafe {
             LLVMGetNamedGlobalAlias(
@@ -49,6 +50,7 @@ pub(super) fn collect(
                 let name = request.symbol();
                 let c_name = CString::new(name.as_str()).map_err(|cause| {
                     CodegenError::internal_cause("metadata symbol contains NUL".into(), cause)
+                        .with_code(scoop_source::DiagnosticCode::ICE2302)
                 })?;
                 // SAFETY: these names and aliases belong to the prepared source module.
                 let raw = unsafe {
@@ -114,14 +116,16 @@ fn global_owner<'ctx>(
                 _ => {
                     return Err(CodegenError::internal(
                         "metadata boundary is not an owner/extent".into(),
-                    ));
+                    )
+                    .with_code(scoop_source::DiagnosticCode::ICE2302));
                 }
             }
         }
         if LLVMIsAGlobalVariable(raw).is_null() {
             return Err(CodegenError::internal(
                 "metadata boundary does not resolve to a global".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         Ok(GlobalValue::new(raw))
     }

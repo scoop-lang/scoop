@@ -9,14 +9,18 @@ impl<'a> Cursor<'a> {
         Self { bytes, index: 0 }
     }
     pub(crate) fn take(&mut self, length: usize) -> Result<&'a [u8], LinkError> {
-        let end = self
-            .index
-            .checked_add(length)
-            .ok_or_else(|| error("dyld byte range overflow"))?;
-        let result = self
-            .bytes
-            .get(self.index..end)
-            .ok_or_else(|| error("truncated dyld byte range"))?;
+        let end = self.index.checked_add(length).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "dyld byte range overflow",
+            )
+        })?;
+        let result = self.bytes.get(self.index..end).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "truncated dyld byte range",
+            )
+        })?;
         self.index = end;
         Ok(result)
     }
@@ -24,11 +28,12 @@ impl<'a> Cursor<'a> {
         self.index == self.bytes.len()
     }
     pub(crate) fn byte(&mut self) -> Result<u8, LinkError> {
-        let byte = self
-            .bytes
-            .get(self.index)
-            .copied()
-            .ok_or_else(|| error("truncated final dyld stream"))?;
+        let byte = self.bytes.get(self.index).copied().ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "truncated final dyld stream",
+            )
+        })?;
         self.index += 1;
         Ok(byte)
     }
@@ -37,23 +42,34 @@ impl<'a> Cursor<'a> {
         for shift in (0..=63).step_by(7) {
             let byte = self.byte()?;
             if shift == 63 && byte > 1 {
-                return Err(error("dyld ULEB128 overflow"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "dyld ULEB128 overflow",
+                ));
             }
             value |= u64::from(byte & 0x7f) << shift;
             if byte & 0x80 == 0 {
                 return Ok(value);
             }
         }
-        Err(error("dyld ULEB128 overflow"))
+        Err(error(
+            scoop_source::DiagnosticCode::E2305,
+            "dyld ULEB128 overflow",
+        ))
     }
     pub(crate) fn name(&mut self) -> Result<String, LinkError> {
         let end = self.bytes[self.index..]
             .iter()
             .position(|byte| *byte == 0)
             .map(|length| self.index + length)
-            .ok_or_else(|| error("unterminated dyld symbol"))?;
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "unterminated dyld symbol",
+                )
+            })?;
         let name = std::str::from_utf8(&self.bytes[self.index..end])
-            .map_err(error)?
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
             .to_owned();
         self.index = end + 1;
         Ok(name)

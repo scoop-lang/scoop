@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1506",
     "message": "assignment target must be an assignable place",
     "notes": [],
     "origin": {

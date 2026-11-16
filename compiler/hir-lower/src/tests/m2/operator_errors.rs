@@ -11,8 +11,8 @@ fn arithmetic_requires_int_operands() {
     let errors = lower_user(file).expect_err("non-Int arithmetic must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `plus` in member candidate layer:\n  - fun Int.plus(other: Int): Int — argument for `other` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `plus` in member candidate layer; fun Int.plus(other: Int): Int; argument for `other` has type String, which is not a subtype of Int"
     );
 }
 
@@ -39,8 +39,8 @@ fn equality_requires_matching_types() {
     let errors = lower_user(file).expect_err("mismatched equality must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `equals` in member candidate layer:\n  - fun Int.equals(other: Int): Boolean — argument for `other` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `equals` in member candidate layer; fun Int.equals(other: Int): Boolean; argument for `other` has type String, which is not a subtype of Int"
     );
 }
 

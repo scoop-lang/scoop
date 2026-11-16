@@ -83,7 +83,10 @@ impl NativeToolchain {
                 })
                 .transpose()
                 .map_err(|err| {
-                    ToolchainError(format!("{err}; C++ required by {}", manifest.coordinate()))
+                    ToolchainError::new(
+                        err.code(),
+                        format!("{err}; C++ required by {}", manifest.coordinate()),
+                    )
                 })?,
         })
     }
@@ -118,7 +121,7 @@ impl NativeToolchain {
         {
             if config
                 .source_language(source.path(), target_facts)
-                .map_err(error)?
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause))?
                 == NativeSourceLanguage::C
             {
                 return Ok(true);
@@ -145,7 +148,12 @@ impl NativeToolchain {
                 .cxx
                 .as_ref()
                 .map(|cxx| cxx.command(&self.c))
-                .ok_or_else(|| error("C++ translation unit requires native.cxx = true")),
+                .ok_or_else(|| {
+                    error(
+                        scoop_source::DiagnosticCode::E2017,
+                        "C++ translation unit requires native.cxx = true",
+                    )
+                }),
         }
     }
 }

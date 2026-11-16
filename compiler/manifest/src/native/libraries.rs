@@ -82,10 +82,10 @@ pub(super) fn parse(
 
 fn error(value: &Spanned<String>, reason: impl std::fmt::Display) -> ManifestParseError {
     ManifestParseError::new(
-        ManifestParseErrorKind::InvalidNative(format!(
-            "invalid native library {:?}: {reason}",
-            value.get_ref()
-        )),
+        ManifestParseErrorKind::InvalidNative(
+            scoop_source::DiagnosticCode::E2017,
+            format!("invalid native library {:?}: {reason}", value.get_ref()),
+        ),
         Some(value.span()),
     )
 }

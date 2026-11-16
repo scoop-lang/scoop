@@ -61,6 +61,7 @@ impl Parser {
             } = exposure
             {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0407,
                     public_keyword_span,
                     "public import is only allowed in a file header",
                 ));
@@ -235,6 +236,7 @@ impl Parser {
                     .map_or(self.peek().span.end, |a| a.span.end),
             );
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1118,
                 span,
                 "a safety block requires exactly one of `@Unsafe` or `@Safe`",
             ));
@@ -242,6 +244,7 @@ impl Parser {
         let annotation = &annotations[0];
         if !annotation.args.is_empty() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1118,
                 annotation.span,
                 "safety block annotations do not accept arguments",
             ));
@@ -251,6 +254,7 @@ impl Parser {
             Some("Safe") => SafetyMode::Safe,
             _ => {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1118,
                     annotation.span,
                     "only `@Unsafe` or `@Safe` may annotate a block",
                 ));
@@ -258,6 +262,7 @@ impl Parser {
         };
         if !matches!(self.peek().kind, TokenKind::LBrace) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1118,
                 self.peek().span,
                 "safety annotation must be followed by a block",
             ));
@@ -287,6 +292,7 @@ impl Parser {
         if matches!(&self.peek().kind, TokenKind::Ident(text) if text == "by") {
             let Pattern::Binding(name) = target else {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1526,
                     pattern_span(&target),
                     "a local delegated property requires a plain name",
                 ));

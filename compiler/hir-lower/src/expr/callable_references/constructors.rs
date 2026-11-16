@@ -109,14 +109,18 @@ impl Lowerer {
         context: ReferenceResolutionContext<'_>,
     ) -> Result<Option<ApplicableReference>, super::resolution::ReferenceProbeError> {
         let mut state = self.clone();
-        let fail = |reason: String| ReferenceFailure {
+        let fail = |code, reason: String| ReferenceFailure {
             signature: format!("constructor `{}`", context.name),
             layer: "constructor candidate",
-            reason: reason.into(),
+            reason: ReferenceFailureReason::candidate(code, reason),
         };
         let declaration =
             ConstructorReferenceDeclaration::resolve(&mut state, candidate.clone(), context.span)
-                .map_err(fail)?;
+                .map_err(|reason| ReferenceFailure {
+                signature: format!("constructor `{}`", context.name),
+                layer: "constructor candidate",
+                reason,
+            })?;
         let own_type_param_count = candidate
             .alias
             .as_ref()
@@ -137,9 +141,9 @@ impl Lowerer {
             })
             .map_err(|failure| {
                 if let crate::call_resolution::applicability::ReferenceApplicabilityFailure::Internal(error) = failure {
-                    return super::resolution::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(error));
+                    return super::resolution::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(scoop_source::DiagnosticCode::ICE0601, error));
                 }
-                super::resolution::ReferenceProbeError::Rejected(fail(failure.describe(|constraint| {
+                super::resolution::ReferenceProbeError::Rejected(fail(failure.code(), failure.describe(|constraint| {
                     state.render_imported_constraint_failure(
                         &declaration.signature.owner_parameters,
                         &declaration.signature.callable_parameters,

@@ -92,9 +92,10 @@ impl NativeNamespace {
     pub fn darwin(&self) -> Result<&DarwinNamespace, LinkError> {
         match self {
             Self::Darwin(namespace) => Ok(namespace),
-            Self::Elf(_) | Self::Coff(_) => {
-                Err(error("Mach-O operation requires a Darwin namespace"))
-            }
+            Self::Elf(_) | Self::Coff(_) => Err(error(
+                scoop_source::DiagnosticCode::ICE2201,
+                "Mach-O operation requires a Darwin namespace",
+            )),
         }
     }
 
@@ -134,6 +135,7 @@ impl NativeNamespace {
             }
             _ => {
                 return Err(error(
+                    scoop_source::DiagnosticCode::ICE2201,
                     "native binding and namespace use different object formats",
                 ));
             }

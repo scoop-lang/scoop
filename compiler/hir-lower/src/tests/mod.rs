@@ -11,6 +11,7 @@ mod basics;
 mod builders;
 mod call_diagnostics;
 mod core;
+mod diagnostic_codes;
 mod import_suggestions;
 mod initializer_diagnostics;
 mod interpolation;
@@ -453,3 +454,17 @@ fn case_pattern(arm: hir::WhenArmRef<'_>) -> &hir::Pattern {
 mod m43_dependency_roles;
 mod m43_source_roles;
 mod m43_test_annotations;
+
+/// Include candidate causes and repair notes when checking language failure text.
+pub(crate) fn diagnostic_text<S>(diagnostic: &scoop_ast::Diagnostic<S>) -> String {
+    fn append<S>(notes: &[scoop_ast::DiagnosticNote<S>], text: &mut String) {
+        for note in notes {
+            text.push_str("; ");
+            text.push_str(&note.message);
+            append(&note.notes, text);
+        }
+    }
+    let mut text = diagnostic.message.clone();
+    append(&diagnostic.notes, &mut text);
+    text
+}

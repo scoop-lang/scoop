@@ -21,7 +21,7 @@ impl Lowerer {
                         | Type::Unit
                 ) {
                     let found = self.type_name(subject.value.ty);
-                    self.error(subject.value.span, format!("case subject must be an enum, tuple, struct or scalar value, found {found}"));
+                    self.error(scoop_source::DiagnosticCode::E0911, subject.value.span, format!("case subject must be an enum, tuple, struct or scalar value, found {found}"));
                     return None;
                 }
                 let pattern = self.lower_pattern(
@@ -75,7 +75,11 @@ impl Lowerer {
     ) -> Option<ArmPrimary<hir::WhenPredicate>> {
         match condition {
             ast::WhenArmCondition::Case(_) => {
-                self.error(span, "case requires a when subject".into());
+                self.error(
+                    scoop_source::DiagnosticCode::E0912,
+                    span,
+                    "case requires a when subject".into(),
+                );
                 None
             }
             ast::WhenArmCondition::Else => Some(ArmPrimary {
@@ -92,7 +96,11 @@ impl Lowerer {
                         ast::WhenCondition::Expression(value) => Some(value.clone()),
                         ast::WhenCondition::Is { span, .. }
                         | ast::WhenCondition::In { span, .. } => {
-                            self.error(*span, "when is/in conditions require a subject".into());
+                            self.error(
+                                scoop_source::DiagnosticCode::E0912,
+                                *span,
+                                "when is/in conditions require a subject".into(),
+                            );
                             None
                         }
                     })

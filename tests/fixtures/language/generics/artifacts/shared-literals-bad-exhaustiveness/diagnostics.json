@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Tagged { enabled: false, label: \"\", value: -2147483648 }",
     "notes": [],
     "origin": {

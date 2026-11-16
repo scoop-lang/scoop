@@ -42,6 +42,26 @@ pub enum RenameError {
     Edit(SnapshotEditError),
 }
 
+impl RenameError {
+    pub fn code(&self) -> Option<scoop_source::DiagnosticCode> {
+        use scoop_source::DiagnosticCode as C;
+        Some(match self {
+            Self::Cancelled | Self::Edit(SnapshotEditError::Cancelled) => return None,
+            Self::Analysis(_)
+            | Self::Unavailable(_)
+            | Self::Edit(SnapshotEditError::MissingSource(_)) => C::E2505,
+            Self::Internal(_) => C::ICE2502,
+            Self::InvalidName => C::E2506,
+            Self::Conflict(_) => C::E2507,
+            Self::Edit(SnapshotEditError::SourceChanged(_)) => C::E2504,
+            Self::Edit(SnapshotEditError::InvalidRange(_) | SnapshotEditError::Overlap(_)) => {
+                C::E2503
+            }
+            Self::Edit(SnapshotEditError::SourceLength(_)) => C::E2205,
+        })
+    }
+}
+
 impl fmt::Display for RenameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

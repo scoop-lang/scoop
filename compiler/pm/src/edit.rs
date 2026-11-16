@@ -15,7 +15,12 @@ pub fn dependency(
     let mut document = member
         .manifest_text
         .parse::<DocumentMut>()
-        .map_err(|error| PmError::new(format!("{}: {error}", member.manifest.display())))?;
+        .map_err(|error| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2008,
+                format!("{}: {error}", member.manifest.display()),
+            )
+        })?;
     let section = match purpose {
         Purpose::Production => "dependencies",
         Purpose::Test => "test-dependencies",
@@ -25,9 +30,12 @@ pub fn dependency(
         if !document.contains_key(section) {
             document[section] = Item::Table(Table::new());
         }
-        let table = document[section]
-            .as_table_like_mut()
-            .ok_or_else(|| PmError::new(format!("{section} must be a table")))?;
+        let table = document[section].as_table_like_mut().ok_or_else(|| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2008,
+                format!("{section} must be a table"),
+            )
+        })?;
         if let Some(previous) = table.get_mut(&name) {
             if let Some(previous) = previous.as_value() {
                 *value.decor_mut() = previous.decor().clone();
@@ -58,10 +66,13 @@ pub fn dependency(
             .and_then(Item::as_table_like_mut)
             .and_then(|table| table.remove(&name));
         if removed.is_none() {
-            return Err(PmError::new(format!(
-                "{key} is not declared in [{section}] of {}",
-                member.manifest.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2014,
+                format!(
+                    "{key} is not declared in [{section}] of {}",
+                    member.manifest.display()
+                ),
+            ));
         }
     }
     let text = document.to_string();

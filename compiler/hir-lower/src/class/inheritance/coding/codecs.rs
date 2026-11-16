@@ -36,6 +36,7 @@ impl Lowerer {
         let mut dependencies = self.coding_dependencies(context.owner, interface);
         if dependencies.len() > 1 {
             self.error(
+                scoop_source::DiagnosticCode::E1313,
                 span,
                 format!(
                     "automatic {} has ambiguous primary val dependencies for {}: {}",
@@ -91,6 +92,7 @@ impl Lowerer {
             let element = self.select_field_codec(context, element_type, span)?;
             let Some(companion) = companion else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1404,
                     span,
                     format!(
                         "core container {} requires its predefined {} companion",
@@ -133,7 +135,7 @@ impl Lowerer {
         } else {
             "codec"
         };
-        self.error(span, format!("automatic {} has no {}<{}> field {kind}; provide a primary val dependency, a conforming companion, or an explicit {} implementation", context.direction.method(), context.direction.protocol(), self.type_name(ty), context.direction.method()));
+        self.error_with_note(scoop_source::DiagnosticCode::E1312, span, format!("automatic {__diagnostic_arg0} has no {__diagnostic_arg1}<{__diagnostic_arg2}> field {kind}" , __diagnostic_arg0 = context.direction.method(), __diagnostic_arg1 = context.direction.protocol(), __diagnostic_arg2 = self.type_name(ty)), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1301, format!("provide a primary val dependency, a conforming companion, or an explicit {__diagnostic_arg3} implementation" , __diagnostic_arg3 = context.direction.method())));
         None
     }
 

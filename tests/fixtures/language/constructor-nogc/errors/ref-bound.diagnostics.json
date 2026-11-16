@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1107",
     "message": "generic constructor `Bad` cannot require ref-bound type parameter `T` to be GC-free",
     "notes": [],
     "origin": {

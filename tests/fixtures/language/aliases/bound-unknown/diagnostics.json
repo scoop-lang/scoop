@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0612",
     "message": "unknown type parameter `U` in where clause of typealias",
     "notes": [],
     "origin": {

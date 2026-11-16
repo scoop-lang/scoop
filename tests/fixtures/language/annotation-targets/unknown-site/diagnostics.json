@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1301",
     "message": "unknown annotation use-site target",
     "notes": [],
     "origin": {

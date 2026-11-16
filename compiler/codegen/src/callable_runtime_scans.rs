@@ -72,6 +72,7 @@ impl<'a, 'ctx> CallableRuntimeScanEmitter<'a, 'ctx> {
                         "callable {} has an empty array-element runtime scan",
                         self.plan.body()
                     ))
+                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })?;
                 vec![
                     i64.const_int(SCAN_ARRAY, false),
@@ -100,15 +101,18 @@ impl<'a, 'ctx> CallableRuntimeScanEmitter<'a, 'ctx> {
                     "callable {} has no Context key {key:?}",
                     self.plan.body()
                 ))
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
             })?;
         let boundary = self.surface.atom_boundary(cell.atom).ok_or_else(|| {
             CodegenError::internal(format!("Context cell {} has no boundary", cell.atom))
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
         })?;
         self.llvm
             .get_global(boundary.start().symbol().as_str())
             .map(|global| global.as_pointer_value())
             .ok_or_else(|| {
                 CodegenError::internal(format!("Context cell {} was not emitted", cell.atom))
+                    .with_code(scoop_source::DiagnosticCode::ICE1101)
             })
     }
 
@@ -121,12 +125,14 @@ impl<'a, 'ctx> CallableRuntimeScanEmitter<'a, 'ctx> {
                 "callable {} emitted more runtime scan atoms than planned",
                 self.plan.body()
             ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101)
         })?;
         let boundary = self.surface.atom_boundary(planned.atom()).ok_or_else(|| {
             CodegenError::internal(format!(
                 "callable runtime scan atom {} has no strong boundary plan",
                 planned.atom()
             ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101)
         })?;
         let symbol = boundary.start().symbol();
         let name = symbol.as_str();

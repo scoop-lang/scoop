@@ -31,6 +31,7 @@ impl Lowerer {
         };
         let Some(host) = qualifier.applied() else {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 span,
                 "generic companion access requires complete host type arguments".into(),
             );
@@ -54,6 +55,7 @@ impl Lowerer {
         if matches!(owner, hir::SourceNominalId::GenericTemplate(_)) {
             let Some(host) = qualifier.applied() else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0601,
                     span,
                     "generic companion access requires complete host type arguments".into(),
                 );

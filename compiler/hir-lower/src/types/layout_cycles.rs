@@ -111,7 +111,7 @@ impl Lowerer {
         let previous_file = self.current_file;
         for (file, span, message) in diagnostics {
             self.current_file = file;
-            self.error(span, message);
+            self.error(scoop_source::DiagnosticCode::E0509, span, message);
         }
         self.current_file = previous_file;
         // Relevance is complete independently of finiteness. Editing queries

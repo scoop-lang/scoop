@@ -79,11 +79,32 @@ fn explicit_readme_resolves_resources_from_its_own_directory() {
     let root = temp.path();
     let mut source = source(root);
     source.readme = Some(root.join("guide/intro.md"));
-    assert!(select(&source).is_err());
+    assert_eq!(select(&source).err().unwrap().code, "E1801");
     std::fs::create_dir(root.join("guide")).unwrap();
     std::fs::write(root.join("guide/intro.md"), "![Picture](picture.svg)").unwrap();
     std::fs::write(root.join("guide/picture.svg"), "<svg/>").unwrap();
     let overview = select(&source).unwrap();
     assert!(overview.warnings.is_empty());
     assert_eq!(overview.copies[0].0, root.join("guide/picture.svg"));
+}
+
+#[test]
+fn invalid_readme_resource_urls_are_documentation_input_errors() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let source = source(root);
+    for (url, message) in [
+        ("bad%ZZ", "invalid percent encoding in README resource URL"),
+        ("bad%FF", "README resource path is not UTF-8"),
+    ] {
+        std::fs::write(root.join("README.md"), format!("[Guide]({url})\n")).unwrap();
+        let failure = select(&source).err().unwrap();
+        assert_eq!(failure.code, "E1801");
+        assert_eq!(failure.message, message);
+        assert!(matches!(
+            failure.location,
+            crate::BuildFailureLocation::Host { path, span: None }
+                if path == root.join("README.md")
+        ));
+    }
 }

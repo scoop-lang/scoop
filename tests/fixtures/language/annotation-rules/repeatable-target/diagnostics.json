@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "annotation `@FieldOnly` is not allowed on Function",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "annotation `@FieldOnly` is not allowed on Function",
     "notes": [],
     "origin": {

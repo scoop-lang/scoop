@@ -55,6 +55,7 @@ impl Lowerer {
             let found = self.type_name(operand.ty);
             let check = self.type_name(check_ty);
             self.error(
+                scoop_source::DiagnosticCode::E0506,
                 span,
                 format!("useless type check: `{found}` can never be `{check}`"),
             );
@@ -113,6 +114,7 @@ impl Lowerer {
             let found = self.type_name(operand.ty);
             let check = self.type_name(target);
             self.error(
+                scoop_source::DiagnosticCode::E0507,
                 span,
                 format!("cast from `{found}` to `{check}` can never succeed"),
             );
@@ -150,6 +152,7 @@ impl Lowerer {
         }
         if let Err(error) = self.prepare_cast_exception_type() {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 span,
                 format!("cannot resolve cast exception type: {error:?}"),
             );

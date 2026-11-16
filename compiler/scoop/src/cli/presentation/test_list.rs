@@ -19,7 +19,7 @@ impl Reporter {
             MessageFormat::Json => {
                 let containers = containers(directory);
                 write_json(&json!({
-                    "schema": 1, "kind": "test-list", "target": target,
+                    "schema": 2, "kind": "test-list", "target": target,
                     "containers": containers,
                     "counts": {"containers": containers.len(), "cases": cases, "ignored": ignored},
                     "empty_reason": empty_reason,

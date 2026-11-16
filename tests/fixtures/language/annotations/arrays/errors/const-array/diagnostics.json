@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer must contain only literals, const references, built-in primitive operators, and exact core numeric intrinsic calls",
     "notes": [],
     "origin": {

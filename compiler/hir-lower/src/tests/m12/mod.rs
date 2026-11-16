@@ -137,7 +137,7 @@ fn messages(decls: Vec<Decl>) -> Vec<String> {
     lower_user(file(decls))
         .expect_err("program must be rejected")
         .into_iter()
-        .map(|error| error.message)
+        .map(|error| crate::tests::diagnostic_text(&error))
         .collect()
 }
 

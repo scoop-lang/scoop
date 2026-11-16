@@ -17,6 +17,7 @@ impl Lowerer {
     ) -> Option<AliasTemplate> {
         if !self.source_type_alias_is_accessible(id) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!(
                     "typealias `{}` is not accessible from this source location",
@@ -69,7 +70,7 @@ impl Lowerer {
                     arguments.len()
                 )
             };
-            self.error(name.span, message);
+            self.error(scoop_source::DiagnosticCode::E0601, name.span, message);
             return None;
         }
         let mut actual = self.alias_outer_arguments(template, host.or(template.host), name.span)?;
@@ -111,6 +112,7 @@ impl Lowerer {
                     .any(|visible| visible.id == parameter.id)
             }) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0601,
                     span,
                     format!(
                         "typealias `{}` requires a complete host type application",
@@ -126,6 +128,7 @@ impl Lowerer {
         };
         if actual.len() != count {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 span,
                 format!(
                     "typealias `{}` requires {count} host type argument(s)",

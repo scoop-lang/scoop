@@ -96,7 +96,12 @@ pub fn document(
         }
     });
     if request.deny_warnings && !doc_warnings.is_empty() {
-        return Err(error("documentation warnings are denied").with_context(&warnings, &sources));
+        return Err(BuildFailure::from_diagnostics(
+            "documentation warnings are denied",
+            BuildFailurePhase::Publication,
+            warnings,
+        )
+        .with_context(&[], &sources));
     }
     let (rendered, rendered_files) = publication::publish(&request, &plan.sites, &overviews)
         .map_err(|failure| failure.with_context(&warnings, &sources))?;
@@ -129,14 +134,28 @@ pub fn document(
 
 fn error(message: impl std::fmt::Display) -> Box<BuildFailure> {
     BuildFailure::tool(
-        "SCOOP_DOCUMENTATION",
+        scoop_source::DiagnosticCode::ICE2501,
         BuildFailurePhase::Publication,
         message,
     )
 }
 
 fn io_error(path: &Path, message: impl std::fmt::Display) -> Box<BuildFailure> {
-    error(message).at_host(path)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E2201,
+        BuildFailurePhase::Publication,
+        message,
+    )
+    .at_host(path)
+}
+
+fn resource_error(path: &Path, message: impl std::fmt::Display) -> Box<BuildFailure> {
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E1801,
+        BuildFailurePhase::Publication,
+        message,
+    )
+    .at_host(path)
 }
 
 fn input_key(value: &impl serde::Serialize) -> BuildResult<String> {

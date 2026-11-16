@@ -146,6 +146,7 @@ impl Lowerer {
             }
         }
         self.error(
+            scoop_source::DiagnosticCode::E0715,
             span,
             "inner constructor requires a matching outer instance".into(),
         );

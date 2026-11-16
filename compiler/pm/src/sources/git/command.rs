@@ -1,18 +1,28 @@
 use super::*;
 
 pub(super) fn git(command: &mut Command) -> PmResult<String> {
-    let output = command
-        .scoop_output()
-        .map_err(|error| PmError::new(format!("cannot run Git: {error}")))?;
+    let output = command.scoop_output().map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2202,
+            format!("cannot run Git: {error}"),
+        )
+    })?;
     if !output.status.success() {
-        return Err(PmError::new(format!(
-            "Git exited with {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "Git exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+        ));
     }
-    String::from_utf8(output.stdout)
-        .map_err(|error| PmError::new(format!("Git returned invalid UTF-8: {error}")))
+    String::from_utf8(output.stdout).map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2303,
+            format!("Git returned invalid UTF-8: {error}"),
+        )
+    })
 }
 
 pub(super) fn resolve_commit(db: &Path, reference: &str) -> PmResult<String> {
@@ -33,7 +43,12 @@ pub(super) fn object_exists(db: &Path, commit: &str) -> PmResult<bool> {
         .arg(db)
         .args(["cat-file", "-e", &format!("{commit}^{{commit}}")])
         .scoop_output()
-        .map_err(|error| PmError::new(format!("cannot inspect Git object {commit}: {error}")))?;
+        .map_err(|error| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2201,
+                format!("cannot inspect Git object {commit}: {error}"),
+            )
+        })?;
     Ok(output.status.success())
 }
 
@@ -60,7 +75,12 @@ pub(super) fn refresh_head(db: &Path) -> PmResult<()> {
     let commit = response
         .lines()
         .find_map(|line| line.strip_suffix("\tHEAD"))
-        .ok_or_else(|| PmError::new("Git remote has no default HEAD commit"))?;
+        .ok_or_else(|| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2115,
+                "Git remote has no default HEAD commit",
+            )
+        })?;
     validate_commit(commit)?;
     git(Command::new("git").arg("--git-dir").arg(db).args([
         "update-ref",

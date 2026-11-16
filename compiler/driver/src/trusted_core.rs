@@ -26,6 +26,14 @@ pub struct TrustedCoreSlotError {
 }
 
 impl TrustedCoreSlotError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self.kind {
+            TrustedCoreSlotErrorKind::Io { .. } => C::E2201,
+            TrustedCoreSlotErrorKind::SysrootNotDirectory => C::E2302,
+        }
+    }
+
     fn new(path: PathBuf, kind: TrustedCoreSlotErrorKind) -> Self {
         Self { path, kind }
     }
@@ -80,7 +88,7 @@ pub fn resolve_trusted_core_slot(
 ) -> Result<TrustedCoreSlotLayoutV1, scoop_toolchain::ToolchainError> {
     let sysroot = scoop_toolchain::configured_sysroot_root(None)?;
     resolve_trusted_core_slot_at(&sysroot, target)
-        .map_err(|error| scoop_toolchain::ToolchainError(error.to_string()))
+        .map_err(|error| scoop_toolchain::ToolchainError::new(error.code(), error.to_string()))
 }
 
 pub(crate) fn resolve_trusted_core_slot_at(

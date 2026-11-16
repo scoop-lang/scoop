@@ -20,12 +20,10 @@ fn check_diagnostics<S>(source: &str, diagnostics: &[Diagnostic<S>]) {
             "compiler intrinsic `currentSourceLocation` does not support callable references"
         ));
         assert!(
-            diagnostic
-                .message
-                .contains("indirect calls do not provide it")
+            crate::tests::diagnostic_text(diagnostic).contains("indirect calls do not provide it")
         );
-        assert!(!diagnostic.message.contains("@NoGC"));
-        assert!(!diagnostic.message.contains("no applicable candidate"));
+        assert!(!crate::tests::diagnostic_text(diagnostic).contains("@NoGC"));
+        assert!(!crate::tests::diagnostic_text(diagnostic).contains("no applicable candidate"));
     }
 }
 

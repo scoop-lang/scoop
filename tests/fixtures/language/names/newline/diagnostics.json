@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0103",
     "message": "escaped identifier cannot contain a newline or control character",
     "notes": [],
     "origin": {

@@ -111,7 +111,7 @@ pub(crate) fn render_callable_constraint_failure(
                 parameter(*variable).name,
             )
         }
-        ConstraintFailureKind::MemberRequirement(message) => message.clone(),
+        ConstraintFailureKind::MemberRequirement(failure) => failure.message.clone(),
         ConstraintFailureKind::Companion { message, .. } => message.clone(),
         ConstraintFailureKind::ExcludedInterface {
             variable,

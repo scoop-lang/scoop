@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1606",
     "message": "compile-time environment variable `SCOOP_ENV_INVALID_UNICODE` is not valid Unicode",
     "notes": [],
     "origin": {

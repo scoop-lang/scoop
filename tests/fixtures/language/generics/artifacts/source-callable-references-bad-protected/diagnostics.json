@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "type `Protected<Int>` has no method `read`",
     "notes": [],
     "origin": {

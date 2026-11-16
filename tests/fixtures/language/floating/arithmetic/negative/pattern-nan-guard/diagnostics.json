@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "non-exhaustive when: missing pattern Float.NaN; guarded arms do not contribute to exhaustiveness",
-    "notes": [],
+    "code": "E0904",
+    "message": "non-exhaustive when: missing pattern Float.NaN",
+    "notes": [
+      {
+        "code": "N0901",
+        "kind": "note",
+        "message": "guarded arms do not contribute to exhaustiveness",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 96,

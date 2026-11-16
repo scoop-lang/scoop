@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0612",
     "message": "a requirement cannot constrain an outer or host type parameter",
     "notes": [],
     "origin": {

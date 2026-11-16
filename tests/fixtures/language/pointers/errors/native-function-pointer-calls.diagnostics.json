@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "calling a native function pointer requires an unsafe context",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "calling a native function pointer requires an unsafe context",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0706",
     "message": "function values do not accept named arguments",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0707",
     "message": "function values do not accept spread arguments",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "function value takes exactly 1 argument(s), but 0 were supplied",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "function value takes exactly 1 argument(s), but 2 were supplied",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "function argument must be of type Int, found Long",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "function values do not accept explicit type arguments",
     "notes": [],
     "origin": {
@@ -104,9 +104,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "NativeSafe function pointer calls are not allowed in `@NoGC` code; use a GCLeafFunPtr with a valid leaf contract",
-    "notes": [],
+    "code": "E1104",
+    "message": "NativeSafe function pointer calls are not allowed in `@NoGC` code",
+    "notes": [
+      {
+        "code": "H1201",
+        "kind": "help",
+        "message": "use a GCLeafFunPtr with a valid leaf contract",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 717,

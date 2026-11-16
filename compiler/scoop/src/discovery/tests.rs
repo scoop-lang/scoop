@@ -97,6 +97,6 @@ fn default_core_uses_the_common_dependency_coordinate_check() {
     ));
     assert_eq!(
         crate::ClassifyBuildFailure::classification(&error).code(),
-        Some(crate::BuildDiagnosticCode::LOCATOR_COORDINATE_MISMATCH)
+        Some(crate::DiagnosticCode::E2102)
     );
 }

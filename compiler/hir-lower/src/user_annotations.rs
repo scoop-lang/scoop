@@ -55,6 +55,7 @@ impl Lowerer {
             crate::namespace::is_file_private(declaration.visibility),
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E0301,
                 declaration.name.span,
                 format!(
                     "duplicate type `{}` (already declared as {kind})",
@@ -89,7 +90,11 @@ impl Lowerer {
         }) {
             Ok(key) => key,
             Err(error) => {
-                self.error(declaration.span, error.to_string());
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    declaration.span,
+                    error.to_string(),
+                );
                 return;
             }
         };

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "generic function `native` requires type argument Payload for `T` to be GC-free",
     "notes": [],
     "origin": {

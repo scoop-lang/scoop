@@ -23,6 +23,7 @@ impl Lowerer {
         };
         if !supplied_type_arguments.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 alias.name.span,
                 format!("typealias `{}` is not generic", alias.name.text),
             );
@@ -80,6 +81,7 @@ impl Lowerer {
         if let Some((struct_id, ty)) = self.top_level_struct_named(&name.text) {
             if !self.nominal_is_accessible(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0403,
                     name.span,
                     format!("struct `{}` is not accessible here", name.text),
                 );
@@ -94,6 +96,7 @@ impl Lowerer {
         if let Some((class_id, ty)) = self.top_level_class_named(&name.text) {
             if !self.nominal_is_accessible(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0403,
                     name.span,
                     format!("class `{}` is not accessible here", name.text),
                 );

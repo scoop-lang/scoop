@@ -37,6 +37,7 @@ impl Parser {
                     {
                         self.invalidate_nominal_projection();
                         self.diagnostics.push(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1021,
                             member.span(),
                             "a nominal declaration may contain at most one companion object",
                         ));
@@ -130,6 +131,7 @@ impl Parser {
                 .parse_prefixed_member_function(prefix, FunctionContext::TypeBody)
                 .map(ClassMember::Function),
             _ => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "expected a property, function, constructor, init block, nested declaration, or companion object",
             )),
@@ -143,6 +145,7 @@ impl Parser {
     ) -> Result<FunctionDecl, Diagnostic> {
         if let Some(span) = prefix.const_span {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "`const` is only allowed on `val` properties",
             ));
@@ -159,6 +162,7 @@ impl Parser {
                 "open"
             };
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!("`{modifier}` modifier is not allowed on interface methods"),
             ));
@@ -178,12 +182,14 @@ impl Parser {
     ) -> Result<(), Diagnostic> {
         if let Some(annotation) = prefix.annotations.first() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1301,
                 annotation.span,
                 format!("annotations are not allowed on {target}"),
             ));
         }
         if let VisibilitySyntax::Explicit { span, .. } = prefix.visibility {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!("visibility is not allowed on {target}"),
             ));
@@ -198,6 +204,7 @@ impl Parser {
     ) -> Result<(), Diagnostic> {
         if let Some(span) = prefix.modifiers.suspend_span {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "`suspend` modifier is only allowed on function declarations",
             ));
@@ -211,6 +218,7 @@ impl Parser {
             .or(prefix.modifiers.tailrec_span)
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!("invalid modifier on {target} declaration"),
             ));
@@ -226,6 +234,7 @@ impl Parser {
         self.require_nominal_prefix(prefix, target)?;
         if let Some(SpannedMethodModifier { span, .. }) = prefix.modifiers.method_modifier {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 format!("class modality is not allowed on {target} declaration"),
             ));
@@ -335,7 +344,7 @@ impl Parser {
                     .map(Box::new)
                     .map(StructMember::Property),
                 TokenKind::Ident(text) if text == "init" => {
-                    Err(Diagnostic::at(self.peek().span, "`init` blocks are not allowed in structs"))
+                    Err(Diagnostic::at(scoop_source::DiagnosticCode::E0311, self.peek().span, "`init` blocks are not allowed in structs"))
                 }
                 TokenKind::Ident(text) if text == "release" => {
                     self.invalid_release_owner("structs")
@@ -363,7 +372,7 @@ impl Parser {
                     .parse_prefixed_member_function(prefix, FunctionContext::TypeBody)
                     .map(Box::new)
                     .map(StructMember::Function),
-                _ => Err(Diagnostic::at(
+                _ => Err(Diagnostic::at(scoop_source::DiagnosticCode::E0201,
                     self.peek().span,
                     "expected a computed property, function, constructor, nested declaration, or companion object",
                 )),
@@ -379,6 +388,7 @@ impl Parser {
                     {
                         self.invalidate_nominal_projection();
                         self.diagnostics.push(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1021,
                             member.span(),
                             "a nominal declaration may contain at most one companion object",
                         ));

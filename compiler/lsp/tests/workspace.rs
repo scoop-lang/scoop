@@ -90,7 +90,7 @@ fn manifest_buffers_are_versioned_and_configuration_errors_leave_syntax_availabl
     );
     client.open(&manifest_uri, "# 中文\nschema = broken\n");
     let errors = client.diagnostics(&manifest_uri, Some(1));
-    assert_eq!(errors[0]["code"], "SCOOP_PROJECT");
+    assert_eq!(errors[0]["code"], "E2008");
     assert_eq!(errors[0]["range"]["start"]["line"], 1);
     assert_eq!(client.symbols(&source_uri)[0]["name"], "stillVisible");
     std::fs::write(&manifest, original.clone() + "# changed on disk\n").unwrap();
@@ -119,10 +119,7 @@ fn manifest_buffers_are_versioned_and_configuration_errors_leave_syntax_availabl
             .unwrap()
             .is_empty()
     );
-    assert_eq!(
-        client.diagnostics(&manifest_uri, None)[0]["code"],
-        "SCOOP_PROJECT"
-    );
+    assert_eq!(client.diagnostics(&manifest_uri, None)[0]["code"], "E2008");
     client.finish();
 }
 
@@ -191,10 +188,7 @@ fn workspace_folders_are_independent_and_removal_clears_old_errors() {
     let other_uri = uri(&other.join("Cone.toml"));
     let mut client = Client::start();
     initialize(&mut client, &[root.join("app"), other.clone()], json!({}));
-    assert_eq!(
-        client.diagnostics(&other_uri, None)[0]["code"],
-        "SCOOP_PROJECT"
-    );
+    assert_eq!(client.diagnostics(&other_uri, None)[0]["code"], "E2008");
     let source_uri = uri(&root.join("app/src/value.scoop"));
     assert_eq!(client.symbols(&source_uri)[0]["name"], "value");
     client.notify(
@@ -212,10 +206,7 @@ fn workspace_folders_are_independent_and_removal_clears_old_errors() {
         "workspace/didChangeWorkspaceFolders",
         json!({"event": {"added": [{"uri": uri(&other), "name": "other"}], "removed": []}}),
     );
-    assert_eq!(
-        client.diagnostics(&other_uri, None)[0]["code"],
-        "SCOOP_PROJECT"
-    );
+    assert_eq!(client.diagnostics(&other_uri, None)[0]["code"], "E2008");
     client.finish();
 }
 

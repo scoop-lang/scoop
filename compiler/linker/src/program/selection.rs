@@ -38,7 +38,7 @@ impl SelectedMembers {
                     continue;
                 };
                 let plans = definitions.iter().map(|definition| {
-                    surface.get(definition).map(|plan| (*definition, plan)).ok_or_else(|| error(format!(
+                    surface.get(definition).map(|plan| (*definition, plan)).ok_or_else(|| error(scoop_source::DiagnosticCode::E2409, format!(
                         "Cone {cone}: object member {} refers to missing definition {definition}", member.member()
                     )))
                 }).collect::<Result<Vec<_>, _>>()?;
@@ -47,9 +47,12 @@ impl SelectedMembers {
                     .any(|plan| plan.1.role == StrongDefinitionRole::ImageDescriptor);
                 if image {
                     if plans.len() != 1 {
-                        return Err(error(format!(
-                            "Cone {cone}: candidate image does not have an independent physical member"
-                        )));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2409,
+                            format!(
+                                "Cone {cone}: candidate image does not have an independent physical member"
+                            ),
+                        ));
                     }
                     continue;
                 }
@@ -84,9 +87,12 @@ impl SelectedMembers {
                                 continue;
                             }
                             if present != 0 {
-                                return Err(error(format!(
-                                    "Cone {cone}: shared interface table storage has inconsistent physical grouping"
-                                )));
+                                return Err(error(
+                                    scoop_source::DiagnosticCode::E2409,
+                                    format!(
+                                        "Cone {cone}: shared interface table storage has inconsistent physical grouping"
+                                    ),
+                                ));
                             }
                             shared.extend(members);
                             result.members.insert((cone, member.member()));
@@ -96,9 +102,12 @@ impl SelectedMembers {
                         if plans.iter().any(|plan| {
                             matches!(plan.1.owner, ObjectDefinitionPlanOwner::Odr { .. })
                         }) {
-                            return Err(error(format!(
-                                "Cone {cone}: independent ODR definitions share a physical member"
-                            )));
+                            return Err(error(
+                                scoop_source::DiagnosticCode::E2409,
+                                format!(
+                                    "Cone {cone}: independent ODR definitions share a physical member"
+                                ),
+                            ));
                         }
                         None
                     }

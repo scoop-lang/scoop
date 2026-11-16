@@ -206,4 +206,5 @@ fn define_query<'ctx>(
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
     CodegenError::internal(format!("GC mapping query: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

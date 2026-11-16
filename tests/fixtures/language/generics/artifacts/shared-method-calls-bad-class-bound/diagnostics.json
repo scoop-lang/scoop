@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `classRead`: Number is not a subtype of Box<T>",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2004",
     "message": "cannot snapshot manifest sources: source discovery failed at ${work}/cone/Cone.toml: manifest Cone must contain at least one .scoop source",
     "notes": [],
     "origin": {

@@ -56,6 +56,7 @@ impl CurrentUnitImports {
                 [] => return Ok(Vec::new()),
                 _ => {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0404,
                         Span::new(0, 0),
                         format!("export static owner `{}` is ambiguous", owner.as_str()),
                     ));

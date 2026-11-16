@@ -35,6 +35,7 @@ impl CurrentUnitImports {
                     Some(ResolvedImportExposure::PublicReexport)
                 } else {
                     lowerer.error(
+                        scoop_source::DiagnosticCode::E0407,
                         selector_span,
                         "public import requires a direct dependency target".to_string(),
                     );
@@ -116,13 +117,14 @@ impl CurrentUnitImports {
                                 let last =
                                     selector.segments().last().expect("selector is non-empty");
                                 let mut diagnostic = ast::Diagnostic::at_file(
+                                    scoop_source::DiagnosticCode::E0403,
                                     lowerer.current_file,
                                     last.span,
                                     "import target is not accessible from this source location",
                                 );
                                 for target in error.inaccessible() {
                                     let declaration = self.binding(*target);
-                                    diagnostic.notes.push(ast::DiagnosticNote::at(
+                                    diagnostic.notes.push(ast::DiagnosticNote::at(scoop_source::DiagnosticCode::N0401,
                                     declaration.file,
                                     declaration.span,
                                     "declaration is outside this file's permitted access domain",
@@ -132,7 +134,11 @@ impl CurrentUnitImports {
                                 break 'item;
                             }
                             Err(error) => {
-                                lowerer.error(selector.span, error.message().to_string());
+                                lowerer.error(
+                                    error.code(),
+                                    selector.span,
+                                    error.message().to_string(),
+                                );
                                 break 'item;
                             }
                         };
@@ -162,6 +168,7 @@ impl CurrentUnitImports {
                             &targets,
                         ) {
                             lowerer.error(
+                                scoop_source::DiagnosticCode::E0404,
                                 selector.span,
                                 "import target is ambiguous in the current compilation unit"
                                     .to_string(),
@@ -206,7 +213,11 @@ impl CurrentUnitImports {
                                     unreachable!("star selectors end in namespaces")
                                 }
                                 Err(error) => {
-                                    lowerer.error(selector_span, error.message().to_string());
+                                    lowerer.error(
+                                        error.code(),
+                                        selector_span,
+                                        error.message().to_string(),
+                                    );
                                     break 'item;
                                 }
                             };

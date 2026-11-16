@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0619",
     "message": "static nested declaration cannot use outer type parameter `T`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0619",
     "message": "static nested declaration cannot use outer type parameter `T`",
     "notes": [],
     "origin": {

@@ -202,9 +202,9 @@ pub enum SingleConeProductionError {
 impl fmt::Display for SingleConeProductionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ArtifactOutputRequired => formatter.write_str(
-                "artifact production requires an artifact output; use compile for documentation",
-            ),
+            Self::ArtifactOutputRequired => {
+                formatter.write_str("artifact production requires an artifact output")
+            }
             Self::DocumentationObservation => {
                 formatter.write_str("documentation cannot be combined with observation-only")
             }
@@ -405,3 +405,54 @@ impl std::error::Error for SingleConePreflightError {
 
 #[cfg(test)]
 mod tests;
+
+impl SingleConeProductionError {
+    pub fn code(&self) -> scoop_source::DiagnosticIdentifier {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::ArtifactOutputRequired
+            | Self::DocumentationObservation
+            | Self::ObservationRequiresStages => C::E2001.into(),
+            Self::Preflight(e) => e.code().into(),
+            Self::Validation(e) => e.code().into(),
+            Self::Sources(e) => e.code(),
+            Self::Production(e) => e.cause().code(),
+        }
+    }
+}
+
+impl CurrentConeSourceStageError {
+    pub fn code(&self) -> scoop_source::DiagnosticIdentifier {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::Discovery(e) => e.code().into(),
+            Self::SingleFile(e) => e.code().into(),
+            Self::Parser(e) => match e.as_ref() {
+                scoop_parser::ParseCurrentConeError::Input(_)
+                | scoop_parser::ParseCurrentConeError::Output(_) => C::ICE0301.into(),
+                scoop_parser::ParseCurrentConeError::Diagnostics(ds) => ds
+                    .first()
+                    .map(|d| d.diagnostic().code.clone())
+                    .unwrap_or(C::ICE2501.into()),
+            },
+            Self::Package(ds) => ds
+                .diagnostics()
+                .first()
+                .map(|d| d.code.clone())
+                .unwrap_or(C::ICE2501.into()),
+        }
+    }
+}
+
+impl SingleConePreflightError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::SingleFile(e) => e.code(),
+            Self::ExplicitDependencyLoad(_) => C::E2201,
+            Self::Dependencies(e) => e.code(),
+            Self::DefaultCoreSlot(e) => e.code(),
+            Self::Request(e) => e.code(),
+        }
+    }
+}

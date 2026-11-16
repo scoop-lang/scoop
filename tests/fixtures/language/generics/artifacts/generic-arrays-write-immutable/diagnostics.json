@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `mutate`: Array<Int> is not a subtype of MutableArray<T>",
     "notes": [],
     "origin": {

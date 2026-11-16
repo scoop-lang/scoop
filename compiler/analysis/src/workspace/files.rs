@@ -23,12 +23,12 @@ impl FileStamp {
     pub(super) fn read(path: &Path) -> Result<Self, LoadError> {
         let metadata = path
             .metadata()
-            .map_err(|error| LoadError::new(path, error))?;
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2201, path, error))?;
         Ok(Self {
             length: metadata.len(),
-            modified: metadata
-                .modified()
-                .map_err(|error| LoadError::new(path, error))?,
+            modified: metadata.modified().map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::E2201, path, error)
+            })?,
         })
     }
 }
@@ -61,9 +61,9 @@ impl FileInputs {
         let text = match self.disk.get(path) {
             Some((previous, text)) if *previous == stamp => text.clone(),
             _ => {
-                let text = SourceText::new(
-                    std::fs::read_to_string(path).map_err(|error| LoadError::new(path, error))?,
-                );
+                let text = SourceText::new(std::fs::read_to_string(path).map_err(|error| {
+                    LoadError::new(scoop_source::DiagnosticCode::E2201, path, error)
+                })?);
                 self.disk.insert(path.to_owned(), (stamp, text.clone()));
                 text
             }
@@ -79,10 +79,9 @@ impl FileInputs {
         root: ConeIdentity,
         config: ExpandedConeInputV1,
     ) -> Result<Arc<LoadedConeManifest>, LoadError> {
-        let path = config
-            .manifest_path
-            .to_path_buf()
-            .map_err(|error| LoadError::new(PathBuf::new(), error))?;
+        let path = config.manifest_path.to_path_buf().map_err(|error| {
+            LoadError::new(scoop_source::DiagnosticCode::E2502, PathBuf::new(), error)
+        })?;
         let key = (configuration.to_owned(), root, path.clone());
         host.set_file_text(path.clone(), SourceText::new(config.manifest_text.clone()));
         if let Some(previous) = self.manifests.get(&key)
@@ -92,22 +91,18 @@ impl FileInputs {
         }
         let manifest = Arc::new(
             LoadedConeManifest::from_expanded(
-                config
-                    .root
-                    .to_path_buf()
-                    .map_err(|error| LoadError::new(&path, error))?,
+                config.root.to_path_buf().map_err(|error| {
+                    LoadError::new(scoop_source::DiagnosticCode::E2502, &path, error)
+                })?,
                 path.clone(),
                 config.manifest_text.clone(),
                 config.manifest.clone(),
                 config.metadata.clone(),
             )
-            .map_err(|error| LoadError::new(&path, error))?
-            .with_input_root(
-                config
-                    .input_root
-                    .to_path_buf()
-                    .map_err(|error| LoadError::new(&path, error))?,
-            ),
+            .map_err(|error| LoadError::new(error.code(), &path, error))?
+            .with_input_root(config.input_root.to_path_buf().map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::E2502, &path, error)
+            })?),
         );
         self.manifests.insert(
             key,

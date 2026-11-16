@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0603",
     "message": "type argument `T` for `Result` of type `Increment` must satisfy upper bound `Increment<T>`",
     "notes": [],
     "origin": {

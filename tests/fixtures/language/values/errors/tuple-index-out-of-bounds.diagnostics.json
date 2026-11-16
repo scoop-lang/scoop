@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "tuple type `(Int, Int)` has no element `_3`",
     "notes": [],
     "origin": {

@@ -32,7 +32,8 @@ impl ObjectDeployment {
         if native.target().id() != selection.target().id() {
             return Err(CodegenError::internal(
                 "backend and native deployment targets differ".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2201));
         }
         match (profile, native.platform()) {
             (
@@ -49,7 +50,8 @@ impl ObjectDeployment {
             ) => Ok(Self::Windows),
             _ => Err(CodegenError::internal(
                 "codegen deployment and native toolchain platform differ".into(),
-            )),
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2201)),
         }
     }
 

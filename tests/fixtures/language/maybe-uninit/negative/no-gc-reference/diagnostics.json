@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `make` has non-GC-free return type MaybeUninit<String>",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type MaybeUninit<String> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {

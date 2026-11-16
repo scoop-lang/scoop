@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `accept` in current-unit top-level candidate layer:\n  - fun accept<T>(value: T): Int — selected member `read` does not satisfy the required effects",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `accept` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun accept<T>(value: T): Int",
+        "notes": [
+          {
+            "code": "E0621",
+            "kind": "cause",
+            "message": "selected member `read` does not satisfy the required effects",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 151,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 138
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 124,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 52
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 151,

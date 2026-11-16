@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0711",
     "message": "type `MaybeUninit<Int>` has no applicable member operator `equals` for `==`",
     "notes": [],
     "origin": {

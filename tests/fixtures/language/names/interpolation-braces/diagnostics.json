@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
-    "message": "`$名称` interpolation requires braces; use `${名称}`",
-    "notes": [],
+    "code": "E0110",
+    "message": "`$$名称` interpolation requires braces",
+    "notes": [
+      {
+        "code": "H0101",
+        "kind": "help",
+        "message": "use `$${名称}`",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 47,

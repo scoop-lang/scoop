@@ -22,7 +22,7 @@ fn documentation_pipeline_checks_bodies_and_shares_hir_with_artifact_production(
         .join("installed-version-".repeat(4))
         .join("build/post-install/cache/toolchains")
         .join("t".repeat(64))
-        .join("documentation-v4")
+        .join("documentation-v5")
         .join("d".repeat(64))
         .join("library.json");
     let artifact_path = workspace.path().join("library.slib");

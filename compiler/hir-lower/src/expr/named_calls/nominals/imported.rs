@@ -38,6 +38,7 @@ impl Lowerer {
             }
             if representation.family() == hir::IntrinsicTypeKind::FunPtr {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     call.span,
                     "intrinsic struct `FunPtr` has no source constructor".to_string(),
                 );
@@ -46,6 +47,7 @@ impl Lowerer {
             }
             if representation.family() == hir::IntrinsicTypeKind::GcLeafFunPtr {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     call.span,
                     "intrinsic struct `GCLeafFunPtr` has no source constructor".to_string(),
                 );
@@ -57,6 +59,7 @@ impl Lowerer {
             == hir::NominalInheritanceModalityV1::Abstract
         {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 call.span,
                 format!(
                     "abstract class `{}` cannot be instantiated",
@@ -70,6 +73,7 @@ impl Lowerer {
             Ok(candidates) => candidates,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     call.span,
                     format!("invalid dependency constructor declaration: {error}"),
                 );
@@ -79,6 +83,7 @@ impl Lowerer {
         };
         if candidates.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 call.span,
                 format!(
                     "type `{}` does not name a constructible type",

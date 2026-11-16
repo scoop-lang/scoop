@@ -22,7 +22,11 @@ impl Lowerer {
         let type_parameters = self
             .imported_callable_owner_parameters(owner)
             .map_err(|error| {
-                ast::Diagnostic::at(origin.span, error.diagnostic("queried constructor owner"))
+                ast::Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    origin.span,
+                    error.diagnostic("queried constructor owner"),
+                )
             })?;
         let bindings = self.query_signature_bindings(type_parameters.len(), &type_parameters);
         let substitutions = self.complete_parameter_substitution(type_parameters.iter(), &[]);
@@ -30,7 +34,11 @@ impl Lowerer {
         let result = self
             .imported_signature_type_with_bindings(interface.result(), &bindings)
             .map_err(|error| {
-                ast::Diagnostic::at(origin.span, error.diagnostic("queried constructor result"))
+                ast::Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    origin.span,
+                    error.diagnostic("queried constructor result"),
+                )
             })?;
         let form = match identity {
             CallableTemplateOrigin::VariantConstructor(variant) => {

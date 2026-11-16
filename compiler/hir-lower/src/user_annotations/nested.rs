@@ -11,6 +11,7 @@ impl Lowerer {
     ) -> Option<CanonicalAnnotationValueV1> {
         let ast::AnnotationLiteral::Application(application) = value else {
             self.error(
+                scoop_source::DiagnosticCode::E1304,
                 span,
                 "annotation argument requires a nested annotation application".into(),
             );
@@ -21,6 +22,7 @@ impl Lowerer {
             self.resolve_type_name_path(&path, &[]).ok()?
         else {
             self.error(
+                scoop_source::DiagnosticCode::E0405,
                 application.name.span,
                 format!("`{}` is not an annotation class", application.name),
             );
@@ -28,6 +30,7 @@ impl Lowerer {
         };
         if id != expected {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 "nested annotation argument has a different annotation type".into(),
             );
@@ -49,6 +52,7 @@ impl Lowerer {
     ) -> Option<CanonicalAnnotationValueV1> {
         let ast::AnnotationLiteral::ConstReference(source) = value else {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 "integral enum annotation argument requires a variant of the declared enum type"
                     .into(),
@@ -59,6 +63,7 @@ impl Lowerer {
         let value = self.lower_expr(source, &mut statements, Some(expected))?;
         if !statements.is_empty() || self.integral_annotation_constant(&value).is_none() {
             self.error(
+                scoop_source::DiagnosticCode::E1304,
                 span,
                 "integral enum annotation argument must be a static variant".into(),
             );
@@ -66,6 +71,7 @@ impl Lowerer {
         }
         if !self.types_equal(value.ty, expected) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "annotation argument must be {}, found {}",
@@ -77,6 +83,7 @@ impl Lowerer {
         }
         let Some((variant, constant)) = self.integral_annotation_constant(&value) else {
             self.error(
+                scoop_source::DiagnosticCode::E1304,
                 span,
                 "integral enum annotation argument must be a static variant".into(),
             );

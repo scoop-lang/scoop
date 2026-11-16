@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PACKAGE_ERROR",
+    "code": "E2007",
     "message": "source file must declare a package equal to Cone group `dev.example` or one of its subpackages",
     "notes": [],
     "origin": {

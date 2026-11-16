@@ -26,6 +26,7 @@ pub struct SourceLocation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocWarning {
+    pub code: scoop_source::DiagnosticIdentifier,
     pub location: SourceLocation,
     pub message: String,
     pub notes: Vec<DocWarningNote>,
@@ -33,7 +34,10 @@ pub struct DocWarning {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocWarningNote {
-    pub location: SourceLocation,
+    pub code: scoop_source::DiagnosticIdentifier,
+    pub location: Option<SourceLocation>,
+    pub import_path: Vec<String>,
+    pub notes: Vec<DocWarningNote>,
     pub message: String,
 }
 

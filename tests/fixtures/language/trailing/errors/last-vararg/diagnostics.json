@@ -1,8 +1,46 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f(actions: Array<() -> Unit>): Unit — trailing lambda cannot bind vararg parameter `actions`; pass it inside parentheses",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `f` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun f(actions: Array<() -> Unit>): Unit",
+        "notes": [
+          {
+            "code": "E0710",
+            "kind": "cause",
+            "message": "trailing lambda cannot bind vararg parameter `actions`",
+            "notes": [
+              {
+                "code": "H0705",
+                "kind": "help",
+                "message": "pass it inside parentheses",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 54,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 50
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 36,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 54,

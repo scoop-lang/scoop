@@ -53,7 +53,7 @@ pub(super) fn parse(
     let span = raw.span();
     let invalid = |reason: String| {
         ManifestParseError::new(
-            ManifestParseErrorKind::InvalidNative(reason),
+            ManifestParseErrorKind::InvalidNative(scoop_source::DiagnosticCode::E2017, reason),
             Some(span.clone()),
         )
     };

@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 435,
@@ -13,9 +23,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 492,
@@ -26,9 +46,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 554,
@@ -39,9 +69,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 614,
@@ -52,9 +92,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 682,
@@ -65,9 +115,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 741,
@@ -78,9 +138,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 805,
@@ -91,9 +161,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 891,
@@ -104,9 +184,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 989,
@@ -117,9 +207,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 1067,
@@ -130,9 +230,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0716",
+    "message": "implicit use of an outer receiver is not allowed",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "use `this@label` or an explicit object reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 190,
@@ -143,9 +253,53 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for constructor reference `::Item` in constructor candidate layer:\n  - constructor `Item` \u2014 implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for constructor reference `::Item` in constructor candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "constructor `Item`",
+        "notes": [
+          {
+            "code": "N0004",
+            "kind": "note",
+            "message": "declaration could not be completed",
+            "notes": [
+              {
+                "code": "E0716",
+                "kind": "cause",
+                "message": "implicit use of an outer receiver is not allowed",
+                "notes": [
+                  {
+                    "code": "H0402",
+                    "kind": "help",
+                    "message": "use `this@label` or an explicit object reference",
+                    "notes": [],
+                    "origin": {
+                      "kind": "none"
+                    }
+                  }
+                ],
+                "origin": {
+                  "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+                  "end": 272,
+                  "kind": "source",
+                  "path": "main.scoop",
+                  "start": 266
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 272,

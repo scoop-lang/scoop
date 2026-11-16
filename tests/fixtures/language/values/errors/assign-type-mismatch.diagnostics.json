@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "cannot assign value of type Int to `s` of type String",
     "notes": [],
     "origin": {

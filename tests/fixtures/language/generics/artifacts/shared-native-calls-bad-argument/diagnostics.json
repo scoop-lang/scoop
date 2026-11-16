@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "lambda parameter type is String, but the expected type is Int",
     "notes": [],
     "origin": {

@@ -18,14 +18,24 @@ pub(crate) fn bundled_llvm_root() -> Result<PathBuf, ToolchainError> {
         .parent()
         .and_then(Path::parent)
         .map(|root| root.join("libexec/llvm"))
-        .ok_or_else(|| error("cannot locate the installed LLVM tools"))
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2302,
+                "cannot locate the installed LLVM tools",
+            )
+        })
 }
 
 pub(crate) fn target_triple(target: TargetProfileId) -> Result<&'static str, ToolchainError> {
     scoop_target_data::definition(target)
         .filter(|definition| definition.os == scoop_target_data::TargetOs::Windows)
         .map(|definition| definition.llvm_triple)
-        .ok_or_else(|| error("a registered Windows target is required"))
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2301,
+                "a registered Windows target is required",
+            )
+        })
 }
 
 pub(crate) fn native_environment(
@@ -34,7 +44,12 @@ pub(crate) fn native_environment(
     scoop_target_data::definition(target)
         .filter(|definition| definition.os == scoop_target_data::TargetOs::Windows)
         .map(|definition| definition.native_environment)
-        .ok_or_else(|| error("a registered Windows target is required"))
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2301,
+                "a registered Windows target is required",
+            )
+        })
 }
 
 pub fn resolve_windows_c_toolchain(
@@ -73,11 +88,14 @@ pub(crate) fn resolve_default(
     };
     let split_mingw = bundled && !microsoft && native_sysroot.is_none();
     if split_mingw && !usable_default {
-        return Err(error(format!(
-            "missing target SDK {}; install native-{}",
-            default_root.display(),
-            target.contract().canonical_triple()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2302,
+            format!("missing target SDK {}", default_root.display()),
+        )
+        .with_help(
+            scoop_source::DiagnosticCode::H2301,
+            format!("install native-{}", target.contract().canonical_triple()),
+        ));
     }
     resolve_with_resources(
         target,
@@ -115,16 +133,18 @@ fn resolve_with_resources(
             .args(["-dM", "-E", "-x", "c", "-"]),
         source.as_bytes(),
     )?;
-    let macros_text = std::str::from_utf8(&macros.stdout).map_err(error)?;
+    let macros_text = std::str::from_utf8(&macros.stdout)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let version = [
         macro_number(macros_text, "__clang_major__")?,
         macro_number(macros_text, "__clang_minor__")?,
         macro_number(macros_text, "__clang_patchlevel__")?,
     ];
     let identity = ClangCompilerIdentityV1::new(version, sha256(&macros.stdout));
-    let profile = scoop_target_data::windows_c_bridge_profile(target, identity).map_err(error)?;
+    let profile = scoop_target_data::windows_c_bridge_profile(target, identity)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     ValidatedCBridgeToolchainInvocation::new_windows(target, profile, compiler, environment)
-        .map_err(error)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))
 }
 
 const HEADERS: &str = r#"
@@ -137,17 +157,22 @@ const HEADERS: &str = r#"
 "#;
 
 fn run(command: &mut Command, source: &[u8]) -> Result<Output, ToolchainError> {
-    let output = command.scoop_output_with_input(source).map_err(error)?;
+    let output = command
+        .scoop_output_with_input(source)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "{}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "{}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+        ));
     }
     Ok(output)
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("Windows C toolchain: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("Windows C toolchain: {value}"))
 }

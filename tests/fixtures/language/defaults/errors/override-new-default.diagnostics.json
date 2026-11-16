@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0723",
     "message": "override function `value` cannot declare a new default expression",
     "notes": [],
     "origin": {

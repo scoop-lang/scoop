@@ -10,6 +10,7 @@ impl Lowerer {
             && matches!(source.kind, hir::ExprKind::CallableReference(_))
         {
             self.error(
+                scoop_source::DiagnosticCode::E1113,
                 context.statement_span,
                 "a callable reference in an expanded default is not allowed in a `release` block"
                     .into(),

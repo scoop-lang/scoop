@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "type argument `String` for `T` of typealias `Scalars` must satisfy `value`",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1405",
     "message": "annotationKey argument is a declaration, not an annotated type use",
     "notes": [],
     "origin": {

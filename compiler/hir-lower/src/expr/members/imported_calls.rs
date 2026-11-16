@@ -35,7 +35,11 @@ impl Lowerer {
             )
             .map_err(|error| {
                 let mut failure = self.clone();
-                failure.error(name.span, format!("invalid imported member: {error}"));
+                failure.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    name.span,
+                    format!("invalid imported member: {error}"),
+                );
                 Box::new(failure)
             })?;
         let class_super =

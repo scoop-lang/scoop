@@ -7,7 +7,7 @@ impl Lowerer {
         subject: TypeId,
         arguments: &[ast::CallArgument],
         span: Span,
-    ) -> Result<Vec<NamedApplicable>, String> {
+    ) -> Result<Vec<NamedApplicable>, RequirementFailure> {
         let call = ast::CallExpr {
             callee: ast::Ident {
                 text: self.type_name(subject),
@@ -33,7 +33,10 @@ impl Lowerer {
                     .captured_environment_field(class)
                     .is_some_and(|field| self.class_field_definition(field).ty != self.unit))
         {
-            return Err("constructor requirements cannot use an implicit outer instance or runtime captures".into());
+            return Err(RequirementFailure::new(
+                scoop_source::DiagnosticCode::E0715,
+                "constructor requirements cannot use an implicit outer instance or runtime captures",
+            ));
         }
         let prepared = if let Some(nominal) = nominal {
             let mut prepared = self
@@ -55,9 +58,10 @@ impl Lowerer {
             prepared
         } else if let Some(owner) = self.imported_nominal_owner(subject) {
             if self.nominal_enclosing_owner(owner).is_some() {
-                return Err(
-                    "constructor requirements cannot use an implicit outer instance".into(),
-                );
+                return Err(RequirementFailure::new(
+                    scoop_source::DiagnosticCode::E0715,
+                    "constructor requirements cannot use an implicit outer instance",
+                ));
             }
             PreparedNominalPlans::Imported {
                 owner,
@@ -66,9 +70,12 @@ impl Lowerer {
                 alias: None,
             }
         } else {
-            return Err(format!(
-                "type `{}` has no public source constructor",
-                self.type_name(subject)
+            return Err(RequirementFailure::new(
+                scoop_source::DiagnosticCode::E0621,
+                format!(
+                    "type `{}` has no public source constructor",
+                    self.type_name(subject)
+                ),
             ));
         };
         let mut applicable = Vec::new();

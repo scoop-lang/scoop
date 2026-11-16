@@ -45,7 +45,11 @@ impl Lowerer {
                     Err(error) => {
                         let function = self.derived_inspection_methods[0].0;
                         self.current_file = self.function_files[&function];
-                        self.error(self.functions[function].span, error);
+                        self.error(
+                            scoop_source::DiagnosticCode::E1310,
+                            self.functions[function].span,
+                            error,
+                        );
                         return;
                     }
                 };
@@ -69,7 +73,7 @@ impl Lowerer {
                 if let Some(value) = state.inspect_target(context, context.target, value, span, &mut statements) {
                     statements.push(hir::Statement { kind: hir::StatementKind::Return { value }, span });
                 } else if state.diagnostics.len() == before {
-                    state.error(span, "automatic inspect could not resolve the required core view or field access".into());
+                    state.error(scoop_source::DiagnosticCode::E1310, span, "automatic inspect could not resolve the required core view or field access".into());
                 }
                 statements
             });
@@ -120,7 +124,7 @@ impl Lowerer {
                 Type::Enum(application) => state.inspect_enum(context, application, value, reference, span, &mut statements),
                 Type::Tuple(elements) => state.inspect_tuple(context, &elements, value, span, &mut statements),
                 _ => {
-                    state.error(span, format!("automatic inspect requires a struct, enum, tuple, or final class without a class base; target {} requires an explicit implementation", state.type_name(target)));
+                    state.error(scoop_source::DiagnosticCode::E1310, span, format!("automatic inspect requires a struct, enum, tuple, or final class without a class base; target {} requires an explicit implementation", state.type_name(target)));
                     None
                 }
             }?;

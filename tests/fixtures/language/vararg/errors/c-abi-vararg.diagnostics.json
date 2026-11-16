@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "C ABI extern function `nativeValues` cannot declare a language `vararg` parameter",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: nativeValues.parameter1: ref type `Array<Int>` is managed",
     "notes": [],
     "origin": {

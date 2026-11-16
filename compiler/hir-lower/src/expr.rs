@@ -244,7 +244,7 @@ impl Lowerer {
     pub(crate) fn has_internal_diagnostics(&self) -> bool {
         self.diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+            .any(|diagnostic| diagnostic.kind() == ast::DiagnosticKind::Internal)
     }
 
     pub(crate) fn retain_internal_diagnostics(&mut self, failed: &Lowerer) -> bool {
@@ -252,7 +252,7 @@ impl Lowerer {
         let errors = failed
             .diagnostics
             .iter()
-            .filter(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+            .filter(|diagnostic| diagnostic.kind() == ast::DiagnosticKind::Internal)
             .filter(|diagnostic| !self.diagnostics.contains(diagnostic))
             .cloned()
             .collect::<Vec<_>>();
@@ -346,7 +346,11 @@ impl Lowerer {
 
             ast::Expr::TypeQualifier(reference) => {
                 self.resolve_type_ref(reference)?;
-                self.error(reference.span, "a type qualifier is not a value".into());
+                self.error(
+                    scoop_source::DiagnosticCode::E0405,
+                    reference.span,
+                    "a type qualifier is not a value".into(),
+                );
                 None
             }
             ast::Expr::ContextScope { value, body, span } => {
@@ -374,7 +378,11 @@ impl Lowerer {
                 let ty = self
                     .core_character_type()
                     .map_err(|error| {
-                        self.error(*span, error.diagnostic("character literal type"));
+                        self.error(
+                            scoop_source::DiagnosticCode::E1403,
+                            *span,
+                            error.diagnostic("character literal type"),
+                        );
                     })
                     .ok()?;
                 Some(hir::Expr {
@@ -441,6 +449,7 @@ impl Lowerer {
                     {
                         self.resolve_type_alias_reference(name, false)?;
                         self.error(
+                            scoop_source::DiagnosticCode::E0510,
                             name.span,
                             format!(
                                 "typealias `{}` does not name a constructible type",
@@ -455,11 +464,16 @@ impl Lowerer {
                         .is_some_and(|target| matches!(target, crate::NominalTarget::Object(_)));
                     if object {
                         self.error(
+                            scoop_source::DiagnosticCode::E0510,
                             name.span,
                             format!("object `{}` cannot be constructed", name.text),
                         );
                     } else {
-                        self.error(name.span, format!("unknown struct `{}`", name.text));
+                        self.error(
+                            scoop_source::DiagnosticCode::E0401,
+                            name.span,
+                            format!("unknown struct `{}`", name.text),
+                        );
                     }
                     None
                 }

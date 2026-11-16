@@ -9,10 +9,16 @@ pub(super) struct Plan {
 impl Plan {
     pub fn new(graph: ResolvedBuildGraph, request: &CheckRequest) -> BuildResult<Self> {
         if request.purpose == CompilationPurpose::Test && graph.single_file_source().is_some() {
-            return Err(error("--tests requires a manifest Cone"));
+            return Err(BuildFailure::tool(
+                scoop_source::DiagnosticCode::E2001,
+                BuildFailurePhase::Request,
+                "--tests requires a manifest Cone",
+            ));
         }
         let selection =
-            scoop_toolchain::select_target(request.target.canonical_triple()).map_err(error)?;
+            scoop_toolchain::select_target(request.target.canonical_triple()).map_err(|cause| {
+                BuildFailure::tool(cause.code(), BuildFailurePhase::SourceSnapshot, &cause)
+            })?;
         let root = graph
             .node_coordinate(graph.root_identity())
             .expect("resolved root exists")
@@ -34,12 +40,17 @@ impl Plan {
                         selection.target().id(),
                     ),
                 }
-                .map_err(|cause| io_error(cause.path(), &cause))?;
+                .map_err(|cause| {
+                    BuildFailure::tool(cause.code(), BuildFailurePhase::SourceSnapshot, &cause)
+                        .at_host(cause.path())
+                })?;
                 sources.extend(selected.iter().cloned());
             } else if *id == graph.root_identity()
                 && let Some(path) = graph.single_file_source()
             {
-                let source = scoop_manifest::select_single_file_source(path).map_err(error)?;
+                let source = scoop_manifest::select_single_file_source(path).map_err(|cause| {
+                    BuildFailure::tool(cause.code(), BuildFailurePhase::SourceSnapshot, &cause)
+                })?;
                 sources.push(source);
             }
         }

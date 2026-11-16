@@ -122,6 +122,7 @@ impl Lowerer {
     ) -> Option<hir::TypeId> {
         if supplied_type_arguments {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 format!("typealias `{}` is not generic", name.text),
             );
@@ -154,6 +155,7 @@ impl Lowerer {
                     .collect::<Vec<_>>();
                 names.push(self.source_type_aliases[id].name.clone());
                 self.error(
+                    scoop_source::DiagnosticCode::E0608,
                     reference_span,
                     format!("typealias cycle: {}", names.join(" -> ")),
                 );

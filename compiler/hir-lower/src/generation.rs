@@ -63,6 +63,7 @@ impl Lowerer {
         let function = generated.function;
         let Some(_) = self.generation.methods.remove(&function) else {
             let mut diagnostic = Diagnostic::at(
+                scoop_source::DiagnosticCode::E2511,
                 generated.origin.span,
                 "generated body does not name a remaining implementation method",
             );
@@ -73,6 +74,7 @@ impl Lowerer {
         let lexical_file = self.function_files[&function];
         if generated.source.identity.cone() != self.current_cone() {
             self.diagnostics.push(Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E2511,
                 lexical_file,
                 self.functions[function].span,
                 "generated body source belongs to a different Cone",
@@ -104,12 +106,12 @@ impl Lowerer {
         let body = self.lower_generated_body(function, &generated.body, source_file);
         self.functions[function].kind = hir::FunctionKind::User(body);
         self.current_file = previous_file;
-        let note = DiagnosticNote {
-            source: scoop_source::LocalDiagnosticSource::Bound(Box::new(generated.origin.source)),
-            span: generated.origin.span,
-            message: "implementation requested here".into(),
-            import_path: Vec::new(),
-        };
+        let note = DiagnosticNote::at_source(
+            scoop_source::DiagnosticCode::N0003,
+            generated.origin.source,
+            generated.origin.span,
+            "implementation requested here",
+        );
         for diagnostic in self.diagnostics[before_errors..]
             .iter_mut()
             .chain(&mut self.warnings[before_warnings..])

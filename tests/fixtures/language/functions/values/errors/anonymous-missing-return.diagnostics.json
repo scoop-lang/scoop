@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0801",
     "message": "anonymous function returning Int may complete without returning a value",
     "notes": [],
     "origin": {

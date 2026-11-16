@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "body of `result` must be of type Int, found (Int, Int)",
     "notes": [],
     "origin": {

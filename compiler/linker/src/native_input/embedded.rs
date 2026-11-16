@@ -22,7 +22,7 @@ impl NativeInputs {
                             file,
                         },
                     )
-                    .map_err(error)?,
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
                 );
                 let locator = PathBuf::from(format!(
                     "{}:{}",
@@ -33,7 +33,7 @@ impl NativeInputs {
                     object.bytes(),
                     profile.startup_toolchain().profile(),
                 )
-                .map_err(|err| error(format!("{}: {err}", locator.display())))?;
+                .map_err(|err| error(err.code(), format!("{}: {err}", locator.display())))?;
                 self.files.insert(
                     id,
                     NativeFile {

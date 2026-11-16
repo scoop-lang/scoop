@@ -78,6 +78,7 @@ impl Lowerer {
             ast::Pattern::BareVariant(ast::Ident { span, .. })
             | ast::Pattern::Literal { span, .. } => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0902,
                     *span,
                     "refutable patterns are only allowed in `when`".into(),
                 );
@@ -118,6 +119,7 @@ impl Lowerer {
                 _ => {
                     let found = self.type_name(subject.ty);
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         *span,
                         format!("tuple pattern does not match a subject of type {found}"),
                     );
@@ -135,6 +137,7 @@ impl Lowerer {
                     PatternTarget::Struct(_)
                 ) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0902,
                         *span,
                         "refutable patterns are only allowed in `when`".into(),
                     );
@@ -153,6 +156,7 @@ impl Lowerer {
                     PatternTarget::Struct(_)
                 ) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0902,
                         *span,
                         "refutable patterns are only allowed in `when`".into(),
                     );

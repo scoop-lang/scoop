@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0802",
     "message": "anonymous function mixes bare and value returns",
     "notes": [],
     "origin": {

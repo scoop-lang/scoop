@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0806",
     "message": "`continue` is only allowed inside a loop",
     "notes": [],
     "origin": {

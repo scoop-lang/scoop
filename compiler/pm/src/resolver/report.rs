@@ -15,10 +15,13 @@ pub(super) fn failure(
     tree: DerivationTree<Key, Domain, String>,
 ) -> PmError {
     let involved = tree.packages();
-    let mut error = PmError::new(format!(
-        "dependency resolution failed:\n{}",
-        DefaultStringReporter::report(&tree)
-    ));
+    let mut error = PmError::new(
+        scoop_source::DiagnosticCode::E2110,
+        format!(
+            "dependency resolution failed:\n{}",
+            DefaultStringReporter::report(&tree)
+        ),
+    );
     error.resolution_conflicts = involved.iter().map(|key| (*key).clone()).collect();
     let mut paths = BTreeMap::from([(root.clone(), root.to_string())]);
     let mut queue = VecDeque::from([root.clone()]);

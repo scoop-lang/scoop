@@ -57,28 +57,37 @@ pub(super) fn generate(
             run(Command::new(objcopy).arg(debuglink).arg(executable))?;
         }
     }
-    if !path.try_exists().map_err(error)? {
-        return Err(error(format!(
-            "debug tool did not produce {}",
-            path.display()
-        )));
+    if !path
+        .try_exists()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+    {
+        return Err(error(
+            scoop_source::DiagnosticCode::E2303,
+            format!("debug tool did not produce {}", path.display()),
+        ));
     }
     Ok(DebugFile { kind, path })
 }
 
 fn run(command: &mut Command) -> Result<(), LinkError> {
     let result = command.scoop_output().map_err(|source| {
-        error(format!(
-            "cannot start debug tool {}: {source}",
-            Path::new(command.get_program()).display()
-        ))
+        error(
+            scoop_source::DiagnosticCode::E2202,
+            format!(
+                "cannot start debug tool {}: {source}",
+                Path::new(command.get_program()).display()
+            ),
+        )
     })?;
     if !result.status.success() {
-        return Err(error(format!(
-            "debug tool {} failed: {}",
-            Path::new(command.get_program()).display(),
-            String::from_utf8_lossy(&result.stderr).trim()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "debug tool {} failed: {}",
+                Path::new(command.get_program()).display(),
+                String::from_utf8_lossy(&result.stderr).trim()
+            ),
+        ));
     }
     Ok(())
 }

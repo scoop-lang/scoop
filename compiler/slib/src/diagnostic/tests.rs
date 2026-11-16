@@ -3,52 +3,46 @@ use scoop_wire::{WireError, WireErrorKind, WirePath};
 
 use crate::SlibReadError;
 
-use super::{SlibDiagnostic, SlibErrorCode, SlibPrimaryOrigin};
+use super::{DiagnosticCode, SlibDiagnostic, SlibPrimaryOrigin};
 
 #[test]
 fn stable_error_code_spellings_are_closed_and_golden() {
-    use SlibErrorCode::*;
+    use DiagnosticCode::*;
 
     let expected = [
-        (ContainerBadMagic, "SLIB_CONTAINER_BAD_MAGIC"),
-        (ContainerTruncated, "SLIB_CONTAINER_TRUNCATED"),
-        (ContainerNonCanonical, "SLIB_CONTAINER_NON_CANONICAL"),
-        (ContainerInvalidLength, "SLIB_CONTAINER_INVALID_LENGTH"),
-        (WireUnexpectedEnd, "SLIB_WIRE_UNEXPECTED_END"),
-        (WireWrongType, "SLIB_WIRE_WRONG_TYPE"),
-        (WireIndefiniteLength, "SLIB_WIRE_INDEFINITE_LENGTH"),
-        (WireNonCanonical, "SLIB_WIRE_NON_CANONICAL"),
-        (WireTrailingData, "SLIB_WIRE_TRAILING_DATA"),
-        (WireInvalidField, "SLIB_WIRE_INVALID_FIELD"),
-        (WireUnknownTag, "SLIB_WIRE_UNKNOWN_TAG"),
-        (WireInvalidLength, "SLIB_WIRE_INVALID_LENGTH"),
-        (WireIntegerOutOfRange, "SLIB_WIRE_INTEGER_OUT_OF_RANGE"),
-        (Allocation, "SLIB_ALLOCATION"),
-        (DirectoryMismatch, "SLIB_DIRECTORY_MISMATCH"),
-        (
-            DirectoryNonCanonicalOrder,
-            "SLIB_DIRECTORY_NON_CANONICAL_ORDER",
-        ),
-        (CapabilityInvalid, "SLIB_CAPABILITY_INVALID"),
-        (CapabilityUnsupported, "SLIB_CAPABILITY_UNSUPPORTED"),
-        (
-            CapabilityNativeBoundaryClosureRequired,
-            "SLIB_CAPABILITY_NATIVE_BOUNDARY_CLOSURE_REQUIRED",
-        ),
-        (CompatibilitySchema, "SLIB_COMPAT_SCHEMA"),
-        (CompatibilityMangling, "SLIB_COMPAT_MANGLING"),
-        (CompatibilityProfile, "SLIB_COMPAT_PROFILE"),
-        (IdentityMismatch, "SLIB_IDENTITY_MISMATCH"),
-        (IdentityDuplicate, "SLIB_IDENTITY_DUPLICATE"),
-        (IdentityMissing, "SLIB_IDENTITY_MISSING"),
-        (IdentityCycle, "SLIB_IDENTITY_CYCLE"),
-        (IdentityInvalid, "SLIB_IDENTITY_INVALID"),
-        (ReferenceMissing, "SLIB_REFERENCE_MISSING"),
-        (ReferenceFutureLayer, "SLIB_REFERENCE_FUTURE_LAYER"),
-        (ReferenceInvalid, "SLIB_REFERENCE_INVALID"),
-        (BridgeMismatch, "SLIB_BRIDGE_MISMATCH"),
-        (FingerprintMismatch, "SLIB_FINGERPRINT_MISMATCH"),
-        (SessionConflict, "SLIB_SESSION_CONFLICT"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2205, "E2205"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2401, "E2401"),
+        (E2411, "E2411"),
+        (E2411, "E2411"),
+        (E2402, "E2402"),
+        (E2402, "E2402"),
+        (E2404, "E2404"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2405, "E2405"),
+        (E2408, "E2408"),
+        (E2108, "E2108"),
+        (ICE0401, "ICE0401"),
     ];
 
     for (code, spelling) in expected {
@@ -67,7 +61,7 @@ fn nested_reader_error_adds_manifest_origin_without_losing_wire_path() {
     ));
 
     let diagnostic = error.diagnostic();
-    assert_eq!(diagnostic.code(), SlibErrorCode::WireNonCanonical);
+    assert_eq!(diagnostic.code(), DiagnosticCode::E2401);
     assert_eq!(diagnostic.path(), &path);
     assert_eq!(diagnostic.byte_offset(), Some(9));
     assert_eq!(
@@ -83,7 +77,7 @@ fn semantic_import_conflict_has_the_single_session_code() {
     }
     .diagnostic();
 
-    assert_eq!(diagnostic.code(), SlibErrorCode::SessionConflict);
+    assert_eq!(diagnostic.code(), DiagnosticCode::ICE0401);
     assert_eq!(diagnostic.path(), &WirePath::root());
     assert_eq!(
         diagnostic.primary_origin(),

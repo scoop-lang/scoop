@@ -83,8 +83,10 @@ impl Workspace {
         let document =
             scoop_manifest::package::parse_package_manifest(text, scoop_toolchain::SOURCE_TARGETS)
                 .map_err(|error| {
-                    let mut result =
-                        PmError::new(format!("{}: {error}", member.manifest.display()));
+                    let mut result = PmError::new(
+                        error.code(),
+                        format!("{}: {error}", member.manifest.display()),
+                    );
                     if let Some(span) = error.span() {
                         result.origins.push(ManifestOrigin {
                             manifest: member.manifest.clone(),
@@ -170,7 +172,10 @@ impl Workspace {
         keys.into_iter()
             .map(|key| {
                 self.members.get(&key).ok_or_else(|| {
-                    PmError::new(format!("{key} is not a member of {}", self.root.display()))
+                    PmError::new(
+                        scoop_source::DiagnosticCode::E2018,
+                        format!("{key} is not a member of {}", self.root.display()),
+                    )
                 })
             })
             .collect()

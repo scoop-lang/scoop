@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1521",
     "message": "integral enum variants require an explicit integer constant and cannot have payload",
     "notes": [],
     "origin": {

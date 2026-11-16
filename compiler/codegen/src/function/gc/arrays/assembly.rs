@@ -28,7 +28,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     return Err(CodegenError::internal(format!(
                         "array_assembly @{} has an invalid result or internal machine-scalar element type",
                         function.symbol()
-                    )));
+                    )).with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 for (index, part) in parts.iter().enumerate() {
                     match part {
@@ -41,7 +41,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     index,
                                     actual.dump(),
                                     array_metadata.element.dump()
-                                )));
+                                ))
+                                .with_code(scoop_source::DiagnosticCode::ICE1101));
                             }
                         }
                         scoop_lir::ArrayAssemblyPart::CopyArray(value)
@@ -52,7 +53,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 "array_assembly @{} copy part {} is not a managed array",
                                 function.symbol(),
                                 index
-                            )));
+                            ))
+                            .with_code(scoop_source::DiagnosticCode::ICE1101));
                         }
                         scoop_lir::ArrayAssemblyPart::CopyArray(_) => {}
                     }
@@ -78,11 +80,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         "array assembly element count exceeds u64".into(),
                         cause,
                     )
+                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })?;
                 if element_count > i64::MAX as u64 {
                     return Err(CodegenError::internal(
                         "array assembly element count exceeds INT64_MAX".into(),
-                    ));
+                    )
+                    .with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 let mut total = i64_ty.const_int(element_count, false);
                 for (part_index, part) in parts.iter().enumerate() {
@@ -244,6 +248,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 .into_int_value();
                             let preheader = builder.get_insert_block().ok_or_else(|| {
                                 CodegenError::internal("builder has no insertion block".to_string())
+                                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                             })?;
                             let condition = context.append_basic_block(
                                 self.llvm_function,
@@ -275,6 +280,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                         "build array assembly copy index @{symbol}: {error}",
                                         symbol = function.symbol()
                                     ))
+                                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                                 },
                             )?;
                             index.add_incoming(&[(&i64_ty.const_zero(), preheader)]);

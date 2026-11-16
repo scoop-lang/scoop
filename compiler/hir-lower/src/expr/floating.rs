@@ -27,13 +27,18 @@ impl Lowerer {
         let ty = self
             .core_float_type(kind)
             .map_err(|error| {
-                self.error(span, error.diagnostic("floating literal type"));
+                self.error(
+                    scoop_source::DiagnosticCode::E1403,
+                    span,
+                    error.diagnostic("floating literal type"),
+                );
             })
             .ok()?;
         let value = match parse_decimal(&literal.decimal, kind) {
             Ok(value) => value,
             Err(message) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0107,
                     span,
                     format!(
                         "floating literal is out of range for {}: {message}",

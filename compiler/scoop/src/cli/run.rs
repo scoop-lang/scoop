@@ -38,5 +38,9 @@ pub(super) fn program(
 }
 
 fn failure(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_PROGRAM_START", BuildFailurePhase::Run, error)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E2204,
+        BuildFailurePhase::Run,
+        error,
+    )
 }

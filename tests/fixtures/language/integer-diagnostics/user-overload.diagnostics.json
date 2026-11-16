@@ -1,8 +1,36 @@
 [
   {
-    "severity": "error",
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `plus` in member candidate layer:\n  - fun Mixer.plus(other: Int8): Int8 — argument for `other` has type Int16, which is not a subtype of Int8",
+    "code": "E0711",
+    "message": "no applicable candidate for `plus` in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Mixer.plus(other: Int8): Int8",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "argument for `other` has type Int16, which is not a subtype of Int8",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 138,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 131
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 65,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 21
+        }
+      }
+    ],
     "origin": {
       "kind": "source",
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
@@ -10,6 +38,6 @@
       "start": 131,
       "end": 138
     },
-    "notes": []
+    "severity": "error"
   }
 ]

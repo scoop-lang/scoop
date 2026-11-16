@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `conflict` is ambiguous in exact import layer:\n  - conflict<T>(left: T, right: Int): Int — applicable; tied by MSC\n  - conflict<T>(left: Int, right: T): Int — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `conflict` is ambiguous in exact import layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "conflict<T>(left: T, right: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "conflict<T>(left: Int, right: T): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "911bf5d4a57e1d435ae437b404196810e79aff938d88a37fd3f9a609f1d8a006",
       "end": 99,

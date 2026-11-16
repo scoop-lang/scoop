@@ -10,16 +10,22 @@ impl CToolchainOptions {
                 .as_deref()
                 .map(|p| {
                     let p = if p.components().count() > 1 {
-                        std::path::absolute(p).map_err(|e| ToolchainError(e.to_string()))?
+                        std::path::absolute(p).map_err(|e| {
+                            ToolchainError::new(scoop_source::DiagnosticCode::E2201, e.to_string())
+                        })?
                     } else {
                         p.to_owned()
                     };
-                    HostPathCarrier::from_path(&p).map_err(|e| ToolchainError(e.to_string()))
+                    HostPathCarrier::from_path(&p).map_err(|e| {
+                        ToolchainError::new(scoop_source::DiagnosticCode::ICE2501, e.to_string())
+                    })
                 })
                 .transpose()
         };
         Ok(TargetSelectionRequestV1::new(triple)
-            .map_err(|error| ToolchainError(error.to_string()))?
+            .map_err(|error| {
+                ToolchainError::new(scoop_source::DiagnosticCode::E2301, error.to_string())
+            })?
             .with_native_toolchain(
                 path(&self.compiler)?,
                 path(
@@ -28,7 +34,9 @@ impl CToolchainOptions {
                         .as_deref()
                         .map(std::path::absolute)
                         .transpose()
-                        .map_err(|e| ToolchainError(e.to_string()))?,
+                        .map_err(|e| {
+                            ToolchainError::new(scoop_source::DiagnosticCode::E2201, e.to_string())
+                        })?,
                 )?,
                 path(&self.cxx_compiler)?,
             )
@@ -38,7 +46,9 @@ impl CToolchainOptions {
                     .as_deref()
                     .map(std::path::absolute)
                     .transpose()
-                    .map_err(|e| ToolchainError(e.to_string()))?,
+                    .map_err(|e| {
+                        ToolchainError::new(scoop_source::DiagnosticCode::E2201, e.to_string())
+                    })?,
             )?))
     }
 
@@ -47,7 +57,9 @@ impl CToolchainOptions {
             value
                 .map(HostPathCarrier::to_path_buf)
                 .transpose()
-                .map_err(|error| ToolchainError(error.to_string()))
+                .map_err(|error| {
+                    ToolchainError::new(scoop_source::DiagnosticCode::E2502, error.to_string())
+                })
         };
         Ok(Self {
             compiler: path(request.compiler())?,
@@ -62,8 +74,12 @@ impl ResolvedTargetProfile {
     pub fn resolve_request(request: &TargetSelectionRequestV1) -> Result<Self, ToolchainError> {
         if let Some(bytes) = request.resolved_toolchain() {
             let record: crate::native_invocation::ResolvedInvocation =
-                serde_json::from_slice(bytes)
-                    .map_err(|e| ToolchainError(format!("C toolchain request: {e}")))?;
+                serde_json::from_slice(bytes).map_err(|e| {
+                    ToolchainError::new(
+                        scoop_source::DiagnosticCode::E2502,
+                        format!("C toolchain request: {e}"),
+                    )
+                })?;
             return record.into_target(request.canonical_triple());
         }
         Self::resolve_with(
@@ -73,12 +89,18 @@ impl ResolvedTargetProfile {
     }
 
     pub fn child_request(&self) -> Result<TargetSelectionRequestV1, ToolchainError> {
-        let request = TargetSelectionRequestV1::new(self.canonical_triple().to_owned())
-            .map_err(|error| ToolchainError(error.to_string()))?;
+        let request =
+            TargetSelectionRequestV1::new(self.canonical_triple().to_owned()).map_err(|error| {
+                ToolchainError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
+            })?;
         let record = crate::native_invocation::ResolvedInvocation::from_target(self)?;
-        Ok(request.with_resolved_toolchain(
-            serde_json::to_vec(&record)
-                .map_err(|e| ToolchainError(format!("C toolchain request: {e}")))?,
-        ))
+        Ok(
+            request.with_resolved_toolchain(serde_json::to_vec(&record).map_err(|e| {
+                ToolchainError::new(
+                    scoop_source::DiagnosticCode::ICE2501,
+                    format!("C toolchain request: {e}"),
+                )
+            })?),
+        )
     }
 }

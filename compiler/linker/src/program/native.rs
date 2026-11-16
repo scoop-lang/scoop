@@ -40,9 +40,10 @@ pub(super) fn resolve(
                 .is_some_and(|owner| matches!(owner, DefinitionOwner::Scoop(_)))
                 || inputs.compiler_owned(symbol)
             {
-                return Err(error(format!(
-                    "source extern {symbol} conflicts with a compiler-owned definition"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2412,
+                    format!("source extern {symbol} conflicts with a compiler-owned definition"),
+                ));
             }
             let candidate = selection::candidate(symbol, declaration.contract.library(), inputs)?;
             match candidate {
@@ -53,7 +54,10 @@ pub(super) fn resolve(
                 selection::Candidate::Definition => {
                     let definition =
                         runtime.symbols().definitions.get(symbol).ok_or_else(|| {
-                            error(format!("source extern {symbol} has no native definition"))
+                            error(
+                                scoop_source::DiagnosticCode::E2308,
+                                format!("source extern {symbol} has no native definition"),
+                            )
                         })?;
                     check_kind(symbol, declaration.contract, *definition)?;
                 }
@@ -64,7 +68,10 @@ pub(super) fn resolve(
                             | NativeExternalContract::MutableTls { .. }
                     );
                     if binding.is_tls().is_some_and(|actual| actual != tls) {
-                        return Err(error(format!("native TLS storage mismatch for {symbol}")));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2306,
+                            format!("native TLS storage mismatch for {symbol}"),
+                        ));
                     }
                     if let Some(definition) = binding.definition() {
                         check_kind(symbol, declaration.contract, definition)?;
@@ -74,10 +81,10 @@ pub(super) fn resolve(
             contracts::check_compiler_contract(symbol, declaration.contract, profile, closure)
         })();
         result.map_err(|err| {
-            error(format!(
-                "{err}; origins: {}",
-                declaration.origins.join(", ")
-            ))
+            error(
+                err.code(),
+                format!("{err}; origins: {}", declaration.origins.join(", ")),
+            )
         })?;
     }
     selection::resolve(inputs, declarations, runtime)?;
@@ -117,9 +124,12 @@ fn check_kind(
         NativeExternalContract::MutableTls { .. } => (NativeSymbolKind::ThreadLocal, true),
     };
     if definition.kind != kind || (mutable && definition.read_only) {
-        return Err(error(format!(
-            "native definition {symbol} has incompatible function/data/TLS/mutability: {definition:?}"
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2306,
+            format!(
+                "native definition {symbol} has incompatible function/data/TLS/mutability: {definition:?}"
+            ),
+        ));
     }
     Ok(())
 }

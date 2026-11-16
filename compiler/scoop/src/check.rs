@@ -38,9 +38,9 @@ pub fn check(graph: ResolvedBuildGraph, request: CheckRequest) -> BuildResult<Ch
 }
 
 fn error(message: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_CHECK", BuildFailurePhase::ChildDiagnostic, message)
-}
-
-fn io_error(path: &std::path::Path, message: impl std::fmt::Display) -> Box<BuildFailure> {
-    error(message).at_host(path)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::ICE2201,
+        BuildFailurePhase::ChildDiagnostic,
+        message,
+    )
 }

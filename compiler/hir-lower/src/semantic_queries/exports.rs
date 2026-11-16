@@ -33,6 +33,7 @@ impl Lowerer {
                 .filter(|world| world.direct_provider(provider).is_some())
                 .ok_or_else(|| {
                     Diagnostic::at(
+                        scoop_source::DiagnosticCode::E2505,
                         Span::new(0, 0),
                         "export provider is not in the current dependency view",
                     )
@@ -49,6 +50,7 @@ impl Lowerer {
                     | hir::DirectNamespaceLookupError::NotStaticOwner { .. },
                 ) => Ok(Vec::new()),
                 Err(error) => Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E2505,
                     Span::new(0, 0),
                     format!("cannot resolve export: {error}"),
                 )),
@@ -96,6 +98,7 @@ impl Lowerer {
         Ok(match target {
             CurrentUnitTarget::Unavailable(_) | CurrentUnitTarget::UnavailableImport => {
                 return Err(Diagnostic::without_span(
+                    scoop_source::DiagnosticCode::E2505,
                     scoop_ast::DiagnosticSeverity::Error,
                     self.current_file,
                     "declaration has no complete semantic input",
@@ -112,7 +115,12 @@ impl Lowerer {
             CurrentUnitTarget::Annotation(id) => BindableEntity::Annotation(id),
             CurrentUnitTarget::Property(id) => {
                 match self.complete_property_identity(id).map_err(|error| {
-                    Diagnostic::at_file(error.file(), error.span(), error.to_string())
+                    Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::ICE0401,
+                        error.file(),
+                        error.span(),
+                        error.to_string(),
+                    )
                 })? {
                     hir::HirPropertyIdentity::Ordinary(record) => {
                         BindableEntity::Property(record.id())

@@ -10,19 +10,21 @@
 4. 将复杂调用拆成有类型注解的局部 val，或在最小程序里保留出错的调用和实际声明。先修复内层参数，再检查外层；不要同时换 API、弱化断言并增加异常捕获，这会丢失定位依据。
 5. 小程序与规范/声明仍冲突时，保留最小源码、工具链版本、完整诊断及命令报告编译器问题。临时绕行必须保持业务语义，不能把未经证实的限制写成语言事实。
 
-缺少名称或扩展时，先看诊断 note 中的 `available with import`。编译 JSON 的 note 带 `importPath` 标识符数组，LSP 诊断的 data.imports 提供同一组路径；它们来自当前 Cone/直接依赖的真实可见声明。可用 `scoop-lsp query code-actions 文件 --line 行 --column 列 --format json` 取得相应插入。路径可能含需反引号引用的标识符，优先审阅工具生成的编辑，不把标识符数组直接用点拼成源码。无提示不等于 API 不存在，继续查 `scoop api search/show` 和依赖/可见性。
+编译与构建诊断使用固定规则编号：`E` 是错误，`W` 是警告，`N` 是说明，`H` 是修改建议，`ICE` 表示编译器内部合同失败。被 deny 的警告仍保留 W 编号。先看主错误，再展开递归 `notes` 中的候选、原因和建议；附加原因沿用对应 E 编号，不按英文文案判断错误种类。
+
+缺少名称或扩展时，先看 `H0401` 建议中的 `available with import`。编译 JSON 的 note 带 `importPath` 标识符数组，LSP 诊断的 data.imports 提供同一组路径；它们来自当前 Cone/直接依赖的真实可见声明。可用 `scoop-lsp query code-actions 文件 --line 行 --column 列 --format json` 取得相应插入。路径可能含需反引号引用的标识符，优先审阅工具生成的编辑，不把标识符数组直接用点拼成源码。无提示不等于 API 不存在，继续查 `scoop api search/show` 和依赖/可见性。
 
 例如 `fun optional(value: String?): String? = value` 与 `assertEquals(Some("x"), optional("x"))` 的问题在 optional 的实参。应明确实际意图并修为 `optional(Some("x"))`，保持原断言。编译器会尽量保留这个内层错误；候选仍可能依赖期望类型，因此复杂调用需要按上面的步骤缩小，不能仅凭外层错误文字推断语言限制。
 
-| 现象 | 优先核对 |
-| --- | --- |
-| String 与 Option<String> 不匹配 | `T?` 是 Option<T>，存在值显式 Some；期望类型和安全调用的嵌套层数 |
-| `assertEquals` 提示 Equals 约束失败 | 内层表达式是否已出错；名义与结构相等两个入口；actual/expected 的准确类型 |
-| 同名方法/扩展不可见 | package/import、直接依赖、成员可见性、receiver 与约束；不能仅凭名称判断不存在 |
-| 普通/挂起函数类型不匹配 | 是未定型字面量还是已定型函数值；是否需要 CoroutineScope 等 receiver；调用上下文是否允许挂起 |
-| 测试能检查，生产程序失败 | `check --tests` 不验证生产 main；分别检查对应入口 |
+| 现象                                | 优先核对                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| String 与 Option<String> 不匹配     | `T?` 是 Option<T>，存在值显式 Some；期望类型和安全调用的嵌套层数                            |
+| `assertEquals` 提示 Equals 约束失败 | 内层表达式是否已出错；名义与结构相等两个入口；actual/expected 的准确类型                    |
+| 同名方法/扩展不可见                 | package/import、直接依赖、成员可见性、receiver 与约束；不能仅凭名称判断不存在               |
+| 普通/挂起函数类型不匹配             | 是未定型字面量还是已定型函数值；是否需要 CoroutineScope 等 receiver；调用上下文是否允许挂起 |
+| 测试能检查，生产程序失败            | `check --tests` 不验证生产 main；分别检查对应入口                                           |
 
-编译诊断 JSON 在 stderr。该流还可能包含构建进度或外部工具日志，按实际协议读取记录，不把整个流当作一个 JSON 值。失败输出不能作为正常主题/API JSON 继续使用。
+编译诊断 JSON（`schema: 2`）在 stderr。主诊断与每层 notes 均保留 `code`、位置和消息；notes 的 `kind` 区分 `cause`、`note`、`help`。LSP 的 `code` 和诊断 data 保留相同编号。外部生成器自定义报告保留它自己的标识和 severity；未给标识时显示 `GENERATOR_DIAGNOSTIC`，关联说明保留生成器名称。该流还可能包含构建进度或外部工具日志，按实际协议读取记录，不把整个流当作一个 JSON 值。失败输出不能作为正常主题/API JSON 继续使用。
 
 ## 运行与集成错误
 

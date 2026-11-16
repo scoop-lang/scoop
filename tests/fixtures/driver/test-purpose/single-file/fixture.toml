@@ -11,7 +11,7 @@ name = "reject"
 argv = ["${scoop}", "build", "--profile", "release", {"each" = "${compile_args}"}, "${root}", "--emit-slib", "--tests", "-o", "${work}/tests.slib"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_CLI_CONFIG]: test requires a manifest Cone\n"
+stderr = "error[E2001]: test requires a manifest Cone\n"
 checks = [{file = "${work}/tests.slib", exists = false}]
 
 [[steps]]
@@ -19,5 +19,5 @@ name = "reject-test-command"
 argv = ["${scoop}", "test", "--release", {"each" = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/output"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_CLI_CONFIG]: test requires a manifest Cone\n"
+stderr = "error[E2001]: test requires a manifest Cone\n"
 checks = [{file = "${work}/output", exists = false}]

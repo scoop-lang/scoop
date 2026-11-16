@@ -35,6 +35,7 @@ impl Parser {
             let function = self.parse_paren_type(is_suspend, start)?;
             let TypeRefKind::Function(mut signature) = function.kind else {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0201,
                     function.span,
                     "receiver function type requires `->` and a result type",
                 ));
@@ -50,6 +51,7 @@ impl Parser {
             let TypeRefKind::Function(signature) = &mut ty.kind else {
                 if parenthesized {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0201,
                         self.peek().span,
                         format!(
                             "expected `->` in suspend function type, found {}",
@@ -58,6 +60,7 @@ impl Parser {
                     ));
                 }
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0208,
                     ty.span,
                     "`suspend` requires a function type",
                 ));
@@ -104,6 +107,7 @@ impl Parser {
         let token = self.peek().clone();
         match token.kind {
             TokenKind::Ident(ref text) if text == "_" => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0207,
                 token.span,
                 "`_` is only allowed in call type argument lists",
             )),
@@ -153,6 +157,7 @@ impl Parser {
         }
         if is_suspend {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 format!(
                     "expected `->` in suspend function type, found {}",
@@ -250,17 +255,25 @@ impl Parser {
         let token = self.peek().clone();
         match &token.kind {
             TokenKind::In => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0616,
                 token.span,
                 "`in` projections are not supported; nominal generic applications are invariant",
             )),
             TokenKind::Ident(text) if text == "out" => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0616,
                 token.span,
                 "`out` projections are not supported; nominal generic applications are invariant",
             )),
             TokenKind::Star => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0616,
                 token.span,
-                "star projections are not supported; use a bounded generic callable, an exact interface, or an explicit wrapper",
-            )),
+                "star projections are not supported".to_owned(),
+            )
+            .with_note(scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0601,
+                "use a bounded generic callable, an exact interface, or an explicit wrapper"
+                    .to_owned(),
+            ))),
             _ => self.parse_type_ref(),
         }
     }

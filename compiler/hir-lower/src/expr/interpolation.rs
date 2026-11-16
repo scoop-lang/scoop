@@ -81,6 +81,7 @@ impl Lowerer {
             .collect::<Vec<_>>();
         if targets.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 span,
                 "f-string requires the core StringBuilder declaration".into(),
             );
@@ -169,6 +170,7 @@ impl Lowerer {
             PropertyExtensionInvokeOutcome::Blocked => None,
             PropertyExtensionInvokeOutcome::NoApplicable(None) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1404,
                     span,
                     format!("core StringBuilder has no applicable `{member}` member"),
                 );

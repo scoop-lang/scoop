@@ -120,8 +120,10 @@ impl Lowerer {
             Ok(facts) => (facts.values, Some(facts.hints)),
             Err(failure) => match failure.kind {
                 ArgumentInferenceFailureKind::Internal(error) => {
-                    self.diagnostics
-                        .push(scoop_ast::Diagnostic::internal(error));
+                    self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                        scoop_source::DiagnosticCode::ICE0601,
+                        error,
+                    ));
                     return Err(U::BodyFailure);
                 }
                 ArgumentInferenceFailureKind::Constraint(_) => return Ok(None),

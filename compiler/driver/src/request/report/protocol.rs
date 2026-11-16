@@ -53,7 +53,6 @@ fn source_origin(
 
 fn convert(
     diagnostic: &Diagnostic,
-    code: &str,
     source_text: impl Fn(&SourceIdentity) -> Option<String>,
 ) -> Result<StructuredDiagnosticV1, DiagnosticMappingError> {
     let origin = match &diagnostic.location {
@@ -67,14 +66,7 @@ fn convert(
     let notes = diagnostic
         .notes
         .iter()
-        .map(|note| {
-            DiagnosticNoteV1::new(
-                note.message.clone(),
-                source_origin(&note.source, note.span, &source_text)?,
-            )
-            .and_then(|result| result.with_import_path(note.import_path.clone()))
-            .map_err(mapping)
-        })
+        .map(|note| convert_note(note, &source_text))
         .collect::<Result<Vec<_>, _>>()?;
     let severity = match diagnostic.severity {
         DiagnosticSeverity::Error => DiagnosticSeverityV1::Error,
@@ -82,12 +74,7 @@ fn convert(
     };
     StructuredDiagnosticV1::new(
         severity,
-        if severity.is_error() {
-            code
-        } else {
-            "SCOOPC_COMPILER_WARNING"
-        }
-        .to_owned(),
+        diagnostic.code.to_string(),
         diagnostic.message.clone(),
         origin,
         notes,
@@ -95,19 +82,31 @@ fn convert(
     .map_err(mapping)
 }
 
+fn convert_note(
+    note: &scoop_source::SourceDiagnosticNote,
+    source_text: &impl Fn(&SourceIdentity) -> Option<String>,
+) -> Result<DiagnosticNoteV1, DiagnosticMappingError> {
+    let origin = match note.source().zip(note.span()) {
+        Some((source, span)) => source_origin(source, span, source_text)?,
+        None => DiagnosticOriginV1::None,
+    };
+    let notes = note
+        .notes
+        .iter()
+        .map(|note| convert_note(note, source_text))
+        .collect::<Result<Vec<_>, _>>()?;
+    DiagnosticNoteV1::new(&note.code, note.message.clone(), origin)
+        .and_then(|note_result| note_result.with_import_path(note.import_path.clone()))
+        .map(|note| note.with_notes(notes))
+        .map_err(mapping)
+}
+
 impl CurrentConeDiagnosticSet {
     pub fn structured(&self) -> Result<Vec<StructuredDiagnosticV1>, DiagnosticMappingError> {
-        self.structured_with_code("SCOOPC_HIR_ERROR")
-    }
-
-    fn structured_with_code(
-        &self,
-        code: &str,
-    ) -> Result<Vec<StructuredDiagnosticV1>, DiagnosticMappingError> {
         self.diagnostics
             .iter()
             .map(|diagnostic| {
-                convert(diagnostic, code, |identity| {
+                convert(diagnostic, |identity| {
                     self.sources
                         .iter()
                         .find(|source| source.in_memory && &source.identity == identity)
@@ -126,19 +125,19 @@ impl SingleConeProductionError {
         use crate::CurrentConeSourceStageError;
         let mut diagnostics = match self {
             Self::Sources(CurrentConeSourceStageError::Package(diagnostics)) => {
-                diagnostics.structured_with_code("SCOOPC_PACKAGE_ERROR")?
+                diagnostics.structured()?
             }
             Self::Sources(CurrentConeSourceStageError::Parser(error)) => match error.as_ref() {
                 scoop_parser::ParseCurrentConeError::Diagnostics(diagnostics) => diagnostics
                     .iter()
-                    .map(|parsed| convert(parsed.diagnostic(), "SCOOPC_PARSE_ERROR", |_| None))
+                    .map(|parsed| convert(parsed.diagnostic(), |_| None))
                     .collect::<Result<Vec<_>, _>>()?,
                 _ => vec![tool_error(self)?],
             },
             Self::Production(error) => match error.cause() {
                 CurrentConeProductionFailure::Hir(CurrentConeHirStageError::Lowering(
                     diagnostics,
-                )) => diagnostics.structured_with_code("SCOOPC_HIR_ERROR")?,
+                )) => diagnostics.structured()?,
                 _ => vec![tool_error(self)?],
             },
             _ => vec![tool_error(self)?],
@@ -203,10 +202,14 @@ fn tool_error(
     };
     StructuredDiagnosticV1::new(
         DiagnosticSeverityV1::Error,
-        "SCOOPC_BUILD_FAILED".to_owned(),
+        error.code().to_string(),
         error.to_string(),
         origin,
-        Vec::new(),
+        error
+            .notes()
+            .iter()
+            .map(|note| convert_note(note, &|_| None))
+            .collect::<Result<_, _>>()?,
     )
     .map_err(mapping)
 }

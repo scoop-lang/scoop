@@ -59,9 +59,12 @@ impl MetadataModule<'_> {
                 {
                     Ok(handle) => handles.push(handle),
                     Err(error) => {
-                        spawn_error = Some(CodegenError::internal(format!(
-                            "cannot start LLVM metadata worker: {error}"
-                        )));
+                        spawn_error = Some(
+                            CodegenError::internal(format!(
+                                "cannot start LLVM metadata worker: {error}"
+                            ))
+                            .with_code(scoop_source::DiagnosticCode::ICE2302),
+                        );
                         break;
                     }
                 }
@@ -69,9 +72,10 @@ impl MetadataModule<'_> {
             let mut batches = vec![emit_group(first, profile, emit)];
             for handle in handles {
                 batches.push(handle.join().unwrap_or_else(|_| {
-                    Err(CodegenError::internal(
-                        "LLVM metadata worker panicked".into(),
-                    ))
+                    Err(
+                        CodegenError::internal("LLVM metadata worker panicked".into())
+                            .with_code(scoop_source::DiagnosticCode::ICE2302),
+                    )
                 }));
             }
             if let Some(error) = spawn_error {

@@ -38,6 +38,7 @@ pub(crate) fn split(
                 };
                 if !path.rest.is_empty() {
                     warnings.push(Diagnostic::warning_at(
+                        scoop_source::DiagnosticCode::W1804,
                         path.span,
                         format!("`@{}` requires one parameter name", marker.name),
                     ));
@@ -74,6 +75,7 @@ pub(crate) fn split(
             "since" if !text.text[marker.after_name..end].trim().is_empty() => DocTagKind::Since,
             "since" => {
                 warnings.push(Diagnostic::warning_at(
+                    scoop_source::DiagnosticCode::W1805,
                     span,
                     "`@since` requires version text",
                 ));
@@ -81,6 +83,7 @@ pub(crate) fn split(
             }
             name => {
                 warnings.push(Diagnostic::warning_at(
+                    scoop_source::DiagnosticCode::W1806,
                     span,
                     format!("unknown documentation tag `@{name}`"),
                 ));
@@ -112,6 +115,7 @@ fn named_subject(
 ) -> Option<scoop_ast::QualifiedNameSyntax> {
     if subject.start == subject.end {
         warnings.push(Diagnostic::warning_at(
+            scoop_source::DiagnosticCode::W1807,
             text.source_span(Span::new(marker.start as u32, marker.after_name as u32)),
             format!("`@{}` requires a name", marker.name),
         ));
@@ -120,6 +124,7 @@ fn named_subject(
         Some(path)
     } else {
         warnings.push(Diagnostic::warning_at(
+            scoop_source::DiagnosticCode::W1804,
             text.source_span(subject),
             format!("invalid name for documentation tag `@{}`", marker.name),
         ));

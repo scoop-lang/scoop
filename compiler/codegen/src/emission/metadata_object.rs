@@ -22,7 +22,8 @@ pub(super) fn emit(machine: &TargetMachine, module: &Module<'_>) -> Result<Vec<u
         return Err(CodegenError::internal(format!(
             "LLVM cannot emit a metadata object for {}",
             machine.get_triple().as_str().to_string_lossy()
-        )));
+        ))
+        .with_code(scoop_source::DiagnosticCode::ICE2302));
     }
     // SAFETY: the shim returns a newly owned LLVM memory buffer on success.
     let buffer = unsafe { MemoryBuffer::new(buffer) };

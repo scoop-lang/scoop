@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1209",
     "message": "delegated properties cannot use raw or extern storage annotations",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1209",
     "message": "Option shorthand cannot use raw or extern storage annotations",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `WrongExtension` has no applicable property delegate operator `getValue`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `NoGet` has no applicable property delegate operator `getValue`",
     "notes": [],
     "origin": {

@@ -40,9 +40,11 @@ pub(super) fn execute(args: MetadataArgs) -> PmResult<()> {
         .overlays_stdin
         .then(|| read_overlays(true))
         .transpose()?;
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let host = |path: PathBuf| {
-        HostPathCarrier::from_path(&cwd.join(path)).map_err(|error| PmError::new(error.to_string()))
+        HostPathCarrier::from_path(&cwd.join(path))
+            .map_err(|error| PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string()))
     };
     let members = if args.members.workspace {
         PackageMemberSelectionV1::All
@@ -66,10 +68,10 @@ pub(super) fn execute(args: MetadataArgs) -> PmResult<()> {
             .target
             .map(Ok)
             .unwrap_or_else(|| scoop_toolchain::host_target_triple().map(str::to_owned))
-            .map_err(|error| PmError::new(error.to_string()))?,
+            .map_err(|error| PmError::new(error.code(), error.to_string()))?,
         sysroot: host(
             scoop_toolchain::configured_sysroot_root(args.sysroot)
-                .map_err(|error| PmError::new(error.to_string()))?,
+                .map_err(|error| PmError::new(error.code(), error.to_string()))?,
         )?,
         artifact_roots: args
             .cone_path
@@ -88,7 +90,10 @@ pub(super) fn execute(args: MetadataArgs) -> PmResult<()> {
     };
     println!(
         "{}",
-        serde_json::to_string_pretty(&result).map_err(|error| PmError::new(error.to_string()))?
+        serde_json::to_string_pretty(&result).map_err(|error| PmError::new(
+            scoop_source::DiagnosticCode::ICE2501,
+            error.to_string()
+        ))?
     );
     Ok(())
 }
@@ -97,7 +102,11 @@ pub(super) fn read_overlays(enabled: bool) -> PmResult<scoop_pm::ManifestOverlay
     if !enabled {
         return Ok(scoop_pm::ManifestOverlays::default());
     }
-    let input = serde_json::from_reader(std::io::stdin().lock())
-        .map_err(|error| PmError::new(format!("invalid manifest overlays: {error}")))?;
+    let input = serde_json::from_reader(std::io::stdin().lock()).map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2502,
+            format!("invalid manifest overlays: {error}"),
+        )
+    })?;
     scoop_pm::ManifestOverlays::new(input)
 }

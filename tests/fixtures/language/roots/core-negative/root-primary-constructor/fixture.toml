@@ -19,5 +19,5 @@ stdout = ""
 stderr = ""
 json = "stderr"
 checks = [
-  {actual = "${reject.diagnostics.0}", equals = {code = "SCOOPC_HIR_ERROR", message = "intrinsic type `core_nothing` must omit its fields or primary constructor", notes = [], origin = {cone = "5ea5f5e8ff248182c8f8c7e1043caae20f163bcefd34cca4e97d8c6a03bf620d", end = 111, kind = "source", path = "src/roots.scoop", start = 80}, severity = "error"}},
+  {actual = "${reject.diagnostics.0}", equals = {code = "E1403", message = "intrinsic type `core_nothing` must omit its fields or primary constructor", notes = [], origin = {cone = "5ea5f5e8ff248182c8f8c7e1043caae20f163bcefd34cca4e97d8c6a03bf620d", end = 111, kind = "source", path = "src/roots.scoop", start = 80}, severity = "error"}},
 ]

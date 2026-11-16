@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `read` does not cover inherited slot `Parent.read`",
     "notes": [],
     "origin": {

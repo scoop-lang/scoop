@@ -50,11 +50,13 @@ impl LinuxFinalLinkProfile {
             });
         if output.kind() == FinalOutputKind::SharedLibrary && mode == LinkMode::Static {
             return Err(error(
+                scoop_source::DiagnosticCode::E2301,
                 "Linux shared library output requires dynamic system libraries",
             ));
         }
         if selected.libc == LinuxLibc::Gnu && mode == LinkMode::Static {
             return Err(error(
+                scoop_source::DiagnosticCode::E2301,
                 "M28 supports glibc dynamic PIE; glibc static linking is outside its target matrix",
             ));
         }

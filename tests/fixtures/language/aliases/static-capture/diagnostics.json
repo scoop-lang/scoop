@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0401",
     "message": "unknown type `T`",
     "notes": [],
     "origin": {

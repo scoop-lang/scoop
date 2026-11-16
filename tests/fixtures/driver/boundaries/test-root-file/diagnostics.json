@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2002",
     "message": "cannot snapshot manifest sources: source discovery failed at ${fixture}/program/tests: resolved tests root is not a directory",
     "notes": [],
     "origin": {

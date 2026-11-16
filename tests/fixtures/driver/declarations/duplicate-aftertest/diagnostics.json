@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1708",
     "message": "a test container may declare at most one `@AfterTest` method",
     "notes": [
       {
+        "code": "N0001",
+        "kind": "note",
         "message": "the other lifecycle method is declared here",
+        "notes": [],
         "origin": {
           "cone": "a17e2e471e5f964540ffba80e904b816ed7abaaa25546981b8e89aec5d52eacd",
           "end": 71,

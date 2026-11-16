@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Missing` does not implement interface method `Values<Int, Unit>.$get$second`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Missing` does not implement interface method `Values<Int, Unit>.$set$second`",
     "notes": [],
     "origin": {

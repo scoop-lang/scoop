@@ -28,6 +28,7 @@ impl Lowerer {
             if !self.access_domain_is_subset(&required.0, &provided.0) {
                 let target = self.functions[*candidate].name.clone();
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     decl.name.span,
                     format!(
                         "visibility of `{}` does not cover inherited slot `{target}`",
@@ -55,6 +56,7 @@ impl Lowerer {
             && modifier != hir::MethodModifier::Final
         {
             self.error(
+                scoop_source::DiagnosticCode::E0305,
                 decl.name.span,
                 format!("private method `{}` must be final", decl.name.text),
             );
@@ -68,6 +70,7 @@ impl Lowerer {
                 )
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     decl.name.span,
                     format!(
                         "member `{}` of public interface `{}` must be explicitly public",
@@ -77,6 +80,7 @@ impl Lowerer {
             }
             if access.declared == hir::DeclaredVisibility::Private && decl.is_override {
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     decl.name.span,
                     format!(
                         "private interface method `{}` cannot be an override",
@@ -98,7 +102,7 @@ impl Lowerer {
             unreachable!("an abstract method always has a slot contract")
         };
         if !self.access_domain_is_subset(&required, &provided.0) {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1016,
                 decl.name.span,
                 format!(
                     "abstract method `{}` is not visible throughout the inheritance domain of class `{}`",

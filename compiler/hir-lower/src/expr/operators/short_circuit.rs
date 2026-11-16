@@ -33,6 +33,7 @@ impl Lowerer {
             let lhs_ty = self.type_name(lhs.ty);
             let rhs_ty = self.type_name(rhs.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "operator `{symbol}` requires Boolean operands, found {lhs_ty} and {rhs_ty}"

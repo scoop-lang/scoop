@@ -15,14 +15,17 @@ impl Lowerer {
         index: &DocumentationIndex,
         world: Option<&hir::ImportedSemanticWorld<'_>>,
         types_only: bool,
-    ) -> Result<Vec<Symbol>, &'static str> {
+    ) -> Result<Vec<Symbol>, (scoop_source::DiagnosticCode, &'static str)> {
         let segments = path.segments().cloned().collect::<Vec<_>>();
         let (mut symbols, consumed) = if let Some(package) =
             self.qualified_package_prefix(&segments)
         {
             let consumed = package.consumed() + 1;
             if consumed > segments.len() {
-                return Err("names a package, not a declaration");
+                return Err((
+                    scoop_source::DiagnosticCode::W1809,
+                    "names a package, not a declaration",
+                ));
             }
             let head = ast::QualifiedNameSyntax {
                 first: path.first.clone(),
@@ -32,7 +35,7 @@ impl Lowerer {
             let targets = self
                 .imports
                 .documentation_qualified_targets(self, world, &head)
-                .map_err(|_| "cannot be resolved")?;
+                .map_err(|_| (scoop_source::DiagnosticCode::W1810, "cannot be resolved"))?;
             (self.documentation_named_targets(targets, world), consumed)
         } else {
             (
@@ -43,7 +46,10 @@ impl Lowerer {
         for name in &segments[consumed..] {
             symbols = canonical_symbols(symbols, types_only)?;
             if symbols.len() != 1 {
-                return Err("has an ambiguous owner");
+                return Err((
+                    scoop_source::DiagnosticCode::W1811,
+                    "has an ambiguous owner",
+                ));
             }
             symbols = self.documentation_members(symbols[0], &name.text, world);
         }
@@ -121,7 +127,10 @@ fn is_type(symbol: &Symbol) -> bool {
     )
 }
 
-fn canonical_symbols(symbols: Vec<Symbol>, types_only: bool) -> Result<Vec<Symbol>, &'static str> {
+fn canonical_symbols(
+    symbols: Vec<Symbol>,
+    types_only: bool,
+) -> Result<Vec<Symbol>, (scoop_source::DiagnosticCode, &'static str)> {
     let mut unique = Vec::new();
     for symbol in symbols {
         if types_only && !is_type(&symbol) {
@@ -132,7 +141,7 @@ fn canonical_symbols(symbols: Vec<Symbol>, types_only: bool) -> Result<Vec<Symbo
         }
     }
     if unique.is_empty() {
-        return Err("cannot be resolved");
+        return Err((scoop_source::DiagnosticCode::W1810, "cannot be resolved"));
     }
     if unique.len() > 1
         && !unique.iter().all(|symbol| {
@@ -148,7 +157,7 @@ fn canonical_symbols(symbols: Vec<Symbol>, types_only: bool) -> Result<Vec<Symbo
             )
         })
     {
-        return Err("is ambiguous");
+        return Err((scoop_source::DiagnosticCode::W1811, "is ambiguous"));
     }
     Ok(unique)
 }

@@ -465,7 +465,7 @@ pub enum ConeLirFoundationError {
 }
 
 impl ConeLirFoundationError {
-    pub const CODE: &'static str = "SCOOPC_CAPABILITY_ODR_UNAVAILABLE";
+    pub const CODE: &'static str = "E2411";
 }
 
 impl fmt::Display for ConeLirFoundationError {

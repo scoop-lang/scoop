@@ -16,6 +16,7 @@ pub(super) fn compile(
             && !inputs.is_empty()
         {
             return Err(error(
+                scoop_source::DiagnosticCode::E2001,
                 "single-file input cannot have native translation units",
             ));
         }
@@ -41,7 +42,7 @@ pub(super) fn compile(
             directory = tempfile::Builder::new()
                 .prefix("native-")
                 .tempdir_in(temporary_parent)
-                .map_err(error)?;
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             prepared = scoop_toolchain::prepare_native_objects(
                 manifest,
                 target.lir_target(),
@@ -55,29 +56,34 @@ pub(super) fn compile(
         }
     };
     if selected.len() != objects.len() {
-        return Err(error(format!(
-            "native object count {} does not match {} selected sources",
-            objects.len(),
-            selected.len()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::ICE2201,
+            format!(
+                "native object count {} does not match {} selected sources",
+                objects.len(),
+                selected.len()
+            ),
+        ));
     }
     selected
         .iter()
         .zip(objects)
         .map(|(source, object)| {
-            let source = NormalizedNativeSourcePath::new(source.as_str()).map_err(error)?;
+            let source = NormalizedNativeSourcePath::new(source.as_str())
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
             scoop_slib::native_link_object_member(
                 cone,
                 &source,
-                std::fs::read(object).map_err(error)?,
+                std::fs::read(object)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
             )
-            .map_err(error)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2302, cause))
         })
         .collect()
 }
 
-fn error(error: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("native compilation: {error}"))
+fn error(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("native compilation: {error}"))
 }
 
 pub(super) fn libraries(
@@ -89,7 +95,7 @@ pub(super) fn libraries(
             .semantic()
             .native()
             .library_requirements(request.target().id())
-            .map_err(error),
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause)),
         ValidatedCurrentConeInput::SingleFile { .. } => Ok(Vec::new()),
     }
 }

@@ -53,7 +53,7 @@ impl Lowerer {
                     continue;
                 }
                 self.current_file = call_site.file;
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1213,
                     call_site.span,
                     format!(
                         "generic function `{}` requires type argument {} for `{}` to be a GC-free `Ptr` pointee",
@@ -120,6 +120,7 @@ impl Lowerer {
             }
             self.current_file = file;
             self.error(
+                scoop_source::DiagnosticCode::E1213,
                 span,
                 format!(
                     "type {} requires a GC-free `Ptr` pointee argument",

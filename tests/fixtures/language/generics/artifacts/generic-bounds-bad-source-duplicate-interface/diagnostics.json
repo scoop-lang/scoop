@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0615",
     "message": "duplicate interface upper bound `Readable` for type parameter `T` of function",
     "notes": [],
     "origin": {

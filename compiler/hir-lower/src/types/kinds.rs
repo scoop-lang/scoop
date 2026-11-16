@@ -18,6 +18,7 @@ impl Lowerer {
                 };
                 let found = self.type_name(arg);
                 self.error(
+                    scoop_source::DiagnosticCode::E0602,
                     span,
                     format!(
                         "type argument `{found}` for `{}` of {target} must satisfy `{required}`",

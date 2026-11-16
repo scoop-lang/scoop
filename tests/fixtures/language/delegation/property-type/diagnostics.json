@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "multiple interface delegates provide `value`; declare an explicit override",
-    "notes": [],
+    "code": "E1010",
+    "message": "multiple interface delegates provide `value`",
+    "notes": [
+      {
+        "code": "H1001",
+        "kind": "help",
+        "message": "declare an explicit override",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 94,

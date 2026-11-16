@@ -15,6 +15,7 @@ impl Lowerer {
                 if template.is_none() && self.diagnostics.len() == diagnostics {
                     let recipe = &self.default_preparation.recipes[&key.owner];
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         span,
                         format!(
                             "cannot expand invalid default for parameter `{}` in `{}`",
@@ -46,6 +47,7 @@ impl Lowerer {
         match self.default_preparation.states.get(&key) {
             Some(PreparationState::Active) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0722,
                     span,
                     format!(
                         "cyclic default expansion for parameter `{}` in `{}`",

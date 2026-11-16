@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "signature of function `invalid` exposes type `ManagedValue` outside its access domain",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "generic function `pointerIdentity` requires type argument ManagedValue for `T` to be a GC-free `Ptr` pointee",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "`Ptr` pointee must be GC-free, found ManagedValue",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "`Ptr` pointee must be GC-free, found ManagedValue",
     "notes": [],
     "origin": {

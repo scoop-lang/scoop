@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "`@GCLeaf` is not allowed on this annotation target",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "`@GCLeaf` requires a C ABI `@Extern` function",
     "notes": [],
     "origin": {

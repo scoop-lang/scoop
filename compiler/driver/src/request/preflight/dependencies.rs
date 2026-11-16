@@ -314,3 +314,27 @@ impl std::error::Error for ExplicitDependencyValidationError {
         }
     }
 }
+
+impl ExplicitDependencyValidationError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::Summary { source, .. } => source.code(),
+            Self::Closure(e) | Self::ArtifactClosure { source: e, .. } => e.code(),
+            Self::CompilerProtocols(_) => C::E1402,
+            Self::CurrentConeArtifact { .. }
+            | Self::SelfDependency { .. }
+            | Self::CycleToCurrentCone { .. }
+            | Self::DependencyCycle { .. } => C::E2105,
+            Self::UnsupportedArtifactShape { .. } => C::E2103,
+            Self::DuplicateIdentity { .. } => C::E2106,
+            Self::MultipleVersions { .. } => C::E2104,
+            Self::ManifestIdentity { .. } => C::ICE0401,
+            Self::ManifestDirectSet { .. }
+            | Self::SupportClosure { .. }
+            | Self::DependencyRecordMismatch { .. } => C::E2107,
+            Self::MissingDependencyArtifact { .. } => C::E2101,
+            Self::DependencyOrderState { .. } | Self::DependencyOrderLength { .. } => C::ICE2201,
+        }
+    }
+}

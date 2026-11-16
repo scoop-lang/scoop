@@ -46,6 +46,7 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         let ast::FieldSelector::Name(name) = &access.selector else {
             self.error(
+                scoop_source::DiagnosticCode::E0405,
                 access.span,
                 "a type qualifier requires a named member".into(),
             );
@@ -108,6 +109,7 @@ impl Lowerer {
             [] => {}
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0404,
                     name.span,
                     format!("static member `{}` is not an unambiguous value", name.text),
                 );

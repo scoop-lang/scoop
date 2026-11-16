@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0603",
     "message": "f-string expression of type `Unit` does not implement core `ToString`",
     "notes": [],
     "origin": {

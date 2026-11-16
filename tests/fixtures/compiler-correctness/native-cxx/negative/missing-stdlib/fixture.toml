@@ -14,7 +14,7 @@ files = [
 {mkdir = {path = "${work}/toolchain"}},
 {write = {path = "${work}/toolchain/gcc", data = "#!/bin/sh\nexec \"${cc}\" \"$@\"\n"}},
 {chmod = {path = "${work}/toolchain/gcc", mode = "755"}},
-{write = {path = "${work}/toolchain/g++", data = "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = \"-print-file-name=libstdc++.so\" ]; then echo libstdc++.so; exit 0; fi\ndone\nexec g++ \"$@\"\n"}},
+{write = {path = "${work}/toolchain/g++", data = "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = \"-include\" ]; then echo \"selected GNU toolchain has no libstdc++ development library\" >&2; exit 1; fi\ndone\nexec g++ \"$@\"\n"}},
 {chmod = {path = "${work}/toolchain/g++", mode = "755"}}
 ]
 

@@ -15,6 +15,7 @@ impl Lowerer {
         let name = subject_name(&params[index], companion);
         if companion && !function_conditions {
             self.error(
+                scoop_source::DiagnosticCode::E0611,
                 span,
                 format!("companion conditions are only allowed on generic functions, not {target}"),
             );
@@ -22,6 +23,7 @@ impl Lowerer {
         }
         if companion && matches!(bound, ast::TypeBound::Kind(ast::TypeParamKindBound::Value)) {
             self.error(
+                scoop_source::DiagnosticCode::E0613,
                 span,
                 format!("`{name}` is a reference singleton and cannot satisfy a value bound"),
             );
@@ -30,7 +32,7 @@ impl Lowerer {
         match bound {
             ast::TypeBound::ExcludedInterface(reference) => {
                 if !function_conditions {
-                    self.error(span, format!("negative interface bounds are only allowed on generic functions, not {target}"));
+                    self.error(scoop_source::DiagnosticCode::E0611, span, format!("negative interface bounds are only allowed on generic functions, not {target}"));
                 } else {
                     self.apply_negative_interface_bound(params, subject, reference, span);
                 }
@@ -43,7 +45,7 @@ impl Lowerer {
                 let bounds = subject_bounds_mut(&mut params[index], companion);
                 match bounds {
                     hir::TypeParamBounds::Unconstrained => *bounds = next,
-                    hir::TypeParamBounds::Nominal(_) => self.error(
+                    hir::TypeParamBounds::Nominal(_) => self.error(scoop_source::DiagnosticCode::E0614,
                         span,
                         format!(
                             "type parameter `{}` of {target} cannot combine a kind bound with nominal upper bounds",
@@ -51,7 +53,7 @@ impl Lowerer {
                         ),
                     ),
                     hir::TypeParamBounds::Value { .. }
-                    | hir::TypeParamBounds::Ref { .. } => self.error(
+                    | hir::TypeParamBounds::Ref { .. } => self.error(scoop_source::DiagnosticCode::E0615,
                         span,
                         format!(
                             "duplicate kind bound for type parameter `{}` of {target}",
@@ -69,7 +71,7 @@ impl Lowerer {
                 };
                 let bound_name = self.type_name(ty);
                 if !matches!(self.types[ty], Type::Class(_) | Type::Interface(_)) {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0613,
                         reference.span,
                         format!(
                             "upper bound of type parameter `{}` must be a class or interface, found `{bound_name}`",
@@ -86,7 +88,7 @@ impl Lowerer {
                     });
                 }
                 let hir::TypeParamBounds::Nominal(bounds) = positive else {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0614,
                         span,
                         format!(
                             "type parameter `{}` of {target} cannot combine nominal upper bounds with a kind bound",
@@ -98,7 +100,7 @@ impl Lowerer {
                 match self.types[ty] {
                     Type::Class(_) => {
                         if bounds.class.is_some() {
-                            self.error(
+                            self.error(scoop_source::DiagnosticCode::E0614,
                                 span,
                                 format!(
                                     "type parameter `{}` of {target} cannot have more than one class upper bound; found `{bound_name}`",
@@ -115,7 +117,7 @@ impl Lowerer {
                             .iter()
                             .any(|bound| self.types_equal(bound.ty, ty));
                         if duplicate {
-                            self.error(
+                            self.error(scoop_source::DiagnosticCode::E0615,
                                 span,
                                 format!(
                                     "duplicate interface upper bound `{bound_name}` for type parameter `{}` of {target}",

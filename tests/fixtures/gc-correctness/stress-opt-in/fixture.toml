@@ -120,7 +120,7 @@ name = "reject-missing-support"
 argv = ["${scoop-link}", "--enable-gc-stress", "--root-slib", "${ordinary.result.root.path}", {each = "${ordinary.result.dependencies}", field = "path", prefix = "--dep-slib"}, {each = "${link_args}"}, "--sysroot", "${sysroot}", "--runtime-objects", "${ordinary.result.runtime_index}", "--library-path", "${work}", "--cache-dir", "${cache}", "-o", "${work}/rejected"]
 exit = 1
 stdout = ""
-stderr = "scoop-link: runtime GC stress support is false, but --enable-gc-stress is true\n"
+stderr = "error[E2307]: runtime GC stress support is false, but --enable-gc-stress is true\n"
 checks = [{file = "${work}/rejected", exists = false}]
 
 [[steps]]
@@ -128,5 +128,5 @@ name = "reject-unrequested-support"
 argv = ["${scoop-link}", "--root-slib", "${ordinary.result.root.path}", {each = "${ordinary.result.dependencies}", field = "path", prefix = "--dep-slib"}, {each = "${link_args}"}, "--sysroot", "${sysroot}", "--runtime-objects", "${stress.result.runtime_index}", "--library-path", "${work}", "--cache-dir", "${cache}", "-o", "${work}/rejected"]
 exit = 1
 stdout = ""
-stderr = "scoop-link: runtime GC stress support is true, but --enable-gc-stress is false\n"
+stderr = "error[E2307]: runtime GC stress support is true, but --enable-gc-stress is false\n"
 checks = [{file = "${work}/rejected", exists = false}]

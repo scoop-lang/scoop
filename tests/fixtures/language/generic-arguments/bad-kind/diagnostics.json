@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "signature of function `invalid` exposes type `ReferenceValue` outside its access domain",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "dependency function `valueOnly`: type argument `ReferenceValue` for `T` must satisfy `value`",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "`final` modifier is not allowed on interface methods",
     "notes": [],
     "origin": {

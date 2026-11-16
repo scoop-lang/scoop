@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0304",
     "message": "`open` and `final` cannot be combined on a member function",
     "notes": [],
     "origin": {

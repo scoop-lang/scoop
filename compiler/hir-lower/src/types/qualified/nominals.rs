@@ -27,6 +27,7 @@ impl Lowerer {
                     .is_empty()
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E0601,
                         span,
                         "generic companion type requires complete host type arguments".into(),
                     );
@@ -47,6 +48,7 @@ impl Lowerer {
                 .any(|visible| visible.id == parameter.id)
         }) {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 span,
                 "inner type requires complete outer type arguments".into(),
             );
@@ -54,11 +56,15 @@ impl Lowerer {
         }
         let arity = params.len() - prefix;
         if arity == 0 && !arguments.is_empty() {
-            self.error(span, format!("{kind} `{display_name}` is not generic"));
+            self.error(
+                scoop_source::DiagnosticCode::E0601,
+                span,
+                format!("{kind} `{display_name}` is not generic"),
+            );
             return None;
         }
         if arity != arguments.len() {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E0601,
                 span,
                 if arguments.is_empty() {
                     format!("generic {kind} `{display_name}` requires {arity} type argument(s)")

@@ -92,6 +92,7 @@ impl Lowerer {
             .expect("a callback operation has one argument");
         if !matches!(self.types[native_type], hir::Type::Function(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E1216,
                 callback.span,
                 "`ForeignCallback` type argument must be one concrete function type".into(),
             );

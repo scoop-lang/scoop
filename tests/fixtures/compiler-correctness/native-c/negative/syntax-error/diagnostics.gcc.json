@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2203",
     "message": "native compilation: native.c: /scoop-native/cone/native.c:1:18: error: expected declaration specifiers or '...' before '{' token",
     "notes": [],
     "origin": {

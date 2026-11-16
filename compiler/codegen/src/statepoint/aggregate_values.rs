@@ -299,9 +299,10 @@ impl<'ctx> Splitter<'ctx> {
                 return extract(&self.builder, part.value, &path[part.path.len()..]);
             }
         }
-        Err(CodegenError::internal(
-            "aggregate projection does not select a component".into(),
-        ))
+        Err(
+            CodegenError::internal("aggregate projection does not select a component".into())
+                .with_code(scoop_source::DiagnosticCode::ICE1101),
+        )
     }
 
     fn after_definition(&self, value: BasicValueEnum<'ctx>) {

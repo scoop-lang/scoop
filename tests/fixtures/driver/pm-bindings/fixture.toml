@@ -193,7 +193,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{severity = "error", code = "SCOOP_CLI_CONFIG", phase = "Request", message = "run requires exactly one selected executable; use -p group:name", origin = {kind = "none"}, notes = []}]
+diagnostics = [{"code" = "E2001", "message" = "run requires exactly one selected executable", "notes" = [{"code" = "H2001", "kind" = "help", "message" = "use -p group:name", "notes" = [], "origin" = {"kind" = "none"}}], "origin" = {"kind" = "none"}, "phase" = "Request", "severity" = "error"}]
 
 [[steps]]
 name = "one_executable"

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "function value takes exactly 1 argument(s), but 0 were supplied",
     "notes": [],
     "origin": {

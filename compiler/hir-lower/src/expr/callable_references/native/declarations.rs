@@ -79,7 +79,10 @@ impl NativeReferenceDeclaration {
                     return Err(NativeReferenceFailure {
                         display,
                         layer,
-                        reason: reason.to_owned().into(),
+                        reason: ReferenceFailureReason::candidate(
+                            scoop_source::DiagnosticCode::E1217,
+                            reason,
+                        ),
                     });
                 }
                 let before = state.diagnostics.len();
@@ -88,12 +91,7 @@ impl NativeReferenceDeclaration {
                         NativeReferenceFailure {
                             display: display.clone(),
                             layer,
-                            reason: state.diagnostics[before..]
-                                .iter()
-                                .map(|diagnostic| diagnostic.message.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                                .into(),
+                            reason: ReferenceFailureReason::upstream(&state.diagnostics[before..]),
                         }
                     })?;
                 Ok(Self {
@@ -112,17 +110,19 @@ impl NativeReferenceDeclaration {
             }
             (NamedCallTarget::ImportedDependency(_), NamedCallOrigin::Dependency(binding)) => {
                 let layer = "dependency top-level candidate";
-                let fail = |reason: String| NativeReferenceFailure {
+                let fail = |code, reason: String| NativeReferenceFailure {
                     display: format!("dependency function `{name}`"),
                     layer,
-                    reason: reason.into(),
+                    reason: ReferenceFailureReason::candidate(code, reason),
                 };
                 let candidate = state
                     .dependencies
                     .as_ref()
                     .expect("dependency lookup retains its catalog")
                     .callable_candidate(binding)
-                    .map_err(|error| fail(error.to_string()))?;
+                    .map_err(|error| {
+                        fail(scoop_source::DiagnosticCode::ICE0501, error.to_string())
+                    })?;
                 let interface = candidate.interface();
                 if let Some(reason) = state.imported_intrinsic_reference_failure(&candidate) {
                     return Err(NativeReferenceFailure {
@@ -143,13 +143,18 @@ impl NativeReferenceDeclaration {
                     interface.effects().implementation() == hir::CallableImplementationV1::Scoop,
                 );
                 if let Some(reason) = reason {
-                    return Err(fail(reason.to_owned()));
+                    return Err(fail(scoop_source::DiagnosticCode::E1217, reason.to_owned()));
                 }
                 let signature = state
                     .imported_native_signature(&ImportedCallableCandidate::Binding(Box::new(
                         candidate.clone(),
                     )))
-                    .map_err(|error| fail(error.diagnostic("native callback signature")))?;
+                    .map_err(|error| {
+                        fail(
+                            scoop_source::DiagnosticCode::E1201,
+                            error.diagnostic("native callback signature"),
+                        )
+                    })?;
                 let parameters = signature
                     .value_parameters
                     .iter()
@@ -199,7 +204,7 @@ impl NativeReferenceDeclaration {
         NativeReferenceFailure {
             display: self.display.clone(),
             layer: self.layer,
-            reason: reason.into(),
+            reason: ReferenceFailureReason::candidate(constraint.code(), reason),
         }
     }
 

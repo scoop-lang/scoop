@@ -19,8 +19,9 @@ pub(super) fn generate(
         .methods
         .first()
         .origin;
-    let failure = |message: String| {
+    let failure = |code, message: String| {
         diagnostic(
+            code,
             origin,
             format!("generator `{}` failed: {message}", batch.generator),
         )
@@ -31,7 +32,12 @@ pub(super) fn generate(
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .scoop_spawn()
-        .map_err(|error| failure(format!("cannot start {}: {error}", program.display())))?;
+        .map_err(|error| {
+            failure(
+                scoop_source::DiagnosticCode::E2202,
+                format!("cannot start {}: {error}", program.display()),
+            )
+        })?;
     let mut input = BufWriter::new(child.stdin.take().expect("piped stdin"));
     let mut output = BufReader::new(child.stdout.take().expect("piped stdout"));
     let id = RequestId::from("generate-1".to_owned());
@@ -41,7 +47,7 @@ pub(super) fn generate(
         params,
     })
     .write(&mut input)
-    .map_err(|error| failure(error.to_string()))?;
+    .map_err(|error| failure(scoop_source::DiagnosticCode::E2204, error.to_string()))?;
     let methods = batch
         .tasks
         .iter()
@@ -50,29 +56,45 @@ pub(super) fn generate(
         .collect::<HashMap<_, _>>();
     let result = loop {
         let message = Message::read(&mut output)
-            .map_err(|error| failure(error.to_string()))?
-            .ok_or_else(|| failure("protocol output ended before the generated result".into()))?;
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2511, error.to_string()))?
+            .ok_or_else(|| {
+                failure(
+                    scoop_source::DiagnosticCode::E2511,
+                    "protocol output ended before the generated result".into(),
+                )
+            })?;
         match message {
             Message::Request(request) => {
                 let response = respond(queries, &methods, request);
                 Message::Response(response)
                     .write(&mut input)
-                    .map_err(|error| failure(error.to_string()))?;
+                    .map_err(|error| {
+                        failure(scoop_source::DiagnosticCode::E2204, error.to_string())
+                    })?;
             }
             Message::Response(response) if response.id == id => {
                 let value = response.response_result.map_err(|error| {
-                    failure(format!("JSON-RPC error {}: {}", error.code, error.message))
+                    failure(
+                        scoop_source::DiagnosticCode::E2510,
+                        format!("JSON-RPC error {}: {}", error.code, error.message),
+                    )
                 })?;
-                break serde_json::from_value(value)
-                    .map_err(|error| failure(format!("invalid generated result: {error}")))?;
+                break serde_json::from_value(value).map_err(|error| {
+                    failure(
+                        scoop_source::DiagnosticCode::E2511,
+                        format!("invalid generated result: {error}"),
+                    )
+                })?;
             }
             Message::Response(_) => {
                 return Err(failure(
+                    scoop_source::DiagnosticCode::E2511,
                     "response id does not match generator/generate".into(),
                 ));
             }
             Message::Notification(_) => {
                 return Err(failure(
+                    scoop_source::DiagnosticCode::E2511,
                     "notifications are not part of the generator protocol".into(),
                 ));
             }
@@ -81,16 +103,22 @@ pub(super) fn generate(
     drop(input);
     if !output
         .fill_buf()
-        .map_err(|error| failure(error.to_string()))?
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2204, error.to_string()))?
         .is_empty()
     {
         return Err(failure(
+            scoop_source::DiagnosticCode::E2511,
             "extra protocol output follows the final result".into(),
         ));
     }
-    let status = child.wait().map_err(|error| failure(error.to_string()))?;
+    let status = child
+        .wait()
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2204, error.to_string()))?;
     if !status.success() {
-        return Err(failure(format!("process exited with {status}")));
+        return Err(failure(
+            scoop_source::DiagnosticCode::E2203,
+            format!("process exited with {status}"),
+        ));
     }
     Ok(result)
 }
@@ -129,10 +157,12 @@ fn respond(
                 .iter()
                 .map(|diagnostic| {
                     GeneratorDiagnostic::from_diagnostic(
-                        &diagnostic
-                            .clone()
-                            .bind(&[])
-                            .unwrap_or_else(scoop_source::SourceDiagnostic::internal),
+                        &diagnostic.clone().bind(&[]).unwrap_or_else(|error| {
+                            scoop_source::SourceDiagnostic::internal(
+                                scoop_source::DiagnosticCode::ICE0401,
+                                error,
+                            )
+                        }),
                     )
                 })
                 .collect::<Vec<_>>();

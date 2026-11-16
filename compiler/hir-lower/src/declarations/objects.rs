@@ -197,6 +197,7 @@ impl Lowerer {
             let ast::ClassMember::StoredProperty(property) = member else {
                 if let ast::ClassMember::SecondaryConstructor(constructor) = member {
                     self.error(
+                        scoop_source::DiagnosticCode::E0311,
                         constructor.span,
                         format!(
                             "object `{}` cannot declare a constructor",
@@ -208,6 +209,7 @@ impl Lowerer {
             };
             if !names.insert(property.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     property.name.span,
                     format!(
                         "duplicate property `{}` in object `{}`",

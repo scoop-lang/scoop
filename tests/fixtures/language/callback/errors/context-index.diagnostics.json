@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1219",
     "message": "foreign callback `contextIndex` must be a compile-time integer literal",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1219",
     "message": "foreign callback `contextIndex` is outside the native signature",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1219",
     "message": "foreign callback context parameter must be exactly `Ptr<Unit>`",
     "notes": [],
     "origin": {

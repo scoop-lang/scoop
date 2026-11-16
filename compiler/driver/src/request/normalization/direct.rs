@@ -75,9 +75,10 @@ fn normalize_direct(
         scoop_toolchain::GeneratorPrograms::default()
     } else {
         let cwd = std::env::current_dir().map_err(|error| {
-            BuildRequestNormalizationError::Generators(ToolchainError(format!(
-                "cannot resolve generator paths against the current directory: {error}"
-            )))
+            BuildRequestNormalizationError::Generators(ToolchainError::new(
+                scoop_source::DiagnosticCode::E2201,
+                format!("cannot resolve generator paths against the current directory: {error}"),
+            ))
         })?;
         scoop_toolchain::GeneratorPrograms::from_cli(&options.generators, &cwd)
             .map_err(BuildRequestNormalizationError::Generators)?

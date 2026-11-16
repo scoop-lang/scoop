@@ -34,7 +34,7 @@ pub(super) fn positive(queries: &mut dyn SemanticQueries, batches: &[GeneratorBa
     for batch in batches {
         let request = batch.request(queries).unwrap();
         assert_eq!(request["generator"], batch.generator);
-        assert_eq!(request["protocolVersion"], 1);
+        assert_eq!(request["protocolVersion"], 2);
         assert_eq!(request["currentCone"], ConeIdentity::CORE.to_string());
         for method in request["tasks"]
             .as_array()
@@ -88,7 +88,7 @@ pub(super) fn errors(queries: &mut dyn SemanticQueries, annotations: &[Generatio
         assert!(span.start < span.end);
         if note {
             assert_eq!(diagnostic.notes.len(), 1);
-            assert_ne!(diagnostic.notes[0].span, span);
+            assert_ne!(diagnostic.notes[0].span().unwrap(), span);
         }
     }
     let all = plan_generators(queries).unwrap_err();

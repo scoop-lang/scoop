@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1012",
     "message": "`inspect` is marked `override` but does not override any method",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "object `Inspector` does not implement interface method `ValueInspector<Record>.inspect`",
     "notes": [],
     "origin": {

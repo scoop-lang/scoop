@@ -21,12 +21,18 @@ pub fn runtime_unwind_include(
     prefix: Option<&Path>,
 ) -> Result<Option<PathBuf>, ToolchainError> {
     let os = scoop_target_data::definition(target.id())
-        .ok_or_else(|| ToolchainError("unknown runtime target".into()))?
+        .ok_or_else(|| {
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2307,
+                "unknown runtime target".into(),
+            )
+        })?
         .os;
     match os {
         scoop_target_data::TargetOs::Darwin => {
             if prefix.is_some() {
-                return Err(ToolchainError(
+                return Err(ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2307,
                     "Darwin runtime uses the SDK unwind headers".into(),
                 ));
             }
@@ -37,15 +43,21 @@ pub fn runtime_unwind_include(
     let prefix = selected_unwind_prefix(target, None, prefix)?;
     let include = prefix.join("include");
     if !include.join("unwind.h").is_file() {
-        return Err(ToolchainError(format!(
-            "missing LLVM unwind headers at {}; provide --unwind-prefix or run scripts/build_llvm_unwind.py for {}",
-            include.display(),
-            target.contract().canonical_triple()
-        )));
+        return Err(ToolchainError::new(
+            scoop_source::DiagnosticCode::E2302,
+            format!("missing LLVM unwind headers at {}", include.display()),
+        )
+        .with_help(
+            scoop_source::DiagnosticCode::H2301,
+            format!(
+                "provide --unwind-prefix or run scripts/build_llvm_unwind.py for {}",
+                target.contract().canonical_triple()
+            ),
+        ));
     }
     // Keep this locator's symlinks: the dependency cache must observe changes
     // to the selected header alias, not only to its previous real path.
-    std::path::absolute(include)
-        .map(Some)
-        .map_err(|error| ToolchainError(error.to_string()))
+    std::path::absolute(include).map(Some).map_err(|error| {
+        ToolchainError::new(scoop_source::DiagnosticCode::E2201, error.to_string())
+    })
 }

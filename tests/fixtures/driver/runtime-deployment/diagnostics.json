@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_RUNTIME_BUILD",
+    "code": "E2307",
     "message": "runtime requires macOS 27.0.1, but the selected deployment is 27.0.0",
     "notes": [],
     "origin": {

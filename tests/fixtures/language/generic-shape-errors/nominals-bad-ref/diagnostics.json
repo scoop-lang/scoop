@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "type argument `Int` for `T` of type `ReferenceParcel` must satisfy `ref`",
     "notes": [],
     "origin": {

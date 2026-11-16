@@ -18,16 +18,26 @@ pub(super) fn load(path: &Path) -> BuildResult<Option<Executable>> {
     let file = match std::fs::File::open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(failure(error)),
+        Err(error) => return Err(failure(scoop_source::DiagnosticCode::E2201, error)),
     };
-    let record: Record = serde_json::from_reader(BufReader::new(file)).map_err(failure)?;
+    let record: Record = serde_json::from_reader(BufReader::new(file))
+        .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?;
     for input in &record.inputs {
-        if !input.is_current().map_err(failure)? {
+        if !input
+            .is_current()
+            .map_err(|error| failure(error.code(), error))?
+        {
             return Ok(None);
         }
     }
-    let path = record.executable.to_path_buf().map_err(failure)?;
-    if !path.try_exists().map_err(failure)? {
+    let path = record
+        .executable
+        .to_path_buf()
+        .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?;
+    if !path
+        .try_exists()
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?
+    {
         return Ok(None);
     }
     let debug_file = record
@@ -35,26 +45,37 @@ pub(super) fn load(path: &Path) -> BuildResult<Option<Executable>> {
         .map(|(kind, path)| {
             path.to_path_buf()
                 .map(|path| scoop_linker::DebugFile { kind, path })
-                .map_err(failure)
+                .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))
         })
         .transpose()?;
     if let Some(file) = &debug_file
-        && !file.path.try_exists().map_err(failure)?
+        && !file
+            .path
+            .try_exists()
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?
     {
         return Ok(None);
     }
     let import_library = record
         .import_library
-        .map(|path| path.to_path_buf().map_err(failure))
+        .map(|path| {
+            path.to_path_buf()
+                .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))
+        })
         .transpose()?;
     if let Some(path) = &import_library
-        && !path.try_exists().map_err(failure)?
+        && !path
+            .try_exists()
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?
     {
         return Ok(None);
     }
     Ok(Some(Executable {
         path,
-        runtime_index: record.runtime_index.to_path_buf().map_err(failure)?,
+        runtime_index: record
+            .runtime_index
+            .to_path_buf()
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
         debug_file,
         import_library,
         fingerprint: ResolvedLinkPlanFingerprint::from_array(record.fingerprint),
@@ -74,9 +95,11 @@ pub(super) fn save(
             .as_deref()
             .map(HostPathCarrier::from_path)
             .transpose()
-            .map_err(failure)?,
-        executable: HostPathCarrier::from_path(&executable.path).map_err(failure)?,
-        runtime_index: HostPathCarrier::from_path(&executable.runtime_index).map_err(failure)?,
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
+        executable: HostPathCarrier::from_path(&executable.path)
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
+        runtime_index: HostPathCarrier::from_path(&executable.runtime_index)
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
         fingerprint: *executable.fingerprint.as_array(),
         debug_file: executable
             .debug_file
@@ -84,17 +107,22 @@ pub(super) fn save(
             .map(|file| {
                 HostPathCarrier::from_path(&file.path)
                     .map(|path| (file.kind, path))
-                    .map_err(failure)
+                    .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))
             })
             .transpose()?,
         result_key: executable.result_key,
     };
-    let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap()).map_err(failure)?;
+    let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap())
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     {
         let mut writer = BufWriter::new(&mut file);
-        serde_json::to_writer(&mut writer, &record).map_err(failure)?;
-        writer.flush().map_err(failure)?;
+        serde_json::to_writer(&mut writer, &record)
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?;
+        writer
+            .flush()
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     }
-    file.persist(path).map_err(|error| failure(error.error))?;
+    file.persist(path)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error.error))?;
     Ok(())
 }

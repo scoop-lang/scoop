@@ -78,7 +78,7 @@ impl Lowerer {
         if self.diagnostics.is_empty()
             && let Err(error) = self.prepare_coroutine_declarations()
         {
-            self.error(Span::new(0, 0), error);
+            self.error(scoop_source::DiagnosticCode::E1403, Span::new(0, 0), error);
         }
         let throwable_trace_bytes = self.diagnostics.is_empty().then(|| {
             let byte = self.integer_type(hir::IntegerKind::UNSIGNED_8);
@@ -89,7 +89,7 @@ impl Lowerer {
         if self.diagnostics.is_empty()
             && let Err(error) = self.prepare_type_info_dependencies()
         {
-            self.error(Span::new(0, 0), error);
+            self.error(scoop_source::DiagnosticCode::E1403, Span::new(0, 0), error);
         }
         self.complete_imported_generic_bodies();
         PhaseFailure::check(check)?;

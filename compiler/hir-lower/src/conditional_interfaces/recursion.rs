@@ -91,14 +91,24 @@ impl Lowerer {
                 Owner::Object(id) => self.object_files[id],
                 Owner::Interface(id) => self.interface_files[id],
             };
-            return ast::Diagnostic::at_file(file, declaration.span, message);
+            return ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1023,
+                file,
+                declaration.span,
+                message,
+            );
         }
         let origin = self
             .dependencies
             .as_ref()
             .and_then(|world| world.nominal_declaration(declaration.key.owner))
             .expect("an imported conditional declaration retains its nominal origin");
-        let mut diagnostic = ast::Diagnostic::at_file(self.current_file, declaration.span, message);
+        let mut diagnostic = ast::Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E1023,
+            self.current_file,
+            declaration.span,
+            message,
+        );
         diagnostic.set_source(origin.origin.origin().source().clone());
         diagnostic
     }

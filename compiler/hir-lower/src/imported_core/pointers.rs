@@ -15,6 +15,7 @@ impl Lowerer {
                 );
                 if let Err(error) = self.imported_nominal_application(owner, vec![pointee]) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1403,
                         Span::new(0, 0),
                         error.diagnostic("Ptr interface declarations"),
                     );
@@ -60,6 +61,7 @@ impl Lowerer {
         };
         let [argument] = arguments else {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 format!(
                     "type `{}` takes 1 type argument, but {} were supplied",
@@ -78,6 +80,7 @@ impl Lowerer {
         } else if role == hir::IntrinsicTypeKind::FunPtr {
             let hir::Type::Function(function) = self.types[argument] else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1216,
                     name.span,
                     "`FunPtr` type argument must be an ordinary concrete function type".into(),
                 );
@@ -97,6 +100,7 @@ impl Lowerer {
         } else {
             let hir::Type::Function(function) = self.types[argument] else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1216,
                     name.span,
                     "`GCLeafFunPtr` type argument must be an ordinary concrete function type"
                         .into(),

@@ -59,6 +59,7 @@ impl Lowerer {
             PropertyExtensionInvokeOutcome::Blocked
             | PropertyExtensionInvokeOutcome::NoApplicable(None) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     name.span,
                     format!(
                         "base class `{}` has no method `{}`",
@@ -78,18 +79,24 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         let Some(receiver) = self.lower_current_this(span) else {
             self.error(
+                scoop_source::DiagnosticCode::E0716,
                 span,
                 "`super` method calls are only allowed inside class member functions".into(),
             );
             return None;
         };
         let Type::Class(application) = self.types[receiver.ty] else {
-            self.error(span, "`super` method calls require a class receiver".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0716,
+                span,
+                "`super` method calls require a class receiver".into(),
+            );
             return None;
         };
         let current = self.class_applications[application].clone();
         let Some(base) = self.classes[self.class_id(current.template)].base_class else {
             self.error(
+                scoop_source::DiagnosticCode::E0716,
                 span,
                 format!(
                     "class `{}` has no direct base for `super.{}`",
@@ -114,6 +121,7 @@ impl Lowerer {
         }
         let Some(this) = self.lower_current_this(span) else {
             self.error(
+                scoop_source::DiagnosticCode::E0716,
                 span,
                 "no `this` receiver is available in this context".to_string(),
             );
@@ -314,6 +322,7 @@ impl Lowerer {
         let Some(inner) = self.as_option(receiver.ty) else {
             let found = self.type_name(receiver.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0505,
                 span,
                 format!("`?.` requires an Option receiver, found {found}"),
             );

@@ -43,8 +43,11 @@ fn m55_extension_failure_prefers_the_explicit_type_arity() {
         )
         .unwrap_err();
         for errors in [
-            local.iter().map(|error| &error.message).collect::<Vec<_>>(),
-            imported.iter().map(|error| &error.message).collect(),
+            local
+                .iter()
+                .map(crate::tests::diagnostic_text)
+                .collect::<Vec<_>>(),
+            imported.iter().map(crate::tests::diagnostic_text).collect(),
         ] {
             assert_eq!(errors.len(), 1, "{errors:#?}");
             let diagnostic = format!("{errors:#?}");
@@ -82,9 +85,10 @@ fn m55_negative_unknown_and_partial_application_are_not_absence() {
         ))
         .unwrap_err();
         assert!(
-            errors.iter().any(|error| error
-                .message
-                .contains("does not establish this negative fact")),
+            errors
+                .iter()
+                .any(|error| crate::tests::diagnostic_text(error)
+                    .contains("does not establish this negative fact")),
             "{errors:#?}"
         );
     }
@@ -103,9 +107,10 @@ fn m55_condition_identity_ignores_aliases_and_parameter_spelling() {
     )
     .unwrap_err();
     assert!(
-        errors.iter().any(|error| error
-            .message
-            .contains("already declared with the same signature")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error)
+                .contains("already declared with the same signature")),
         "{errors:#?}"
     );
 }
@@ -133,7 +138,7 @@ fn m55_negative_inheritance_facts_and_contradictions() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("contradicts upper bound")),
+            .any(|error| crate::tests::diagnostic_text(error).contains("contradicts upper bound")),
         "{errors:#?}"
     );
 }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1309",
     "message": "Serialize emitNull requires a field declared as core Option",
     "notes": [],
     "origin": {

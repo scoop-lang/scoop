@@ -21,6 +21,7 @@ impl Lowerer {
                 });
             if !covers {
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     decl.name.span,
                     format!(
                         "visibility of `{}` does not cover inherited slot `{target}`",
@@ -50,7 +51,7 @@ impl Lowerer {
                 if matches!(parameter.calling, crate::FnParamCalling::Vararg { .. })
                     != inherited_vararg
                 {
-                    self.error(decl.parameter_spans[index], format!("parameter `{}` of `{}` must have the same `vararg` shape as `{target}`", signature.params[index].name.text, decl.name.text));
+                    self.error(scoop_source::DiagnosticCode::E1013, decl.parameter_spans[index], format!("parameter `{}` of `{}` must have the same `vararg` shape as `{target}`", signature.params[index].name.text, decl.name.text));
                     break;
                 }
             }

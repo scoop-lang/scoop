@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "anonymous-function return type is Int, but the expected type is T",
     "notes": [],
     "origin": {

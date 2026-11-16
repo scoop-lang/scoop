@@ -53,6 +53,7 @@ pub(crate) fn build_zero_live_call<'ctx>(
             ),
             cause,
         )
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
     })?;
     let name = CString::new("statepoint_token").expect("static name has no NUL");
     // SAFETY: the declaration is LLVM's overloaded statepoint intrinsic and
@@ -107,6 +108,7 @@ pub(crate) fn build_managed_invoke<'ctx>(
             ),
             cause,
         )
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
     })?;
     let bundle =
         root_table.map(|table| inkwell::values::OperandBundle::create("deopt", &[table.into()]));
@@ -174,6 +176,7 @@ fn zero_live_arguments<'ctx>(
             ),
             cause,
         )
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
     })?;
     let mut arguments = vec![
         context
@@ -231,6 +234,7 @@ fn build_gc_result<'ctx>(
             "internal gc.result instruction name contains a NUL byte".to_string(),
             cause,
         )
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
     })?;
     // SAFETY: `token` is the immediately dominating statepoint invoke and the
     // overloaded intrinsic was declared for the original call's result type.
@@ -281,17 +285,19 @@ fn intrinsic_declaration_raw(
     // this call; both slices remain alive for its duration.
     let id = unsafe { LLVMLookupIntrinsicID(name.as_ptr().cast(), name.len()) };
     if id == 0 {
-        return Err(CodegenError::internal(format!(
-            "unknown LLVM intrinsic `{name}`"
-        )));
+        return Err(
+            CodegenError::internal(format!("unknown LLVM intrinsic `{name}`"))
+                .with_code(scoop_source::DiagnosticCode::ICE1101),
+        );
     }
     let function = unsafe {
         LLVMGetIntrinsicDeclaration(module.as_mut_ptr(), id, types.as_mut_ptr(), types.len())
     };
     if function.is_null() {
-        return Err(CodegenError::internal(format!(
-            "failed to declare LLVM intrinsic `{name}`"
-        )));
+        return Err(
+            CodegenError::internal(format!("failed to declare LLVM intrinsic `{name}`"))
+                .with_code(scoop_source::DiagnosticCode::ICE1101),
+        );
     }
     Ok(function)
 }

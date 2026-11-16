@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
+    "code": "E2306",
     "message": "native contract conflict for ${symbol_prefix}scoop_rt_allocation_overflow: GC effect differs; origins: scoop:scoop.core:0.1.0 (native declarations [PersistentSourceNativeExternalContractId([195, 27, 89, 45, 151, 232, 58, 241, 228, 240, 181, 140, 205, 2, 235, 89, 75, 240, 121, 65, 237, 99, 238, 88, 228, 200, 163, 163, 234, 120, 177, 142])]), dev.programlink:native-effect-conflict:0.1.0 (native declarations [PersistentSourceNativeExternalContractId([125, 67, 243, 137, 4, 250, 209, 254, 143, 131, 81, 164, 199, 62, 247, 89, 116, 168, 158, 96, 254, 40, 71, 202, 199, 222, 142, 111, 129, 81, 213, 59])])",
     "notes": [],
     "origin": {

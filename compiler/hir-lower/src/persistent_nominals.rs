@@ -36,7 +36,11 @@ impl Lowerer {
                     span: input.span,
                     detail,
                 };
-                let mut diagnostic = scoop_ast::Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = scoop_ast::Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 self.diagnostics.push(diagnostic);
                 None

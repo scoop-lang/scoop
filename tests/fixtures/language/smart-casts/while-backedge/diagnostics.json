@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0812",
     "message": "smart cast of mutable local `value` to String is not valid on every incoming path",
     "notes": [],
     "origin": {

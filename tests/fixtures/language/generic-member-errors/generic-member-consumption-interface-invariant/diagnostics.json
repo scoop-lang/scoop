@@ -1,8 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "body of `bad` must be of type Reader<String>, found Reader<Int>; nominal application `Reader` is invariant: first differing type argument 1 (`T`) is `Int` in `Reader<Int>`, but `String` in `Reader<String>`; construct the target application directly or convert explicitly",
-    "notes": [],
+    "code": "E0501",
+    "message": "body of `bad` must be of type Reader<String>, found Reader<Int>",
+    "notes": [
+      {
+        "code": "N0501",
+        "kind": "note",
+        "message": "nominal application `Reader` is invariant: first differing type argument 1 (`T`) is `Int` in `Reader<Int>`, but `String` in `Reader<String>`",
+        "notes": [
+          {
+            "code": "H0501",
+            "kind": "help",
+            "message": "construct the target application directly or convert explicitly",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "214321682878e87dff01b2fa39e8ec76b909e3c573ff49ac6cc494cb756252a4",
       "end": 116,

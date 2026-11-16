@@ -17,7 +17,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{"code" = "SCOOP_BUILD_FAILED", "message" = "invalid single-file input ${work}/main.scoop: ${start}..${end}: ${message}", "notes" = [], "origin" = {"kind" = "host", "path" = "${work}/main.scoop", "start" = "${start}", "end" = "${end}"}, "phase" = "Root", "severity" = "error"}]
+diagnostics = [{"code" = "E2014", "message" = "invalid single-file input ${work}/main.scoop: ${start}..${end}: ${message}", "notes" = [], "origin" = {"kind" = "host", "path" = "${work}/main.scoop", "start" = "${start}", "end" = "${end}"}, "phase" = "Root", "severity" = "error"}]
 checks = [{"file" = "${work}/previous", "equals" = "previous executable"}]
 
 [[steps]]
@@ -25,5 +25,5 @@ name = "direct"
 argv = ["${scoopc}", "build", "${work}/main.scoop", {"each" = "${compile_args}"}, "--profile", "release", "--sysroot", "${sysroot}", "--direct-slib", "${sysroot}/lib/${target}/scoop.std.slib", "--out-slib", "${work}/previous.slib"]
 exit = 1
 stdout = ""
-stderr = "error: invalid single-file input ${work}/main.scoop: ${start}..${end}: ${message}\n"
+stderr = "error[E2014]: invalid single-file input ${work}/main.scoop: ${start}..${end}: ${message}\n"
 checks = [{"file" = "${work}/previous.slib", "equals" = "previous artifact"}]

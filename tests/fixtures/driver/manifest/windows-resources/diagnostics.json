@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2012",
     "message": "${manifest.canonical}: windows.rc: path must be relative to the Cone root",
     "notes": [],
     "origin": {

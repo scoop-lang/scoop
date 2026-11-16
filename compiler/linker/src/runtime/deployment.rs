@@ -26,10 +26,14 @@ impl RuntimeDeployment {
         match (self, Self::for_toolchain(toolchain)) {
             (Self::TargetBaseline, Self::TargetBaseline) => Ok(()),
             (Self::Darwin(required), Self::Darwin(selected)) if required <= selected => Ok(()),
-            (Self::Darwin(required), Self::Darwin(selected)) => Err(error(format!(
-                "runtime requires macOS {required}, but the selected deployment is {selected}"
-            ))),
+            (Self::Darwin(required), Self::Darwin(selected)) => Err(error(
+                scoop_source::DiagnosticCode::E2307,
+                format!(
+                    "runtime requires macOS {required}, but the selected deployment is {selected}"
+                ),
+            )),
             _ => Err(error(
+                scoop_source::DiagnosticCode::E2307,
                 "runtime deployment platform does not match the selected target",
             )),
         }

@@ -51,7 +51,11 @@ impl Lowerer {
         self.resolve_local_integral_enum_constants(&pending.enums);
         if let Err(error) = self.establish_enum_member_identities() {
             self.current_file = error.file();
-            self.error(error.span(), error.to_string());
+            self.error(
+                scoop_source::DiagnosticCode::ICE0401,
+                error.span(),
+                error.to_string(),
+            );
             return;
         }
         for &(id, declaration, file) in &pending.classes {

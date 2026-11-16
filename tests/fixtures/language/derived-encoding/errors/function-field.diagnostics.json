@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "automatic encode has no ValueEncoder<(Int) -> Int> field codec; provide a primary val dependency, a conforming companion, or an explicit encode implementation",
-    "notes": [],
+    "code": "E1312",
+    "message": "automatic encode has no ValueEncoder<(Int) -> Int> field codec",
+    "notes": [
+      {
+        "code": "H1301",
+        "kind": "help",
+        "message": "provide a primary val dependency, a conforming companion, or an explicit encode implementation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 76,

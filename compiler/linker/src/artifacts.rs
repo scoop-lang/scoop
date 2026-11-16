@@ -25,8 +25,8 @@ pub struct ArtifactLinkRequest {
 
 impl ArtifactLinkRequest {
     pub fn link(&self) -> Result<ProgramLinkOutput, LinkError> {
-        let target =
-            ResolvedTargetProfile::resolve_with(&self.target, &self.c_toolchain).map_err(error)?;
+        let target = ResolvedTargetProfile::resolve_with(&self.target, &self.c_toolchain)
+            .map_err(|cause| error(cause.code(), cause))?;
         let closure = read_program_artifacts(
             &self.root_slib,
             &self.dependency_slibs,
@@ -38,7 +38,7 @@ impl ArtifactLinkRequest {
             None => {
                 let sysroot =
                     scoop_toolchain::configured_sysroot_root(self.final_link.sysroot.clone())
-                        .map_err(error)?;
+                        .map_err(|cause| error(cause.code(), cause))?;
                 scoop_toolchain::default_runtime_index(
                     &sysroot,
                     target.lir_target(),
@@ -76,8 +76,12 @@ pub fn read_program_artifacts(
     target: ValidatedLirTargetSelection,
 ) -> Result<ProgramLinkClosure, LinkError> {
     let read = |path: &Path| {
-        scoop_slib::ArtifactFile::open(path, target)
-            .map_err(|err| error(format!("artifact {}: {err}", path.display())))
+        scoop_slib::ArtifactFile::open(path, target).map_err(|err| {
+            error(
+                scoop_source::DiagnosticCode::E2201,
+                format!("artifact {}: {err}", path.display()),
+            )
+        })
     };
     let root_file = read(root)?;
     let dependency_files = dependencies
@@ -85,8 +89,12 @@ pub fn read_program_artifacts(
         .map(|path| read(path))
         .collect::<Result<Vec<_>, _>>()?;
     let dependencies: Vec<_> = dependency_files.iter().collect();
-    scoop_slib::read_program_link_closure(&root_file, &dependencies, target)
-        .map_err(|err| error(format!("program Link input {}: {err}", root.display())))
+    scoop_slib::read_program_link_closure(&root_file, &dependencies, target).map_err(|err| {
+        error(
+            err.code(),
+            format!("program Link input {}: {err}", root.display()),
+        )
+    })
 }
 
 pub fn resolve_program_link_profile(
@@ -99,7 +107,10 @@ pub fn resolve_program_link_profile(
         scoop_slib::ConeKind::Executable => scoop_toolchain::FinalOutputKind::Executable,
         scoop_slib::ConeKind::NativeApp => scoop_toolchain::FinalOutputKind::SharedLibrary,
         scoop_slib::ConeKind::Library => {
-            return Err(error("final link requires executable or native-app root"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2001,
+                "final link requires executable or native-app root",
+            ));
         }
     };
     let origins = closure
@@ -111,17 +122,20 @@ pub fn resolve_program_link_profile(
         && target.c_bridge_toolchain().native_environment()
             == scoop_target_data::NativeEnvironment::LinuxMusl
     {
-        return Err(error(format!(
-            "C++ native runtime is not supported for Linux musl; required by {}",
-            origins.join(", ")
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2301,
+            format!(
+                "C++ native runtime is not supported for Linux musl; required by {}",
+                origins.join(", ")
+            ),
+        ));
     }
     let profile = target.final_link_with_cxx(&options, !origins.is_empty());
-    profile.map_err(|err| {
-        if origins.is_empty() {
-            error(err)
-        } else {
-            error(format!("{err}; C++ required by {}", origins.join(", ")))
+    profile.map_err(|mut err| {
+        if !origins.is_empty() {
+            err.0
+                .push_str(&format!("; C++ required by {}", origins.join(", ")));
         }
+        LinkError::from(err)
     })
 }

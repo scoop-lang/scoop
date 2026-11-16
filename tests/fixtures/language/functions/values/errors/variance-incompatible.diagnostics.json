@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of `badParameter` must be of type (Any) -> Int, found (Int) -> Int",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of `badReturn` must be of type (Int) -> String, found (Int) -> Int",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2008",
     "message": "${work}/cone/Cone.toml: invalid Cone.toml: TOML parse error at line 3, column 8\n  |\n3 | path = 42\n  |        ^^\ninvalid type: integer `42`, expected a string\n",
     "notes": [],
     "origin": {

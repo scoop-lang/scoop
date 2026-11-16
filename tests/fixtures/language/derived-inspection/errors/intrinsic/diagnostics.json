@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1310",
     "message": "automatic inspect requires a struct, enum, tuple, or final class without a class base; target Int requires an explicit implementation",
     "notes": [],
     "origin": {

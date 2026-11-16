@@ -8,7 +8,7 @@ fn unknown_enum_in_qualified_path_is_an_error() {
     let errors = lower_user(file).expect_err("unknown enum must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown variable `Foo`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }
@@ -49,11 +49,11 @@ fn bare_non_option_variant_is_an_error() {
     let errors = lower_user(file).expect_err("bare variants must fail");
     assert_eq!(errors.len(), 2);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown variable `Red`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
     assert_eq!(
-        errors[1].message,
+        crate::tests::diagnostic_text(&errors[1]),
         "unknown function `Green`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }
@@ -70,8 +70,8 @@ fn variant_arity_is_an_error() {
     let errors = lower_user(file).expect_err("too many arguments must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Shape.Circle` in nominal constructor candidate layer:\n  - variant Shape.Circle(_1: Int) — expects 1 argument(s), but 2 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Shape.Circle` in nominal constructor candidate layer; variant Shape.Circle(_1: Int); expects 1 argument(s), but 2 were supplied"
     );
 }
 
@@ -90,8 +90,8 @@ fn variant_missing_argument_without_default_is_an_error() {
     let errors = lower_user(file).expect_err("missing argument must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Shape.Named` in nominal constructor candidate layer:\n  - variant Shape.Named(w: Int, h: Int) — required parameter `h` has no argument"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Shape.Named` in nominal constructor candidate layer; variant Shape.Named(w: Int, h: Int); required parameter `h` has no argument"
     );
 }
 
@@ -107,8 +107,8 @@ fn variant_argument_type_mismatch_is_an_error() {
     let errors = lower_user(file).expect_err("argument mismatch must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Shape.Circle` in nominal constructor candidate layer:\n  - variant Shape.Circle(_1: Int) — argument for `_1` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Shape.Circle` in nominal constructor candidate layer; variant Shape.Circle(_1: Int); argument for `_1` has type String, which is not a subtype of Int"
     );
 }
 
@@ -123,8 +123,8 @@ fn qualified_none_needs_an_expected_type() {
     let errors = lower_user(file).expect_err("unhinted `Option.None` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Option.None` in nominal constructor candidate layer:\n  - variant Option<T>.None() — cannot infer a unique type argument for `T`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Option.None` in nominal constructor candidate layer; variant Option<T>.None(); cannot infer a unique type argument for `T`"
     );
 }
 
@@ -152,7 +152,7 @@ fn non_unit_variant_without_call_is_an_error() {
     let errors = lower_user(file).expect_err("bare `Some` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "variant `Some` of `Option` takes arguments; use `Some(...)` to construct it"
     );
 }

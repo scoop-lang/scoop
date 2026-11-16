@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "dependency function `toMutableArray` expects 0 argument(s), but 1 were supplied",
     "notes": [],
     "origin": {

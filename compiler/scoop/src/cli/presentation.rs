@@ -29,7 +29,7 @@ impl Reporter {
                 writeln!(io::stderr().lock(), "cleaned {}", directory.display())
             }
             MessageFormat::Json => write_json(&json!({
-                "schema": 1, "kind": "clean", "target_dir": path_value(directory), "removed": removed,
+                "schema": 2, "kind": "clean", "target_dir": path_value(directory), "removed": removed,
             })),
         }
     }
@@ -43,7 +43,7 @@ impl Reporter {
                 outcome.output.display()
             ),
             MessageFormat::Json => write_json(&json!({
-                "schema": 1, "kind": "documentation", "output": path_value(&outcome.output),
+                "schema": 2, "kind": "documentation", "output": path_value(&outcome.output),
                 "rendered": outcome.rendered,
                 "cones": outcome.cones.iter().map(|cone| json!({
                     "identity": cone.identity.to_string(), "output": path_value(&cone.output),
@@ -84,17 +84,40 @@ impl Reporter {
         };
         match self.0 {
             MessageFormat::Json => write_json(&json!({
-                "schema": 1, "kind": "diagnostic", "severity": "error", "code": failure.code,
+                "schema": 2, "kind": "diagnostic", "severity": "error", "code": failure.code,
                 "phase": failure.phase.as_str(), "message": failure.message,
-                "origin": origin, "notes": [], "display": display,
+                "origin": origin, "notes": failure.notes.iter().map(|note| diagnostics::note_json(note, &failure.sources, &mut std::collections::BTreeMap::new())).collect::<Vec<_>>(), "display": display,
             })),
-            MessageFormat::Human => writeln!(
-                io::stderr().lock(),
-                "{}error[{}]: {}",
-                location,
-                failure.code,
-                failure.message
-            ),
+            MessageFormat::Human => {
+                let mut output = io::stderr().lock();
+                writeln!(
+                    output,
+                    "{}error[{}]: {}",
+                    location, failure.code, failure.message
+                )?;
+                fn note(
+                    output: &mut impl io::Write,
+                    value: &scoop_protocol::DiagnosticNoteV1,
+                    depth: usize,
+                ) -> io::Result<()> {
+                    writeln!(
+                        output,
+                        "{}{}[{}]: {}",
+                        "  ".repeat(depth),
+                        value.code().role().as_str(),
+                        value.code(),
+                        value.message()
+                    )?;
+                    for child in value.notes() {
+                        note(output, child, depth + 1)?;
+                    }
+                    Ok(())
+                }
+                for value in &failure.notes {
+                    note(&mut output, value, 1)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -124,7 +147,7 @@ impl Reporter {
             "cache_key": node.cache_key().map(|key| key.to_string()),
         })).collect::<Vec<_>>();
         let mut record = json!({
-            "schema": 1, "kind": "library", "profile": build.profile.as_str(), "output": path_value(&build.output),
+            "schema": 2, "kind": "library", "profile": build.profile.as_str(), "output": path_value(&build.output),
             "target": root.artifact().summary().target_selection().target().contract().canonical_triple(),
             "root": artifact(root.artifact().summary(), root.artifact_locator()), "dependencies": dependencies,
             "observations": { "nodes": nodes, "child_invocations": observations.child_invocations().iter().map(ToString::to_string).collect::<Vec<_>>() },
@@ -169,7 +192,7 @@ impl Reporter {
             }
             MessageFormat::Json => {
                 let mut record = json!({
-                    "schema": 1, "kind": "link", "output": path_value(&outcome.output),
+                    "schema": 2, "kind": "link", "output": path_value(&outcome.output),
                     "root": artifact(&outcome.root.summary, &outcome.root.path),
                     "dependencies": outcome.dependencies.iter().map(|dependency| artifact(&dependency.summary, &dependency.path)).collect::<Vec<_>>(),
                     "runtime_index": path_value(&outcome.runtime_index), "link_plan_fingerprint": outcome.link_plan_fingerprint.to_string(),

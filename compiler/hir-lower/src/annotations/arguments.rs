@@ -11,6 +11,7 @@ impl Lowerer {
             true
         } else {
             self.error(
+                scoop_source::DiagnosticCode::E0701,
                 annotation.span,
                 format!("`@{}` does not accept arguments", annotation.name),
             );
@@ -25,6 +26,7 @@ impl Lowerer {
     ) -> Option<String> {
         if annotation.args.len() != 1 {
             self.error(
+                scoop_source::DiagnosticCode::E0701,
                 annotation.span,
                 format!(
                     "`@{}` requires exactly one string argument `{parameter}`",
@@ -38,6 +40,7 @@ impl Lowerer {
             && name.text != parameter
         {
             self.error(
+                scoop_source::DiagnosticCode::E0702,
                 name.span,
                 format!(
                     "unknown argument `{}` for `@{}`; expected `{parameter}`",
@@ -48,6 +51,7 @@ impl Lowerer {
         }
         let ast::AnnotationLiteral::String(value) = &arg.value else {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 arg.span,
                 format!(
                     "argument `{parameter}` of `@{}` must be a string",
@@ -72,6 +76,7 @@ impl Lowerer {
                 Some("packed") => &mut packed,
                 Some(name) => {
                     self.error(
+                        scoop_source::DiagnosticCode::E0702,
                         arg.span,
                         format!("unknown argument `{name}` for `@CLayout`"),
                     );
@@ -87,6 +92,7 @@ impl Lowerer {
                 }
                 None => {
                     self.error(
+                        scoop_source::DiagnosticCode::E0701,
                         arg.span,
                         "`@CLayout` accepts at most two arguments".to_string(),
                     );
@@ -94,11 +100,16 @@ impl Lowerer {
                 }
             };
             if slot.is_some() {
-                self.error(arg.span, "duplicate `@CLayout` argument".to_string());
+                self.error(
+                    scoop_source::DiagnosticCode::E0703,
+                    arg.span,
+                    "duplicate `@CLayout` argument".to_string(),
+                );
                 continue;
             }
             let ast::AnnotationLiteral::Int(value) = &arg.value else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     arg.span,
                     "`@CLayout` arguments must be integers".to_string(),
                 );
@@ -109,6 +120,7 @@ impl Lowerer {
                 ast::IntegerSuffix::None | ast::IntegerSuffix::Long
             ) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1304,
                     arg.span,
                     "`@CLayout` arguments must be signed Long integer literals".to_string(),
                 );
@@ -116,6 +128,7 @@ impl Lowerer {
             }
             let Some(value) = hir::HirCLayoutValue::from_bytes(value.magnitude) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1207,
                     arg.span,
                     "`@CLayout` alignment values must be one of 0, 1, 2, 4, 8 or 16".to_string(),
                 );

@@ -25,11 +25,17 @@ pub(super) fn failure(
     let record: scoop_protocol::package::PackageDiagnosticV1 =
         serde_json::from_slice(&output.stderr).unwrap();
     record.validate().unwrap();
-    assert!(
-        record.diagnostic.message().contains(expected),
-        "{}",
-        record.diagnostic.message()
-    );
+    fn note_text(note: &scoop_protocol::DiagnosticNoteV1) -> String {
+        std::iter::once(note.message().to_owned())
+            .chain(note.notes().iter().map(note_text))
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+    let text = std::iter::once(record.diagnostic.message().to_owned())
+        .chain(record.diagnostic.notes().iter().map(note_text))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(text.contains(expected), "{text}");
     record.diagnostic
 }
 

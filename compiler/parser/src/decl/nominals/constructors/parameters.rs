@@ -49,6 +49,7 @@ impl Parser {
             && (!matches!(member_visibility, VisibilitySyntax::Omitted) || override_span.is_some())
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 first.span,
                 "primary constructor member visibility and `override` require `val` or `var`",
             ));
@@ -108,6 +109,7 @@ impl Parser {
         let modifier_span = self.parse_vararg_modifier(vararg_span)?;
         if matches!(self.peek().kind, TokenKind::Val | TokenKind::Var) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "secondary constructor parameters cannot declare `val` or `var` properties",
             ));

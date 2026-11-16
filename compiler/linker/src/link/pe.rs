@@ -12,7 +12,10 @@ pub(super) fn link(
     keep_symbols: bool,
 ) -> Result<Vec<PathBuf>, LinkError> {
     let crate::namespace::NativeNamespace::Coff(namespace) = &inputs.namespace else {
-        return Err(error("PE link requires a COFF namespace"));
+        return Err(error(
+            scoop_source::DiagnosticCode::ICE2201,
+            "PE link requires a COFF namespace",
+        ));
     };
     let mut paths = archives.to_vec();
     let mut arguments: Vec<_> = archives
@@ -38,7 +41,7 @@ pub(super) fn link(
     } else {
         profile.command_with_subsystem(directory, candidate, inputs.windows_subsystem)
     }
-    .map_err(error)?;
+    .map_err(|cause| error(cause.code(), cause))?;
     profile.append_system_libraries(&mut command);
     profile.configure_outputs(&mut command, pdb, keep_symbols);
     if profile.microsoft() {
@@ -64,24 +67,39 @@ pub(super) fn link(
         );
     }
     profile.trace(&mut command);
-    let output = command
-        .scoop_output()
-        .map_err(|err| error(format!("cannot start PE linker: {err}")))?;
+    let output = command.scoop_output().map_err(|err| {
+        error(
+            scoop_source::DiagnosticCode::E2202,
+            format!("cannot start PE linker: {err}"),
+        )
+    })?;
     if !output.status.success() {
-        return Err(error(format!(
-            "PE linker failed: {}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2304,
+            format!(
+                "PE linker failed: {}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
     }
     if profile.import_library_path(candidate).is_some() {
         use object::Object;
-        let bytes = std::fs::read(candidate).map_err(error)?;
-        let image = object::File::parse(bytes.as_slice()).map_err(error)?;
-        let exports = image.exports().map_err(error)?;
+        let bytes = std::fs::read(candidate)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+        let image = object::File::parse(bytes.as_slice())
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2302, cause))?;
+        let exports = image
+            .exports()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2302, cause))?;
         if exports.len() != 1 || exports[0].name() != b"scoop_app_init" {
             return Err(error(
-                "native-app DLL must export only scoop_app_init; remove explicit native exports",
+                scoop_source::DiagnosticCode::E2305,
+                "native-app DLL must export only scoop_app_init",
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2303,
+                "remove explicit native exports",
             ));
         }
     }

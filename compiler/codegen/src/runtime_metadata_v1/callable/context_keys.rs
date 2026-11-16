@@ -29,6 +29,7 @@ pub(super) fn emit<'ctx>(
                 "Context key table has no callable definition {}",
                 plan.body()
             ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
     let boundary = |atom| {
         symbols
@@ -38,6 +39,7 @@ pub(super) fn emit<'ctx>(
             .copied()
             .ok_or_else(|| {
                 CodegenError::internal(format!("Context key atom {atom} has no boundary"))
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
             })
     };
     let i64 = context.i64_type();

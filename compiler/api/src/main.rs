@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use scoop_api::ApiError;
 use scoop_api::query::{Catalog, Selection};
+use scoop_source::DiagnosticCode as C;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -45,11 +47,11 @@ enum Query {
     },
 }
 
-fn installation_root(args: &Args) -> Result<PathBuf, String> {
+fn installation_root(args: &Args) -> Result<PathBuf, ApiError> {
     if let Some(path) = &args.sysroot {
         return Ok(path.clone());
     }
-    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let executable = std::env::current_exe().map_err(|e| ApiError::new(C::E2201, e))?;
     if let Some(commands) = executable
         .parent()
         .filter(|path| path.file_name().is_some_and(|name| name == "commands"))
@@ -57,16 +59,19 @@ fn installation_root(args: &Args) -> Result<PathBuf, String> {
         return commands
             .parent()
             .map(Path::to_path_buf)
-            .ok_or_else(|| "cannot locate installation root".into());
+            .ok_or_else(|| ApiError::new(C::E2302, "cannot locate installation root"));
     }
     std::env::var_os("SCOOP_SYSROOT")
         .map(PathBuf::from)
         .ok_or_else(|| {
-            "provide --sysroot or --docs, or install scoop-api in <SYSROOT>/commands".into()
+            ApiError::new(C::E2302, "cannot locate installed documentation").with_help(
+                C::H2301,
+                "provide --sysroot or --docs, or install scoop-api in <SYSROOT>/commands",
+            )
         })
 }
 
-fn run(args: Args) -> Result<String, (u8, String)> {
+fn run(args: Args) -> Result<String, (u8, ApiError)> {
     let (text, exact, offset, limit) = match &args.command {
         Query::Search {
             query,
@@ -78,7 +83,10 @@ fn run(args: Args) -> Result<String, (u8, String)> {
     if text.trim().is_empty() || limit == 0 {
         return Err((
             2,
-            "query must be nonempty and limit must be positive".into(),
+            ApiError::new(
+                C::E2503,
+                "query must be nonempty and limit must be positive",
+            ),
         ));
     }
     let target = match (&args.target, &args.docs) {
@@ -93,7 +101,11 @@ fn run(args: Args) -> Result<String, (u8, String)> {
             let host =
                 scoop_target_data::host(std::env::consts::OS, std::env::consts::ARCH, environment)
                     .ok_or_else(|| {
-                        (2, "unknown host default; provide --target or --docs".into())
+                        (
+                            2,
+                            ApiError::new(C::E2301, "unknown host default")
+                                .with_help(C::H2001, "provide --target or --docs"),
+                        )
                     })?;
             Some(host.default_target.to_owned())
         }
@@ -101,7 +113,10 @@ fn run(args: Args) -> Result<String, (u8, String)> {
     if let Some(target) = &target
         && scoop_target_data::named_target(target).is_none()
     {
-        return Err((2, format!("unknown complete target {target:?}")));
+        return Err((
+            2,
+            ApiError::new(C::E2301, format!("unknown complete target {target:?}")),
+        ));
     }
     let root = if let Some(root) = &args.docs {
         root.clone()
@@ -123,20 +138,20 @@ fn run(args: Args) -> Result<String, (u8, String)> {
     if args.format == Format::Json {
         serde_json::to_string_pretty(&page)
             .map(|json| json + "\n")
-            .map_err(|e| (1, e.to_string()))
+            .map_err(|e| (1, ApiError::new(C::ICE2501, e)))
     } else {
         Ok(scoop_api::render::text(&page))
     }
 }
 
-fn report(code: u8, message: &str, json: bool) -> ExitCode {
+fn report(code: u8, error: &ApiError, json: bool) -> ExitCode {
     if json {
         eprintln!(
             "{}",
-            serde_json::json!({"schema":1,"kind":"error","code":code,"message":message})
+            serde_json::json!({"schema":2,"kind":"error","exitCode":code,"code":error.code,"message":error.message,"notes": error.help.iter().map(|(code, message)| serde_json::json!({"code":code,"kind":"help","message":message})).collect::<Vec<_>>()})
         );
     } else {
-        eprintln!("scoop api: {message}");
+        eprintln!("error[{}]: {error}", error.code);
     }
     ExitCode::from(code)
 }
@@ -153,13 +168,13 @@ fn main() -> ExitCode {
             let _ = error.print();
             return ExitCode::SUCCESS;
         }
-        Err(error) => return report(2, &error.to_string(), json),
+        Err(error) => return report(2, &ApiError::new(C::E2001, error), json),
     };
     match run(args) {
         Ok(text) => match std::io::stdout().lock().write_all(text.as_bytes()) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
-            Err(error) => report(1, &error.to_string(), json),
+            Err(error) => report(1, &ApiError::new(C::E2001, error), json),
         },
         Err((code, message)) => report(code, &message, json),
     }

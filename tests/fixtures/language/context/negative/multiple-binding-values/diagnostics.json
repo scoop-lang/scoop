@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1117",
     "message": "a context scope requires exactly one binding value",
     "notes": [],
     "origin": {

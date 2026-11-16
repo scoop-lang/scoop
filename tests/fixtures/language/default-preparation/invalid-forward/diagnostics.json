@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "default value of parameter `value` in `invalid` must be of type Int, found String",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "default value of parameter `value` in `invalid` must be of type Int, found String",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "ICE0501",
     "message": "cannot expand invalid default for parameter `value` in `first`",
     "notes": [],
     "origin": {

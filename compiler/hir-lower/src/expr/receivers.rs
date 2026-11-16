@@ -9,6 +9,7 @@ impl Lowerer {
         let Some(label) = label else { return Some(()) };
         if self.loop_label_is_active(&label.text) {
             self.error(
+                scoop_source::DiagnosticCode::E0716,
                 label.span,
                 format!("label `{}` has no receiver", label.text),
             );
@@ -21,6 +22,7 @@ impl Lowerer {
             return Some(());
         }
         self.error(
+            scoop_source::DiagnosticCode::E0716,
             label.span,
             format!("unknown receiver label `{}`", label.text),
         );
@@ -128,9 +130,14 @@ impl Lowerer {
         if self.implicit_receiver_is_accessible(binding) {
             return Some(());
         }
-        self.error(
+        self.error_with_note(
+            scoop_source::DiagnosticCode::E0716,
             span,
-            "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference".into(),
+            "implicit use of an outer receiver is not allowed".to_owned(),
+            scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0402,
+                "use `this@label` or an explicit object reference".to_owned(),
+            ),
         );
         None
     }
@@ -181,6 +188,7 @@ impl Lowerer {
             || scope.is_some_and(|scope| scope.receiver.is_none())
         {
             self.error(
+                scoop_source::DiagnosticCode::E0716,
                 label.span,
                 format!("label `{}` has no receiver", label.text),
             );
@@ -188,6 +196,7 @@ impl Lowerer {
         }
         let Some(receiver) = scope.and_then(|scope| scope.receiver) else {
             self.error(
+                scoop_source::DiagnosticCode::E0716,
                 label.span,
                 format!("unknown receiver label `{}`", label.text),
             );

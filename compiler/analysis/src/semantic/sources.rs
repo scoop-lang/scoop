@@ -64,6 +64,7 @@ pub(super) fn complete(
     }
     if cone.sources.is_empty() {
         diagnostics.push(ast::SourceDiagnostic::without_location(
+            scoop_source::DiagnosticCode::E2004,
             ast::DiagnosticSeverity::Error,
             "no source files to compile",
         ));

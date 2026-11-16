@@ -34,11 +34,11 @@ impl Lowerer {
                 if allow_anonymous {
                     continue;
                 }
-                self.error(span, "an inferred declaration signature cannot expose an anonymous object type; specify a visible base type".into());
+                self.error(scoop_source::DiagnosticCode::E0410, span, "an inferred declaration signature cannot expose an anonymous object type; specify a visible base type".into());
                 return false;
             }
             if !scopes.contains_nominal(owner) {
-                self.error(span, format!("local type `{}` cannot escape its lexical scope through an inferred result", owner.describe_name(self)));
+                self.error(scoop_source::DiagnosticCode::E0410, span, format!("local type `{}` cannot escape its lexical scope through an inferred result", owner.describe_name(self)));
                 return false;
             }
         }

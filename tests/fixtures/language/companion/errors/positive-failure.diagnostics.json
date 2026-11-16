@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `probe` in current-unit top-level candidate layer:\n  - fun probe<T>(value: T): Int \u2014 Host.Companion is not a subtype of I",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `probe` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun probe<T>(value: T): Int",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "Host.Companion is not a subtype of I",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 141,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 128
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 114,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 60
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 141,

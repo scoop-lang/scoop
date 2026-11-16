@@ -313,6 +313,27 @@ pub struct ManifestParseError {
 }
 
 impl ManifestParseError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as Code;
+        match &self.kind {
+            ManifestParseErrorKind::InvalidPackage(code, _)
+            | ManifestParseErrorKind::InvalidSelection(code, _)
+            | ManifestParseErrorKind::InvalidNative(code, _)
+            | ManifestParseErrorKind::InvalidWindows(code, _) => *code,
+            ManifestParseErrorKind::InvalidToml(_)
+            | ManifestParseErrorKind::UnsupportedSchema(_)
+            | ManifestParseErrorKind::InvalidConeKind(_) => Code::E2008,
+            ManifestParseErrorKind::InvalidConeCoordinate(_)
+            | ManifestParseErrorKind::InvalidDependencyKey(_)
+            | ManifestParseErrorKind::InvalidDependencyCoordinate { .. } => Code::E2010,
+            ManifestParseErrorKind::ReservedConeCoordinate
+            | ManifestParseErrorKind::TrustedCoreMustBeLibrary => Code::E2011,
+            ManifestParseErrorKind::ConflictingDependencyLocators
+            | ManifestParseErrorKind::EmptyDependencyLocator => Code::E2014,
+            ManifestParseErrorKind::DuplicateTestDependency(_) => Code::E2109,
+        }
+    }
+
     pub(crate) fn new(kind: ManifestParseErrorKind, span: Option<Range<usize>>) -> Self {
         Self {
             kind,
@@ -332,7 +353,7 @@ impl ManifestParseError {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ManifestParseErrorKind {
     InvalidToml(String),
-    InvalidPackage(String),
+    InvalidPackage(scoop_source::DiagnosticCode, String),
     UnsupportedSchema(i64),
     InvalidConeCoordinate(ConeCoordinateError),
     ReservedConeCoordinate,
@@ -346,18 +367,18 @@ pub enum ManifestParseErrorKind {
     ConflictingDependencyLocators,
     EmptyDependencyLocator,
     DuplicateTestDependency(String),
-    InvalidSelection(String),
-    InvalidNative(String),
-    InvalidWindows(String),
+    InvalidSelection(scoop_source::DiagnosticCode, String),
+    InvalidNative(scoop_source::DiagnosticCode, String),
+    InvalidWindows(scoop_source::DiagnosticCode, String),
 }
 
 impl fmt::Display for ManifestParseErrorKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidSelection(message)
-            | Self::InvalidNative(message)
-            | Self::InvalidWindows(message)
-            | Self::InvalidPackage(message) => formatter.write_str(message),
+            Self::InvalidSelection(_, message)
+            | Self::InvalidNative(_, message)
+            | Self::InvalidWindows(_, message)
+            | Self::InvalidPackage(_, message) => formatter.write_str(message),
             Self::InvalidToml(message) => write!(formatter, "invalid Cone.toml: {message}"),
             Self::UnsupportedSchema(schema) => {
                 write!(

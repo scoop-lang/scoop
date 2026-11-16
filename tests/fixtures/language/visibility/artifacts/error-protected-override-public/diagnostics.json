@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `$get$value` does not cover inherited slot `Base.$get$value`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `$set$value` does not cover inherited slot `Base.$set$value`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `execute` does not cover inherited slot `Base.execute`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `expanded` does not cover inherited slot `Expanded.expanded`",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `expanded` does not cover inherited slot `ProtectedBase.expanded`",
     "notes": [],
     "origin": {

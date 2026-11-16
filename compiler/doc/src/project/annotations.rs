@@ -29,6 +29,7 @@ impl Projection<'_> {
                     };
                     if alias.trim().is_empty() {
                         warnings.push(DocWarning {
+                            code: scoop_source::DiagnosticCode::W1802.into(),
                             location: self.location(
                                 application.definition_origin.file as usize,
                                 application.definition_origin.span,

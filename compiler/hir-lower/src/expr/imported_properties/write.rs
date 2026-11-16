@@ -21,7 +21,9 @@ impl Lowerer {
         });
         let value = self.lower_expr(value, &mut sink, Some(prepared.value_type))?;
         if !self.is_subtype(value.ty, prepared.value_type) {
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                value.span,
                 format!(
                     "cannot assign value of type {} to property `{}` of type {}",
                     self.type_name(value.ty),
@@ -31,7 +33,6 @@ impl Lowerer {
                 value.ty,
                 prepared.value_type,
             );
-            self.error(value.span, message);
             return None;
         }
         let value = self.adapt_to(value, prepared.value_type);
@@ -51,6 +52,7 @@ impl Lowerer {
         let prepared = self.prepare_imported_property_setter(binding, receiver, name)?;
         if !self.is_subtype(value.ty, prepared.value_type) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 value.span,
                 format!(
                     "cannot assign value of type {} to property `{}` of type {}",
@@ -75,6 +77,7 @@ impl Lowerer {
         let capability = property.interface().accessors();
         if capability.setter().is_none() {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 name.span,
                 format!("cannot assign to immutable property `{}`", name.text),
             );
@@ -92,6 +95,7 @@ impl Lowerer {
             receiver.as_ref().map(|receiver| receiver.static_type),
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!("setter of property `{}` is not accessible", name.text),
             );

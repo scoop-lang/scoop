@@ -31,6 +31,7 @@ impl Lowerer {
             .ok_or(())?;
         let Some(value) = self.expression_constant(&expression) else {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 access.span,
                 "const initializer may only reference constant values".into(),
             );
@@ -53,6 +54,7 @@ impl Lowerer {
             Ok(candidate) => candidate,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     usage_span,
                     format!("invalid imported dependency constant: {error}"),
                 );
@@ -63,6 +65,7 @@ impl Lowerer {
             Ok(ty) => ty,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     usage_span,
                     format!("dependency constant has an unsupported signature type: {error:?}"),
                 );
@@ -72,6 +75,7 @@ impl Lowerer {
         let Some(value) = self.imported_constant_image(candidate.record().value().clone(), ty)
         else {
             self.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 usage_span,
                 "dependency constant payload does not match its declared type".into(),
             );
@@ -104,6 +108,7 @@ impl Lowerer {
             .select_constant(candidate)
         {
             self.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 usage_span,
                 format!("failed to select imported dependency constant: {error}"),
             );
@@ -150,6 +155,7 @@ impl Lowerer {
         error: ImportedDefinitionOriginError,
     ) {
         self.error(
+            scoop_source::DiagnosticCode::ICE0501,
             usage_span,
             format!("failed to import dependency constant origin: {error}"),
         );

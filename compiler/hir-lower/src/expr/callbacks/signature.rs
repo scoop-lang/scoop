@@ -12,6 +12,7 @@ impl Lowerer {
     ) -> Result<(usize, TypeId), ()> {
         let [ResolvedCallTypeArgument::Explicit { ty: native_ty, .. }] = explicit else {
             self.error(
+                scoop_source::DiagnosticCode::E1216,
                 span,
                 "`foreignCallback` requires one explicit function type".into(),
             );
@@ -19,6 +20,7 @@ impl Lowerer {
         };
         let hir::Type::Function(native_function_type) = self.types[*native_ty] else {
             self.error(
+                scoop_source::DiagnosticCode::E1216,
                 span,
                 "`foreignCallback` type argument must be an ordinary concrete function type".into(),
             );
@@ -29,6 +31,7 @@ impl Lowerer {
         }
         let ast::Expr::IntLiteral(literal) = context else {
             self.error(
+                scoop_source::DiagnosticCode::E1219,
                 context.span(),
                 "foreign callback `contextIndex` must be a compile-time integer literal".into(),
             );
@@ -38,6 +41,7 @@ impl Lowerer {
         let context_index = usize::try_from(literal.magnitude).ok();
         if context_index.is_none_or(|index| index >= native.parameter_types.len()) {
             self.error(
+                scoop_source::DiagnosticCode::E1219,
                 literal.span,
                 "foreign callback `contextIndex` is outside the native signature".into(),
             );
@@ -47,6 +51,7 @@ impl Lowerer {
         if !matches!(self.types[native.parameter_types[context_index]], hir::Type::Ptr(pointee) if pointee == self.unit)
         {
             self.error(
+                scoop_source::DiagnosticCode::E1219,
                 literal.span,
                 "foreign callback context parameter must be exactly `Ptr<Unit>`".into(),
             );

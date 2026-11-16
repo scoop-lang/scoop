@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: a subjectless value when requires `else`",
     "notes": [],
     "origin": {

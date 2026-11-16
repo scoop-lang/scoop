@@ -14,6 +14,7 @@ impl Lowerer {
         let core_diagnostic_file = self.core_diagnostic_file();
         self.current_file = core_diagnostic_file;
         self.error(
+            scoop_source::DiagnosticCode::E1404,
             files[core_diagnostic_file],
             format!("scoop.core must define exactly one `{name}` enum"),
         );
@@ -33,6 +34,7 @@ impl Lowerer {
                 .all(|(variant, name)| variant.name == *name && variant.fields.is_empty());
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 format!(
                     "core `{}` must declare unit variants `{}` in order",
@@ -58,6 +60,7 @@ impl Lowerer {
             && declaration.attributes.c_layout.is_none();
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 format!("core `{name}` must be `struct {name}<T : ref>(val raw: ULong)`"),
             );
@@ -87,6 +90,7 @@ impl Lowerer {
             && parameter_matches;
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 function.span,
                 format!(
                     "intrinsic `{}` has an invalid core GC primitive signature",
@@ -107,6 +111,7 @@ impl Lowerer {
             && declaration.attributes.c_layout.is_none();
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 "core `Ptr` must be a fieldless intrinsic `struct Ptr<T : value>`".to_string(),
             );
@@ -130,6 +135,7 @@ impl Lowerer {
             && declaration.attributes.c_layout.is_none();
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 format!("core `{name}` must be a fieldless intrinsic `struct {name}<F>`"),
             );
@@ -173,6 +179,7 @@ impl Lowerer {
             && self.is_deferred_native_function_pointer(signature.return_ty, 0, target);
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 function.span,
                 format!(
                     "malformed core native function pointer intrinsic `{}`",
@@ -275,6 +282,7 @@ impl Lowerer {
                 FunctionKind::Extern(_) => "extern".to_string(),
             };
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 function.span,
                 format!("malformed core pointer intrinsic `{intrinsic}`"),
             );
@@ -327,6 +335,7 @@ impl Lowerer {
                 FunctionKind::Extern(_) => "extern".to_string(),
             };
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 function.span,
                 format!("malformed core pointer intrinsic `{intrinsic}`"),
             );
@@ -341,7 +350,7 @@ impl Lowerer {
             };
             if let Some(message) = self.concrete_pointer_pointee_error(pointee) {
                 self.current_file = file;
-                self.error(span, message);
+                self.error(scoop_source::DiagnosticCode::E1213, span, message);
             }
         }
     }

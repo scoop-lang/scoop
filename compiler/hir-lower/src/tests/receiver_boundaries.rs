@@ -34,7 +34,7 @@ fn assert_rejected(text: &str, token: &str) {
     let errors = lower_user(parsed).expect_err("implicit outer receiver must be rejected");
     let error = errors
         .iter()
-        .find(|error| error.message.contains(DIAGNOSTIC))
+        .find(|error| crate::tests::diagnostic_text(error).contains(DIAGNOSTIC))
         .unwrap_or_else(|| panic!("missing outer receiver diagnostic: {errors:#?}"));
     let span = error.span().expect("receiver diagnostic has a source span");
     assert_eq!(&text[span.start as usize..span.end as usize], token);
@@ -101,7 +101,7 @@ fn receiver_boundaries_reject_implicit_enclosing_instances() {
         assert!(
             errors
                 .iter()
-                .any(|error| error.message.contains(DIAGNOSTIC)),
+                .any(|error| crate::tests::diagnostic_text(error).contains(DIAGNOSTIC)),
             "{errors:#?}"
         );
     }
@@ -176,7 +176,7 @@ fn receiver_boundaries_do_not_replace_an_inner_constructor_with_a_function() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains(DIAGNOSTIC)),
+            .any(|error| crate::tests::diagnostic_text(error).contains(DIAGNOSTIC)),
         "{errors:#?}"
     );
 }

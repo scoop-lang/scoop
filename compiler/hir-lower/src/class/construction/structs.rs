@@ -36,7 +36,11 @@ impl Lowerer {
                 } else {
                     "a struct secondary constructor must declare `this(...)` delegation"
                 };
-                self.error(source.span, message.into());
+                self.error(
+                    scoop_source::DiagnosticCode::E1001,
+                    source.span,
+                    message.into(),
+                );
                 continue;
             };
             let owner_application = self.structs[id].self_application;

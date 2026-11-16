@@ -47,10 +47,13 @@ pub(crate) fn source_target(
         .find(|target| target.id == id)
         .copied()
         .ok_or_else(|| {
-            crate::ToolchainError(format!(
-                "unsupported native source target {}/{}",
-                id.canonical_name(),
-                id.major_version()
-            ))
+            crate::ToolchainError::new(
+                scoop_source::DiagnosticCode::E2301,
+                format!(
+                    "unsupported native source target {}/{}",
+                    id.canonical_name(),
+                    id.major_version()
+                ),
+            )
         })
 }

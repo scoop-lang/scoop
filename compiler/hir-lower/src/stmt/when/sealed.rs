@@ -113,15 +113,21 @@ impl Lowerer {
             });
         }
         let witness = self.type_name(ty);
-        let guard = if when.arms.iter().any(|arm| arm.guard.is_some()) {
-            "; guarded arms do not contribute to exhaustiveness"
-        } else {
-            ""
-        };
-        self.error(
+        let mut diagnostic = scoop_ast::Diagnostic::at(
+            scoop_source::DiagnosticCode::E0904,
             when.span,
-            format!("non-exhaustive when: missing subtype family `{witness}`{guard}"),
+            format!("non-exhaustive when: missing subtype family `{witness}`"),
         );
+        diagnostic.set_file(self.current_text_file());
+        if when.arms.iter().any(|arm| arm.guard.is_some()) {
+            diagnostic
+                .notes
+                .push(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0901,
+                    "guarded arms do not contribute to exhaustiveness",
+                ));
+        }
+        self.diagnostics.push(diagnostic);
         false
     }
 }

@@ -7,15 +7,27 @@ impl StructuredDiagnosticV1 {
         &mut self,
         mut remap: impl FnMut(&HostPathCarrier) -> Option<HostPathCarrier>,
     ) {
-        for origin in std::iter::once(&mut self.origin)
-            .chain(self.notes.iter_mut().map(|note| &mut note.origin))
-        {
+        fn remap_origin(
+            origin: &mut DiagnosticOriginV1,
+            remap: &mut impl FnMut(&HostPathCarrier) -> Option<HostPathCarrier>,
+        ) {
             if let DiagnosticOriginV1::ArtifactPath { path, .. } = origin
                 && let Some(original) = remap(path)
             {
                 *path = original;
             }
         }
+        fn remap_notes(
+            notes: &mut [super::DiagnosticNoteV1],
+            remap: &mut impl FnMut(&HostPathCarrier) -> Option<HostPathCarrier>,
+        ) {
+            for note in notes {
+                remap_origin(&mut note.origin, remap);
+                remap_notes(&mut note.notes, remap);
+            }
+        }
+        remap_origin(&mut self.origin, &mut remap);
+        remap_notes(&mut self.notes, &mut remap);
     }
 }
 

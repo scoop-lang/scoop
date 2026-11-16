@@ -204,4 +204,5 @@ mod tests;
 
 fn symbol_error(error: impl std::fmt::Display) -> CodegenError {
     CodegenError::internal(format!("derive root entry symbol: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
 }

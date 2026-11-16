@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "operator `compareTo` must return Long, found Int",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1012",
     "message": "`compareTo` is marked `override` but does not override any method",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "struct `Invalid` does not implement interface method `Compare<Invalid>.compareTo`",
     "notes": [],
     "origin": {

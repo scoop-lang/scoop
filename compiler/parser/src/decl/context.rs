@@ -19,6 +19,7 @@ impl Parser {
         })?;
         if matches!(self.peek().kind, TokenKind::RParen) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0204,
                 self.peek().span,
                 "a context parameter list cannot be empty",
             ));
@@ -57,6 +58,7 @@ impl Parser {
         self.attach_documentation(doc_start, span);
         if matches!(self.peek().kind, TokenKind::Equal) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1117,
                 self.peek().span,
                 "context parameters cannot have defaults",
             ));
@@ -73,6 +75,7 @@ impl Parser {
             || prefix.modifiers.override_span.is_some()
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1117,
                 self.peek().span,
                 "a local context declaration must be a named function",
             ));

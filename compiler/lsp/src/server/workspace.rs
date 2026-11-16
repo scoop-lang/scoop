@@ -54,12 +54,21 @@ impl Server {
                     convert::range(text, span, self.settings.encoding).ok()
                 })
                 .unwrap_or_default();
+            let mut related = Vec::new();
+            let notes = diagnostic
+                .notes
+                .iter()
+                .map(|note| self.project_note(note, &mut related))
+                .collect::<Vec<_>>();
             grouped.entry(uri).or_default().push(Diagnostic {
                 range,
                 severity: Some(DiagnosticSeverity::ERROR),
-                code: Some(NumberOrString::String("SCOOP_PROJECT".to_owned())),
+                code: Some(NumberOrString::String(diagnostic.code.clone())),
                 source: Some("scoop".to_owned()),
                 message: format!("{}: {}", diagnostic.configuration, diagnostic.message),
+                related_information: (!related.is_empty()).then_some(related),
+                data: (!notes.is_empty())
+                    .then(|| serde_json::json!({"notes": notes, "imports": []})),
                 ..Diagnostic::default()
             });
         }
@@ -111,5 +120,84 @@ impl Server {
                 ]}
             }]}),
         )).write(output)
+    }
+}
+
+impl Server {
+    fn project_note(
+        &self,
+        note: &scoop_protocol::DiagnosticNoteV1,
+        related: &mut Vec<lsp_types::DiagnosticRelatedInformation>,
+    ) -> serde_json::Value {
+        use scoop_protocol::DiagnosticOriginV1 as Origin;
+        use serde_json::json;
+        let mut location = None;
+        let origin = match note.origin() {
+            Origin::None => json!({"kind": "none"}),
+            Origin::HostPath { path }
+            | Origin::HostPathSpan { path, .. }
+            | Origin::ArtifactPath { path, .. } => {
+                let path = path.to_path_buf().expect("validated PM diagnostic path");
+                let span = match note.origin() {
+                    Origin::HostPathSpan { span, .. } => Some(*span),
+                    _ => None,
+                };
+                if let Ok(url) = url::Url::from_file_path(&path)
+                    && let Ok(uri) = url.as_str().parse()
+                {
+                    let range = span
+                        .and_then(|span| {
+                            let source = self.documents.host.file_source(&path)?;
+                            let text = &self.documents.host.source(source)?.text;
+                            let span = scoop_source::Span::new(
+                                u32::try_from(span.start()).ok()?,
+                                u32::try_from(span.end()).ok()?,
+                            );
+                            convert::range(text, span, self.settings.encoding).ok()
+                        })
+                        .or_else(|| span.is_none().then(Default::default));
+                    if let Some(range) = range {
+                        location = Some(lsp_types::Location { uri, range });
+                    }
+                }
+                match note.origin() {
+                    Origin::ArtifactPath { semantic_path, .. } => {
+                        json!({"kind": "artifact", "path": path, "member": semantic_path})
+                    }
+                    _ => {
+                        json!({"kind": "host", "path": path, "start": span.map(|s| s.start()), "end": span.map(|s| s.end())})
+                    }
+                }
+            }
+            Origin::SemanticSourceSpan {
+                cone,
+                logical_path,
+                span,
+            }
+            | Origin::SourceTextSpan {
+                cone,
+                logical_path,
+                span,
+                ..
+            } => {
+                let mut origin = json!({"kind": "source", "cone": cone.as_array(), "path": logical_path.as_str(), "start": span.start(), "end": span.end()});
+                if let Origin::SourceTextSpan { text, .. } = note.origin() {
+                    origin["text"] = json!(text);
+                }
+                origin
+            }
+        };
+        if let Some(location) = &location {
+            related.push(lsp_types::DiagnosticRelatedInformation {
+                location: location.clone(),
+                message: format!("[{}] {}", note.code(), note.message()),
+            });
+        }
+        let notes = note
+            .notes()
+            .iter()
+            .map(|child| self.project_note(child, related))
+            .collect::<Vec<_>>();
+        json!({"code": note.code().as_str(), "kind": note.code().role().as_str(), "message": note.message(), "origin": origin, "location": location, "importPath": note.import_path(), "notes": notes})
     }
 }

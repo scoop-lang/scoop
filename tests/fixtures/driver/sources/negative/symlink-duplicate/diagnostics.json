@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2005",
     "message": "cannot snapshot manifest sources: source discovery failed at ${work}/cone/alias.scoop: source selections overlap or select the same file: sources[1] (\"src\"); sources[2] (\"alias.scoop\")",
     "notes": [],
     "origin": {

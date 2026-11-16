@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order SeqCst is not allowed with success order Acquire",
     "notes": [],
     "origin": {

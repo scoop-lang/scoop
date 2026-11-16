@@ -34,6 +34,7 @@ impl Lowerer {
         let managed_ty = self.function_types[managed_function_type].canonical_type;
         if !self.types_equal(closure.ty, managed_ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 closure.span,
                 format!(
                     "foreign callback closure must have type {}, found {}",
@@ -51,6 +52,7 @@ impl Lowerer {
         };
         let Some(mode_value) = declared_mode else {
             self.error(
+                scoop_source::DiagnosticCode::E1218,
                 mode.span,
                 "foreign callback mode must be the constant `Reusable` or `OneShot`".into(),
             );

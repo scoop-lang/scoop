@@ -74,7 +74,7 @@ fn query(root: &Path, args: &[&str], buffer: Option<&str>) -> Value {
         String::from_utf8_lossy(&output.stderr)
     );
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value["schema"], 1);
+    assert_eq!(value["schema"], 2);
     assert_eq!(value["kind"], "query");
     assert_eq!(value["rangeBase"], 0);
     value
@@ -133,11 +133,11 @@ fn source_and_project_errors_keep_partial_information_and_diagnostics() {
     write(root, "app/Cone.toml", "schema = broken\n");
     let symbols = query(root, &["symbols", "src/value.scoop"], None);
     assert_eq!(symbols["status"], "partial");
-    assert!(symbols["diagnostics"].to_string().contains("SCOOP_PROJECT"));
+    assert!(symbols["diagnostics"].to_string().contains("E2008"));
     assert_eq!(symbols["result"][0]["name"], "Box");
     let manifest = query(root, &["diagnostics", "Cone.toml"], None);
     assert_eq!(manifest["status"], "partial");
-    assert!(manifest["result"].to_string().contains("SCOOP_PROJECT"));
+    assert!(manifest["result"].to_string().contains("E2008"));
 }
 
 #[test]

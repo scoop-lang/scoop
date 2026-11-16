@@ -15,7 +15,10 @@ impl WindowsFinalLinkProfile {
         subsystem: scoop_identity::WindowsSubsystem,
     ) -> Result<Command, ToolchainError> {
         if self.data.output.kind() != FinalOutputKind::Executable {
-            return Err(error("Windows subsystem requires executable output"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2001,
+                "Windows subsystem requires executable output",
+            ));
         }
         self.build_command(scratch, output, Some(subsystem))
     }
@@ -31,8 +34,12 @@ impl WindowsFinalLinkProfile {
         output: &Path,
         subsystem: Option<scoop_identity::WindowsSubsystem>,
     ) -> Result<Command, ToolchainError> {
-        std::fs::create_dir_all(scratch).map_err(error)?;
-        let environment = self.startup.windows_environment().map_err(error)?;
+        std::fs::create_dir_all(scratch)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+        let environment = self
+            .startup
+            .windows_environment()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
         let mut command = if self.microsoft() {
             let mut command = environment.bare_command(&self.data.driver);
             command.args([environment.machine.clang_cl_target_arg(), "/nologo"]);
@@ -116,14 +123,17 @@ impl WindowsFinalLinkProfile {
         }
         if let Some(import_library) = self.import_library_path(output) {
             if import_library == output {
-                return Err(error("DLL and import library output paths must differ"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2001,
+                    "DLL and import library output paths must differ",
+                ));
             }
             let exports = scratch.join("native-app.def");
             std::fs::write(
                 &exports,
                 format!("EXPORTS\n{}\n", super::super::output::NATIVE_APP_ENTRY),
             )
-            .map_err(error)?;
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             if self.microsoft() {
                 self.linker_arg(
                     &mut command,

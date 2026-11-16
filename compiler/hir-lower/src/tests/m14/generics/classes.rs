@@ -112,9 +112,8 @@ fn generic_class_constructor_requires_complete_unique_arguments_and_bounds() {
     ];
     let errors = lower_user(file(declarations)).expect_err("Int cannot satisfy Marker");
     assert!(errors.iter().any(|error| {
-        error.message.contains("class Bounded<T : Marker>()")
-            && error
-                .message
+        crate::tests::diagnostic_text(error).contains("class Bounded<T : Marker>()")
+            && crate::tests::diagnostic_text(error)
                 .contains("type argument `Int` for `T` must satisfy interface upper bound `Marker`")
     }));
 
@@ -124,9 +123,8 @@ fn generic_class_constructor_requires_complete_unique_arguments_and_bounds() {
     ]))
     .expect_err("an unconstrained constructor cannot invent a type argument");
     assert!(errors.iter().any(|error| {
-        error.message.contains("class Empty<T>()")
-            && error
-                .message
+        crate::tests::diagnostic_text(error).contains("class Empty<T>()")
+            && crate::tests::diagnostic_text(error)
                 .contains("cannot infer a unique type argument for `T`")
     }));
 }

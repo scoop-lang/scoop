@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2401",
     "message": "${work}/bad.slib: archive global magic is not canonical",
     "notes": [],
     "origin": {

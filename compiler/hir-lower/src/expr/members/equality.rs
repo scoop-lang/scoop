@@ -28,6 +28,7 @@ impl Lowerer {
         let owner = receiver.ty;
         let [argument] = call.args else {
             state.error(
+                scoop_source::DiagnosticCode::E0701,
                 call.span,
                 format!(
                     "derived member `equals` requires one argument, found {}",
@@ -38,6 +39,7 @@ impl Lowerer {
         };
         if !call.type_args.is_empty() {
             state.error(
+                scoop_source::DiagnosticCode::E0601,
                 call.span,
                 "derived member `equals` does not accept type arguments".into(),
             );
@@ -47,6 +49,7 @@ impl Lowerer {
             && name.text != "other"
         {
             state.error(
+                scoop_source::DiagnosticCode::E0702,
                 name.span,
                 format!("derived member `equals` has no parameter `{}`", name.text),
             );
@@ -54,6 +57,7 @@ impl Lowerer {
         }
         if let ast::SpreadSyntax::Spread(span) = argument.spread {
             state.error(
+                scoop_source::DiagnosticCode::E0707,
                 span,
                 "derived member `equals` does not have a vararg parameter".into(),
             );
@@ -63,6 +67,7 @@ impl Lowerer {
             && !state.is_subtype(state.boolean, expected)
         {
             state.error(
+                scoop_source::DiagnosticCode::E0501,
                 call.span,
                 format!(
                     "derived member `equals` returns Boolean, expected {}",
@@ -83,6 +88,7 @@ impl Lowerer {
         };
         if !state.is_subtype(other.ty, owner) {
             state.error(
+                scoop_source::DiagnosticCode::E0501,
                 argument.span,
                 format!(
                     "argument `other` for derived member `equals` must have type {}, found {}",

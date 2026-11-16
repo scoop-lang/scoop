@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1702",
     "message": "missing native-app entry: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
     "notes": [
       {
+        "code": "N1701",
+        "kind": "note",
         "message": "`fun appInit(this: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit` is not eligible because it has a receiver",
+        "notes": [],
         "origin": {
           "cone": "bc701d7cb99f3c4078ae39f90666094efd10f8d2a3cc160280ff164258ecf888",
           "end": 69,

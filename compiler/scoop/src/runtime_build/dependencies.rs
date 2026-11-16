@@ -13,7 +13,7 @@ impl Dependencies {
         Ok(Self {
             inputs: paths
                 .iter()
-                .map(|p| NativeInputMetadata::read(p).map_err(error))
+                .map(|p| NativeInputMetadata::read(p).map_err(|cause| error(cause.code(), cause)))
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -21,13 +21,16 @@ impl Dependencies {
     pub fn input_paths(&self) -> Result<Vec<PathBuf>, RuntimeBuildError> {
         self.inputs
             .iter()
-            .map(|p| p.path().map_err(error))
+            .map(|p| p.path().map_err(|cause| error(cause.code(), cause)))
             .collect()
     }
 
     pub fn is_current(&self) -> Result<bool, RuntimeBuildError> {
         for input in &self.inputs {
-            if !input.is_current().map_err(error)? {
+            if !input
+                .is_current()
+                .map_err(|cause| error(cause.code(), cause))?
+            {
                 return Ok(false);
             }
         }
@@ -36,7 +39,8 @@ impl Dependencies {
 
     pub fn input_key(&self, base: Digest256) -> Result<Digest256, RuntimeBuildError> {
         Ok(scoop_wire::sha256(
-            &serde_json::to_vec(&(base.as_array(), self)).map_err(error)?,
+            &serde_json::to_vec(&(base.as_array(), self))
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         ))
     }
 }

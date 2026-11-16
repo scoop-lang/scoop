@@ -242,6 +242,8 @@ impl WorkspaceSettings {
         message: impl std::fmt::Display,
     ) -> ProjectDiagnostic {
         ProjectDiagnostic {
+            notes: Vec::new(),
+            code: scoop_source::DiagnosticCode::E2001.to_string(),
             configuration: name.to_owned(),
             path,
             span: None,

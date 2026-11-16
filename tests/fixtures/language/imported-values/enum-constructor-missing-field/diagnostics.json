@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0708",
     "message": "dependency constructor `Pair` required parameter `right` has no argument",
     "notes": [],
     "origin": {

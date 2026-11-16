@@ -176,6 +176,7 @@ fn single_file_parse_uses_the_reserved_source_identity() {
     );
     let warnings = CurrentConeDiagnosticSet::try_new(
         vec![scoop_ast::Diagnostic::warning_at(
+            scoop_source::DiagnosticCode::W0901,
             scoop_ast::Span::new(4, 8),
             "entry warning",
         )],
@@ -185,7 +186,7 @@ fn single_file_parse_uses_the_reserved_source_identity() {
     assert_eq!(warnings.diagnostics().len(), 1);
     let rendered = warnings.render_human();
     assert!(
-        rendered.starts_with("warning: entry warning\n"),
+        rendered.starts_with("warning[W0901]: entry warning\n"),
         "{rendered}"
     );
     assert!(

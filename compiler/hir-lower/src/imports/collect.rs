@@ -471,7 +471,7 @@ impl Lowerer {
             surface.files.insert(file, imports);
         }
         if let Err(error) = surface.freeze_reexports(self) {
-            let mut diagnostic = ast::Diagnostic::at(error.span(), error.to_string());
+            let mut diagnostic = ast::Diagnostic::at(error.code(), error.span(), error.to_string());
             diagnostic.set_file(error.file());
             self.diagnostics.push(diagnostic);
         }

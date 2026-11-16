@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0703",
     "message": "dependency function `gather` parameter `first` is supplied more than once",
     "notes": [],
     "origin": {

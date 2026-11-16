@@ -171,10 +171,13 @@ impl Lowerer {
             state.diagnose_nominal_shape_failure(
                 &view,
                 call.span,
-                format!(
-                    "expects {} explicit type argument(s), but {} were supplied",
-                    view.signature.owner_parameters.len(),
-                    explicit.len()
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::E0601,
+                    format!(
+                        "expects {} explicit type argument(s), but {} were supplied",
+                        view.signature.owner_parameters.len(),
+                        explicit.len()
+                    ),
                 ),
             );
             return Err(Box::new(state));
@@ -182,7 +185,7 @@ impl Lowerer {
         let argument_map = match CandidateArgumentMap::source_nominal(&view, call.arguments) {
             Ok(map) => map,
             Err(reason) => {
-                state.diagnose_nominal_shape_failure(&view, call.span, reason.describe());
+                state.diagnose_nominal_shape_failure(&view, call.span, reason.diagnostic_note());
                 return Err(Box::new(state));
             }
         };

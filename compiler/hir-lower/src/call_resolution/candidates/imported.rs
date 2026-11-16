@@ -31,10 +31,7 @@ impl Lowerer {
                 .find(|value| value.variant() == variant)
                 .expect("the shared enum contains its declared variant");
             if variant.style() == hir::EnumSourceVariantStyleV1::Unit {
-                self.error(span, format!(
-                    "unit variant `{}` of `{}` does not take arguments; use `{}` without parentheses",
-                    name.text, enumeration.name(), name.text,
-                ));
+                self.error_with_note(scoop_source::DiagnosticCode::E0732, span, format!("unit variant `{__diagnostic_arg0}` of `{__diagnostic_arg1}` does not take arguments" , __diagnostic_arg0 = name.text, __diagnostic_arg1 = enumeration.name()), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H0704, format!("use `{__diagnostic_arg2}` without parentheses" , __diagnostic_arg2 = name.text)));
                 return None;
             }
             argument_mode = match variant.style() {

@@ -22,6 +22,7 @@ impl Lowerer {
             .prepare_imported_type_parameters(&parameters, &signatures, span)
             .map_err(|error| {
                 ast::Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid imported typealias parameters: {error}"),
                 )
@@ -30,6 +31,7 @@ impl Lowerer {
             .imported_signature_type_with_bindings(expansion, &bindings)
             .map_err(|error| {
                 ast::Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid imported typealias target: {error:?}"),
                 )

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1303",
     "message": "`@Intrinsic` only permits ordinary core documentation annotations",
     "notes": [],
     "origin": {

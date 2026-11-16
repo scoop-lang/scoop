@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "typealias `Pointer`: type argument `String` for `T` must satisfy `value`",
     "notes": [],
     "origin": {

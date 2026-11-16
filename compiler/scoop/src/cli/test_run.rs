@@ -26,13 +26,13 @@ pub(super) fn program(
         result.complete = true;
         reporter
             .test_report(target, selected, &result, None)
-            .map_err(failure)?;
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
         return Ok(None);
     }
     let run = tempfile::Builder::new()
         .prefix(".test-run-")
         .tempdir_in(output.parent().expect("an executable has a parent"))
-        .map_err(failure)?;
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     let mut command = Command::new(executable);
     command
         .args(&selected.arguments)
@@ -47,16 +47,26 @@ pub(super) fn program(
             .stderr(Stdio::inherit());
     } else {
         command
-            .stdout(File::create(run.path().join("target.stdout")).map_err(failure)?)
-            .stderr(File::create(run.path().join("target.stderr")).map_err(failure)?);
+            .stdout(
+                File::create(run.path().join("target.stdout"))
+                    .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?,
+            )
+            .stderr(
+                File::create(run.path().join("target.stderr"))
+                    .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?,
+            );
     }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         command.arg0(output);
     }
-    let mut child = command.scoop_spawn().map_err(failure)?;
-    let status = child.wait().map_err(failure)?;
+    let mut child = command
+        .scoop_spawn()
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2202, error))?;
+    let status = child
+        .wait()
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2204, error))?;
     drop(child);
     let expected = selected
         .arguments
@@ -84,18 +94,27 @@ pub(super) fn program(
         result.target_failure = Some(format!("test process failed: {status}"));
     }
     if !nocapture {
-        result.output = Some(read_output(run.path(), "target").map_err(failure)?);
+        result.output = Some(
+            read_output(run.path(), "target")
+                .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?,
+        );
         for (index, case) in result.cases.iter_mut().enumerate() {
             if case.status == Status::Failed {
-                case.output = Some(read_output(run.path(), &index.to_string()).map_err(failure)?);
+                case.output = Some(
+                    read_output(run.path(), &index.to_string())
+                        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?,
+                );
             }
         }
     }
     reporter
         .test_report(target, selected, &result, Some(status))
-        .map_err(failure)?;
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     if status.success() && result.failed() {
-        return Err(failure("test run failed; see the test report"));
+        return Err(failure(
+            scoop_source::DiagnosticCode::E2508,
+            "test run failed; see the test report",
+        ));
     }
     Ok(Some(status))
 }
@@ -113,6 +132,6 @@ fn read_output(directory: &Path, prefix: &str) -> io::Result<Output> {
     })
 }
 
-fn failure(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_TEST_RUN", BuildFailurePhase::Run, error)
+fn failure(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> Box<BuildFailure> {
+    BuildFailure::tool(code, BuildFailurePhase::Run, error)
 }

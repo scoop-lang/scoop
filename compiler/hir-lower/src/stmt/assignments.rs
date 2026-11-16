@@ -53,6 +53,7 @@ impl Lowerer {
                     .is_some()
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E1501,
                         name.span,
                         format!("cannot assign to immutable property `{}`", name.text),
                     );
@@ -87,6 +88,7 @@ impl Lowerer {
                 let value = self.lower_expr(&assign.value, &mut sink, Some(property.ty))?;
                 if !self.is_subtype(value.ty, property.ty) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         assign.value.span(),
                         format!(
                             "cannot assign value of type {} to property `{}` of type {}",
@@ -115,6 +117,7 @@ impl Lowerer {
             self.initializing_field(name, assign.span, hir::EditingPropertyAccess::Write)?;
         let Some(target) = field.write else {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 name.span,
                 format!("cannot assign to immutable property `{}`", name.text),
             );
@@ -123,7 +126,9 @@ impl Lowerer {
         let mut sink = Vec::new();
         let value = self.lower_expr(&assign.value, &mut sink, Some(field.read.ty))?;
         if !self.is_subtype(value.ty, field.read.ty) {
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                assign.value.span(),
                 format!(
                     "cannot assign value of type {} to property `{}` of type {}",
                     self.type_name(value.ty),
@@ -133,7 +138,6 @@ impl Lowerer {
                 value.ty,
                 field.read.ty,
             );
-            self.error(assign.value.span(), message);
             return None;
         }
         out.extend(sink);
@@ -177,7 +181,9 @@ impl Lowerer {
             if !self.is_subtype(value.ty, property_ty) {
                 let expected = self.type_name(property_ty);
                 let found = self.type_name(value.ty);
-                let message = self.with_nominal_invariance_detail(
+                self.error_with_invariance(
+                    scoop_source::DiagnosticCode::E0501,
+                    assign.value.span(),
                     format!(
                         "cannot assign value of type {found} to property `{}` of type {expected}",
                         name.text
@@ -185,7 +191,6 @@ impl Lowerer {
                     value.ty,
                     property_ty,
                 );
-                self.error(assign.value.span(), message);
                 return None;
             }
             let value = self.adapt_to(value, property_ty);
@@ -213,17 +218,23 @@ impl Lowerer {
                             .nominal_template_name(self.class_applications[application].template)
                             .to_owned();
                         self.error(
+                            scoop_source::DiagnosticCode::E0402,
                             name.span,
                             format!("class `{class}` has no property `{}`", name.text),
                         );
                     }
                     _ if self.is_value_ty(receiver_ty) => self.error(
+                        scoop_source::DiagnosticCode::E1501,
                         name.span,
                         "field assignment is not supported (value types are immutable)".to_string(),
                     ),
                     _ => {
                         let found = self.type_name(receiver_ty);
-                        self.error(name.span, format!("type `{found}` has no fields"));
+                        self.error(
+                            scoop_source::DiagnosticCode::E0402,
+                            name.span,
+                            format!("type `{found}` has no fields"),
+                        );
                     }
                 }
                 return None;
@@ -234,7 +245,9 @@ impl Lowerer {
         if !self.is_subtype(value.ty, property_ty) {
             let expected = self.type_name(property_ty);
             let found = self.type_name(value.ty);
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                assign.value.span(),
                 format!(
                     "cannot assign value of type {found} to property `{}` of type {expected}",
                     name.text
@@ -242,7 +255,6 @@ impl Lowerer {
                 value.ty,
                 property_ty,
             );
-            self.error(assign.value.span(), message);
             return None;
         }
         let value = self.adapt_to(value, property_ty);

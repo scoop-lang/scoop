@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0704",
     "message": "positional annotation arguments must precede named arguments",
     "notes": [],
     "origin": {

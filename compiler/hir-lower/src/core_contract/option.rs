@@ -12,6 +12,7 @@ impl Lowerer {
             let core_diagnostic_file = self.core_diagnostic_file();
             self.current_file = core_diagnostic_file;
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 files[core_diagnostic_file],
                 "scoop.core must define an enum `Option<T>`".to_string(),
             );
@@ -19,7 +20,7 @@ impl Lowerer {
         };
         if type_param_count != 1 {
             self.current_file = file_index;
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 span,
                 format!(
                     "enum `Option` in scoop.core must have exactly one type parameter, found {type_param_count}"
@@ -43,7 +44,7 @@ impl Lowerer {
         let mut valid = true;
 
         if declaration.variants.len() != 2 {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 format!(
                     "enum `Option` in scoop.core must define exactly `Some(T)` and `None`, found {} variant(s)",
@@ -71,6 +72,7 @@ impl Lowerer {
         });
         if !some_valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 "enum `Option` in scoop.core must define positional variant `Some(T)`".to_string(),
             );
@@ -83,6 +85,7 @@ impl Lowerer {
         });
         if !none_valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 "enum `Option` in scoop.core must define unit variant `None`".to_string(),
             );

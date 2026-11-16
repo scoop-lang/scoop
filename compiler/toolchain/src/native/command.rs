@@ -30,7 +30,10 @@ pub(super) fn base(
             NativeSourceLanguage::C => "/std:c11",
             NativeSourceLanguage::Cxx => "/std:c++20",
             NativeSourceLanguage::ObjectiveC => {
-                return Err(error("Objective-C sources require a Darwin target"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2017,
+                    "Objective-C sources require a Darwin target",
+                ));
             }
         });
         command.arg(match optimization {
@@ -109,10 +112,13 @@ pub(super) fn configure_preprocessor(
                             .arg(crate::windows_native::joined("/clang:", path));
                     }
                     (NativeDriverKind::Msvc, _) => {
-                        return Err(error(format!(
-                            "cl does not support native include option {}",
-                            include.argument()
-                        )));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2017,
+                            format!(
+                                "cl does not support native include option {}",
+                                include.argument()
+                            ),
+                        ));
                     }
                     (NativeDriverKind::Gnu, _) => {
                         command.arg(include.argument()).arg(path);
@@ -128,7 +134,12 @@ pub(super) fn run(
     command: &mut Command,
     source: &str,
 ) -> Result<std::process::Output, ToolchainError> {
-    checked_output(command.scoop_output().map_err(error)?, source)
+    checked_output(
+        command
+            .scoop_output()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?,
+        source,
+    )
 }
 
 fn checked_output(
@@ -136,15 +147,18 @@ fn checked_output(
     source: &str,
 ) -> Result<std::process::Output, ToolchainError> {
     if !output.status.success() {
-        return Err(error(format!(
-            "{source}: {}",
-            String::from_utf8_lossy(if output.stderr.is_empty() {
-                &output.stdout
-            } else {
-                &output.stderr
-            })
-            .trim()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "{source}: {}",
+                String::from_utf8_lossy(if output.stderr.is_empty() {
+                    &output.stdout
+                } else {
+                    &output.stderr
+                })
+                .trim()
+            ),
+        ));
     }
     Ok(output)
 }
@@ -157,10 +171,13 @@ pub(super) fn system_roots(
         return compiler
             .c()
             .windows_environment()
-            .map_err(error)?
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
             .includes
             .iter()
-            .map(|p| p.canonicalize().map_err(error))
+            .map(|p| {
+                p.canonicalize()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
+            })
             .collect();
     }
     let output = run(
@@ -179,17 +196,24 @@ pub(super) fn system_roots(
             break;
         } else if reading {
             let path = line.trim().trim_end_matches(" (framework directory)");
-            roots.push(std::fs::canonicalize(path).map_err(error)?);
+            roots.push(
+                std::fs::canonicalize(path)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+            );
         }
     }
     if roots.is_empty() {
         return Err(error(
+            scoop_source::DiagnosticCode::E2303,
             "selected C compiler did not report its system include directories",
         ));
     }
     // Apple Clang records SDKSettings.json alongside included headers.
     if let Ok(sdk) = compiler.c().sdk_root() {
-        roots.push(sdk.canonicalize().map_err(error)?);
+        roots.push(
+            sdk.canonicalize()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+        );
     }
     Ok(roots)
 }
@@ -206,7 +230,7 @@ pub(super) fn compile(
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or(Path::new("."))
         .canonicalize()
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let language = input.language();
     let mut command = base(compiler, language, optimization, true)?;
     let kind = compiler.kind(language);
@@ -228,10 +252,14 @@ pub(super) fn compile(
                 NativeSourceLanguage::C => "unit.i",
                 NativeSourceLanguage::Cxx => "unit.ii",
                 NativeSourceLanguage::ObjectiveC => {
-                    return Err(error("Objective-C sources require a Darwin target"));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2017,
+                        "Objective-C sources require a Darwin target",
+                    ));
                 }
             });
-            std::fs::write(&source, input.preprocessed()).map_err(error)?;
+            std::fs::write(&source, input.preprocessed())
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             command
                 .arg(if language == NativeSourceLanguage::C {
                     "/TC"
@@ -261,7 +289,7 @@ pub(super) fn compile(
             }
             let output = command
                 .scoop_output_with_input(input.preprocessed())
-                .map_err(error)?;
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
             checked_output(output, input.path().as_str())?;
         }
     }

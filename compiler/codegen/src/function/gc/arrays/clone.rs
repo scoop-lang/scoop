@@ -27,7 +27,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 {
                     return Err(CodegenError::internal(
                         "array clone source and target element storage disagree".to_string(),
-                    ));
+                    )
+                    .with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 let operand_ty = function.value_ty(self.globals_arena, *operand);
                 if function.temps[*out].ty != scoop_lir::MANAGED_PTR
@@ -37,7 +38,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     return Err(CodegenError::internal(format!(
                         "array_clone @{} requires a machine-scalar-free managed array -> managed array",
                         function.symbol()
-                    )));
+                    )).with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 // A valid source of the same layout already bounds the count and extent.
                 let source = self.value(*operand)?.into_pointer_value();
@@ -93,4 +94,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 
 fn clone_error(error: inkwell::builder::BuilderError) -> CodegenError {
     CodegenError::internal(format!("array clone emission: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

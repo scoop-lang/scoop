@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2110",
     "message": "dependency resolution failed:\nBecause dev.m43:version-helper 0.1.0 [path ../helper] depends on dev.m43:values 0.2.0 [path ../two] and dev.m43:version-root 0.1.0 [path .] depends on dev.m43:version-helper 0.1.0 [path ../helper], dev.m43:version-root 0.1.0 [path .] depends on dev.m43:values 0.2.0 [path ../two].\nAnd because dev.m43:version-root 0.1.0 [path .] depends on dev.m43:values 0.1.0 [path ../one], dev.m43:version-root 0.1.0 [path .] is forbidden.\n  dev.m43:version-root -> dev.m43:values: dev.m43:version-root:0.1.0 requires 0.1.0 from path ${work}/one\n    ${work}/program/Cone.toml (bytes 128..164)\n    candidate 0.1.0 [path ../one]: other version or source constraints conflict\n    candidate 0.2.0 [path ../two]: does not satisfy 0.1.0\n  dev.m43:version-root -> dev.m43:version-helper: dev.m43:version-root:0.1.0 requires 0.1.0 from path ${work}/helper\n    ${work}/program/Cone.toml (bytes 213..252)\n    candidate 0.1.0 [path ../helper]: other version or source constraints conflict\n  dev.m43:version-root -> dev.m43:version-helper -> dev.m43:values: dev.m43:version-helper:0.1.0 requires 0.2.0 from path ${work}/two\n    ${work}/helper/Cone.toml (bytes 130..166)\n    candidate 0.1.0 [path ../one]: does not satisfy 0.2.0\n    candidate 0.2.0 [path ../two]: other version or source constraints conflict",
     "notes": [
       {
+        "code": "N0001",
+        "kind": "note",
         "message": "related declaration",
+        "notes": [],
         "origin": {
           "end": 252,
           "kind": "host",
@@ -13,7 +16,10 @@
         }
       },
       {
+        "code": "N0001",
+        "kind": "note",
         "message": "related declaration",
+        "notes": [],
         "origin": {
           "end": 166,
           "kind": "host",

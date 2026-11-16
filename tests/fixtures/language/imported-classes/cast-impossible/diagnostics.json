@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0507",
     "message": "cast from `Other` to `Counter` can never succeed",
     "notes": [],
     "origin": {

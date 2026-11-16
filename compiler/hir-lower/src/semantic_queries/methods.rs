@@ -43,6 +43,7 @@ impl Lowerer {
     ) -> Result<hir::HirSourceFunctionIdentity, Diagnostic> {
         if let Some(failure) = self.declaration_surface.unavailable_signature(function) {
             return Err(Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E2505,
                 self.function_files[&function],
                 failure.name_span,
                 "function signature is unavailable",
@@ -57,7 +58,11 @@ impl Lowerer {
             self.query_core_types(),
         )
         .map_err(|error| {
-            let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+            let mut diagnostic = Diagnostic::at(
+                scoop_source::DiagnosticCode::ICE0501,
+                error.span(),
+                error.to_string(),
+            );
             diagnostic.set_file(error.file());
             diagnostic
         })?;

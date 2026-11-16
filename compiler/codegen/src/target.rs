@@ -385,7 +385,8 @@ impl ValidatedBackendProfile {
             "LIR target profile `{}` does not match codegen target profile `{}`",
             actual.id().canonical_name(),
             self.id().canonical_name(),
-        )))
+        ))
+        .with_code(scoop_source::DiagnosticCode::ICE2201))
     }
 
     #[cfg(test)]
@@ -453,7 +454,8 @@ fn validate_llvm_version(version: LlvmVersion) -> Result<LlvmVersion, CodegenErr
         Err(CodegenError::backend_message(format!(
             "unsupported LLVM backend {version}; Scoop requires LLVM \
              {REQUIRED_LLVM_MAJOR}.{REQUIRED_LLVM_MINOR}"
-        )))
+        ))
+        .with_code(scoop_source::DiagnosticCode::E2303))
     }
 }
 

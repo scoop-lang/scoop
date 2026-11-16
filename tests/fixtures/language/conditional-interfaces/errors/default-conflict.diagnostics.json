@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "class `Child` may inherit conflicting implementations for `read` from `Left` and `Right` when their conditions both hold; declare a common override that covers both conditions",
-    "notes": [],
+    "code": "E1010",
+    "message": "class `Child` may inherit conflicting implementations for `read` from `Left` and `Right` when their conditions both hold",
+    "notes": [
+      {
+        "code": "H1001",
+        "kind": "help",
+        "message": "declare a common override that covers both conditions",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 481,
@@ -13,9 +23,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "struct `Conflict` may inherit conflicting implementations for `read` from `Left` and `Right` when their conditions both hold; declare a common override that covers both conditions",
-    "notes": [],
+    "code": "E1010",
+    "message": "struct `Conflict` may inherit conflicting implementations for `read` from `Left` and `Right` when their conditions both hold",
+    "notes": [
+      {
+        "code": "H1001",
+        "kind": "help",
+        "message": "declare a common override that covers both conditions",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 339,
@@ -26,9 +46,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "struct `Partial` may inherit conflicting implementations for `read` from `Partial<T>` and `Right` when their conditions both hold; declare a common override that covers both conditions",
-    "notes": [],
+    "code": "E1010",
+    "message": "struct `Partial` may inherit conflicting implementations for `read` from `Partial<T>` and `Right` when their conditions both hold",
+    "notes": [
+      {
+        "code": "H1001",
+        "kind": "help",
+        "message": "declare a common override that covers both conditions",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 650,

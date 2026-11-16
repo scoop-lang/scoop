@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1025",
     "message": "abstract interface accessor cannot be called with qualified `super`",
     "notes": [],
     "origin": {

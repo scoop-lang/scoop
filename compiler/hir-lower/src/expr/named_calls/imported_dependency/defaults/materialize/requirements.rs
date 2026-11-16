@@ -24,7 +24,7 @@ impl Lowerer {
                         let mut contract = self.declared_member_requirement(id).contract;
                         contract.map_types(|ty| self.instantiate_method_ty(ty, &substitution));
                         self.check_member_requirement(id, &contract)
-                            .map_err(ImportedDefaultMaterializationError::Plan)?
+                            .map_err(ImportedDefaultMaterializationError::Requirement)?
                     }
                     Portable::Implementation { .. } => {
                         self.materialize_requirement_binding(&binding.value, context)?

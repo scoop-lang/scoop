@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1221",
     "message": "atomic memory order must be a constant MemoryOrder variant",
     "notes": [],
     "origin": {

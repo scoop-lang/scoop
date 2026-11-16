@@ -45,6 +45,7 @@ impl Lowerer {
             let (wire, record) = self.decoding_variant_shape(&variant, span)?;
             if !names.insert(wire.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1314,
                     span,
                     format!("automatic decode has duplicate variant name `{wire}`"),
                 );

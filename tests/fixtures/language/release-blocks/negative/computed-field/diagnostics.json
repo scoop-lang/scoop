@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1111",
     "message": "`release` can only read own backing fields; `value` has no ordinary backing field",
     "notes": [],
     "origin": {

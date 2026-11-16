@@ -241,30 +241,35 @@ impl Lowerer {
             if failures.len() == 1 || same_argument_roots {
                 self.commit_layer_diagnostics(&failures.pop().expect("a failed candidate"));
             } else if !failures.is_empty() {
-                let mut traces = failures
+                let mut notes = failures
                     .iter()
-                    .map(|failure| {
+                    .flat_map(|failure| {
                         failure.diagnostics[diagnostics_before..]
                             .iter()
-                            .map(|diagnostic| diagnostic.message.as_str())
-                            .collect::<Vec<_>>()
-                            .join("; ")
+                            .cloned()
+                            .map(|diagnostic| diagnostic.into_note())
                     })
                     .collect::<Vec<_>>();
-                traces.sort();
-                self.error(
+                notes.sort_by(|left, right| {
+                    left.message.cmp(&right.message).then_with(|| {
+                        left.notes
+                            .iter()
+                            .map(|note| &note.message)
+                            .cmp(right.notes.iter().map(|note| &note.message))
+                    })
+                });
+                let mut diagnostic = ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E0711,
+                    self.current_text_file(),
                     call.span,
                     format!(
-                        "no applicable candidate for `{}` in {} layer:\n{}",
+                        "no applicable candidate for `{}` in {} layer",
                         call.callee.text,
-                        kind.call_name(),
-                        traces
-                            .iter()
-                            .map(|trace| format!("  - {trace}"))
-                            .collect::<Vec<_>>()
-                            .join("\n")
+                        kind.call_name()
                     ),
                 );
+                diagnostic.notes = notes;
+                self.diagnostics.push(diagnostic);
             }
             return Ok(None);
         }

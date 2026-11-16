@@ -115,6 +115,7 @@ fn one(diagnostic: Diagnostic) -> Vec<Diagnostic> {
 
 fn error(message: impl Into<String>) -> Vec<Diagnostic> {
     one(Diagnostic::without_span(
+        scoop_source::DiagnosticCode::E2512,
         DiagnosticSeverity::Error,
         0,
         message,

@@ -54,6 +54,7 @@ impl Parser {
             "delegate" => AnnotationUseSiteTarget::Delegate,
             _ => {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1301,
                     name.span,
                     "unknown annotation use-site target",
                 ));
@@ -102,6 +103,7 @@ impl Parser {
         } else {
             if *saw_named {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0704,
                     self.peek().span,
                     "positional annotation arguments must precede named arguments",
                 ));

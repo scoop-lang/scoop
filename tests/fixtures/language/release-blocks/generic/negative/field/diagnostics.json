@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1114",
     "message": "type Owner<String> requires ReleaseValue arguments for its `release` block",
     "notes": [],
     "origin": {

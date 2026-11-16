@@ -55,7 +55,7 @@ pub(super) fn execute(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
         Err(error) => {
             return Err(BuildFailure::tool(
-                "SCOOP_CLEAN_IO",
+                scoop_source::DiagnosticCode::E2201,
                 BuildFailurePhase::Publication,
                 error,
             )

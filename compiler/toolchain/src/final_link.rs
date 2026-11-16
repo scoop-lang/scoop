@@ -14,7 +14,12 @@ fn selected_final_link(
     scoop_target_data::definition(target.id())
         .filter(|definition| definition.selection.target() == target)
         .map(|definition| definition.final_link)
-        .ok_or_else(|| error("the selected target has no final-link profile"))
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2301,
+                "the selected target has no final-link profile",
+            )
+        })
 }
 
 mod darwin;
@@ -68,8 +73,11 @@ impl FinalLinkOptions {
 
     fn native_roots(&self, target: LirTargetProfile) -> Result<Vec<PathBuf>, ToolchainError> {
         let sysroot = crate::configured_sysroot_root(self.sysroot.clone())?;
-        let root =
-            crate::target_library_root(&std::path::absolute(sysroot).map_err(error)?, target);
+        let root = crate::target_library_root(
+            &std::path::absolute(sysroot)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+            target,
+        );
         Ok(vec![
             root.clone(),
             root.join("openssl/lib"),
@@ -110,13 +118,17 @@ impl ValidatedFinalLinkProfile {
     ) -> Result<Self, ToolchainError> {
         let final_link = selected_final_link(startup.target())?;
         if options.linker.is_some() && final_link == scoop_target_data::FinalLinkProfile::Linux {
-            return Err(error("--linker selects a Darwin or Windows final linker"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2001,
+                "--linker selects a Darwin or Windows final linker",
+            ));
         }
         let native_roots = options.native_roots(startup.target())?;
         match final_link {
             scoop_target_data::FinalLinkProfile::Darwin => {
                 if options.mode == Some(LinkMode::Static) || options.unwind_prefix.is_some() {
                     return Err(error(
+                        scoop_source::DiagnosticCode::E2001,
                         "Darwin uses dynamic libSystem unwinding; static mode and an unwind prefix are not applicable",
                     ));
                 }
@@ -196,6 +208,7 @@ impl ValidatedFinalLinkProfile {
         match self {
             Self::Darwin(profile) => Ok(profile.system_provider()),
             Self::Linux(_) | Self::Windows(_) => Err(error(
+                scoop_source::DiagnosticCode::E2001,
                 "this target uses native CRT/libc inputs, not Darwin system stubs",
             )),
         }
@@ -211,7 +224,10 @@ impl ValidatedFinalLinkProfile {
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {
         match self {
             Self::Darwin(profile) => profile.command(
-                profile.startup_toolchain().sdk_root().map_err(error)?,
+                profile
+                    .startup_toolchain()
+                    .sdk_root()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
                 scratch,
                 output,
             ),
@@ -221,7 +237,8 @@ impl ValidatedFinalLinkProfile {
     }
 
     pub fn fingerprint(&self) -> Result<Digest256, ToolchainError> {
-        domain_separated_cbor_hash("scoop-final-link-profile-v3", self).map_err(error)
+        domain_separated_cbor_hash("scoop-final-link-profile-v3", self)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
     }
 }
 
@@ -235,8 +252,8 @@ impl WireEncode for ValidatedFinalLinkProfile {
     }
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("final-link toolchain: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("final-link toolchain: {value}"))
 }
 
 #[cfg(test)]

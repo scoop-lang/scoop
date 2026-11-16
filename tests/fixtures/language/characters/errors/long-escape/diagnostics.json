@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0109",
     "message": "Unicode escape requires four hex digits or one to six hex digits in braces",
     "notes": [],
     "origin": {

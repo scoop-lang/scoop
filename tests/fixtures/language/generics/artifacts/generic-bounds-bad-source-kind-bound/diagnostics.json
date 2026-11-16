@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0614",
     "message": "type parameter `T` of function cannot combine nominal upper bounds with a kind bound",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0614",
     "message": "type parameter `T` of function cannot combine a kind bound with nominal upper bounds",
     "notes": [],
     "origin": {

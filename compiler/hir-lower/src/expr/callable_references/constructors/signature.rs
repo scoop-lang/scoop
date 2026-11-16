@@ -5,7 +5,7 @@ impl ConstructorReferenceDeclaration {
         state: &mut Lowerer,
         candidate: ConstructorReferenceCandidate,
         span: Span,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, ReferenceFailureReason> {
         let (target, mut signature, safety, outer_type) = match &candidate.source {
             ConstructorReferenceSource::Local(source) => {
                 let safety = match source {
@@ -38,8 +38,14 @@ impl ConstructorReferenceDeclaration {
                         _
                     ))
                 ) {
-                    let template =
-                        state.request_imported_constructor_template(*declaration.clone())?;
+                    let template = state
+                        .request_imported_constructor_template(*declaration.clone())
+                        .map_err(|message| {
+                            ReferenceFailureReason::candidate(
+                                scoop_source::DiagnosticCode::ICE0501,
+                                message,
+                            )
+                        })?;
                     let (loaded, _) = ImportedGenericTarget::Constructor(template).signature(state);
                     (
                         ConstructorReferenceTarget::Imported(template),
@@ -48,9 +54,15 @@ impl ConstructorReferenceDeclaration {
                     )
                 } else {
                     let candidate = ImportedCallableCandidate::Declaration(declaration.clone());
-                    let signature = state
-                        .imported_native_signature(&candidate)
-                        .map_err(|error| error.diagnostic("constructor reference signature"))?;
+                    let signature =
+                        state
+                            .imported_native_signature(&candidate)
+                            .map_err(|error| {
+                                ReferenceFailureReason::candidate(
+                                    scoop_source::DiagnosticCode::ICE0501,
+                                    error.diagnostic("constructor reference signature"),
+                                )
+                            })?;
                     (
                         ConstructorReferenceTarget::Dependency(declaration.clone()),
                         signature,
@@ -59,7 +71,12 @@ impl ConstructorReferenceDeclaration {
                             .receiver()
                             .map(|ty| state.imported_signature_type(ty))
                             .transpose()
-                            .map_err(|error| error.diagnostic("constructor outer type"))?,
+                            .map_err(|error| {
+                                ReferenceFailureReason::candidate(
+                                    scoop_source::DiagnosticCode::ICE0501,
+                                    error.diagnostic("constructor outer type"),
+                                )
+                            })?,
                     )
                 };
                 (
@@ -95,7 +112,10 @@ impl ConstructorReferenceDeclaration {
             let actual = state
                 .local_constructor_environment(class, span)
                 .ok_or_else(|| {
-                    "local constructor reference requires its captured values".to_owned()
+                    ReferenceFailureReason::candidate(
+                        scoop_source::DiagnosticCode::E0715,
+                        "local constructor reference requires its captured values",
+                    )
                 })?;
             Some((
                 actual,
@@ -112,13 +132,14 @@ impl ConstructorReferenceDeclaration {
                 None => state.implicit_enclosing_instance(required, span),
             }
             .ok_or_else(|| {
-                state.diagnostics[diagnostics_before..]
-                    .first()
-                    .map(|diagnostic| diagnostic.message.clone())
-                    .unwrap_or_else(|| {
-                        "inner constructor reference requires its declaring outer instance"
-                            .to_owned()
-                    })
+                if state.diagnostics.len() > diagnostics_before {
+                    ReferenceFailureReason::upstream(&state.diagnostics[diagnostics_before..])
+                } else {
+                    ReferenceFailureReason::candidate(
+                        scoop_source::DiagnosticCode::E0715,
+                        "inner constructor reference requires its declaring outer instance",
+                    )
+                }
             })?;
             Some((actual, formal))
         } else {
@@ -153,7 +174,10 @@ impl ConstructorReferenceDeclaration {
             let mapped = state
                 .alias_constructor_signature(&alias, &signature, &[], span)
                 .ok_or_else(|| {
-                    "typealias constructor requires a complete host type application".to_owned()
+                    ReferenceFailureReason::candidate(
+                        scoop_source::DiagnosticCode::E0607,
+                        "typealias constructor requires a complete host type application",
+                    )
                 })?;
             if let Some((_, formal)) = &mut enclosing {
                 *formal = state.instantiate_method_ty(*formal, &mapped.target_bindings);

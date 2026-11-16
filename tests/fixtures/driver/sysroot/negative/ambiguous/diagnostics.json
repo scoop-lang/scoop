@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2106",
     "message": "ambiguous artifacts for scoop:scoop.platform:0.1.0 in search roots",
     "notes": [],
     "origin": {

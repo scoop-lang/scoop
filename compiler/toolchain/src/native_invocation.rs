@@ -35,10 +35,16 @@ impl ResolvedInvocation {
         )?
         .with_native_drivers(
             self.native_c
-                .map(|p| p.to_path_buf().map_err(error))
+                .map(|p| {
+                    p.to_path_buf()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
+                })
                 .transpose()?,
             self.native_cxx
-                .map(|p| p.to_path_buf().map_err(error))
+                .map(|p| {
+                    p.to_path_buf()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))
+                })
                 .transpose()?,
         ))
     }
@@ -89,11 +95,12 @@ pub(crate) fn resolve(
 }
 
 fn path(path: &Path) -> Result<HostPathCarrier, ToolchainError> {
-    HostPathCarrier::from_path(path).map_err(error)
+    HostPathCarrier::from_path(path)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("native tool invocation: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("native tool invocation: {value}"))
 }
 
 #[cfg(test)]

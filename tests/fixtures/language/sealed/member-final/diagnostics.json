@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1014",
     "message": "`value` cannot override final method `Root.value`",
     "notes": [],
     "origin": {

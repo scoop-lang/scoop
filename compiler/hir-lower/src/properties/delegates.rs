@@ -29,6 +29,7 @@ impl Lowerer {
     ) {
         if self.scopes.is_declared_here(&declaration.name.text) {
             self.error(
+                scoop_source::DiagnosticCode::E0301,
                 declaration.name.span,
                 format!(
                     "`{}` is already declared in this scope",
@@ -265,6 +266,7 @@ impl Lowerer {
             DelegateRoleCall::NoApplicable => {
                 let found = self.type_name(receiver_ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E1525,
                     span,
                     format!(
                         "type `{found}` has no applicable property delegate operator `{}`",
@@ -295,7 +297,7 @@ impl Lowerer {
         if self.is_subtype(result, expected) {
             return true;
         }
-        self.error(
+        self.error(scoop_source::DiagnosticCode::E0501,
             span,
             format!(
                 "property delegate getter for `{property_name}` returns {}, which is not assignable to {}",

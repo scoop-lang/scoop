@@ -100,19 +100,24 @@ impl StartupObject {
         }
         let source_path = directory.join("startup.c");
         let object = directory.join("startup-compiled.o");
-        std::fs::write(&source_path, &source).map_err(error)?;
+        std::fs::write(&source_path, &source)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let output = profile
             .startup_toolchain()
             .object_compilation_command(&source_path, &object)
             .scoop_output()
-            .map_err(error)?;
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
         if !output.status.success() {
-            return Err(error(format!(
-                "startup C compilation failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2203,
+                format!(
+                    "startup C compilation failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ),
+            ));
         }
-        let bytes = std::fs::read(object).map_err(error)?;
+        let bytes = std::fs::read(object)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let mut info =
             NativeObjectInfo::read_with_toolchain(&bytes, profile.startup_toolchain().profile())?;
         if profile.target().native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
@@ -139,6 +144,7 @@ impl StartupObject {
             })
         {
             return Err(error(
+                scoop_source::DiagnosticCode::ICE2302,
                 "startup object definitions or image/root/runtime references differ from its plan",
             ));
         }

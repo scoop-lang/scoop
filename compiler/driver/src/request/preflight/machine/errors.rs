@@ -82,3 +82,35 @@ impl From<scoop_codegen::AbiPlanningError> for CurrentConeLirStageError {
         Self::AbiPlanning(error)
     }
 }
+
+impl CurrentConeMirStageError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::DependencyProjection(e) => match e {
+                scoop_slib::CrossConeMirSelectionProjectionError::Resource(_) => C::E2205,
+                _ => C::ICE0701,
+            },
+            Self::Lowering(_)
+            | Self::ProductionSection(_)
+            | Self::CrossConeBridge(_)
+            | Self::Sealing(_) => C::ICE0701,
+        }
+    }
+}
+
+impl CurrentConeLirStageError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::Identity(_) | Self::DiagnosticCatalog(_) => C::ICE0401,
+            Self::AbiPlanning(_) | Self::DependencyProjection(_) | Self::CrossConeBridge(_) => {
+                C::ICE1201
+            }
+            Self::Lowering(e) => match e {
+                scoop_lir_lower::LirLoweringError::Capability(_) => C::E2411,
+                _ => C::ICE1201,
+            },
+        }
+    }
+}

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "visibility is not allowed on a `release` block",
     "notes": [],
     "origin": {

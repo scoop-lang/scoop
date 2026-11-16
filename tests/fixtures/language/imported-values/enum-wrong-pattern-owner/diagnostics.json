@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "pattern `Other.Empty` does not match a subject of type Choice",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1216",
     "message": "`FunPtr` type argument must be an ordinary concrete function type",
     "notes": [],
     "origin": {

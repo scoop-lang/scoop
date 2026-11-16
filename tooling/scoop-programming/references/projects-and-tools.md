@@ -107,6 +107,8 @@ scoop-lsp query code-actions src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query symbols src/main.scoop
 ```
 
+`scoop-lsp query --format json` 使用 `schema: 2`。查询失败的 `error.code` 是诊断规则编号；进程退出码仍由进程状态表示。
+
 行列应取实际源码；两者从 1 开始，列默认计 Unicode 标量（utf-32）。可选 `--position-encoding utf-8|utf-16|utf-32`；JSON 内 LSP range 仍为零基并附 positionEncoding/rangeBase。用 `--project` 指向另一个 Cone 或 workspace，文件与路径选项仍相对当前目录。`--sysroot`、`--target`、`--purpose production|test` 应与实际开发视图一致；`--package-manager`、`--cone-path`、`--package-cache-dir`、`--lockfile` 可选择已有依赖资源。
 
 文档查询的 `--stdin` 读取完整未保存正文，不改磁盘。JSON 的 result 是原 LSP 结果；diagnostics 包含当前文档及项目诊断。status=empty 表示无结果，partial 表示存在错误或服务器分析问题，要同时读诊断。查询成功含 empty/partial 都退出 0；输入/协议错误退出 1，用法错误退出 2，错误在 stderr。查询不替代 build/test，也不生成机器产物。

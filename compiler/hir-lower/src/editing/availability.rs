@@ -179,6 +179,7 @@ impl Lowerer {
             return Some(());
         }
         self.error(
+            scoop_source::DiagnosticCode::E2505,
             span,
             "type declaration is unavailable because its signature failed".into(),
         );

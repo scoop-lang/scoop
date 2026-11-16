@@ -17,10 +17,13 @@ pub(super) fn paired_driver(
                 Some((prefix, version)) => format!("{prefix}clang++{version}"),
                 None if name == "cc" => "c++".to_owned(),
                 None => {
-                    return Err(error(format!(
-                        "cannot locate a paired Clang C++ driver for {}",
-                        path.display()
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2302,
+                        format!(
+                            "cannot locate a paired Clang C++ driver for {}",
+                            path.display()
+                        ),
+                    ));
                 }
             }
         }
@@ -28,24 +31,32 @@ pub(super) fn paired_driver(
             Some((prefix, version)) => format!("{prefix}g++{version}"),
             None if name == "cc" => "c++".to_owned(),
             None => {
-                return Err(error(format!(
-                    "cannot locate a paired C++ driver for {}",
-                    path.display()
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2302,
+                    format!("cannot locate a paired C++ driver for {}", path.display()),
+                ));
             }
         },
         scoop_target_data::NativeEnvironment::LinuxMusl => {
-            return Err(error("C++ is not supported for Linux musl"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2301,
+                "C++ is not supported for Linux musl",
+            ));
         }
-        _ => return Err(error("unsupported target for C++ driver selection")),
+        _ => {
+            return Err(error(
+                scoop_source::DiagnosticCode::E2301,
+                "unsupported target for C++ driver selection",
+            ));
+        }
     };
     // Preserve clang++'s spelling: its argv[0] selects C++ link defaults.
     let driver = path.with_file_name(paired);
     if !driver.is_file() {
-        return Err(error(format!(
-            "missing paired C++ driver {}",
-            driver.display()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2302,
+            format!("missing paired C++ driver {}", driver.display()),
+        ));
     }
     Ok(driver)
 }

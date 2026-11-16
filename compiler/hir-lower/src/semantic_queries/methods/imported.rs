@@ -62,7 +62,9 @@ impl Lowerer {
         let bindings = self.query_signature_bindings(owner_parameters.len(), &parameters);
         let context_parameters = self
             .imported_context_parameters(interface.context_parameters(), &bindings, origin.span)
-            .map_err(|error| Diagnostic::at(origin.span, error))?;
+            .map_err(|error| {
+                Diagnostic::at(scoop_source::DiagnosticCode::ICE0501, origin.span, error)
+            })?;
         let arguments: Vec<_> = owner_parameters
             .iter()
             .map(|p| self.intern_type(hir::Type::Param(p.id)))
@@ -77,7 +79,9 @@ impl Lowerer {
         let effects = interface.effects();
         let release_callability = self
             .imported_release_callability(&effects, &bindings)
-            .map_err(|error| Diagnostic::at(origin.span, error))?;
+            .map_err(|error| {
+                Diagnostic::at(scoop_source::DiagnosticCode::ICE0501, origin.span, error)
+            })?;
         let callable = match identity {
             CallableTemplateOrigin::Function(id) => hir::DefaultCallableDeclarationV1::Function(id),
             CallableTemplateOrigin::GenericFunction(id) => {

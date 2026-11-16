@@ -107,3 +107,22 @@ impl std::error::Error for CurrentConeProductionError {
         Some(self.cause.as_ref())
     }
 }
+
+impl CurrentConeProductionFailure {
+    pub fn code(&self) -> scoop_source::DiagnosticIdentifier {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::ArtifactOutputRequired => C::E2001.into(),
+            Self::Dependencies(e) => e.code().into(),
+            Self::Native(e) => e.code().into(),
+            Self::Hir(e) => e.code(),
+            Self::Mir(e) => e.code().into(),
+            Self::Lir(e) => e.code().into(),
+            Self::Warnings(_) => C::ICE0401.into(),
+            Self::Producer(_) | Self::Cone(_) => C::ICE2401.into(),
+            Self::Layout(e) => e.code().into(),
+            Self::Publication(e) => e.code().into(),
+            Self::Documentation(e) => e.code().into(),
+        }
+    }
+}

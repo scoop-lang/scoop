@@ -64,6 +64,7 @@ impl Lowerer {
 
 fn unbound_parameter(parameter: hir::TypeParamId) -> Diagnostic {
     Diagnostic::at(
+        scoop_source::DiagnosticCode::ICE2502,
         Span::new(0, 0),
         hir::StaticShapeUnboundParameter(parameter).to_string(),
     )

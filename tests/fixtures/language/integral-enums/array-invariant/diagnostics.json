@@ -1,8 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "initializer of `raw` must be of type Array<Int>, found Array<E>; nominal application `Array` is invariant: first differing type argument 1 (`T`) is `E` in `Array<E>`, but `Int` in `Array<Int>`; construct the target application directly or convert explicitly",
-    "notes": [],
+    "code": "E0501",
+    "message": "initializer of `raw` must be of type Array<Int>, found Array<E>",
+    "notes": [
+      {
+        "code": "N0501",
+        "kind": "note",
+        "message": "nominal application `Array` is invariant: first differing type argument 1 (`T`) is `E` in `Array<E>`, but `Int` in `Array<Int>`",
+        "notes": [
+          {
+            "code": "H0501",
+            "kind": "help",
+            "message": "construct the target application directly or convert explicitly",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 105,

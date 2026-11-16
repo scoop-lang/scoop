@@ -15,6 +15,7 @@ impl Parser {
             let keyword = self.bump();
             if !has_subject {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0912,
                     keyword.span,
                     "case patterns require a when subject",
                 ));
@@ -22,9 +23,14 @@ impl Parser {
             let pattern = self.parse_pattern(crate::pattern::PatternContext::Match)?;
             if matches!(self.peek().kind, TokenKind::Comma) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0914,
                     self.peek().span,
-                    "a case arm accepts one pattern; use separate arms for alternatives",
-                ));
+                    "a case arm accepts one pattern".to_owned(),
+                )
+                .with_note(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0902,
+                    "use separate arms for alternatives".to_owned(),
+                )));
             }
             return Ok(WhenArmCondition::Case(pattern));
         }
@@ -32,6 +38,7 @@ impl Parser {
             || matches!(self.peek().kind, TokenKind::DotDot)
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0915,
                 self.peek().span,
                 "match patterns require `case` before the pattern",
             ));
@@ -78,6 +85,7 @@ impl Parser {
         if matches!(self.peek().kind, TokenKind::Is) || negated_is {
             if !has_subject {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0912,
                     self.peek().span,
                     "an abbreviated `is` condition requires a when subject",
                 ));
@@ -96,6 +104,7 @@ impl Parser {
         if matches!(self.peek().kind, TokenKind::In | TokenKind::BangIn) {
             if !has_subject {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0912,
                     self.peek().span,
                     "an abbreviated `in` condition requires a when subject",
                 ));

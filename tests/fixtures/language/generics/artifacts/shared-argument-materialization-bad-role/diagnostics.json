@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `invoke`: Ordinary is not a subtype of ExtensionCalculator<T>",
     "notes": [],
     "origin": {

@@ -30,7 +30,7 @@ impl hir::CompileTimeInputHost for Inputs {
         &self,
         _: &scoop_identity::SourceIdentity,
         path: &hir::CompileTimePath,
-    ) -> Result<Arc<[u8]>, String> {
+    ) -> Result<Arc<[u8]>, hir::CompileTimeInputError> {
         self.queries.lock().unwrap().push(path.as_str().to_owned());
         if path.as_str() == "invalid-utf8" {
             return Ok(Arc::from(b"ok\xff".as_slice()));
@@ -40,7 +40,7 @@ impl hir::CompileTimeInputHost for Inputs {
     fn environment(
         &self,
         name: &hir::CompileTimeEnvironmentName,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<Option<String>, hir::CompileTimeInputError> {
         self.queries.lock().unwrap().push(name.as_str().to_owned());
         Ok(match name.as_str() {
             "SCOOP_PRESENT" => Some("hello".into()),

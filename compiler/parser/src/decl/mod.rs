@@ -75,12 +75,14 @@ fn interfaces_only(supertypes: Vec<SupertypeSpec>) -> Result<Vec<scoop_ast::Type
     for supertype in supertypes {
         if let SupertypeInitialization::Delegate { by_span, .. } = supertype.initialization {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1007,
                 by_span,
                 "interface implementation delegation is only allowed in class and object declarations",
             ));
         }
         if supertype.constructor_arguments().is_some() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1004,
                 supertype.span,
                 "value types cannot have a base class (spec 4.4)",
             ));
@@ -111,6 +113,7 @@ impl Parser {
         let token = self.bump();
         if visibility_token(&self.peek().kind).is_some() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0303,
                 self.peek().span,
                 "a declaration may have only one visibility modifier",
             ));
@@ -149,6 +152,7 @@ impl Parser {
                     .or(prefix.modifiers.override_span)
                 {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0305,
                         span,
                         "member modality and `override` are not allowed on top-level properties",
                     ));

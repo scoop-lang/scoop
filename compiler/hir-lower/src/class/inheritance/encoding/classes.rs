@@ -35,7 +35,7 @@ impl Lowerer {
                 hir::ClassRepresentation::Declared
             )
         {
-            self.error(span, "automatic encode requires a struct, enum, tuple, or final class without a class base; provide an explicit implementation for other targets".into());
+            self.error_with_note(scoop_source::DiagnosticCode::E1310, span, "automatic encode requires a struct, enum, tuple, or final class without a class base".to_owned(), scoop_ast::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1301, "provide an explicit implementation for other targets"));
             return None;
         }
         let fields = match self.source_class_id(application.template) {
@@ -48,6 +48,7 @@ impl Lowerer {
             self.check_encoding_wire_name(&wire, "field", span, &mut names)?;
             let Some(field) = self.coding_property(value.clone(), &name, span) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0403,
                     span,
                     format!("automatic encode cannot read property `{name}` from this codec"),
                 );
@@ -105,7 +106,7 @@ impl Lowerer {
                 property.representation,
                 hir::PropertyRepresentation::Stored(_)
             ) {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1311,
                     span,
                     format!(
                         "property `{name}` requires an explicit encode implementation or Serialize(ignore = true)"
@@ -121,7 +122,7 @@ impl Lowerer {
                     !self.property_setters[setter].implementation.is_storage()
                 })
             {
-                self.error(span, format!("stored property `{name}` has a custom accessor; provide an explicit encode implementation or mark it Serialize(ignore = true)"));
+                self.error_with_note(scoop_source::DiagnosticCode::E1311, span, format!("stored property `{name}` has a custom accessor"), scoop_ast::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1301, "provide an explicit encode implementation or mark it Serialize(ignore = true)".to_string()));
                 return None;
             }
             let omit_none = !config.required
@@ -165,6 +166,7 @@ impl Lowerer {
                 | hir::NominalFieldStorage::PropertyDelegate(property) => property,
                 _ => {
                     self.error(
+                        scoop_source::DiagnosticCode::E1311,
                         span,
                         "automatic encode requires class storage to map to an ordinary property"
                             .into(),
@@ -192,7 +194,7 @@ impl Lowerer {
                     .setter_source()
                     .is_some_and(|source| !ordinary(source))
             {
-                self.error(span, format!("stored property `{}` has a custom accessor or delegate; provide an explicit encode implementation or mark it Serialize(ignore = true)", field.name));
+                self.error_with_note(scoop_source::DiagnosticCode::E1311, span, format!("stored property `{}` has a custom accessor or delegate", field.name), scoop_ast::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1301, "provide an explicit encode implementation or mark it Serialize(ignore = true)".to_string()));
                 return None;
             }
             let omit_none = !config.required

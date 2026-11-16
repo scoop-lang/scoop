@@ -60,8 +60,12 @@ mod tests {
     #[test]
     fn source_ranges_align_after_tabs_and_wide_characters() {
         let source = "\t中x(100)\n";
-        let rendered =
-            Diagnostic::at(Span::new(4, 5), "not callable").render("unicode.scoop", source);
+        let rendered = Diagnostic::at(
+            crate::DiagnosticCode::E0502,
+            Span::new(4, 5),
+            "not callable",
+        )
+        .render("unicode.scoop", source);
         assert!(
             rendered.contains("1 |     中x(100)\n  |       ^"),
             "{rendered}"
@@ -77,8 +81,12 @@ mod tests {
             ("val x =\r\n", "2:1"),
         ] {
             let end = source.len() as u32;
-            let rendered = Diagnostic::at(Span::new(end, end), "expected expression")
-                .render("main.scoop", source);
+            let rendered = Diagnostic::at(
+                crate::DiagnosticCode::E0201,
+                Span::new(end, end),
+                "expected expression",
+            )
+            .render("main.scoop", source);
             assert!(rendered.contains("expected expression"), "{rendered}");
             assert!(
                 rendered.contains(&format!("main.scoop:{location}")),
@@ -93,8 +101,12 @@ mod tests {
         let source = "before\r\nfirst(\r\n    second\r\n)\r\nafter\r\n";
         let start = source.find("first").unwrap() as u32;
         let end = source.find(')').unwrap() as u32 + 1;
-        let rendered = Diagnostic::at(Span::new(start, end), "bad expression")
-            .render("multiline.scoop", source);
+        let rendered = Diagnostic::at(
+            crate::DiagnosticCode::E0501,
+            Span::new(start, end),
+            "bad expression",
+        )
+        .render("multiline.scoop", source);
         assert!(rendered.contains("multiline.scoop:2:1"), "{rendered}");
         for line in ["2 |", "first(", "3 |", "second", "4 |"] {
             assert!(rendered.contains(line), "{rendered}");
@@ -106,8 +118,12 @@ mod tests {
     #[test]
     fn invalid_ranges_keep_byte_offsets_without_rendering_a_false_snippet() {
         for span in [Span::new(1, 2), Span::new(0, 30), Span::new(3, 0)] {
-            let rendered = Diagnostic::at(span, "original error").render("main.scoop", "中");
-            assert!(rendered.contains("error: original error"), "{rendered}");
+            let rendered = Diagnostic::at(crate::DiagnosticCode::E0501, span, "original error")
+                .render("main.scoop", "中");
+            assert!(
+                rendered.contains("error[E0501]: original error"),
+                "{rendered}"
+            );
             assert!(
                 rendered.contains(&format!("main.scoop:bytes {}..{}", span.start, span.end)),
                 "{rendered}"
@@ -118,7 +134,11 @@ mod tests {
 
     #[test]
     fn color_is_explicit_and_plain_output_has_no_terminal_controls() {
-        let diagnostic = Diagnostic::at(Span::new(0, 1), "not callable");
+        let diagnostic = Diagnostic::at(
+            crate::DiagnosticCode::E0502,
+            Span::new(0, 1),
+            "not callable",
+        );
         let plain = diagnostic.render_with_code("main.scoop", "x()", Some("E_CALL"), false);
         let styled = diagnostic.render_with_code("main.scoop", "x()", Some("E_CALL"), true);
         assert!(plain.starts_with("error[E_CALL]: not callable\n"));

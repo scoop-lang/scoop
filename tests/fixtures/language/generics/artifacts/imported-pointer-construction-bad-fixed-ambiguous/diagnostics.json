@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `Make` is ambiguous in exact import layer:\n  - Make(raw: ULong): Ptr<Int> — applicable; tied by MSC\n  - Make(raw: ULong) — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `Make` is ambiguous in exact import layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "Make(raw: ULong): Ptr<Int>",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "Make(raw: ULong)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "3dcd908c6ca7439e2d5fb6d8b205bd6378ced1bc867bc3efd0054f54c639dc70",
       "end": 210,

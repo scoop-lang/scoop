@@ -76,15 +76,25 @@ enum LinkMode {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(error) => {
+            if error.use_stderr() {
+                eprint!("error[E2001]: {error}");
+                return ExitCode::from(2);
+            }
+            print!("{error}");
+            return ExitCode::SUCCESS;
+        }
+    };
     if let Err(error) = scoop_process::initialize() {
-        eprintln!("cannot initialize process signal handling: {error}");
+        eprintln!("error[E2204]: cannot initialize process signal handling: {error}");
         return ExitCode::FAILURE;
     }
     let cache_dir = match scoop_toolchain::configured_cache_root(cli.cache_dir) {
         Ok(path) => path,
         Err(error) => {
-            eprintln!("scoop-link: {error}");
+            eprintln!("error[{}]: {error}", error.code());
             return ExitCode::FAILURE;
         }
     };
@@ -129,7 +139,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(error) => {
-            eprintln!("scoop-link: {error}");
+            eprintln!("error[{}]: {error}", error.code());
             ExitCode::FAILURE
         }
     };

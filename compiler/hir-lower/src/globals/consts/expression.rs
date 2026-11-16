@@ -15,6 +15,7 @@ impl Lowerer {
         };
         let Some(value) = value else {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 source.span(),
                 "const initializer may only reference const properties or constant fields".into(),
             );
@@ -160,7 +161,7 @@ impl Lowerer {
                     } else {
                         format!("unknown const property `{}`", name.text)
                     };
-                    self.error(name.span, message);
+                    self.error(scoop_source::DiagnosticCode::E1518, name.span, message);
                     return None;
                 };
                 self.observe_constant_reference(
@@ -214,6 +215,7 @@ impl Lowerer {
                     self.find_qualified_const_definition(declarations, target, &name.text, file)
                 else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0402,
                         name.span,
                         format!(
                             "qualified singleton has no accessible const property `{}`",
@@ -314,7 +316,7 @@ impl Lowerer {
                 *span,
             ),
             _ => {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1518,
                     expression.span(),
                     "const initializer must contain only literals, const references, built-in primitive operators, and exact core numeric intrinsic calls"
                         .to_string(),

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type (Long, Token, Long), found (Long, Other, Long)",
     "notes": [],
     "origin": {

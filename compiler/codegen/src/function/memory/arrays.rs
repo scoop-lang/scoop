@@ -154,9 +154,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         message: scoop_lir::GlobalId,
     ) -> Result<inkwell::basic_block::BasicBlock<'ctx>, CodegenError> {
         let builder = self.builder;
-        let current = builder
-            .get_insert_block()
-            .ok_or_else(|| CodegenError::internal("builder has no insertion block".to_string()))?;
+        let current = builder.get_insert_block().ok_or_else(|| {
+            CodegenError::internal("builder has no insertion block".to_string())
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
+        })?;
         let message_pointer = self.value(Value::Global(message))?.into_pointer_value();
         let trap = self.gc_leaf_fn(
             scoop_lir::RuntimeAbiSymbolV1::LirCall(scoop_lir::RuntimeFunction::NoGc(

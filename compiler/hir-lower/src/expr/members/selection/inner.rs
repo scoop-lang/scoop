@@ -77,6 +77,7 @@ impl Lowerer {
         if let Some(crate::Owner::Class(class)) = self.nominal_owners.get(&owner).copied() {
             if self.classes[class].modifier == hir::ClassModifier::Abstract {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     name.span,
                     format!("abstract class `{}` cannot be instantiated", name.text),
                 );
@@ -121,6 +122,7 @@ impl Lowerer {
                 == hir::NominalInheritanceModalityV1::Abstract
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     name.span,
                     format!("abstract class `{}` cannot be instantiated", name.text),
                 );
@@ -135,6 +137,7 @@ impl Lowerer {
                 Ok(candidates) => candidates,
                 Err(error) => {
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         name.span,
                         format!("invalid dependency constructor: {error}"),
                     );
@@ -165,6 +168,7 @@ impl Lowerer {
         }
         if probes.is_empty() && failure.is_none() {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!(
                     "constructor of inner class `{}` is not accessible here",

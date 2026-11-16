@@ -67,6 +67,7 @@ pub(crate) fn prepare(
             });
         } else {
             warnings.push(Diagnostic::warning_at(
+                scoop_source::DiagnosticCode::W1801,
                 text.source_span(link_range),
                 format!("invalid documentation symbol `{id}`"),
             ));

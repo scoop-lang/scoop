@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "`plus` must have the same `effect` modifier as `Add<Key, Key>.plus`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "struct `Key` does not implement interface method `Add<Key, Key>.plus`",
     "notes": [],
     "origin": {

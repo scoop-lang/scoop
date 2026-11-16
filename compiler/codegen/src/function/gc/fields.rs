@@ -67,9 +67,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             references.sort_unstable();
             return self.heap_reference_barrier(address, &references);
         };
-        let marked_offset = offset
-            .checked_add(*reference)
-            .ok_or_else(|| CodegenError::internal("field reference offset overflows".into()))?;
+        let marked_offset = offset.checked_add(*reference).ok_or_else(|| {
+            CodegenError::internal("field reference offset overflows".into())
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
+        })?;
         let address = self.byte_gep(address, *reference, "barrier_start")?;
         let block = self.builder.get_insert_block().expect("field store block");
         let region = match &self.field_barrier {

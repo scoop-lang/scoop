@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0708",
     "message": "required `Ptr` value parameter `raw` has no argument",
     "notes": [],
     "origin": {

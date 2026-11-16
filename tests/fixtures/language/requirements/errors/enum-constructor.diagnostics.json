@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `make` in current-unit top-level candidate layer:\n  - fun make<T>(): T — type `Choice` has no public source constructor",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `make` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun make<T>(): T",
+        "notes": [
+          {
+            "code": "E0621",
+            "kind": "cause",
+            "message": "type `Choice` has no public source constructor",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 95,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 81
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 67,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 21
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 95,

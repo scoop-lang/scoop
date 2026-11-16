@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
-    "message": "a case arm accepts one pattern; use separate arms for alternatives",
-    "notes": [],
+    "code": "E0914",
+    "message": "a case arm accepts one pattern",
+    "notes": [
+      {
+        "code": "H0902",
+        "kind": "help",
+        "message": "use separate arms for alternatives",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 31,

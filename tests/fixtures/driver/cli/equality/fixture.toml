@@ -82,7 +82,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{"severity" = "error", "code" = "SCOOPC_HIR_ERROR", "message" = "cannot derive `equals` for `Broken`: field `Broken.Value._0` of type `Missing` has no applicable member operator `equals`", "origin" = {"kind" = "source", "cone" = "${direct.result.root.identity}", "path" = "src/main.scoop", "start" = 114, "end" = 127}, "notes" = []}]
+diagnostics = [{"severity" = "error", "code" = "E1316", "message" = "cannot derive `equals` for `Broken`: field `Broken.Value._0` of type `Missing` has no applicable member operator `equals`", "origin" = {"kind" = "source", "cone" = "${direct.result.root.identity}", "path" = "src/main.scoop", "start" = 114, "end" = 127}, "notes" = []}]
 
 [[steps]]
 name = "prepare_bad_no_gc"
@@ -95,7 +95,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{"severity" = "error", "code" = "SCOOPC_HIR_ERROR", "message" = "`@NoGC` code may not call managed function `Flag.equals`", "origin" = {"kind" = "source", "cone" = "${direct.result.root.identity}", "path" = "src/main.scoop", "start" = 114, "end" = 127}, "notes" = []}]
+diagnostics = [{"severity" = "error", "code" = "E1104", "message" = "`@NoGC` code may not call managed function `Flag.equals`", "origin" = {"kind" = "source", "cone" = "${direct.result.root.identity}", "path" = "src/main.scoop", "start" = 114, "end" = 127}, "notes" = []}]
 
 [[steps]]
 name = "prepare_link_inputs_isolate"

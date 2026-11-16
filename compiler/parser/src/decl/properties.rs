@@ -32,6 +32,7 @@ impl Parser {
     ) -> Result<PropertyDecl, Diagnostic> {
         if let Some(span) = prefix.modifiers.tailrec_span {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "`tailrec` is only allowed on functions",
             ));
@@ -43,6 +44,7 @@ impl Parser {
             .or(prefix.modifiers.infix.map(|modifier| modifier.span))
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "properties cannot be `suspend`, `operator`, or `infix`",
             ));
@@ -99,12 +101,14 @@ impl Parser {
             && context != PropertyContext::TopLevel
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0307,
                 receiver.span,
                 "extension properties may only be declared at top level",
             ));
         }
         if receiver_ty.is_none() && !type_params.is_empty() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 type_params[0].span,
                 "only extension properties may declare type parameters",
             ));
@@ -177,6 +181,7 @@ impl Parser {
                 .or_else(|| accessors.getter.as_ref().map(|getter| getter.span.end));
             if modifier == MethodModifier::Abstract && accessor_end.is_some() {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0309,
                     accessor_end
                         .map(|end| Span::new(end, end))
                         .expect("checked above"),
@@ -210,6 +215,7 @@ impl Parser {
             )
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1515,
                 prefix.modifiers.context_parameters[0].span,
                 "contextual properties cannot have backing storage, an initializer or a delegate",
             ));
@@ -252,10 +258,15 @@ impl Parser {
             match name.as_str() {
                 "get" => {
                     if accessors.getter.is_some() {
-                        return Err(Diagnostic::at(token.span, "duplicate property getter"));
+                        return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1513,
+                            token.span,
+                            "duplicate property getter",
+                        ));
                     }
                     if !matches!(visibility, VisibilitySyntax::Omitted) {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1512,
                             token.span,
                             "a getter cannot declare visibility separately from its property",
                         ));
@@ -266,7 +277,11 @@ impl Parser {
                 }
                 "set" => {
                     if accessors.setter.is_some() {
-                        return Err(Diagnostic::at(token.span, "duplicate property setter"));
+                        return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1513,
+                            token.span,
+                            "duplicate property setter",
+                        ));
                     }
                     let visibility = match visibility {
                         VisibilitySyntax::Explicit { visibility, span } => {

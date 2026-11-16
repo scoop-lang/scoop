@@ -27,6 +27,7 @@ impl Parser {
         let modifier_span = self.parse_vararg_modifier(vararg_span)?;
         if matches!(self.peek().kind, TokenKind::Var) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1507,
                 self.peek().span,
                 "`var` struct fields are not supported (value types are immutable)",
             ));

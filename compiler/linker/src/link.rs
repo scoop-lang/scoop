@@ -77,15 +77,20 @@ fn link_inputs(
     output: &Path,
     cache: &Path,
 ) -> Result<ProgramLinkOutput, LinkError> {
-    let output = std::path::absolute(output).map_err(error)?;
-    let parent = output
-        .parent()
-        .ok_or_else(|| error("final output has no parent directory"))?;
-    std::fs::create_dir_all(parent).map_err(error)?;
+    let output = std::path::absolute(output)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    let parent = output.parent().ok_or_else(|| {
+        error(
+            scoop_source::DiagnosticCode::E2020,
+            "final output has no parent directory",
+        )
+    })?;
+    std::fs::create_dir_all(parent)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let directory = tempfile::Builder::new()
         .prefix(".scoop-link-")
         .tempdir_in(parent)
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let startup = StartupObject::build(
         inputs,
         profile,
@@ -103,13 +108,18 @@ fn link_inputs(
             cache,
         )?);
     }
-    let basename = output
-        .file_name()
-        .ok_or_else(|| error("final output has no basename"))?;
+    let basename = output.file_name().ok_or_else(|| {
+        error(
+            scoop_source::DiagnosticCode::E2020,
+            "final output has no basename",
+        )
+    })?;
     let candidate = directory.path().join(basename);
     let debug_tools = options
         .emit_debug_file
-        .then(|| scoop_toolchain::NativeDebugTools::resolve(profile.target()).map_err(error))
+        .then(|| {
+            scoop_toolchain::NativeDebugTools::resolve(profile.target()).map_err(LinkError::from)
+        })
         .transpose()?;
     let candidate_pdb = (options.emit_debug_file
         && matches!(profile, ValidatedFinalLinkProfile::Windows(_)))
@@ -148,7 +158,9 @@ fn link_inputs(
         .as_ref()
         .map(|tools| debug::generate(tools, &candidate, options.keep_symbols))
         .transpose()?;
-    let profile_fingerprint = profile.fingerprint().map_err(error)?;
+    let profile_fingerprint = profile
+        .fingerprint()
+        .map_err(|cause| error(cause.code(), cause))?;
     let fingerprint = ResolvedLinkPlanFingerprint(
         domain_separated_cbor_hash(
             "scoop-resolved-link-plan-v7",
@@ -164,7 +176,7 @@ fn link_inputs(
                     .then_some(basename),
             },
         )
-        .map_err(error)?,
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
     );
     let plan_dump = dump(closure, runtime, inputs, &startup, options.keep_symbols);
     let import_library = match profile {
@@ -174,7 +186,8 @@ fn link_inputs(
                 let destination = windows
                     .import_library_path(&output)
                     .expect("DLL profile has an import library");
-                std::fs::rename(&candidate_library, &destination).map_err(error)?;
+                std::fs::rename(&candidate_library, &destination)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
                 Ok::<_, LinkError>(destination)
             })
             .transpose()?,
@@ -189,7 +202,7 @@ fn link_inputs(
                     std::fs::rename(&file.path, &path)
                 }
             }
-            .map_err(error)?;
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             Ok::<_, LinkError>(DebugFile {
                 kind: file.kind,
                 path,
@@ -197,10 +210,10 @@ fn link_inputs(
         })
         .transpose()?;
     std::fs::rename(candidate, &output).map_err(|err| {
-        error(format!(
-            "cannot publish final output {}: {err}",
-            output.display()
-        ))
+        error(
+            scoop_source::DiagnosticCode::E2201,
+            format!("cannot publish final output {}: {err}", output.display()),
+        )
     })?;
     Ok(ProgramLinkOutput {
         path: output,
@@ -223,8 +236,9 @@ fn write_new(path: &Path, bytes: &[u8]) -> Result<(), LinkError> {
         .write(true)
         .create_new(true)
         .open(path)
-        .map_err(error)?;
-    file.write_all(bytes).map_err(error)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    file.write_all(bytes)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
 }
 
 struct Plan<'a> {

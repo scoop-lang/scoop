@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0716",
     "message": "no `this` receiver is available in this context",
     "notes": [],
     "origin": {

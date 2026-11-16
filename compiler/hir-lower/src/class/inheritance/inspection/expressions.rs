@@ -3,12 +3,20 @@ use super::*;
 impl Lowerer {
     pub(super) fn inspection_type(&mut self, name: &str, span: Span) -> Option<TypeId> {
         let nominal = self.core_coding_nominal(name).or_else(|| {
-            self.error(span, format!("automatic inspect requires core {name}"));
+            self.error(
+                scoop_source::DiagnosticCode::E1404,
+                span,
+                format!("automatic inspect requires core {name}"),
+            );
             None
         })?;
         self.apply_nominal_type(nominal, Vec::new())
             .map_err(|error| {
-                self.error(span, format!("cannot load core {name}: {error:?}"));
+                self.error(
+                    scoop_source::DiagnosticCode::E1403,
+                    span,
+                    format!("cannot load core {name}: {error:?}"),
+                );
             })
             .ok()
     }

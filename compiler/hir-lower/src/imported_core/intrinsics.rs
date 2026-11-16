@@ -32,7 +32,13 @@ impl Lowerer {
         span: Span,
     ) -> Result<(), ()> {
         self.resolve_imported_member_receiver_type(ty)
-            .map_err(|error| self.error(span, error.diagnostic("member receiver")))
+            .map_err(|error| {
+                self.error(
+                    scoop_source::DiagnosticCode::E1403,
+                    span,
+                    error.diagnostic("member receiver"),
+                )
+            })
     }
 
     pub(crate) fn resolve_imported_member_receiver_type(

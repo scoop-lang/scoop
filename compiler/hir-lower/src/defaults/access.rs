@@ -92,6 +92,7 @@ impl ReferenceCollector<'_> {
 
     fn direct_delegate_storage(&mut self, origin: hir::DefinitionOrigin) {
         self.lowerer.error(
+            scoop_source::DiagnosticCode::E0720,
             origin.span,
             "default expressions must access delegated properties through accessors".to_string(),
         );

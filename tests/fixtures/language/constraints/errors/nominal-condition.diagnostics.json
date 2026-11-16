@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0611",
     "message": "negative interface bounds are only allowed on generic functions, not struct",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "type Cursor<Managed> requires a GC-free `Ptr` pointee argument",
     "notes": [],
     "origin": {

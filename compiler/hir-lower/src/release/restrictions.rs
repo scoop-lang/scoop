@@ -19,6 +19,7 @@ impl Lowerer {
             _ => return false,
         };
         self.error(
+            scoop_source::DiagnosticCode::E1113,
             expression.span(),
             format!("{operation} is not allowed in a `release` block"),
         );
@@ -38,6 +39,7 @@ impl Lowerer {
             _ => return false,
         };
         self.error(
+            scoop_source::DiagnosticCode::E1113,
             statement.span,
             format!("{operation} is not allowed in a `release` block"),
         );

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_CLI_CONFIG",
+    "code": "E2201",
     "message": "invalid single-file input ${work}/dangling.scoop: cannot canonicalize: No such file or directory (os error 2)",
     "notes": [],
     "origin": {

@@ -169,4 +169,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 
 fn allocation_error(error: impl std::fmt::Display) -> CodegenError {
     CodegenError::internal(format!("inline allocation metadata: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

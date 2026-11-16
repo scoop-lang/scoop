@@ -124,12 +124,15 @@ fn opening_a_member_initializes_only_its_workspace_lock_record() {
     let inputs = loader.load(&mut host, &[configuration], &BTreeSet::new(), None);
     assert_eq!(inputs.projects.len(), 1);
     assert_eq!(inputs.unresolved_members.len(), 2);
-    assert!(
-        inputs
-            .diagnostics
-            .iter()
-            .all(|diagnostic| diagnostic.message.contains("resolve"))
-    );
+    assert_eq!(inputs.diagnostics.len(), 2);
+    for diagnostic in &inputs.diagnostics {
+        assert_eq!(diagnostic.code, "E2111");
+        assert!(diagnostic.message.contains("no locked resolution"));
+        assert!(diagnostic.notes.iter().any(|note| {
+            note.code() == scoop_source::DiagnosticCode::H2101
+                && note.message() == "run scoop pm resolve"
+        }));
+    }
     assert_eq!(contents_and_modified(&root.join("Cone.lock")), before);
 }
 

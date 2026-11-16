@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0204",
     "message": "copy update field list must not be empty",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0205",
     "message": "copy update fields must be direct names, not nested paths",
     "notes": [],
     "origin": {

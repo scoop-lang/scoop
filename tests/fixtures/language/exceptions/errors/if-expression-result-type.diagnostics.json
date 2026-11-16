@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "if branch result must be of type Int, found String",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0811",
     "message": "iterator operator result type `Iterator<Int>` does not implement `Iterator<T>`",
     "notes": [],
     "origin": {

@@ -1,8 +1,63 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `trace` in current-unit top-level candidate layer:\n  - fun trace<T : Marker>(value: T): T — type argument `Int` for `T` must satisfy interface upper bound `Marker`\n  - fun trace(left: Int, right: Int): Int — expects 2 argument(s), but 1 were supplied",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `trace` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun trace<T : Marker>(value: T): T",
+        "notes": [
+          {
+            "code": "E0603",
+            "kind": "cause",
+            "message": "type argument `Int` for `T` must satisfy interface upper bound `Marker`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 335,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 327
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 64,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 21
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun trace(left: Int, right: Int): Int",
+        "notes": [
+          {
+            "code": "E0701",
+            "kind": "cause",
+            "message": "expects 2 argument(s), but 1 were supplied",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 335,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 327
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 109,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 65
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 335,
@@ -13,9 +68,64 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `select` in current-unit top-level candidate layer:\n  - fun select(operation: (Int) -> Int): Int — argument for `operation` (expected (Int) -> Int): lambda result must be of type Int, found Boolean\n  - fun select(operation: (String) -> String): String — argument for `operation` (expected (String) -> String): lambda result must be of type String, found Boolean",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `select` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun select(operation: (Int) -> Int): Int",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "argument for `operation` (expected (Int) -> Int): lambda result must be of type Int, found Boolean",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 356,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 347
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 166,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 111
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun select(operation: (String) -> String): String",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "argument for `operation` (expected (String) -> String): lambda result must be of type String, found Boolean",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 356,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 347
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 237,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 167
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 356,
@@ -26,9 +136,74 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `merge` is ambiguous in current-unit top-level candidate layer:\n  - fun merge(a: Int, b: Any): Int — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int\n  - fun merge(a: Any, b: Int): Int — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `merge` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun merge(a: Int, b: Any): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 273,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 239
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun merge(a: Any, b: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `a` = Int, argument for `b` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 308,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 274
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 373,

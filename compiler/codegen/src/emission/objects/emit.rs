@@ -119,6 +119,7 @@ fn finish_callable_object(
             CodegenError::internal(format!(
                 "callable object for {body} has no canonical symbol plan"
             ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
     crate::callable_atom_boundaries::materialize_v1(
         &mut bytes,

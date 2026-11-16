@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0603",
     "message": "dependency function `readBound`: type argument `Int` for `T` must satisfy upper bound `Readable`",
     "notes": [],
     "origin": {

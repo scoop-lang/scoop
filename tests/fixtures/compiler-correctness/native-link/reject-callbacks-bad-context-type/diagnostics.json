@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1219",
     "message": "foreign callback context parameter must be exactly `Ptr<Unit>`",
     "notes": [],
     "origin": {

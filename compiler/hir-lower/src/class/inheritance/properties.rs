@@ -27,6 +27,7 @@ impl Lowerer {
                 && declaration.modifier != hir::MethodModifier::Final
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0305,
                     declaration.span,
                     format!("private property `{}` must be final", declaration.name),
                 );
@@ -39,7 +40,7 @@ impl Lowerer {
                     unreachable!("an abstract property owns a slot contract")
                 };
                 if !self.access_domain_is_subset(&required, &provided.0) {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E1016,
                         declaration.span,
                         format!(
                             "abstract property `{}` is not visible throughout the inheritance domain of class `{}`",
@@ -56,6 +57,7 @@ impl Lowerer {
             if inherited.is_empty() {
                 if declaration.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E1012,
                         declaration.span,
                         format!(
                             "property `{}` is marked `override` but does not override any property",
@@ -71,6 +73,7 @@ impl Lowerer {
                     || matches!(inherited.reference, hir::PropertyReference::Local(id) if self.property_type_pending(id));
                 if !pending && !self.types_equal(declaration.ty, inherited.ty) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1013,
                         declaration.span,
                         format!(
                             "property `{}` must have the exact inherited type {}, found {}",
@@ -83,6 +86,7 @@ impl Lowerer {
                 }
                 if inherited.mutable && declaration.capability.setter().is_none() {
                     self.error(
+                        scoop_source::DiagnosticCode::E1013,
                         declaration.span,
                         format!(
                             "immutable property `{}` cannot override a mutable property",
@@ -93,6 +97,7 @@ impl Lowerer {
                 }
                 if inherited.is_final {
                     self.error(
+                        scoop_source::DiagnosticCode::E1014,
                         declaration.span,
                         format!(
                             "property `{}` cannot override final property declared by {}",
@@ -122,7 +127,7 @@ impl Lowerer {
                 }
             }
             if valid_override && !declaration.is_override {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1015,
                     declaration.span,
                     format!(
                         "property `{}` overrides an inherited property and must be marked `override`",
@@ -323,6 +328,7 @@ impl Lowerer {
         };
         if !self.access_domain_is_subset(&required.0, &provided.0) {
             self.error(
+                scoop_source::DiagnosticCode::E1016,
                 self.properties[property].span,
                 format!(
                     "visibility of property `{}` does not cover its inherited slot",

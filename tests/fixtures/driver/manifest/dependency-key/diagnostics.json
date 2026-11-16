@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2010",
     "message": "${fixture}/program/Cone.toml: invalid dependency key \"helper\"; expected group:name",
     "notes": [],
     "origin": {

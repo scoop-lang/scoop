@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "`sealed` is only allowed on class or interface declarations",
     "notes": [],
     "origin": {

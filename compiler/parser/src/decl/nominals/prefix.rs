@@ -24,6 +24,7 @@ impl Parser {
             let token = self.peek().clone();
             if matches!(&token.kind, TokenKind::Ident(name) if name == "context") {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1117,
                     token.span,
                     "a declaration permits one `context` prefix, before annotations and modifiers",
                 ));
@@ -40,6 +41,7 @@ impl Parser {
             {
                 if !matches!(visibility, VisibilitySyntax::Omitted) {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         token.span,
                         "a declaration may have only one visibility modifier",
                     ));
@@ -51,6 +53,7 @@ impl Parser {
             if matches!(token.kind, TokenKind::Suspend) {
                 if modifiers.suspend_span.is_some() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         token.span,
                         if top_level {
                             "duplicate `suspend` modifier on top-level function"
@@ -67,6 +70,7 @@ impl Parser {
             if matches!(token.kind, TokenKind::Infix) {
                 if modifiers.infix.is_some() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         token.span,
                         "duplicate `infix` modifier on member declaration",
                     ));
@@ -91,7 +95,11 @@ impl Parser {
             }
             if text == "sealed" {
                 if modifiers.sealed_span.is_some() {
-                    return Err(Diagnostic::at(token.span, "duplicate `sealed` modifier"));
+                    return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
+                        token.span,
+                        "duplicate `sealed` modifier",
+                    ));
                 }
                 modifiers.sealed_span = Some(self.bump().span);
                 modifiers.start = modifiers.start.or(Some(token.span.start));
@@ -100,6 +108,7 @@ impl Parser {
             if text == "const" {
                 if const_span.is_some() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         token.span,
                         "duplicate `const` modifier on property",
                     ));
@@ -111,13 +120,22 @@ impl Parser {
             }
             if text == "lateinit" {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0306,
                     token.span,
-                    "`lateinit` is not supported; use `var p: T? = None` or the Option omitted-initializer shorthand",
-                ));
+                    "`lateinit` is not supported".to_owned(),
+                )
+                .with_note(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H1502,
+                    "use `var p: T? = None` or the Option omitted-initializer shorthand".to_owned(),
+                )));
             }
             if text == "inner" {
                 if modifiers.inner_span.is_some() {
-                    return Err(Diagnostic::at(token.span, "duplicate `inner` modifier"));
+                    return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
+                        token.span,
+                        "duplicate `inner` modifier",
+                    ));
                 }
                 modifiers.inner_span = Some(self.bump().span);
                 modifiers.start = modifiers.start.or(Some(token.span.start));
@@ -126,6 +144,7 @@ impl Parser {
             if text == "operator" {
                 if modifiers.operator.is_some() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         token.span,
                         "duplicate `operator` modifier on function",
                     ));
@@ -145,6 +164,7 @@ impl Parser {
             if text == "override" {
                 if modifiers.override_span.is_some() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         token.span,
                         "duplicate `override` modifier on member function",
                     ));
@@ -159,11 +179,13 @@ impl Parser {
                     };
                     if existing == text {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0303,
                             token.span,
                             format!("duplicate `{text}` modifier on member function"),
                         ));
                     }
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0304,
                         token.span,
                         format!(
                             "`{existing}` and `{text}` cannot be combined on a member function"
@@ -182,6 +204,7 @@ impl Parser {
             && !matches!(self.peek().kind, TokenKind::Class)
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "`inner` is only allowed on class declarations",
             ));
@@ -189,12 +212,14 @@ impl Parser {
         if let Some(span) = modifiers.sealed_span {
             if !matches!(self.peek().kind, TokenKind::Class | TokenKind::Interface) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0305,
                     span,
                     "`sealed` is only allowed on class or interface declarations",
                 ));
             }
             if modifiers.method_modifier.is_some() {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0304,
                     span,
                     "`sealed` cannot be combined with open, final or abstract",
                 ));
@@ -202,6 +227,7 @@ impl Parser {
         }
         if !modifiers.context_parameters.is_empty() && const_span.is_some() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 modifiers.context_parameters[0].span,
                 "contextual properties cannot be const",
             ));
@@ -213,6 +239,7 @@ impl Parser {
             )
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 self.peek().span,
                 "`context` may only prefix a named function or computed/abstract property",
             ));

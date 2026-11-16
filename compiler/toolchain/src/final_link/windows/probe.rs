@@ -8,8 +8,10 @@ pub(super) fn check_image(
     target: scoop_lir::LirTargetProfile,
     kind: FinalOutputKind,
 ) -> Result<(), ToolchainError> {
-    let machine = crate::windows_machine::WindowsToolchainMachine::select(target).map_err(error)?;
-    let file = object::File::parse(bytes).map_err(error)?;
+    let machine = crate::windows_machine::WindowsToolchainMachine::select(target)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
+    let file = object::File::parse(bytes)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let expected = match kind {
         FinalOutputKind::Executable => object::ObjectKind::Executable,
         FinalOutputKind::SharedLibrary => object::ObjectKind::Dynamic,
@@ -19,26 +21,39 @@ pub(super) fn check_image(
         || file.kind() != expected
         || !file.is_64()
     {
-        return Err(error(format!(
-            "Windows link probe did not produce the selected PE32+ {} output kind",
-            machine.name()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2303,
+            format!(
+                "Windows link probe did not produce the selected PE32+ {} output kind",
+                machine.name()
+            ),
+        ));
     }
     if kind == FinalOutputKind::SharedLibrary {
-        let exports = file.exports().map_err(error)?;
+        let exports = file
+            .exports()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
         if exports.len() != 1
             || exports[0].name() != super::super::output::NATIVE_APP_ENTRY.as_bytes()
         {
-            return Err(error("DLL probe must export only scoop_app_init"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2303,
+                "DLL probe must export only scoop_app_init",
+            ));
         }
     }
     if file
         .section_by_name(".pdata")
         .is_none_or(|section| section.size() == 0)
     {
-        return Err(error("Windows link probe has no SEH function table"));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2303,
+            "Windows link probe has no SEH function table",
+        ));
     }
-    let imports = file.imports().map_err(error)?;
+    let imports = file
+        .imports()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let libraries: BTreeSet<_> = imports
         .iter()
         .map(|import| String::from_utf8_lossy(import.library()).to_ascii_lowercase())
@@ -50,37 +65,45 @@ pub(super) fn check_image(
     match crate::windows_c::native_environment(target.id())? {
         scoop_target_data::NativeEnvironment::LlvmMingwMsvcrt => {
             if !legacy || ucrt {
-                return Err(error(format!(
-                    "MSVCRT target linked incompatible CRT imports: {libraries:?}"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!("MSVCRT target linked incompatible CRT imports: {libraries:?}"),
+                ));
             }
         }
         scoop_target_data::NativeEnvironment::MicrosoftUcrt
         | scoop_target_data::NativeEnvironment::LlvmMingwUcrt => {
             if !ucrt || legacy {
-                return Err(error(format!(
-                    "UCRT target linked incompatible CRT imports: {libraries:?}"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!("UCRT target linked incompatible CRT imports: {libraries:?}"),
+                ));
             }
         }
         environment => {
-            return Err(error(format!(
-                "unsupported Windows native environment {environment:?}"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2303,
+                format!("unsupported Windows native environment {environment:?}"),
+            ));
         }
     }
     Ok(())
 }
 
 pub(super) fn run(command: &mut Command) -> Result<std::process::Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "Windows native tool {command:?} failed ({}): {}{}",
-            output.status,
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "Windows native tool {command:?} failed ({}): {}{}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
     }
     Ok(output)
 }

@@ -167,7 +167,7 @@ fn class_bound_actual_must_reach_the_exact_application() {
     let errors = lower_user(file(declarations))
         .expect_err("Base<String> must not satisfy the invariant Base<Int> bound");
     assert!(errors.iter().any(|error| {
-        error.message.contains(
+        crate::tests::diagnostic_text(error).contains(
             "type argument `StringNode` for `T` must satisfy class upper bound `Base<Int>`",
         )
     }));
@@ -268,9 +268,7 @@ fn duplicate_class_and_nonnominal_bounds_are_rejected() {
     ]))
     .expect_err("a second class bound and a value bound must fail");
     assert!(errors.iter().any(|error| {
-        error
-            .message
-            .contains("type parameter `T` of struct cannot have more than one class upper bound; found `Second`")
+        crate::tests::diagnostic_text(error).contains("type parameter `T` of struct cannot have more than one class upper bound; found `Second`")
     }));
     assert!(errors.iter().any(|error| {
         error.message
@@ -550,11 +548,10 @@ fn unresolved_partial_callable_argument_points_at_the_infer_slot() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].span(), Some(infer_span));
     assert!(
-        errors[0]
-            .message
+        crate::tests::diagnostic_text(&errors[0])
             .contains("cannot infer a unique type argument for `B`")
     );
-    assert!(errors[0].message.contains("fixed type arguments: A = Int"));
+    assert!(crate::tests::diagnostic_text(&errors[0]).contains("fixed type arguments: A = Int"));
 }
 
 #[test]
@@ -591,17 +588,12 @@ fn partial_callable_bound_failure_points_at_the_infer_slot() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].span(), Some(infer_span));
     assert!(
-        errors[0]
-            .message
+        crate::tests::diagnostic_text(&errors[0])
             .contains("type argument `Int` for `B` must satisfy interface upper bound `Marker`"),
         "{}",
         errors[0].message
     );
-    assert!(
-        errors[0]
-            .message
-            .contains("fixed type arguments: A = String")
-    );
+    assert!(crate::tests::diagnostic_text(&errors[0]).contains("fixed type arguments: A = String"));
 }
 
 #[test]
@@ -636,17 +628,12 @@ fn partial_constructor_bound_failure_points_at_the_infer_slot() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].span(), Some(infer_span));
     assert!(
-        errors[0]
-            .message
+        crate::tests::diagnostic_text(&errors[0])
             .contains("type argument `Int` for `T` must satisfy interface upper bound `Marker`"),
         "{}",
         errors[0].message
     );
-    assert!(
-        errors[0]
-            .message
-            .contains("fixed type arguments: A = String")
-    );
+    assert!(crate::tests::diagnostic_text(&errors[0]).contains("fixed type arguments: A = String"));
 }
 
 #[test]
@@ -672,8 +659,7 @@ fn partial_list_must_cover_the_callable_arity() {
 
     assert_eq!(errors.len(), 1);
     assert!(
-        errors[0]
-            .message
+        crate::tests::diagnostic_text(&errors[0])
             .contains("expects 2 explicit type argument(s), but 1 were supplied")
     );
 }

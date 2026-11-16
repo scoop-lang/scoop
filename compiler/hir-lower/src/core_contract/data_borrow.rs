@@ -13,6 +13,7 @@ impl Lowerer {
             if !self.valid_data_borrow_signature(function, kind) {
                 self.current_file = self.function_files[&function];
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     self.functions[function].span,
                     format!("malformed core data borrow intrinsic `{}`", kind.name()),
                 );

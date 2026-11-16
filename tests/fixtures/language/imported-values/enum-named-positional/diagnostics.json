@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0705",
     "message": "dependency constructor `Pair` named-field variants require every argument to be named",
     "notes": [],
     "origin": {

@@ -177,6 +177,7 @@ impl Lowerer {
         if let Some(reason) = derivation_failure {
             let found = self.type_name(lhs.ty);
             self.error(
+                scoop_source::DiagnosticCode::E1316,
                 span,
                 format!("cannot derive `equals` for `{found}`: {reason}"),
             );
@@ -185,6 +186,7 @@ impl Lowerer {
 
         let found = self.type_name(lhs.ty);
         self.error(
+            scoop_source::DiagnosticCode::E0711,
             span,
             format!("type `{found}` has no applicable member operator `equals` for `{symbol}`"),
         );

@@ -46,7 +46,7 @@ impl Lowerer {
         {
             Ok(map) => map,
             Err(error) => {
-                state.error(call.span, error.describe());
+                state.error(error.code(), call.span, error.describe());
                 return Err(Box::new(state));
             }
         };
@@ -72,9 +72,10 @@ impl Lowerer {
             Ok(inferred) => inferred,
             Err(failure) => {
                 if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
-                    state
-                        .diagnostics
-                        .push(scoop_ast::Diagnostic::internal(error));
+                    state.diagnostics.push(scoop_ast::Diagnostic::internal(
+                        scoop_source::DiagnosticCode::ICE0601,
+                        error,
+                    ));
                 }
                 if let ArgumentInferenceFailureKind::Constraint(constraint) = failure.kind {
                     let reason = state.render_imported_constraint_failure(
@@ -82,7 +83,11 @@ impl Lowerer {
                         &mapped_view.signature.callable_parameters,
                         &constraint,
                     );
-                    state.error(call.span, format!("typealias constructor: {reason}"));
+                    state.error(
+                        constraint.code(),
+                        call.span,
+                        format!("typealias constructor: {reason}"),
+                    );
                 }
                 return Err(Box::new(state));
             }

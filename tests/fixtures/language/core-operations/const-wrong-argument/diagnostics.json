@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "ICE0501",
     "message": "const integer intrinsic arguments do not match the exact typed core declaration",
     "notes": [],
     "origin": {

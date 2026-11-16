@@ -46,7 +46,11 @@ pub(super) fn target_request(
     triple: String,
     tools: &CToolchainOptions,
 ) -> BuildResult<TargetSelectionRequestV1> {
-    tools
-        .request(triple)
-        .map_err(|error| BuildFailure::tool("SCOOP_CLI_CONFIG", BuildFailurePhase::Request, error))
+    tools.request(triple).map_err(|error| {
+        BuildFailure::tool(
+            scoop_source::DiagnosticCode::E2001,
+            BuildFailurePhase::Request,
+            error,
+        )
+    })
 }

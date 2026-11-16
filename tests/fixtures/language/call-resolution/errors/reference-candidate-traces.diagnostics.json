@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for callable reference `::convert` in current-unit top-level candidate layer:\n  - fun convert<T : Marker>(value: T): T — type argument `String` for `T` must satisfy interface upper bound `Marker`\n  - fun convert(value: Int): Int — Int is not equal to String",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for callable reference `::convert` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun convert<T : Marker>(value: T): T",
+        "notes": [
+          {
+            "code": "E0603",
+            "kind": "cause",
+            "message": "type argument `String` for `T` must satisfy interface upper bound `Marker`",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun convert(value: Int): Int",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "Int is not equal to String",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 332,
@@ -13,9 +52,66 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "callable reference `::choose` is ambiguous in current-unit top-level candidate layer:\n  - fun choose(value: Int): Int — forms a complete non-generic function type\n  - fun choose(value: String): String — forms a complete non-generic function type",
-    "notes": [],
+    "code": "E0712",
+    "message": "callable reference `::choose` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose(value: Int): Int",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "forms a complete non-generic function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose(value: String): String",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "forms a complete non-generic function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 361,
@@ -26,9 +122,48 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for native function reference `::callback` in current-unit top-level candidate layer:\n  - fun callback(value: Int): Int — native callbacks must be declared `@NoGC`\n  - fun callback(value: UInt): UInt — UInt is not equal to Boolean",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for native function reference `::callback` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun callback(value: Int): Int",
+        "notes": [
+          {
+            "code": "E1217",
+            "kind": "cause",
+            "message": "native callbacks must be declared `@NoGC`",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun callback(value: UInt): UInt",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "UInt is not equal to Boolean",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 419,

@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
-    "message": "artifact not found for dev.programlink:library:0.1.0; provide --dependency-slib or --cone-path",
-    "notes": [],
+    "code": "E2101",
+    "message": "artifact not found for dev.programlink:library:0.1.0",
+    "notes": [
+      {
+        "code": "H2001",
+        "kind": "help",
+        "message": "provide --dependency-slib or --cone-path",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "kind": "artifact",
       "member": "manifest:direct_dependencies",

@@ -185,3 +185,11 @@ impl LoadedSingleConeBuildRequest {
         })
     }
 }
+
+impl SingleConeDependencyValidationError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        match self {
+            Self::ExplicitDependencies(e) => e.code(),
+        }
+    }
+}

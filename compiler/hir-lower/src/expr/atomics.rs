@@ -1,6 +1,7 @@
 use super::*;
 
-pub(super) const ATOMIC_REFERENCE_ERROR: &str = "atomic methods with memory-order parameters cannot be referenced; use a lambda with fixed orders";
+pub(super) const ATOMIC_REFERENCE_ERROR: &str =
+    "atomic methods with memory-order parameters cannot be referenced";
 
 impl Lowerer {
     pub(in crate::expr) fn normalize_atomic_method(
@@ -23,14 +24,14 @@ impl Lowerer {
         let operation = match method {
             Method::Load => {
                 let Some(order) = hir::AtomicLoadOrder::from_memory_order(orders[0]) else {
-                    self.error(span, format!("memory order {:?} is not valid for atomic load; expected Relaxed, Acquire, or SeqCst", orders[0]));
+                    self.error(scoop_source::DiagnosticCode::E1222, span, format!("memory order {:?} is not valid for atomic load; expected Relaxed, Acquire, or SeqCst", orders[0]));
                     return None;
                 };
                 Operation::Load { order }
             }
             Method::Store => {
                 let Some(order) = hir::AtomicStoreOrder::from_memory_order(orders[0]) else {
-                    self.error(span, format!("memory order {:?} is not valid for atomic store; expected Relaxed, Release, or SeqCst", orders[0]));
+                    self.error(scoop_source::DiagnosticCode::E1222, span, format!("memory order {:?} is not valid for atomic store; expected Relaxed, Release, or SeqCst", orders[0]));
                     return None;
                 };
                 Operation::Store {
@@ -43,6 +44,7 @@ impl Lowerer {
                     hir::AtomicCompareExchangeOrder::from_memory_orders(orders[0], orders[1])
                 else {
                     self.error(
+                        scoop_source::DiagnosticCode::E1222,
                         span,
                         format!(
                             "atomic CAS failure order {:?} is not allowed with success order {:?}",
@@ -129,6 +131,7 @@ impl Lowerer {
             return Some(order);
         }
         self.error(
+            scoop_source::DiagnosticCode::E1221,
             argument.span,
             "atomic memory order must be a constant MemoryOrder variant".into(),
         );

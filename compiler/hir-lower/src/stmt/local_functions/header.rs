@@ -7,12 +7,14 @@ impl Lowerer {
     ) -> Option<hir::LocalFunctionId> {
         if let Some(operator) = decl.operator {
             self.error(
+                scoop_source::DiagnosticCode::E0725,
                 operator.span,
                 "`operator` requires a member or extension receiver".to_string(),
             );
         }
         if let Some(infix) = decl.infix {
             self.error(
+                scoop_source::DiagnosticCode::E0725,
                 infix.span,
                 "`infix` requires a member or extension receiver".to_string(),
             );
@@ -26,6 +28,7 @@ impl Lowerer {
                 .any(|existing| existing.name == param.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     param.span,
                     format!("duplicate type parameter `{}`", param.name.text),
                 );
@@ -137,6 +140,7 @@ impl Lowerer {
             .any(|candidate| self.same_parameter_signature(function, candidate));
         if duplicate {
             self.error(
+                scoop_source::DiagnosticCode::E0302,
                 decl.name.span,
                 format!(
                     "local function `{}` is already declared with the same signature",

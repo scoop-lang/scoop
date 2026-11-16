@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2002",
     "message": "input must be a Cone directory or Cone.toml",
     "notes": [],
     "origin": {

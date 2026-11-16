@@ -17,6 +17,7 @@ impl Lowerer {
             .or_else(|| self.imported_nominal_owner(host));
         let Some(owner) = owner else {
             self.error(
+                scoop_source::DiagnosticCode::E0405,
                 span,
                 format!(
                     "type `{}` cannot qualify a nested declaration",
@@ -30,6 +31,7 @@ impl Lowerer {
             .ok()?
         else {
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 name.span,
                 format!(
                     "type `{}` has no accessible nested type `{}`",
@@ -44,6 +46,7 @@ impl Lowerer {
             ResolvedTypeName::Applied(ty) => return Some(ty),
             ResolvedTypeName::Annotation(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     span,
                     "annotation declarations cannot be used as value types".into(),
                 );
@@ -64,6 +67,7 @@ impl Lowerer {
         }
         if !arguments.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 "companion type arguments belong to its host".into(),
             );
@@ -96,11 +100,16 @@ impl Lowerer {
         let ty = self
             .apply_nominal_type(companion, arguments)
             .map_err(|error| {
-                self.error(span, format!("cannot resolve companion type: {error:?}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("cannot resolve companion type: {error:?}"),
+                );
             })
             .ok()?;
         if !self.nominal_is_accessible(ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!(
                     "type `{}` is not accessible from this source location",

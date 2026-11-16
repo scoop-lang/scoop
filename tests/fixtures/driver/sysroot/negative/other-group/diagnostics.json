@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
-    "message": "no default registry for different:scoop.platform; declare registry.default or an explicit registry URL",
-    "notes": [],
+    "code": "E2116",
+    "message": "no default registry for different:scoop.platform",
+    "notes": [
+      {
+        "code": "H2103",
+        "kind": "help",
+        "message": "declare registry.default or an explicit registry URL",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "end": 149,
       "kind": "host",

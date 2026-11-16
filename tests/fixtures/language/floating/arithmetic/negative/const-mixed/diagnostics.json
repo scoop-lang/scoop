@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "const operator operands must have the same type, found Float and Double",
     "notes": [],
     "origin": {

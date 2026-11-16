@@ -14,6 +14,7 @@ impl Parser {
         self.bump();
         if matches!(self.peek().kind, TokenKind::RBrace) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0204,
                 self.peek().span,
                 "copy update field list must not be empty",
             ));
@@ -23,6 +24,7 @@ impl Parser {
         loop {
             if matches!(self.peek().kind, TokenKind::DotDot) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0205,
                     self.peek().span,
                     "copy update field list does not allow rest entries",
                 ));
@@ -30,6 +32,7 @@ impl Parser {
             let field = self.expect_ident("copy update field name")?;
             if matches!(self.peek().kind, TokenKind::Dot | TokenKind::QuestionDot) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0205,
                     self.peek().span,
                     "copy update fields must be direct names, not nested paths",
                 ));
@@ -49,6 +52,7 @@ impl Parser {
             );
             if statement_only {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0205,
                     self.peek().span,
                     "copy update field values must be expressions, not statements",
                 ));
@@ -65,6 +69,7 @@ impl Parser {
             })?;
             if matches!(self.peek().kind, TokenKind::RBrace) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0205,
                     self.peek().span,
                     "copy update field list does not allow a trailing comma",
                 ));
@@ -96,6 +101,7 @@ impl Parser {
         let first = self.parse_expr()?;
         if matches!(self.peek().kind, TokenKind::Colon) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0206,
                 self.peek().span,
                 "array slices are not supported yet (milestone M5)",
             ));
@@ -128,10 +134,12 @@ impl Parser {
                     span: access.span,
                 }),
                 (Navigation::Safe, _) if context == "assignment target" => Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1506,
                     span,
                     "assignments through `?.` are not allowed",
                 )),
                 _ => Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1506,
                     span,
                     format!("{context} must be an assignable place"),
                 )),
@@ -158,6 +166,7 @@ impl Parser {
                 span,
             }),
             _ => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1506,
                 span,
                 format!("{context} must be an assignable place"),
             )),

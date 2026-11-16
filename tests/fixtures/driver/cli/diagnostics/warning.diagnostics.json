@@ -1,8 +1,8 @@
 [
   {
-    "severity": "warning",
-    "code": "SCOOPC_COMPILER_WARNING",
+    "code": "W2001",
     "message": "package declaration is ignored in single-file mode; using the default root package",
+    "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 15,
@@ -10,6 +10,6 @@
       "path": "main.scoop",
       "start": 0
     },
-    "notes": []
+    "severity": "warning"
   }
 ]

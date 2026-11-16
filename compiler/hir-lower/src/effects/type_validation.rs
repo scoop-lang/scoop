@@ -54,7 +54,7 @@ impl Lowerer {
         for (ty, kind, file, span) in types {
             if let Some(message) = self.no_gc_representation_error(ty, kind) {
                 self.current_file = file;
-                self.error(span, message);
+                self.error(scoop_source::DiagnosticCode::E1106, span, message);
             }
         }
     }
@@ -67,7 +67,7 @@ impl Lowerer {
             if let hir::Type::Ptr(pointee) = self.types[ty]
                 && let Some(message) = self.concrete_pointer_pointee_error(pointee)
             {
-                errors.push(message);
+                errors.push((scoop_source::DiagnosticCode::E1213, message));
             }
             if self.type_contains_param(ty) {
                 continue;
@@ -87,7 +87,10 @@ impl Lowerer {
             if let Some(kind) = ffi_kind
                 && let Some(error) = self.c_ffi_type_error(ty)
             {
-                errors.push(format!("{kind} is not C-FFI-safe: {error}"));
+                errors.push((
+                    scoop_source::DiagnosticCode::E1201,
+                    format!("{kind} is not C-FFI-safe: {error}"),
+                ));
             }
             let kind = match self.types[ty] {
                 hir::Type::Struct(application)
@@ -108,15 +111,15 @@ impl Lowerer {
                 _ => continue,
             };
             if let Some(message) = self.no_gc_representation_error(ty, kind) {
-                errors.push(message);
+                errors.push((scoop_source::DiagnosticCode::E1106, message));
             }
         }
         // Alias expansion can introduce applications below a structural root.
         // Diagnose this query's reachable applications in a stable order.
         errors.sort();
         let valid = errors.is_empty();
-        for message in errors {
-            self.error(span, message);
+        for (code, message) in errors {
+            self.error(code, span, message);
         }
         valid
     }

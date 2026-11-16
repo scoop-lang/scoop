@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "type `Factory` is not accessible from this source location",
     "notes": [],
     "origin": {

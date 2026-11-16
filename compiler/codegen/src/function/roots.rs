@@ -11,9 +11,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         name: &str,
     ) -> Result<PointerValue<'ctx>, CodegenError> {
         let builder = self.builder;
-        let current = builder
-            .get_insert_block()
-            .ok_or_else(|| CodegenError::internal("builder has no insertion block".to_string()))?;
+        let current = builder.get_insert_block().ok_or_else(|| {
+            CodegenError::internal("builder has no insertion block".to_string())
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
+        })?;
         match self.entry_block.get_first_instruction() {
             Some(first) => builder.position_at(self.entry_block, &first),
             None => builder.position_at_end(self.entry_block),
@@ -44,6 +45,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .map(scoop_lir::AbiArgument::logical_storage_type)
                 .ok_or_else(|| {
                     CodegenError::internal(format!("statepoint param {index} is out of range"))
+                        .with_code(scoop_source::DiagnosticCode::ICE1101)
                 }),
             scoop_lir::CallerRootSource::Local(id) => Ok(self.function.locals[id].ty()),
             scoop_lir::CallerRootSource::Temp(id) => Ok(&self.function.temps[id].ty),
@@ -59,7 +61,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             return Err(CodegenError::internal(format!(
                 "root source in @{} cannot contain an internal machine scalar",
                 self.function.symbol()
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101));
         }
         match source {
             scoop_lir::CallerRootSource::Local(id) => Ok(RootStorage {
@@ -75,6 +78,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             scoop_lir::CallerRootSource::Param(_) | scoop_lir::CallerRootSource::Temp(_) => {
                 self.root_storage.get(&source).copied().ok_or_else(|| {
                     CodegenError::internal("root source has no canonical storage".to_string())
+                        .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })
             }
         }
@@ -96,13 +100,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 return Err(CodegenError::internal(format!(
                     "statepoint {} source type is incomplete or inconsistent",
                     safepoint.get()
-                )));
+                ))
+                .with_code(scoop_source::DiagnosticCode::ICE1101));
             }
             if machine_types::contains_machine_scalar(self.structs, self.enums, &item.ty) {
                 return Err(CodegenError::internal(format!(
                     "statepoint {} cannot treat an internal machine scalar as a managed root",
                     safepoint.get()
-                )));
+                ))
+                .with_code(scoop_source::DiagnosticCode::ICE1101));
             }
             let llvm_ty = basic_ty(
                 self.context,
@@ -119,12 +125,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             "statepoint {} source lacks canonical root storage",
                             safepoint.get()
                         ))
+                        .with_code(scoop_source::DiagnosticCode::ICE1101)
                     })?;
                     if canonical.ty != llvm_ty {
                         return Err(CodegenError::internal(format!(
                             "statepoint {} root storage disagrees with source type",
                             safepoint.get()
-                        )));
+                        ))
+                        .with_code(scoop_source::DiagnosticCode::ICE1101));
                     }
                     canonical.pointer
                 }
@@ -140,7 +148,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         "statepoint {} managed leaf offset {} is outside its concrete type",
                         safepoint.get(),
                         leaf.byte_offset
-                    )));
+                    ))
+                    .with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 // SAFETY: the LIR leaf path was computed from the concrete
                 // physical layout and was range-checked immediately above.
@@ -277,6 +286,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         .get(logical_index)
                         .ok_or_else(|| {
                             CodegenError::internal(format!("rooted param {index} is out of range"))
+                                .with_code(scoop_source::DiagnosticCode::ICE1101)
                         })?;
                     let location = self
                         .function
@@ -301,18 +311,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::Direct(_),
                             scoop_lir::AbiArgumentLocation::Parameter(physical_index),
                         ) => {
-                            let physical_index = u32::try_from(physical_index).map_err(|cause| {
-                                CodegenError::internal_cause(format!(
+                            let physical_index =
+                                u32::try_from(physical_index).map_err(|cause| {
+                                    CodegenError::internal_cause(format!(
                                     "physical parameter for rooted param {index} exceeds u32::MAX"
-                                ), cause)
-                            })?;
+                                ), cause).with_code(scoop_source::DiagnosticCode::ICE1101)
+                                })?;
                             let initial = self
                                 .llvm_function
                                 .get_nth_param(physical_index)
                                 .ok_or_else(|| {
                                     CodegenError::internal(format!(
                                         "physical parameter for rooted param {index} is out of range"
-                                    ))
+                                    )).with_code(scoop_source::DiagnosticCode::ICE1101)
                                 })?;
                             let pointer = self.entry_alloca(ty, "managed_root_storage")?;
                             self.builder
@@ -329,23 +340,25 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::Indirect(_),
                             scoop_lir::AbiArgumentLocation::Parameter(physical_index),
                         ) => {
-                            let physical_index = u32::try_from(physical_index).map_err(|cause| {
-                                CodegenError::internal_cause(format!(
+                            let physical_index =
+                                u32::try_from(physical_index).map_err(|cause| {
+                                    CodegenError::internal_cause(format!(
                                     "physical parameter for rooted param {index} exceeds u32::MAX"
-                                ), cause)
-                            })?;
+                                ), cause).with_code(scoop_source::DiagnosticCode::ICE1101)
+                                })?;
                             let parameter = self
                                 .llvm_function
                                 .get_nth_param(physical_index)
                                 .ok_or_else(|| {
                                     CodegenError::internal(format!(
                                         "physical parameter for rooted param {index} is out of range"
-                                    ))
+                                    )).with_code(scoop_source::DiagnosticCode::ICE1101)
                                 })?;
                             let BasicValueEnum::PointerValue(pointer) = parameter else {
                                 return Err(CodegenError::internal(format!(
                                     "indirect rooted param {index} does not use pointer storage"
-                                )));
+                                ))
+                                .with_code(scoop_source::DiagnosticCode::ICE1101));
                             };
                             RootStorage { pointer, ty }
                         }
@@ -355,12 +368,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         ) => {
                             return Err(CodegenError::internal(format!(
                                 "elided param {index} appears in a root plan despite its empty scan"
-                            )));
+                            ))
+                            .with_code(scoop_source::DiagnosticCode::ICE1101));
                         }
                         _ => {
                             return Err(CodegenError::internal(format!(
                                 "rooted param {index} has an inconsistent Scoop ABI location"
-                            )));
+                            ))
+                            .with_code(scoop_source::DiagnosticCode::ICE1101));
                         }
                     }
                 }
@@ -379,13 +394,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 scoop_lir::CallerRootSource::Local(_) => {
                     return Err(CodegenError::internal(
                         "local root storage must reuse its ordinary alloca".to_string(),
-                    ));
+                    )
+                    .with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
             };
             if self.root_storage.insert(source, storage).is_some() {
                 return Err(CodegenError::internal(
                     "complete root plans repeat one canonical source".to_string(),
-                ));
+                )
+                .with_code(scoop_source::DiagnosticCode::ICE1101));
             }
         }
         Ok(())
@@ -411,6 +428,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .emit(root.scan.as_ref_scan())?
                 .ok_or_else(|| {
                     CodegenError::internal("exceptional root has an empty runtime scan".to_string())
+                        .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })?;
             entries.push((storage.pointer, descriptor));
         }
@@ -424,6 +442,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     "compiler-root entry count exceeds u32::MAX".to_string(),
                     cause,
                 )
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
             })?;
             let array_type = entry_type.array_type(entry_count);
             let array = self.entry_alloca(array_type.into(), "compiler_root_entries")?;
@@ -433,6 +452,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         "compiler-root entry index exceeds u64::MAX".to_string(),
                         cause,
                     )
+                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })?;
                 // SAFETY: `entry_index` is within the fixed entries array.
                 let entry = unsafe {
@@ -489,6 +509,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             })?;
         let count = u64::try_from(roots.len()).map_err(|cause| {
             CodegenError::internal_cause("root table count exceeds u64::MAX".to_string(), cause)
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
         })?;
         self.builder
             .build_store(entry_field, entries_pointer)
@@ -513,7 +534,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             if !self.root_storage.contains_key(&source) {
                 return Err(CodegenError::internal(
                     "compiler-root edge names a source without canonical storage".to_string(),
-                ));
+                )
+                .with_code(scoop_source::DiagnosticCode::ICE1101));
             }
         }
         Ok(())

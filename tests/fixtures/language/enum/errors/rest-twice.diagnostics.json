@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0903",
     "message": "`..` may appear at most once in a pattern",
     "notes": [],
     "origin": {

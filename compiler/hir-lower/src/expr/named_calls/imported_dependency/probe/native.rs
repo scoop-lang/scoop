@@ -70,8 +70,10 @@ impl Lowerer {
             Ok(arguments) => arguments,
             Err(failure) => {
                 if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
-                    self.diagnostics
-                        .push(scoop_ast::Diagnostic::internal(error));
+                    self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                        scoop_source::DiagnosticCode::ICE0601,
+                        error,
+                    ));
                 }
                 if let ArgumentInferenceFailureKind::Constraint(constraint) = &failure.kind {
                     if alias_signature.is_some() {
@@ -81,6 +83,7 @@ impl Lowerer {
                             constraint,
                         );
                         self.error(
+                            constraint.code(),
                             call.span,
                             format!("typealias constructor `{}`: {message}", name.text),
                         );
@@ -112,7 +115,11 @@ impl Lowerer {
                     {
                         message.push_str(&hint);
                     }
-                    self.error(call.arguments.span(index), message);
+                    self.error(
+                        scoop_source::DiagnosticCode::E0501,
+                        call.arguments.span(index),
+                        message,
+                    );
                 } else if integer_intrinsic
                     && let ArgumentInferenceFailureKind::Expression(expression) = &failure.kind
                     && let ArgumentExpression::Source(source) = expressions[expression.source_index]
@@ -150,7 +157,11 @@ impl Lowerer {
         let default_plan = match self.prepare_imported_defaults(&candidate, &argument_map) {
             Ok(plan) => plan,
             Err(error) => {
-                self.error(call.span, error.to_string());
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    call.span,
+                    error.to_string(),
+                );
                 return Err(self);
             }
         };

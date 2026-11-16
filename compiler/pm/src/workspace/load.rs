@@ -63,24 +63,29 @@ impl Manifests {
             .transpose()?;
         let record = record_path.as_ref().map(std::fs::read).transpose();
         let record = match record {
-            Ok(Some(bytes)) => Some(
-                serde_json::from_slice::<Record>(&bytes)
-                    .map_err(|error| PmError::new(error.to_string()))?,
-            ),
+            Ok(Some(bytes)) => Some(serde_json::from_slice::<Record>(&bytes).map_err(|error| {
+                PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+            })?),
             Ok(None) => None,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(error) => return Err(PmError::new(error.to_string())),
+            Err(error) => {
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2201,
+                    error.to_string(),
+                ));
+            }
         };
         let record = match record {
             Some(record) => record,
             None => {
-                let text =
-                    std::fs::read_to_string(&path).map_err(|error| PmError::io(&path, error))?;
+                let text = std::fs::read_to_string(&path)
+                    .map_err(|error| PmError::manifest_read(&path, error))?;
                 let record = Record::parse(&path, text)?;
                 stamp.unchanged(&path)?;
                 if let Some(path) = record_path {
-                    let bytes = serde_json::to_vec(&record)
-                        .map_err(|error| PmError::new(error.to_string()))?;
+                    let bytes = serde_json::to_vec(&record).map_err(|error| {
+                        PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+                    })?;
                     crate::cache::atomic_write(&path, &bytes)?;
                 }
                 record
@@ -133,7 +138,8 @@ impl Record {
         let document =
             scoop_manifest::package::parse_package_manifest(&text, scoop_toolchain::SOURCE_TARGETS)
                 .map_err(|error| {
-                    let mut result = PmError::new(format!("{}: {error}", path.display()));
+                    let mut result =
+                        PmError::new(error.code(), format!("{}: {error}", path.display()));
                     if let Some(span) = error.span() {
                         result.origins.push(ManifestOrigin {
                             manifest: path.to_owned(),

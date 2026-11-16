@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "integral enum annotation argument requires a variant of the declared enum type",
     "notes": [],
     "origin": {

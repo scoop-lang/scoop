@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Incomplete` does not implement interface method `SingleValueDecodingContainer.readFloat`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Incomplete` does not implement interface method `SingleValueDecodingContainer.readDouble`",
     "notes": [],
     "origin": {

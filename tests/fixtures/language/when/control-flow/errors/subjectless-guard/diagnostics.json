@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
-    "message": "when guards require a subject; combine conditions with `&&`",
-    "notes": [],
+    "code": "E0912",
+    "message": "when guards require a subject",
+    "notes": [
+      {
+        "code": "H0902",
+        "kind": "help",
+        "message": "combine conditions with `&&`",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 27,

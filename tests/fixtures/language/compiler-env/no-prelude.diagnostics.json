@@ -1,21 +1,33 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown function `env`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+    "code": "E0401",
+    "message": "unknown function `env`",
     "notes": [
       {
+        "code": "H0401",
         "importPath": [
           "scoop",
           "compiler",
           "env"
         ],
+        "kind": "help",
         "message": "available with import `scoop`.`compiler`.`env`",
+        "notes": [],
         "origin": {
           "cone": "5ea5f5e8ff248182c8f8c7e1043caae20f163bcefd34cca4e97d8c6a03bf620d",
           "end": 646,
           "kind": "source",
           "path": "src/compiler/environment.scoop",
           "start": 576
+        }
+      },
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
         }
       }
     ],

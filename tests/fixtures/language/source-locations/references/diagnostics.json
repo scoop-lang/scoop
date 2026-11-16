@@ -1,8 +1,27 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "compiler intrinsic `currentSourceLocation` does not support callable references\nnote: this intrinsic requires the source location of a direct call; indirect calls do not provide it\nhelp: call it directly where the location is needed, or pass a SourceLocation value explicitly",
-    "notes": [],
+    "code": "E0713",
+    "message": "compiler intrinsic `currentSourceLocation` does not support callable references",
+    "notes": [
+      {
+        "code": "N0705",
+        "kind": "note",
+        "message": "this intrinsic requires the source location of a direct call; indirect calls do not provide it",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "H0701",
+        "kind": "help",
+        "message": "call it directly where the location is needed, or pass a SourceLocation value explicitly",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 97,
@@ -13,9 +32,28 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "compiler intrinsic `currentSourceLocation` does not support callable references\nnote: this intrinsic requires the source location of a direct call; indirect calls do not provide it\nhelp: call it directly where the location is needed, or pass a SourceLocation value explicitly",
-    "notes": [],
+    "code": "E0713",
+    "message": "compiler intrinsic `currentSourceLocation` does not support callable references",
+    "notes": [
+      {
+        "code": "N0705",
+        "kind": "note",
+        "message": "this intrinsic requires the source location of a direct call; indirect calls do not provide it",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "H0701",
+        "kind": "help",
+        "message": "call it directly where the location is needed, or pass a SourceLocation value explicitly",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 148,
@@ -26,9 +64,28 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "compiler intrinsic `currentSourceLocation` does not support callable references\nnote: this intrinsic requires the source location of a direct call; indirect calls do not provide it\nhelp: call it directly where the location is needed, or pass a SourceLocation value explicitly",
-    "notes": [],
+    "code": "E0713",
+    "message": "compiler intrinsic `currentSourceLocation` does not support callable references",
+    "notes": [
+      {
+        "code": "N0705",
+        "kind": "note",
+        "message": "this intrinsic requires the source location of a direct call; indirect calls do not provide it",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "H0701",
+        "kind": "help",
+        "message": "call it directly where the location is needed, or pass a SourceLocation value explicitly",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 195,

@@ -33,30 +33,31 @@ pub(super) fn build(
             objects,
         },
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let namespace = std::path::absolute(cache)
-        .map_err(error)?
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
         .join("link-archives-v2");
     let record = namespace.join(format!("{key}.json"));
     if let Some(paths) = load(&record, &namespace)? {
         return Ok(paths);
     }
-    std::fs::create_dir_all(&namespace).map_err(error)?;
+    std::fs::create_dir_all(&namespace)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let lock = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
         .open(namespace.join(format!("{key}.lock")))
-        .map_err(error)?;
-    FileExt::lock(&lock).map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    FileExt::lock(&lock).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     if let Some(paths) = load(&record, &namespace)? {
         return Ok(paths);
     }
     let directory = tempfile::Builder::new()
         .prefix("members-")
         .tempdir_in(&namespace)
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let (kind, extension) = crate::native_archive::format(target);
     let mut paths = Vec::new();
     let mut members: Vec<_> = startup
@@ -108,14 +109,19 @@ pub(super) fn build(
                 .expect("generated archive name")
         })
         .collect();
-    let mut file = tempfile::NamedTempFile::new_in(&namespace).map_err(error)?;
+    let mut file = tempfile::NamedTempFile::new_in(&namespace)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     {
         let mut writer = BufWriter::new(file.as_file_mut());
-        serde_json::to_writer(&mut writer, &names).map_err(error)?;
-        writer.flush().map_err(error)?;
+        serde_json::to_writer(&mut writer, &names)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
+        writer
+            .flush()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     }
     let _ = directory.keep();
-    file.persist(record).map_err(|source| error(source.error))?;
+    file.persist(record)
+        .map_err(|source| error(scoop_source::DiagnosticCode::E2201, source.error))?;
     Ok(paths)
 }
 
@@ -123,12 +129,16 @@ fn load(record: &Path, namespace: &Path) -> Result<Option<Vec<PathBuf>>, LinkErr
     let file = match File::open(record) {
         Ok(file) => file,
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(source) => return Err(error(source)),
+        Err(source) => return Err(error(scoop_source::DiagnosticCode::E2201, source)),
     };
-    let names: Vec<String> = serde_json::from_reader(BufReader::new(file)).map_err(error)?;
+    let names: Vec<String> = serde_json::from_reader(BufReader::new(file))
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let paths: Vec<_> = names.into_iter().map(|name| namespace.join(name)).collect();
     for path in &paths {
-        if !path.try_exists().map_err(error)? {
+        if !path
+            .try_exists()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+        {
             return Ok(None);
         }
     }

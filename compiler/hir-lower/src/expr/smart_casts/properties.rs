@@ -46,6 +46,7 @@ impl Lowerer {
         }
         if candidates.len() > 1 {
             self.error(
+                scoop_source::DiagnosticCode::E0404,
                 name.span,
                 format!("ambiguous member property `{}`", name.text),
             );
@@ -97,6 +98,7 @@ impl Lowerer {
                     && !self.is_subtype(property.value_type, expected)
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         span,
                         format!(
                             "dependency property `{}` has type {}, expected {}",

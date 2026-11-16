@@ -20,7 +20,9 @@ fn compile(source: &str) -> Result<hir::Output, Vec<ast::Diagnostic>> {
 fn rejects(source: &str, message: &str) {
     let errors = compile(source).unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains(message)),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains(message)),
         "{errors:?}"
     );
 }
@@ -165,12 +167,12 @@ fn invalid_explicit_encoding_keeps_ordinary_override_diagnostics() {
         assert!(
             errors
                 .iter()
-                .any(|error| error.message.contains("override"))
+                .any(|error| crate::tests::diagnostic_text(error).contains("override"))
         );
         assert!(
             errors
                 .iter()
-                .all(|error| !error.message.contains("automatic encode")),
+                .all(|error| !crate::tests::diagnostic_text(error).contains("automatic encode")),
             "{errors:?}"
         );
     }

@@ -8,6 +8,7 @@ scoop-target-data.workspace = true
 object.workspace = true
 scoop-hir.workspace = true
 scoop-identity.workspace = true
+scoop-source.workspace = true
 scoop-lir.workspace = true
 scoop-mir.workspace = true
 scoop-wire.workspace = true

@@ -9,6 +9,7 @@ impl Parser {
         let subject = match self.peek().kind {
             TokenKind::Var => {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0916,
                     self.peek().span,
                     "a when subject declaration must use `val`, not `var`",
                 ));
@@ -28,6 +29,7 @@ impl Parser {
                 let declaration = result?;
                 let StatementKind::ValDecl(value) = declaration.kind else {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0916,
                         declaration.span,
                         "a when subject declaration cannot be delegated",
                     ));

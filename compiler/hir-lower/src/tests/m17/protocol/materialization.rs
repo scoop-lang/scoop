@@ -453,8 +453,7 @@ fn a_default_does_not_infer_an_unconstrained_type_parameter() {
     ]))
     .expect_err("the omitted default contributes no inference constraint");
     assert!(errors.iter().any(|diagnostic| {
-        diagnostic
-            .message
+        crate::tests::diagnostic_text(diagnostic)
             .contains("cannot infer a unique type argument for `T`")
     }));
 }

@@ -44,16 +44,25 @@ pub(crate) fn bind_callable_gc_map<'ctx, D, C, I>(
         .registrations()
         .iter()
         .find(|plan| plan.body() == body)
-        .ok_or_else(|| CodegenError::internal(format!("missing callable registration {body}")))?;
+        .ok_or_else(|| {
+            CodegenError::internal(format!("missing callable registration {body}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
     let definition = production
         .canonical_definitions()
         .plan(plan.body_definition_plan())
-        .ok_or_else(|| CodegenError::internal(format!("missing callable definition {body}")))?;
+        .ok_or_else(|| {
+            CodegenError::internal(format!("missing callable definition {body}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
     let boundary = definition
         .atom_boundaries()
         .iter()
         .find(|boundary| boundary.atom_role() == scoop_lir::DefinitionAtomRole::Stackmap)
-        .ok_or_else(|| CodegenError::internal(format!("missing callable GC atom {body}")))?;
+        .ok_or_else(|| {
+            CodegenError::internal(format!("missing callable GC atom {body}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
     // The object boundary writer resolves this declaration to the machine table.
     let name = boundary.start().symbol();
     let map = llvm.add_global(context.i8_type(), None, name.as_str());
@@ -62,11 +71,13 @@ pub(crate) fn bind_callable_gc_map<'ctx, D, C, I>(
         .get_global(plan.symbol().symbol().as_str())
         .ok_or_else(|| {
             CodegenError::internal(format!("missing emitted callable registration {body}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
     let value = descriptor
         .get_initializer()
         .ok_or_else(|| {
             CodegenError::internal(format!("uninitialized callable registration {body}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?
         .into_struct_value();
     let mut fields = (0..6)

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
+    "code": "E2302",
     "message": "dynamic dependency @rpath/libm23_leaf.dylib from @rpath/libm23_facade.dylib has 0 candidates: []",
     "notes": [],
     "origin": {

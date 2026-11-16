@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1519",
     "message": "division by zero in const initializer",
     "notes": [],
     "origin": {

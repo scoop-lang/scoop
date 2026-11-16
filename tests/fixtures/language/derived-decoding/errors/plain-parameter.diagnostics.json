@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1315",
     "message": "automatic decode requires a declared default for omitted constructor parameter `value`",
     "notes": [],
     "origin": {

@@ -21,6 +21,7 @@ impl Lowerer {
             if require_infix {
                 let found = self.type_name(callee.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0717,
                     call.span,
                     format!("function value of type {found} does not declare infix `invoke`"),
                 );
@@ -28,6 +29,7 @@ impl Lowerer {
             }
             if !call.type_args.is_empty() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0601,
                     call.span,
                     "function values do not accept explicit type arguments".to_string(),
                 );
@@ -64,7 +66,11 @@ impl Lowerer {
     }
 
     pub(in crate::expr) fn not_callable(&mut self, span: Span, found: &str) {
-        self.error(span, format!("value of type {found} is not callable"));
+        self.error(
+            scoop_source::DiagnosticCode::E0502,
+            span,
+            format!("value of type {found} is not callable"),
+        );
     }
 
     pub(super) fn type_exposes_invoke(&mut self, ty: TypeId, require_infix: bool) -> bool {
@@ -190,6 +196,7 @@ impl Lowerer {
             } => {
                 if Some(struct_id) == self.ffi_foreign_callback {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         "`ForeignCallback` values can only be produced by `foreignCallback`"
                             .to_string(),

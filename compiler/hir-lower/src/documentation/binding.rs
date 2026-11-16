@@ -96,7 +96,12 @@ impl Lowerer {
             .into_iter()
             .map(|warning| warning.bind(&sources))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| vec![ast::Diagnostic::internal(error)])?;
+            .map_err(|error| {
+                vec![ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error,
+                )]
+            })?;
         let source_locations = self.documentation_source_locations(
             declarations
                 .iter()
@@ -153,6 +158,7 @@ impl Lowerer {
                 };
                 if reference.is_some_and(|reference| !references.insert(reference)) {
                     self.documentation_warning(
+                        scoop_source::DiagnosticCode::W1808,
                         warnings,
                         tag.span,
                         format!("duplicate documentation tag `{}`", tag.label),
@@ -212,13 +218,14 @@ impl Lowerer {
                     .expect("a successful symbol query is non-empty");
                 Link::Symbols(ast::NonEmptyVec::new(first, symbols.collect()))
             }
-            Err(reason) => {
+            Err((code, reason)) => {
                 let name = path
                     .segments()
                     .map(|name| name.text.as_str())
                     .collect::<Vec<_>>()
                     .join(".");
                 self.documentation_warning(
+                    code,
                     warnings,
                     path.span,
                     format!("documentation reference `{name}` {reason}"),
@@ -230,11 +237,13 @@ impl Lowerer {
 
     fn documentation_warning(
         &self,
+        code: scoop_source::DiagnosticCode,
         warnings: &mut Vec<ast::Diagnostic>,
         span: ast::Span,
         message: impl Into<String>,
     ) {
         warnings.push(ast::Diagnostic::warning_at_file(
+            code,
             self.current_file,
             span,
             message,

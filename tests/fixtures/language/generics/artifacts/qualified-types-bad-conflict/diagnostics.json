@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0404",
     "message": "type `Point` is ambiguous in the qualified package layer",
     "notes": [
       {
+        "code": "N0002",
+        "kind": "note",
         "message": "candidate declared here",
+        "notes": [],
         "origin": {
           "cone": "b165cff08f0e4c7399dc5d2dc5f35eb1ed1db419515c2d6d5b75dfafd1e44d61",
           "end": 74,
@@ -14,7 +17,10 @@
         }
       },
       {
+        "code": "N0002",
+        "kind": "note",
         "message": "candidate declared here",
+        "notes": [],
         "origin": {
           "cone": "51528abb22f645eaa0d4b9a6d183b4a57f0b12c4ab4648367fc94858a56d32b5",
           "end": 74,

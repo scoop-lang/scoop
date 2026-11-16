@@ -26,7 +26,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             return Err(CodegenError::internal(format!(
                 "scoop_rt_alloc @{}: expected descriptor and size",
                 self.function.symbol()
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101));
         };
         let layout = self.known_allocation_layout(*descriptor);
         let descriptor = self.value(*descriptor)?.into_pointer_value();

@@ -154,6 +154,7 @@ impl Lowerer {
                     self.find_initializing_class_field(application, &name.text)
                 else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0402,
                         name.span,
                         format!(
                             "class `{}` has no field `{}`",
@@ -187,6 +188,7 @@ impl Lowerer {
                 let fields = self.struct_definition(structure).semantic_fields();
                 let Some(index) = fields.iter().position(|field| field.name == name.text) else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0402,
                         name.span,
                         format!(
                             "struct `{}` has no field `{}`",
@@ -329,7 +331,7 @@ impl Lowerer {
             .as_ref()
             .expect("field readiness is checked in an initialization context")
             .step;
-        self.error(
+        self.error(scoop_source::DiagnosticCode::E0810,
             span,
             format!(
                 "field `{name}` is not initialized during {step}; initializing receiver cannot observe a field before its store completes"

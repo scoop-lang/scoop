@@ -52,6 +52,7 @@ fn one(diagnostic: Diagnostic) -> Vec<Diagnostic> {
 
 fn error(cause: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::at(
+        scoop_source::DiagnosticCode::E2505,
         Span::new(0, 0),
         format!("cannot project the queried default application: {cause}"),
     )

@@ -23,7 +23,7 @@ fn m57_possible_default_conflicts_are_rejected_without_an_instantiation() {
         assert!(
             errors
                 .iter()
-                .any(|error| error.message.contains("conditions both hold")),
+                .any(|error| crate::tests::diagnostic_text(error).contains("conditions both hold")),
             "{errors:#?}"
         );
     }
@@ -55,7 +55,7 @@ fun main() {{}}
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("covers both conditions")),
+            .any(|error| crate::tests::diagnostic_text(error).contains("covers both conditions")),
         "{errors:#?}"
     );
 }
@@ -108,7 +108,9 @@ fun main() {{}}
         ))
         .unwrap_err();
         assert!(
-            errors.iter().any(|error| error.message.contains("read")),
+            errors
+                .iter()
+                .any(|error| crate::tests::diagnostic_text(error).contains("read")),
             "{errors:#?}"
         );
     }

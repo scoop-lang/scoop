@@ -41,6 +41,7 @@ impl Parser {
             .min_by_key(|span| span.start);
         if let Some(span) = modifier_span {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "only visibility modifiers are allowed on typealias declarations",
             ));
@@ -78,6 +79,7 @@ impl Parser {
         let prefix = self.parse_member_prefix()?;
         if let VisibilitySyntax::Explicit { span, .. } = prefix.visibility {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "local typealias declarations cannot have visibility modifiers",
             ));

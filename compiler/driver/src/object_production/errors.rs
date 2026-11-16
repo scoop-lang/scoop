@@ -106,3 +106,14 @@ impl std::error::Error for BuiltinObjectProductionError {
         }
     }
 }
+
+impl BuiltinObjectProductionError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::ReadObject { .. } => C::E2201,
+            Self::Stackmaps(_) | Self::CompactGc(_) | Self::SafepointFingerprints(_) => C::ICE1101,
+            _ => C::ICE2302,
+        }
+    }
+}

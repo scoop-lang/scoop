@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1117",
     "message": "a declaration permits one `context` prefix, before annotations and modifiers",
     "notes": [],
     "origin": {

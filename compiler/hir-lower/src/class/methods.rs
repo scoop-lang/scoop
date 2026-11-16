@@ -32,18 +32,21 @@ impl Lowerer {
         if !decl.type_params.is_empty() {
             if matches!(owner, Owner::Interface(_)) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1017,
                     decl.name.span,
                     format!("interface method `{short}` cannot declare method type parameters"),
                 );
             }
             if matches!(owner, Owner::Class(_)) && decl.modifier != ast::MethodModifier::Final {
                 self.error(
+                    scoop_source::DiagnosticCode::E1017,
                     decl.name.span,
                     format!("generic member function `{short}` in a class must be final"),
                 );
             }
             if decl.is_override {
                 self.error(
+                    scoop_source::DiagnosticCode::E1017,
                     decl.name.span,
                     format!("generic member function `{short}` cannot be an override"),
                 );
@@ -59,6 +62,7 @@ impl Lowerer {
                 .any(|existing| existing.name == param.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     param.span,
                     format!("duplicate type parameter `{}`", param.name.text),
                 );
@@ -153,6 +157,7 @@ impl Lowerer {
                     && decl.body_form == ast::FunctionBodyForm::Omitted
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E0308,
                         decl.name.span,
                         format!("private interface method `{short}` must have a body"),
                     );
@@ -163,6 +168,7 @@ impl Lowerer {
                     self.classes[class_id].modifier == hir::ClassModifier::Abstract;
                 if decl.modifier == ast::MethodModifier::Abstract && !abstract_class {
                     self.error(
+                        scoop_source::DiagnosticCode::E1018,
                         decl.name.span,
                         format!("abstract function `{short}` is only allowed in abstract classes"),
                     );
@@ -172,6 +178,7 @@ impl Lowerer {
                     && self.classes[class_id].modifier == hir::ClassModifier::Final
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E1018,
                         decl.name.span,
                         format!(
                             "open function `{short}` is only allowed in open or abstract classes"
@@ -183,11 +190,13 @@ impl Lowerer {
                     decl.modifier == ast::MethodModifier::Abstract,
                 ) {
                     (ast::FunctionBodyForm::Omitted, false) => self.error(
+                        scoop_source::DiagnosticCode::E0308,
                         decl.name.span,
                         format!("function `{short}` must have a body"),
                     ),
                     (ast::FunctionBodyForm::Block | ast::FunctionBodyForm::Expression, true) => {
                         self.error(
+                            scoop_source::DiagnosticCode::E0309,
                             decl.name.span,
                             format!("abstract function `{short}` must not have a body"),
                         )
@@ -198,12 +207,14 @@ impl Lowerer {
             Owner::Struct(_) | Owner::Enum(_) => {
                 if decl.modifier == ast::MethodModifier::Abstract {
                     self.error(
+                        scoop_source::DiagnosticCode::E1018,
                         decl.name.span,
                         format!("abstract function `{short}` is only allowed in abstract classes"),
                     );
                 }
                 if decl.modifier == ast::MethodModifier::Open && !decl.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E1018,
                         decl.name.span,
                         format!("open function `{short}` is only allowed in class declarations"),
                     );
@@ -213,6 +224,7 @@ impl Lowerer {
                 // implements an interface method, DESIGN.md 5.2).
                 if decl.body_form == ast::FunctionBodyForm::Omitted {
                     self.error(
+                        scoop_source::DiagnosticCode::E0308,
                         decl.name.span,
                         format!("function `{short}` must have a body"),
                     );
@@ -221,12 +233,14 @@ impl Lowerer {
             Owner::Object(_) => {
                 if decl.modifier == ast::MethodModifier::Abstract {
                     self.error(
+                        scoop_source::DiagnosticCode::E1018,
                         decl.name.span,
                         format!("abstract function `{short}` is only allowed in abstract classes"),
                     );
                 }
                 if decl.modifier == ast::MethodModifier::Open && !decl.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E1018,
                         decl.name.span,
                         format!("open function `{short}` is not allowed in an object declaration"),
                     );
@@ -235,6 +249,7 @@ impl Lowerer {
                     && decl.modifier != ast::MethodModifier::Abstract
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E0308,
                         decl.name.span,
                         format!("function `{short}` must have a body"),
                     );

@@ -59,10 +59,13 @@ impl SelectedMembers {
                     continue;
                 }
                 if let Some(previous) = owners.insert(definition.symbol(), member) {
-                    return Err(error(format!(
-                        "multiple selected definitions for {}: {previous:?}, {member:?}",
-                        String::from_utf8_lossy(definition.symbol())
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2412,
+                        format!(
+                            "multiple selected definitions for {}: {previous:?}, {member:?}",
+                            String::from_utf8_lossy(definition.symbol())
+                        ),
+                    ));
                 }
                 if symbols
                     .link_support()
@@ -89,7 +92,10 @@ impl SelectedMembers {
         let mut companions = BTreeMap::<Member, Vec<Member>>::new();
         for (member, entity, role) in registered_definitions {
             let registration = registrations.get(&entity).ok_or_else(|| {
-                error(format!("{role:?} {entity:?} has no selected registration"))
+                error(
+                    scoop_source::DiagnosticCode::E2409,
+                    format!("{role:?} {entity:?} has no selected registration"),
+                )
             })?;
             if member != *registration {
                 companions.entry(member).or_default().push(*registration);

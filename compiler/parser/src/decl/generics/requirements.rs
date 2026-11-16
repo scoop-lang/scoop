@@ -46,6 +46,7 @@ impl Parser {
         let end = self.bump().span.end;
         if calls.is_empty() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0204,
                 Span::new(start, end),
                 "a requires block must contain at least one call",
             ));
@@ -74,6 +75,7 @@ impl Parser {
                     let span = self.bump().span;
                     if suspend_span.replace(span).is_some() {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0303,
                             span,
                             "duplicate `suspend` modifier on member requirement",
                         ));
@@ -106,6 +108,7 @@ impl Parser {
         let call = if let Some((name, companion, type_arguments)) = method {
             let Some(result) = result else {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0623,
                     self.tokens[self.pos - 1].span,
                     "a required method call must declare its result type",
                 ));

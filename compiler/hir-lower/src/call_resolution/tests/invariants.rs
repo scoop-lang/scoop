@@ -106,7 +106,7 @@ fn a_valid_overload_cannot_hide_another_candidates_internal_failure() {
         assert!(matches!(outcome, OverloadResolutionOutcome::Failed));
         assert_eq!(state.diagnostics.len(), 1, "{:?}", state.diagnostics);
         assert_eq!(
-            state.diagnostics[0].kind,
+            state.diagnostics[0].kind(),
             scoop_ast::DiagnosticKind::Internal,
             "{:?}",
             state.diagnostics

@@ -39,7 +39,11 @@ impl Lowerer {
         let ty = match self.imported_singleton_type(value) {
             Ok(ty) => ty,
             Err(error) => {
-                self.error(span, format!("invalid dependency singleton: {error:?}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("invalid dependency singleton: {error:?}"),
+                );
                 return None;
             }
         };
@@ -55,7 +59,11 @@ impl Lowerer {
         if let Some(hir::SourceNominalId::GenericTemplate(owner)) = self.imported_nominal_owner(ty)
             && let Err(error) = self.request_imported_companion(owner)
         {
-            self.error(span, format!("invalid dependency companion: {error}"));
+            self.error(
+                scoop_source::DiagnosticCode::ICE0501,
+                span,
+                format!("invalid dependency companion: {error}"),
+            );
             return None;
         }
         Some(hir::Expr {

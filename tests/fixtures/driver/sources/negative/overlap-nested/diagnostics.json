@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2005",
     "message": "cannot snapshot manifest sources: source discovery failed at ${work}/cone/src/nested: source selections overlap or select the same file: sources[1] (\"src\"); sources[2] (\"src/nested\")",
     "notes": [],
     "origin": {

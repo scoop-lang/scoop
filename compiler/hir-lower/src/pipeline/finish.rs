@@ -38,7 +38,11 @@ impl Lowerer {
             match crate::persistent_type_identities::build(&self, nominal_identities, core_types) {
                 Ok(identities) => identities,
                 Err(error) => {
-                    let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                    let mut diagnostic = Diagnostic::at(
+                        scoop_source::DiagnosticCode::ICE0401,
+                        error.span(),
+                        error.to_string(),
+                    );
                     diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
@@ -50,7 +54,11 @@ impl Lowerer {
         ) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -59,7 +67,11 @@ impl Lowerer {
             match crate::persistent_properties::build(&self, nominal_identities, core_types) {
                 Ok(identities) => identities,
                 Err(error) => {
-                    let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                    let mut diagnostic = Diagnostic::at(
+                        scoop_source::DiagnosticCode::ICE0401,
+                        error.span(),
+                        error.to_string(),
+                    );
                     diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
@@ -68,7 +80,11 @@ impl Lowerer {
             match crate::persistent_accessors::build(&self, &property_identities) {
                 Ok(identities) => identities,
                 Err(error) => {
-                    let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                    let mut diagnostic = Diagnostic::at(
+                        scoop_source::DiagnosticCode::ICE0401,
+                        error.span(),
+                        error.to_string(),
+                    );
                     diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
@@ -76,7 +92,11 @@ impl Lowerer {
         let type_alias_identities = match crate::persistent_aliases::build(&self) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -93,7 +113,11 @@ impl Lowerer {
         ) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -102,7 +126,11 @@ impl Lowerer {
             match crate::persistent_object_values::build(&self, nominal_identities) {
                 Ok(identities) => identities,
                 Err(error) => {
-                    let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                    let mut diagnostic = Diagnostic::at(
+                        scoop_source::DiagnosticCode::ICE0401,
+                        error.span(),
+                        error.to_string(),
+                    );
                     diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
@@ -114,7 +142,11 @@ impl Lowerer {
         ) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -132,7 +164,11 @@ impl Lowerer {
         ) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -175,7 +211,11 @@ impl Lowerer {
                             };
                             (file, registration.span)
                         });
-                let mut diagnostic = Diagnostic::at(span, error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    span,
+                    error.to_string(),
+                );
                 diagnostic.set_file(file);
                 return Err(vec![diagnostic]);
             }
@@ -192,7 +232,7 @@ impl Lowerer {
         ) {
             Ok(bindings) => bindings,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(error.code(), error.span(), error.to_string());
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -206,7 +246,11 @@ impl Lowerer {
         ) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -231,7 +275,11 @@ impl Lowerer {
                     }
                     None => (0, Span { start: 0, end: 0 }),
                 };
-                let mut diagnostic = Diagnostic::at(span, error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    span,
+                    error.to_string(),
+                );
                 diagnostic.set_file(file);
                 return Err(vec![diagnostic]);
             }
@@ -250,6 +298,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 return Err(vec![Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
                     Span { start: 0, end: 0 },
                     error.to_string(),
                 )]);
@@ -267,7 +316,11 @@ impl Lowerer {
         ) {
             Ok(identities) => identities,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
@@ -290,7 +343,11 @@ impl Lowerer {
         ) {
             Ok(origins) => origins,
             Err(error) => {
-                let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+                let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    error.span(),
+                    error.to_string(),
+                );
                 diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }

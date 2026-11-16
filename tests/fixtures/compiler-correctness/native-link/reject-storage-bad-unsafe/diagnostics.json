@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "reading an extern global requires an unsafe context",
     "notes": [],
     "origin": {

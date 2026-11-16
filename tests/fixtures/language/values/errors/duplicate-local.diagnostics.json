@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0301",
     "message": "`x` is already declared in this scope",
     "notes": [],
     "origin": {

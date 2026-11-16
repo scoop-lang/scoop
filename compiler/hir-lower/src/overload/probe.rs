@@ -39,7 +39,7 @@ impl CandidateProbeError {
             state
                 .diagnostics
                 .iter()
-                .find(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+                .find(|diagnostic| diagnostic.kind() == ast::DiagnosticKind::Internal)
         }) {
             return Self::Internal(diagnostic.clone());
         }
@@ -54,6 +54,7 @@ pub(super) enum CandidateProbeFailureKind {
         reason: String,
     },
     Context {
+        code: scoop_source::DiagnosticIdentifier,
         span: Span,
         reason: String,
     },
@@ -118,12 +119,14 @@ impl Lowerer {
             );
             if state.diagnostics.len() != before {
                 let reason = diagnostic_reason(&state, before);
+                let code = state.diagnostics[before].code.clone();
                 return Err(CandidateProbeError::rejected(Box::new(
                     CandidateProbeFailure {
                         candidate: candidate_index,
                         state: Some(state),
                         arguments: Vec::new(),
                         kind: CandidateProbeFailureKind::Context {
+                            code,
                             span: candidate.call_span,
                             reason,
                         },
@@ -205,6 +208,7 @@ impl Lowerer {
                 let kind = match failure.kind {
                     ArgumentInferenceFailureKind::Internal(failure) => {
                         return Err(CandidateProbeError::Internal(ast::Diagnostic::internal(
+                            scoop_source::DiagnosticCode::ICE0601,
                             failure,
                         )));
                     }
@@ -256,7 +260,7 @@ impl Lowerer {
         if let Some(diagnostic) = state
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+            .find(|diagnostic| diagnostic.kind() == ast::DiagnosticKind::Internal)
         {
             return Err(CandidateProbeError::Internal(diagnostic.clone()));
         }

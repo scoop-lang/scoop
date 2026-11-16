@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "a nested application is not a scalar annotation value",
     "notes": [],
     "origin": {

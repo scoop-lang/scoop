@@ -10,6 +10,7 @@ impl ElfObject<'_> {
     ) -> Result<(), CodegenError> {
         let symbol = self.original_symbol(signature).ok_or_else(|| {
             CodegenError::internal(format!("missing ELF COMDAT signature `{signature}`"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
         let group = self
             .file
@@ -23,13 +24,15 @@ impl ElfObject<'_> {
                 CodegenError::internal(format!(
                     "ELF ODR definition `{signature}` has no COMDAT group"
                 ))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
             })?;
         let group_index = group.index();
         let data = group.data().map_err(error)?;
         if data.len() < 4 || data.len() % 4 != 0 || data[..4] != elf::GRP_COMDAT.to_le_bytes() {
-            return Err(CodegenError::internal(
-                "ELF ODR section group is malformed".into(),
-            ));
+            return Err(
+                CodegenError::internal("ELF ODR section group is malformed".into())
+                    .with_code(scoop_source::DiagnosticCode::ICE2302),
+            );
         }
         let mut members = data[4..]
             .chunks_exact(4)
@@ -58,7 +61,8 @@ impl ElfObject<'_> {
             if self.section_flags(section.index())? & u64::from(elf::SHF_GROUP) != 0 {
                 return Err(CodegenError::internal(
                     "ELF associated atom already belongs to another group".into(),
-                ));
+                )
+                .with_code(scoop_source::DiagnosticCode::ICE2302));
             }
         }
         for index in &additions {

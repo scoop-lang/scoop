@@ -102,6 +102,7 @@ impl Lowerer {
     ) -> Option<TypeId> {
         if name.text != "Companion" {
             self.error(
+                scoop_source::DiagnosticCode::E0618,
                 name.span,
                 "a dependent type only supports the `Companion` projection".into(),
             );
@@ -109,6 +110,7 @@ impl Lowerer {
         }
         if !arguments.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 "companion type arguments belong to its host".into(),
             );
@@ -116,7 +118,7 @@ impl Lowerer {
         }
         let host = self.intern_type(Type::Param(parameter));
         self.projected_companion_type(host)
-            .map_err(|message| self.error(name.span, message))
+            .map_err(|message| self.error(scoop_source::DiagnosticCode::E0617, name.span, message))
             .ok()
     }
 

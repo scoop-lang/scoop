@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0805",
     "message": "return label `outer` does not name the current callable; non-local returns are not allowed",
     "notes": [],
     "origin": {

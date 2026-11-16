@@ -57,6 +57,16 @@ pub struct CurrentConeOperandError {
 }
 
 impl CurrentConeOperandError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use CurrentConeOperandErrorKind::*;
+        use scoop_source::DiagnosticCode as C;
+        match &self.kind {
+            Inspect(_) => C::E2201,
+            UnsupportedFile | UnsupportedFileType => C::E2002,
+            SingleFile(error) => error.code(),
+        }
+    }
+
     fn new(path: PathBuf, kind: CurrentConeOperandErrorKind) -> Self {
         Self { path, kind }
     }

@@ -48,8 +48,18 @@ impl Concretizer<'_> {
                     index + 1,
                 );
                 self.type_condition_errors.push(match self.type_use_site {
-                    Some((file, span)) => Diagnostic::at_file(file, span, message),
-                    None => Diagnostic::without_span(DiagnosticSeverity::Error, 0, message),
+                    Some((file, span)) => Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1116,
+                        file,
+                        span,
+                        message,
+                    ),
+                    None => Diagnostic::without_span(
+                        scoop_source::DiagnosticCode::E1116,
+                        DiagnosticSeverity::Error,
+                        0,
+                        message,
+                    ),
                 });
                 return;
             }

@@ -62,4 +62,4 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{severity = "error", code = "SCOOP_RUN_LIBRARY", phase = "Request", message = "run requires an executable Cone; the root is a library", origin = {kind = "none"}, notes = []}]
+diagnostics = [{severity = "error", code = "E2001", phase = "Request", message = "run requires an executable Cone; the root is a library", origin = {kind = "none"}, notes = []}]

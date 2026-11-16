@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "dependency function `withDataPointer`: type argument `T` for `T` must satisfy `value`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `withDataPointer`: Array<T0> is not a subtype of MutableArray<T>",
     "notes": [],
     "origin": {

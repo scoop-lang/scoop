@@ -42,7 +42,7 @@ pub(super) fn main() -> ExitCode {
                     .any(|pair| pair[0] == "--message-format" && pair[1] == "json")
             {
                 let _ = Reporter(MessageFormat::Json).failure(&BuildFailure::tool(
-                    "SCOOP_CLI_ARGS",
+                    scoop_source::DiagnosticCode::E2001,
                     BuildFailurePhase::Request,
                     error,
                 ));
@@ -55,7 +55,7 @@ pub(super) fn main() -> ExitCode {
     let reporter = Reporter(cli.command.message_format());
     if let Err(error) = scoop_process::initialize() {
         let _ = reporter.failure(&BuildFailure::tool(
-            "SCOOP_PROCESS_INIT",
+            scoop_source::DiagnosticCode::E2201,
             BuildFailurePhase::Request,
             error,
         ));

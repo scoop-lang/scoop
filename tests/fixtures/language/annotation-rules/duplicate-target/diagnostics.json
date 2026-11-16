@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1308",
     "message": "duplicate annotation target `Class`",
     "notes": [],
     "origin": {

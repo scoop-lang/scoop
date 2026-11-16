@@ -157,6 +157,7 @@ impl Lowerer {
         self.reject_logical_property_annotations("a class property", &declaration.annotations);
         if declaration.receiver_ty.is_some() || !declaration.type_params.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0307,
                 declaration.span,
                 "extension properties may only be declared at top level".to_string(),
             );
@@ -165,6 +166,7 @@ impl Lowerer {
         if matches!(property_owner, hir::PropertyOwner::Object(_)) {
             if declaration.modifier == ast::MethodModifier::Abstract {
                 self.error(
+                    scoop_source::DiagnosticCode::E1018,
                     declaration.name.span,
                     format!(
                         "abstract property `{}` is not allowed in an object declaration",
@@ -175,6 +177,7 @@ impl Lowerer {
             }
             if declaration.modifier == ast::MethodModifier::Open && !declaration.is_override {
                 self.error(
+                    scoop_source::DiagnosticCode::E1018,
                     declaration.name.span,
                     format!(
                         "open property `{}` is not allowed in an object declaration",
@@ -188,6 +191,7 @@ impl Lowerer {
         let abstract_body = matches!(declaration.body, ast::PropertyBodySyntax::Abstract);
         if (modifier == hir::MethodModifier::Abstract) != abstract_body {
             self.error(
+                scoop_source::DiagnosticCode::E0309,
                 declaration.span,
                 format!(
                     "abstract property `{}` must omit initializer, delegate, and accessor bodies",
@@ -220,7 +224,7 @@ impl Lowerer {
             }
             ast::PropertyBodySyntax::OptionalOmitted => {
                 if !declaration.mutable || self.as_option(ty).is_none() {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E1509,
                         declaration.span,
                         format!(
                             "property `{}` without an initializer must be a mutable Option property",
@@ -257,6 +261,7 @@ impl Lowerer {
             }
             ast::PropertyBodySyntax::ExternStorage => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     declaration.span,
                     "`@Extern` storage is only allowed on top-level properties".to_string(),
                 );
@@ -264,6 +269,7 @@ impl Lowerer {
             }
             ast::PropertyBodySyntax::Const(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1516,
                     declaration.span,
                     "const properties are not allowed on ordinary class instances".to_string(),
                 );
@@ -323,6 +329,7 @@ impl Lowerer {
             && self.classes[owner].modifier != hir::ClassModifier::Abstract
         {
             self.error(
+                scoop_source::DiagnosticCode::E1018,
                 declaration.name.span,
                 format!(
                     "abstract property `{}` is only allowed in abstract classes",
@@ -335,6 +342,7 @@ impl Lowerer {
             && self.classes[owner].modifier == hir::ClassModifier::Final
         {
             self.error(
+                scoop_source::DiagnosticCode::E1018,
                 declaration.name.span,
                 format!(
                     "open property `{}` is only allowed in open or abstract classes",

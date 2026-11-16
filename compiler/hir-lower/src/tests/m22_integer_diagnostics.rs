@@ -35,8 +35,8 @@ fn ambiguous_literal_fits_show_each_candidates_exact_commit() {
 
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "call to `choose` is ambiguous in current-unit top-level candidate layer:\n  - fun choose(first: Int8, second: Int16): Unit — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `first` = Int8, argument for `second` = Int16\n  - fun choose(first: Int16, second: Int8): Unit — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `first` = Int16, argument for `second` = Int8"
+        crate::tests::diagnostic_text(&errors[0]),
+        "call to `choose` is ambiguous in current-unit top-level candidate layer; fun choose(first: Int8, second: Int16): Unit; tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `first` = Int8, argument for `second` = Int16; fun choose(first: Int16, second: Int8): Unit; tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `first` = Int16, argument for `second` = Int8"
     );
 }
 
@@ -63,8 +63,8 @@ fn ambiguous_nested_literal_fits_show_the_committed_inner_type() {
 
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "call to `select` is ambiguous in current-unit top-level candidate layer:\n  - fun select(value: Option<Int8>): Unit — tied after pairwise declaration forwarding; requires integer literal exact commit: argument for `value` = Int8\n  - fun select(value: Option<Int16>): Unit — tied after pairwise declaration forwarding; requires integer literal exact commit: argument for `value` = Int16"
+        crate::tests::diagnostic_text(&errors[0]),
+        "call to `select` is ambiguous in current-unit top-level candidate layer; fun select(value: Option<Int8>): Unit; tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `value` = Int8; fun select(value: Option<Int16>): Unit; tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `value` = Int16"
     );
 }
 
@@ -82,8 +82,8 @@ fn mixed_width_primitive_failure_suggests_the_receivers_exact_conversion() {
 
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `plus` in member candidate layer:\n  - fun Int8.plus(other: Int8): Int8 — argument for `other` has type Int16, which is not a subtype of Int8; primitive integer operands require one exact type; convert this operand explicitly with `toByte()`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `plus` in member candidate layer; fun Int8.plus(other: Int8): Int8; argument for `other` has type Int16, which is not a subtype of Int8; primitive integer operands require one exact type; convert this operand explicitly with `toByte()`"
     );
 }
 
@@ -100,7 +100,7 @@ fn mixed_signedness_literal_failure_suggests_an_explicit_conversion() {
 
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `plus` in member candidate layer:\n  - fun UInt8.plus(other: UInt8): UInt8 — argument for `other` (expected UInt8): integer literal `2` is not representable as UInt8; primitive integer operands require one exact type; convert this operand explicitly with `toUByte()`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `plus` in member candidate layer; fun UInt8.plus(other: UInt8): UInt8; argument for `other` (expected UInt8): integer literal `2` is not representable as UInt8; primitive integer operands require one exact type; convert this operand explicitly with `toUByte()`"
     );
 }

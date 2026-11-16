@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "class `Secrets` has no property `NUMBER`",
     "notes": [],
     "origin": {

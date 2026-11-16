@@ -30,9 +30,10 @@ fn m55_requirement_declarations_normalize_virtual_names_and_block_order() {
         fun <U> use(x: U): Int where requires(y: U) { y.check(z: Int): Boolean }, requires(z: U) { z.read(): Int } = 1
     "#).unwrap_err();
     assert!(
-        errors.iter().any(|error| error
-            .message
-            .contains("already declared with the same signature")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error)
+                .contains("already declared with the same signature")),
         "{errors:#?}"
     );
 }
@@ -71,7 +72,9 @@ fn m55_requirement_declarations_reject_invalid_subjects_effects_and_duplicates()
     ] {
         let errors = check(source).unwrap_err();
         assert!(
-            errors.iter().any(|error| error.message.contains(expected)),
+            errors
+                .iter()
+                .any(|error| crate::tests::diagnostic_text(error).contains(expected)),
             "{source}\n{errors:#?}"
         );
     }
@@ -121,7 +124,9 @@ fn m55_requirement_predicates_do_not_reselect_by_result_or_accept_extensions() {
         );
         let errors = check(&source).unwrap_err();
         assert!(
-            errors.iter().any(|error| error.message.contains(expected)),
+            errors
+                .iter()
+                .any(|error| crate::tests::diagnostic_text(error).contains(expected)),
             "{source}\n{errors:#?}"
         );
     }
@@ -137,7 +142,7 @@ fn m55_requirement_predicates_do_not_reselect_by_result_or_accept_extensions() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("public member")),
+            .any(|error| crate::tests::diagnostic_text(error).contains("public member")),
         "{errors:#?}"
     );
 }
@@ -166,7 +171,9 @@ fn m55_requirement_nominal_members_precede_structural_requirements() {
         @NoGC fun <T: Readable> read(value: T): Int where requires(x: T) { @NoGC x.read(): Int } = value.read()
     "#).unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains("NoGC")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains("NoGC")),
         "{errors:#?}"
     );
 }
@@ -220,9 +227,10 @@ fn m55_requirement_call_cycles_still_reject_changed_arguments() {
     ))
     .unwrap_err();
     assert!(
-        errors.iter().any(|error| error
-            .message
-            .contains("member-requirement call chain changes")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error)
+                .contains("member-requirement call chain changes")),
         "{errors:#?}"
     );
 }

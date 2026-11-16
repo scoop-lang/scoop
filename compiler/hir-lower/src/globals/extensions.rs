@@ -12,6 +12,7 @@ impl Lowerer {
     ) {
         if declaration.modifier != ast::MethodModifier::Final || declaration.is_override {
             self.error(
+                scoop_source::DiagnosticCode::E0305,
                 declaration.span,
                 "extension properties cannot be open, abstract, or override".to_string(),
             );
@@ -21,6 +22,7 @@ impl Lowerer {
             ast::PropertyBodySyntax::Computed(_) | ast::PropertyBodySyntax::Delegated { .. } => {}
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1515,
                     declaration.span,
                     format!(
                         "extension property `{}` must be computed or delegated",
@@ -39,6 +41,7 @@ impl Lowerer {
                 .any(|existing: &hir::TypeParamDecl| existing.name == parameter.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     parameter.span,
                     format!("duplicate type parameter `{}`", parameter.name.text),
                 );
@@ -173,7 +176,7 @@ impl Lowerer {
                 for (parameter, bound) in template.type_params.iter().zip(receiver_bound) {
                     if !bound {
                         self.current_file = self.property_files[&property];
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E0624,
                             parameter.span,
                             format!(
                                 "type parameter `{}` of extension property `{}` cannot be inferred solely from its receiver",
@@ -200,7 +203,7 @@ impl Lowerer {
                 });
                 if duplicate {
                     self.current_file = self.property_files[&property];
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0302,
                         declaration.span,
                         format!(
                             "extension property `{}` is already declared for the same receiver type",

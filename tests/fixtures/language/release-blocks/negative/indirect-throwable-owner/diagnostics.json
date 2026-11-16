@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1109",
     "message": "a Throwable subtype cannot declare a `release` block",
     "notes": [],
     "origin": {
