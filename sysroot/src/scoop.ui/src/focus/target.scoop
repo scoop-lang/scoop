@@ -73,6 +73,7 @@ public class FocusTarget internal constructor(
         closed = true
         node.root.focus.cancel(this)
         reference.unbind(this)
+        node.root.semantics?.changed()
         var index = 0L
         while (index < node.focusTargets.size) {
             if (node.focusTargets[index] === this) {

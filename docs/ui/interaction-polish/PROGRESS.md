@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window 语义节点、发布／退休和 AppKit 基础投影已接入；UI scope／场景／控件、关系／内容合并、精确命中和外部客户端仍待完成 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定和 Accepted 场景接入已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、关系／内容合并、精确命中和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection 角色／命令、三种文本菜单模式、宿主与模型绑定、选区策略、键盘入口和各输入控件透传已实现；AppKit 菜单与 UI 定向测试通过，真实编辑菜单因锁屏待验；受保护用途、多击组合、系统文本服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
 | S5～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
@@ -112,3 +112,13 @@
 - UI 生产／测试语义检查与生产构建通过，滚动定向测试 13 项全部通过；公共滚动原生场景已增加首尾焦点显露、正文位置保持和 LayoutCorrection 验证，源码检查与 release 可执行文件构建通过。组件生产／测试源码检查和生产构建通过，30 项定向测试全部通过，覆盖占位、滚动几何、活动反馈、消息阅读模型、receiver 默认值和文本尺寸；Style 与四套主题已按依赖更新。普通滚动区、虚拟列表、文本控件三个原生场景分别补充占位热切换、RTL、阅读锚点／交叉轴保持、文档末端及实例／选区保留；三个场景的源码检查和 release 可执行文件构建全部通过。本机仍锁屏，四个场景的前台实际运行尚未完成，未据构建结果声明交互验收通过。
 
 UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding／bodySize／visibleSize、ScrollViewport.layout、TextEditHost.measure，以及 ScrollbarPlacement、Behavior／builder 的 placement 和 Textarea 的 Gutter 默认值、receiver 入口与导入路径。新增纯值测试已登记 Windows／Linux GNU 的目标选择；这些目标在集中跨平台轮次运行，Darwin 源选择保持不变。临时 API 站点已清理，保留开发产物与待前台运行的测试程序。
+
+### UI 语义资源、逻辑发布与场景接入
+
+- ComponentScope.semantics 创建 scope 管理的稳定资源，根在首次登记时创建 provider。普通布局透明，多节点及显式内部父子关系按实际挂载顺序发布；子挂载路由可单独指定。关闭一个 handle 保留其他资源拥有的子节点，真正卸载和关根退休全部所属对象。工厂随当前 Window 能力仅在 Darwin 源中提供，资源、路由与场景代码共用，没有空 provider 或运行期平台分支。
+- 属性和最新 handler 沿 UiHost 现有逻辑队列发布，不请求 drawable；只有结构变化才遍历挂载树。原生动作检查生命周期、输入边界和 UI 执行状态，经 Surface 错误边界执行并刷新实际 State 结果；普通 scope.dispatch 同样进入宿主回调边界。动作自删或关根保留实际完成结果，异常只关闭对应 UI 根。FocusTarget 绑定读取真实活动焦点，目标退休清除原生焦点事实。
+- SceneContext.semantics 通过真实 Canvas 变换与 clip 捕获值型几何，进入缓存记录和重放。仅 Accepted 更新发布几何，Discarded 保留仍匹配的旧值；名称／值变化立即撤下旧几何，未放置不退休身份。捕获后释放 CanvasGeometry，不为属性发布保留绘图资源，也不把矩形中心当成可点击点。
+- UI 生产／测试检查及 release 构建通过；两个测试 Cone 和共用 native 辅助检查通过，Objective-C 格式及严格编译检查通过。原生逻辑测试实际通过，覆盖隐藏窗口中 State 与直接 handle 更新、无 measure／scene、阅读顺序、角色替换、最新 handler、Unicode 与拒绝、禁用／隐藏／只读、原生动作自删、两种回调重入、根解除／重附着、旧对象退休和异常收尾。辅助只使用公开 NSAccessibility 协议，不读取生产私有结构。
+- 独立场景测试的源码检查与 release 可执行文件构建通过，覆盖目标为缓存重放后的祖先变换／裁剪、零透明度、未放置、名称变更、原生焦点及目标退休、Accepted／Discarded。本机仍为 ScreenIsLocked=true，实际呈现及焦点验证尚未运行；没有据构建结果声明通过，也没有将进程内方法调用记为外部 AX／VoiceOver 通过。
+
+已同步正式 UI 无障碍 spec、Window／UI 引用、设计状态、README 与编程库导航。README 的自定义 Element 示例实际检查通过；UI API 已生成并用 search／show 核对工厂的目标与默认值、SemanticsHandle 只读属性和方法、子项路由、场景入口与 import。临时示例和站点已清理，保留开发产物、共享缓存与待实窗执行的程序。内置控件默认语义、关系／内容合并、完整文本／集合、精确命中和其他平台仍按 S2 及后续批次推进。

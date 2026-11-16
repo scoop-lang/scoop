@@ -1,0 +1,49 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.window.LogicalRect
+import scoop.window.LogicalPosition
+import scoop.window.LogicalSize
+import scoop.window.accessibility.*
+
+private class SemanticPlacement(val generation: ULong, val geometry: SemanticGeometry)
+
+/** A candidate frame owns values only; native geometry is queried once at capture. */
+internal class SemanticScene {
+    private val placements = HashMap<SemanticNodeId, SemanticPlacement>()
+
+    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect) {
+        requireUi(!placements.containsKey(handle.id), "semantic node was already placed this frame")
+        @Unsafe
+        {
+            val shape = captureGeometry(canvas, rect)
+            try {
+                val visible =
+                    when (val value = shape.visibleBounds) {
+                        case Some(val bounds) -> Some(semanticRect(bounds))
+                        case None -> None
+                    }
+                placements[handle.id] =
+                    SemanticPlacement(
+                        handle.generation,
+                        SemanticGeometry(semanticRect(shape.bounds), visible)
+                    )
+            } finally {
+                shape.close()
+            }
+        }
+    }
+
+    fun geometry(handle: SemanticsHandle): SemanticGeometry? {
+        val placement = placements[handle.id] ?: return None
+        return if (placement.generation == handle.generation)
+            Some(placement.geometry)
+        else
+            None
+    }
+}
+
+private fun semanticRect(rect: Rect): LogicalRect =
+    LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))

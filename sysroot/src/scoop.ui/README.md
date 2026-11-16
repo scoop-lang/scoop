@@ -36,6 +36,43 @@ ApplicationScope 和 ComponentScope 均提供 application、uiHost、resource、
 
 `scope.interactionPreferences` 读取有效快照，render／update／measure／scene／draw 的读取会随变化失效；`scope.observeInteractionPreferences { ... }` 接收后续变化，随挂载自动注销。系统无法查询的字段仍为 None，不通过每帧查询或轮询补值。TextEditHost 的闪烁与宽度默认继承根；`TextEditOptions(caretBlink = Some(duration))` 和 `TextEditAppearance(..., caretWidth = Some(width))` 可局部覆盖，后者以逻辑像素计。系统物理宽度会按窗口缩放换算，宽高比使用实际排版高度；对外 caret 查询保留最后 Accepted 帧的宽度。
 
+## 语义资源与原生 accessibility
+
+macOS 的 `ComponentScope.semantics` 在构造／挂载时登记 `SemanticsHandle`；角色、属性与动作从 `scoop.window.accessibility` 导入。一个挂载可以有多个节点，普通布局默认透明，`routeSemanticsChildren` 指定子挂载的语义父级。下面的包装不改变子项布局，也不为语义登记创建 InputArea：
+
+```scoop
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+fun namedRegion(name: String, content: View): View =
+    element(name, { props, scope -> NamedRegion(props, scope) }, [content])
+
+private class NamedRegion(private val props: Props<String>, scope: ComponentScope): Element<Unit>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Group)
+    init { scope.routeSemanticsChildren(Some(semantic)) }
+    public override fun update(): UiInvalidation {
+        semantic.update(SemanticProperties(name = Some(props.value)))
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<Unit> {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
+```
+
+属性与结构在普通逻辑更新结束后发布，直接更新 handle 也沿现有宿主队列生效，不要求 drawable。场景登记参与缓存重放，仅在 Accepted 后发布当前 transform／clip 的几何；Discarded 保留仍匹配的旧几何。名字或值改变会使旧几何不可用，后续匹配场景恢复它。`geometry=None` 与已布局但被裁剪的 `visibleBounds=None` 分开。
+
+动作使用 `SemanticActions` 的实际回调和结果，经过当前输入边界及 Surface 错误处理；状态更新先完成普通 UI 更新再返回。`bindFocus` 借用本挂载的 FocusTarget，发布实际焦点，并在没有自定义 focus handler 时提供现有 FocusHandle 的入口；尚待显露的焦点请求返回 Busy。关闭父语义 handle 保留独立拥有的子节点，作用域卸载或根关闭退休对应资源；角色替换与根重新附着使用新身份。
+
+当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、关系／内容合并、全文本、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
+
 ## 自绘与资源
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。

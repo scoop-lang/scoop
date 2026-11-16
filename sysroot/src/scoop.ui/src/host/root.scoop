@@ -66,6 +66,7 @@ internal class UiRoot(
     val frameDependencies = FrameDependencies()
     val focus = FocusController(this)
     val overlays = OverlayController(this)
+    var semantics: RootSemantics? = None
     var windowFrame: UiWindowFrameClaim? = None
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
@@ -94,20 +95,25 @@ internal class UiRoot(
         overlays.start()
         current.rebuild(UpdateTurn())
         current.mountPending()
+        semantics?.publish()
     }
+    private val acceptsUpdates: Boolean get() =
+        isOpen &&
+            surface.state ==
+            SurfaceWindowState.Open &&
+            window.state !=
+            WindowState.Closing &&
+            window.state !=
+            WindowState.Destroyed
     fun enqueue(value: MountedNode) {
-        if (
-            !isOpen ||
-                surface.state !=
-                SurfaceWindowState.Open ||
-                window.state ==
-                WindowState.Closing ||
-                window.state ==
-                WindowState.Destroyed
-        )
+        if (!acceptsUpdates)
             return
         pending.add(value)
         host.enqueue(this)
+    }
+    fun scheduleSemantics() {
+        if (acceptsUpdates)
+            host.enqueue(this)
     }
     fun flush() {
         if (!isOpen)
@@ -124,6 +130,7 @@ internal class UiRoot(
                 value.mountPending()
             }
         }
+        semantics?.publish()
     }
     override fun dispatchUpdate() {
         surface.dispatch { flush() }
@@ -134,6 +141,7 @@ internal class UiRoot(
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
         frame.canvas.clear(Color.Transparent)
         focus.beginFrame()
+        semantics?.beginFrame()
         overlays.beginFrame()
         frameDependencies.check(frame.time)
         layouts.begin()
@@ -152,6 +160,7 @@ internal class UiRoot(
         val completed = success
         failure = cleanupUi(failure) { layouts.finish(completed) }
         throwUi(failure)
+        semantics?.publish()
     }
 
     fun addCompletion(node: MountedNode, action: (FrameCompletion) -> Unit) {
@@ -164,6 +173,8 @@ internal class UiRoot(
             overlays.complete(frame)
         if (isOpen)
             focus.complete(frame)
+        if (isOpen)
+            semantics?.complete(frame)
         val work = completions.toArray()
         completions.clear()
         for (completion in work) {
@@ -181,6 +192,7 @@ internal class UiRoot(
             var failure: Throwable? = None
             failure = cleanupUi(failure) { preferences.close() }
             failure = cleanupUi(failure) { focus.close() }
+            failure = cleanupUi(failure) { semantics?.close() }
             failure = cleanupUi(failure) { node?.deactivate() }
             failure = cleanupUi(failure) { overlays.stop() }
             throwUi(failure)

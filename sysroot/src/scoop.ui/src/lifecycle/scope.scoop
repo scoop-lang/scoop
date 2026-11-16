@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 /** Owns the resources of one mount; applications do not close individual components. */
 public class ComponentScope internal constructor(private val node: MountedNode) {
@@ -18,6 +19,52 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
+
+    internal fun createSemantics(
+        role: SemanticRole,
+        parent: SemanticsHandle?,
+        createProvider: () -> AccessibilityProvider
+    ): SemanticsHandle {
+        checkMounted()
+        checkSemanticsMutation()
+        checkSemanticParent(node, parent)
+        val controller =
+            when (val current = root.semantics) {
+                case Some(val value) -> value
+                case None -> {
+                    val provider = createProvider()
+                    try {
+                        val value = RootSemantics(root, provider)
+                        root.semantics = Some(value)
+                        value
+                    } catch (error: Throwable) {
+                        throw cleanupUi(Some(error)) { provider.close() }!!
+                    }
+                }
+            }
+        val handle = controller.create(node, role, parent)
+        managed.add(handle)
+        return handle
+    }
+    internal fun forgetSemantics(handle: SemanticsHandle) {
+        resources.forget(handle)
+    }
+    /** Selects the semantic parent for child mounts without changing this mount's siblings. */
+    public fun routeSemanticsChildren(parent: SemanticsHandle?) {
+        checkMounted()
+        checkSemanticsMutation()
+        when (parent) {
+            case Some(val handle) -> {
+                handle.checkOpen()
+                requireUi(handle.owner === node, "semantic child route belongs to another mount")
+            }
+            case None -> {}
+        }
+        if (sameSemantics(node.semanticRoute, parent))
+            return
+        node.semanticRoute = parent
+        root.semantics?.structureChanged()
+    }
 
     /** The root owns its fallback collection; explicit application collections remain borrowed. */
     public val defaultFonts: FontCollection get() {
@@ -81,7 +128,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun dispatch(action: () -> Unit): Boolean {
         if (!isMounted)
             return false
-        return root.surface.dispatch {
+        return root.host.dispatchRoot(root) {
             if (isMounted)
                 action()
         } &&
@@ -365,6 +412,8 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
                 value.enabled = false
             case None -> {}
         }
+        for (handle in node.semanticHandles.toArray())
+            handle.close()
     }
     internal fun retireInteraction(): Throwable? {
         return resources.retireManaged()

@@ -1,0 +1,11 @@
+# UI 语义场景
+
+本用例需要已解锁、能够呈现和获得焦点的 macOS 桌面。使用配套工具链和当前开发产物：
+
+```sh
+scoop test sysroot/src/scoop.ui/tests-cones/accessibility-scene --release
+```
+
+复用逻辑用例的公开 NSAccessibility 查询辅助，在独立 Application 中验证真实 Accepted 场景、缓存重放时的新祖先变换／裁剪、零透明度、未放置后恢复、名字变化时清除旧几何、原生焦点请求及 FocusTarget 退休、身份保持和重新调整窗口时的 Discarded 路径。窗口系统允许调整请求在当前帧之后应用，因此 Discarded 次数为零或一；收到 Discarded 时必须保留上次匹配几何。
+
+`--no-run` 只构建可执行文件，不能据此记录实窗通过。该用例不代替外部 AX 客户端和 VoiceOver 验收。

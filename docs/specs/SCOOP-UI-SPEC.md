@@ -8,7 +8,7 @@
 
 ## 1. 定位与依赖
 
-生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。
+生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或运行期平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。尚在分批接入的原生能力，其工厂通过 Cone 的目标源码选择提供：当前语义登记工厂与 Window provider 一同在 Darwin 可用，资源管理与场景发布仍为公共实现，不为其他目标提供空 provider。其他后端补齐基础能力后使用同一份上层实现。
 
 `scoop.ui` 是普通 Scoop Cone，提供声明式组合、可观察状态、组件身份、自绘元素协议、测量／布局接入以及资源生命周期。它依赖实际使用的 core／std／math／platform、`scoop.graphics`、`scoop.graphics.text`、`scoop.surface` 和 `scoop.window`。窗口事件循环、呈现后端、动画求值、文本 shaping 和 GC 仍由对应下层负责。
 
@@ -785,6 +785,10 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。离开点只由位于悬浮组内的真实指针位置建立；焦点保持期间的组外指针不形成通过区域，焦点随后离开时使用普通 closeDelay。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。如果 dismiss 时组内仍有 hover／有效焦点，则抑制再次打开，直到两者都离开；更新 Props、移动鼠标或卸载内容不解除仍在触发区的抑制。之后重新进入遵守当前延迟，避免 Escape 关闭后立即重开。普通离开延迟不设置此抑制。
 
 观察通过 Surface.observePointer 和普通区域事件／activity 组合，只在打开或等待期间登记当前窗口观察；没有 OS 全局监听、捕获、常驻 timer 或独立命中树。失去有效内容几何时使用普通短延迟收束，不能根据未确认的 scene 位置继续延迟。
+
+### 7.15 语义登记与场景
+
+`ComponentScope.semantics`、`SemanticsHandle`、子挂载语义路由与 `SceneContext.semantics` 的接口、发布和寿命见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。语义节点使用 Window 的公共角色、属性、动作与身份；不要求 InputArea，不从绘图或控件类名推断。逻辑属性更新沿已有根更新队列发布，几何沿 Accepted 场景发布；登记命令参与场景缓存，不增加逐控件完成回调或持续帧。
 
 ## 8. 挂载与资源生命周期
 

@@ -59,6 +59,13 @@ public class SceneContext internal constructor(
         handle.capture(node, node.root.overlays.frame, frame.canvas, rect)
         recorder?.add(SceneCommand.Anchor(handle, rect))
     }
+    /** Captures semantic geometry in the same transformed and clipped scene. */
+    public fun semantics(handle: SemanticsHandle, bounds: Rect) {
+        checkOwner(handle.owner)
+        handle.checkOpen()
+        handle.controller.capture(handle, frame.canvas, bounds)
+        recorder?.add(SceneCommand.Semantics(handle, bounds))
+    }
     /** Runs after this frame ends, while this node remains mounted and its root remains open. */
     public fun onFrameComplete(action: (FrameCompletion) -> Unit) {
         checkActive()

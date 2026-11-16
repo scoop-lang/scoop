@@ -1,0 +1,103 @@
+package scoop.tests.ui.accessibility
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal class SemanticSceneRoot(probe: SemanticSceneProbe, scope: ComponentScope): Component(
+    scope
+) {
+    private val content =
+        element(
+            { mount -> SemanticCanvas(probe, mount) },
+            [cachedScene(element({ mount -> SemanticLeaf(probe, mount) }))]
+        )
+    public override fun render(): View = content
+}
+
+private class SemanticCanvas(private val probe: SemanticSceneProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    init {
+        probe.root = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (probe.skip)
+            context.skipChild(0L)
+        else {
+            context.measureChild(0L, Constraints.tight(Size(50.0, 20.0)))
+            context.placeChild(0L, Point(30.0, 20.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 120.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.frames += 1
+        val previous = probe.semantic!!.geometry
+        context.saveLayer(probe.alpha)
+        context.translate(probe.offset, 0.0)
+        context.clipRect(Rect(0.0, 0.0, probe.clipWidth, 120.0))
+        context.children()
+        context.restore()
+        assertEquals(previous, probe.semantic!!.geometry)
+        assertFailsWith<IllegalArgumentException> {
+            context.semantics(probe.semantic!!, Rect(0.0, 0.0, 1.0, 1.0))
+        }
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(260.0, 120.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> probe.accepted()
+                case Discarded -> {
+                    assertTrue(discard)
+                    assertEquals(previous, probe.semantic!!.geometry)
+                    probe.discarded += 1
+                    scope.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+private class SemanticLeaf(private val probe: SemanticSceneProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Button)
+    private val area = scope.createArea(focusable = true)
+    private val target = scope.focusTarget(area)
+    private val paintKey = PaintKey()
+    init {
+        semantic.bindFocus(Some(target))
+        semantic.update(SemanticProperties(name = Some("Leaf"), automationId = Some("leaf")))
+        probe.semantic = Some(semantic)
+        probe.focus = Some(target.handle)
+        probe.target = Some(target)
+        probe.leafMounts += 1
+        val other = scope.semantics(SemanticRole.Text)
+        assertFailsWith<IllegalArgumentException> { other.bindFocus(Some(target)) }
+        other.close()
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.None
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(50.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.leafScenes += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantic, bounds)
+        assertFailsWith<IllegalArgumentException> { context.semantics(semantic, bounds) }
+        assertFailsWith<IllegalStateException> { semantic.update(SemanticProperties()) }
+        assertFailsWith<IllegalStateException> { scope.semantics(SemanticRole.Text) }
+        context.drawLayer(paintKey, bounds, 0L) {
+            paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.4, 0.8)))
+        }
+    }
+}

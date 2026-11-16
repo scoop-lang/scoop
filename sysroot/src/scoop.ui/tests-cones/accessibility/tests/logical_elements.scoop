@@ -1,0 +1,229 @@
+package scoop.tests.ui.accessibility
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class LogicalInput(
+    val name: String,
+    val value: String,
+    val version: Int,
+    val enabled: Boolean,
+    val hidden: Boolean,
+    val replaceRole: Boolean,
+    val readOnly: Boolean
+)
+
+internal class LogicalRoot(private val probe: LogicalProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val input =
+            LogicalInput(
+                probe.name.value,
+                probe.value.value,
+                probe.version.value,
+                probe.enabled.value,
+                probe.hidden.value,
+                probe.replaceRole.value,
+                probe.readOnly.value
+            )
+        val children = ArrayList<View>()
+        val field =
+            element(
+                { mount -> TransparentElement(probe, mount) },
+                [element(input, { props, mount -> SemanticField(probe, props, mount) })],
+                key = ViewKey.Text("field")
+            )
+        val button =
+            element(
+                input,
+                { props, mount -> SemanticButton(probe, props, mount) },
+                key = ViewKey.Text("button")
+            )
+        if (probe.reverse.value)
+            children.add(field)
+        if (probe.showButton.value)
+            children.add(button)
+        if (!probe.reverse.value)
+            children.add(field)
+        return element(
+            input,
+            { props, mount -> SemanticContainer(probe, props, mount) },
+            children.toArray()
+        )
+    }
+}
+
+private class SemanticContainer(
+    private val probe: LogicalProbe,
+    private val props: Props<LogicalInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var group = scope.semantics(SemanticRole.Group)
+    private var inline = scope.semantics(SemanticRole.Text, Some(group))
+    private val sibling = scope.semantics(SemanticRole.Text)
+    private var replaced = false
+    init {
+        probe.container = Some(scope)
+        probe.sibling = Some(sibling)
+        scope.routeSemanticsChildren(Some(group))
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        if (input.replaceRole != replaced) {
+            inline.close()
+            group.close()
+            group =
+                scope.semantics(
+                    if (input.replaceRole)
+                        SemanticRole.ScrollArea
+                    else
+                        SemanticRole.Group
+                )
+            inline = scope.semantics(SemanticRole.Text, Some(group))
+            scope.routeSemanticsChildren(Some(group))
+            replaced = input.replaceRole
+        }
+        group.update(
+            SemanticProperties(
+                name = Some("Group"),
+                automationId = Some("group"),
+                hidden = input.hidden
+            )
+        )
+        inline.update(SemanticProperties(name = Some("Inline"), automationId = Some("inline")))
+        sibling.update(SemanticProperties(value = Some(""), automationId = Some("sibling")))
+        probe.group = Some(group)
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints.tight(Size(80.0, 24.0)))
+            context.placeChild(index, Point(0.0, 24.0 * index.toDouble()))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 100.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes += 1
+        context.semantics(group, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.semantics(inline, Rect(100.0, 0.0, 40.0, 20.0))
+        context.semantics(sibling, Rect(100.0, 24.0, 40.0, 20.0))
+        context.children()
+    }
+}
+
+private class TransparentElement(private val probe: LogicalProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.None
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes += 1
+        context.children()
+    }
+}
+
+private class SemanticButton(
+    private val probe: LogicalProbe,
+    private val props: Props<LogicalInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Button)
+    init {
+        probe.button = Some(semantic)
+        probe.buttonMounts += 1
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        val version = input.version
+        semantic.update(
+            SemanticProperties(
+                name = Some(input.name),
+                automationId = Some("button"),
+                enabled = input.enabled
+            ),
+            SemanticActions(invoke = Some { probe.invoke(version) })
+        )
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 24.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes += 1
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+}
+
+private class SemanticField(
+    private val probe: LogicalProbe,
+    private val props: Props<LogicalInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val semantic = scope.semantics(SemanticRole.TextField)
+    private val area = scope.createArea(focusable = true)
+    private val target = scope.focusTarget(area)
+    init {
+        semantic.bindFocus(Some(target))
+        probe.field = Some(semantic)
+        probe.fieldMounts += 1
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        semantic.update(
+            SemanticProperties(
+                value = Some(input.value),
+                automationId = Some("field"),
+                readOnly = input.readOnly
+            ),
+            SemanticActions(
+                setValue =
+                    Some {
+                        text ->
+                        probe.writes += 1
+                        if (text == "deny")
+                            SemanticActionResult.Rejected
+                        else {
+                            probe.value.value = text
+                            SemanticActionResult.Completed
+                        }
+                    }
+            )
+        )
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 24.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantic, bounds)
+    }
+}
+
+internal class ForeignSemanticRoot(probe: LogicalProbe, scope: ComponentScope): Component(scope) {
+    init {
+        probe.foreign = Some(scope.semantics(SemanticRole.Group))
+    }
+    public override fun render(): View = empty()
+}

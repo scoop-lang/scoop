@@ -1,0 +1,323 @@
+package scoop.tests.ui.accessibility
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+internal class SemanticFailure: Exception(Some("expected UI semantic action failure"))
+
+@Test
+private class UiSemanticsTest {
+    @Test
+    fun `hidden updates publish semantics and native actions preserve real ownership`() {
+        val probe = LogicalProbe()
+        try {
+            UiHost(
+                onRootError =
+                    {
+                        _, error ->
+                        assertTrue(error is SemanticFailure)
+                        probe.failures += 1
+                    },
+                handler = { host, active, event -> probe.event(host, active, event) }
+            ).use { host -> Application().run(host) }
+            assertTrue(probe.finished)
+            assertTrue(probe.hiddenVerified)
+            assertTrue(probe.externalScopeGuard)
+            assertEquals(3, probe.invocations)
+            assertEquals(2, probe.writes)
+            assertEquals(3, probe.buttonMounts)
+            assertEquals(2, probe.fieldMounts)
+            assertEquals(1, probe.failures)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class LogicalProbe: Closeable {
+    val name = state("First")
+    val value = state("alpha")
+    val version = state(0)
+    val enabled = state(true)
+    val readOnly = state(false)
+    val hidden = state(false)
+    val reverse = state(false)
+    val replaceRole = state(false)
+    val showButton = state(true)
+    var container: ComponentScope? = None
+    var group: SemanticsHandle? = None
+    var sibling: SemanticsHandle? = None
+    var button: SemanticsHandle? = None
+    var field: SemanticsHandle? = None
+    var foreign: SemanticsHandle? = None
+    var measures = 0
+    var scenes = 0
+    var invocations = 0
+    var writes = 0
+    var buttonMounts = 0
+    var fieldMounts = 0
+    var failures = 0
+    var finished = false
+    var hiddenVerified = false
+    var externalScopeGuard = false
+    private var behavior = 0
+    private var ui: UiWindow? = None
+    private var native: Window? = None
+    private var active: ActiveApplication? = None
+    private var host: UiHost? = None
+    private var calls: NativeCalls? = None
+    private var tree: NativeNode? = None
+    private var heldButton: NativeNode? = None
+    private var heldField: NativeNode? = None
+    private var heldGroup: NativeNode? = None
+    private var heldSibling: NativeNode? = None
+    private var buttonId: SemanticNodeId? = None
+    private var fieldId: SemanticNodeId? = None
+    private var previousButton: NativeNode? = None
+    private val references = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                this.host = Some(host)
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                calls =
+                    Some(
+                        NativeCalls(
+                            application.proxy(),
+                            nativeReturned =
+                                {
+                                    tag -> if (tag == 0) {
+                                        container!!.dispatch {
+                                            externalScopeGuard = !heldButton!!.press()
+                                        }
+                                    }
+                                }
+                        ) { tag, result -> completed(tag, result) }
+                    )
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop logical semantics"
+                            requestActivation = false
+                            size = LogicalSize(200.0, 120.0)
+                        }
+                    )
+                native = Some(window)
+                attach()
+                initial()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("logical semantics timed out"))
+            else -> {}
+        }
+    }
+
+    private fun attach() {
+        ui = host!!.attach(native!!, { scope -> LogicalRoot(this, scope) })
+        assertFalse(ui?.isClosed ?: true)
+        @Unsafe
+        {
+            val lease = native!!.acquireNativeWindow()
+            try {
+                val view =
+                    when (lease.handle) {
+                        case AppKit(_, val value) -> value
+                    }
+                tree = Some(keep(NativeNode(nativeRoot(view)!!)))
+            } finally {
+                lease.close()
+            }
+        }
+        heldButton = Some(find("button"))
+        heldField = Some(find("field"))
+        heldGroup = Some(find("group"))
+        heldSibling = Some(find("sibling"))
+        buttonId = Some(button!!.id)
+        fieldId = Some(field!!.id)
+    }
+
+    private fun initial() {
+        assertEquals(2L, tree!!.count)
+        assertEquals(3L, heldGroup!!.count)
+        assertTrue(heldButton!!.parent(heldGroup!!))
+        assertTrue(heldField!!.parent(heldGroup!!))
+        assertTrue(find("inline").parent(heldGroup!!))
+        assertTrue(find("sibling").parent(tree!!))
+        assertTrue(find("sibling").text(1, Some("")))
+        assertTrue(heldButton!!.text(2, Some("AXButton")))
+        assertFalse(heldButton!!.flag(2))
+        assertFalse(find("sibling").flag(3))
+        assertEquals(None, button!!.geometry)
+        assertFailsWith<IllegalArgumentException> {
+            container!!.semantics(SemanticRole.Text, field)
+        }
+        val other = active!!.createWindow(windowAttributes { visible = false })
+        val attached = host!!.attach(other, { scope -> ForeignSemanticRoot(this, scope) })!!
+        assertFailsWith<IllegalArgumentException> {
+            container!!.semantics(SemanticRole.Text, foreign)
+        }
+        attached.close()
+        assertTrue(foreign!!.isClosed)
+        other.requestDestroy()
+        native!!.setVisible(false)
+        name.value = "Updated"
+        version.value = 7
+        afterUpdate {
+            assertTrue(heldButton!!.text(0, Some("Updated")))
+            assertEquals(buttonId, Some(button!!.id))
+            sibling!!.update(
+                SemanticProperties(value = Some("Direct"), automationId = Some("sibling"))
+            )
+            afterUpdate {
+                assertTrue(heldSibling!!.text(1, Some("Direct")))
+                reverse.value = true
+                afterUpdate {
+                    assertEquals(0, measures)
+                    assertEquals(0, scenes)
+                    hiddenVerified = true
+                    native!!.setVisible(true)
+                    heldGroup!!.child(1L).use { child -> assertTrue(child.text(3, Some("field"))) }
+                    assertEquals(fieldId, Some(field!!.id))
+                    assertEquals(1, buttonMounts)
+                    assertEquals(1, fieldMounts)
+                    calls!!.post(heldButton!!, 0)
+                }
+            }
+        }
+    }
+
+    fun invoke(version: Int): SemanticActionResult {
+        if (behavior == 2)
+            throw SemanticFailure()
+        invocations += 1
+        assertFalse(heldButton!!.press())
+        if (behavior == 1)
+            ui!!.close()
+        else
+            if (behavior == 3)
+                showButton.value = false
+            else {
+                assertEquals(7, version)
+                name.value = "Invoked"
+            }
+        return SemanticActionResult.Completed
+    }
+
+    private fun completed(tag: Int, result: Int) {
+        when (tag) {
+            case 0 -> {
+                assertEquals(1, result)
+                assertTrue(heldButton!!.text(0, Some("Invoked")))
+                assertEquals(1, invocations)
+                calls!!.post(heldField!!, 1, 1, "deny")
+            }
+            case 1 -> {
+                assertEquals(1, result)
+                assertTrue(heldField!!.text(1, Some("alpha")))
+                calls!!.post(heldField!!, 2, 1, "中文😀")
+            }
+            case 2 -> {
+                assertEquals(1, result)
+                assertTrue(heldField!!.text(1, Some("中文😀")))
+                readOnly.value = true
+                enabled.value = false
+                afterUpdate { calls!!.post(heldButton!!, 3) }
+            }
+            case 3 -> {
+                assertEquals(0, result)
+                assertFalse(heldButton!!.flag(1))
+                calls!!.post(heldField!!, 4, 1, "forbidden")
+            }
+            case 4 -> {
+                assertTrue(heldField!!.text(1, Some("中文😀")))
+                assertEquals(2, writes)
+                enabled.value = true
+                hidden.value = true
+                afterUpdate {
+                    assertEquals(1L, tree!!.count)
+                    assertFalse(heldButton!!.flag(0))
+                    calls!!.post(heldButton!!, 5)
+                }
+            }
+            case 5 -> {
+                assertEquals(0, result)
+                hidden.value = false
+                replaceRole.value = true
+                afterUpdate {
+                    assertFalse(heldGroup!!.flag(0))
+                    heldGroup = Some(find("group"))
+                    assertTrue(heldGroup!!.text(2, Some("AXScrollArea")))
+                    assertTrue(heldButton!!.parent(heldGroup!!))
+                    assertTrue(heldField!!.parent(heldGroup!!))
+                    assertEquals(buttonId, Some(button!!.id))
+                    assertEquals(fieldId, Some(field!!.id))
+                    behavior = 3
+                    calls!!.post(heldButton!!, 8)
+                }
+            }
+            case 8 -> {
+                assertEquals(1, result)
+                assertTrue(button!!.isClosed)
+                assertFalse(heldButton!!.flag(0))
+                assertFalse(heldButton!!.press())
+                previousButton = heldButton
+                showButton.value = true
+                afterUpdate {
+                    assertTrue(buttonId != Some(button!!.id))
+                    heldButton = Some(find("button"))
+                    assertFalse(previousButton!!.flag(0))
+                    behavior = 1
+                    calls!!.post(heldButton!!, 6)
+                }
+            }
+            case 6 -> {
+                assertEquals(1, result)
+                assertTrue(ui!!.isClosed)
+                assertEquals(WindowState.Open, native!!.state)
+                assertFalse(tree!!.flag(0))
+                assertFalse(heldField!!.flag(0))
+                val retiredId = button!!.id
+                attach()
+                assertTrue(retiredId != button!!.id)
+                behavior = 2
+                calls!!.post(heldButton!!, 7)
+            }
+            case 7 -> {
+                assertEquals(0, result)
+                assertEquals(1, failures)
+                assertTrue(ui!!.isClosed)
+                assertFalse(heldButton!!.flag(0))
+                finished = true
+                native!!.requestDestroy()
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected native operation"))
+        }
+    }
+
+    private fun afterUpdate(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    private fun keep(node: NativeNode): NativeNode {
+        references.add(node)
+        return node
+    }
+    private fun find(identifier: String): NativeNode = keep(tree!!.find(identifier)!!)
+
+    public override fun close() {
+        calls?.close()
+        calls = None
+        for (reference in references)
+            reference.close()
+        references.clear()
+    }
+}

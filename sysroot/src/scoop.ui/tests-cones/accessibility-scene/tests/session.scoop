@@ -1,0 +1,224 @@
+package scoop.tests.ui.accessibility
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class UiSemanticSceneTest {
+    @Test
+    fun `accepted cached scenes publish clipping geometry and actual focus`() {
+        val probe = SemanticSceneProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(1, probe.leafMounts)
+            assertTrue(probe.discarded == 0 || probe.discarded == 1)
+            assertTrue(probe.semantic!!.isClosed)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class SemanticSceneProbe: Closeable {
+    var root: ComponentScope? = None
+    var semantic: SemanticsHandle? = None
+    var focus: FocusHandle? = None
+    var target: FocusTarget? = None
+    var window: Window? = None
+    var skip = false
+    var alpha = 1.0
+    var offset = 0.0
+    var clipWidth = 240.0
+    var frames = 0
+    var leafScenes = 0
+    var leafMounts = 0
+    var discardNext = false
+    var discarded = 0
+    var finished = false
+    private var phase = 0
+    private var active: ActiveApplication? = None
+    private var reference: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private var lease: NativeWindowLease? = None
+    private var view: Ptr<Unit>? = None
+    private var identity: SemanticNodeId? = None
+    private var scenesBefore = 0
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop semantic scene"
+                            size = LogicalSize(240.0, 120.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { scope -> SemanticSceneRoot(this, scope) })
+                @Unsafe
+                {
+                    val held = native.acquireNativeWindow()
+                    lease = Some(held)
+                    view =
+                        Some(
+                            when (held.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        )
+                }
+                calls =
+                    Some(
+                        NativeCalls(application.proxy()) {
+                            tag, result ->
+                            assertEquals(0, tag)
+                            assertEquals(1, result)
+                            assertTrue(focus!!.isFocusActive)
+                            assertTrue(reference!!.flag(4))
+                            target!!.close()
+                            application.proxy().post {
+                                _ ->
+                                assertFalse(reference!!.flag(4))
+                                offset = 20.0
+                                phase = 1
+                                root!!.requestFrame()
+                            }
+                        }
+                    )
+                native.requestFocus()
+            }
+            case Window(_, WindowEvent.Closing) -> {
+                lease?.close();
+                lease = None
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"semantic scene timed out at ${phase}")
+            )
+            else -> {}
+        }
+    }
+
+    fun accepted() {
+        when (phase) {
+            case 0 -> {
+                @Unsafe
+                {
+                    NativeNode(nativeRoot(view!!)!!).use { tree -> reference = tree.find("leaf") }
+                }
+                identity = Some(semantic!!.id)
+                assertEquals(1, leafScenes)
+                checkBounds(30.0, 50.0)
+                assertTrue(reference!!.frame(view!!, 30.0, 20.0, 50.0, 20.0))
+                assertFalse(focus!!.hasFocus)
+                phase = -1
+                calls!!.post(reference!!, 0, 2)
+            }
+            case - 1 -> {}
+            case 1 -> {
+                checkBounds(50.0, 50.0)
+                assertEquals(1, leafScenes)
+                clipWidth = 50.0
+                next()
+            }
+            case 2 -> {
+                checkBounds(50.0, 20.0)
+                assertEquals(1, leafScenes)
+                alpha = 0.0
+                clipWidth = 240.0
+                next()
+            }
+            case 3 -> {
+                checkBounds(50.0, 50.0)
+                assertTrue(reference!!.flag(0))
+                skip = true
+                phase += 1
+                root!!.requestLayout()
+            }
+            case 4 -> {
+                assertEquals(None, semantic!!.geometry)
+                assertFalse(reference!!.flag(2))
+                assertTrue(reference!!.flag(0))
+                assertEquals(identity, Some(semantic!!.id))
+                skip = false
+                phase += 1
+                root!!.requestLayout()
+            }
+            case 5 -> {
+                checkBounds(50.0, 50.0)
+                scenesBefore = leafScenes
+                val before = frames
+                semantic!!.update(
+                    SemanticProperties(name = Some("Changed"), automationId = Some("leaf"))
+                )
+                assertEquals(None, semantic!!.geometry)
+                window!!.setVisible(false)
+                phase = -2
+                active!!.proxy().post {
+                    _ ->
+                    assertEquals(before, frames)
+                    assertEquals(None, semantic!!.geometry)
+                    assertTrue(reference!!.text(0, Some("Changed")))
+                    assertFalse(reference!!.flag(2))
+                    phase = 6
+                    window!!.setVisible(true)
+                    root!!.requestFrame()
+                }
+            }
+            case - 2 -> fail(Some("hidden semantic update requested a frame"))
+            case 6 -> {
+                checkBounds(50.0, 50.0)
+                assertEquals(scenesBefore, leafScenes)
+                offset = 40.0
+                discardNext = true
+                next()
+            }
+            case 7 -> {
+                checkBounds(70.0, 50.0)
+                assertEquals(identity, Some(semantic!!.id))
+                assertTrue(reference!!.frame(view!!, 70.0, 20.0, 50.0, 20.0))
+                finished = true
+                phase = 8
+                active!!.requestExit()
+            }
+            else -> {}
+        }
+    }
+
+    private fun checkBounds(x: Double, visible: Double) {
+        val geometry = semantic!!.geometry!!
+        assertEquals(
+            LogicalRect(LogicalPosition(x, 20.0), LogicalSize(50.0, 20.0)),
+            geometry.bounds
+        )
+        assertEquals(
+            Some(LogicalRect(LogicalPosition(x, 20.0), LogicalSize(visible, 20.0))),
+            geometry.visibleBounds
+        )
+    }
+    private fun next() {
+        phase += 1;
+        root!!.requestFrame()
+    }
+    public override fun close() {
+        calls?.close()
+        calls = None
+        reference?.close()
+        reference = None
+        lease?.close()
+        lease = None
+    }
+}

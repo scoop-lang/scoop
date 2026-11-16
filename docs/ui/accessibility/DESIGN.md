@@ -1,6 +1,6 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源和 AppKit 基础投影已接入，其正式接口见[无障碍接口规范](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。UI 声明、文本范围、虚拟集合和其他平台 provider 仍待实现，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
+日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景接入已实现，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、关系／内容合并、文本范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
 
 完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 
@@ -35,7 +35,7 @@ AI 接入以标准 OS provider 为基础，不默认启动 MCP／HTTP 服务，�
 
 `scoop.window.accessibility` 是现有 Window Cone 中的包，不新增 Cone。它不依赖 `scoop.ui`、style、控件类型或 Canvas；UI 将语义事实投影到该接口，原生端不检查 Button 等 Scoop 类名。
 
-每个附着的 `UiRoot` 为自己的窗口内容视图登记一个 provider 根。窗口、系统菜单和系统对话框继续由原生后端提供其自身语义，UI 根与它们建立正确父子关系。不能同时让原生内容视图与自绘根重复报告同一组内容。
+每个附着的 `UiRoot` 在首次语义登记时为自己的窗口内容视图创建一个 provider 根；没有声明的根不创建空树。窗口、系统菜单和系统对话框继续由原生后端提供其自身语义，UI 根与它们建立正确父子关系。不能同时让原生内容视图与自绘根重复报告同一组内容。
 
 provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘子树，保留调用方仍持有的原生 Window；重新附着分配新的节点身份。低层 Window 接口同样允许直接使用 Surface 的实际调用方提供语义，不要求实例化 UI 控件库。
 
@@ -80,7 +80,7 @@ provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘�
 
 ### 4.1 登记接口
 
-以下是目标接口形状，具体声明在实施批次中写入 UI spec：
+以下是目标接口形状，公共资源和场景的具体合同见 [UI 无障碍接口规范](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)；其余能力继续按实施批次接入：
 
 | 入口 | 用途 |
 | --- | --- |
@@ -93,6 +93,8 @@ provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘�
 缺省父节点是最近祖先设置的语义路由目标，最终落到根。一个挂载登记多个节点时，它们默认是有序兄弟；内部嵌套通过显式 parent 表达。`routeSemanticsChildren` 只指定子挂载归属，不悄悄移动本挂载的其他语义节点。Portal 的视觉位置与语义归属可以不同，弹层通过显式路由接入根中相应的活动区域。
 
 `SemanticsHandle` 采用已有 scope 资源管理方式。`render()` 只构造描述，不创建原生对象、登记回调或直接更新 handle；返回的普通 Element 在 mount／update 中应用语义属性。Scene 阶段只登记几何，不修改业务值。
+
+单独关闭 UI handle 时保留仍由其他 scope／handle 拥有的子节点，先将其连接到原父级再退休该身份；角色替换不会误退休仍存活的子控件。真正卸载沿挂载树关闭相应资源。`bindFocus` 借用同一挂载的实际 FocusTarget，查询不获得焦点，目标退休时撤下对应的焦点事实；同步焦点动作的完成仍以实际状态为准。
 
 几何登记作为可记录、可重放的 SceneCommand 参与现有场景缓存。它不创建输入目标，也不让每个控件安装 `onFrameComplete` 回调而使整个场景失去缓存能力。
 

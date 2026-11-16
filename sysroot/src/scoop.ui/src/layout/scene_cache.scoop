@@ -10,7 +10,7 @@ internal class SceneEpoch
 /** Only value geometry and owned drawing records may outlive a scene callback. */
 internal enum SceneCommand {
     Concat(Transform), Clip(Rect), Save, SaveLayer(Double, BlendMode), Restore,
-    Place(InputArea, Rect), Anchor(LayoutAnchor, Rect),
+    Place(InputArea, Rect), Anchor(LayoutAnchor, Rect), Semantics(SemanticsHandle, Rect),
     Children(Array<Long>?, SceneEpoch?), Drawing(CachedPaintLayer), Scope(Array<SceneCommand>)
 
     fun replay(context: SceneContext) {
@@ -22,6 +22,7 @@ internal enum SceneCommand {
             case Restore -> context.restore()
             case Place(val area, val rect) -> context.place(area, rect)
             case Anchor(val handle, val rect) -> context.anchor(handle, rect)
+            case Semantics(val handle, val rect) -> context.semantics(handle, rect)
             case Children(val order, val epoch) -> context.presentChildren(order, epoch)
             case Drawing(val layer) -> context.drawRetained(layer)
             case Scope(val commands) -> context.withState<Unit> {

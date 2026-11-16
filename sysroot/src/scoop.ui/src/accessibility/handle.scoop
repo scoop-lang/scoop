@@ -1,0 +1,117 @@
+package scoop.ui
+
+import scoop.window.accessibility.*
+
+/** One scope-owned semantic identity, independent of drawing and input areas. */
+public class SemanticsHandle internal constructor(
+    internal val owner: MountedNode,
+    internal val controller: RootSemantics,
+    internal val resource: AccessibilityNode,
+    internal var explicitParent: SemanticsHandle?,
+    internal var parent: SemanticsHandle?
+): Closeable {
+    private var closed = false
+    internal var properties = SemanticProperties()
+    internal var actions = SemanticActions()
+    internal var focus: FocusTarget? = None
+    internal var generation = 0UL
+
+    public val id: SemanticNodeId get() = resource.id
+    public val role: SemanticRole get() = resource.role
+    public val isClosed: Boolean get() {
+        owner.root.checkThread()
+        return !active
+    }
+    internal val active: Boolean get() =
+        !closed && owner.active && owner.root.isOpen && !resource.isClosed
+
+    /** The last accepted geometry matching the current semantic content. */
+    public val geometry: SemanticGeometry? get() {
+        checkOpen()
+        return resource.geometry
+    }
+
+    public fun update(
+        properties: SemanticProperties,
+        actions: SemanticActions = SemanticActions()
+    ) {
+        checkOpen()
+        checkSemanticsMutation()
+        resource.update(properties, semanticActions(this, actions))
+        if (this.properties.name != properties.name || this.properties.value != properties.value)
+            generation += 1UL
+        this.properties = properties
+        this.actions = actions
+        controller.changed()
+    }
+
+    /** Borrows the real focus target; binding never requests keyboard focus. */
+    public fun bindFocus(target: FocusTarget?) {
+        checkOpen()
+        checkSemanticsMutation()
+        when (target) {
+            case Some(val value) -> {
+                requireUi(
+                    value.active && value.node === owner,
+                    "semantic focus belongs to another mount"
+                )
+                controller.checkFocus(this, value)
+            }
+            case None -> {}
+        }
+        focus = target
+        resource.update(properties, semanticActions(this, actions))
+        controller.changed()
+    }
+
+    internal fun checkOpen() {
+        owner.root.checkThread()
+        if (!active)
+            throw IllegalStateException(Some("semantic node is no longer mounted"))
+    }
+
+    internal fun finishClose() {
+        if (closed)
+            return
+        closed = true
+        actions = SemanticActions()
+        focus = None
+        explicitParent = None
+        parent = None
+        when (val route = owner.semanticRoute) {
+            case Some(val value) -> if (value === this)
+                owner.semanticRoute = None
+            case None -> {}
+        }
+        for (index in 0L ..< owner.semanticHandles.size)
+            if (owner.semanticHandles[index] === this) {
+                owner.semanticHandles.removeAt(index)
+                break
+            }
+        owner.scope.forgetSemantics(this)
+    }
+
+    /** Retires this identity while preserving independently owned semantic children. */
+    public override fun close() {
+        owner.root.checkThread()
+        checkSemanticsMutation()
+        if (!closed)
+            controller.retire(this)
+    }
+}
+
+internal fun checkSemanticsMutation() {
+    when (currentEvaluation()) {
+        case Some(_) -> throw IllegalStateException(
+            Some("semantics cannot change during render, measure, scene or draw")
+        )
+        case None -> {}
+    }
+}
+
+internal fun sameSemantics(a: SemanticsHandle?, b: SemanticsHandle?): Boolean =
+    when ((a, b)) {
+        case(Some(val first), Some(val second)) -> first === second
+        case(None, None) -> true
+        else -> false
+    }
