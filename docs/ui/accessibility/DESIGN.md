@@ -110,7 +110,7 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 
 控件 Props 增加统一的小型语义覆盖值，允许名称、说明、automationId 和必要关系覆盖；角色、动作和核心状态由实际控件行为提供。覆盖值不允许把不可编辑文本宣称为可编辑，或绕过 disabled 状态执行动作。
 
-当前 Label、Button、Checkbox、Input／Textarea 使用 `ComponentSemantics`，Props 与 builder 均提供 semantics；实际接入及包装透传合同见 [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。Button 的纯标签合并、Checkbox 的真实 Binding 结果、输入框的模型／选区／保护用途沿前述公共语义路径。Field 关系及其余控件仍按统一计划继续，原生方法、实窗和外部辅助技术分别记录验证状态。
+当前基础控件、SelectableStyledText／Typography 及 Field 注释使用 `ComponentSemantics`，Props 与 builder 均提供 semantics；实际接入及包装透传合同见 [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。Button 的纯标签合并、Checkbox 的真实 Binding 结果、两类文本宿主及 FieldTarget 的标签／说明／错误关系沿前述公共语义路径。表单状态和其余控件仍按统一计划继续，原生方法、实窗和外部辅助技术分别记录验证状态。
 
 | 控件组 | 默认语义与接入 |
 | --- | --- |

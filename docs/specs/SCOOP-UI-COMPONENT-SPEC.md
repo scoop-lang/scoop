@@ -659,6 +659,10 @@ ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取�
 
 标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox／Switch 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
 
+FieldLabel 的 Props／builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。它拥有 Group 语义节点，合并自己的纯静态标签，保留 Custom 中的独立交互后代；覆盖名称不改写子内容或指针动作。Group 的 enabled 与实际标签输入区域一致，目标未绑定或禁用时，子按钮也报告不可用，文字仍可阅读。FieldTarget 同时登记这些实际节点，已接入默认语义的 Button、Checkbox、Input／Textarea 从原 FieldLink 取得 labelledBy。多个独立标签按关联登记顺序提供文字，稳定挂载重排不改变既有关联顺序；需要完整自定义名称时使用控件的显式 name。注释节点、控件或目标替换／卸载时更新关系，不复用退休引用；跨窗口关联保留原指针规则，但不导出跨窗口语义引用。
+
+相同 FieldTarget 也可登记第 23 节的说明和错误节点。控件每类显式非空关系优先于该类自动关系，显式 name／description／error（包括空串）继续优先于关系解析。关系变化在普通逻辑更新中刷新现有控件节点，不要求布局、绘制、焦点或用户动作；正文变化沿已有引用依赖更新名称和说明。关联资源由注释的挂载拥有，FieldTarget 只借用活跃资源，不保活已卸载组件。
+
 ## 16. ButtonGroup
 
 `buttonGroup(configure: ButtonGroupBuilder.() -> Unit)` 创建 ButtonGroupProps／ButtonGroup，ChildrenBuilder 提供同名成员。根字段为 entries: Array<ButtonGroupEntry>、axis: FlexAxis = Horizontal、fonts／theme: None、style: StyleOverride = styleOverride()；builder 另有 key。ButtonGroupEntry 保存明确的 ButtonGroupContent、key: ViewKey = Position 和 layout: FlexItemOptions = FlexItemOptions()。ButtonGroupContent 区分 Button(ButtonProps)、Input(InputProps)、Text(PanelContent, FontCollection?, StyleOverride)、Separator(Color?)、Custom((GroupPosition) -> View)、Plain(View)、Nested(View)，不检查或克隆不透明 View。空组自然尺寸为零。
@@ -798,6 +802,8 @@ SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160�
 
 Field 不读取不透明 control 的属性或后代，不拥有编辑模型、选择绑定、控件工厂或校验状态。invalid 只决定自动标题与必填说明的错误色；error 自定义内容优先于 errors，错误数组忽略空字符串并按首次出现顺序去重，一条直接显示、多条显示带缩进的项目符号，空数组不产生错误槽。控件自身的 enabled／invalid、Field 的状态和业务错误由调用方明确传入；没有自动状态同步、通用 Form engine、类型反射或额外类型身份。FieldLabel 沿第 15 节关联目标并反映其 enabled；普通 title 没有激活动作。自定义标题／说明／错误 View 保留调用方样式与交互。
 
+FieldProps／FieldBuilder 增加 `target: FieldTarget? = None`，用于明确关联普通 title、description 和 error。None 时从 FieldHeading.Label 取得原目标；显式 target 与该标签目标必须相同，避免一个 Field 的标题和说明指向不同控件。控件仍须通过自己的 labelTarget 绑定目标，Field 不搜索或改写 control。Title 提供 labelledBy，description 提供 describedBy，实际呈现的错误提供 errorMessages；错误去重结果及自定义内容优先级与视觉一致，项目符号为装饰。没有目标时保留普通文字阅读，required／invalid 的专门状态投影随 S5 状态接入继续实现，不据关系交付宣称完成。
+
 FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本次有限可用内容宽度达到 breakpoint 时横排；默认阈值为 448，按主题 body 字号／14 缩放，无界宽度按纵排。FieldControlPlacement 为 Start／End，按逻辑方向决定控制槽在标题前／后；FieldDescriptionPlacement 为 AfterControl／WithHeading。纵排按标题与 control 的指定顺序排列说明及错误，错误总在最后；WithHeading 将说明紧随标题。横排把标题和 control 分列，说明依配置归列；End 的错误在 control 列，Start 的错误在标题列，适用于 Checkbox／Switch 与说明组合。RTL 只交换逻辑横向位置，不改变挂载、键盘顺序或输入方向的显式设置。
 
 默认主间距为 8、同列内容间距为 2，均按字号缩放。有限宽度填满父约束；横排先以 controlWidth 或扣除间距后可用宽度的 60% 为最大宽度测量 control，紧凑控件保持自然宽度，标题列取得实际余量；无界横排按内容自然宽度。controlWidth、breakpoint、间距及 padding 必须有限非负。正文每轮只测量一次，布局切换和标题／说明／错误增删不重新挂载它，也不丢失焦点、选区、preedit 或撤销历史。窄宽和有限高度遵守父约束，内容超出最终布局时裁剪；正常布局保留控件自身向外绘制的焦点环。零尺寸只测量、不放置子节点，Accepted 帧按既有规则撤销输入资格，恢复时沿同一实例继续。外框装饰复用 Frame／StyleOverride，Field 自身没有 Press 或焦点停靠点。
@@ -805,6 +811,8 @@ FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本�
 `fieldTitle`、`fieldDescription`、`fieldLegend` 的 String／StyledText／View 入口构造 FieldTextProps／FieldText；普通字段文本使用 body 字号和 20／14 行高，Title／LegendLabel 字重 500，Description 为 muted.foreground，Error 为 destructive.background。Legend 默认字号 16、行高 24／16、字重 500，可选 FieldLegendVariant.Label；尺寸仍按字号缩放。FieldTextBuilder 配置 fonts／theme、textStyle: SpanStyle?、style 和 key，FieldLegendBuilder 另有 variant。自动标题与说明和这些独立入口使用同一解析函数；自定义 View 不被重写。
 
 `fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {})` 及自定义内容重载使用 FieldErrorProps／FieldError，遵循上述错误数组和优先级规则；builder 支持 content、fonts／theme、textStyle、style、key。多条错误间距为 4、项目符号列与正文缩进共 16，按字号缩放；错误与普通说明不增加 Tab 停靠点，富交互内容由调用方显式提供。没有内容时尺寸为零。
+
+FieldTextProps／FieldTextBuilder 和 FieldErrorProps／FieldErrorBuilder 提供 `target: FieldTarget? = None` 与 `semantics: ComponentSemantics = ComponentSemantics()`；FieldLegendBuilder 继承这两个字段。Title／Legend／LegendLabel 在指定目标时作为标签，Description 作为说明，Error 作为错误。使用同一 Group 容器合并静态正文并保留独立操作后代，错误为空时不创建注释节点。更新、换绑、关闭及显式覆盖沿第 15 节规则；这些注释不增加 Tab 目标、重复编辑模型或验证引擎。
 
 `fieldGroup { ... }` 与 `fieldContent { ... }` 使用同一 FieldStackProps／FieldStack，FieldStackKind.Group／Content 的默认间距分别为 20／2，按字号缩放。FieldStackBuilder 继承 ChildrenBuilder，提供 spacing、theme、padding、style、key；子项是普通 View，嵌套组或选择组的间距由调用方显式配置，不检查后代类型。`fieldSet(content: View) { legend(...); description(...) }` 使用 FieldSetProps／FieldSet，FieldSetBuilder 提供 legend: PanelContent?、variant=Legend、description、spacing、fonts／theme、padding、style、key，默认间距 16。legend／说明增删保留固定 content 槽；字段组和集合不建立另一套焦点域或禁用状态。
 

@@ -17,7 +17,7 @@ fun saveButton(onSave: () -> Unit): View =
 
 Button 默认从自己可合并的静态 Label 取得名称，独立交互后代继续可访问；显式 name（包括空串）优先于 labelledBy 和内容标签。Label 正文保留 StyledText 的行内 alternateText，覆盖名称不替换正文。Checkbox 的原生切换使用真实 Binding，拒绝写入不会先翻转语义状态。ButtonGroup、InputGroup、Command、Combobox、Sidebar 和原生文件按钮的相关包装继续传递覆盖值。
 
-输入控件直接复用 TextEditHost 的正文、选区、策略、撤销、焦点与菜单，placeholder 不作为 label；既有 description 提供默认说明，invalid 时也提供默认错误文字，显式覆盖可替换或清空它们。受保护输入不公布正文／长度／选区。用例和当前验证边界见[内置控件语义测试](tests-cones/accessibility/README.md)；字段关系和其他控件继续按计划推进。
+输入控件直接复用 TextEditHost 的正文、选区、策略、撤销、焦点与菜单，placeholder 不作为 label；既有 description 提供默认说明，invalid 时也提供默认错误文字，显式覆盖可替换或清空它们。受保护输入不公布正文／长度／选区。用例和当前验证边界见[内置控件语义测试](tests-cones/accessibility/README.md)；字段状态和其他控件继续按计划推进。
 
 原生桌面包装提供 `nativeApplicationMenuBar`、`nativeWindowMenuBar`、`nativeMenuButton` 和 `nativeContextMenu`，使用独立的 `NativeMenuContent`、稳定 key 与 Binding。应用菜单在 `ApplicationComponent.render` 中声明；窗口菜单包装正文。菜单值和回调更新不依赖绘制，popup 使用一次性 session；`NativePopupHandle.requestOpen()` 发起新请求，取消不会自动重开。标准编辑角色沿当前输入范围进入现有文本编辑器。详见[原生菜单规范](../../../docs/specs/SCOOP-UI-NATIVE-MENUS-SPEC.md)。
 
@@ -71,6 +71,23 @@ fun main() {
 `buttonGroup { button("保存", onSave); input(editor); text(".com") }` 收集带明确类型的条目，支持横向／纵向、嵌套组及分隔线。相邻表面共享接缝，Input 默认占用剩余空间；焦点项最后绘制，Tab 顺序保持声明顺序。自定义条目用 `item({ position -> ... })` 把 `GroupPosition` 明确传给控件的 `group`，`add(View)` 保留已有外观；组不增加动作或选择语义。根 fonts／theme 为内置条目提供默认值，嵌套组独立配置。
 
 `FieldTarget()` 把 `fieldLabel("名称", target)` 与 Input／Textarea／InputOtp／Checkbox／Switch 的 `labelTarget = Some(target)` 关联。标签不占 Tab 停靠点；文本标签请求聚焦，Checkbox／Switch 标签聚焦并执行一次当前选择动作。禁用、隐藏、卸载、跨窗口或模态域外目标不能由标签激活；换绑更新当前关联，按下期间换绑会取消该次点击。普通 `label` 仍是展示文字。
+
+在 macOS 上，已接入默认语义的 Button、Checkbox、Input／Textarea 同时从 FieldTarget 取得标签、说明和错误关系。Field 自动使用 label 的目标；使用普通 title 时通过 `target = Some(accountTarget)` 指定同一目标。独立的 fieldTitle／fieldDescription／fieldError 也提供 target，FieldLabel／FieldText／FieldError 的 Props 和 builder 可用 ComponentSemantics 覆盖名称、说明与标识。
+
+```kotlin
+import scoop.ui.View
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+fun accountField(editor: TextEditorState, accountTarget: FieldTarget): View =
+    field(input(editor) { labelTarget = Some(accountTarget) }) {
+        label("账户", accountTarget)
+        description("显示给团队成员的名称")
+        errors = ["请填写账户名称"]
+    }
+```
+
+目标由拥有表单的组件保持稳定；Field 不查找或修改不透明 control。多个独立标签按关联登记顺序组成名称，自定义标签内的按钮继续独立可访问；标签因目标未绑定或禁用而停止输入时，子按钮也报告不可用。显式非空关系覆盖对应自动关系，显式 name／description／error（包括空串）优先。正文更新、注释关闭或目标换绑会刷新现有语义节点，空错误不会留下旧消息；关联变化不需要绘制或移动焦点。required／invalid 的专门状态及其余控件按统一计划继续接入。
 
 `typography("标题", TypographyRole.H1)` 提供 H1–H4、P、Blockquote、InlineCode、Lead／Large／Small／Muted 角色，默认可选择和复制。`typography { text("运行 "); code("scoop build") }` 使用真实行内代码 View，复制结果保留代码文字；span、inline、actions 和 decorations 继续使用公共富文本 API。`typographyList { item("第一项") }` 和 `typographyTable { header { cell("名称") }; row { cell("Scoop") } }` 提供项目符号与共享列宽的静态文字排版，段落间距由父布局控制。
 

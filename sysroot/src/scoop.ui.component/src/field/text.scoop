@@ -18,7 +18,9 @@ public class FieldTextProps public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val textStyle: SpanStyle? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val target: FieldTarget? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class FieldText public constructor(
@@ -33,9 +35,18 @@ public class FieldText public constructor(
         val input = props.value
         val theme = themes.read(input.theme)
         val base = fieldTextStyle(input.role, theme)
-        return panelFrame(
-            panelCaption(input.content, input.textStyle?.resolve(base) ?: base, input.fonts),
-            visual = input.style
+        return fieldAnnotated(
+            panelFrame(
+                panelCaption(input.content, input.textStyle?.resolve(base) ?: base, input.fonts),
+                visual = input.style
+            ),
+            input.target,
+            when (input.role) {
+                case Description -> FieldAnnotationKind.Description
+                case Error -> FieldAnnotationKind.Error
+                else -> FieldAnnotationKind.Label
+            },
+            input.semantics
         )
     }
 }
@@ -76,6 +87,8 @@ public open class FieldTextBuilder internal constructor() {
     public var textStyle: SpanStyle? = None
     public var style: StyleOverride = styleOverride()
     public var key: ViewKey = ViewKey.Position
+    public var target: FieldTarget? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun textStyle(configure: SpanStyleBuilder.() -> Unit) {
         textStyle = Some((textStyle ?: spanStyle()).copy(configure))
     }
@@ -83,7 +96,7 @@ public open class FieldTextBuilder internal constructor() {
         style = style.copy(configure)
     }
     internal fun snapshot(content: PanelContent, role: FieldTextRole): FieldTextProps =
-        FieldTextProps(content, role, fonts, theme, textStyle, style)
+        FieldTextProps(content, role, fonts, theme, textStyle, style, target, semantics)
 }
 
 public class FieldLegendBuilder internal constructor(): FieldTextBuilder() {

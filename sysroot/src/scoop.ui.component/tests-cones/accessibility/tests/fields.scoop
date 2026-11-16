@@ -1,0 +1,276 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.NativeNode
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.*
+import scoop.window.accessibility.*
+
+internal class FieldSemanticsProbe {
+    val first = FieldTarget()
+    val second = FieldTarget()
+    val checkTarget = FieldTarget()
+    val buttonTarget = FieldTarget()
+    val editor = TextEditorState("Value")
+    val checked = state(false)
+    val checkEnabled = state(true)
+    val caption = state("Account")
+    val description = state<String?>(Some("Shown to team"))
+    val errors = state<Array<String>>(["Required", "", "Required", "Too short"])
+    val notesShown = state(true)
+    val noteDescription = state("Standalone hint")
+    val overrides = state(0)
+    val controlRebound = state(false)
+    val notesRebound = state(false)
+    val heading = state(0)
+    private var input: NativeNode? = None
+    private var checkbox: NativeNode? = None
+    private var button: NativeNode? = None
+    private var oldLabel: NativeNode? = None
+    var rootRenders = 0
+    private var initialRootRenders = 0
+
+    fun run(find: (String) -> NativeNode, schedule: (() -> Unit) -> Unit, completed: () -> Unit) {
+        val expected = first
+        val different = second
+        assertFailsWith<IllegalArgumentException> {
+            field(empty()) {
+                target = Some(expected)
+                label("Different target", different)
+            }
+        }
+        input = Some(find("field-input"))
+        checkbox = Some(find("field-checkbox"))
+        button = Some(find("field-button"))
+        oldLabel = Some(find("field-label"))
+        advance(0, find, schedule, completed)
+    }
+
+    private fun advance(
+        step: Int,
+        find: (String) -> NativeNode,
+        schedule: (() -> Unit) -> Unit,
+        completed: () -> Unit
+    ) {
+        when (step) {
+            case 0 -> {
+                assertTrue(input!!.text(0, Some("Account")))
+                assertTrue(input!!.text(5, Some("Shown to team\nRequired Too short")))
+                assertTrue(checkbox!!.text(0, Some("Accept More")))
+                assertTrue(button!!.text(0, Some("Run")))
+                assertTrue(button!!.text(5, Some("Standalone hint\nStandalone error")))
+                assertTrue(oldLabel!!.text(0, Some("Accept")))
+                assertEquals(1L, oldLabel!!.count)
+                assertTrue(find("field-details").flag(3))
+                initialRootRenders = rootRenders
+                notesShown.value = false
+            }
+            case 1 -> {
+                assertEquals(initialRootRenders, rootRenders)
+                assertTrue(input!!.text(0, Some("Account")))
+                assertTrue(input!!.text(5, Some("Shown to team\nRequired Too short")))
+                assertTrue(checkbox!!.text(0, None))
+                assertTrue(button!!.text(0, Some("Fallback")))
+                assertTrue(button!!.text(5, None))
+                assertFalse(oldLabel!!.flag(0))
+                notesShown.value = true
+            }
+            case 2 -> {
+                assertEquals(initialRootRenders, rootRenders)
+                assertTrue(checkbox!!.text(0, Some("Accept More")))
+                assertTrue(button!!.text(0, Some("Run")))
+                assertTrue(find("field-label").flag(0))
+                assertFalse(oldLabel!!.flag(0))
+                caption.value = "Display name"
+                description.value = Some("Updated hint")
+                errors.value = []
+            }
+            case 3 -> {
+                assertTrue(input!!.text(0, Some("Display name")))
+                assertTrue(input!!.text(5, Some("Updated hint")))
+                overrides.value = 1
+            }
+            case 4 -> {
+                assertTrue(input!!.text(0, Some("Explicit name")))
+                assertTrue(input!!.text(5, Some("Explicit help\nExplicit error")))
+                assertTrue(checkbox!!.text(0, Some("Accept More")))
+                assertTrue(button!!.text(0, Some("Run")))
+                assertTrue(find("field-label").flag(0))
+                assertFalse(oldLabel!!.flag(0))
+                overrides.value = 2
+            }
+            case 5 -> {
+                assertTrue(input!!.text(0, Some("")))
+                assertTrue(input!!.text(5, Some("")))
+                overrides.value = 3
+            }
+            case 6 -> {
+                assertTrue(input!!.text(0, Some("Explicit relationship")))
+                assertTrue(input!!.text(5, Some("Updated hint")))
+                overrides.value = 0
+                controlRebound.value = true
+            }
+            case 7 -> {
+                assertTrue(input!!.text(0, None))
+                assertTrue(input!!.text(5, None))
+                assertFalse(first.isAttached)
+                assertTrue(second.isAttached)
+                notesRebound.value = true
+            }
+            case 8 -> {
+                assertTrue(input!!.text(0, Some("Display name")))
+                assertTrue(input!!.text(5, Some("Updated hint")))
+                heading.value = 1
+                errors.value = ["Changed"]
+                noteDescription.value = "Restored hint"
+            }
+            case 9 -> {
+                assertTrue(input!!.text(0, Some("Display name")))
+                assertTrue(input!!.text(5, Some("Updated hint\nChanged")))
+                assertTrue(button!!.text(5, Some("Restored hint\nStandalone error")))
+                heading.value = 2
+                description.value = None
+                errors.value = []
+            }
+            case 10 -> {
+                assertTrue(input!!.text(0, None))
+                assertTrue(input!!.text(5, None))
+                assertTrue(input!!.text(1, Some("Value")))
+                assertEquals("Value", editor.committedText)
+                assertEquals(0L, checkbox!!.numericValue)
+                checkEnabled.value = false
+            }
+            case 11 -> {
+                assertFalse(checkbox!!.flag(1))
+                assertTrue(find("field-label").flag(0))
+                assertFalse(find("field-label").flag(1))
+                assertFalse(find("field-details").flag(1))
+                checkEnabled.value = true
+            }
+            case 12 -> {
+                assertTrue(checkbox!!.flag(1))
+                assertTrue(find("field-label").flag(1))
+                assertTrue(find("field-details").flag(1))
+                completed()
+                return
+            }
+            else -> fail(Some("unexpected field semantics phase"))
+        }
+        schedule { advance(step + 1, find, schedule, completed) }
+    }
+}
+
+internal fun fieldSemanticsView(probe: FieldSemanticsProbe): View =
+    component(probe, { current, mount -> FieldsRoot(current, scope = mount) })
+
+private class FieldsRoot(
+    private val props: Props<FieldSemanticsProbe>,
+    scope: ComponentScope
+): Component(scope) {
+    private val explicit = scope.semantics(SemanticRole.Text)
+    init {
+        explicit.update(SemanticProperties(value = Some("Explicit relationship"), ignored = true))
+    }
+    public override fun render(): View {
+        val probe = props.value
+        probe.rootRenders += 1
+        val controlTarget =
+            if (probe.controlRebound.value)
+                probe.second
+            else
+                probe.first
+        val noteTarget =
+            if (probe.notesRebound.value)
+                probe.second
+            else
+                probe.first
+        val overrideMode = probe.overrides.value
+        val options =
+            ComponentSemantics(
+                name =
+                    when (overrideMode) {
+                        case 1 -> Some("Explicit name");
+                        case 2 -> Some("");
+                        else -> None
+                    },
+                description =
+                    when (overrideMode) {
+                        case 1 -> Some("Explicit help");
+                        case 2 -> Some("");
+                        else -> None
+                    },
+                error =
+                    when (overrideMode) {
+                        case 1 -> Some("Explicit error");
+                        case 2 -> Some("");
+                        else -> None
+                    },
+                automationId = Some("field-input"),
+                relations =
+                    if (overrideMode == 3)
+                        SemanticRelations(labelledBy = [explicit.id])
+                    else
+                        SemanticRelations()
+            )
+        val input =
+            input(probe.editor) {
+                labelTarget = Some(controlTarget)
+                contextMenu { this.mode = TextContextMenuMode.Disabled }
+                semantics = options
+            }
+        return fieldGroup {
+            this.field(input) {
+                target = Some(noteTarget)
+                when (probe.heading.value) {
+                    case 0 -> label(probe.caption.value, noteTarget)
+                    case 1 -> title(probe.caption.value)
+                    else -> {}
+                }
+                when (val hint = probe.description.value) {
+                    case Some(val text) -> description(text)
+                    case None -> {}
+                }
+                errors = probe.errors.value
+            }
+            this.checkbox(probe.checked.binding()) {
+                enabled = probe.checkEnabled.value
+                labelTarget = Some(probe.checkTarget)
+                semantics = ComponentSemantics(automationId = Some("field-checkbox"))
+            }
+            this.button("Fallback", {}) {
+                labelTarget = Some(probe.buttonTarget)
+                semantics = ComponentSemantics(automationId = Some("field-button"))
+            }
+            this.add(component(probe, { current, mount -> FieldNotes(current, scope = mount) }))
+        }
+    }
+}
+
+/** Its changes must refresh sibling controls without rerendering their parent. */
+private class FieldNotes(
+    private val props: Props<FieldSemanticsProbe>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val probe = props.value
+        if (!probe.notesShown.value)
+            return empty()
+        val caption =
+            row {
+                this.label("Accept")
+                this.button("Details", {}) {
+                    semantics = ComponentSemantics(automationId = Some("field-details"))
+                }
+            }
+        return fieldGroup {
+            this.fieldLabel(caption, probe.checkTarget) {
+                semantics = ComponentSemantics(automationId = Some("field-label"))
+            }
+            this.fieldTitle("More") { target = Some(probe.checkTarget) }
+            this.fieldTitle("Run") { target = Some(probe.buttonTarget) }
+            this.fieldDescription(probe.noteDescription.value) { target = Some(probe.buttonTarget) }
+            this.fieldError(["Standalone error"]) { target = Some(probe.buttonTarget) }
+        }
+    }
+}

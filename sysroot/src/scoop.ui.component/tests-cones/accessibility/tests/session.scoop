@@ -36,6 +36,7 @@ private class ComponentSemanticsTest {
 }
 
 internal class ControlsProbe: Closeable {
+    val fields = FieldSemanticsProbe()
     val caption = state("Save")
     val name = state<String?>(None)
     val labelName = state<String?>(None)
@@ -321,10 +322,12 @@ internal class ControlsProbe: Closeable {
             }
             case 17 -> {
                 assertEquals(1, typographyChanges)
-                ui!!.close()
-                assertFalse(input!!.flag(0))
-                assertFalse(checkbox!!.flag(0))
-                calls!!.post(outer!!, 18)
+                fields.run({ identifier -> find(identifier) }, { action -> afterUpdate(action) }) {
+                    ui!!.close()
+                    assertFalse(input!!.flag(0))
+                    assertFalse(checkbox!!.flag(0))
+                    calls!!.post(outer!!, 18)
+                }
             }
             case 18 -> {
                 assertEquals(0, result)

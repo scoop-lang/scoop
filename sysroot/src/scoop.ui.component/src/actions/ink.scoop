@@ -52,23 +52,14 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                 control.area.scope.enabled = value.visual.interaction.enabled
                 control.focus.options = focus
                 if (panelPresent(value.labelTarget) && !panelPresent(field))
-                    field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+                    field =
+                        Some(
+                            scope.resource {
+                                FieldLink(scope, control.area, control.focus) { updateSemantics() }
+                            }
+                        )
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
-                value.semantics?.update(
-                    value.semanticOptions.properties(
-                        enabled = value.visual.interaction.enabled && value.actionable
-                    ),
-                    SemanticActions(
-                        invoke =
-                            Some(
-                                {
-                                    action();
-                                    SemanticActionResult.Completed
-                                }
-                            )
-                    ),
-                    value.semanticOptions.relations
-                )
+                updateSemantics()
             }
             case Passive -> {}
         }
@@ -94,6 +85,31 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             UiInvalidation.Layout
         else
             UiInvalidation.Scene
+    }
+    private fun updateSemantics() {
+        val value = props.value
+        val handle = value.semantics ?: return
+        if (handle.isClosed)
+            return
+        when (value.behavior) {
+            case Press(_, val action, _) -> handle.update(
+                value.semanticOptions.properties(
+                    enabled = value.visual.interaction.enabled && value.actionable
+                ),
+                SemanticActions(
+                    invoke =
+                        Some(
+                            {
+                                action();
+                                SemanticActionResult.Completed
+                            }
+                        )
+                ),
+                field?.relations(handle, value.semanticOptions.relations) ?:
+                    value.semanticOptions.relations
+            )
+            case Passive -> {}
+        }
     }
     private fun metrics(value: ActionInkProps, direction: LayoutDirection): SurfaceMetrics =
         groupSurfaceMetrics(

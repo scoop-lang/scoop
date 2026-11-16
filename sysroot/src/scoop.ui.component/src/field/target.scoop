@@ -2,10 +2,12 @@ package scoop.ui.component
 
 import scoop.surface.*
 import scoop.ui.*
+import scoop.window.accessibility.*
 
 /** Stable label association; the mounted control owns its lifetime and action. */
 public class FieldTarget public constructor() {
     private val current = state<FieldLink?>(None)
+    private val annotations = ArrayList<FieldAnnotation>()
     internal val connection: FieldLink? get() = current.value
     public val isAttached: Boolean get() = current.value?.isAttached ?: false
     public val isEnabled: Boolean get() = current.value?.isEnabled ?: false
@@ -29,12 +31,59 @@ public class FieldTarget public constructor() {
             case None -> {}
         }
     }
+    internal fun addAnnotation(annotation: FieldAnnotation) {
+        annotations.add(annotation)
+        current.value?.semanticsChanged()
+    }
+    internal fun removeAnnotation(annotation: FieldAnnotation) {
+        for (index in 0L ..< annotations.size)
+            if (annotations[index] === annotation) {
+                annotations.removeAt(index)
+                current.value?.semanticsChanged()
+                return
+            }
+    }
+    internal fun annotationChanged() {
+        current.value?.semanticsChanged()
+    }
+    internal fun relations(
+        source: SemanticsHandle,
+        declared: SemanticRelations
+    ): SemanticRelations {
+        val labels = ArrayList<SemanticNodeId>()
+        val descriptions = ArrayList<SemanticNodeId>()
+        val errors = ArrayList<SemanticNodeId>()
+        for (annotation in annotations) {
+            val node = annotation.nodeFor(source) ?: continue
+            when (annotation.kind) {
+                case Label -> labels.add(node.id)
+                case Description -> descriptions.add(node.id)
+                case Error -> errors.add(node.id)
+            }
+        }
+        return SemanticRelations(
+            if (declared.labelledBy.size > 0L)
+                declared.labelledBy
+            else
+                labels.toArray(),
+            if (declared.describedBy.size > 0L)
+                declared.describedBy
+            else
+                descriptions.toArray(),
+            if (declared.errorMessages.size > 0L)
+                declared.errorMessages
+            else
+                errors.toArray(),
+            declared.controls
+        )
+    }
 }
 
 internal class FieldLink(
     private val scope: ComponentScope,
     private val area: InputArea,
-    private val focus: FocusTarget
+    private val focus: FocusTarget,
+    private val refreshSemantics: () -> Unit = {}
 ): Closeable {
     private val enabled = state(false)
     private var target: FieldTarget? = None
@@ -42,6 +91,16 @@ internal class FieldLink(
     private var closed = false
     val isAttached: Boolean get() = !closed && scope.isMounted
     val isEnabled: Boolean get() = isAttached && enabled.value
+
+    fun semanticsChanged() {
+        if (isAttached)
+            refreshSemantics()
+    }
+    fun relations(source: SemanticsHandle, declared: SemanticRelations): SemanticRelations =
+        when (val current = target) {
+            case Some(val value) -> value.relations(source, declared)
+            case None -> declared
+        }
 
     fun update(value: FieldTarget?, accepts: Boolean, activate: () -> Unit = {}) {
         value?.checkBinding(this)
@@ -78,7 +137,7 @@ internal class FieldLink(
     }
 }
 
-private fun sameFieldTarget(left: FieldTarget?, right: FieldTarget?): Boolean =
+internal fun sameFieldTarget(left: FieldTarget?, right: FieldTarget?): Boolean =
     when (left) {
         case Some(val a) -> when (right) {
             case Some(val b) -> a === b

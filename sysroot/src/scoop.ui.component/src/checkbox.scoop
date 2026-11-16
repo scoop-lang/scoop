@@ -208,7 +208,12 @@ private class CheckboxInk(
     private var field: FieldLink? = None
     public override fun onMount() {
         val control = props.value.control
-        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+        field =
+            Some(
+                scope.resource {
+                    FieldLink(scope, control.area, control.focus) { updateSemantics() }
+                }
+            )
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, props.value.visual))
         selection =
@@ -228,21 +233,7 @@ private class CheckboxInk(
         control.area.scope.enabled = value.input.enabled
         control.focus.options = value.input.focus
         field!!.update(value.input.labelTarget, value.input.enabled, value.activate)
-        value.semantics?.update(
-            value.input.semantics.properties(
-                enabled = value.input.enabled,
-                checked =
-                    Some(
-                        when (value.checked) {
-                            case Unchecked -> SemanticChecked.Off
-                            case Checked -> SemanticChecked.On
-                            case Indeterminate -> SemanticChecked.Mixed
-                        }
-                    )
-            ),
-            SemanticActions(toggle = Some(value.toggle)),
-            value.input.semantics.relations
-        )
+        updateSemantics()
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,
@@ -303,6 +294,27 @@ private class CheckboxInk(
                 side
             )
         return LayoutResult(LayoutMetrics(size), bounds)
+    }
+    private fun updateSemantics() {
+        val value = props.value
+        val handle = value.semantics ?: return
+        if (handle.isClosed)
+            return
+        handle.update(
+            value.input.semantics.properties(
+                enabled = value.input.enabled,
+                checked =
+                    Some(
+                        when (value.checked) {
+                            case Unchecked -> SemanticChecked.Off
+                            case Checked -> SemanticChecked.On
+                            case Indeterminate -> SemanticChecked.Mixed
+                        }
+                    )
+            ),
+            SemanticActions(toggle = Some(value.toggle)),
+            field!!.relations(handle, value.input.semantics.relations)
+        )
     }
     public override fun scene(context: SceneContext, bounds: Rect) {
         val value = props.value

@@ -135,7 +135,8 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
                             automationId = Some("typography")
                         )
                     onSelectionChanged = { _, _ -> probe.typographyChanges += 1 }
-                }
+                },
+                fieldSemanticsView(probe.fields)
             ]
         return element({ mount -> ControlsPanel(probe, views.size, mount) }, views)
     }

@@ -28,7 +28,8 @@ internal class TextFieldInk(
     internal val lineHeight = TextFieldLineHeight()
     private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
     private val padding = scope.createArea()
-    private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
+    private val field =
+        scope.resource { FieldLink(scope, host.area, host.focus) { updateSemantics() } }
     internal val scrollbarFeedback =
         scope.resource {
             ScrollbarFeedback(scope, { scrollbarProps() }, host.area) { feedbackChanged() }
@@ -112,12 +113,25 @@ internal class TextFieldInk(
             input.onSubmit
         )
         field.update(input.labelTarget, input.options.enabled)
+        updateSemantics()
+        padding.scope.enabled = input.options.enabled
+        scrollbarFeedback.update()
+        horizontal.update()
+        vertical.update()
+        painters.get(value.theme)
+        return UiInvalidation.Layout
+    }
+    private fun updateSemantics() {
+        val handle = semantics ?: return
+        if (handle.isClosed)
+            return
+        val input = props.value.input
         val description =
             if (input.description.byteLength == 0L)
                 None
             else
                 Some(input.description)
-        semantics?.updateTextEditor(
+        handle.updateTextEditor(
             host,
             input.semantics.properties(
                 description = description,
@@ -127,14 +141,8 @@ internal class TextFieldInk(
                     else
                         None
             ),
-            input.semantics.relations
+            field.relations(handle, input.semantics.relations)
         )
-        padding.scope.enabled = input.options.enabled
-        scrollbarFeedback.update()
-        horizontal.update()
-        vertical.update()
-        painters.get(value.theme)
-        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TextFieldDrawing

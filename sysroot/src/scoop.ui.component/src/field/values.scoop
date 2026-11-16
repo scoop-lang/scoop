@@ -40,7 +40,8 @@ public class FieldProps public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val padding: Insets = Insets(),
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val target: FieldTarget? = None
 ) {
     init {
         fieldLength(breakpoint);
@@ -48,6 +49,16 @@ public class FieldProps public constructor(
         fieldLength(spacing);
         fieldLength(contentSpacing)
         padding.totals()
+        when (val title = heading) {
+            case Some(FieldHeading.Label(_, val labelTarget)) -> when (target) {
+                case Some(val explicit) -> requireComponent(
+                    explicit === labelTarget,
+                    "field target differs from its label target"
+                )
+                case None -> {}
+            }
+            else -> {}
+        }
     }
 }
 
@@ -79,6 +90,7 @@ public class FieldBuilder internal constructor() {
     public var padding: Insets = Insets()
     public var style: StyleOverride = styleOverride()
     public var key: ViewKey = ViewKey.Position
+    public var target: FieldTarget? = None
     public fun label(text: String, target: FieldTarget) {
         heading =
             Some(FieldHeading.Label(FieldLabelContent.Text(LabelText.Plain(text, None)), target))
@@ -139,7 +151,8 @@ public class FieldBuilder internal constructor() {
             fonts,
             theme,
             padding,
-            style
+            style,
+            target
         )
 }
 
