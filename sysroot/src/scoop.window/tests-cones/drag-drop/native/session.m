@@ -30,7 +30,7 @@ static int32_t operate(SWDropProbe *probe, int32_t step) {
     CHECK(![probe.oldView performDragOperation:info]);
     [probe.oldView draggingExited:nil];
   }
-  CHECK(![view wantsPeriodicDraggingUpdates]);
+  CHECK([view wantsPeriodicDraggingUpdates] == (step == 18));
   CHECK(probe.data.reads == 0);
   NSDragOperation result = [view draggingEntered:info];
   BOOL rejected = step == 4 || step == 5 || step == 6 || step == 13 ||

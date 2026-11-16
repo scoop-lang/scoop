@@ -1,0 +1,219 @@
+package scoop.examples.ui.drop
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+private struct DropView(val message: String, val accept: (DragContent) -> Unit)
+
+private class DropDemo(scope: ComponentScope): Component(scope) {
+    private var received: DragContent? by state<DragContent?>(None)
+    public override fun render(): View {
+        val message =
+            when (val value = received) {
+                case Some(DragContent.Text(val text)) -> "Text: " + text
+                case Some(DragContent.Url(val url)) -> "URL: " + url
+                case Some(DragContent.Files(val paths)) -> "Files: " + paths.size.toString()
+                case None -> "Nothing received yet."
+            }
+        return element(
+            DropView(message, { value -> received = Some(value) }),
+            { props, mount -> DropDrawing(props, mount) }
+        )
+    }
+}
+
+private class DropDrawing(private val props: Props<DropView>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private val paragraph = scope.resource { ParagraphHost() }
+    private val background = scope.createArea()
+    private val textArea = scope.createArea(focusable = true, parent = Some(background))
+    private val urlArea = scope.createArea(parent = Some(background))
+    private val files = scope.dropTarget(background, handlers(DragFormat.Files))
+    private val text = scope.dropTarget(textArea, handlers(DragFormat.Text))
+    private val url = scope.dropTarget(urlArea, handlers(DragFormat.Url))
+    private val press =
+        scope.press(textArea) {
+            paste();
+            Unit
+        }
+    private val focus = scope.focusTarget(textArea)
+    private val fileSemantic = scope.semantics(SemanticRole.Group)
+    private val textSemantic = scope.semantics(SemanticRole.Button, Some(fileSemantic))
+    private val urlSemantic = scope.semantics(SemanticRole.Group, Some(fileSemantic))
+    private val resultSemantic = scope.semantics(SemanticRole.Text, Some(fileSemantic))
+
+    public override fun onMount() {
+        textSemantic.bindFocus(Some(focus))
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    shortcutBinding(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("v")),
+                            ShortcutModifiers(primary = true)
+                        ),
+                        {
+                            paste();
+                            Unit
+                        }
+                    )
+                ]
+            )
+        }
+    }
+
+    private fun paste(): SemanticActionResult {
+        val value = scope.nativeWindow.clipboard.readText() ?: return SemanticActionResult.Rejected
+        props.value.accept(DragContent.Text(value))
+        return SemanticActionResult.Completed
+    }
+
+    private fun handlers(format: DragFormat): DropAreaHandlers =
+        DropAreaHandlers(
+            offer =
+                {
+                    value,
+                    _ -> if (value.formats.contains(format) && value.effects.copy)
+                        DropDecision.Accept(format, DragEffect.Copy)
+                    else
+                        DropDecision.Reject
+                },
+            drop =
+                {
+                    value, _ ->
+                    props.value.accept(value.content)
+                    true
+                }
+        )
+
+    public override fun update(): UiInvalidation {
+        fileSemantic.update(
+            SemanticProperties(
+                name = Some("Receive files"),
+                description = Some("Files can be dropped anywhere, including both child areas.")
+            )
+        )
+        textSemantic.update(
+            SemanticProperties(
+                name = Some("Paste text"),
+                description =
+                    Some(
+                        "Click, press Enter or Space, or use Command V. Text drops are also accepted."
+                    )
+            ),
+            SemanticActions(invoke = Some({ paste() }))
+        )
+        urlSemantic.update(SemanticProperties(name = Some("Receive URL")))
+        resultSemantic.update(SemanticProperties(value = Some(props.value.message)))
+        return UiInvalidation.Layout
+    }
+
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val size = constraints.constrain(Size(720.0, 480.0))
+        val width =
+            if (size.width > 48.0)
+                size.width - 48.0
+            else
+                0.0
+        val message = props.value.message
+        val content =
+            styledText {
+                this.text(
+                    "Left: text or paste. Right: URL.\nFiles can be dropped anywhere.\n\n" + message
+                )
+                style { fontSize = 18.0 }
+            }
+        val measured =
+            paragraph.measure(
+                context,
+                Constraints(maxWidth = Some(width)),
+                scope.defaultFonts,
+                content
+            )
+        return LayoutResult(LayoutMetrics(size), measured, { measured.close() })
+    }
+
+    public override fun scene(context: SceneContext, layout: ParagraphMeasurement) {
+        val all = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val width =
+            if (context.size.width > 72.0)
+                (context.size.width - 72.0) / 2.0
+            else
+                0.0
+        val top = 48.0 + layout.metrics.size.height
+        val height =
+            if (context.size.height > top + 24.0)
+                context.size.height - top - 24.0
+            else
+                0.0
+        val left = Rect(24.0, top, width, height)
+        val right = Rect(48.0 + width, top, width, height)
+        context.place(background, all)
+        context.place(textArea, left)
+        context.place(urlArea, right)
+        context.semantics(fileSemantic, all)
+        context.semantics(textSemantic, left)
+        context.semantics(urlSemantic, right)
+        context.semantics(
+            resultSemantic,
+            Rect(24.0, 24.0, layout.metrics.size.width, layout.metrics.size.height)
+        )
+        val fileHover = files.hover != None
+        val textHover = text.hover != None
+        val urlHover = url.hover != None
+        val focused = press.interaction.focusVisible
+        context.draw {
+            paint ->
+            paint.canvas.clear(
+                if (fileHover)
+                    Color(0.88, 0.94, 0.89)
+                else
+                    Color(0.97, 0.97, 0.98)
+            )
+            paint.canvas.drawRoundRect(
+                left,
+                12.0,
+                12.0,
+                Paint(
+                    if (textHover)
+                        Color(0.44, 0.68, 0.98)
+                    else
+                        Color(0.81, 0.87, 0.96)
+                )
+            )
+            paint.canvas.drawRoundRect(
+                right,
+                12.0,
+                12.0,
+                Paint(
+                    if (urlHover)
+                        Color(0.37, 0.78, 0.67)
+                    else
+                        Color(0.78, 0.91, 0.86)
+                )
+            )
+            if (focused)
+                paint.canvas.drawRoundRect(
+                    left,
+                    12.0,
+                    12.0,
+                    Paint(Color(0.12, 0.24, 0.5), PaintingStyle.Stroke, 3.0)
+                )
+        }
+        context.translate(24.0, 24.0)
+        paragraph.scene(context, layout)
+    }
+}
+
+fun main() {
+    runUiApplication("Scoop — drop receivers", { mount -> DropDemo(mount) })
+}

@@ -20,6 +20,8 @@ DropTarget 的 handlers 可在正常 owner 更新中替换，enabled 默认 true
 
 leave 在原生离开、结束或 Drop 收尾时至多一次地结束当前 offer；重新进入形成新的 offer。接收回调可关闭自身或窗口；已经实际接受的数据仍以回调的 true 表达，不能因随后关闭倒推为未接受。新的处理器或重新注册不接受上一份协商。
 
+`DropTarget.periodicUpdates` 默认 false；true 请求 AppKit 在活动拖放期间继续发送 draggingUpdated，使静止指针下的内容变化和自动滚动能重新协商。它只采用原生拖放更新，不安装空闲轮询 timer；禁用或关闭的目标不请求周期更新。切换该提示不改变已协商的格式与操作。
+
 ## 3. 同步边界与 AppKit 映射
 
 AppKit registerForDraggedTypes／NSDraggingDestination 使用系统 pasteboard 的 String、URL 和 FileURL 表示。原生 getter 不进行应用编辑；offer 和 drop 经捕获注册 Context 的 Reusable ForeignCallback 执行，只在 owner、窗口 Open 且可交互、没有正在进行的业务／watch／另一回调时进入。重入直接拒绝，不等待自身队列、不递归 pump、不请求布局；异常沿正常应用失败与退出路径收尾，不跨 Objective-C ABI。

@@ -2,6 +2,7 @@ package scoop.window
 
 internal interface NativeDropTarget: Closeable {
     fun update(enabled: Boolean)
+    fun setPeriodicUpdates(value: Boolean)
     fun leave()
 }
 
@@ -12,6 +13,7 @@ public class DropTarget internal constructor(
 ): Closeable {
     private var current: DropHandlers? = Some(initial)
     private var accepts = true
+    private var periodic = false
     private var closed = false
     private var native: NativeDropTarget? = None
 
@@ -48,6 +50,19 @@ public class DropTarget internal constructor(
                 if (!closed && !accepts)
                     native!!.leave()
             }
+    }
+    /** Requests native updates during an active drag even while the pointer is stationary. */
+    public var periodicUpdates: Boolean
+    get() {
+        checkOpen();
+        return periodic
+    }
+    set(value) {
+        checkOpen()
+        if (periodic != value) {
+            periodic = value
+            native!!.setPeriodicUpdates(value)
+        }
     }
     private fun checkOpen() {
         owner.requireOpen()

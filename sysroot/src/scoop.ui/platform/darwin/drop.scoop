@@ -1,0 +1,17 @@
+package scoop.ui
+
+import scoop.surface.InputArea
+import scoop.window.*
+
+/** Receives native drops through the root's accepted input scene and logical parent path. */
+public fun ComponentScope.dropTarget(
+    area: InputArea,
+    handlers: DropAreaHandlers,
+    enabled: Boolean = true
+): DropArea =
+    createDropArea(area, handlers, enabled) {
+        callbacks ->
+        val target = nativeWindow.registerDropTarget(callbacks)
+        target.periodicUpdates = true
+        target
+    }

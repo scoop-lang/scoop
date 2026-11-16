@@ -88,6 +88,18 @@ private class DarwinDropTarget(
         (Ptr<Unit>, Int, Int, Int, Int, Double, Double, Long, Int, Ptr<Unit>?) -> Int
     >
 ): NativeDropTarget {
+    public override fun setPeriodicUpdates(value: Boolean) {
+        @Unsafe
+        {
+            nativeDropPeriodic(
+                pointer,
+                if (value)
+                    1
+                else
+                    0
+            )
+        }
+    }
     public override fun update(enabled: Boolean) {
         @Unsafe
         {
@@ -184,6 +196,9 @@ private fun nativeDropUpdate(target: Ptr<Unit>, enabled: Int)
 
 @Extern(name = "scoop_window_drop_leave")
 private fun nativeDropLeave(target: Ptr<Unit>)
+
+@Extern(name = "scoop_window_drop_periodic")
+private fun nativeDropPeriodic(target: Ptr<Unit>, enabled: Int)
 
 @Extern(name = "scoop_window_drop_close")
 private fun nativeDropClose(target: Ptr<Unit>)

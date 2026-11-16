@@ -13,7 +13,7 @@
 | 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带、重复操作及统一 Overlay／Gutter、边缘显露留白 | 逻辑轴范围、原生位置与增减动作已接入；当前验证见实施记录，滚动实窗／平台验收待继续 |
 | 原生文本菜单 | 原生 popup、七种编辑角色及可用性；编辑／只读选择宿主共用三种菜单模式、右键选区、键盘入口和目标会话，输入控件提供独立 protectedText 用途 | 前台实窗与 Windows／GTK 验证、触摸入口、受保护文本的 provider／拖放及系统文本服务；已验证范围见实施记录 |
 | 多击选择 | 公共编辑器已有双击选词、三击选逻辑行、按词／行继续拖选，且已有实窗用例 | Windows 连续点击计数、Linux 系统阈值、平台真实事件及 Unicode／投影组合回归 |
-| 拖动 | 公共轴向 `Drag`、阈值接管、取消、速度；用于滚动条、Slider、Resizable 等 | 数据 offer、drop target、Copy／Move 协商、预览、完成与取消，覆盖窗口内、同程序跨窗口及跨程序 |
+| 拖动 | 公共轴向 `Drag`；Window／AppKit metadata 协商与自有内容接收；UI DropArea 沿 Surface Accepted 输入路径接收、反馈和收尾 | source、预览与完成／取消、文本事务，及窗口内、同程序跨窗口、跨程序的真实系统会话；已验证范围见实施记录 |
 | 文本拖放 | 已有拖选和越界自动滚动 | 从选区发起数据拖动、落点 caret、移动／复制、编辑策略与撤销 |
 | 触摸／手势 | 鼠标指针及带相位的滚轮；控件已有部分鼠标拖动交互 | 独立 contact、取消、触摸滚动、长按、缩放／旋转等手势，以及既有控件接入 |
 | 视觉效果 | 动画、spring、部分控件回弹、主题 `Full／Reduced` | 通用滚动回弹、惯性来源去重、跟随系统减少动画；完善高对比度、缩放与命中体验 |
@@ -159,7 +159,7 @@ S0.3 本地原型已确认 AppKit 公开的 `NSTextView.defaultMenu` 可以在�
 
 首批标准内容为纯文本、URL 和真实文件列表；格式协商允许一个来源提供多个表示。Window 做实际 UTType／clipboard format／MIME 转换，不将进程内对象地址编码成跨进程数据。当前本地重排需要的条目 key 可以由 source 的正常会话上下文持有，不建立通用对象序列化或跨进程对象桥。
 
-AppKit 接收边界的正式类型、owner 与收尾见[Window 数据拖放规范](../../specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)。registerDropTarget 先提供 metadata offer 与 Drop 时自有内容的同步接收；替换、禁用、关闭及重入使旧协商失效。单项可协商文本／URL 多表示，文件列表完整接收，已协商 Move 不在 BOOL 接收阶段偷换 Copy。该入口不新增命中树，后续 UI 使用自己的 Accepted 场景；source、文本事务和三个范围的系统会话验收仍保持本节完整范围。
+AppKit 接收边界的正式类型、owner 与收尾见[Window 数据拖放规范](../../specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)。registerDropTarget 提供 metadata offer 与 Drop 时自有内容的同步接收；替换、禁用、关闭及重入使旧协商失效。单项可协商文本／URL 多表示，文件列表完整接收，已协商 Move 不在 BOOL 接收阶段偷换 Copy。[UI DropArea](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md) 借用当前挂载的 InputArea，通过 SurfaceWindow.hitInput 使用同一 Accepted 路径与局部坐标；业务拒绝只沿逻辑父链回退。UI 请求活动拖放更新，普通反馈不在 offer 栈中重建控件；Drop 确认最新接收资格且仅提交一次。source、文本事务和三个范围的系统会话验收仍保持本节完整范围。
 
 ### 6.2 路由、读取与完成
 

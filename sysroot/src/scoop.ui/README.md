@@ -91,6 +91,16 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 自定义滚动条可在同一挂载创建 ScrollBar 节点，并在正常 update 以及视口 Accepted 完成回调之后调用 `semantic.updateScrollBar(viewport, SemanticOrientation.Vertical, lineStep = 40.0)`；方向从 `scoop.window.accessibility` 导入，扩展函数位于 scoop.ui。文本编辑器的同名重载从 scoop.ui.text 导入，首参数为 TextEditHost，继续借用其原视口。范围来自真实 Accepted 快照，尚无范围或零范围时忽略条节点。动作沿原 ScrollState 的 User 请求，连续写入保留另一轴的待处理位置；换绑后旧回调不可操作新状态。滚动请求登记与位置呈现分别处理，视觉自动隐藏不移除逻辑能力。
 
+## 数据拖放接收
+
+macOS 的 `scope.dropTarget(area, DropAreaHandlers(offer, drop, leave), enabled = true)` 在当前挂载借用已有 InputArea，返回随 scope 关闭的 DropArea；同一区域同时只登记一个。offer／drop 的首参数复用 Window 的元数据／自有内容，第二参数为区域局部坐标。offer 只选择实际提供的格式与操作；drop 的 Boolean 表示已经实际接收，不能先排队再返回 true。
+
+每个 UI 根只有一个原生接收资源，沿自己的 Accepted 命中路径由子目标向逻辑父目标协商；拒绝不穿透无关兄弟。Drop 再确认目标、处理器、格式和局部落点，只调用选中的一个处理器，拒收不再向父目标转交。`DropArea.update` 替换处理器和 enabled，读取期间变化使旧提案失效。关闭 DropArea 不关闭所借区域，卸载自动清理，退休处理器不再接收 leave。
+
+`hover: DropHover?` 提供当前接收格式、操作与局部位置，可以在 render 或 scene 读取来绘制反馈。目标变化和正常结束清除旧值并通知仍存活目标；禁用后的 leave 在正常 UI 收尾时执行。UI 使用 AppKit 的活动拖放更新重新查询几何；无活动会话时不为拖放建立 timer 或持续请求帧。
+
+接口及边界见[UI 数据拖放规范](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md)，完整消费者见[接收示例](examples/drop-target/README.md)。示例把粘贴、键盘／语义 Press 与文本接收写入同一状态。普通逻辑测试见 [drop_routing.scoop](tests/drop_routing.scoop)；source、文本编辑事务、其他平台和三个范围的真实系统会话继续按 S6 推进，分层测试不能替代实窗验收。
+
 ## 自绘与资源
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。

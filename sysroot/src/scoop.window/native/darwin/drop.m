@@ -20,6 +20,7 @@ typedef struct {
 @property(nonatomic) SWDropCallback callback;
 @property(nonatomic) void *context;
 @property(nonatomic) BOOL enabled, closed, inside, inCallback, receiving;
+@property(nonatomic) BOOL periodic;
 @property(nonatomic) uint64_t revision;
 @property(nonatomic) NSInteger sequence;
 @property(nonatomic) int32_t choice;
@@ -194,7 +195,8 @@ static SWDropPayload *read_payload(NSPasteboard *board, int32_t format) {
   return [self draggingEntered:info];
 }
 - (BOOL)wantsPeriodicDraggingUpdates {
-  return NO;
+  SWDropTarget *target = self.dropTarget;
+  return !target.closed && target.enabled && target.periodic;
 }
 - (BOOL)prepareForDragOperation:(id<NSDraggingInfo>)info {
   @try {
@@ -294,6 +296,10 @@ void scoop_window_drop_update(void *pointer, int32_t enabled) {
 }
 void scoop_window_drop_leave(void *pointer) {
   [(__bridge SWDropTarget *)pointer finish];
+}
+void scoop_window_drop_periodic(void *pointer, int32_t enabled) {
+  SWDropTarget *target = (__bridge SWDropTarget *)pointer;
+  target.periodic = enabled != 0;
 }
 void scoop_window_drop_close(void *pointer) {
   SWDropTarget *target = (__bridge_transfer SWDropTarget *)pointer;

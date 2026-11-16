@@ -295,7 +295,11 @@ private class DropHandler: ApplicationHandler {
             case 11 -> target!!.enabled = false
             case 12 -> target!!.enabled = true
             case 13 -> target!!.enabled = true
-            case 17 -> target!!.enabled = true
+            case 17 -> {
+                target!!.enabled = true
+                target!!.periodicUpdates = true
+            }
+            case 18 -> target!!.periodicUpdates = false
             case 14 -> replaceClosedTarget()
             case 15 -> replaceClosedTarget()
             case 20 -> {

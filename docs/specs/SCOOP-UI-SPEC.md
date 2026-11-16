@@ -423,6 +423,8 @@ ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后�
 
 ### 7.3 输入与焦点接入
 
+数据拖放的区域登记、逻辑父链接收、反馈和同步完成见[UI 数据拖放规范](SCOOP-UI-DRAG-DROP-SPEC.md)；它借用本节 InputArea，独立于普通鼠标 capture 与失焦收尾。
+
 `ComponentScope.moveFocus(reverse: Boolean = false): Boolean` 从本作用域内当前逻辑焦点继续一次 Tab／Shift+Tab 遍历。没有本作用域内的有效焦点时返回 false；有效时从目标最近的 FocusScope 开始，沿用其 loop、父级续行、roving、lazy 显露、唯一 pending 与 FocusOrigin.Keyboard。它不合成键盘事件，不激活 OS 窗口，也不跨越当前焦点域；返回 true 表示请求已被接受。只能在逻辑／输入／完成回调阶段调用。菜单在 Portal 的 onClosed（焦点域已释放且正常恢复已尝试）中消费保存的 Tab 方向；新焦点已离开原 owner 时不抢回焦点。
 
 Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。

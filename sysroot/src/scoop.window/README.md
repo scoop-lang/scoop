@@ -48,7 +48,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 `PointerEvent.Button` 的最后一项是至少为 1 的连续点击次数，释放沿用对应按下的次数。AppKit／GTK 使用原生 count；Windows 按系统的时间、双击矩形和拖动容差补齐三击及更多次点击，正常释放鼠标捕获不打断序列。失焦、取消、按钮变化、超时、点击越界或实际拖动结束旧计数；不要在每个编辑控件再用固定时间／距离重算。底层计数定向测试位于 `tests-cones/clicks`，实际 Win32 和 GTK X11 输入用例分别位于 `tests-cones/input`、`test-linux`；平台通过范围见 [UI 实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 
-全屏控制／显示模式切换、全局 raw device、触摸／高级手势、光标捕获／自定义光标、文件拖放和复杂平台窗口交互属于后续范围。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+全屏控制／显示模式切换、全局 raw device、触摸／高级手势、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收入口，source 和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
 
 ## 系统交互偏好
 
@@ -128,7 +128,9 @@ Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 
 
 `DropTarget.handlers` 可替换，`enabled` 默认 true，修改后旧协商失效。禁用沿已有 owner 延迟通路结束 offer；正常离开／结束／Drop 收尾至多通知一次 leave，关闭不再调用业务 leave。拥有者在自身关闭时清除高亮。close 幂等，关窗自动关闭资源，旧原生引用不调用已退休 Context。所有资源访问遵守 Window owner；回调同步完成，不等待自身队列或递归 pump。
 
-正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。此入口当前只提供 AppKit 接收端；source、UI 路由、文本事务、Windows／Linux 和真实系统会话继续按交互打磨 S6 实现，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
+`periodicUpdates` 默认 false；设为 true 后，AppKit 在活动拖放期间继续请求 draggingUpdated，使内容或 Accepted 场景变化可以更新静止指针下的选择。禁用或关闭目标时不请求；切换此选项本身不撤销当前协商，也不创建空闲轮询。
+
+正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。此入口当前只提供 AppKit 接收端；UI 已通过 scope.dropTarget 接到自己的 Accepted 输入路由，见 [UI 接收示例](../scoop.ui/examples/drop-target/README.md)。source、文本事务、Windows／Linux 和真实系统会话继续按交互打磨 S6 实现，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
 
 ## 文本输入
 

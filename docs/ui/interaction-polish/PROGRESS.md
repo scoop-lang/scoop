@@ -256,3 +256,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 同步 Window 拖放规范、主规范、设计、计划、README 与编程导航，局部 Markdown 链接核查通过；临时 API 站点清理，保留开发产物和共享缓存。
 
 本批仅交付 AppKit 接收边界。source、Surface／UI 路由、文本事务、三个范围的真实 dragging session、独立进程双向操作及其他平台仍按 S6 推进，不把进程内协议方法调用记成系统会话验收。
+
+### UI 拖放接收与 Accepted 命中查询
+
+- SurfaceWindow.hitInput 返回同一 Accepted 输入场景的前景路径与冻结局部坐标，复用真实路径／裁剪／变换和 AllInput 资格；不跟随普通 capture，不派发事件或改变焦点。三个 InputHitTest 实际通过，覆盖离屏 Skia 几何、孔洞、Discarded、当前资格与模态边界。
+- UI 的 scope.dropTarget 借用挂载已有 InputArea，按需创建每根唯一的 AppKit 接收资源；候选只沿逻辑父链回退，Drop 重新确认落点与处理器修订，接收后自关仍保留实际结果。DropHover 可追踪读取，禁用／卸载／关窗清理反馈，offer 不在同步查询中重建控件。
+- 新 UiDropRoutingTest 用两个真实隐藏窗口和真实挂载，实际通过父目标回退、不穿透兄弟、格式／操作拒绝、处理器更换、模态、数据不匹配、禁用延迟 leave、借用资源、自关及根错误收尾。此测试直接提供候选路径，不声称覆盖实际窗口命中；也断言隐藏窗口未进入 measure／scene。
+- Window 增加默认关闭的 periodicUpdates，UI 请求 AppKit 活动拖放更新；切换不使协商失效，禁用／关闭不请求。原 24 阶段 destination 测试加入此选项后再次实际通过。
+- 新增 [drop-target 示例](../../../sysroot/src/scoop.ui/examples/drop-target/README.md)，完整 release 检查与链接通过。它包含文本／URL 子区域、文件父目标、当前反馈及接收结果；粘贴、键盘／语义 Press 和文本接收进入同一业务状态，实际 FocusTarget 和文本结果进入原语义树。
+- 14 个 Scoop 文件及 2 个 native 文件的格式检查、Objective-C 严格编译通过；Surface／UI 含测试检查及 Window→Surface→UI 的开发 release 产物完成更新。API 文档及查询核对 hitInput、InputHit、periodicUpdates、dropTarget、DropArea／handlers／hover 的签名、访问器、默认值和导入路径；规范、设计、计划、README 和编程导航同步，局部 Markdown 目标检查通过。
+
+本批的实际桌面 Accepted 接收、外部 dragging session、VoiceOver 操作及其他平台尚未验收；原生协议方法、离屏几何、挂载逻辑与示例构建分别记录，不能互相替代。source、文本事务及三个范围的双向系统会话仍按 S6 继续。临时 API 站点清理，保留后续需要的开发产物与共享缓存。
