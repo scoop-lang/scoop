@@ -64,6 +64,7 @@ private class AccessibilityHandler: ApplicationHandler {
     private var value = "alpha"
     private val leases = ArrayList<HeldWindow>()
     private var callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>? = None
+    private var scroll: AccessibilityScrollProbe? = None
 
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -77,7 +78,12 @@ private class AccessibilityHandler: ApplicationHandler {
                             foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
                                 {
                                     operation: Int, result: Int ->
-                                    proxy.post { _ -> complete(operation, result) }
+                                    proxy.post {
+                                        _ -> if (operation < 0)
+                                            completeScroll(-operation - 1, result)
+                                        else
+                                            complete(operation, result)
+                                    }
                                     0
                                 },
                                 0,
@@ -89,7 +95,8 @@ private class AccessibilityHandler: ApplicationHandler {
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(12L))
                 )
-                post(0)
+                scroll = Some(AccessibilityScrollProbe(provider!!, currentView()))
+                scroll!!.post(0, callback!!)
             }
             case Window(val id, WindowEvent.Closing) -> {
                 for (held in leases)
@@ -204,6 +211,16 @@ private class AccessibilityHandler: ApplicationHandler {
         button!!.geometry = Some(SemanticGeometry(rect(10.0, 20.0, 40.0, 30.0)))
         tree.publish()
         assertEquals(0, presses)
+    }
+
+    private fun completeScroll(phase: Int, result: Int) {
+        if (scroll!!.complete(phase, result))
+            scroll!!.post(phase + 1, callback!!)
+        else {
+            scroll!!.close()
+            scroll = None
+            post(0)
+        }
     }
 
     private fun updateButton(name: String) {
@@ -401,6 +418,8 @@ private class AccessibilityHandler: ApplicationHandler {
     }
 
     fun release() {
+        scroll?.close()
+        scroll = None
         @Unsafe
         {
             when (probe) {

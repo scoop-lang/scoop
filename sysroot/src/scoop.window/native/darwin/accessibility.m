@@ -257,7 +257,8 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
   if (!same(old.name, next.name))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityTitleChangedNotification);
-  if (((old.data.flags ^ next.data.flags) & SWAXRequired) ||
+  if (old.data.scroll_orientation != next.data.scroll_orientation ||
+      ((old.data.flags ^ next.data.flags) & SWAXRequired) ||
       old.data.actions != next.data.actions || !same(old.help, next.help) ||
       !same(old.error, next.error) ||
       ![old.labels isEqualToArray:next.labels] ||
@@ -266,6 +267,9 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityLayoutChangedNotification);
   if (!same(old.value, next.value) || old.data.checked != next.data.checked ||
+      old.data.scroll_offset != next.data.scroll_offset ||
+      old.data.scroll_viewport != next.data.scroll_viewport ||
+      old.data.scroll_content != next.data.scroll_content ||
       (old.data.flags & ~SWAXRequired) != (next.data.flags & ~SWAXRequired))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityValueChangedNotification);

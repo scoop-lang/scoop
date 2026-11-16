@@ -89,6 +89,8 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、复杂控件关系、完整文本查询、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
+自定义滚动条可在同一挂载创建 ScrollBar 节点，并在正常 update 以及视口 Accepted 完成回调之后调用 `semantic.updateScrollBar(viewport, SemanticOrientation.Vertical, lineStep = 40.0)`；方向从 `scoop.window.accessibility` 导入，扩展函数位于 scoop.ui。文本编辑器的同名重载从 scoop.ui.text 导入，首参数为 TextEditHost，继续借用其原视口。范围来自真实 Accepted 快照，尚无范围或零范围时忽略条节点。动作沿原 ScrollState 的 User 请求，连续写入保留另一轴的待处理位置；换绑后旧回调不可操作新状态。滚动请求登记与位置呈现分别处理，视觉自动隐藏不移除逻辑能力。
+
 ## 自绘与资源
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。

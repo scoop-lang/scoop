@@ -148,6 +148,8 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 `scrollArea(content) { state = Some(scroll); height = Some(240.0) }` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。offset 只发布最近 Accepted 的画面位置，wheel、拖动及翻页通过 `scroll.observeIntent` 交付 User 来源；整个内容树保持挂载，滚动不重建其描述。
 
+macOS 的 ScrollArea 与 VirtualList 使用 `semantics = ComponentSemantics(name = Some("内容"), automationId = Some("content"))` 覆盖容器名称和标识。共享滚动控制发布 ScrollArea 节点，内容后代保留自己的语义；VirtualList 的完整虚拟集合能力仍在实施。每个非零滚动轴提供实际 ScrollBar 范围、位置写入与增减动作；Input／Textarea 的轴沿同一编辑器视口，readOnly 不禁止滚动。视觉 Hidden 或闲置淡出不退休逻辑轴，只有实际呈现的条才发布自己的几何。范围来自 Accepted 快照，重新绑定先撤下旧范围。原生进程内和实窗验证分别见 [组件语义测试](tests-cones/accessibility/README.md)与[滚动场景](tests-cones/scroll-accessibility/README.md)。
+
 `ScrollArea`、`VirtualList`、`Textarea` 和 `MessageScroller` 共用 `scrollbarBehavior { ... }`。默认 FollowSystem 跟随根的自动隐藏偏好，未知时保持常显；Static 使用固定反馈，Custom 提供自动隐藏预设。`scrollbars = ScrollbarVisibility.Auto` 只判断原始正文是否溢出。比如：
 
 ```scoop

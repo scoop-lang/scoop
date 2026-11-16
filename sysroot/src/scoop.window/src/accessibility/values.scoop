@@ -20,7 +20,7 @@ public class SemanticNodeId internal constructor(
 
 /** Roles implemented by the initial native content provider. */
 public enum SemanticRole {
-    Group, Text, Button, Checkbox, TextField, ScrollArea
+    Group, Text, Button, Checkbox, TextField, ScrollArea, ScrollBar
 }
 
 public enum SemanticChecked {
@@ -41,10 +41,13 @@ public struct SemanticProperties(
     val error: String? = None,
     val ignored: Boolean = false,
     val selection: Utf8Selection? = None,
-    val required: Boolean = false
+    val required: Boolean = false,
+    val scroll: SemanticScrollRange? = None
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")
+        scroll?.check()
+        requireWindow(scroll == None || value == None, "scroll ranges cannot publish text values")
         when (selection) {
             case Some(val selected) -> {
                 requireWindow(
@@ -136,7 +139,10 @@ public struct SemanticActions(
     val focus: ((Boolean) -> SemanticActionResult)? = None,
     val setSelection: ((Utf8Selection) -> SemanticActionResult)? = None,
     val replaceText: ((Utf8Range, String) -> SemanticActionResult)? = None,
-    val showContextMenu: (() -> SemanticActionResult)? = None
+    val showContextMenu: (() -> SemanticActionResult)? = None,
+    val setScrollPosition: ((Double) -> SemanticActionResult)? = None,
+    val scrollBackward: (() -> SemanticActionResult)? = None,
+    val scrollForward: (() -> SemanticActionResult)? = None
 ) {
     internal val capabilities: Int get() {
         var result = 0
@@ -166,6 +172,18 @@ public struct SemanticActions(
         }
         when (showContextMenu) {
             case Some(_) -> result += 64;
+            case None -> {}
+        }
+        when (setScrollPosition) {
+            case Some(_) -> result += 128;
+            case None -> {}
+        }
+        when (scrollBackward) {
+            case Some(_) -> result += 256;
+            case None -> {}
+        }
+        when (scrollForward) {
+            case Some(_) -> result += 512;
             case None -> {}
         }
         return result

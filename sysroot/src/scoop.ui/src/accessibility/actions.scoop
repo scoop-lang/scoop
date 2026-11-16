@@ -55,6 +55,23 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
             case Some(val action) -> Some { handle.controller.perform(handle, action) }
             case None -> None
         }
+    val position: ((Double) -> SemanticActionResult)? =
+        when (actions.setScrollPosition) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> None
+        }
+    val backward: (() -> SemanticActionResult)? =
+        when (actions.scrollBackward) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    val forward: (() -> SemanticActionResult)? =
+        when (actions.scrollForward) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
     return SemanticActions(
         invoke,
         toggle,
@@ -62,7 +79,10 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
         focus,
         setSelection,
         replaceText,
-        showContextMenu
+        showContextMenu,
+        position,
+        backward,
+        forward
     )
 }
 

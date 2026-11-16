@@ -1,0 +1,166 @@
+package scoop.tests.window.accessibility
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal class AccessibilityScrollProbe(
+    private val provider: AccessibilityProvider,
+    view: Ptr<Unit>
+): Closeable {
+    private val group = provider.createNode(SemanticRole.ScrollArea)
+    private val bar = provider.createNode(SemanticRole.ScrollBar, Some(group))
+    private var offset = 40.0
+    private var mode = 0
+    private var writes = 0
+    private var increments = 0
+    private val geometry =
+        SemanticGeometry(LogicalRect(LogicalPosition(280.0, 10.0), LogicalSize(10.0, 120.0)))
+    private var revision = 0UL
+    private var pointer: Ptr<Unit>? = None
+
+    init {
+        group.update(SemanticProperties(automationId = Some("scroll-container")))
+        update()
+        bar.geometry = Some(geometry)
+        revision = bar.contentRevision
+        assertFailsWith<IllegalArgumentException> {
+            bar.update(
+                SemanticProperties(
+                    scroll =
+                        Some(SemanticScrollRange(SemanticOrientation.Vertical, 201.0, 60.0, 260.0))
+                )
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            group.update(
+                SemanticProperties(
+                    scroll =
+                        Some(SemanticScrollRange(SemanticOrientation.Vertical, 0.0, 60.0, 260.0))
+                )
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            bar.update(
+                SemanticProperties(
+                    scroll =
+                        Some(SemanticScrollRange(SemanticOrientation.Vertical, 0.0, -1.0, 260.0))
+                )
+            )
+        }
+        provider.publish()
+        @Unsafe
+        {
+            pointer = Some(nativeScrollOpen(view))
+        }
+    }
+
+    private fun update() {
+        val range =
+            when (mode) {
+                case 4 -> None
+                case 5 -> Some(
+                    SemanticScrollRange(SemanticOrientation.Horizontal, 0.0, 100.0, 50.0)
+                )
+                else -> Some(SemanticScrollRange(SemanticOrientation.Vertical, offset, 60.0, 260.0))
+            }
+        val actions =
+            if (mode >= 4)
+                SemanticActions()
+            else
+                SemanticActions(
+                    setScrollPosition =
+                        Some {
+                            position ->
+                            writes += 1
+                            offset = position * 200.0
+                            update()
+                            SemanticActionResult.Completed
+                        },
+                    scrollBackward =
+                        Some { fail(Some("unavailable decrement entered business code")) },
+                    scrollForward =
+                        Some {
+                            increments += 1
+                            offset += 20.0
+                            update()
+                            SemanticActionResult.Completed
+                        }
+                )
+        bar.update(
+            SemanticProperties(
+                automationId = Some("scroll-axis"),
+                enabled = mode != 2,
+                readOnly = mode == 1,
+                ignored = mode == 3,
+                scroll = range
+            ),
+            actions
+        )
+    }
+
+    fun post(phase: Int, callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>) {
+        @Unsafe
+        {
+            nativeScrollPost(pointer!!, phase, callback.function, callback.context)
+        }
+    }
+
+    fun complete(phase: Int, result: Int): Boolean {
+        assertEquals(0, result, Some("native/scroll.m returned a failed contract line"))
+        assertEquals(1, increments)
+        assertEquals(
+            if (phase == 0)
+                0
+            else
+                1,
+            writes
+        )
+        if (phase < 8) {
+            assertEquals(revision, bar.contentRevision)
+            assertEquals(Some(geometry), bar.geometry)
+        }
+        when (phase) {
+            case 0 -> assertEquals(60.0, offset)
+            case 1 -> assertEquals(150.0, offset)
+            case 2 -> mode = 1
+            case 3 -> mode = 2
+            case 4 -> mode = 3
+            case 5 -> mode = 4
+            case 6 -> mode = 5
+            case 7 -> group.close()
+            case 8 -> return false
+            else -> fail(Some("unexpected scroll semantics phase"))
+        }
+        if (phase < 7)
+            update()
+        provider.publish()
+        return true
+    }
+
+    public override fun close() {
+        group.close()
+        when (pointer) {
+            case Some(val value) -> @Unsafe
+            {
+                nativeScrollClose(value)
+            }
+            case None -> {}
+        }
+        pointer = None
+    }
+}
+
+@Extern(name = "scoop_ax_scroll_open")
+private fun nativeScrollOpen(view: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_ax_scroll_post")
+private fun nativeScrollPost(
+    probe: Ptr<Unit>,
+    phase: Int,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+)
+
+@Extern(name = "scoop_ax_scroll_close")
+private fun nativeScrollClose(probe: Ptr<Unit>)

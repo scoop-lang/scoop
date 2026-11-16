@@ -5,15 +5,16 @@
 
 typedef int32_t (*SWAccessibilityCallback)(void *, int64_t, int32_t,
                                            const uint8_t *, int64_t, int64_t,
-                                           int64_t, uint64_t);
+                                           int64_t, uint64_t, double);
 
 typedef struct {
   int64_t number, parent, order, scene_order;
   uint64_t content_revision;
   int64_t anchor, cursor;
-  int32_t role, flags, actions, checked, geometry, visible;
+  int32_t role, flags, actions, checked, geometry, visible, scroll_orientation;
   double x, y, width, height;
   double visible_x, visible_y, visible_width, visible_height;
+  double scroll_offset, scroll_viewport, scroll_content;
 } SWAccessibilityData;
 
 typedef struct {
@@ -55,6 +56,10 @@ enum {
 @property(nonatomic) BOOL retired;
 - (SWAccessibilityState *)state;
 - (int32_t)perform:(int32_t)action text:(NSString *)text range:(NSRange)range;
+- (int32_t)perform:(int32_t)action
+              text:(NSString *)text
+             range:(NSRange)range
+          position:(double)position;
 @end
 
 @interface SWAccessibilityNode (Text)

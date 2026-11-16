@@ -19,7 +19,9 @@ public fun Window.createAccessibilityProvider(): AccessibilityProvider {
     @Unsafe
     {
         val callback =
-            foreignCallback<(Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong) -> Int>(
+            foreignCallback<
+                (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int
+            >(
                 {
                     number: Long,
                     action: Int,
@@ -27,7 +29,8 @@ public fun Window.createAccessibilityProvider(): AccessibilityProvider {
                     length: Long,
                     anchor: Long,
                     cursor: Long,
-                    revision: ULong -> actionCode(
+                    revision: ULong,
+                    position: Double -> actionCode(
                         application.performAccessibility {
                             val value =
                                 if (action == 2 || action == 6)
@@ -39,7 +42,8 @@ public fun Window.createAccessibilityProvider(): AccessibilityProvider {
                                 action,
                                 value,
                                 Utf8Selection(anchor, cursor),
-                                revision
+                                revision,
+                                position
                             )
                         }
                     )
@@ -82,7 +86,7 @@ private class DarwinAccessibilityProjection(
     private val application: ApplicationOwner,
     private val pointer: Ptr<Unit>,
     private val callback: ForeignCallback<
-        (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong) -> Int
+        (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int
     >
 ): AccessibilityProjection {
     public override fun publish(
@@ -223,7 +227,8 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             case Button -> 2;
             case Checkbox -> 3;
             case TextField -> 4;
-            case ScrollArea -> 5
+            case ScrollArea -> 5;
+            case ScrollBar -> 6
         },
         flag(value.enabled) +
             2 *
@@ -247,6 +252,11 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
         },
         flag(node.placement != None),
         flag(visibleRect.size.width > 0.0 && visibleRect.size.height > 0.0),
+        when (value.scroll?.orientation) {
+            case Some(Horizontal) -> 1;
+            case Some(Vertical) -> 2;
+            case None -> 0
+        },
         bounds.origin.x,
         bounds.origin.y,
         bounds.size.width,
@@ -254,7 +264,10 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
         visibleRect.origin.x,
         visibleRect.origin.y,
         visibleRect.size.width,
-        visibleRect.size.height
+        visibleRect.size.height,
+        value.scroll?.offset ?: 0.0,
+        value.scroll?.viewport ?: 0.0,
+        value.scroll?.content ?: 0.0
     )
 }
 
@@ -273,6 +286,7 @@ private struct NativeSemanticNode(
     val checked: Int,
     val geometry: Int,
     val visible: Int,
+    val scrollOrientation: Int,
     val x: Double,
     val y: Double,
     val width: Double,
@@ -280,13 +294,16 @@ private struct NativeSemanticNode(
     val visibleX: Double,
     val visibleY: Double,
     val visibleWidth: Double,
-    val visibleHeight: Double
+    val visibleHeight: Double,
+    val scrollOffset: Double,
+    val scrollViewport: Double,
+    val scrollContent: Double
 )
 
 @Extern(name = "scoop_window_accessibility_create")
 private fun nativeAccessibilityCreate(
     window: Ptr<Unit>,
-    callback: FunPtr<(Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong) -> Int>,
+    callback: FunPtr<(Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int>,
     context: Ptr<Unit>
 ): NativeCreateResult
 

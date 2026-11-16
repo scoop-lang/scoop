@@ -1,0 +1,24 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.Orientation
+import scoop.window.accessibility.*
+
+internal fun scrollSemanticOrientation(value: Orientation): SemanticOrientation =
+    if (value == Orientation.Horizontal)
+        SemanticOrientation.Horizontal
+    else
+        SemanticOrientation.Vertical
+
+internal fun scrollBarProperties(
+    value: ScrollControlProps,
+    orientation: Orientation
+): SemanticProperties =
+    SemanticProperties(
+        enabled = value.enabled,
+        ignored =
+            if (orientation == Orientation.Horizontal)
+                !value.axes.horizontal
+            else
+                !value.axes.vertical
+    )

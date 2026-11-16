@@ -37,6 +37,7 @@ private class ComponentSemanticsTest {
 
 internal class ControlsProbe: Closeable {
     val fields = FieldSemanticsProbe()
+    val scrollState = ScrollState()
     val caption = state("Save")
     val name = state<String?>(None)
     val labelName = state<String?>(None)
@@ -79,6 +80,7 @@ internal class ControlsProbe: Closeable {
     private var rich: NativeNode? = None
     private var input: NativeNode? = None
     private var textarea: NativeNode? = None
+    private var scroller: NativeNode? = None
     private var outer: NativeNode? = None
     private var inner: NativeNode? = None
     private var selectable: NativeNode? = None
@@ -122,6 +124,7 @@ internal class ControlsProbe: Closeable {
                 rich = Some(find("rich"))
                 input = Some(find("input"))
                 textarea = Some(find("textarea"))
+                scroller = Some(find("scroller"))
                 outer = Some(find("outer"))
                 inner = Some(find("inner"))
                 selectable = Some(find("selectable"))
@@ -151,6 +154,10 @@ internal class ControlsProbe: Closeable {
         assertTrue(input!!.text(5, Some("Hint")))
         assertTrue(textarea!!.text(0, None))
         assertTrue(textarea!!.text(1, Some("One\nTwo")))
+        assertTrue(scroller!!.text(2, Some("AXScrollArea")))
+        assertTrue(scroller!!.text(0, Some("Save")))
+        assertFalse(scroller!!.flag(12))
+        assertFalse(scroller!!.flag(13))
         version.value = 7
         afterUpdate {
             assertEquals(0, measures)
@@ -159,6 +166,7 @@ internal class ControlsProbe: Closeable {
             assertEquals(0L, button!!.count)
             assertEquals(1L, outer!!.count)
             assertEquals(0L, input!!.count)
+            assertEquals(1L, scroller!!.count)
             assertFalse(input!!.flag(8))
             assertTrue(selectable!!.text(0, Some("Read only")))
             assertTrue(selectable!!.text(1, Some("A😀图Z")))
@@ -327,6 +335,7 @@ internal class ControlsProbe: Closeable {
                     fields.checkRetired()
                     assertFalse(input!!.flag(0))
                     assertFalse(checkbox!!.flag(0))
+                    assertFalse(scroller!!.flag(0))
                     calls!!.post(outer!!, 18)
                 }
             }

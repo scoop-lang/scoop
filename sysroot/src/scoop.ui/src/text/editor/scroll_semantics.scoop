@@ -1,0 +1,16 @@
+package scoop.ui.text
+
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+/** Borrows the existing editor viewport; editing and scrolling keep separate actions. */
+public fun SemanticsHandle.updateScrollBar(
+    host: TextEditHost,
+    orientation: SemanticOrientation,
+    lineStep: Double = 40.0,
+    properties: SemanticProperties = SemanticProperties(),
+    relations: SemanticRelations = SemanticRelations()
+) {
+    host.checkOpen()
+    updateScrollBar(host.viewport, orientation, lineStep, properties, relations)
+}

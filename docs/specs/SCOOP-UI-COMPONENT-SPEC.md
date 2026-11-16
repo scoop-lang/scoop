@@ -42,7 +42,11 @@ Label、Button、Checkbox、Input／Textarea、SelectableStyledText 与 Typograp
 
 语义资源在构造时创建并由 scope 自动释放，属性由正常 update 发布；场景只登记真实表面／文本区域，使用 UI 的 Accepted 几何合同。Button／Checkbox 的后代绘制 Element 可登记由祖先 Component 拥有的 handle，真实 FocusTarget 仍由原挂载拥有。不为语义另建 Press、输入区域、焦点目标或文本模型。复用 LabelProps／ButtonProps／InputProps／TextareaProps 的包装和显示比较必须传递并比较覆盖值，不能把纯名称或关系更新吞掉。
 
-其他控件、表单关系、滚动语义与完整平台验收继续按[交互与无障碍计划](../ui/interaction-polish/PLAN.md)推进；本节不把基础控件接入等同于全控件或外部辅助技术验收。
+ScrollAreaProps／ScrollAreaBuilder 与 VirtualListProps／VirtualListBuilder 同样提供 ComponentSemantics。共享 ScrollControl 创建 ScrollArea 节点，绑定原焦点目标并路由内容后代；虚拟列表的集合语义继续按 S7 接入，不把滚动容器当作完整集合。每个真实轴由原 ScrollBarControl 持有 ScrollBar 子节点；Input／Textarea 的条归入原 TextField 节点。范围与增减／位置动作使用 UI 的 updateScrollBar 和原 ScrollViewport／TextEditHost，不创建第二份滚动状态或 Tab 目标。
+
+条在正常 update 和视口 Accepted 回调之后更新范围、enabled 与动作；被禁用的轴和零范围退出阅读树，恢复使用原身份。Auto／Always／Hidden、闲置淡出及 hover 只决定实际条的外观和几何，不移除非零范围的滚动能力。条的 Scene 登记只使用实际绘制区域；未绘制时仍可操作逻辑轴，但没有条的点击位置。绑定变化撤下旧范围，位置发布不等待名称或文本改变；读写与普通滚动共用请求和意图规则。
+
+其余控件、完整表单状态、Reveal 与平台验收继续按[交互与无障碍计划](../ui/interaction-polish/PLAN.md)推进；本节不把基础控件接入等同于全控件或外部辅助技术验收。
 
 ## 2. 控件与使用入口
 

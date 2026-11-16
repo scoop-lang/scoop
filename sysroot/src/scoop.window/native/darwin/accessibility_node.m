@@ -33,7 +33,8 @@
   NSAccessibilityRole roles[] = {
       NSAccessibilityGroupRole,     NSAccessibilityStaticTextRole,
       NSAccessibilityButtonRole,    NSAccessibilityCheckBoxRole,
-      NSAccessibilityTextFieldRole, NSAccessibilityScrollAreaRole};
+      NSAccessibilityTextFieldRole, NSAccessibilityScrollAreaRole,
+      NSAccessibilityScrollBarRole};
   return roles[state.data.role];
 }
 - (NSString *)accessibilitySubrole {
@@ -103,7 +104,50 @@
   SWAccessibilityState *state = self.state;
   if (!state || (state.data.flags & SWAXProtected))
     return nil;
+  if (state.data.scroll_orientation) {
+    double maximum =
+        fmax(state.data.scroll_content - state.data.scroll_viewport, 0);
+    return @(maximum > 0 ? state.data.scroll_offset / maximum : 0);
+  }
   return state.data.checked >= 0 ? @(state.data.checked) : state.value;
+}
+- (id)accessibilityMinValue {
+  return self.state.data.scroll_orientation ? @0.0 : nil;
+}
+- (id)accessibilityMaxValue {
+  SWAccessibilityData data = self.state.data;
+  return data.scroll_orientation
+             ? @(data.scroll_content > data.scroll_viewport ? 1.0 : 0.0)
+             : nil;
+}
+- (NSAccessibilityOrientation)accessibilityOrientation {
+  switch (self.state.data.scroll_orientation) {
+  case 1:
+    return NSAccessibilityOrientationHorizontal;
+  case 2:
+    return NSAccessibilityOrientationVertical;
+  default:
+    return NSAccessibilityOrientationUnknown;
+  }
+}
+- (id)scrollBarWithOrientation:(int32_t)orientation {
+  if (!self.isAccessibilityElement)
+    return nil;
+  for (NSNumber *number in self.tree.children[@(self.number)]) {
+    SWAccessibilityState *state = self.tree.published[number];
+    if (state.data.role == 6 && state.data.scroll_orientation == orientation) {
+      SWAccessibilityNode *bar = [self.tree element:number.longLongValue];
+      if (bar.isAccessibilityElement)
+        return bar;
+    }
+  }
+  return nil;
+}
+- (id)accessibilityHorizontalScrollBar {
+  return [self scrollBarWithOrientation:1];
+}
+- (id)accessibilityVerticalScrollBar {
+  return [self scrollBarWithOrientation:2];
 }
 - (BOOL)isAccessibilityEnabled {
   SWAccessibilityState *state = self.state;
@@ -232,6 +276,12 @@
   return [self perform:action text:text range:NSMakeRange(NSNotFound, 0)];
 }
 - (int32_t)perform:(int32_t)action text:(NSString *)text range:(NSRange)range {
+  return [self perform:action text:text range:range position:0];
+}
+- (int32_t)perform:(int32_t)action
+              text:(NSString *)text
+             range:(NSRange)range
+          position:(double)position {
   SWAccessibilityTree *tree = self.tree;
   SWAccessibilityState *state = self.state;
   if (!state || tree.closed || !tree.callback)
@@ -255,7 +305,7 @@
   void *context = tree.context;
   return callback(context, self.number, action, bytes.bytes,
                   text ? (int64_t)bytes.length : -1, anchor, cursor,
-                  state.data.content_revision);
+                  state.data.content_revision, position);
 }
 - (BOOL)accessibilityPerformPress {
   SWAccessibilityState *state = self.state;
@@ -268,11 +318,28 @@
 }
 - (void)setAccessibilityValue:(id)value {
   SWAccessibilityState *state = self.state;
+  if (state.data.scroll_orientation) {
+    if ((state.data.actions & 128) && !(state.data.flags & SWAXReadOnly) &&
+        [value isKindOfClass:NSNumber.class])
+      [self perform:8
+               text:nil
+              range:NSMakeRange(NSNotFound, 0)
+           position:[value doubleValue]];
+    return;
+  }
   if (!state || !(state.data.actions & 4) ||
       (state.data.flags & SWAXReadOnly) ||
       ![value isKindOfClass:NSString.class])
     return;
   [self perform:2 text:value];
+}
+- (BOOL)accessibilityPerformDecrement {
+  return self.state.data.scroll_orientation &&
+         (self.state.data.actions & 256) && [self perform:9 text:nil] == 1;
+}
+- (BOOL)accessibilityPerformIncrement {
+  return self.state.data.scroll_orientation &&
+         (self.state.data.actions & 512) && [self perform:10 text:nil] == 1;
 }
 - (BOOL)accessibilityPerformShowMenu {
   if (!(self.state.data.actions & 64))
@@ -293,8 +360,23 @@
     return self.isAccessibilityEnabled &&
            (state.data.actions & (state.data.role == 3 ? 3 : 1)) != 0;
   if (selector == @selector(setAccessibilityValue:))
-    return self.isAccessibilityEnabled && (state.data.actions & 4) &&
+    return self.isAccessibilityEnabled &&
+           (state.data.actions & (state.data.scroll_orientation ? 128 : 4)) &&
            !(state.data.flags & SWAXReadOnly);
+  if (selector == @selector(accessibilityMinValue) ||
+      selector == @selector(accessibilityMaxValue) ||
+      selector == @selector(accessibilityOrientation))
+    return self.isAccessibilityElement && state.data.scroll_orientation;
+  if (selector == @selector(accessibilityHorizontalScrollBar))
+    return self.accessibilityHorizontalScrollBar != nil;
+  if (selector == @selector(accessibilityVerticalScrollBar))
+    return self.accessibilityVerticalScrollBar != nil;
+  if (selector == @selector(accessibilityPerformDecrement) ||
+      selector == @selector(accessibilityPerformIncrement))
+    return self.isAccessibilityEnabled && state.data.scroll_orientation &&
+           !(state.data.flags & SWAXReadOnly) &&
+           (state.data.actions &
+            (selector == @selector(accessibilityPerformDecrement) ? 256 : 512));
   if (selector == @selector(setAccessibilityFocused:))
     return self.isAccessibilityEnabled && (state.data.actions & 8);
   if (selector == @selector(accessibilityPerformShowMenu))

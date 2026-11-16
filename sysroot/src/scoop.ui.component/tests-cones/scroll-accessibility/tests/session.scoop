@@ -1,0 +1,228 @@
+package scoop.tests.ui.scroll.accessibility
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ScrollAccessibilityTest {
+    @Test
+    fun `accepted scrollbars expose actual offsets across hidden chrome rebinding and readonly text`() {
+        val probe = ScrollProbe()
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(probe.finished)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class ScrollProbe: Closeable {
+    val first = ScrollState()
+    val second = ScrollState(Point(20.0, 30.0))
+    val replace = state(false)
+    val enabled = state(true)
+    val showBars = state(false)
+    val current: ScrollState get() =
+        if (replace.value)
+            second
+        else
+            first
+    private val text = "One\nTwo\nThree\nFour\nFive\nSix\nSeven\nEight\nNine\nTen"
+    val editor = TextEditorState(text)
+    var finished = false
+    private var phase = 0
+    private var frames = 0
+    private var nextFrame = 1
+    private var waiting = false
+    private var firstFinal = Point(0.0, 0.0)
+    private var application: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var horizontal: NativeNode? = None
+    private var vertical: NativeNode? = None
+    private var textBar: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val held = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application = Some(active)
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop scroll accessibility"
+                            size = LogicalSize(240.0, 240.0)
+                            requestActivation = false
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { scope -> ScrollRoot(this, scope) })
+                @Unsafe
+                {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        tree = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                calls = Some(NativeCalls(active.proxy()) { tag, result -> completed(tag, result) })
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(25L))
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"scroll accessibility phase ${phase} timed out")
+            )
+            else -> {}
+        }
+    }
+
+    fun accepted() {
+        frames += 1
+        assertTrue(application!!.proxy().post { _ -> check() })
+    }
+    private fun hold(node: NativeNode): NativeNode {
+        held.add(node);
+        return node
+    }
+    private fun send(node: NativeNode, tag: Int, action: Int, value: String = "") {
+        waiting = true
+        calls!!.post(node, tag, action, value)
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(
+            if (tag == 3 || tag == 6)
+                0
+            else
+                1,
+            result
+        )
+        waiting = false
+        if (tag == 6) {
+            finished = true
+            window!!.requestDestroy()
+            application!!.requestExit()
+            return
+        }
+        if (tag == 3) {
+            assertEquals(firstFinal, first.offset)
+            enabled.value = true
+            replace.value = true
+            phase = 7
+            nextFrame = frames + 1
+        }
+        check()
+    }
+    private fun check() {
+        if (finished || waiting || frames < nextFrame || !current.hasSnapshot)
+            return
+        when (phase) {
+            case 0 -> {
+                val container = hold(tree!!.find("scroll")!!)
+                horizontal = Some(hold(container.scrollBar(false)!!))
+                vertical = Some(hold(container.scrollBar(true)!!))
+                assertEquals(0.0, horizontal!!.scrollPosition)
+                assertEquals(0.0, vertical!!.scrollPosition)
+                assertFalse(horizontal!!.flag(2))
+                assertFalse(vertical!!.flag(2))
+                phase = 1
+                send(vertical!!, 0, 10)
+            }
+            case 1 -> {
+                if (first.offset.y != 40.0)
+                    return
+                assertEquals(0.2, vertical!!.scrollPosition)
+                phase = 2
+                send(horizontal!!, 1, 9, "0.5")
+            }
+            case 2 -> {
+                if (first.offset.x != 80.0)
+                    return
+                assertEquals(Point(80.0, 40.0), first.offset)
+                assertEquals(0.5, horizontal!!.scrollPosition)
+                showBars.value = true
+                phase = 3
+                nextFrame = frames + 1
+            }
+            case 3 -> {
+                assertTrue(horizontal!!.flag(2))
+                assertTrue(vertical!!.flag(2))
+                phase = 4
+                send(vertical!!, 2, 9, "0.75")
+            }
+            case 4 -> {
+                if (first.offset.y != first.maximum.y * 0.75)
+                    return
+                assertEquals(0.75, vertical!!.scrollPosition)
+                firstFinal = first.offset
+                enabled.value = false
+                phase = 5
+                nextFrame = frames + 1
+            }
+            case 5 -> {
+                assertFalse(vertical!!.flag(1))
+                phase = 6
+                send(vertical!!, 3, 10)
+            }
+            case 6 -> {}
+            case 7 -> {
+                assertFalse(first.isAttached)
+                assertTrue(second.isAttached)
+                assertTrue(vertical!!.flag(0))
+                assertEquals(Point(20.0, 30.0), second.offset)
+                phase = 8
+                send(vertical!!, 4, 9, "0.25")
+            }
+            case 8 -> {
+                if (second.offset.y != second.maximum.y * 0.25)
+                    return
+                assertEquals(firstFinal, first.offset)
+                assertEquals(Point(20.0, second.maximum.y * 0.25), second.offset)
+                val field = hold(tree!!.find("text-scroll")!!)
+                textBar = Some(hold(field.scrollBar(true)!!))
+                assertEquals(0.0, textBar!!.scrollPosition)
+                phase = 9
+                send(textBar!!, 5, 10)
+            }
+            case 9 -> {
+                if (textBar!!.scrollPosition <= 0.0)
+                    return
+                assertEquals(text, editor.committedText)
+                ui!!.close()
+                assertFalse(vertical!!.flag(0))
+                assertFalse(textBar!!.flag(0))
+                phase = 10
+                send(vertical!!, 6, 10)
+            }
+            else -> fail(Some("unexpected scroll accessibility phase"))
+        }
+    }
+    public override fun close() {
+        calls?.close()
+        for (node in held)
+            node.close()
+        held.clear()
+        tree?.close()
+    }
+}

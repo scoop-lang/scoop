@@ -1,0 +1,169 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.window.accessibility.*
+
+/** Publishes an actual accepted viewport without coupling its axis to visual bar opacity. */
+public fun SemanticsHandle.updateScrollBar(
+    viewport: ScrollViewport,
+    orientation: SemanticOrientation,
+    lineStep: Double = 40.0,
+    properties: SemanticProperties = SemanticProperties(),
+    relations: SemanticRelations = SemanticRelations()
+) {
+    checkOpen()
+    checkSemanticsMutation()
+    requireUi(
+        role == SemanticRole.ScrollBar && viewport.belongsTo(owner),
+        "scroll semantics require this mount's scrollbar and viewport"
+    )
+    requireUi(lineStep.isFinite() && lineStep > 0.0, "invalid semantic scroll step")
+    val state = viewport.state
+    val binding = viewport.bindingRevision
+    val snapshot = viewport.semanticSnapshot
+    val range =
+        when (snapshot) {
+            case Some(val value) -> Some(semanticScrollRange(value, orientation))
+            case None -> None
+        }
+    val applicable = (range?.maximum ?: 0.0) > 0.0
+    val available = { viewport.matches(state, binding) && viewport.semanticSnapshot != None }
+    val position: ((Double) -> SemanticActionResult)? =
+        if (applicable)
+            Some {
+                value -> if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    semanticScrollPosition(state, orientation, value)
+            }
+        else
+            None
+    val backward: (() -> SemanticActionResult)? =
+        if (applicable)
+            Some {
+                if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    semanticScrollStep(state, orientation, -lineStep)
+            }
+        else
+            None
+    val forward: (() -> SemanticActionResult)? =
+        if (applicable)
+            Some {
+                if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    semanticScrollStep(state, orientation, lineStep)
+            }
+        else
+            None
+    update(
+        SemanticProperties(
+            name = properties.name,
+            description = properties.description,
+            automationId = properties.automationId,
+            value = properties.value,
+            enabled = properties.enabled,
+            readOnly = properties.readOnly,
+            protectedText = properties.protectedText,
+            checked = properties.checked,
+            hidden = properties.hidden,
+            error = properties.error,
+            ignored = properties.ignored || !applicable,
+            selection = properties.selection,
+            required = properties.required,
+            scroll = range
+        ),
+        SemanticActions(
+            setScrollPosition = position,
+            scrollBackward = backward,
+            scrollForward = forward
+        ),
+        relations
+    )
+}
+
+internal fun semanticScrollRange(
+    snapshot: ScrollSnapshot,
+    orientation: SemanticOrientation
+): SemanticScrollRange =
+    if (orientation == SemanticOrientation.Horizontal)
+        SemanticScrollRange(
+            SemanticOrientation.Horizontal,
+            snapshot.offset.x,
+            snapshot.viewport.width,
+            snapshot.content.width
+        )
+    else
+        SemanticScrollRange(
+            SemanticOrientation.Vertical,
+            snapshot.offset.y,
+            snapshot.viewport.height,
+            snapshot.content.height
+        )
+
+internal fun semanticScrollPosition(
+    state: ScrollState,
+    orientation: SemanticOrientation,
+    position: Double
+): SemanticActionResult {
+    if (!position.isFinite() || position < 0.0 || position > 1.0)
+        return SemanticActionResult.InvalidArgument
+    val snapshot = state.snapshot
+    val base =
+        if (state.isAnimating)
+            snapshot.offset
+        else
+            state.plan(snapshot.viewport, snapshot.content, snapshot.padding).offset
+    val target =
+        if (orientation == SemanticOrientation.Horizontal)
+            Point(position * snapshot.maximum.x, base.y)
+        else
+            Point(base.x, position * snapshot.maximum.y)
+    state.scrollTo(target, ScrollOrigin.User)
+    return SemanticActionResult.Completed
+}
+
+internal fun semanticScrollStep(
+    state: ScrollState,
+    orientation: SemanticOrientation,
+    delta: Double
+): SemanticActionResult {
+    val snapshot = state.snapshot
+    val base =
+        if (state.isAnimating)
+            snapshot.offset
+        else
+            state.plan(snapshot.viewport, snapshot.content, snapshot.padding).offset
+    val position =
+        if (orientation == SemanticOrientation.Horizontal)
+            base.x
+        else
+            base.y
+    val maximum =
+        if (orientation == SemanticOrientation.Horizontal)
+            snapshot.maximum.x
+        else
+            snapshot.maximum.y
+    val amount =
+        if (delta > 0.0)
+            min(delta, maximum - position)
+        else
+            -min(-delta, position)
+    if (amount == 0.0)
+        return SemanticActionResult.Rejected
+    val consumed =
+        state.scrollBy(
+            if (orientation == SemanticOrientation.Horizontal)
+                Point(amount, 0.0)
+            else
+                Point(0.0, amount),
+            ScrollOrigin.User
+        )
+    return if (consumed == Point(0.0, 0.0))
+        SemanticActionResult.Rejected
+    else
+        SemanticActionResult.Completed
+}

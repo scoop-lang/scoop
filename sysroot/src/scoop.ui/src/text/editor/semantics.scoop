@@ -113,7 +113,8 @@ public fun SemanticsHandle.updateTextEditor(
             hidden = properties.hidden,
             error = properties.error,
             ignored = properties.ignored,
-            required = properties.required
+            required = properties.required,
+            scroll = properties.scroll
         ),
         SemanticActions(
             setValue = setValue,

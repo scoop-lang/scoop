@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 /** Pointer state uses only the geometry of an accepted frame. */
 internal class ScrollBarControl(
@@ -12,8 +13,11 @@ internal class ScrollBarControl(
     private val props: () -> ScrollControlProps,
     parent: InputArea,
     private val orientation: Orientation,
-    private val feedback: ScrollbarFeedback
+    private val feedback: ScrollbarFeedback,
+    parentSemantics: SemanticsHandle?,
+    private val publishSemantics: (SemanticsHandle, Orientation) -> Unit
 ) {
+    private val semantics = createComponentSemantics(scope, SemanticRole.ScrollBar, parentSemantics)
     private val area = scope.createArea { context, event -> handle(context, event) }
     private var currentState = props().state
     private var geometry: ScrollbarGeometry? = None
@@ -71,6 +75,14 @@ internal class ScrollBarControl(
             { event -> handleDrag(event) }
         )
         feedbackChanged()
+        updateSemantics()
+    }
+    private fun updateSemantics() {
+        when (semantics) {
+            case Some(val handle) -> if (!handle.isClosed)
+                publishSemantics(handle, orientation)
+            case None -> {}
+        }
     }
     fun feedbackChanged() {
         val options = feedback.options
@@ -165,6 +177,10 @@ internal class ScrollBarControl(
                             0.0
                     ) {
                         val shape = value.theme.scrollbarGeometry(rect, visual, value.scrollbar)
+                        when (semantics) {
+                            case Some(val handle) -> context.semantics(handle, rect)
+                            case None -> {}
+                        }
                         if (visual.enabled)
                             context.place(area, rect)
                         val baseline = feedback.options.baseThickness
@@ -199,6 +215,7 @@ internal class ScrollBarControl(
                 pointer = area.pointerPosition
                 hovered = area.scope.isHovered
                 refreshHover()
+                updateSemantics()
             }
         }
     }

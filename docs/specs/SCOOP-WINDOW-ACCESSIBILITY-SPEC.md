@@ -12,7 +12,7 @@
 
 ## 2. 属性与发布
 
-首批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea。SemanticProperties 保存 name、description、error、automationId、value、enabled、readOnly、protectedText、checked、hidden 与 ignored；名称、说明、错误、标识和值采用可选字符串，已知空字符串与未知值不同。checked 为可选 Off／On／Mixed。只有实际文本用途才设置 protectedText；受保护时不允许通过 value 发布明文，不因屏幕暂时显示正文而解除保护。hidden 排除整个节点子树但保留身份，恢复后使用原身份；ignored 仅忽略当前节点，保留后代并把它们接到最近未忽略的语义祖先；hidden 优先排除整个子树。忽略不退休身份、不改变实际键盘焦点，旧引用不能执行被忽略节点的动作；后代继续遵守祖先的 hidden／enabled。update 在改变原状态前检查这些规则。
+首批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar。SemanticProperties 保存 name、description、error、automationId、value、enabled、readOnly、protectedText、checked、hidden 与 ignored；名称、说明、错误、标识和值采用可选字符串，已知空字符串与未知值不同。checked 为可选 Off／On／Mixed。只有实际文本用途才设置 protectedText；受保护时不允许通过 value 发布明文，不因屏幕暂时显示正文而解除保护。hidden 排除整个节点子树但保留身份，恢复后使用原身份；ignored 仅忽略当前节点，保留后代并把它们接到最近未忽略的语义祖先；hidden 优先排除整个子树。忽略不退休身份、不改变实际键盘焦点，旧引用不能执行被忽略节点的动作；后代继续遵守祖先的 hidden／enabled。update 在改变原状态前检查这些规则。
 
 SemanticProperties.required 为 Boolean，默认 false，描述表单是否要求填写或选择；它不执行校验、不改变 enabled／readOnly 或文本内容。AppKit 通过公开的 NSAccessibilityRequiredAttribute／isAccessibilityRequired 读取该事实，客户端不能改写它。required 变化不改变节点身份、正文版本或几何，发布后发送适用的属性布局通知；隐藏／退休后的 selector 与其他只读属性遵守同一可访问性边界。
 
@@ -36,7 +36,7 @@ setGeometry 在验证几何后为节点持有一个引用；原生投影在发�
 
 ## 3. 动作与同步边界
 
-SemanticActions 按实际实现提供 invoke、toggle、setValue(String)、focus(Boolean)、showContextMenu() 及下节的文本动作；focus 的 true 请求聚焦，false 请求解除该目标焦点。每个回调返回 SemanticActionResult：Completed、InvalidArgument、Unsupported、Unavailable、Rejected 或 Busy。缺少回调时不公布对应原生能力；enabled=false 拒绝交互，readOnly=true 拒绝值写入及切换，但不禁止有实际内容的菜单。只有实际业务已执行才返回 Completed；Binding 拒绝不能提前改写投影，异步业务结束也不属于 Invoke 的完成条件。
+SemanticActions 按实际实现提供 invoke、toggle、setValue(String)、focus(Boolean)、showContextMenu() 及 §3.1／§3.2 的文本与滚动动作；focus 的 true 请求聚焦，false 请求解除该目标焦点。每个回调返回 SemanticActionResult：Completed、InvalidArgument、Unsupported、Unavailable、Rejected 或 Busy。缺少回调时不公布对应原生能力；enabled=false 拒绝交互，readOnly=true 拒绝值写入及切换，但不禁止有实际内容的菜单。只有实际业务已执行才返回 Completed；Binding 拒绝不能提前改写投影，异步业务结束也不属于 Invoke 的完成条件。
 
 AppKit getter 不进入 managed 代码。同步动作使用创建 provider 时登记的 Reusable ForeignCallback，沿已有 Context 捕获规则恢复创建上下文，包括 asyncio 集成的 scope。它只在 owner、应用未退出、窗口 Open 且输入未被模态阻止、没有进行中的 Window 业务／watch 回调或另一动作时执行。重入时返回 Busy，不等待自己的队列、不 pump、不布局；UI 适配另检查宿主派发、scope 回调、render／布局和实际输入边界，见 UI 无障碍规范。普通 handler 仍沿既有异步派发路径。
 
@@ -55,6 +55,16 @@ SemanticActions 增加 setSelection(Utf8Selection) 与 replaceText(Utf8Range, St
 AppKit 在发布时将合法 UTF-8 选区转换为同一 NSString 的 UTF-16 范围；正文长度、选中文本、SelectedTextRange(s)、StringForRange 和纯文本 AttributedStringForRange 只查询已发布副本。参数越界或切断 surrogate 时返回 unavailable，不夹取到别的文本。SelectedTextRanges setter 只接受一个合法 NSValue 范围，不伪造多选区能力。值和实际选区发布后发送适用 ValueChanged／SelectedTextChanged 通知，getter 不回调 Scoop、不触发布局。
 
 受保护文本不发布正文或选区，不提供上述范围／长度查询；显式可用的全文替换仍可进入真实编辑器。完整文本几何、按点定位、词／行单位、retained range、密码平台专有能力和其他 provider 按 S5 后续合同接入，不以正文与单选区接口声明它们已完成。
+
+### 3.2 滚动范围与动作
+
+SemanticRole.ScrollBar 表达实际滚动轴，使用 `SemanticProperties.scroll: SemanticScrollRange? = None` 发布范围。SemanticScrollRange 包含 orientation: SemanticOrientation（Horizontal／Vertical）、offset、viewport、content；后三者为有限非负 Double，offset 不超过 `maximum = max(content - viewport, 0)`。单位沿窗口逻辑坐标。None 表示尚无范围；已知零范围与未知不同。该属性仅用于 ScrollBar，不能同时提供字符串 value。范围变化不改变正文版本或节点几何。
+
+SemanticActions 提供 `setScrollPosition((Double) -> SemanticActionResult)`、`scrollBackward()` 和 `scrollForward()`，均为可选回调。位置参数为 0～1 的有限比例；越界请求返回 InvalidArgument，不夹取为另一个请求。增减的实际步长由原控件决定。动作沿相同 owner、enabled、readOnly、模态和退休边界；没有范围或没有实现时不提供对应能力。Completed 表示实际滚动请求已登记；原生位置继续读取已发布范围，不把请求位置提前当作已呈现位置。Reveal 的已接受场景完成条件仍独立保留。
+
+AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinValue／MaxValue 及 Increment／Decrement；零范围的值及上限为 0。NSNumber 写入沿真实 setScrollPosition，不能借字符串编辑接口改变滚动。容器的 HorizontalScrollBar／VerticalScrollBar 按阅读顺序引用其直接语义子项中对应轴的首个可访问节点；内置滚动容器每轴提供一个节点。自绘滚动条可在视觉隐藏时继续保留逻辑轴和动作，缺少当前场景登记时没有可点击几何；不得用容器矩形代替滚动条的位置。
+
+滚动位置／范围变化发送对应值通知，方向或能力变化发送布局通知；原生 getter 仅读取投影，不推动布局、焦点、滚动或条的显示动画。零范围、不适用轴、disabled／hidden、重新绑定、关闭和客户端保留旧引用均沿实际状态处理。
 
 ## 4. AppKit 投影与验证
 

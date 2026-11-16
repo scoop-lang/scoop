@@ -101,7 +101,8 @@ public fun SemanticsHandle.updateSelectableText(
             hidden = properties.hidden,
             error = properties.error,
             ignored = properties.ignored,
-            required = properties.required
+            required = properties.required,
+            scroll = properties.scroll
         ),
         SemanticActions(setSelection = select, showContextMenu = showContextMenu),
         relations

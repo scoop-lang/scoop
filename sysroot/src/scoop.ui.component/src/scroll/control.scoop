@@ -6,6 +6,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class ScrollControlProps(
     val state: ScrollState,
@@ -20,7 +21,8 @@ internal class ScrollControlProps(
     val theme: Theme,
     val style: StyleOverride = styleOverride(),
     val focusOutline: OutlineStyle? = None,
-    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 /** Shared input, range publication and themed bars for eager and lazy viewports. */
@@ -30,14 +32,23 @@ internal class ScrollControl(
 ) {
     private val painters = scope.resource { ThemePainterCache() }
     private val decoration = scope.resource { StylePainter() }
+    private val semantics = createComponentSemantics(scope, SemanticRole.ScrollArea)
     val viewport = scope.scrollViewport(props().state)
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }
     private val focus = scope.focusTarget(area, props().focus)
     private val feedback =
         scope.resource { ScrollbarFeedback(scope, props, area) { feedbackChanged() } }
-    private val horizontal = ScrollBarControl(scope, props, area, Orientation.Horizontal, feedback)
-    private val vertical = ScrollBarControl(scope, props, area, Orientation.Vertical, feedback)
+    private val horizontal =
+        ScrollBarControl(scope, props, area, Orientation.Horizontal, feedback, semantics) {
+            handle,
+            orientation -> updateBar(handle, orientation)
+        }
+    private val vertical =
+        ScrollBarControl(scope, props, area, Orientation.Vertical, feedback, semantics) {
+            handle,
+            orientation -> updateBar(handle, orientation)
+        }
     private var direction = scope.layoutDirection
     private var reservation = Size(0.0, 0.0)
     val gutter: Size get() = reservation
@@ -45,6 +56,17 @@ internal class ScrollControl(
     init {
         area.scope.defaultAction = { context, event -> handle(context, event) }
         scope.routeChildren(area)
+        scope.routeSemanticsChildren(semantics)
+        semantics?.bindFocus(Some(focus))
+    }
+    private fun updateBar(handle: SemanticsHandle, orientation: Orientation) {
+        val value = props()
+        handle.updateScrollBar(
+            viewport,
+            scrollSemanticOrientation(orientation),
+            value.lineStep,
+            scrollBarProperties(value, orientation)
+        )
     }
     private fun feedbackChanged() {
         horizontal.feedbackChanged()
@@ -62,6 +84,10 @@ internal class ScrollControl(
         viewport.paintCache = value.paintCache
         focus.options = value.focus
         area.scope.enabled = value.enabled
+        semantics?.update(
+            value.semantics.properties(enabled = value.enabled),
+            relations = value.semantics.relations
+        )
         feedback.update()
         horizontal.update()
         vertical.update()
@@ -113,6 +139,10 @@ internal class ScrollControl(
             }
         }
         val bounds = Rect(0.0, 0.0, size.width, size.height)
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, bounds)
+            case None -> {}
+        }
         val visual =
             SurfaceVisual(
                 SurfaceKind.Plain,

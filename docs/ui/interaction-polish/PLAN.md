@@ -98,7 +98,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S2 公共语义模型与 macOS 基础闭环
 
-当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。Label、Button、Checkbox、Input／Textarea、SelectableStyledText 与 Typography 已提供默认语义及统一覆盖值，组合控件可由后代 Element 登记祖先资源的几何。具体运行与构建范围见[实施记录](PROGRESS.md)；滚动及其余控件、复杂控件关系、激活点、实窗与外部客户端仍待继续，不据基础资源交付标记本批完成。
+当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。Label、Button、Checkbox、Input／Textarea、SelectableStyledText、Typography、ScrollArea 与 VirtualList 滚动容器已提供默认语义及统一覆盖值，组合控件可由后代 Element 登记祖先资源的几何。具体运行与构建范围见[实施记录](PROGRESS.md)；其余控件、复杂控件关系、激活点、滚动实窗与外部客户端仍待继续，不据基础资源交付标记本批完成。
 
 **主要范围：** UI scope／挂载／host／scene，Window 的 `accessibility` 包与 AppKit 后端，基础控件。先改 UI、Window、Component 及必要的 Surface spec。
 
@@ -129,7 +129,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S4 可配置滚动条与滚动语义
 
-当前进展：共享行为、Overlay／Gutter 和边缘显露已接入；按[实施记录](PROGRESS.md)完成定向验证。经 S2 接入的滚动语义及真实窗口／平台验收仍未完成，不以基础 API 或构建通过替代本批通过条件。
+当前进展：共享行为、Overlay／Gutter 和边缘显露已接入。Window／AppKit 提供真实轴范围与位置／增减动作，UI 的 updateScrollBar 复用原 ScrollViewport 或 TextEditHost；共享 ScrollControl 与文本滚动条已接入，视觉隐藏保留逻辑轴，范围来自 Accepted 快照。按[实施记录](PROGRESS.md)区分原生方法、请求逻辑与组件验证；Reveal、真实窗口及平台验收仍待完成，不以 API 或构建通过替代本批通过条件。
 
 **主要范围：** UI scroll、Component 共享 ScrollControl／ScrollBarControl、Textarea、VirtualList、主题 metrics／geometry／painter。先改 UI、Component、Theme spec。
 

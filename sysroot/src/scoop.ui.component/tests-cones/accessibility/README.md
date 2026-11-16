@@ -12,4 +12,6 @@ scoop test sysroot/src/scoop.ui.component/tests-cones/accessibility --release
 
 Field 场景复用同一 Application，检查自动标签、说明和去重错误、静态标题的显式目标、独立 FieldLabel／FieldText／FieldError、自定义标签里的按钮、显式名称／空串／关系优先级、控件与注释分别换绑，以及兄弟注释关闭／重建后控件仍及时更新、目标禁用时自定义标签的子按钮同步不可用。整个过程保留原输入节点和文本模型，不为测试另建应用循环。
 
+ScrollArea 的默认容器角色、命名覆盖和内容路由也在无 drawable 条件下检查；未取得 Accepted 范围时不提供横／纵滚动条对象。实际滚动、隐藏条的能力及重新绑定见相邻 scroll-accessibility 场景。
+
 必填场景覆盖 Input、Checkbox 与 Button 的真实 Field 配置，动态启停、控件与注释换绑、独立来源关闭／重建、多来源中仍有一个必填时保持状态、禁用时保留必填、只读属性能力和旧对象退休；范围与文本模型保持原有事实。

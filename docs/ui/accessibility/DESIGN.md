@@ -112,6 +112,8 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 
 当前基础控件、SelectableStyledText／Typography 及 Field 注释使用 `ComponentSemantics`，Props 与 builder 均提供 semantics；实际接入及包装透传合同见 [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。Button 的纯标签合并、Checkbox 的真实 Binding 结果、两类文本宿主及 FieldTarget 的标签／说明／错误关系沿前述公共语义路径。Field 的 required 沿同一目标发布只读必填属性；同窗口的活跃来源增删直接更新目标，不增加校验或覆盖业务模型，已由属性表达的提示文字退出阅读树。invalid／busy、其余表单状态和控件仍按统一计划继续，原生方法、实窗和外部辅助技术分别记录验证状态。
 
+共享 ScrollControl 已为 ScrollArea／VirtualList 及其组合提供容器语义和原焦点目标，文本条归入原 TextField。ScrollBar 节点通过 updateScrollBar 借用原视口，只发布已接受的 offset／viewport／content；原生比例写入与增减进入同一 ScrollState 的 User 请求。视觉隐藏不退休非零轴，未呈现的条没有几何；绑定替换先撤下旧范围。原生方法与逻辑请求已有定向用例，实际 Accepted 场景、Reveal 和完整虚拟集合仍按统一计划验证。
+
 | 控件组 | 默认语义与接入 |
 | --- | --- |
 | Label、Heading、Link | 静态文本／标题级别／链接目标与激活；沿用 StyledText 的替代文字 |

@@ -62,7 +62,15 @@ updateSelectableText 借用 host，不改写它的 onSelectionChanged。调用�
 
 正文与选区可在无 drawable 时发布；场景只负责当前节点的 Accepted 位置和命中。完整范围几何、文字单位、保留范围及行内子控件语义后续接入，同步见 Window 文本合同。
 
-## 6. 验证边界
+## 6. 滚动条节点
+
+`SemanticsHandle.updateScrollBar(viewport: ScrollViewport, orientation: SemanticOrientation, lineStep: Double = 40.0, properties: SemanticProperties = SemanticProperties(), relations: SemanticRelations = SemanticRelations())` 将本挂载的 ScrollBar 节点接到同一挂载的真实视口。scoop.ui.text 提供以 TextEditHost 为首参数的同名重载，借用其原视口；不公开或替换编辑器的滚动所有权。
+
+调用方在正常 update 及视口的 Accepted 完成回调之后刷新。方向和有限正 lineStep 由当前控件提供，属性和关系保持调用方覆盖；scroll 由该视口的最后一次 Accepted 范围决定，尚无范围或该轴零范围时忽略条节点并撤下滚动能力。重新绑定清除原视口的就绪状态，Discarded 不发布候选范围。视觉透明度、hover 和自动隐藏不改变逻辑轴身份或动作；几何仍只来自 Scene 的真实条区域，未绘制的条不获得容器的点击点。
+
+位置写入采用 0～1 比例，经同一 ScrollState 登记 User 来源请求；保留另一轴尚未呈现的请求位置，连续改写同一轴按最新目标替换，不叠加为相对偏移。Increment／Decrement 使用 lineStep 与现有 scrollBy，沿原动画取消、范围夹取和意图通知；边界上没有实际位移时拒绝。回调检查视口绑定和挂载寿命，不把旧条转向另一状态。请求登记后返回 Completed，原生值等待真实 Accepted 范围更新；本接口不宣称完成 Reveal 或取得焦点。
+
+## 7. 验证边界
 
 用真实第三方 Element 验证无 InputArea 的文本、多节点、透明挂载、子项路由、重排／角色替换、最新 handler、禁用／隐藏／模态限制、自删与关根、跨根错误和旧对象退休。无 drawable 的属性更新必须独立验证；场景缓存命中、Accepted／Discarded、裁剪、未放置和属性与候选帧不匹配必须通过实际场景验证。
 

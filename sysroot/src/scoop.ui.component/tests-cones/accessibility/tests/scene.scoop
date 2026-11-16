@@ -136,7 +136,14 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
                         )
                     onSelectionChanged = { _, _ -> probe.typographyChanges += 1 }
                 },
-                fieldSemanticsView(probe.fields)
+                fieldSemanticsView(probe.fields),
+                scrollArea(label("Scrollable content")) {
+                    state = Some(probe.scrollState)
+                    width = Some(160.0)
+                    height = Some(60.0)
+                    semantics =
+                        ComponentSemantics(name = Some(caption), automationId = Some("scroller"))
+                }
             ]
         return element({ mount -> ControlsPanel(probe, views.size, mount) }, views)
     }

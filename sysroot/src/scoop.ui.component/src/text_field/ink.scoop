@@ -40,18 +40,30 @@ internal class TextFieldInk(
             { scrollbarProps() },
             host.area,
             Orientation.Horizontal,
-            scrollbarFeedback
-        )
+            scrollbarFeedback,
+            semantics
+        ) { handle, orientation -> updateBar(handle, orientation) }
     private val vertical =
         ScrollBarControl(
             scope,
             { scrollbarProps() },
             host.area,
             Orientation.Vertical,
-            scrollbarFeedback
-        )
+            scrollbarFeedback,
+            semantics
+        ) { handle, orientation -> updateBar(handle, orientation) }
     private val painters = scope.resource { ThemePainterCache() }
     private val content = scope.resource { StylePainter() }
+
+    private fun updateBar(handle: SemanticsHandle, orientation: Orientation) {
+        val value = scrollbarProps()
+        handle.updateScrollBar(
+            host,
+            scrollSemanticOrientation(orientation),
+            value.lineStep,
+            scrollBarProperties(value, orientation)
+        )
+    }
 
     init {
         scope.routeChildren(host.area)

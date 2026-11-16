@@ -8,6 +8,8 @@
 
 精确命中用例通过 graphics 创建变换后的带孔 Path 与矩形，关闭源 Canvas／Path／Geometry 后再查询真实原生对象。公开 accessibilityHitTest 覆盖 view／根／子树入口、窗口边界、层叠与阅读顺序分离、hidden／ignored／disabled、仅矩形时不猜命中、内容失效及旧对象退休。发布名称环失败后旧投影仍可命中，修正发布后不再使用旧快照。
 
+滚动轴在同一 Application 中独立验证 ScrollBar 的方向、比例值与上下限、父容器轴关系、Increment 和 NSNumber 写入、非有限／越界／错误类型拒绝、只读／禁用／忽略、无范围与零范围、方向改变和旧对象退休。回调实际改变测试模型并重新发布，范围变化保留原几何及正文版本；该直接 provider 用例不冒充 UI 的 Accepted 视口验证。
+
 跨进程验证使用本目录的 `native/client.c`，通过公开 AXUIElement C API 连接测试进程，按实际 identifier 查找并执行动作。不需要新增服务或第二个编辑模型。先在仓库外编译客户端，再设置 `SCOOP_ACCESSIBILITY_CLIENT` 为其绝对路径运行同一个 Cone：
 
 ```sh

@@ -62,7 +62,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 在 macOS 导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。
 
-本批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 仅用于 Checkbox，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
+本批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 仅用于 Checkbox，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
 Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 
@@ -79,6 +79,8 @@ Text／TextField 的已知非保护 value 同时提供纯文本正文；`selecti
 `SemanticProperties.required` 默认 false，用于发布实际必填要求；AppKit 以公开的只读 Required 属性提供它。更新不改变正文版本、几何或焦点，也不替应用执行校验；其他状态与动作仍按各自真实条件判断。
 
 `SemanticActions.showContextMenu` 映射 AppKit 的 accessibilityPerformShowMenu，只有存在回调且当前输入允许时才公布能力；只读不禁止实际可用的菜单。回调建立绑定目标的真实菜单会话后返回 Completed，后续菜单项执行沿该会话，不合成右键，也不在回调中 pump tracking。原生菜单的项目由系统自行提供语义。
+
+`SemanticRole.ScrollBar` 使用 `SemanticProperties.scroll = Some(SemanticScrollRange(orientation, offset, viewport, content))` 描述一个真实轴；方向为 SemanticOrientation.Horizontal／Vertical，尺寸与位置使用逻辑单位。AppKit 读取 Orientation 和 0～1 的 Value／MinValue／MaxValue，父节点的横／纵滚动条属性连接对应子项。setScrollPosition 接收有限的 0～1 比例，scrollBackward／scrollForward 使用实际控件步长；调用方登记请求后，仍从已接受的布局发布新位置。没有范围时不提供能力，视觉隐藏不必退休逻辑轴，缺少场景登记时不提供条的点击几何。
 
 当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、文本范围几何／单位导航／保留范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 

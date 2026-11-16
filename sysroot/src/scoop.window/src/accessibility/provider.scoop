@@ -168,7 +168,8 @@ public class AccessibilityProvider internal constructor(
         action: Int,
         value: String?,
         selection: Utf8Selection,
-        revision: ULong
+        revision: ULong,
+        position: Double
     ): SemanticActionResult {
         if (closed || owner.phase != WindowState.Open || owner.application.exiting)
             return SemanticActionResult.Unavailable
@@ -179,6 +180,14 @@ public class AccessibilityProvider internal constructor(
         val node = nodes[number] ?: return SemanticActionResult.Unavailable
         if (!node.canAct())
             return SemanticActionResult.Rejected
+        if (action >= 8 && action <= 10) {
+            if (node.properties.scroll == None)
+                return SemanticActionResult.Unsupported
+            if (node.properties.readOnly)
+                return SemanticActionResult.Rejected
+            if (action == 8 && (!position.isFinite() || position < 0.0 || position > 1.0))
+                return SemanticActionResult.InvalidArgument
+        }
         if (action == 5 || action == 6) {
             if (node.contentRevision != revision)
                 return SemanticActionResult.Unavailable
@@ -221,6 +230,10 @@ public class AccessibilityProvider internal constructor(
                         case None -> SemanticActionResult.InvalidArgument
                     }
                 case 7 -> actions.showContextMenu?.invoke() ?: SemanticActionResult.Unsupported
+                case 8 -> actions.setScrollPosition?.invoke(position) ?:
+                    SemanticActionResult.Unsupported
+                case 9 -> actions.scrollBackward?.invoke() ?: SemanticActionResult.Unsupported
+                case 10 -> actions.scrollForward?.invoke() ?: SemanticActionResult.Unsupported
                 else -> SemanticActionResult.Unsupported
             }
         if (!closed && owner.phase == WindowState.Open)

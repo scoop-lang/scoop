@@ -63,6 +63,21 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeNumber(pointer)
         }
     }
+    public val scrollPosition: Double get() {
+        @Unsafe
+        {
+            return nativeScrollPosition(pointer)
+        }
+    }
+    public fun scrollBar(vertical: Boolean): NativeNode? {
+        @Unsafe
+        {
+            return when (val value = nativeScrollBar(pointer, vertical)) {
+                case Some(val found) -> Some(NativeNode(found))
+                case None -> None
+            }
+        }
+    }
     public fun press(): Boolean {
         @Unsafe
         {
@@ -236,6 +251,12 @@ private fun nativeFlag(node: Ptr<Unit>, field: Int): Int
 
 @Extern(name = "scoop_ui_ax_number")
 private fun nativeNumber(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_scroll_position")
+private fun nativeScrollPosition(pointer: Ptr<Unit>): Double
+
+@Extern(name = "scoop_ui_ax_scroll_bar")
+private fun nativeScrollBar(pointer: Ptr<Unit>, vertical: Boolean): Ptr<Unit>?
 
 @Extern(name = "scoop_ui_ax_press")
 private fun nativePress(node: Ptr<Unit>): Int

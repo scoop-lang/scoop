@@ -85,6 +85,19 @@ int64_t scoop_ui_ax_number(void *pointer) {
   return [value isKindOfClass:[NSNumber class]] ? [value longLongValue] : -1;
 }
 
+double scoop_ui_ax_scroll_position(void *pointer) {
+  id value = [(__bridge id)pointer accessibilityValue];
+  return [value isKindOfClass:NSNumber.class] ? [value doubleValue] : -1.0;
+}
+
+void *scoop_ui_ax_scroll_bar(void *pointer, bool vertical) {
+  id node = (__bridge id)pointer;
+  return (
+      __bridge_retained void *)(vertical
+                                    ? [node accessibilityVerticalScrollBar]
+                                    : [node accessibilityHorizontalScrollBar]);
+}
+
 int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
   id node = (__bridge id)pointer;
   switch (field) {
@@ -122,6 +135,10 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
   case 11:
     return [node
         isAccessibilitySelectorAllowed:@selector(setAccessibilityRequired:)];
+  case 12:
+    return [node accessibilityHorizontalScrollBar] != nil;
+  case 13:
+    return [node accessibilityVerticalScrollBar] != nil;
   default:
     return 0;
   }
@@ -237,6 +254,16 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
         break;
       case 8:
         result = [node accessibilityPerformShowMenu] ? 1 : 0;
+        break;
+      case 9:
+        [node setAccessibilityValue:@(value.doubleValue)];
+        result = 1;
+        break;
+      case 10:
+        result = [node accessibilityPerformIncrement];
+        break;
+      case 11:
+        result = [node accessibilityPerformDecrement];
         break;
       default:
         result = -1;
