@@ -1,0 +1,332 @@
+package scoop.graphics.text
+
+import scoop.graphics.*
+import scoop.graphics.text.native.*
+import scoop.math.min
+import scoop.math.max
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class NativeTextLayoutTest {
+    @Test
+    fun `native units and geometry match Unicode bidi and soft wrapped layout queries`() {
+        testFonts(true).use {
+            fonts -> Paragraph(fonts, "Aé👨‍👩‍👧‍👦\r\n是 hello אבג\n", nativeTextStyle()).use {
+                paragraph -> paragraph.layout(90.0).use {
+                    layout -> @Unsafe
+                    {
+                        layout.withNativeLayout { native -> compareNativeLayout(layout, native) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `native references survive exceptional borrowing and all source resources closing`() {
+        val retained = ArrayList<NativeTextLayout>()
+        val expected = ArrayList<NativeBoxSummary>()
+        try {
+            testFonts(true).use {
+                fonts -> Paragraph(fonts, "é hello אבג", nativeTextStyle()).use {
+                    paragraph -> paragraph.layout(240.0).use {
+                        layout ->
+                        expected.add(
+                            summarizeBoxes(layout.selection(TextRange(0L, layout.text.byteLength)))
+                        )
+                        assertFailsWith<IllegalArgumentException> {
+                            @Unsafe
+                            {
+                                layout.withNativeLayout {
+                                    native ->
+                                    @Unsafe
+                                    {
+                                        native.retain(native.context)
+                                    }
+                                    retained.add(native)
+                                    throw IllegalArgumentException(Some("end layout borrow"))
+                                }
+                            }
+                        }
+                        layout.close()
+                        assertFailsWith<IllegalStateException> {
+                            @Unsafe
+                            {
+                                layout.withNativeLayout { _ -> Unit }
+                            }
+                        }
+                    }
+                }
+            }
+            assertEquals(1L, retained.size)
+            val native = retained[0L]
+            Thread.start {
+                @Unsafe
+                {
+                    assertEquals(TextRange(0L, 3L), native.range(native.context, 1L, 1, 0).range)
+                    assertBoxSummary(expected[0L], nativeTextBoxes(native, TextRange(0L, 16L)))
+                }
+            }.use { worker -> worker.join() }
+        } finally {
+            for (native in retained)
+                @Unsafe
+                {
+                    native.release(native.context)
+                }
+        }
+    }
+
+    @Test
+    fun `native reads can overlap owner drawing navigation and another layout`() {
+        testFonts(true).use {
+            fonts -> Paragraph(fonts, "Aé hello אבג\nmore text", nativeTextStyle()).use {
+                paragraph -> paragraph.layout(110.0).use {
+                    layout -> @Unsafe
+                    {
+                        layout.withNativeLayout {
+                            native ->
+                            val selected = TextRange(0L, layout.text.byteLength)
+                            val expected = summarizeBoxes(layout.selection(selected))
+                            val word = layout.wordRange(TextPosition(5L))
+                            Thread.start {
+                                for (_ in 0 ..< 32)
+                                    @Unsafe
+                                    {
+                                        assertBoxSummary(
+                                            expected,
+                                            nativeTextBoxes(native, selected)
+                                        )
+                                        assertEquals(
+                                            word,
+                                            native.range(native.context, 5L, 1, 1).range
+                                        )
+                                    }
+                            }.use {
+                                worker ->
+                                RasterSurface(180, 100).use {
+                                    surface -> for (_ in 0 ..< 32) {
+                                        surface.draw { canvas -> canvas.drawText(layout) }
+                                        assertEquals(word, layout.wordRange(TextPosition(5L)))
+                                        layout.moveCaret(TextPosition(0L), CaretMovement.WordRight)
+                                        layout.paintBounds
+                                        paragraph.layout(60.0).use {
+                                            fresh -> fresh.hitTest(Point(5.0, 5.0))
+                                        }
+                                    }
+                                }
+                                worker.join()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `native errors and elision preserve unavailable geometry without hiding text units`() {
+        testFonts().use {
+            fonts ->
+            Paragraph(
+                fonts,
+                "é long text after the visible line",
+                nativeTextStyle(),
+                paragraphStyle { maxLines = Some(1L) }
+            ).use {
+                paragraph -> paragraph.layout(50.0).use {
+                    layout -> @Unsafe
+                    {
+                        layout.withNativeLayout {
+                            native -> @Unsafe
+                            {
+                                val end = layout.text.byteLength
+                                assertTrue(layout.didExceedMaxLines)
+                                assertEquals(0, native.caret(native.context, end, 1, 1.0).status)
+                                assertEquals(-1L, native.lineIndex(native.context, end, 1))
+                                assertEquals(1, native.range(native.context, end, 1, 0).status)
+                                assertEquals(
+                                    TextRange(end, end),
+                                    native.range(native.context, end, 1, 0).range
+                                )
+                                assertEquals(1, native.range(native.context, end, 1, 1).status)
+                                assertEquals(-1, native.range(native.context, 2L, 1, 0).status)
+                                assertEquals(-1, native.range(native.context, 0L, 3, 0).status)
+                                assertEquals(-1, native.range(native.context, 0L, 1, 4).status)
+                                assertEquals(-1, native.lineRange(native.context, -1L).status)
+                                assertEquals(-2L, native.lineIndex(native.context, 2L, 1))
+                                assertEquals(-1, native.caret(native.context, 1L, 1, 1.0).status)
+                                assertEquals(-1, native.caret(native.context, 0L, 1, -1.0).status)
+                                assertEquals(
+                                    -1,
+                                    native.hit(native.context, Point(Double.NaN, 0.0)).status
+                                )
+                                assertEquals(-1, nativeTextBoxes(native, TextRange(2L, end)).status)
+                                val empty = nativeTextBoxes(native, TextRange(0L, 0L))
+                                assertEquals(1, empty.status)
+                                assertEquals(0L, empty.count)
+                            }
+                        }
+                    }
+                }
+            }
+            Paragraph(fonts, "", nativeTextStyle()).use {
+                paragraph -> paragraph.layout(100.0).use {
+                    layout -> @Unsafe
+                    {
+                        layout.withNativeLayout { native -> compareNativeLayout(layout, native) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `native queries include the actual inline object boxes`() {
+        val key = InlineKey.Text("object")
+        val content =
+            styledText {
+                style = nativeTextStyle()
+                text("ab ")
+                inlineObject(key, "object description")
+                text(" אבג")
+            }
+        testFonts(true).use {
+            fonts -> Paragraph(fonts, content).use {
+                paragraph -> paragraph.layout(240.0, [InlineMetrics(key, Size(40.0, 30.0))]).use {
+                    layout -> @Unsafe
+                    {
+                        layout.withNativeLayout { native -> compareNativeLayout(layout, native) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun compareNativeLayout(layout: TextLayout, native: NativeTextLayout) {
+    val boundaries = layout.graphemeBoundaries
+    @Unsafe
+    {
+        for (index in 0L ..< boundaries.size) {
+            val offset = boundaries[index]
+            val next = boundaries[min(index + 1L, boundaries.size - 1L)]
+            val previous = boundaries[max(0L, index - 1L)]
+            val down = native.range(native.context, offset, 1, 0)
+            val up = native.range(native.context, offset, 0, 0)
+            assertEquals(1, down.status)
+            assertEquals(1, up.status)
+            assertEquals(TextRange(offset, next), down.range)
+            assertEquals(
+                if (index == 0L)
+                    TextRange(offset, next)
+                else
+                    TextRange(previous, offset),
+                up.range
+            )
+            for (affinity in [TextAffinity.Upstream, TextAffinity.Downstream]) {
+                val position = TextPosition(offset, affinity)
+                val value =
+                    if (affinity == TextAffinity.Upstream)
+                        0
+                    else
+                        1
+                val word = native.range(native.context, offset, value, 1)
+                assertEquals(1, word.status)
+                assertEquals(layout.wordRange(position), word.range)
+                val caret = native.caret(native.context, offset, value, 1.0)
+                when (val rect = layout.caret(position)) {
+                    case Some(val expected) -> {
+                        assertEquals(1, caret.status)
+                        assertEquals(expected, caret.rect)
+                        val point = Point(expected.x + 0.25, expected.y + expected.height / 2.0)
+                        val hit = native.hit(native.context, point)
+                        val expectedHit = layout.hitTest(point)
+                        assertEquals(1, hit.status)
+                        assertEquals(expectedHit.byteOffset, hit.byteOffset)
+                        assertEquals(
+                            if (expectedHit.affinity == TextAffinity.Upstream)
+                                0
+                            else
+                                1,
+                            hit.affinity
+                        )
+                    }
+                    case None -> assertEquals(0, caret.status)
+                }
+                val logical = native.range(native.context, offset, value, 3)
+                when (val expected = layout.logicalLineRange(position)) {
+                    case Some(val range) -> {
+                        assertEquals(1, logical.status)
+                        assertEquals(range, logical.range)
+                    }
+                    case None -> assertEquals(0, logical.status)
+                }
+            }
+        }
+        for (index in 0L ..< layout.lines.size) {
+            val expected = layout.lines[index].range
+            val line = native.lineRange(native.context, index)
+            assertEquals(1, line.status)
+            assertEquals(expected, line.range)
+            assertEquals(index, native.lineIndex(native.context, expected.start, 1))
+            assertEquals(expected, native.range(native.context, expected.start, 1, 2).range)
+            if (index > 0L && expected.start > 0L)
+                assertEquals(index - 1L, native.lineIndex(native.context, expected.start, 0))
+        }
+        val selected = TextRange(0L, layout.text.byteLength)
+        assertBoxSummary(
+            summarizeBoxes(layout.selection(selected)),
+            nativeTextBoxes(native, selected)
+        )
+    }
+}
+
+@CLayout
+private struct NativeBoxSummary(
+    val count: Long,
+    val rtl: Long,
+    val ltr: Long,
+    val bounds: Rect,
+    val status: Int
+)
+
+private fun summarizeBoxes(boxes: Array<TextBox>): NativeBoxSummary {
+    var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var rtl = 0L
+    var ltr = 0L
+    for (index in 0L ..< boxes.size) {
+        val box = boxes[index]
+        if (index == 0L)
+            bounds = box.rect
+        else {
+            val left = min(bounds.x, box.rect.x)
+            val top = min(bounds.y, box.rect.y)
+            val right = max(bounds.x + bounds.width, box.rect.x + box.rect.width)
+            val bottom = max(bounds.y + bounds.height, box.rect.y + box.rect.height)
+            bounds = Rect(left, top, right - left, bottom - top)
+        }
+        if (box.direction == TextDirection.Rtl)
+            rtl += 1L
+        else
+            ltr += 1L
+    }
+    return NativeBoxSummary(boxes.size, rtl, ltr, bounds, 1)
+}
+
+private fun assertBoxSummary(expected: NativeBoxSummary, actual: NativeBoxSummary) {
+    assertEquals(expected.status, actual.status)
+    assertEquals(expected.count, actual.count)
+    assertEquals(expected.rtl, actual.rtl)
+    assertEquals(expected.ltr, actual.ltr)
+    assertEquals(expected.bounds, actual.bounds)
+}
+
+private fun nativeTextStyle(): TextStyle =
+    textStyle {
+        families = ["Test Sans", "Test CJK"]
+        fontSize = 20.0
+    }
+
+@Extern(name = "scoop_graphics_test_text_boxes")
+private fun nativeTextBoxes(layout: NativeTextLayout, range: TextRange): NativeBoxSummary

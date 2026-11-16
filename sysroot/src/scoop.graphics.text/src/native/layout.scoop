@@ -1,0 +1,51 @@
+package scoop.graphics.text.native
+
+import scoop.graphics.Point
+import scoop.graphics.Rect
+import scoop.graphics.text.TextLayout
+import scoop.graphics.text.TextRange
+
+/** Native query status: 1 success, 0 unavailable, -1 invalid argument, -2 native failure. */
+@CLayout
+public struct NativeTextPosition(val byteOffset: Long, val affinity: Int, val status: Int)
+
+@CLayout
+public struct NativeTextRect(val rect: Rect, val status: Int)
+
+@CLayout
+public struct NativeTextRange(val range: TextRange, val status: Int)
+
+/**
+ * Paired native queries over the same shaped layout. Retain before saving this borrowed value.
+ * Affinity is 0 upstream or 1 downstream; range units are grapheme, word, visual line, logical line.
+ * Native functions and the boxes visitor must not enter Scoop or throw across the ABI.
+ */
+@CLayout
+public struct NativeTextLayout(
+    val context: Ptr<Unit>,
+    val retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    val release: FunPtr<(Ptr<Unit>) -> Unit>,
+    val hit: FunPtr<(Ptr<Unit>, Point) -> NativeTextPosition>,
+    val caret: FunPtr<(Ptr<Unit>, Long, Int, Double) -> NativeTextRect>,
+    val boxes: FunPtr<
+        (Ptr<Unit>, Long, Long, Ptr<Unit>, FunPtr<(Ptr<Unit>, Rect, Int) -> Unit>) -> Int
+    >,
+    val range: FunPtr<(Ptr<Unit>, Long, Int, Int) -> NativeTextRange>,
+    val lineRange: FunPtr<(Ptr<Unit>, Long) -> NativeTextRange>,
+    /** Nonnegative line index; -1 unavailable, -2 invalid argument, -3 native failure. */
+    val lineIndex: FunPtr<(Ptr<Unit>, Long, Int) -> Long>
+)
+
+/** Borrows retainable native queries; ordinary TextLayout methods remain owner-thread-only. */
+@Unsafe
+public fun <T> TextLayout.withNativeLayout(block: (NativeTextLayout) -> T): T {
+    val value = textNativeLayout(resource.get())
+    try {
+        return block(value)
+    } finally {
+        value.release(value.context)
+    }
+}
+
+@Extern(name = "scoop_graphics_text_export_layout")
+private fun textNativeLayout(layout: Ptr<Unit>): NativeTextLayout

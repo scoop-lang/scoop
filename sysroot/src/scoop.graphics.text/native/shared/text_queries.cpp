@@ -4,6 +4,7 @@ extern "C" {
 STTextHit scoop_graphics_text_hit(void *pointer, STPoint point) {
   try {
     auto layout = static_cast<STTextLayout *>(pointer);
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
     auto &data = *layout->data;
     for (size_t i = 0; i < layout->inlines.size(); ++i) {
       const auto &box = layout->inlines[i];
@@ -48,6 +49,7 @@ STCaret scoop_graphics_text_caret(void *pointer, int64_t byte, int32_t affinity,
                                   double thickness) {
   try {
     auto layout = static_cast<STTextLayout *>(pointer);
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
     auto &data = *layout->data;
     if (!data.scalar(byte) || !data.grapheme(byte))
       return {{}, -1};
@@ -107,6 +109,7 @@ STSelection scoop_graphics_text_selection(void *pointer, int64_t start,
                                           int64_t end) {
   try {
     auto layout = static_cast<STTextLayout *>(pointer);
+    const std::lock_guard<std::recursive_mutex> guard(layout->data->mutex);
     if (start > end || !layout->data->scalar(start) ||
         !layout->data->scalar(end)) {
       return {nullptr, -1};

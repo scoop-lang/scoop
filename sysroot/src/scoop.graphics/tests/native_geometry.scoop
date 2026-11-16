@@ -36,10 +36,31 @@ private class NativeGeometryTest {
             assertNativeHit(retained, Point(105.0, 10.0), 0)
             assertNativeHit(retained, Point(15.0, 80.0), 0)
             assertNativeHit(retained, Point(Double.NaN, 10.0), 0)
+            @Unsafe
+            {
+                val local = retained.toLocal(retained.context, 35.0, 30.0)
+                assertEquals(1, local.status)
+                assertEquals(Point(25.0, 25.0), local.position)
+                val full = retained.mapRect(retained.context, Rect(20.0, 20.0, 20.0, 20.0), 0)
+                assertEquals(1, full.status)
+                assertEquals(Rect(30.0, 25.0, 20.0, 20.0), full.rect)
+                assertEquals(
+                    0,
+                    retained.mapRect(retained.context, Rect(20.0, 20.0, 20.0, 20.0), 1).status
+                )
+                val partial = retained.mapRect(retained.context, Rect(-20.0, 0.0, 40.0, 20.0), 1)
+                assertEquals(1, partial.status)
+                assertEquals(Rect(10.0, 5.0, 20.0, 20.0), partial.rect)
+                assertEquals(-1, retained.toLocal(retained.context, Double.NaN, 0.0).status)
+                assertEquals(
+                    -1,
+                    retained.mapRect(retained.context, Rect(0.0, 0.0, -1.0, 1.0), 0).status
+                )
+            }
             assertFailsWith<IllegalStateException> {
                 @Unsafe
                 {
-                    geometry.withNativeHitTest { _ -> Unit }
+                    geometry.withNativeGeometry { _ -> Unit }
                 }
             }
         } finally {
@@ -53,7 +74,7 @@ private class NativeGeometryTest {
 
     @Test
     fun `native geometry survives an exceptional borrow and rejects singular transforms`() {
-        val retained = ArrayList<NativeGeometryHitTest>()
+        val retained = ArrayList<NativeGeometry>()
         try {
             RasterSurface(20, 20).use {
                 surface -> surface.draw {
@@ -65,7 +86,7 @@ private class NativeGeometryTest {
                             geometry -> assertFailsWith<IllegalArgumentException> {
                                 @Unsafe
                                 {
-                                    geometry.withNativeHitTest {
+                                    geometry.withNativeGeometry {
                                         value ->
                                         @Unsafe
                                         {
@@ -82,6 +103,12 @@ private class NativeGeometryTest {
             }
             assertEquals(1L, retained.size)
             assertNativeHit(retained[0L], Point(0.0, 5.0), 0)
+            @Unsafe
+            {
+                val value = retained[0L]
+                assertEquals(0, value.toLocal(value.context, 0.0, 5.0).status)
+                assertEquals(0, value.mapRect(value.context, Rect(0.0, 0.0, 5.0, 5.0), 1).status)
+            }
         } finally {
             for (value in retained)
                 @Unsafe
@@ -90,22 +117,79 @@ private class NativeGeometryTest {
                 }
         }
     }
-}
 
-private fun retainGeometry(geometry: CanvasGeometry): NativeGeometryHitTest {
-    @Unsafe
-    {
-        return geometry.withNativeHitTest {
-            value -> @Unsafe
-            {
-                value.retain(value.context)
-                return@withNativeHitTest value
+    @Test
+    fun `native rectangle clipping matches rotated scene geometry without changing the snapshot`() {
+        RasterSurface(160, 120).use {
+            surface -> surface.draw {
+                canvas ->
+                canvas.translate(30.0, 20.0)
+                canvas.rotate(0.3)
+                canvas.clipRect(Rect(0.0, 0.0, 70.0, 50.0))
+                @Unsafe
+                {
+                    captureGeometry(canvas, Rect(-20.0, -20.0, 150.0, 130.0)).use {
+                        geometry -> @Unsafe
+                        {
+                            captureGeometry(canvas, Rect(40.0, 20.0, 60.0, 50.0)).use {
+                                rectangle -> @Unsafe
+                                {
+                                    geometry.withNativeGeometry {
+                                        native -> @Unsafe
+                                        {
+                                            val source = Rect(40.0, 20.0, 60.0, 50.0)
+                                            val full = native.mapRect(native.context, source, 0)
+                                            val clipped = native.mapRect(native.context, source, 1)
+                                            assertEquals(1, full.status)
+                                            assertEquals(rectangle.bounds, full.rect)
+                                            assertEquals(1, clipped.status)
+                                            assertEquals(rectangle.visibleBounds!!, clipped.rect)
+                                            val point = geometry.toWindow(Point(10.0, 10.0))
+                                            assertEquals(
+                                                1,
+                                                native.contains(native.context, point.x, point.y)
+                                            )
+                                            val outside =
+                                                native.mapRect(
+                                                    native.context,
+                                                    Rect(100.0, 100.0, 5.0, 5.0),
+                                                    1
+                                                )
+                                            assertEquals(0, outside.status)
+                                            assertEquals(
+                                                1,
+                                                native.contains(native.context, point.x, point.y)
+                                            )
+                                            assertEquals(
+                                                clipped.rect,
+                                                native.mapRect(native.context, source, 1).rect
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-private fun assertNativeHit(geometry: NativeGeometryHitTest, point: Point, expected: Int) {
+private fun retainGeometry(geometry: CanvasGeometry): NativeGeometry {
+    @Unsafe
+    {
+        return geometry.withNativeGeometry {
+            value -> @Unsafe
+            {
+                value.retain(value.context)
+                return@withNativeGeometry value
+            }
+        }
+    }
+}
+
+private fun assertNativeHit(geometry: NativeGeometry, point: Point, expected: Int) {
     @Unsafe
     {
         assertEquals(

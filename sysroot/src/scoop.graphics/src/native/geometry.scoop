@@ -43,10 +43,10 @@ public class CanvasGeometry internal constructor(
             return geometryHit(resource.get(), windowPoint) != 0
         }
     }
-    /** Borrows a native, retainable hit-test snapshot independent of this owner-thread resource. */
+    /** Borrows native hit, coordinate and visible-rectangle queries independent of this resource. */
     @Unsafe
-    public fun <T> withNativeHitTest(block: (NativeGeometryHitTest) -> T): T =
-        withGeometryHitTest(resource.get(), block)
+    public fun <T> withNativeGeometry(block: (NativeGeometry) -> T): T =
+        withGeometry(resource.get(), block)
     public fun toLocal(windowPoint: Point): Point? {
         checkPoint(windowPoint)
         @Unsafe
