@@ -89,6 +89,7 @@ impl Lowerer {
             .imported_signature_type_with_bindings(signature, bindings)
             .map_err(|_| {
                 Diagnostic::at(
+                    scoop_source::DiagnosticCode::E2505,
                     Span::new(0, 0),
                     "cannot resolve the queried dependency signature type",
                 )

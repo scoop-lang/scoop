@@ -109,6 +109,11 @@ impl CompileCacheStoreV1 {
         std::fs::create_dir_all(&entry).map_err(|source| {
             CompileCacheStoreError::io(CacheIoOperation::CreateDirectory, &entry, source)
         })?;
+        // tempfile passes both paths directly to the native Windows rename API.
+        #[cfg(windows)]
+        let entry = std::fs::canonicalize(&entry).map_err(|source| {
+            CompileCacheStoreError::io(CacheIoOperation::Write, &entry, source)
+        })?;
         let bytes = scoop_wire::encode(&record).map_err(CompileCacheStoreError::Encode)?;
         let mut temporary = tempfile::NamedTempFile::new_in(&entry).map_err(|source| {
             CompileCacheStoreError::io(CacheIoOperation::Write, &entry, source)

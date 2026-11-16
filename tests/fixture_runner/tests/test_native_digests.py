@@ -95,7 +95,7 @@ class NativeDigestTests(unittest.TestCase):
 
     def test_diagnostics_keep_complete_records_and_cannot_be_updated_away(self):
         diagnostic = {
-            "code": "SCOOP_LINK_FAILED",
+            "code": "E2304",
             "message": "native object " + "1" * 64 + "-member-0-8 selected by entry",
             "notes": [],
             "origin": {"kind": "none"},

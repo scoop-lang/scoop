@@ -97,9 +97,10 @@ pub(super) fn execute(
                 });
             }
             if requests.len() != 1 {
-                return Err(config(
-                    "run requires exactly one selected executable; use -p group:name",
-                ));
+                return Err(
+                    config("run requires exactly one selected executable".to_owned())
+                        .with_help(scoop_source::DiagnosticCode::H2001, "use -p group:name"),
+                );
             }
             let request = requests.pop().expect("one selected root");
             let cwd = request.cwd.clone();
@@ -177,13 +178,15 @@ pub(super) fn execute(
             let cwd = std::env::current_dir().map_err(config)?;
             let sysroot = absolute(
                 &cwd,
-                scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
+                scoop_toolchain::configured_sysroot_root(sysroot)
+                    .map_err(crate::cli::commands::toolchain)?,
             )?;
             let (c_toolchain, final_link) = args.native.resolve(&cwd, &sysroot)?;
             let request = scoop::LinkRequest {
                 cache_dir: absolute(
                     &cwd,
-                    scoop_toolchain::configured_cache_root(args.cache_dir).map_err(config)?,
+                    scoop_toolchain::configured_cache_root(args.cache_dir)
+                        .map_err(crate::cli::commands::toolchain)?,
                 )?,
                 root_slib: absolute(&cwd, args.root_slib)?,
                 dependency_slibs: paths(&cwd, args.dependency_slib)?,
@@ -214,7 +217,7 @@ pub(super) fn target(explicit: Option<String>) -> BuildResult<String> {
         Some(target) => Ok(target),
         None => scoop_toolchain::host_target_triple()
             .map(str::to_owned)
-            .map_err(config),
+            .map_err(crate::cli::commands::toolchain),
     }
 }
 pub(super) fn absolute(cwd: &Path, path: PathBuf) -> BuildResult<PathBuf> {
@@ -231,5 +234,13 @@ pub(super) fn paths(cwd: &Path, paths: Vec<PathBuf>) -> BuildResult<Vec<PathBuf>
     paths.into_iter().map(|path| absolute(cwd, path)).collect()
 }
 pub(super) fn config(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_CLI_CONFIG", BuildFailurePhase::Request, error)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E2001,
+        BuildFailurePhase::Request,
+        error,
+    )
+}
+
+pub(super) fn toolchain(error: scoop_toolchain::ToolchainError) -> Box<BuildFailure> {
+    BuildFailure::toolchain(BuildFailurePhase::Request, error)
 }

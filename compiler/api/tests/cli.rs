@@ -184,7 +184,7 @@ fn empty_results_and_errors_use_the_documented_streams() {
         assert_eq!(result.status.code(), Some(code));
         assert!(result.stdout.is_empty());
         assert_eq!(
-            serde_json::from_slice::<serde_json::Value>(&result.stderr).unwrap()["code"],
+            serde_json::from_slice::<serde_json::Value>(&result.stderr).unwrap()["exitCode"],
             code
         );
     }
@@ -206,11 +206,14 @@ fn help_is_available_before_documentation_and_schema_errors_are_explicit() {
             cones: vec![],
         },
     );
-    let output = invoke(root.path(), &["show", "choose"]);
+    let output = invoke(root.path(), &["show", "choose", "--format=json"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
+    let error: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["code"], "E1801");
     assert!(
-        String::from_utf8(output.stderr)
+        error["message"]
+            .as_str()
             .unwrap()
             .contains("unsupported API schema 99")
     );

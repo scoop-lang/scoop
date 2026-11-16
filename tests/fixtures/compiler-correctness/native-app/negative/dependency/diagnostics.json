@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2110",
     "message": "dependency resolution failed:\ndev.nativeapp:consumer 0.1.0 [path .] depends on dev.nativeapp:provider ∅\n  dev.nativeapp:consumer -> dev.nativeapp:provider: dev.nativeapp:consumer:0.1.0 requires 0.1.0 from path ${provider.canonical}\n    ${manifest.canonical} (bytes 139..182)\n    candidate 0.1.0 [path ../provider]: native-app; dependencies must be libraries",
     "notes": [],
     "origin": {

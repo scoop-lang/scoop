@@ -46,6 +46,7 @@ impl Lowerer {
         }
         if failures.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0713,
                 context.span,
                 format!(
                     "no declaration candidate has a permitted form for {}",
@@ -55,18 +56,26 @@ impl Lowerer {
             return;
         }
         let layer = layer_name(failures.iter().map(|failure| failure.layer));
-        let traces = failures
-            .iter()
-            .map(|failure| format!("  - {} — {}", failure.signature, failure.reason))
-            .collect::<Vec<_>>()
-            .join("\n");
-        self.error(
+        let mut diagnostic = scoop_ast::Diagnostic::at(
+            scoop_source::DiagnosticCode::E0711,
             context.span,
             format!(
-                "no applicable candidate for {} in {layer} layer:\n{traces}",
+                "no applicable candidate for {} in {layer} layer",
                 context.display
             ),
         );
+        diagnostic.set_file(self.current_text_file());
+        diagnostic.notes = failures
+            .iter()
+            .map(|failure| {
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0002,
+                    failure.signature.clone(),
+                )
+                .with_note(failure.reason.note())
+            })
+            .collect();
+        self.diagnostics.push(diagnostic);
     }
 
     pub(super) fn reference_ambiguity_diagnostic(
@@ -84,24 +93,31 @@ impl Lowerer {
         } else {
             "forms a complete non-generic function type"
         };
-        let traces = applicable
+        let mut diagnostic = scoop_ast::Diagnostic::at(
+            scoop_source::DiagnosticCode::E0712,
+            context.span,
+            format!("{} is ambiguous in {layer} layer", context.display),
+        );
+        diagnostic.set_file(self.current_text_file());
+        diagnostic.notes = applicable
             .iter()
             .map(|candidate| {
-                format!(
-                    "  - {} — {reason}",
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0002,
                     candidate
                         .declaration
-                        .signature(&candidate.state, context.name)
+                        .signature(&candidate.state, context.name),
                 )
+                .with_note(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0701,
+                    reason,
+                ))
+                .with_note(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0703,
+                    "candidate remains tied after overload ranking",
+                ))
             })
-            .collect::<Vec<_>>()
-            .join("\n");
-        self.error(
-            context.span,
-            format!(
-                "{} is ambiguous in {layer} layer:\n{traces}",
-                context.display
-            ),
-        );
+            .collect();
+        self.diagnostics.push(diagnostic);
     }
 }

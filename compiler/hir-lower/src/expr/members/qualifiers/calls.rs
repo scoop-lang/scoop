@@ -73,6 +73,7 @@ impl Lowerer {
             "type"
         };
         self.error(
+            scoop_source::DiagnosticCode::E0402,
             name.span,
             format!(
                 "{owner_kind} `{}` has no {member_kind} `{}`",

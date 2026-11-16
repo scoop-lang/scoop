@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1307",
     "message": "annotation classes cannot have supertypes or a body",
     "notes": [],
     "origin": {

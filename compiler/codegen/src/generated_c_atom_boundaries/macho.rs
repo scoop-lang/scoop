@@ -44,6 +44,7 @@ pub(super) fn materialize(
                     {
                         let ranges = compact_ranges.as_ref().ok_or_else(|| {
                             CodegenError::internal("missing compact unwind records".into())
+                                .with_code(scoop_source::DiagnosticCode::ICE2302)
                         })?;
                         let (start, end) = super::unwind::require(
                             ranges,
@@ -56,9 +57,10 @@ pub(super) fn materialize(
                 scoop_lir::DefinitionAtomRole::EhFrame => {
                     let section = layout.require_section(b"__TEXT", b"__eh_frame")?;
                     {
-                        let ranges = eh_ranges
-                            .as_ref()
-                            .ok_or_else(|| CodegenError::internal("missing EH records".into()))?;
+                        let ranges = eh_ranges.as_ref().ok_or_else(|| {
+                            CodegenError::internal("missing EH records".into())
+                                .with_code(scoop_source::DiagnosticCode::ICE2302)
+                        })?;
                         let (start, end) = super::unwind::require(
                             ranges,
                             primary_section.index(),
@@ -70,7 +72,8 @@ pub(super) fn materialize(
                 role => {
                     return Err(CodegenError::internal(format!(
                         "unexpected generated-C Mach-O atom {role:?}"
-                    )));
+                    ))
+                    .with_code(scoop_source::DiagnosticCode::ICE2302));
                 }
             };
             for (symbol, value) in [(boundary.start(), start), (boundary.end(), end)] {

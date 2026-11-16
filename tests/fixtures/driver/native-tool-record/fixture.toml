@@ -51,7 +51,7 @@ name = "update_tool"
 files = [{concat = {path = "${work}/cc", parts = [{file = "${work}/cc"}, "# updated driver\n"]}}]
 
 [[steps]]
-name = "changed"
+name = "tool_changed"
 argv = ["${scoop}", "build", "--release", "${work}/cone", {each = "${native_sysroot_args}"}, {"each" = "${options}"}]
 exit = 0
 stdout = ""
@@ -59,7 +59,25 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
-  {actual = "${changed.result.observations.child_invocations.length}", equals = 1},
+  {actual = "${tool_changed.result.observations.child_invocations.length}", equals = 0},
+  {file = "${work}/calls.log", same_as = "${work}/cold.log"},
+  {file = "${work}/probes.log", equals = "probe\n"},
+]
+
+[[steps]]
+name = "update_source"
+files = [{concat = {path = "${work}/cone/src/main.scoop", parts = [{file = "${work}/cone/src/main.scoop"}, "\n// changed source\n"]}}]
+
+[[steps]]
+name = "source_changed"
+argv = ["${scoop}", "build", "--release", "${work}/cone", {each = "${native_sysroot_args}"}, {"each" = "${options}"}]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${source_changed.result.observations.child_invocations.length}", equals = 1},
   {file = "${work}/calls.log", different_from = "${work}/cold.log"},
   {file = "${work}/probes.log", equals = "probe\nprobe\n"},
 ]

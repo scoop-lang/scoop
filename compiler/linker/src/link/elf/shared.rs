@@ -6,10 +6,14 @@ pub(super) fn append(
     command: &mut std::process::Command,
 ) -> Result<Vec<PathBuf>, LinkError> {
     let crate::namespace::NativeNamespace::Elf(namespace) = &inputs.namespace else {
-        return Err(error("ELF link requires an ELF namespace"));
+        return Err(error(
+            scoop_source::DiagnosticCode::ICE2201,
+            "ELF link requires an ELF namespace",
+        ));
     };
     let scratch = directory.join("shared");
-    std::fs::create_dir(&scratch).map_err(error)?;
+    std::fs::create_dir(&scratch)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut paths = Vec::new();
     command.arg("-Wl,--push-state,--no-as-needed");
     for id in namespace.selected_order() {

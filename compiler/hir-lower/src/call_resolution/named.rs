@@ -255,8 +255,10 @@ impl Lowerer {
         let mut pool = match comparison.most_specific_declarations(&candidates) {
             Ok(pool) => pool,
             Err(error) => {
-                self.diagnostics
-                    .push(scoop_ast::Diagnostic::internal(error));
+                self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0601,
+                    error,
+                ));
                 return None;
             }
         };
@@ -293,17 +295,26 @@ impl Lowerer {
             .collect::<Vec<_>>();
         // This order is diagnostic-only; MSC above never observes it.
         signatures.sort_by_key(|(order, _)| *order);
-        self.error(
+        let mut diagnostic = ast::Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E0712,
+            self.current_text_file(),
             span,
-            format!(
-                "call to `{name}` is ambiguous in {layer} layer:\n{}",
-                signatures
-                    .iter()
-                    .map(|(_, signature)| format!("  - {signature} — applicable; tied by MSC"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ),
+            format!("call to `{name}` is ambiguous in {layer} layer"),
         );
+        diagnostic.notes = signatures
+            .into_iter()
+            .map(|(_, signature)| {
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0002,
+                    signature,
+                )
+                .with_note(scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0703,
+                    "applicable; tied by MSC",
+                ))
+            })
+            .collect();
+        self.diagnostics.push(diagnostic);
         None
     }
 }

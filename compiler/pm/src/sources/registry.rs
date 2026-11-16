@@ -90,7 +90,12 @@ pub enum RegistrySource {
 pub(super) fn archive_url(registry: &RegistryUrl, archive: &str) -> PmResult<String> {
     let url = url::Url::parse(registry.as_str())
         .and_then(|base| base.join(archive))
-        .map_err(|error| PmError::new(format!("invalid registry archive URL: {error}")))?;
+        .map_err(|error| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2016,
+                format!("invalid registry archive URL: {error}"),
+            )
+        })?;
     if archive.is_empty()
         || !matches!(url.scheme(), "http" | "https")
         || !url.username().is_empty()
@@ -98,6 +103,7 @@ pub(super) fn archive_url(registry: &RegistryUrl, archive: &str) -> PmResult<Str
         || url.fragment().is_some()
     {
         return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2113,
             "archive must be an HTTP(S) URL without embedded credentials or fragment",
         ));
     }
@@ -112,12 +118,17 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> PmResult<Option<T>>
     };
     serde_json::from_reader(std::io::BufReader::new(file))
         .map(Some)
-        .map_err(|error| PmError::new(format!("{}: {error}", path.display())))
+        .map_err(|error| {
+            PmError::new(
+                scoop_source::DiagnosticCode::ICE2201,
+                format!("{}: {error}", path.display()),
+            )
+        })
 }
 
 fn write_json(path: &Path, value: &impl Serialize) -> PmResult<()> {
-    let bytes =
-        serde_json::to_vec_pretty(value).map_err(|error| PmError::new(error.to_string()))?;
+    let bytes = serde_json::to_vec_pretty(value)
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string()))?;
     atomic_write(path, &bytes)
 }
 

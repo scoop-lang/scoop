@@ -1,8 +1,75 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `MutableArray` in core prelude layer:\n  - no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer:\n  - class MutableArray<T>(size: Long, init: (Long) -> T) — spread is only allowed for vararg parameter `size`\n  - no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer:\n  - class MutableArray<T>(source: Array<T>) — spread is only allowed for vararg parameter `source`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `MutableArray` in core prelude layer",
+    "notes": [
+      {
+        "code": "E0711",
+        "kind": "cause",
+        "message": "no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer",
+        "notes": [
+          {
+            "code": "N0002",
+            "kind": "note",
+            "message": "class MutableArray<T>(size: Long, init: (Long) -> T)",
+            "notes": [
+              {
+                "code": "E0707",
+                "kind": "cause",
+                "message": "spread is only allowed for vararg parameter `size`",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "feb2d17d445d1dc73a0aeb977c7a8f316b9deb24915a7549ab913d888322164e",
+          "end": 119,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 98
+        }
+      },
+      {
+        "code": "E0711",
+        "kind": "cause",
+        "message": "no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer",
+        "notes": [
+          {
+            "code": "N0002",
+            "kind": "note",
+            "message": "class MutableArray<T>(source: Array<T>)",
+            "notes": [
+              {
+                "code": "E0707",
+                "kind": "cause",
+                "message": "spread is only allowed for vararg parameter `source`",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "feb2d17d445d1dc73a0aeb977c7a8f316b9deb24915a7549ab913d888322164e",
+          "end": 119,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 98
+        }
+      }
+    ],
     "origin": {
       "cone": "feb2d17d445d1dc73a0aeb977c7a8f316b9deb24915a7549ab913d888322164e",
       "end": 119,

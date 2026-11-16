@@ -4,6 +4,7 @@ impl Lowerer {
     pub(crate) fn reject_expression_body_return(&mut self, expr: &ast::Expr) -> bool {
         if crate::expr::expr_contains_return(expr) {
             self.error(
+                scoop_source::DiagnosticCode::E0804,
                 expr.span(),
                 "an expression-bodied function cannot use explicit `return`".into(),
             );
@@ -75,6 +76,7 @@ impl Lowerer {
                     let name = self.current_fn_name.clone();
                     let expected = self.type_name(return_ty);
                     self.error(
+                        scoop_source::DiagnosticCode::E0803,
                         span,
                         format!(
                             "`return` without a value in function `{name}` returning {expected}"
@@ -90,14 +92,15 @@ impl Lowerer {
                     let name = self.current_fn_name.clone();
                     let expected = self.type_name(return_ty);
                     let found = self.type_name(value.ty);
-                    let message = self.with_nominal_invariance_detail(
+                    self.error_with_invariance(
+                        scoop_source::DiagnosticCode::E0501,
+                        source.span(),
                         format!(
                             "`return` value of `{name}` must be of type {expected}, found {found}"
                         ),
                         value.ty,
                         return_ty,
                     );
-                    self.error(source.span(), message);
                     return None;
                 }
                 Some(self.adapt_to(value, return_ty))
@@ -118,6 +121,7 @@ impl Lowerer {
             .is_some_and(|context| context.capture_depth == self.capture_contexts.len())
         {
             self.error(
+                scoop_source::DiagnosticCode::E0804,
                 span,
                 "`return` is not allowed in an initializer or constructor body".into(),
             );
@@ -125,6 +129,7 @@ impl Lowerer {
         }
         if self.lowering_default_template {
             self.error(
+                scoop_source::DiagnosticCode::E0804,
                 span,
                 "`return` is not allowed in a default expression".into(),
             );
@@ -139,6 +144,7 @@ impl Lowerer {
                 .is_some_and(|unit| self.initialization_units[unit].initializer == *function)
         {
             self.error(
+                scoop_source::DiagnosticCode::E0804,
                 span,
                 "`return` is not allowed in a top-level initializer".into(),
             );
@@ -160,13 +166,18 @@ impl Lowerer {
                 _ => None,
             };
             if self.loop_label_is_active(&label.text) || own_label != Some(label.text.as_str()) {
-                self.error(label.span, format!("return label `{}` does not name the current callable; non-local returns are not allowed", label.text));
+                self.error(scoop_source::DiagnosticCode::E0805, label.span, format!("return label `{}` does not name the current callable; non-local returns are not allowed", label.text));
                 return None;
             }
         } else if is_lambda {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0805,
                 span,
-                "a lambda cannot use bare `return`; use `return@label` for a local return".into(),
+                "a lambda cannot use bare `return`".to_owned(),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0801,
+                    "use `return@label` for a local return".to_owned(),
+                ),
             );
             return None;
         }
@@ -179,7 +190,11 @@ impl Lowerer {
                     ..
                 })
         ) {
-            self.error(span, "`return` requires an enclosing function body".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0804,
+                span,
+                "`return` requires an enclosing function body".into(),
+            );
             return None;
         }
         Some(())

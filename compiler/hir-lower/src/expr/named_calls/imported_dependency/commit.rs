@@ -89,6 +89,7 @@ impl Lowerer {
             && candidate.interface().modality() == hir::CallableModalityV1::Abstract
         {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 call_span,
                 "abstract dependency member cannot be called with `super`".into(),
             );
@@ -204,6 +205,7 @@ impl Lowerer {
             |state, template, context| {
                 let Some(prepared) = default_plan.get(*template) else {
                     state.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         call_span,
                         format!("dependency default plan is missing template {template:?}"),
                     );
@@ -218,10 +220,9 @@ impl Lowerer {
                 ) {
                     Ok(value) => Some(value),
                     Err(error) => {
-                        state.error(
-                            call_span,
-                            format!("failed to materialize dependency default: {error}"),
-                        );
+                        state
+                            .diagnostics
+                            .push(error.diagnostic(state.current_text_file(), call_span));
                         None
                     }
                 }
@@ -233,6 +234,7 @@ impl Lowerer {
         {
             let hir::Type::Enum(owner) = self.types[result_type] else {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     call_span,
                     "an enum variant constructor must return its enum application".into(),
                 );
@@ -350,7 +352,7 @@ impl Lowerer {
                     ) {
                         Ok(bound) => bound,
                         Err(message) => {
-                            self.error(call_span, message);
+                            self.error(scoop_source::DiagnosticCode::ICE0501, call_span, message);
                             return None;
                         }
                     };
@@ -400,6 +402,7 @@ impl Lowerer {
             Ok(selected) => selected,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     call_span,
                     format!("failed to select imported dependency callable: {error}"),
                 );
@@ -415,7 +418,7 @@ impl Lowerer {
         ) {
             Ok(bound) => bound,
             Err(message) => {
-                self.error(call_span, message);
+                self.error(scoop_source::DiagnosticCode::ICE0501, call_span, message);
                 return None;
             }
         };

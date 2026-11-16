@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "`inner` is only allowed on class declarations",
     "notes": [],
     "origin": {

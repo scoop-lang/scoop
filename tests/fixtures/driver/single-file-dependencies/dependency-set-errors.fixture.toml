@@ -32,7 +32,7 @@ name = "missing_direct"
 argv = ["${scoopc}", "build", "${work}/default.scoop", {"each" = "${compile_args}"}, "--profile", "release", "--sysroot", "${sysroot}", "--out-slib", "${work}/previous.slib"]
 exit = 1
 stdout = ""
-stderr = "error: manifest dependency set does not equal the direct artifact set: declared [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }], actual [ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }]\n"
+stderr = "error[E2107]: manifest dependency set does not equal the direct artifact set: declared [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }], actual [ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }]\n"
 checks = [{"file" = "${work}/previous.slib", "equals" = "previous artifact"}]
 
 [[steps]]
@@ -40,7 +40,7 @@ name = "wrong_role"
 argv = ["${scoopc}", "build", "${work}/default.scoop", {"each" = "${compile_args}"}, "--profile", "release", "--sysroot", "${sysroot}", "--out-slib", "${work}/previous.slib", "--support-slib", "${sysroot}/lib/${target}/scoop.std.slib"]
 exit = 1
 stdout = ""
-stderr = "error: manifest dependency set does not equal the direct artifact set: declared [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }], actual [ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }]\n"
+stderr = "error[E2107]: manifest dependency set does not equal the direct artifact set: declared [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }], actual [ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }]\n"
 checks = [{"file" = "${work}/previous.slib", "equals" = "previous artifact"}]
 
 [[steps]]
@@ -48,7 +48,7 @@ name = "extra_direct"
 argv = ["${scoopc}", "build", "${work}/default.scoop", {"each" = "${compile_args}"}, "--profile", "release", "--sysroot", "${sysroot}", "--out-slib", "${work}/previous.slib", "--direct-slib", "${sysroot}/lib/${target}/scoop.std.slib", "--direct-slib", "${sysroot}/lib/${target}/scoop.json.slib"]
 exit = 1
 stdout = ""
-stderr = "error: manifest dependency set does not equal the direct artifact set: declared [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }], actual [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.json\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }]\n"
+stderr = "error[E2107]: manifest dependency set does not equal the direct artifact set: declared [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }], actual [ConeCoordinate { group: \"scoop\", name: \"scoop.std\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.json\", version: \"0.1.0\" }, ConeCoordinate { group: \"scoop\", name: \"scoop.core\", version: \"0.1.0\" }]\n"
 checks = [{"file" = "${work}/previous.slib", "equals" = "previous artifact"}]
 
 [[steps]]

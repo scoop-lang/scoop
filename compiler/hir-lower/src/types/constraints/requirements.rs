@@ -16,6 +16,7 @@ impl Lowerer {
         for block in clause.into_iter().flat_map(|clause| &clause.requirements) {
             if !allowed || own.is_empty() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0611,
                     block.span,
                     format!(
                         "member requirements are only allowed on generic functions, not {target}"
@@ -36,9 +37,14 @@ impl Lowerer {
                     .iter()
                     .find(|requirement| requirement.contract == contract)
                 {
-                    let mut error = ast::Diagnostic::at(call.span, "duplicate member requirement");
+                    let mut error = ast::Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0615,
+                        call.span,
+                        "duplicate member requirement",
+                    );
                     error.set_file(self.current_file);
                     error.notes.push(ast::DiagnosticNote::at(
+                        scoop_source::DiagnosticCode::N0001,
                         self.current_file,
                         previous.span,
                         "previous requirement is here",
@@ -71,6 +77,7 @@ impl Lowerer {
         for parameter in &block.parameters {
             if virtuals.contains_key(&parameter.name.text) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     parameter.name.span,
                     format!("duplicate virtual parameter `{}`", parameter.name.text),
                 );
@@ -119,6 +126,7 @@ impl Lowerer {
             ast::RequiredCall::Constructor { parameter, result } => {
                 let Some(&index) = own.get(&parameter.text) else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0612,
                         parameter.span,
                         "a construction requirement must name this function's type parameter"
                             .into(),
@@ -129,11 +137,12 @@ impl Lowerer {
                 if let Some(result) = result
                     && self.resolve_type_ref(result)? != subject
                 {
-                    self.error(result.span, "a construction requirement's result must be the constructed type parameter".into());
+                    self.error(scoop_source::DiagnosticCode::E0623, result.span, "a construction requirement's result must be the constructed type parameter".into());
                     return None;
                 }
                 if effects.is_suspend {
                     self.error(
+                        scoop_source::DiagnosticCode::E0623,
                         source.span,
                         "a construction requirement cannot be suspend".into(),
                     );
@@ -145,7 +154,7 @@ impl Lowerer {
         let parameter = match self.types[subject] {
             Type::Param(id) | Type::Companion(id) => id,
             _ => {
-                self.error(source.span, "a requirement receiver must be this function's type parameter or its companion".into());
+                self.error(scoop_source::DiagnosticCode::E0612, source.span, "a requirement receiver must be this function's type parameter or its companion".into());
                 return None;
             }
         };
@@ -155,6 +164,7 @@ impl Lowerer {
             .find(|&index| parameters[index].id == parameter)
         else {
             self.error(
+                scoop_source::DiagnosticCode::E0612,
                 source.span,
                 "a requirement cannot constrain an outer or host type parameter".into(),
             );
@@ -167,6 +177,7 @@ impl Lowerer {
                 ast::RequirementArgumentValue::Parameter(name) => {
                     let Some(&ty) = virtuals.get(&name.text) else {
                         self.error(
+                            scoop_source::DiagnosticCode::E0612,
                             name.span,
                             format!("unknown virtual parameter `{}`", name.text),
                         );

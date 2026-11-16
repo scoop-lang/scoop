@@ -22,6 +22,7 @@ impl Lowerer {
             _ => call.span,
         };
         self.error(
+            failure.code(),
             span,
             format!("dependency function `{}`: {message}", name.text),
         );
@@ -57,7 +58,7 @@ impl Lowerer {
             }
         };
         match &failure.kind {
-            Kind::MemberRequirement(message) => message.clone(),
+            Kind::MemberRequirement(failure) => failure.message.clone(),
             Kind::Companion { message, .. } => message.clone(),
             Kind::Kind {
                 variable,

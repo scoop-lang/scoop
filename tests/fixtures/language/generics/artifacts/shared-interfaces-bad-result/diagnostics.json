@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "property `first` must have the exact inherited type Int, found String",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1012",
     "message": "`$get$first` is marked `override` but does not override any method",
     "notes": [],
     "origin": {

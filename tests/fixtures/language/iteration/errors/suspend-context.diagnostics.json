@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1103",
     "message": "suspend function `SuspendSource.iterator` cannot be called from non-suspend function `main`",
     "notes": [],
     "origin": {

@@ -70,7 +70,7 @@ impl Lowerer {
                 if equivalent {
                     relisted.push((block.id(), interface));
                 } else {
-                    self.error(block.span, format!(
+                    self.error(scoop_source::DiagnosticCode::E1011, block.span, format!(
                         "condition for inherited interface `{}` must be equivalent to its original implementation condition",
                         self.type_name(interface),
                     ));
@@ -85,7 +85,7 @@ impl Lowerer {
                 {
                     relisted.push((block.id(), interface));
                 } else if !self.conditional_application_is_impossible(&condition) {
-                    self.error(block.span, format!(
+                    self.error(scoop_source::DiagnosticCode::E1011, block.span, format!(
                         "condition for inherited interface `{}` must cover its unconditional implementation",
                         self.type_name(interface),
                     ));

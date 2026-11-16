@@ -1,8 +1,32 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for constructor `AtomicRef` in nominal constructor candidate layer:\n  - class AtomicRef<T : ref>(initial: T) — conflicting types for `T`: Any and String",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for constructor `AtomicRef` in nominal constructor candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class AtomicRef<T : ref>(initial: T)",
+        "notes": [
+          {
+            "code": "E0605",
+            "kind": "cause",
+            "message": "conflicting types for `T`: Any and String",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 56,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 50
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 56,

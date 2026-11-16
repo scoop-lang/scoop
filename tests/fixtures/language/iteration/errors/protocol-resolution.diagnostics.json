@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `iterator` in extension candidate layer:\n  - fun BadLayeredSource.iterator(): GoodIterator — MissingSource is not a subtype of BadLayeredSource",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `iterator` in extension candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun BadLayeredSource.iterator(): GoodIterator",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "MissingSource is not a subtype of BadLayeredSource",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 643,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 637
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 277,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 206
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 643,
@@ -13,9 +41,37 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `iterator` in extension candidate layer:\n  - fun LeftSource.iterator(): GoodIterator — MissingSource is not a subtype of LeftSource",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `iterator` in extension candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun LeftSource.iterator(): GoodIterator",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "MissingSource is not a subtype of LeftSource",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 643,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 637
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 442,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 377
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 643,
@@ -26,9 +82,37 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `iterator` in extension candidate layer:\n  - fun RightSource.iterator(): GoodIterator — MissingSource is not a subtype of RightSource",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `iterator` in extension candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun RightSource.iterator(): GoodIterator",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "MissingSource is not a subtype of RightSource",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 643,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 637
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 509,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 443
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 643,
@@ -39,9 +123,48 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `iterator` is ambiguous in extension candidate layer:\n  - fun LeftSource.iterator(): GoodIterator — applicable; tied by MSC\n  - fun RightSource.iterator(): GoodIterator — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `iterator` is ambiguous in extension candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun LeftSource.iterator(): GoodIterator",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun RightSource.iterator(): GoodIterator",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 724,
@@ -52,7 +175,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0811",
     "message": "iterator operator result type `Int` does not implement `Iterator<T>`",
     "notes": [],
     "origin": {
@@ -65,7 +188,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0811",
     "message": "iterator operator result type `I` implements multiple distinct `Iterator<T>` applications",
     "notes": [],
     "origin": {

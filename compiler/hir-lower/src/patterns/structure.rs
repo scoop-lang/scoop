@@ -20,6 +20,7 @@ impl Lowerer {
         ) && (self.is_char_type(ty) || self.float_kind(ty).is_some())
         {
             self.error(
+                scoop_source::DiagnosticCode::E0905,
                 pattern_span(pattern),
                 format!(
                     "intrinsic type `{}` cannot be destructured",
@@ -92,6 +93,7 @@ impl Lowerer {
             Type::Enum(_) => self.resolve_enum_pattern_path(path, matched_ty, span),
             _ if path.is_empty() => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0905,
                     span,
                     format!(
                         "a field pattern without a type name can only match a struct, found {}",
@@ -102,6 +104,7 @@ impl Lowerer {
             }
             Type::Ptr(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0905,
                     span,
                     format!(
                         "intrinsic pointer type `{}` cannot be destructured",
@@ -147,6 +150,7 @@ impl Lowerer {
         let count = elements.len();
         if (rest.is_none() && count != total) || (rest.is_some() && count > total) {
             self.error(
+                scoop_source::DiagnosticCode::E0906,
                 span,
                 format!("pattern has {count} element(s), but {owner} has {total}"),
             );
@@ -205,9 +209,14 @@ impl Lowerer {
         span: Span,
     ) -> Option<Vec<usize>> {
         if rest.is_none() && fields.len() < names.len() {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0907,
                 span,
-                format!("pattern does not list all fields of {owner}; add `..` to ignore the rest"),
+                format!("pattern does not list all fields of {owner}"),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0901,
+                    "add `..` to ignore the rest".to_owned(),
+                ),
             );
             return None;
         }
@@ -216,6 +225,7 @@ impl Lowerer {
         for field in fields {
             if field.field.text == "_" {
                 self.error(
+                    scoop_source::DiagnosticCode::E0908,
                     field.field.span,
                     "`_` is not allowed in a field pattern".into(),
                 );
@@ -223,6 +233,7 @@ impl Lowerer {
             }
             if !seen.insert(field.field.text.as_str()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0909,
                     field.field.span,
                     format!("duplicate field `{}` in pattern", field.field.text),
                 );
@@ -230,6 +241,7 @@ impl Lowerer {
             }
             let Some(index) = names.iter().position(|name| *name == field.field.text) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     field.field.span,
                     format!("{owner} has no field `{}`", field.field.text),
                 );

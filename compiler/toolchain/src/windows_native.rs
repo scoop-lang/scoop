@@ -130,18 +130,23 @@ pub(crate) fn discover(
     language: NativeSourceLanguage,
     driver: &Path,
 ) -> Result<NativeDriverDiscovery, ToolchainError> {
-    let environment = c.windows_environment().map_err(error)?;
+    let environment = c
+        .windows_environment()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let driver = crate::paths::find_program(driver.as_os_str(), &environment.search_path)?;
     let kind = kind(&driver);
     if kind.microsoft()
         && c.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt
     {
-        return Err(error("cl/clang-cl require the Microsoft UCRT target"));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2303,
+            "cl/clang-cl require the Microsoft UCRT target",
+        ));
     }
     let directory = tempfile::Builder::new()
         .prefix("scoop-native-probe-")
         .tempdir()
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let source = directory
         .path()
         .join(if language == NativeSourceLanguage::Cxx {
@@ -154,7 +159,7 @@ pub(crate) fn discover(
         &source,
         probe::source(c.native_environment(), environment.machine, language),
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut compiler = command(c, &driver, kind, language, false);
     compiler.arg(if kind.microsoft() {
         if language == NativeSourceLanguage::Cxx {
@@ -173,41 +178,62 @@ pub(crate) fn discover(
         compiler.arg("-c").arg("-o").arg(&object);
     }
     input(&mut compiler, kind, &source);
-    let output = compiler.scoop_output().map_err(error)?;
+    let output = compiler
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
     }
-    let bytes = std::fs::read(object).map_err(error)?;
-    let file = object::File::parse(bytes.as_slice()).map_err(error)?;
+    let bytes =
+        std::fs::read(object).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    let file = object::File::parse(bytes.as_slice())
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     if file.architecture() != environment.machine.object_architecture()
         || file.format() != object::BinaryFormat::Coff
         || file.kind() != object::ObjectKind::Relocatable
     {
-        return Err(error(format!(
-            "native compiler must emit {} COFF objects",
-            environment.machine.name()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2303,
+            format!(
+                "native compiler must emit {} COFF objects",
+                environment.machine.name()
+            ),
+        ));
     }
     let symbol = file
         .symbol_by_name("scoop_native_configuration")
-        .ok_or_else(|| error("missing native probe configuration"))?;
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2303,
+                "missing native probe configuration",
+            )
+        })?;
     let section = file
         .section_by_index(
-            symbol
-                .section_index()
-                .ok_or_else(|| error("missing probe section"))?,
+            symbol.section_index().ok_or_else(|| {
+                error(scoop_source::DiagnosticCode::E2303, "missing probe section")
+            })?,
         )
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let data = section
         .data_range(symbol.address(), 16)
-        .map_err(error)?
-        .ok_or_else(|| error("truncated native probe configuration"))?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2303,
+                "truncated native probe configuration",
+            )
+        })?;
     Ok(NativeDriverDiscovery {
-        driver: scoop_protocol::HostPathCarrier::from_path(&driver).map_err(error)?,
+        driver: scoop_protocol::HostPathCarrier::from_path(&driver)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2501, cause))?,
         configuration: *scoop_wire::sha256(data).as_array(),
         kind,
         family: if kind == NativeDriverKind::Msvc {
@@ -246,7 +272,8 @@ pub(crate) fn read_dependencies(
     path: &Path,
     target: &str,
 ) -> Result<Vec<PathBuf>, ToolchainError> {
-    let text = std::fs::read_to_string(path).map_err(error)?;
+    let text = std::fs::read_to_string(path)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     if kind == NativeDriverKind::Msvc {
         #[derive(serde::Deserialize)]
         struct Dependencies {
@@ -260,14 +287,18 @@ pub(crate) fn read_dependencies(
             #[serde(rename = "Includes")]
             includes: Vec<PathBuf>,
         }
-        let dependencies: Dependencies =
-            serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(error)?;
+        let dependencies: Dependencies = serde_json::from_str(text.trim_start_matches('\u{feff}'))
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
         Ok(std::iter::once(dependencies.data.source)
             .chain(dependencies.data.includes)
             .collect())
     } else {
-        scoop_process::parse_make_dependencies(&text, target)
-            .ok_or_else(|| error("invalid native compiler dependency output"))
+        scoop_process::parse_make_dependencies(&text, target).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2303,
+                "invalid native compiler dependency output",
+            )
+        })
     }
 }
 
@@ -277,6 +308,6 @@ pub(crate) fn joined(prefix: &str, path: &Path) -> std::ffi::OsString {
     value
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("Windows native compiler: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("Windows native compiler: {value}"))
 }

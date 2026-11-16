@@ -61,7 +61,7 @@ impl Lowerer {
                     && source.declaration().package() == parent_key.package()
             });
         if !allowed {
-            self.error(span, format!("a direct subtype of sealed `{}` must be a named non-local declaration in the same origin Cone and package", self.type_name(ty)));
+            self.error(scoop_source::DiagnosticCode::E1019, span, format!("a direct subtype of sealed `{}` must be a named non-local declaration in the same origin Cone and package", self.type_name(ty)));
             return false;
         }
         let child = child.declaration_id();
@@ -100,6 +100,7 @@ impl Lowerer {
             } => visibility,
             ast::VisibilitySyntax::Explicit { span, .. } => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1019,
                     span,
                     "a sealed class constructor must be protected or private".into(),
                 );

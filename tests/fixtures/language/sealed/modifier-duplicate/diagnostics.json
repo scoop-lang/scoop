@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0303",
     "message": "duplicate `sealed` modifier",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "body of `invalid` must be of type Counter, found Other",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1509",
     "message": "property `value` without an initializer must be a mutable Option property",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "class `Missing` has no property `value`",
     "notes": [],
     "origin": {

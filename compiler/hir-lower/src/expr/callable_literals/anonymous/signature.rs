@@ -23,13 +23,14 @@ impl Lowerer {
         if let Some(signature) = &expected_signature {
             if signature.is_suspend != is_suspend {
                 self.error(
+                    scoop_source::DiagnosticCode::E0504,
                     span,
                     "ordinary and suspend function types are incompatible".to_string(),
                 );
                 return None;
             }
             if source_params.len() + usize::from(receiver_ty.is_some()) != signature.arity() {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E0503,
                     span,
                     format!(
                         "anonymous function has {} parameter(s), but the expected function type has {}",
@@ -48,6 +49,7 @@ impl Lowerer {
                 .expect("receiver arity was checked");
             if !self.is_subtype(expected, receiver) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     source_receiver.expect("explicit receiver").span,
                     format!(
                         "anonymous-function receiver type is {}, but the expected type is {}",
@@ -73,7 +75,7 @@ impl Lowerer {
                 if !self.is_subtype(expected, ty) {
                     let found = self.type_name(ty);
                     let expected = self.type_name(expected);
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0501,
                         parameter.ty.span,
                         format!(
                             "anonymous-function parameter type is {found}, but the expected type is {expected}"
@@ -97,6 +99,7 @@ impl Lowerer {
             let found = self.type_name(explicit);
             let expected = self.type_name(expected);
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 source_return_ty.expect("explicit return type").span,
                 format!(
                     "anonymous-function return type is {found}, but the expected type is {expected}"

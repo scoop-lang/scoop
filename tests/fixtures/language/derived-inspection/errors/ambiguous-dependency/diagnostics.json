@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1313",
     "message": "automatic inspect has ambiguous primary val dependencies for Int: first, second",
     "notes": [],
     "origin": {

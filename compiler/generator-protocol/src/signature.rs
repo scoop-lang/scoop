@@ -116,6 +116,7 @@ impl SignatureProjection<'_> {
 
 pub(crate) fn error(span: hir::Span, cause: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::at(
+        scoop_source::DiagnosticCode::ICE2501,
         span,
         format!("cannot project the semantic description: {cause}"),
     )

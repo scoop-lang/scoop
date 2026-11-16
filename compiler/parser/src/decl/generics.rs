@@ -49,6 +49,7 @@ impl Parser {
         {
             let token = self.bump();
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0616,
                 token.span,
                 "nominal type parameters are invariant; declaration-site `in`/`out` is not supported",
             ));
@@ -146,6 +147,7 @@ impl Parser {
             let member = self.expect_ident("`Companion` in projected constraint")?;
             if member.text != "Companion" {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0618,
                     member.span,
                     "a dependent constraint only supports the `Companion` projection",
                 ));

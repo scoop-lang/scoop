@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0616",
     "message": "nominal type parameters are invariant; declaration-site `in`/`out` is not supported",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0616",
     "message": "nominal type parameters are invariant; declaration-site `in`/`out` is not supported",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0616",
     "message": "nominal type parameters are invariant; declaration-site `in`/`out` is not supported",
     "notes": [],
     "origin": {

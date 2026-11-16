@@ -381,7 +381,12 @@ pub(crate) fn lower_defined_for_test(
         .into_iter()
         .map(|warning| warning.bind(&identities))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| vec![Diagnostic::internal(error)])?;
+        .map_err(|error| {
+            vec![Diagnostic::internal(
+                scoop_source::DiagnosticCode::ICE0501,
+                error,
+            )]
+        })?;
     finish_output(export, warnings, &world, None)
 }
 
@@ -420,6 +425,7 @@ fn seal_export_output(
     }
     .map_err(|error| {
         vec![Diagnostic::at(
+            scoop_source::DiagnosticCode::ICE0501,
             Span { start: 0, end: 0 },
             format!("failed to seal Export HIR output: {error}"),
         )]
@@ -438,6 +444,7 @@ fn finish_output(
             .map_err(native_boundary_diagnostic)?;
     hir::Output::try_new(export, local, native_boundary_types, warnings).map_err(|error| {
         vec![Diagnostic::at(
+            scoop_source::DiagnosticCode::ICE0501,
             Span { start: 0, end: 0 },
             format!("failed to seal HIR output: {error}"),
         )]
@@ -447,7 +454,11 @@ fn finish_output(
 fn native_boundary_diagnostic(
     error: persistent_native_boundary::PersistentNativeBoundaryTypeError,
 ) -> Vec<Diagnostic> {
-    vec![Diagnostic::at(Span { start: 0, end: 0 }, error.to_string())]
+    vec![Diagnostic::at(
+        scoop_source::DiagnosticCode::ICE0501,
+        Span { start: 0, end: 0 },
+        error.to_string(),
+    )]
 }
 
 #[cfg(test)]

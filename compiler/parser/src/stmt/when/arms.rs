@@ -33,12 +33,18 @@ impl Parser {
             let keyword = self.bump();
             if !has_subject {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0912,
                     keyword.span,
-                    "when guards require a subject; combine conditions with `&&`",
-                ));
+                    "when guards require a subject".to_owned(),
+                )
+                .with_note(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0902,
+                    "combine conditions with `&&`".to_owned(),
+                )));
             }
             if matches!(&condition, WhenArmCondition::Conditions(values) if values.len() > 1) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0913,
                     keyword.span,
                     "a when arm with multiple conditions cannot have a guard",
                 ));

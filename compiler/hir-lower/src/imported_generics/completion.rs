@@ -20,6 +20,7 @@ impl Lowerer {
                     .and_then(|()| self.prepare_selected_intrinsic_types())
                 {
                     self.diagnostics.push(scoop_ast::Diagnostic::without_span(
+                        scoop_source::DiagnosticCode::E2411,
                         scoop_ast::DiagnosticSeverity::Error,
                         self.primary_output_file(),
                         error.diagnostic("generic argument support"),
@@ -29,7 +30,11 @@ impl Lowerer {
                 let callable_count = self.imported_dependency_callables.len();
                 if prepared_inline < callable_count {
                     if let Err(error) = self.prepare_inline_templates(prepared_inline) {
-                        self.error(hir::Span::new(0, 0), error);
+                        self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
+                            hir::Span::new(0, 0),
+                            error,
+                        );
                         break;
                     }
                     prepared_inline = callable_count;
@@ -87,6 +92,7 @@ impl Lowerer {
                 Err(error) => {
                     self.current_file = template.origin.file as usize;
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         template.span,
                         format!(
                             "cannot instantiate dependency body `{}`: {error}",

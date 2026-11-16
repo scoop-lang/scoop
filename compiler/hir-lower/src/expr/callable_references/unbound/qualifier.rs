@@ -32,6 +32,7 @@ impl Lowerer {
                 }
                 if lookup == ExpressionQualifierLookup::Ambiguous {
                     self.error(
+                        scoop_source::DiagnosticCode::E0404,
                         name.span,
                         format!("ambiguous callable reference qualifier `{}`", name.text),
                     );

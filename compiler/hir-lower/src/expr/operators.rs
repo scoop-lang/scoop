@@ -342,6 +342,7 @@ impl Lowerer {
         let (lhs, rhs) = self.lower_ordered_rhs(lhs, rhs, sink, rhs_expected, "$equality.lhs")?;
         if !self.is_ref_ty(lhs.ty) || !self.is_ref_ty(rhs.ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0508,
                 span,
                 format!("reference equality `{symbol}` is not supported on value types"),
             );

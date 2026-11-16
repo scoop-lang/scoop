@@ -93,7 +93,7 @@ impl Lowerer {
                 .collect::<Vec<_>>();
             for parameter in impossible {
                 self.current_file = self.effect_callable_file(callable);
-                self.error(self.effect_callable_span(callable), format!(
+                self.error(scoop_source::DiagnosticCode::E1107, self.effect_callable_span(callable), format!(
                     "generic {} `{}` cannot require ref-bound type parameter `{}` to be GC-free",
                     callable.kind(), self.effect_callable_name(callable),
                     self.effect_callable_parameter(callable, parameter).name,
@@ -122,6 +122,7 @@ impl Lowerer {
                 };
                 if !valid {
                     self.error(
+                        scoop_source::DiagnosticCode::E1106,
                         call_site.span,
                         format!(
                             "generic {} `{}` requires type argument {} for `{}` to be GC-free",

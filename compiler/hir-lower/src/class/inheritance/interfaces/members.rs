@@ -380,6 +380,7 @@ impl Lowerer {
             Ok(callable) => callable,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid inherited interface target: {error:?}"),
                 );

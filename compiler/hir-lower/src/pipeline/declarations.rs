@@ -77,6 +77,7 @@ impl Lowerer {
         PhaseFailure::check(check)?;
         if source_headers.is_empty() {
             return Err(vec![Diagnostic::without_span(
+                scoop_source::DiagnosticCode::E2004,
                 ast::DiagnosticSeverity::Error,
                 0,
                 "no source files to compile",
@@ -296,7 +297,11 @@ impl Lowerer {
 
         PhaseFailure::check(check)?;
         if let Err(error) = self.establish_nominal_identities() {
-            let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
+            let mut diagnostic = Diagnostic::at(
+                scoop_source::DiagnosticCode::ICE0401,
+                error.span(),
+                error.to_string(),
+            );
             diagnostic.set_file(error.file());
             return Err(vec![diagnostic].into());
         }

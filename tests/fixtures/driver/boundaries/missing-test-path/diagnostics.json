@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2201",
     "message": "cannot snapshot manifest sources: source discovery failed at ${fixture}/program/missing: cannot inspect: No such file or directory (os error 2)",
     "notes": [],
     "origin": {

@@ -30,6 +30,7 @@ impl Parser {
         self.record_declaration_name(&name);
         if matches!(self.peek().kind, TokenKind::Less | TokenKind::LParen) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "object declarations cannot declare type parameters or constructors",
             ));
@@ -58,6 +59,7 @@ impl Parser {
             }) {
                 self.invalidate_nominal_projection();
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0311,
                     constructor.span,
                     "object declarations cannot declare constructors",
                 ));
@@ -115,6 +117,7 @@ impl Parser {
         }
         if matches!(self.peek().kind, TokenKind::Less | TokenKind::LParen) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "companion objects cannot declare type parameters or constructors",
             ));
@@ -146,6 +149,7 @@ impl Parser {
             }) {
                 self.invalidate_nominal_projection();
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0311,
                     constructor.span,
                     "companion objects cannot declare constructors",
                 ));

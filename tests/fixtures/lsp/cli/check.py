@@ -48,7 +48,7 @@ def main():
         assert run.returncode == 0, run.stderr
         assert not run.stderr, run.stderr
         value = json.loads(run.stdout)
-        assert (value["schema"], value["kind"], value["rangeBase"]) == (1, "query", 0), value
+        assert (value["schema"], value["kind"], value["rangeBase"]) == (2, "query", 0), value
         return value
 
     def at(kind, line, token, *, encoding="utf-32", buffer=None, after=False):

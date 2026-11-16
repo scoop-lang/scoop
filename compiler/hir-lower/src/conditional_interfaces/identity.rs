@@ -52,6 +52,7 @@ impl Lowerer {
             Ok(key) => Some(key),
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0401,
                     span,
                     format!("invalid conditional interface declaration: {error}"),
                 );

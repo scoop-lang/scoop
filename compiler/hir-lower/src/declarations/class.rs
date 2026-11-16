@@ -14,6 +14,7 @@ impl Lowerer {
         let enclosing = if let Some(span) = decl.inner_span {
             let Some(Owner::Class(outer)) = owner else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1020,
                     span,
                     "`inner class` must be declared directly in a class body".into(),
                 );
@@ -26,6 +27,7 @@ impl Lowerer {
         let mut checked = self.check_class_annotations(decl);
         if owner.is_some() && checked.intrinsic.is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1402,
                 decl.span,
                 "a static nested class cannot define a compiler intrinsic type".to_string(),
             );
@@ -45,7 +47,7 @@ impl Lowerer {
                     decl.name.text
                 )
             };
-            self.error(decl.name.span, what);
+            self.error(scoop_source::DiagnosticCode::E0301, decl.name.span, what);
             return None;
         }
         let modifier = match decl.modifier {
@@ -64,6 +66,7 @@ impl Lowerer {
                 .any(|existing: &hir::TypeParamDecl| existing.name == param.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     param.span,
                     format!("duplicate type parameter `{}`", param.name.text),
                 );
@@ -85,7 +88,7 @@ impl Lowerer {
                     decl.constructor.is_omitted()
                 };
                 if throwable && !valid_constructor {
-                    self.error(decl.span, "intrinsic type `core_throwable` requires a public zero-argument primary constructor".into());
+                    self.error(scoop_source::DiagnosticCode::E1403, decl.span, "intrinsic type `core_throwable` requires a public zero-argument primary constructor".into());
                     return None;
                 }
                 if !self.validate_intrinsic_type_source_shape(
@@ -105,6 +108,7 @@ impl Lowerer {
                 };
                 if modifier != required_modifier {
                     self.error(
+                        scoop_source::DiagnosticCode::E1403,
                         decl.span,
                         if spec.kind == hir::IntrinsicTypeKind::Any {
                             "intrinsic type `core_any` must be abstract".to_string()
@@ -121,6 +125,7 @@ impl Lowerer {
                 ) {
                     if !decl.supertypes.is_empty() {
                         self.error(
+                            scoop_source::DiagnosticCode::E1403,
                             decl.span,
                             "a root intrinsic type cannot declare supertypes".to_string(),
                         );
@@ -133,6 +138,7 @@ impl Lowerer {
                         .chain(decl.recovery.nested.iter().map(ast::RecoveredNominal::span));
                     for span in member_spans {
                         self.error(
+                            scoop_source::DiagnosticCode::E1403,
                             span,
                             "a root intrinsic type cannot declare members".to_string(),
                         );
@@ -145,6 +151,7 @@ impl Lowerer {
                         }
                     ) {
                         self.error(
+                            scoop_source::DiagnosticCode::E1403,
                             decl.name.span,
                             "a root intrinsic type must be public".to_string(),
                         );
@@ -156,6 +163,7 @@ impl Lowerer {
                     .any(|supertype| supertype.constructor_arguments().is_some())
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E1403,
                         decl.span,
                         "an intrinsic class declaration cannot have a base class".to_string(),
                     );

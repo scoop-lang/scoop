@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2002",
     "message": "no Cone.toml found from ${work}/only or its parents",
     "notes": [],
     "origin": {

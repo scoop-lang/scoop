@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found ReferenceValue",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found (Int, Int)",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found Int",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found Array<Int>",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found () -> Int",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found Option<Int>",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found Ptr<Int>",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found FunPtr<() -> Int>",
     "notes": [],
     "origin": {

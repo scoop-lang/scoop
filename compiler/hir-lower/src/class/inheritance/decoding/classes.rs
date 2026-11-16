@@ -25,11 +25,22 @@ impl Lowerer {
                 )
             });
         if singleton {
-            self.error(span, format!("automatic decode cannot construct singleton {}; provide an explicit implementation", self.type_name(result)));
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E1310,
+                span,
+                format!(
+                    "automatic decode cannot construct singleton {__diagnostic_arg0}",
+                    __diagnostic_arg0 = self.type_name(result)
+                ),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H1301,
+                    "provide an explicit implementation".to_owned(),
+                ),
+            );
             return None;
         }
         if definition.modifier != hir::ClassModifier::Final || definition.base_class.is_some() {
-            self.error(span, format!("automatic decode requires a final class without a class base; {} requires an explicit implementation", self.type_name(result)));
+            self.error(scoop_source::DiagnosticCode::E1310, span, format!("automatic decode requires a final class without a class base; {} requires an explicit implementation", self.type_name(result)));
             return None;
         }
         let mut record = self.coding_primary(result, span)?;
@@ -84,7 +95,7 @@ impl Lowerer {
                     .serialization_wire_name(hir::SourceAnnotationTarget::Property(property), &name)
                     .is_some()
                 {
-                    self.error(span, format!("automatic decode requires stored property `{name}` to be a primary constructor parameter or Serialize(ignore = true)"));
+                    self.error(scoop_source::DiagnosticCode::E1311, span, format!("automatic decode requires stored property `{name}` to be a primary constructor parameter or Serialize(ignore = true)"));
                     return None;
                 }
             }
@@ -121,7 +132,7 @@ impl Lowerer {
                 hir::NominalFieldStorage::PropertyBacking(property)
                 | hir::NominalFieldStorage::PropertyDelegate(property) => property,
                 _ => {
-                    self.error(span, "automatic decode requires class storage to map to a primary property or Serialize(ignore = true) property".into());
+                    self.error(scoop_source::DiagnosticCode::E1311, span, "automatic decode requires class storage to map to a primary property or Serialize(ignore = true) property".into());
                     return None;
                 }
             };
@@ -133,7 +144,7 @@ impl Lowerer {
                     )
                     .is_some()
             {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1311,
                     span,
                     "automatic decode requires non-primary stored properties to use Serialize(ignore = true)"
                         .into(),

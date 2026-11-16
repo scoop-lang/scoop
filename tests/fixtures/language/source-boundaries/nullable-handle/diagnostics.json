@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: consumeNullableHandle.parameter1: only `Option<Ptr<T>>`, `Option<FunPtr<F>>`, and `Option<GCLeafFunPtr<F>>` have a C ABI representation",
     "notes": [],
     "origin": {

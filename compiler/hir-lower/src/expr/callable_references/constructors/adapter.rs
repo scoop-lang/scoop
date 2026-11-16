@@ -150,6 +150,7 @@ impl ConstructorReferenceTarget {
                     Ok(callee) => callee,
                     Err(error) => {
                         state.error(
+                            scoop_source::DiagnosticCode::ICE0501,
                             span,
                             format!("failed to select imported constructor reference: {error}"),
                         );

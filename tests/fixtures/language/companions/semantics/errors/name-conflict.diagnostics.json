@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1021",
     "message": "companion object name `Companion` conflicts with an object in the same owner",
     "notes": [],
     "origin": {

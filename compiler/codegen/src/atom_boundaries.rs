@@ -46,7 +46,8 @@ pub(crate) fn emit_global_atom_boundaries_v1<'ctx>(
                 return Err(CodegenError::internal(format!(
                     "strong atom {} has multiple LLVM global owners",
                     materialization.atom
-                )));
+                ))
+                .with_code(scoop_source::DiagnosticCode::ICE2302));
             }
         }
     }
@@ -56,6 +57,7 @@ pub(crate) fn emit_global_atom_boundaries_v1<'ctx>(
             CodegenError::internal(format!(
                 "LLVM global materializes unplanned strong atom {atom}"
             ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
         emit_boundary_pair(llvm, boundary, owner)?;
     }
@@ -95,6 +97,7 @@ fn add_external_alias(
     let name = symbol.as_str();
     let c_name = CString::new(name).map_err(|cause| {
         CodegenError::internal_cause("strong atom boundary contains NUL".to_string(), cause)
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
     })?;
     let alias = unsafe {
         LLVMAddAlias2(
@@ -130,6 +133,7 @@ pub(crate) fn materialize_global_linkages_v1(
     for definition in definitions {
         let plan = surface.plan(*definition).ok_or_else(|| {
             CodegenError::internal(format!("missing atom definition {definition}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
         if plan.primary_symbol().linkage() != scoop_lir::LinkageClass::OdrWeak {
             continue;

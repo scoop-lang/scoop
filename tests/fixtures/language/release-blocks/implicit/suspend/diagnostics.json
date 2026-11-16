@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1103",
     "message": "suspend function `suspended` cannot be called from a `release` block",
     "notes": [],
     "origin": {

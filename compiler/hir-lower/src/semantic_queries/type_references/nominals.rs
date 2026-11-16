@@ -9,10 +9,17 @@ impl Lowerer {
     ) -> Option<hir::TypeId> {
         let parameters = self
             .nominal_declaration_parameters(declaration)
-            .map_err(|error| self.error(span, error.diagnostic("queried nominal declaration")))
+            .map_err(|error| {
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    error.diagnostic("queried nominal declaration"),
+                )
+            })
             .ok()?;
         if parameters.len() != arguments.len() {
             self.error(
+                scoop_source::DiagnosticCode::E2503,
                 span,
                 format!(
                     "queried type takes {} type argument(s), but {} were supplied",
@@ -37,6 +44,7 @@ impl Lowerer {
                     "GCLeafFunPtr"
                 };
                 self.error(
+                    scoop_source::DiagnosticCode::E2503,
                     span,
                     format!("`{name}` type argument must be an ordinary concrete function type"),
                 );
@@ -52,7 +60,13 @@ impl Lowerer {
             }
         }
         self.apply_nominal_type(declaration, arguments)
-            .map_err(|error| self.error(span, error.diagnostic("queried type application")))
+            .map_err(|error| {
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    error.diagnostic("queried type application"),
+                )
+            })
             .ok()
     }
 

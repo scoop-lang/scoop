@@ -31,6 +31,7 @@ impl Parser {
                             ""
                         };
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0303,
                             token.span,
                             format!("duplicate `suspend` modifier on {location}function"),
                         ));
@@ -42,6 +43,7 @@ impl Parser {
                 TokenKind::Ident(text) if text == "operator" => {
                     if modifiers.operator.is_some() {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0303,
                             token.span,
                             "duplicate `operator` modifier on function",
                         ));
@@ -53,6 +55,7 @@ impl Parser {
                 TokenKind::Infix => {
                     if modifiers.infix.is_some() {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0303,
                             token.span,
                             "duplicate `infix` modifier on function",
                         ));
@@ -70,6 +73,7 @@ impl Parser {
                 && modifiers.infix.is_none()
             {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0305,
                     span,
                     "`suspend` modifier is only allowed on function declarations",
                 ));
@@ -80,6 +84,7 @@ impl Parser {
                 .or(modifiers.infix.map(|modifier| modifier.span))
                 .unwrap_or(self.peek().span);
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 span,
                 "function modifiers must be followed by `fun`",
             ));
@@ -154,6 +159,7 @@ impl Parser {
             && context != FunctionContext::TopLevel
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0307,
                 receiver.span,
                 "extension functions may only be declared at top level",
             ));
@@ -243,6 +249,7 @@ impl Parser {
                 if signature.modifier == MethodModifier::Abstract =>
             {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0309,
                     self.peek().span,
                     "`abstract` functions must not have a body",
                 ));

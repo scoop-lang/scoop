@@ -79,15 +79,15 @@ pub(crate) fn prepare<'a>(
             output
                 .object
                 .to_path_buf()
-                .map_err(error)?
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
                 .try_exists()
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
         },
         || {
             let temporary = tempfile::Builder::new()
                 .prefix("resource-")
                 .tempdir_in(&directory)
-                .map_err(error)?;
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             let (object, paths) =
                 compile(manifest, resolve()?, source, &target_root, temporary.path())?;
             let inputs = paths
@@ -103,7 +103,11 @@ pub(crate) fn prepare<'a>(
     )?;
     Ok(Some(PreparedResource {
         key: fingerprint(&(key.as_array(), &record.inputs))?,
-        object: record.result.object.to_path_buf().map_err(error)?,
+        object: record
+            .result
+            .object
+            .to_path_buf()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         inputs: record.inputs,
     }))
 }
@@ -116,7 +120,9 @@ fn compile(
     directory: &Path,
 ) -> Result<(PathBuf, BTreeSet<PathBuf>), ToolchainError> {
     let invocation = target.c_bridge_toolchain();
-    let environment = invocation.windows_environment().map_err(error)?;
+    let environment = invocation
+        .windows_environment()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let mut tools = BTreeSet::new();
     let windres = find_tool("llvm-windres", invocation, &mut tools)?;
     let cvtres = find_tool("llvm-cvtres", invocation, &mut tools)?;
@@ -126,6 +132,7 @@ fn compile(
         .any(|line| line.trim().starts_with("LLVM version 22.1."))
     {
         return Err(error(
+            scoop_source::DiagnosticCode::E2303,
             "resource compilation requires LLVM 22.1 llvm-windres",
         ));
     }
@@ -188,16 +195,23 @@ fn compile(
         .arg(dunce::simplified(&resource));
     let output = run(&mut command)?;
     let mut paths: BTreeSet<_> = scoop_process::parse_make_dependencies(
-        &std::fs::read_to_string(&dependencies).map_err(error)?,
+        &std::fs::read_to_string(&dependencies)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
         "resource-unit",
     )
-    .ok_or_else(|| error("Clang returned invalid RC header dependencies"))?
+    .ok_or_else(|| {
+        error(
+            scoop_source::DiagnosticCode::E2303,
+            "Clang returned invalid RC header dependencies",
+        )
+    })?
     .into_iter()
     .collect();
     crate::build_record::inputs::header_candidates(&output.stderr, &mut paths);
     paths.insert(input.clone());
     assets::observe(
-        std::str::from_utf8(&output.stdout).map_err(error)?,
+        std::str::from_utf8(&output.stdout)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?,
         manifest.real_root(),
         input.parent().expect("resource input has a parent"),
         &includes,
@@ -218,7 +232,9 @@ fn find_tool(
     invocation: &crate::ValidatedCBridgeToolchainInvocation,
     inputs: &mut BTreeSet<PathBuf>,
 ) -> Result<PathBuf, ToolchainError> {
-    let environment = invocation.windows_environment().map_err(error)?;
+    let environment = invocation
+        .windows_environment()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let executable = crate::host_executable_name(name);
     let mut candidates = vec![invocation.compiler_driver().with_file_name(&executable)];
     if let Some(prefix) = &environment.native_sysroot
@@ -231,12 +247,14 @@ fn find_tool(
     for candidate in candidates {
         inputs.insert(candidate.clone());
         if candidate.is_file() {
-            return std::path::absolute(&candidate).map_err(error);
+            return std::path::absolute(&candidate)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause));
         }
     }
-    Err(error(format!(
-        "{name} not found in the selected LLVM tools, native prefix, or PATH"
-    )))
+    Err(error(
+        scoop_source::DiagnosticCode::E2302,
+        format!("{name} not found in the selected LLVM tools, native prefix, or PATH"),
+    ))
 }
 
 fn joined(prefix: &str, suffix: &std::ffi::OsStr) -> OsString {
@@ -246,22 +264,28 @@ fn joined(prefix: &str, suffix: &std::ffi::OsStr) -> OsString {
 }
 
 fn run(command: &mut Command) -> Result<Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "{} failed: {}{}",
-            command.get_program().to_string_lossy(),
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "{} failed: {}{}",
+                command.get_program().to_string_lossy(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
     }
     Ok(output)
 }
 
 fn path_carrier(path: &Path) -> Result<HostPathCarrier, ToolchainError> {
-    HostPathCarrier::from_path(path).map_err(error)
+    HostPathCarrier::from_path(path)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("Windows resources: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("Windows resources: {value}"))
 }

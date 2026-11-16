@@ -1,8 +1,55 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer:\n  - fun choose<R>(block: (Int) -> R): R — tied after pairwise declaration forwarding\n  - fun choose<R>(block: (String) -> R): R — tied after pairwise declaration forwarding",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose<R>(block: (Int) -> R): R",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 47,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose<R>(block: (String) -> R): R",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 100,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 48
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 135,

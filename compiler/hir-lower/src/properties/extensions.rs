@@ -190,6 +190,7 @@ impl Lowerer {
             ExtensionPropertyResolution::Failed
         } else if declared {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!("extension property `{}` is not accessible here", name.text),
             );

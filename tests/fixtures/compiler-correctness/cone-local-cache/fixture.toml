@@ -71,7 +71,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{glob = "${work}/cone/target/${target}/build/debug/toolchains/*/documentation-v4", not_equals = []}]
+checks = [{glob = "${work}/cone/target/${target}/build/debug/toolchains/*/documentation-v5", not_equals = []}]
 
 [[steps]]
 name = "relocated"
@@ -187,7 +187,7 @@ name = "clean_io_error"
 argv = ["${scoop}", "clean", "${work}/cone", "--target-dir", "${work}/not-a-directory"]
 exit = 1
 stdout = ""
-stderr = "${work}/not-a-directory: error[SCOOP_CLEAN_IO]: Not a directory (os error 20)\n"
+stderr = "${work}/not-a-directory: error[E2201]: Not a directory (os error 20)\n"
 checks = [{file = "${work}/not-a-directory", equals = "keep"}]
 
 [[steps]]

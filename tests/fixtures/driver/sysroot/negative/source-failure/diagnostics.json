@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2201",
     "message": "${work}/cone/missing: No such file or directory (os error 2)",
     "notes": [],
     "origin": {

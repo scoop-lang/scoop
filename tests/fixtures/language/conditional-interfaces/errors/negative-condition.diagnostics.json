@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1024",
     "message": "interface implementation conditions must be positive",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1304",
     "message": "annotation argument requires a nested annotation application",
     "notes": [],
     "origin": {

@@ -30,6 +30,7 @@ pub(super) fn finalize_production<'a, D, C, I>(
         if let Some(count) = plan.safepoints.root_count(registration.safepoint().get()) {
             let count = u32::try_from(count).map_err(|cause| {
                 CodegenError::internal_cause("physical root count exceeds u32::MAX".into(), cause)
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
             })?;
             counts.insert(registration.safepoint(), count);
         }
@@ -84,6 +85,7 @@ pub(super) fn finalize_production<'a, D, C, I>(
             ))
             .map_err(|error| {
                 CodegenError::internal_cause(format!("cannot derive backend atom: {error}"), error)
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
             })?;
             if definition
                 .atom_boundaries()
@@ -101,5 +103,6 @@ pub(super) fn finalize_production<'a, D, C, I>(
                 format!("cannot finalize GC/EH production: {error}"),
                 error,
             )
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
         })
 }

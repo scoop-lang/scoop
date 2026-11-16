@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0607",
     "message": "dependency function `defaulted`: cannot infer a unique type argument for `T`",
     "notes": [],
     "origin": {

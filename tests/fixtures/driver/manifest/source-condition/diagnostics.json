@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2013",
     "message": "${fixture}/program/Cone.toml: unknown target predicate \"os\" value \"unknown\"",
     "notes": [],
     "origin": {

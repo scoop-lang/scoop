@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "type `dev.example.dependency.paths.Outer` has no accessible nested type `Unknown`",
     "notes": [],
     "origin": {

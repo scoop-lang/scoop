@@ -162,7 +162,7 @@ fn named_pattern_missing_rest_is_an_error() {
     let errors = lower_user(file).expect_err("missing `..` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "pattern does not list all fields of struct `Point`; add `..` to ignore the rest"
     );
 }
@@ -277,7 +277,7 @@ fn positional_pattern_on_named_variant_is_an_error() {
     let errors = lower_user(file).expect_err("positional on named must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "variant `Named` of `Shape` has named fields; use a named field pattern"
     );
 }
@@ -304,7 +304,7 @@ fn named_pattern_on_positional_variant_is_an_error() {
     let errors = lower_user(file).expect_err("named on positional must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "variant `Circle` of `Shape` has no named fields; use a positional pattern"
     );
 }

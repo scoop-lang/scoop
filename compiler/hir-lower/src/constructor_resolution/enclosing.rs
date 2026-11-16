@@ -29,6 +29,7 @@ impl Lowerer {
                 .enclosing_receiver_application(receiver.clone(), required)
                 .ok_or_else(|| {
                     self.error(
+                        scoop_source::DiagnosticCode::E0715,
                         span,
                         "inner constructor requires its declaring outer instance".into(),
                     )
@@ -83,9 +84,12 @@ impl Lowerer {
             self.diagnose_nominal_shape_failure(
                 view,
                 span,
-                format!(
-                    "expects {count} explicit type argument(s), but {} were supplied",
-                    arguments.len(),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::E0601,
+                    format!(
+                        "expects {count} explicit type argument(s), but {} were supplied",
+                        arguments.len(),
+                    ),
                 ),
             );
             return None;

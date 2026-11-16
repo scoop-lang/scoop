@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1515",
     "message": "contextual properties cannot have backing storage, an initializer or a delegate",
     "notes": [],
     "origin": {

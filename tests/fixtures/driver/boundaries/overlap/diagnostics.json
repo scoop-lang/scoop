@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2005",
     "message": "cannot snapshot manifest sources: source discovery failed at ${fixture}/program/src: source selections overlap or select the same file: default src/; test.sources[1] (\"src\")",
     "notes": [],
     "origin": {

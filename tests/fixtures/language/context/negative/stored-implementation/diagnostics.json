@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "context requirements must have the same count, order and exact types as `Reader.$get$size`",
     "notes": [],
     "origin": {

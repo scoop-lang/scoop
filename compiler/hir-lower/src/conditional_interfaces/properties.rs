@@ -19,6 +19,7 @@ impl Lowerer {
             .any(|&id| self.properties[id].name == property.name.text)
         {
             self.error(
+                scoop_source::DiagnosticCode::E0301,
                 property.name.span,
                 format!(
                     "duplicate property `{}` in {}",

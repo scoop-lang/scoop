@@ -14,6 +14,7 @@ impl Lowerer {
         for annotation in &source.annotations {
             let Some(name @ ("NoGC" | "Unsafe")) = annotation.name.single_text() else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1118,
                     annotation.span,
                     "member requirements only allow `@NoGC` and `@Unsafe` annotations".into(),
                 );
@@ -21,6 +22,7 @@ impl Lowerer {
             };
             if annotation.use_site.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1118,
                     annotation.span,
                     "member requirement effects do not accept annotation use-site targets".into(),
                 );
@@ -28,6 +30,7 @@ impl Lowerer {
             }
             if !seen.insert(name) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -44,6 +47,7 @@ impl Lowerer {
         }
         if effects.is_suspend && effects.gc_effect == hir::GcEffect::NoGc {
             self.error(
+                scoop_source::DiagnosticCode::E1118,
                 source.span,
                 "`@NoGC` cannot be used on a suspend member requirement".into(),
             );

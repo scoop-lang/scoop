@@ -40,8 +40,9 @@ impl<'a> PackageInputs<'a> {
             })
             .map(|(path, source)| {
                 Ok(ManifestOverlayV1 {
-                    path: HostPathCarrier::from_path(path)
-                        .map_err(|error| LoadError::new(path, error))?,
+                    path: HostPathCarrier::from_path(path).map_err(|error| {
+                        LoadError::new(scoop_source::DiagnosticCode::ICE2501, path, error)
+                    })?,
                     text: source.text.as_str().into(),
                 })
             })
@@ -60,7 +61,7 @@ impl<'a> PackageInputs<'a> {
             self.invoke(self.command("members", root), Some(&self.overlays))?;
         result
             .validate()
-            .map_err(|error| LoadError::new(root, error))?;
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2502, root, error))?;
         Ok(result)
     }
 
@@ -81,7 +82,7 @@ impl<'a> PackageInputs<'a> {
         let result: PreparedWorkspaceV1 = self.invoke(command, Some(&self.overlays))?;
         result
             .validate()
-            .map_err(|error| LoadError::new(root, error))?;
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2502, root, error))?;
         Ok(result)
     }
 
@@ -131,7 +132,9 @@ impl<'a> PackageInputs<'a> {
         let path = &self.configuration.root;
         let bytes = if let Some(overlays) = overlays.filter(|value| !value.manifests.is_empty()) {
             command.arg("--overlays-stdin");
-            Some(serde_json::to_vec(overlays).map_err(|error| LoadError::new(path, error))?)
+            Some(serde_json::to_vec(overlays).map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::ICE2501, path, error)
+            })?)
         } else {
             None
         };
@@ -142,6 +145,7 @@ impl<'a> PackageInputs<'a> {
             .scoop_spawn()
             .map_err(|error| {
                 LoadError::new(
+                    scoop_source::DiagnosticCode::E2202,
                     path,
                     format!(
                         "cannot run package manager {}: {error}",
@@ -157,23 +161,34 @@ impl<'a> PackageInputs<'a> {
         };
         let output = child
             .wait_with_output()
-            .map_err(|error| LoadError::new(path, error))?;
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2204, path, error))?;
         if !output.status.success() {
             if let Ok(record) = serde_json::from_slice::<PackageDiagnosticV1>(&output.stderr) {
-                record
-                    .validate()
-                    .map_err(|error| LoadError::new(path, error))?;
+                record.validate().map_err(|error| {
+                    LoadError::new(scoop_source::DiagnosticCode::E2502, path, error)
+                })?;
                 let diagnostic = record.diagnostic;
-                let mut error = LoadError::new(path, diagnostic.message());
+                let mut error = LoadError::new(
+                    scoop_source::DiagnosticCode::E2502,
+                    path,
+                    diagnostic.message(),
+                );
+                error.code = diagnostic.code().to_owned();
+                error.notes = diagnostic.notes().to_vec();
                 if let DiagnosticOriginV1::HostPathSpan { path, span } = diagnostic.origin() {
-                    error.path = path
-                        .to_path_buf()
-                        .map_err(|error| LoadError::new(&self.configuration.root, error))?;
+                    error.path = path.to_path_buf().map_err(|error| {
+                        LoadError::new(
+                            scoop_source::DiagnosticCode::E2502,
+                            &self.configuration.root,
+                            error,
+                        )
+                    })?;
                     error = error.with_span(span.start() as usize..span.end() as usize);
                 }
                 return Err(error);
             }
             return Err(LoadError::new(
+                scoop_source::DiagnosticCode::E2203,
                 path,
                 format!(
                     "package manager failed ({}): {}",
@@ -182,9 +197,14 @@ impl<'a> PackageInputs<'a> {
                 ),
             ));
         }
-        written.map_err(|error| LoadError::new(path, error))?;
+        written
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2204, path, error))?;
         serde_json::from_slice(&output.stdout).map_err(|error| {
-            LoadError::new(path, format!("invalid package manager response: {error}"))
+            LoadError::new(
+                scoop_source::DiagnosticCode::E2502,
+                path,
+                format!("invalid package manager response: {error}"),
+            )
         })
     }
 }

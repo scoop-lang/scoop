@@ -138,7 +138,7 @@ impl Lowerer {
 
         for (caller, span, cycle) in violations {
             self.current_file = self.effect_callable_file(caller);
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E0610,
                 span,
                 format!(
                     "polymorphic recursion is not supported: generic callable cycle `{cycle}` changes its complete type-argument mapping"

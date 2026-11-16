@@ -59,6 +59,7 @@ impl Lowerer {
                 Ok(candidates) => candidates,
                 Err(error) => {
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         span,
                         format!("invalid inherited dependency member: {error}"),
                     );
@@ -94,7 +95,11 @@ impl Lowerer {
                     None => signature(self),
                 };
                 let Some(signature) = signature else {
-                    self.error(span, format!("invalid inherited signature for `{name}`"));
+                    self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
+                        span,
+                        format!("invalid inherited signature for `{name}`"),
+                    );
                     continue;
                 };
                 if methods
@@ -196,6 +201,7 @@ impl Lowerer {
                 .is_some_and(|provided| self.access_domain_is_subset(&required.0, &provided.0));
             if !covers {
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     declaration.name.span,
                     format!(
                         "visibility of `{}` does not cover inherited slot `{target}`",
@@ -216,6 +222,7 @@ impl Lowerer {
             if matches!(parameter.calling, crate::FnParamCalling::Vararg { .. }) != inherited_vararg
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1013,
                     declaration.parameter_spans[index],
                     format!(
                         "parameter `{}` of `{}` must have the same `vararg` shape as `{target}`",

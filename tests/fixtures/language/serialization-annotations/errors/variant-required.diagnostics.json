@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1309",
     "message": "Serialize on an enum variant only supports rename",
     "notes": [],
     "origin": {

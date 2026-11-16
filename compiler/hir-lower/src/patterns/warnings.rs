@@ -62,13 +62,20 @@ impl Lowerer {
     }
 
     fn variant_shadowing_warning(&mut self, name: &ast::Ident) {
-        self.warnings.push(ast::Diagnostic::warning_at_file(
-            self.current_file,
-            name.span,
-            format!(
-                "binding `{}` shadows an enum variant available here; rename the binding or qualify the variant",
-                name.text,
-            ),
-        ));
+        self.warnings.push(
+            ast::Diagnostic::warning_at_file(
+                scoop_source::DiagnosticCode::W0901,
+                self.current_file,
+                name.span,
+                format!(
+                    "binding `{}` shadows an enum variant available here",
+                    name.text,
+                ),
+            )
+            .with_note(scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0903,
+                "rename the binding or qualify the variant",
+            )),
+        );
     }
 }

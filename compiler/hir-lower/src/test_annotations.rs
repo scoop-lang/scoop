@@ -22,6 +22,7 @@ impl Lowerer {
                 != scoop_identity::SourceRole::Test
         {
             self.test_annotation_error(
+                scoop_source::DiagnosticCode::E1703,
                 application.definition_origin,
                 format!("`@{}` is only allowed in test sources", marker.name(),),
             );
@@ -61,7 +62,7 @@ impl Lowerer {
                 hir::NominalOwner::Class(class) if self.valid_test_container(class) => {
                     containers.insert(class, PendingContainer::new(class, *origin));
                 }
-                _ => self.test_annotation_error(*origin,
+                _ => self.test_annotation_error(scoop_source::DiagnosticCode::E1704, *origin,
                     "a test container must be a top-level non-generic concrete class; abstract, sealed, local and nested declarations are not allowed".into()),
             }
         }
@@ -96,12 +97,14 @@ impl Lowerer {
                     .any(|(marker, _)| *marker == TestMarker::Test)
             {
                 self.test_annotation_error(
+                    scoop_source::DiagnosticCode::E1705,
                     *ignore_origin,
                     "`@Ignore` requires `@Test` on the same test method".into(),
                 );
             }
             if roles.len() > 1 {
                 self.test_annotation_error(
+                    scoop_source::DiagnosticCode::E1705,
                     origin,
                     "a method may have only one of `@Test`, `@BeforeTest` and `@AfterTest`".into(),
                 );
@@ -111,6 +114,7 @@ impl Lowerer {
                 .filter(|class| containers.contains_key(class))
             else {
                 self.test_annotation_error(
+                    scoop_source::DiagnosticCode::E1706,
                     origin,
                     "a test or lifecycle method must be declared directly in a `@Test` class"
                         .into(),
@@ -118,7 +122,7 @@ impl Lowerer {
                 continue;
             };
             if let Some(reason) = self.test_method_rejection(function) {
-                self.test_annotation_error(origin, format!("invalid test or lifecycle method: {reason}; expected a safe synchronous instance method with no parameters or type parameters returning Unit"));
+                self.test_annotation_error(scoop_source::DiagnosticCode::E1707, origin, format!("invalid test or lifecycle method: {reason}; expected a safe synchronous instance method with no parameters or type parameters returning Unit"));
             }
             for &(marker, origin) in roles {
                 let method = hir::TestMethod {
@@ -150,6 +154,7 @@ impl Lowerer {
                 {
                     self.diagnostics.push(
                         Diagnostic::at_file(
+                            scoop_source::DiagnosticCode::E1708,
                             origin.file as usize,
                             origin.span,
                             format!(
@@ -158,6 +163,7 @@ impl Lowerer {
                             ),
                         )
                         .with_note(DiagnosticNote::at(
+                            scoop_source::DiagnosticCode::N0001,
                             previous.file as usize,
                             previous.span,
                             "the other lifecycle method is declared here",
@@ -184,8 +190,14 @@ impl Lowerer {
         }
     }
 
-    fn test_annotation_error(&mut self, origin: hir::DefinitionOrigin, message: String) {
+    fn test_annotation_error(
+        &mut self,
+        code: scoop_source::DiagnosticCode,
+        origin: hir::DefinitionOrigin,
+        message: String,
+    ) {
         self.diagnostics.push(Diagnostic::at_file(
+            code,
             origin.file as usize,
             origin.span,
             message,

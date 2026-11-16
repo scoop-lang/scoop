@@ -49,6 +49,7 @@ impl Lowerer {
         let Type::Struct(application) = self.types[base_ty].clone() else {
             let found = self.type_name(base_ty);
             self.error(
+                scoop_source::DiagnosticCode::E1504,
                 span,
                 format!("copy update requires an exact declared struct value, found {found}"),
             );
@@ -64,6 +65,7 @@ impl Lowerer {
         for field in fields.iter() {
             if !seen.insert(field.field.text.as_str()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1505,
                     field.field.span,
                     format!(
                         "copy update field `{}` is specified more than once",
@@ -88,6 +90,7 @@ impl Lowerer {
         else {
             let found = self.type_name(application_value.canonical_type);
             self.error(
+                scoop_source::DiagnosticCode::E1504,
                 updates.first().field.span,
                 format!("copy update requires an exact declared struct value, found {found}"),
             );
@@ -117,6 +120,7 @@ impl Lowerer {
                 .find(|(index, _)| declaration_fields[*index].name == update.field.text)
             else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     update.field.span,
                     format!(
                         "struct `{}` has no field `{}`",
@@ -192,6 +196,7 @@ impl Lowerer {
                 let expected = self.type_name(field.ty);
                 let found = self.type_name(value.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     field.source.value.span(),
                     format!(
                         "copy update field `{}` expects {expected}, found {found}",

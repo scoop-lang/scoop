@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "argument `lib` of `@Extern` must be a string",
     "notes": [],
     "origin": {

@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "class `Ambiguous` inherits conflicting defaults for `choose` from FirstChoice.choose and SecondChoice.choose; declare an explicit override",
-    "notes": [],
+    "code": "E1010",
+    "message": "class `Ambiguous` inherits conflicting defaults for `choose` from FirstChoice.choose and SecondChoice.choose",
+    "notes": [
+      {
+        "code": "H1001",
+        "kind": "help",
+        "message": "declare an explicit override",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "a93d018b06a4c351ced2689d32b8824a4fc1b7a578532704d6f3a998de531033",
       "end": 191,

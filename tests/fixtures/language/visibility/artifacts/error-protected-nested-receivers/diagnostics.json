@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0411",
     "message": "protected method `secret` cannot be accessed through receiver of static type `Outer.Hidden`; receiver must be `Sub` or one of its subclasses",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "setter of property `state` is not accessible",
     "notes": [],
     "origin": {

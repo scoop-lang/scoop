@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1311",
     "message": "automatic decode requires stored property `value` to be a primary constructor parameter or Serialize(ignore = true)",
     "notes": [],
     "origin": {

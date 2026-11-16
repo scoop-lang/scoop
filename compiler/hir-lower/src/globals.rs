@@ -115,6 +115,7 @@ impl Lowerer {
                 });
             if duplicate {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     decl.name.span,
                     format!("duplicate global `{}`", decl.name.text),
                 );
@@ -126,11 +127,16 @@ impl Lowerer {
             };
             if matches!(decl.body, ast::PropertyBodySyntax::Const(_)) {
                 if decl.mutable {
-                    self.error(decl.name.span, "const property must be a `val`".to_string());
+                    self.error(
+                        scoop_source::DiagnosticCode::E0305,
+                        decl.name.span,
+                        "const property must be a `val`".to_string(),
+                    );
                     continue;
                 }
                 if decl.modifier != ast::MethodModifier::Final || decl.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         decl.span,
                         "top-level const properties cannot be open, abstract, or override"
                             .to_string(),
@@ -139,6 +145,7 @@ impl Lowerer {
                 }
                 if !decl.type_params.is_empty() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         decl.span,
                         "const properties cannot declare type parameters".to_string(),
                     );
@@ -158,6 +165,7 @@ impl Lowerer {
             if matches!(decl.body, ast::PropertyBodySyntax::Computed(_)) {
                 if decl.modifier != ast::MethodModifier::Final || decl.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         decl.span,
                         "top-level computed properties cannot be open, abstract, or override"
                             .to_string(),
@@ -166,6 +174,7 @@ impl Lowerer {
                 }
                 if !decl.type_params.is_empty() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         decl.span,
                         "ordinary top-level properties cannot declare type parameters".to_string(),
                     );
@@ -224,6 +233,7 @@ impl Lowerer {
                     | ast::PropertyBodySyntax::Delegated { .. } => {}
                     ast::PropertyBodySyntax::Abstract => {
                         self.error(
+                            scoop_source::DiagnosticCode::E0305,
                             decl.span,
                             "top-level properties cannot be abstract".to_string(),
                         );
@@ -238,6 +248,7 @@ impl Lowerer {
                 }
                 if decl.modifier != ast::MethodModifier::Final || decl.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         decl.span,
                         "ordinary top-level properties cannot be open, abstract, or override"
                             .to_string(),
@@ -246,6 +257,7 @@ impl Lowerer {
                 }
                 if !decl.type_params.is_empty() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         decl.span,
                         "ordinary top-level properties cannot declare type parameters".to_string(),
                     );
@@ -303,6 +315,7 @@ impl Lowerer {
                 };
                 if property.mutable {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         property.name.span,
                         "const property must be a `val`".to_string(),
                     );
@@ -310,6 +323,7 @@ impl Lowerer {
                 }
                 if property.modifier != ast::MethodModifier::Final || property.is_override {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         property.span,
                         format!(
                             "{} const properties cannot be open, abstract, or override",
@@ -320,6 +334,7 @@ impl Lowerer {
                 }
                 if property.receiver_ty.is_some() || !property.type_params.is_empty() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0305,
                         property.span,
                         format!(
                             "{} const properties cannot be extensions or declare type parameters",

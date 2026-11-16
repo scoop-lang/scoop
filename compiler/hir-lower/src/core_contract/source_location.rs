@@ -33,7 +33,7 @@ impl Lowerer {
                         && type_name.name == "typeName" && type_name.ty == self.string
             );
         if !valid_location {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 location_span,
                 "core `SourceLocation` must declare `(file: String, line: Long, column: Long, functionName: String, typeName: String)`"
                     .to_string(),
@@ -52,7 +52,7 @@ impl Lowerer {
             && signature.return_ty == location_type
             && signature.attributes == hir::FunctionAttributes::default();
         if !valid_current {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 function.span,
                 "intrinsic `current_source_location` must be `fun currentSourceLocation(): SourceLocation`"
                     .to_string(),

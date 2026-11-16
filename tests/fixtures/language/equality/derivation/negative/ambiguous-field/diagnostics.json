@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1316",
     "message": "cannot derive `equals` for `Container`: field `Container.value` has an ambiguous member operator `equals` for type `Ambiguous`",
     "notes": [],
     "origin": {

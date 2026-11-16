@@ -74,12 +74,14 @@ impl Parser {
         let prefix = self.parse_member_prefix()?;
         if let VisibilitySyntax::Explicit { span, .. } = prefix.visibility {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "local type declarations cannot have visibility modifiers",
             ));
         }
         if let Some(span) = prefix.modifiers.inner_span {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1020,
                 span,
                 "`inner class` must be declared directly in a class body",
             ));
@@ -100,6 +102,7 @@ impl Parser {
             TokenKind::Ident(_) | TokenKind::EscapedIdent(_)
         ) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "local objects use an anonymous `object` expression",
             ));
@@ -115,6 +118,7 @@ impl Parser {
             _ => None,
         }) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 constructor.span,
                 "anonymous objects cannot declare constructors",
             ));

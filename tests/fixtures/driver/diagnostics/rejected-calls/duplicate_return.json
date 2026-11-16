@@ -1,7 +1,7 @@
 [
   {
     "severity": "error",
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0302",
     "message": "function `f` is already declared with the same signature",
     "origin": {
       "kind": "source",

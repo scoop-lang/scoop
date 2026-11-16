@@ -33,7 +33,11 @@ impl Lowerer {
             let mut parameters = match self.nominal_declaration_parameters(array_owner) {
                 Ok(parameters) => parameters,
                 Err(error) => {
-                    self.error(source.span, error.diagnostic("annotation array"));
+                    self.error(
+                        scoop_source::DiagnosticCode::E1403,
+                        source.span,
+                        error.diagnostic("annotation array"),
+                    );
                     return None;
                 }
             };
@@ -84,6 +88,7 @@ impl Lowerer {
                 return Some(value_type);
             }
             self.error(
+                scoop_source::DiagnosticCode::E1305,
                 source.span,
                 "annotation arrays require the actual one-dimensional core Array type".into(),
             );
@@ -91,7 +96,7 @@ impl Lowerer {
         }
         let ty = self.resolve_type_ref(source)?;
         if !self.is_annotation_parameter_type(ty) {
-            self.error(source.span, "annotation parameters require a scalar, integral enum, annotation class, or one-dimensional Array of these types".into());
+            self.error(scoop_source::DiagnosticCode::E1305, source.span, "annotation parameters require a scalar, integral enum, annotation class, or one-dimensional Array of these types".into());
             return None;
         }
         Some(AnnotationParameterType::Value(ty))
@@ -139,7 +144,11 @@ impl Lowerer {
         match mapper.map(ty, &[]) {
             Ok(ty) => Some(ty),
             Err(error) => {
-                self.error(span, format!("invalid annotation value type: {error}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("invalid annotation value type: {error}"),
+                );
                 None
             }
         }

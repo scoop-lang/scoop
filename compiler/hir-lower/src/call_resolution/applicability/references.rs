@@ -51,6 +51,17 @@ pub(crate) enum ReferenceApplicabilityFailure {
 }
 
 impl ReferenceApplicabilityFailure {
+    pub(crate) fn code(&self) -> scoop_source::DiagnosticIdentifier {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::IncompleteOwner | Self::RequiresExpected => C::E0607,
+            Self::Unsafe => C::E1102,
+            Self::Constraint(failure) => return failure.code(),
+            Self::Internal(_) => C::ICE0601,
+        }
+        .into()
+    }
+
     pub(crate) fn describe(self, constraint: impl FnOnce(&ConstraintFailure) -> String) -> String {
         match self {
             Self::IncompleteOwner => "receiver does not provide complete owner type arguments".into(),

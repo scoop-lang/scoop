@@ -16,6 +16,7 @@ impl Lowerer {
         let [function] = candidates.as_slice() else {
             self.current_file = self.core_diagnostic_file();
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 Span::new(0, 0),
                 format!(
                     "scoop.core must define exactly one internal function `{NAME}(): Array<String>`"
@@ -41,7 +42,7 @@ impl Lowerer {
             || signature.attributes.gc_effect != hir::GcEffect::Managed
             || !matches!(declaration.kind, hir::FunctionKind::User(_))
         {
-            self.error(declaration.span, format!("function `{NAME}` in scoop.core must be internal, non-generic, non-suspend, managed, and have signature `() -> Array<String>`"));
+            self.error(scoop_source::DiagnosticCode::E1403, declaration.span, format!("function `{NAME}` in scoop.core must be internal, non-generic, non-suspend, managed, and have signature `() -> Array<String>`"));
             return None;
         }
         Some(function)

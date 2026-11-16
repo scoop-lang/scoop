@@ -40,6 +40,7 @@ impl Lowerer {
                 && self.core_source_annotation("DocAlias") != Some(id)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1303,
                     annotation.span,
                     "`@Intrinsic` only permits ordinary core documentation annotations".into(),
                 );
@@ -93,6 +94,7 @@ impl Lowerer {
             Ok(Some(ResolvedTypeName::Annotation(id))) => Some(id),
             Ok(Some(_)) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     annotation.name.span,
                     format!("`{}` is not an annotation class", annotation.name),
                 );
@@ -100,6 +102,7 @@ impl Lowerer {
             }
             Ok(None) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0401,
                     annotation.name.span,
                     format!("unknown annotation `{}`", annotation.name),
                 );
@@ -140,6 +143,11 @@ impl Lowerer {
             };
             let Some(index) = index else {
                 self.error(
+                    if argument.name.is_some() {
+                        scoop_source::DiagnosticCode::E0702
+                    } else {
+                        scoop_source::DiagnosticCode::E0701
+                    },
                     argument.span,
                     match &argument.name {
                         Some(name) => format!("unknown annotation parameter `{}`", name.text),
@@ -151,6 +159,7 @@ impl Lowerer {
             };
             if !used.insert(index) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0703,
                     argument.span,
                     format!(
                         "annotation parameter `{}` is supplied more than once",
@@ -171,6 +180,7 @@ impl Lowerer {
             values[index] = parameter.default.clone();
             if values[index].is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0708,
                     annotation.span,
                     format!("missing annotation argument `{}`", parameter.name),
                 );

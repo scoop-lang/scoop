@@ -1,8 +1,55 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `equals` is ambiguous in member candidate layer:\n  - fun Choice.equals(other: Left): Boolean — tied after pairwise declaration forwarding\n  - fun Choice.equals(other: Right): Boolean — tied after pairwise declaration forwarding",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `equals` is ambiguous in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Choice.equals(other: Left): Boolean",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 140,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 85
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Choice.equals(other: Right): Boolean",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 202,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 145
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 244,

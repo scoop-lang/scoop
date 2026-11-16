@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1515",
     "message": "extension property `initialized` must be computed or delegated",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0624",
     "message": "type parameter `T` of extension property `unbound` cannot be inferred solely from its receiver",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0302",
     "message": "extension property `duplicate` is already declared for the same receiver type",
     "notes": [],
     "origin": {
@@ -39,9 +39,48 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `label` is ambiguous in extension property layer:\n  - fun Left.label(): Int — applicable; tied by MSC\n  - fun Right.label(): Int — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `label` is ambiguous in extension property layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Left.label(): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Right.label(): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "d132c0f852546481805481b8266ac98ec12cb54a440a7590fd75282ec6b3bab6",
       "end": 480,
@@ -52,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1501",
     "message": "cannot assign to immutable property `value`",
     "notes": [],
     "origin": {
@@ -65,7 +104,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `Int` has no applicable property delegate operator `getValue`",
     "notes": [],
     "origin": {

@@ -165,8 +165,8 @@ fn base_constructor_arity_is_checked() {
     let errors = lower_user(file).expect_err("wrong arity must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `A` in nominal constructor candidate layer:\n  - class A(x: Int) — expects 1 argument(s), but 2 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `A` in nominal constructor candidate layer; class A(x: Int); expects 1 argument(s), but 2 were supplied"
     );
 }
 
@@ -194,8 +194,8 @@ fn base_constructor_argument_types_are_checked() {
     let errors = lower_user(file).expect_err("wrong argument type must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `A` in nominal constructor candidate layer:\n  - class A(x: Int) — argument for `x` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `A` in nominal constructor candidate layer; class A(x: Int); argument for `x` has type String, which is not a subtype of Int"
     );
 }
 

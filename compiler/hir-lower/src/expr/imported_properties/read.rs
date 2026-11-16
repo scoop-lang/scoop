@@ -11,6 +11,7 @@ impl Lowerer {
         if property.interface().representation() == hir::PropertyRepresentationV1::Const {
             if receiver.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     "invalid imported dependency const property receiver".to_string(),
                 );

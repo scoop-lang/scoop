@@ -23,7 +23,11 @@ impl Lowerer {
                 | NominalConstructorSource::ImportedArrayGenerate(_)
         ) && let Err(error) = self.prepare_array_size_exception_type()
         {
-            self.error(span, error.diagnostic("array size exception type"));
+            self.error(
+                scoop_source::DiagnosticCode::E1403,
+                span,
+                error.diagnostic("array size exception type"),
+            );
             return None;
         }
         let (kind, ty) = match resolved.source {

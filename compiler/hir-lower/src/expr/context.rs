@@ -25,6 +25,7 @@ impl Lowerer {
             };
             if !self.is_context_reference_type(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1115,
                     parameter.ty.span,
                     format!(
                         "context key must be a non-null managed reference type, found {}",
@@ -37,6 +38,7 @@ impl Lowerer {
                 .any(|earlier| self.types_equal(earlier.ty, ty))
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1116,
                     parameter.ty.span,
                     format!("duplicate context key `{}`", self.type_name(ty)),
                 );
@@ -45,6 +47,7 @@ impl Lowerer {
                 ast::ContextParameterLabel::Named(name) => {
                     if !names.insert(name.text.clone()) {
                         self.error(
+                            scoop_source::DiagnosticCode::E0301,
                             name.span,
                             format!("duplicate context or value parameter `{}`", name.text),
                         );
@@ -66,6 +69,7 @@ impl Lowerer {
                     Some("Extern" | "Intrinsic" | "NoGC")
                 ) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1118,
                         annotation.span,
                         format!(
                             "contextual declarations cannot be annotated with `@{}`",
@@ -83,6 +87,7 @@ impl Lowerer {
         if !parameters.is_empty() {
             if let Err(error) = self.prepare_missing_context_exception_type() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     parameters[0].span,
                     format!("cannot materialize context exception: {error:?}"),
                 );
@@ -143,6 +148,7 @@ impl Lowerer {
         let value = self.lower_expr(source_value, sink, None)?;
         if !self.is_context_reference_type(value.ty) {
             self.error(
+                scoop_source::DiagnosticCode::E1115,
                 source_value.span(),
                 format!(
                     "context binding must have a non-null managed reference type, found {}",

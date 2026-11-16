@@ -39,6 +39,7 @@ pub(crate) fn parse(
     if kind != RequestedConeKind::Executable {
         return Err(ManifestParseError::new(
             ManifestParseErrorKind::InvalidWindows(
+                scoop_source::DiagnosticCode::E2009,
                 "[windows] executable configuration requires kind = \"executable\"".into(),
             ),
             Some(raw.span()),
@@ -53,6 +54,7 @@ pub(crate) fn parse(
             _ => {
                 return Err(ManifestParseError::new(
                     ManifestParseErrorKind::InvalidWindows(
+                        scoop_source::DiagnosticCode::E2017,
                         "windows.subsystem must be \"console\" or \"gui\"".into(),
                     ),
                     Some(value.span()),
@@ -65,7 +67,10 @@ pub(crate) fn parse(
         .map(|value| {
             ConeRelativePath::native(value.get_ref()).map_err(|reason| {
                 ManifestParseError::new(
-                    ManifestParseErrorKind::InvalidWindows(format!("windows.rc: {reason}")),
+                    ManifestParseErrorKind::InvalidWindows(
+                        scoop_source::DiagnosticCode::E2012,
+                        format!("windows.rc: {reason}"),
+                    ),
                     Some(value.span()),
                 )
             })

@@ -102,6 +102,7 @@ impl Parser {
                         NamedItem::Rest(span) => *span,
                     };
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0903,
                         span,
                         "`..` must be the last element in a field pattern",
                     ));
@@ -138,6 +139,7 @@ impl Parser {
         };
         if field.text == "_" {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0908,
                 field.span,
                 "`_` is not allowed in a field pattern",
             ));
@@ -175,6 +177,7 @@ fn pattern_items(items: Vec<PatternItem>) -> Result<(Vec<Pattern>, Option<Span>)
             PatternItem::Rest(span) => {
                 if rest.replace(span).is_some() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0903,
                         span,
                         "`..` may appear at most once in a pattern",
                     ));

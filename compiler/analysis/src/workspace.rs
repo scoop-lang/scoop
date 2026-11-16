@@ -34,6 +34,8 @@ pub struct ProjectConfiguration {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectDiagnostic {
+    pub notes: Vec<scoop_protocol::DiagnosticNoteV1>,
+    pub code: String,
     pub configuration: String,
     pub path: PathBuf,
     pub span: Option<Span>,
@@ -228,14 +230,22 @@ impl WorkspaceInputs {
 
 #[derive(Clone, Debug)]
 struct LoadError {
+    notes: Vec<scoop_protocol::DiagnosticNoteV1>,
+    code: String,
     path: PathBuf,
     span: Option<Span>,
     message: String,
 }
 
 impl LoadError {
-    fn new(path: impl Into<PathBuf>, message: impl std::fmt::Display) -> Self {
+    fn new(
+        code: scoop_source::DiagnosticCode,
+        path: impl Into<PathBuf>,
+        message: impl std::fmt::Display,
+    ) -> Self {
         Self {
+            code: code.to_string(),
+            notes: Vec::new(),
             path: path.into(),
             span: None,
             message: message.to_string(),

@@ -127,6 +127,7 @@ impl Lowerer {
             ),
             _ if computed => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1510,
                     declaration.name.span,
                     format!(
                         "computed property `{}` must provide a getter body",
@@ -149,6 +150,7 @@ impl Lowerer {
         if !declaration.mutable {
             if let Some(setter) = setter_source {
                 self.error(
+                    scoop_source::DiagnosticCode::E1511,
                     setter.span,
                     format!(
                         "immutable property `{}` cannot declare a setter",
@@ -269,6 +271,7 @@ impl Lowerer {
             ),
             _ if computed => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1510,
                     declaration.name.span,
                     format!(
                         "computed mutable property `{}` must provide a setter body",

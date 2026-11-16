@@ -138,6 +138,7 @@ fn lower_current_mode(
         )
         .map_err(|error| {
             vec![Diagnostic::at(
+                scoop_source::DiagnosticCode::ICE0501,
                 Span { start: 0, end: 0 },
                 format!("failed to seal dependency-aware HIR: {error}"),
             )]
@@ -222,7 +223,12 @@ fn lower_current_export_inner<C>(
         .into_iter()
         .map(|warning| warning.bind(&sources))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| vec![Diagnostic::internal(error)])?;
+        .map_err(|error| {
+            vec![Diagnostic::internal(
+                scoop_source::DiagnosticCode::ICE0501,
+                error,
+            )]
+        })?;
     let export =
         seal_export_output(module, output_kind, Some(&selected)).map_err(|mut diagnostics| {
             for diagnostic in &mut diagnostics {
@@ -246,6 +252,7 @@ pub(crate) fn prepare_current_lowerer(
 ) -> Result<Lowerer, Vec<Diagnostic>> {
     let dependency_selection = world.dependency_selection_plan().map_err(|error| {
         vec![Diagnostic::at(
+            scoop_source::DiagnosticCode::ICE0501,
             Span { start: 0, end: 0 },
             format!("failed to prepare dependency selection: {error}"),
         )]

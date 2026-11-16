@@ -8,8 +8,14 @@ impl Lowerer {
         if let Some(identity) = self.query_alias_identities.get(&id) {
             return Ok(identity.clone());
         }
-        let record = crate::persistent_aliases::record(self, id)
-            .map_err(|error| Diagnostic::at_file(error.file(), error.span(), error.to_string()))?;
+        let record = crate::persistent_aliases::record(self, id).map_err(|error| {
+            Diagnostic::at_file(
+                scoop_source::DiagnosticCode::ICE0401,
+                error.file(),
+                error.span(),
+                error.to_string(),
+            )
+        })?;
         self.query_alias_identities.insert(id, record.clone());
         Ok(record)
     }

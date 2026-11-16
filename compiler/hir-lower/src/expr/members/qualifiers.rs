@@ -157,6 +157,7 @@ impl Lowerer {
         };
         let Some(nominal) = self.nominal_target_for_type(target) else {
             self.error(
+                scoop_source::DiagnosticCode::E0405,
                 name.span,
                 format!("typealias `{}` does not name a type qualifier", name.text),
             );
@@ -176,6 +177,7 @@ impl Lowerer {
                 let ty = self.struct_applications[application].canonical_type;
                 if !self.nominal_is_accessible(ty) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0403,
                         name.span,
                         format!("struct `{}` is not accessible here", name.text),
                     );
@@ -188,6 +190,7 @@ impl Lowerer {
                 let ty = self.class_applications[application].canonical_type;
                 if !self.nominal_is_accessible(ty) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0403,
                         name.span,
                         format!("class `{}` is not accessible here", name.text),
                     );
@@ -197,6 +200,7 @@ impl Lowerer {
             }
             NominalTarget::Enum(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     name.span,
                     format!(
                         "enum `{}` cannot be constructed without a variant",
@@ -207,6 +211,7 @@ impl Lowerer {
             }
             NominalTarget::Interface(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     name.span,
                     format!("interface `{}` cannot be constructed", name.text),
                 );
@@ -218,6 +223,7 @@ impl Lowerer {
                     hir::ObjectKind::Companion(_) => "companion object",
                 };
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     name.span,
                     format!("{kind} `{}` cannot be constructed", name.text),
                 );

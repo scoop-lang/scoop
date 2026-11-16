@@ -48,8 +48,9 @@ impl WorkspaceLoader {
             configuration.target.target(),
             coordinate,
         );
-        if normalize_path(&installed).map_err(|error| LoadError::new(&installed, error))?
-            != artifact.path
+        if normalize_path(&installed).map_err(|error| {
+            LoadError::new(scoop_source::DiagnosticCode::E2201, &installed, error)
+        })? != artifact.path
         {
             return Ok(Vec::new());
         }
@@ -57,7 +58,7 @@ impl WorkspaceLoader {
         let path = root.join("Cone.toml");
         if !path
             .try_exists()
-            .map_err(|error| LoadError::new(&path, error))?
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2201, &path, error))?
         {
             return Ok(Vec::new());
         }

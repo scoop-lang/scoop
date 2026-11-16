@@ -22,7 +22,11 @@ impl Lowerer {
         {
             Ok(declaration) => declaration,
             Err(error) => {
-                self.error(span, error.to_string());
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    error.to_string(),
+                );
                 return None;
             }
         };
@@ -33,14 +37,19 @@ impl Lowerer {
         ) {
             Ok(prepared) => prepared,
             Err(error) => {
-                self.error(span, error.to_string());
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    error.to_string(),
+                );
                 return None;
             }
         };
         match self.materialize_imported_default(&prepared, receiver, value_parameters, span, sink) {
             Ok(value) => Some(value),
             Err(error) => {
-                self.error(span, error.to_string());
+                self.diagnostics
+                    .push(error.diagnostic(self.current_text_file(), span));
                 None
             }
         }
@@ -95,7 +104,7 @@ impl Lowerer {
         match result {
             Ok(arguments) => Some(arguments),
             Err(error) => {
-                self.error(span, error);
+                self.error(scoop_source::DiagnosticCode::ICE0501, span, error);
                 None
             }
         }

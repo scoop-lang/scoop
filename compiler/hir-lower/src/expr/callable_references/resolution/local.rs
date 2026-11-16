@@ -89,35 +89,36 @@ impl Lowerer {
         let result = state.infer_function_result(function);
         if let Some(diagnostic) = state.diagnostics[before..]
             .iter()
-            .find(|diagnostic| diagnostic.kind == scoop_ast::DiagnosticKind::Internal)
+            .find(|diagnostic| diagnostic.kind() == scoop_ast::DiagnosticKind::Internal)
         {
             return Err(super::ReferenceProbeError::Internal(diagnostic.clone()));
         }
         view.signature.return_type = result.ok_or_else(|| ReferenceFailure {
             signature: callable_source_signature(&state, context.name, &view),
             layer: callable_layer_name(&state, std::slice::from_ref(&view)),
-            reason: state.diagnostics[before..]
-                .iter()
-                .map(|diagnostic| diagnostic.message.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-                .into(),
+            reason: ReferenceFailureReason::upstream(&state.diagnostics[before..]),
         })?;
-        let fail = |state: &Lowerer, reason: String| ReferenceFailure {
+        let fail = |state: &Lowerer, code, reason: String| ReferenceFailure {
             signature: callable_source_signature(state, context.name, &view),
             layer: callable_layer_name(state, std::slice::from_ref(&view)),
-            reason: reason.into(),
+            reason: ReferenceFailureReason::candidate(code, reason),
         };
         if let hir::FunctionKind::Intrinsic(intrinsic) = state.functions[function].kind
             && matches!(intrinsic.kind, hir::IntrinsicFunctionKind::Atomic(_))
         {
-            return Err(fail(&state, crate::expr::atomics::ATOMIC_REFERENCE_ERROR.into()).into());
+            return Err(ReferenceFailure {
+                signature: callable_source_signature(&state, context.name, &view),
+                layer: callable_layer_name(&state, std::slice::from_ref(&view)),
+                reason: ReferenceFailureReason::atomic(),
+            }
+            .into());
         }
         if matches!(state.functions[function].kind, hir::FunctionKind::Intrinsic(intrinsic)
             if intrinsic.kind == hir::IntrinsicFunctionKind::AnnotationKey)
         {
             return Err(fail(
                 &state,
+                scoop_source::DiagnosticCode::E0713.into(),
                 "annotationKey is a declaration query and cannot be used as a callable reference"
                     .into(),
             )
@@ -153,10 +154,11 @@ impl Lowerer {
             })
             .map_err(|failure| {
                 if let crate::call_resolution::applicability::ReferenceApplicabilityFailure::Internal(error) = failure {
-                    return super::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(error));
+                    return super::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(scoop_source::DiagnosticCode::ICE0601, error));
                 }
                 super::ReferenceProbeError::Rejected(fail(
                     &state,
+                    failure.code(),
                     failure.describe(|constraint| {
                         render_callable_constraint_failure(&state, &view, None, &[], constraint)
                     }),

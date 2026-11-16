@@ -66,10 +66,7 @@ impl Lowerer {
                         }
                         let name = &left_member.signature.name;
                         if reported.insert((name.clone(), left_owner, right_owner)) {
-                            self.error(span, format!(
-                                "{host} may inherit conflicting implementations for `{name}` from `{}` and `{}` when their conditions both hold; declare a common override that covers both conditions",
-                                self.type_name(left_owner), self.type_name(right_owner),
-                            ));
+                            self.error_with_note(scoop_source::DiagnosticCode::E1010, span, format!("{host} may inherit conflicting implementations for `{name}` from `{__diagnostic_arg0}` and `{__diagnostic_arg1}` when their conditions both hold" , __diagnostic_arg0 = self.type_name(left_owner), __diagnostic_arg1 = self.type_name(right_owner)), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1001, "declare a common override that covers both conditions".to_owned()));
                         }
                     }
                 }

@@ -31,10 +31,14 @@ pub(super) fn find(
                 vec![(format!("lib{name}.so"), NativeFileKind::SharedObject)]
             }
             NativeLibraryKind::Dynamic => {
-                return Err(error("ELF shared library requires --link-mode dynamic"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2001,
+                    "ELF shared library requires --link-mode dynamic",
+                ));
             }
             NativeLibraryKind::Framework => {
                 return Err(error(
+                    scoop_source::DiagnosticCode::E2301,
                     "framework libraries are not supported by the Linux target",
                 ));
             }
@@ -84,11 +88,20 @@ pub(super) fn find(
     for (path, kind) in paths {
         match std::fs::symlink_metadata(&path) {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(err) => return Err(error(format!("native candidate {}: {err}", path.display()))),
+            Err(err) => {
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2201,
+                    format!("native candidate {}: {err}", path.display()),
+                ));
+            }
             Ok(_) => {}
         }
-        let file = read(&path, kind, profile, false)
-            .map_err(|err| error(format!("native candidate {}: {err}", path.display())))?;
+        let file = read(&path, kind, profile, false).map_err(|err| {
+            error(
+                err.code(),
+                format!("native candidate {}: {err}", path.display()),
+            )
+        })?;
         if windows && !windows::matches_kind(&file, key.kind()) {
             continue;
         }
@@ -104,13 +117,15 @@ pub(super) fn find(
         return Ok(None);
     }
     if candidates.len() != 1 {
-        return Err(error(format!(
-            "ambiguous native library {name:?}: {locators:?}"
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2306,
+            format!("ambiguous native library {name:?}: {locators:?}"),
+        ));
     }
-    candidates
-        .into_values()
-        .next()
-        .map(Some)
-        .ok_or_else(|| error("native candidate disappeared"))
+    candidates.into_values().next().map(Some).ok_or_else(|| {
+        error(
+            scoop_source::DiagnosticCode::E2305,
+            "native candidate disappeared",
+        )
+    })
 }

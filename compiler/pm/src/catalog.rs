@@ -147,10 +147,17 @@ impl<'a> Catalog<'a> {
 
     pub fn candidates(&mut self, requirement: &Requirement) -> PmResult<Vec<Candidate>> {
         if self.policy.strict && !self.policy.locked.contains_key(&requirement.key) {
-            return Err(PmError::new(format!(
-                "Cone.lock does not include {}; resolve without --locked",
-                requirement.key
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2111,
+                format!(
+                    "Cone.lock does not include {__diagnostic_arg0}",
+                    __diagnostic_arg0 = requirement.key
+                ),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2101,
+                "resolve without --locked".to_owned(),
+            ));
         }
         let result = match &requirement.source {
             SourceRequest::Path(path) => self.local(path, &Context::Local).map(|node| vec![node]),
@@ -218,10 +225,17 @@ impl<'a> Catalog<'a> {
                 let cached = if self.options.local_sources_only {
                     registry::cached(self.cache, registry, &candidate.coordinate, version)?
                         .ok_or_else(|| {
-                            PmError::new(format!(
-                                "sources for {} are not cached; run scoop pm fetch",
-                                candidate.coordinate
-                            ))
+                            PmError::new(
+                                scoop_source::DiagnosticCode::E2112,
+                                format!(
+                                    "sources for {__diagnostic_arg0} are not cached",
+                                    __diagnostic_arg0 = candidate.coordinate
+                                ),
+                            )
+                            .with_help(
+                                scoop_source::DiagnosticCode::H2102,
+                                "run scoop pm fetch".to_owned(),
+                            )
                         })?
                 } else {
                     registry::fetch(
@@ -247,11 +261,10 @@ impl<'a> Catalog<'a> {
                         self.input(&solution.packages[&requirement.key])
                     && summary.dependency_record() != *expected
                 {
-                    return Err(PmError::new(format!(
-                        "{} requires a different semantic fingerprint of {}; rebuild the upstream artifact from its source",
-                        candidate.coordinate,
-                        expected.coordinate()
-                    )));
+                    return Err(PmError::new(
+                        scoop_source::DiagnosticCode::E2108,
+                        format!("{__diagnostic_arg0} requires a different semantic fingerprint of {__diagnostic_arg1}" , __diagnostic_arg0 = candidate.coordinate, __diagnostic_arg1 = expected.coordinate()),
+                    ) .with_help(scoop_source::DiagnosticCode::H2302, "rebuild the upstream artifact from its source".to_owned()));
                 }
             }
         }
@@ -295,10 +308,13 @@ impl<'a> Catalog<'a> {
             .into_values()
             .find(|member| member.directory == directory)
             .ok_or_else(|| {
-                PmError::new(format!(
-                    "{} is a virtual workspace; select a Cone subdirectory",
-                    directory.display()
-                ))
+                PmError::new(
+                    scoop_source::DiagnosticCode::E2002,
+                    format!(
+                        "{} is a virtual workspace; select a Cone subdirectory",
+                        directory.display()
+                    ),
+                )
             })?;
         let source = match context {
             Context::Git(checkout) => LockedSource::Git {
@@ -345,9 +361,12 @@ impl<'a> Catalog<'a> {
 
 fn relative(path: &Path, base: &Path) -> PmResult<String> {
     let path = pathdiff::diff_paths(path, base).unwrap_or_else(|| path.to_owned());
-    let text = path
-        .to_str()
-        .ok_or_else(|| PmError::new("portable Cone.lock source paths require UTF-8"))?;
+    let text = path.to_str().ok_or_else(|| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2002,
+            "portable Cone.lock source paths require UTF-8",
+        )
+    })?;
     Ok(if text.is_empty() {
         ".".into()
     } else if cfg!(windows) {

@@ -46,8 +46,18 @@ impl Concretizer<'_> {
             {
                 let message = "polymorphic recursion is not supported: a member-requirement call chain changes a callable's complete type-argument mapping".to_owned();
                 self.type_condition_errors.push(match self.type_use_site {
-                    Some((file, span)) => Diagnostic::at_file(file, span, message),
-                    None => Diagnostic::without_span(DiagnosticSeverity::Error, 0, message),
+                    Some((file, span)) => Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E0610,
+                        file,
+                        span,
+                        message,
+                    ),
+                    None => Diagnostic::without_span(
+                        scoop_source::DiagnosticCode::E0610,
+                        DiagnosticSeverity::Error,
+                        0,
+                        message,
+                    ),
                 });
                 self.specialization_failed = true;
                 return;

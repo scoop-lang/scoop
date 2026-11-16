@@ -37,10 +37,12 @@ pub(crate) fn parse_file(source: &str) -> Result<crate::ParsedFile, SourceLength
                 {
                     parser.diagnostics.push(
                         Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0202,
                             keyword_span,
                             "a source file may contain only one `package` header",
                         )
                         .with_note(DiagnosticNote::at(
+                            scoop_source::DiagnosticCode::N0001,
                             0,
                             *first_keyword_span,
                             "first `package` header is here",
@@ -48,6 +50,7 @@ pub(crate) fn parse_file(source: &str) -> Result<crate::ParsedFile, SourceLength
                     );
                 } else if header_state >= HeaderState::AfterImport {
                     parser.diagnostics.push(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0203,
                         keyword_span,
                         "a `package` header must appear before imports and declarations",
                     ));
@@ -72,6 +75,7 @@ pub(crate) fn parse_file(source: &str) -> Result<crate::ParsedFile, SourceLength
                 let accept = header_state < HeaderState::InDeclarations;
                 if !accept {
                     parser.diagnostics.push(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0203,
                         header_span,
                         "`import` headers must appear before declarations",
                     ));
@@ -92,11 +96,13 @@ pub(crate) fn parse_file(source: &str) -> Result<crate::ParsedFile, SourceLength
                 let modifier_token = parser.bump();
                 if header_state >= HeaderState::InDeclarations {
                     parser.diagnostics.push(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0203,
                         modifier_token.span,
                         "`import` headers must appear before declarations",
                     ));
                 }
                 parser.diagnostics.push(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0305,
                     modifier_token.span,
                     format!(
                         "`{modifier} import` is not supported; imports may be ordinary or `public`"

@@ -1,8 +1,32 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for constructor `Inner` in nominal constructor candidate layer:\n  - class Inner<T>() — conflicting types for `T`: String and Int",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for constructor `Inner` in nominal constructor candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Inner<T>()",
+        "notes": [
+          {
+            "code": "E0605",
+            "kind": "cause",
+            "message": "conflicting types for `T`: String and Int",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 109,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 93
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 109,

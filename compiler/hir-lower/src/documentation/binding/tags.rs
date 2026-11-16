@@ -110,6 +110,7 @@ impl Lowerer {
         };
         let Some(kind) = kind else {
             self.documentation_warning(
+                scoop_source::DiagnosticCode::W1812,
                 warnings,
                 tag.span,
                 format!("documentation tag has no applicable target `{label}`"),
@@ -119,7 +120,7 @@ impl Lowerer {
         if let Some((category, target, direct)) = destination
             && (!seen.insert((category, target)) || (direct && index.has_comment(target)))
         {
-            self.documentation_warning(warnings, tag.span, format!("duplicate documentation for `{label}`; the first direct or tagged description is retained"));
+            self.documentation_warning(scoop_source::DiagnosticCode::W1808, warnings, tag.span, format!("duplicate documentation for `{label}`; the first direct or tagged description is retained"));
             return None;
         }
         let content_owner = destination.map_or(owner, |(_, target, _)| target);

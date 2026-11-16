@@ -14,17 +14,20 @@ impl ElfObject<'_> {
             || self.original_symbols.contains_key(name.as_bytes())
             || !self.names.insert(name.to_owned())
         {
-            return Err(CodegenError::internal(format!(
-                "invalid or repeated ELF symbol `{name}`"
-            )));
+            return Err(
+                CodegenError::internal(format!("invalid or repeated ELF symbol `{name}`"))
+                    .with_code(scoop_source::DiagnosticCode::ICE2302),
+            );
         }
-        let symbol = self
-            .original_symbol(previous)
-            .ok_or_else(|| CodegenError::internal(format!("missing ELF symbol `{previous}`")))?;
+        let symbol = self.original_symbol(previous).ok_or_else(|| {
+            CodegenError::internal(format!("missing ELF symbol `{previous}`"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
         if symbol.is_local() || symbol.section_index().is_none() {
             return Err(CodegenError::internal(
                 "renamed ELF contribution must be an external definition".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         let offset = symbol
             .index()

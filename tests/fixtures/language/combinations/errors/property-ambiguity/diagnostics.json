@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0404",
     "message": "ambiguous member property `number`",
     "notes": [],
     "origin": {

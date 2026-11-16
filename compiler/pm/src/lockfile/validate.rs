@@ -8,18 +8,21 @@ use crate::{PmError, PmResult};
 impl Lockfile {
     pub fn validate(&self) -> PmResult<()> {
         if self.format != 1 {
-            return Err(PmError::new(format!(
-                "unsupported Cone.lock format {}",
-                self.format
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2113,
+                format!("unsupported Cone.lock format {}", self.format),
+            ));
         }
         let mut keys = BTreeSet::new();
         for resolution in &self.resolutions {
             if !keys.insert((&resolution.root, resolution.purpose, &resolution.target)) {
-                return Err(PmError::new(format!(
-                    "duplicate lock resolution for {} / {} / {}",
-                    resolution.root, resolution.purpose, resolution.target
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2113,
+                    format!(
+                        "duplicate lock resolution for {} / {} / {}",
+                        resolution.root, resolution.purpose, resolution.target
+                    ),
+                ));
             }
             resolution.validate()?;
         }
@@ -30,11 +33,12 @@ impl Lockfile {
 impl LockedResolution {
     pub fn validate(&self) -> PmResult<()> {
         if ConeRelativePath::new(&self.root)
-            .map_err(PmError::new)?
+            .map_err(|message| PmError::new(scoop_source::DiagnosticCode::E2113, message))?
             .as_str()
             != self.root
         {
             return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2113,
                 "locked root must be a normalized workspace-relative path",
             ));
         }
@@ -42,60 +46,68 @@ impl LockedResolution {
             .iter()
             .any(|target| target.triple == self.target)
         {
-            return Err(PmError::new(format!(
-                "unknown lock target {:?}",
-                self.target
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2113,
+                format!("unknown lock target {:?}", self.target),
+            ));
         }
         let mut nodes = BTreeMap::new();
         let mut keys = BTreeSet::new();
         for node in &self.nodes {
             let key = DependencyCoordinateKey::from_coordinate(&node.coordinate);
             if !keys.insert(key.clone()) {
-                return Err(PmError::new(format!(
-                    "lock resolution has more than one node for {key}"
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2113,
+                    format!("lock resolution has more than one node for {key}"),
+                ));
             }
             if node.coordinate != self.root_coordinate && node.kind != RequestedConeKind::Library {
-                return Err(PmError::new(format!(
-                    "locked dependency {} must be a library",
-                    node.coordinate
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2113,
+                    format!("locked dependency {} must be a library", node.coordinate),
+                ));
             }
             if !node.test_dependencies.is_empty()
                 && (node.coordinate != self.root_coordinate || self.purpose != Purpose::Test)
             {
-                return Err(PmError::new(format!(
-                    "test dependencies are only allowed on a Test root: {}",
-                    node.coordinate
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2113,
+                    format!(
+                        "test dependencies are only allowed on a Test root: {}",
+                        node.coordinate
+                    ),
+                ));
             }
             node.source.validate(&node.coordinate)?;
             nodes.insert(node.coordinate.to_string(), node);
         }
         let root = self.root_coordinate.to_string();
         if !nodes.contains_key(&root) {
-            return Err(PmError::new(format!(
-                "lock resolution is missing root {root}"
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2113,
+                format!("lock resolution is missing root {root}"),
+            ));
         }
         for node in &self.nodes {
             let mut edges = BTreeSet::new();
             for edge in node.dependencies.iter().chain(&node.test_dependencies) {
                 let edge = edge.to_string();
                 if !nodes.contains_key(&edge) || !edges.insert(edge.clone()) {
-                    return Err(PmError::new(format!(
-                        "{} has missing or duplicate locked dependency {edge}",
-                        node.coordinate
-                    )));
+                    return Err(PmError::new(
+                        scoop_source::DiagnosticCode::E2113,
+                        format!(
+                            "{} has missing or duplicate locked dependency {edge}",
+                            node.coordinate
+                        ),
+                    ));
                 }
             }
             let core = ConeCoordinate::reserved_core();
             if node.coordinate != core && !node.dependencies.contains(&core) {
-                return Err(PmError::new(format!(
-                    "{} is missing the implicit core edge",
-                    node.coordinate
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2113,
+                    format!("{} is missing the implicit core edge", node.coordinate),
+                ));
             }
         }
         // An explicit stack keeps ordinary long dependency chains off the call stack.
@@ -108,9 +120,10 @@ impl LockedResolution {
                 done.insert(coordinate);
             } else if !done.contains(&coordinate) {
                 if !active.insert(coordinate.clone()) {
-                    return Err(PmError::new(format!(
-                        "cycle in locked dependency graph at {coordinate}"
-                    )));
+                    return Err(PmError::new(
+                        scoop_source::DiagnosticCode::E2113,
+                        format!("cycle in locked dependency graph at {coordinate}"),
+                    ));
                 }
                 stack.push((coordinate.clone(), true));
                 for edge in nodes[&coordinate]
@@ -124,7 +137,10 @@ impl LockedResolution {
             }
         }
         if done.len() != nodes.len() {
-            return Err(PmError::new("lock resolution contains unreachable nodes"));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2113,
+                "lock resolution contains unreachable nodes",
+            ));
         }
         Ok(())
     }
@@ -146,7 +162,10 @@ impl LockedResolution {
 impl LockedSource {
     fn validate(&self, coordinate: &ConeCoordinate) -> PmResult<()> {
         let invalid = |message: &str| {
-            PmError::new(format!("invalid locked source for {coordinate}: {message}"))
+            PmError::new(
+                scoop_source::DiagnosticCode::E2113,
+                format!("invalid locked source for {coordinate}: {message}"),
+            )
         };
         match self {
             Self::Path { path } | Self::Artifact { path } => {
@@ -172,7 +191,7 @@ impl LockedSource {
                     ));
                 }
                 if ConeRelativePath::new(subdir)
-                    .map_err(PmError::new)?
+                    .map_err(|message| PmError::new(scoop_source::DiagnosticCode::E2113, message))?
                     .as_str()
                     != subdir
                 {

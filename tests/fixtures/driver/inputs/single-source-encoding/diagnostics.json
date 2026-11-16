@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2003",
     "message": "invalid single-file input ${work}/main.scoop: source file is not valid UTF-8",
     "notes": [],
     "origin": {
@@ -9,7 +9,7 @@
       "path": "${work}/main.scoop",
       "start": null
     },
-    "severity": "error",
-    "phase": "Root"
+    "phase": "Root",
+    "severity": "error"
   }
 ]

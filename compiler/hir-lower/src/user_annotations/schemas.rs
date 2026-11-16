@@ -59,6 +59,7 @@ impl Lowerer {
             Some(AnnotationResolution::Failed) => return None,
             Some(AnnotationResolution::Resolving) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1306,
                     span,
                     "recursive annotation parameter or default dependency".into(),
                 );
@@ -76,6 +77,7 @@ impl Lowerer {
         for (index, parameter) in input.declaration.parameters.iter().enumerate() {
             if !names.insert(&parameter.name.text) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     parameter.name.span,
                     format!("duplicate annotation parameter `{}`", parameter.name.text),
                 );
@@ -162,7 +164,11 @@ impl Lowerer {
                     AnnotationParameterType::Value(ty) => match self.imported_signature_type(&ty) {
                         Ok(ty) => AnnotationParameterType::Value(ty),
                         Err(error) => {
-                            self.error(span, error.diagnostic("annotation parameter"));
+                            self.error(
+                                scoop_source::DiagnosticCode::E1403,
+                                span,
+                                error.diagnostic("annotation parameter"),
+                            );
                             return None;
                         }
                     },

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "lambda result must be of type Ptr<Int>, found Int",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1510",
     "message": "private interface property `missing` must provide every accessor body",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0308",
     "message": "private interface method `$get$missing` must have a body",
     "notes": [],
     "origin": {

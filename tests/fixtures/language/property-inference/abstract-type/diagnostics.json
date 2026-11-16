@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1508",
     "message": "property `value` requires an explicit type without an initializer, expression getter, or delegate",
     "notes": [],
     "origin": {

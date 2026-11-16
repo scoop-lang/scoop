@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0301",
     "message": "duplicate annotation parameter `value`",
     "notes": [],
     "origin": {

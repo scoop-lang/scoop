@@ -3,6 +3,7 @@ use scoop_source::SourceText;
 use std::fmt;
 
 mod documentation;
+mod notes;
 mod protocol;
 pub use documentation::{PublishedDocumentation, SingleConeDocumentationSuccess};
 pub use protocol::DiagnosticMappingError;
@@ -106,9 +107,7 @@ impl CurrentConeDiagnosticSet {
             if let Some(identity) = diagnostic.source() {
                 source_index(&mut sources, identity);
             }
-            for note in &diagnostic.notes {
-                source_index(&mut sources, &note.source);
-            }
+            register_note_sources(&mut sources, &diagnostic.notes);
         }
         Self {
             diagnostics,
@@ -132,45 +131,43 @@ impl CurrentConeDiagnosticSet {
     }
 
     pub fn render_human(&self) -> String {
-        self.diagnostics
-            .iter()
-            .flat_map(|diagnostic| {
-                let primary = if let Some(identity) = diagnostic.source() {
-                    let source = self.source(identity);
-                    match &source.source_text {
+        let mut output = Vec::new();
+        for diagnostic in &self.diagnostics {
+            let kind = match diagnostic.severity {
+                scoop_ast::DiagnosticSeverity::Error => "error",
+                scoop_ast::DiagnosticSeverity::Warning => "warning",
+            };
+            output.push(
+                match diagnostic.source().map(|identity| self.source(identity)) {
+                    Some(source) => match &source.source_text {
                         Some(text) => diagnostic.render_with_source(&source.display_locator, text),
                         None => render_without_text(
                             source,
                             diagnostic.span(),
-                            match diagnostic.severity {
-                                scoop_ast::DiagnosticSeverity::Error => "error",
-                                scoop_ast::DiagnosticSeverity::Warning => "warning",
-                            },
+                            &format!("{kind}[{}]", diagnostic.code),
                             &diagnostic.message,
                         ),
-                    }
-                } else {
-                    format!(
-                        "{}: {}",
-                        match diagnostic.severity {
-                            scoop_ast::DiagnosticSeverity::Error => "error",
-                            scoop_ast::DiagnosticSeverity::Warning => "warning",
-                        },
-                        diagnostic.message
-                    )
-                };
-                std::iter::once(primary).chain(diagnostic.notes.iter().map(|note| {
-                    let note_source = self.source(&note.source);
-                    match &note_source.source_text {
-                        Some(text) => note.render_with_source(&note_source.display_locator, text),
-                        None => {
-                            render_without_text(note_source, Some(note.span), "note", &note.message)
-                        }
-                    }
-                }))
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+                    },
+                    None => format!("{kind}[{}]: {}", diagnostic.code, diagnostic.message),
+                },
+            );
+            self.render_notes(&diagnostic.notes, &mut output);
+        }
+        output.join("\n")
+    }
+
+    fn render_notes(&self, notes: &[scoop_source::SourceDiagnosticNote], output: &mut Vec<String>) {
+        for note in notes {
+            let kind = format!("{}[{}]", note.code.role().as_str(), note.code);
+            output.push(match note.source().map(|identity| self.source(identity)) {
+                Some(source) => match &source.source_text {
+                    Some(text) => note.render_with_source(&source.display_locator, text),
+                    None => render_without_text(source, note.span(), &kind, &note.message),
+                },
+                None => format!("{kind}: {}", note.message),
+            });
+            self.render_notes(&note.notes, output);
+        }
     }
 }
 
@@ -322,4 +319,16 @@ fn render_without_text(
         None => source.display_locator.clone(),
     };
     format!("{location}: {severity}: {message}")
+}
+
+fn register_note_sources(
+    sources: &mut Vec<CurrentConeDiagnosticSource>,
+    notes: &[scoop_source::SourceDiagnosticNote],
+) {
+    for note in notes {
+        if let Some(identity) = note.source() {
+            source_index(sources, identity);
+        }
+        register_note_sources(sources, &note.notes);
+    }
 }

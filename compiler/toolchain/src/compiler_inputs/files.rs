@@ -1,4 +1,6 @@
 //! Resource paths retain their original spelling until filesystem resolution.
+use scoop_hir::CompileTimeInputError as InputError;
+use scoop_source::DiagnosticCode as C;
 
 use super::paths::{Scope, carrier, io_error, modified};
 use scoop_identity::SourceIdentity;
@@ -23,13 +25,13 @@ impl Sources {
         &self,
         source: &SourceIdentity,
         path: &scoop_hir::CompileTimePath,
-    ) -> Result<ReadFile, String> {
+    ) -> Result<ReadFile, InputError> {
         let locator = self.locator(source, path)?;
         let input = inspect(&self.root, &locator)?;
         let resolved = input
             .resolved
             .to_path_buf()
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| InputError::new(C::ICE2501, error))?;
         let bytes = std::fs::read(&resolved)
             .map_err(|error| io_error(&locator, error))?
             .into();
@@ -40,15 +42,17 @@ impl Sources {
         &self,
         source: &SourceIdentity,
         path: &scoop_hir::CompileTimePath,
-    ) -> Result<PathBuf, String> {
-        let source = self
-            .files
-            .get(source)
-            .ok_or("include call has no physical definition source")?;
+    ) -> Result<PathBuf, InputError> {
+        let source = self.files.get(source).ok_or_else(|| {
+            InputError::new(C::E1604, "include call has no physical definition source")
+        })?;
         let source = std::fs::canonicalize(source).map_err(|error| io_error(source, error))?;
-        let directory = source
-            .parent()
-            .ok_or("include definition source has no parent directory")?;
+        let directory = source.parent().ok_or_else(|| {
+            InputError::new(
+                C::E1605,
+                "include definition source has no parent directory",
+            )
+        })?;
         Ok(directory.join(path.as_str()))
     }
 }
@@ -60,14 +64,17 @@ pub(super) fn current(input: &FileInputV1) -> bool {
     inspect(&root, &locator).is_ok_and(|observed| observed == *input)
 }
 
-fn inspect(root: &Path, locator: &Path) -> Result<FileInputV1, String> {
+fn inspect(root: &Path, locator: &Path) -> Result<FileInputV1, InputError> {
     let scope = Scope::new(root)?;
     let resolved = scope.resolve(locator)?;
     let metadata = std::fs::metadata(&resolved).map_err(|error| io_error(locator, error))?;
     if !metadata.is_file() {
-        return Err(format!(
-            "include path `{}` must name a regular file",
-            locator.display()
+        return Err(InputError::new(
+            C::E1605,
+            format!(
+                "include path `{}` must name a regular file",
+                locator.display()
+            ),
         ));
     }
     Ok(FileInputV1 {

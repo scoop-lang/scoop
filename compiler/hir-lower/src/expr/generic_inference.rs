@@ -58,8 +58,10 @@ impl Lowerer {
             Ok(arguments) => arguments,
             Err(failure) => {
                 if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
-                    self.diagnostics
-                        .push(scoop_ast::Diagnostic::internal(error));
+                    self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                        scoop_source::DiagnosticCode::ICE0601,
+                        error,
+                    ));
                 }
                 if let ArgumentInferenceFailureKind::Constraint(constraint) = failure.kind {
                     self.diagnose_nominal_failure(
@@ -109,8 +111,20 @@ impl Lowerer {
                 _ => span,
             }
         };
-        let mut reason =
+        let reason =
             render_nominal_constraint_failure(self, view, argument_map, arguments, &failure);
+        let mut cause = scoop_ast::DiagnosticNote::at(
+            failure.code(),
+            self.current_text_file(),
+            diagnostic_span,
+            reason,
+        );
+        if let crate::call_resolution::constraints::ConstraintFailureKind::MemberRequirement(
+            requirement,
+        ) = &failure.kind
+        {
+            cause.notes = requirement.notes.clone();
+        }
         if let Some(crate::call_resolution::constraints::InferenceVariableId::Owner(variable)) =
             failure.kind.inference_variable()
         {
@@ -131,37 +145,49 @@ impl Lowerer {
                     })
                     .collect::<Vec<_>>();
                 if !fixed.is_empty() {
-                    reason.push_str("; fixed type arguments: ");
-                    reason.push_str(&fixed.join(", "));
+                    cause
+                        .notes
+                        .push(scoop_ast::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::N0702,
+                            format!("fixed type arguments: {}", fixed.join(", ")),
+                        ));
                 }
             }
         }
-        self.nominal_candidate_diagnostic(view, diagnostic_span, &reason);
+        self.nominal_candidate_diagnostic(view, diagnostic_span, cause);
     }
 
     pub(crate) fn diagnose_nominal_shape_failure(
         &mut self,
         view: &NominalConstructorView,
         span: Span,
-        reason: String,
+        cause: scoop_ast::DiagnosticNote,
     ) {
-        self.nominal_candidate_diagnostic(view, span, &reason);
+        self.nominal_candidate_diagnostic(view, span, cause);
     }
 
     fn nominal_candidate_diagnostic(
         &mut self,
         view: &NominalConstructorView,
         span: Span,
-        reason: &str,
+        cause: scoop_ast::DiagnosticNote,
     ) {
+        if cause.code.category() == Some(scoop_source::DiagnosticCategory::Internal) {
+            let mut diagnostic = scoop_ast::Diagnostic::at_file(
+                cause.code,
+                self.current_text_file(),
+                span,
+                cause.message,
+            );
+            diagnostic.notes = cause.notes;
+            self.diagnostics.push(diagnostic);
+            return;
+        }
         let target = self.nominal_value_name(view.target);
         let signature = nominal_source_signature(self, view);
-        self.error(
-            span,
-            format!(
-                "no applicable candidate for constructor `{target}` in nominal constructor candidate layer:\n  - {signature} — {reason}"
-            ),
-        );
+        self.diagnostics.push(scoop_ast::Diagnostic::at_file(scoop_source::DiagnosticCode::E0711, self.current_text_file(), span,
+            format!("no applicable candidate for constructor `{target}` in nominal constructor candidate layer"))
+            .with_note(scoop_ast::DiagnosticNote::without_location(scoop_source::DiagnosticCode::N0002, signature).with_note(cause)));
     }
 
     fn nominal_value_name(&self, target: NominalConstructorSource) -> String {

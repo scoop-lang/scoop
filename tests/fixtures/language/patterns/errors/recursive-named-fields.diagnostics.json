@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0902",
     "message": "refutable patterns are only allowed in `when`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0902",
     "message": "refutable patterns are only allowed in `when`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "literal pattern of type String cannot match Int",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0301",
     "message": "`repeated` is already declared in this scope",
     "notes": [],
     "origin": {
@@ -52,9 +52,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "pattern does not list all fields of struct `Leaf`; add `..` to ignore the rest",
-    "notes": [],
+    "code": "E0907",
+    "message": "pattern does not list all fields of struct `Leaf`",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "add `..` to ignore the rest",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 836,
@@ -65,7 +75,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "struct `Leaf` has no field `absent`",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `LocalReader` does not implement abstract method `LocalBase.choose`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `LocalReader` leaves interface method `FirstChoice.choose` abstract",
     "notes": [],
     "origin": {

@@ -68,7 +68,7 @@ impl Reporter {
                 .count()
         };
         let record = json!({
-            "schema": 1, "kind": "test-report", "target": target,
+            "schema": 2, "kind": "test-report", "target": target,
             "status": if result.failed() { "failed" } else { "passed" },
             "complete": result.complete, "empty_reason": selected.empty_reason,
             "containers": containers,

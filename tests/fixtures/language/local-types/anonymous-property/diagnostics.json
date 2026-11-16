@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "an inferred declaration signature cannot expose an anonymous object type; specify a visible base type",
     "notes": [],
     "origin": {

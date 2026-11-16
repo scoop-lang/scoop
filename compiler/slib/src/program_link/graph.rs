@@ -14,25 +14,29 @@ pub(super) fn read<'a>(
     let decode = |input: &'a crate::ArtifactFile| {
         crate::ArtifactInput::File(input)
             .open(target)
-            .map_err(error)?
+            .map_err(|cause| error(crate::SlibDiagnostic::code(&cause), cause))?
             .validate_graph()
-            .map_err(error)
+            .map_err(|cause| error(crate::SlibDiagnostic::code(&cause), cause))
     };
     let root = decode(root)?;
     let root_identity = root.identity();
     if !matches!(root.kind(), ConeKind::Executable | ConeKind::NativeApp) {
-        return Err(
-            error("program root must be an executable or native-app Cone")
-                .at(root_identity, "manifest:cone.kind"),
-        );
+        return Err(error(
+            scoop_source::DiagnosticCode::E2001,
+            "program root must be an executable or native-app Cone",
+        )
+        .at(root_identity, "manifest:cone.kind"));
     }
     let mut by_identity = BTreeMap::new();
     for bytes in dependencies {
         let artifact = decode(bytes)?;
         if artifact.identity() == root.identity() {
             if artifact.artifact_fingerprint() != root.artifact_fingerprint() {
-                return Err(error("root Cone has conflicting artifact contents")
-                    .at(root_identity, "manifest:cone.identity"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2412,
+                    "root Cone has conflicting artifact contents",
+                )
+                .at(root_identity, "manifest:cone.identity"));
             }
             continue;
         }
@@ -42,10 +46,13 @@ pub(super) fn read<'a>(
             }
             std::collections::btree_map::Entry::Occupied(entry) => {
                 if entry.get().artifact_fingerprint() != artifact.artifact_fingerprint() {
-                    return Err(error(format!(
-                        "Cone {} has conflicting artifact contents",
-                        artifact.coordinate()
-                    ))
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2412,
+                        format!(
+                            "Cone {} has conflicting artifact contents",
+                            artifact.coordinate()
+                        ),
+                    )
                     .at(artifact.identity(), "manifest:cone.identity"));
                 }
             }
@@ -76,8 +83,11 @@ pub(super) fn read<'a>(
             })
             .map(|(key, _)| key.clone())
             .ok_or_else(|| {
-                error("dependency graph has a cycle or a missing provider")
-                    .at(root_identity, "manifest:direct_dependencies")
+                error(
+                    scoop_source::DiagnosticCode::E2107,
+                    "dependency graph has a cycle or a missing provider",
+                )
+                .at(root_identity, "manifest:direct_dependencies")
             })?;
         let artifact = pending.remove(&key).expect("selected pending artifact");
         ready.insert(artifact.identity());

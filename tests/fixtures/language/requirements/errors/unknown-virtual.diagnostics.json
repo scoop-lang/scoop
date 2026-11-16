@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0612",
     "message": "unknown virtual parameter `y`",
     "notes": [],
     "origin": {

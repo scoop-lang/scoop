@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "native calls requiring a state transition are not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "native calls requiring a state transition are not allowed in `@NoGC` code",
     "notes": [],
     "origin": {

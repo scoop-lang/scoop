@@ -102,9 +102,14 @@ impl Parser {
             .any(|argument| matches!(argument.name, CallArgumentName::TrailingLambda))
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0718,
                 self.peek().span,
-                "a call accepts only one trailing lambda; group the call to invoke its result",
-            ));
+                "a call accepts only one trailing lambda".to_owned(),
+            )
+            .with_note(scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0705,
+                "group the call to invoke its result".to_owned(),
+            )));
         }
         let checkpoint = self.checkpoint();
         let start = self.peek().span.start;

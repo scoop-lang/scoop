@@ -28,8 +28,8 @@ fn subscript_index_must_be_int() {
     let errors = lower_user(file).expect_err("non-Int index must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `get` in member candidate layer:\n  - fun Array<T>.get(index: Long): T — argument for `index` has type String, which is not a subtype of Long"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `get` in member candidate layer; fun Array<T>.get(index: Long): T; argument for `index` has type String, which is not a subtype of Long"
     );
 }
 
@@ -112,8 +112,8 @@ fn subscript_write_index_must_be_int() {
     let errors = lower_user(file).expect_err("non-Int write index must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `set` in member candidate layer:\n  - fun MutableArray<T>.set(index: Long, value: T): Unit — argument for `index` has type String, which is not a subtype of Long"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `set` in member candidate layer; fun MutableArray<T>.set(index: Long, value: T): Unit; argument for `index` has type String, which is not a subtype of Long"
     );
 }
 
@@ -133,7 +133,7 @@ fn subscript_write_value_must_match_the_element_type() {
     let errors = lower_user(file).expect_err("value mismatch must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `set` in member candidate layer:\n  - fun MutableArray<T>.set(index: Long, value: T): Unit — argument for `value` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `set` in member candidate layer; fun MutableArray<T>.set(index: Long, value: T): Unit; argument for `value` has type String, which is not a subtype of Int"
     );
 }

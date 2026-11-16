@@ -392,6 +392,7 @@ impl Parser {
     ) -> Diagnostic {
         let token = self.peek();
         let diagnostic = Diagnostic::at(
+            scoop_source::DiagnosticCode::E0201,
             token.span,
             format!("expected {what}, found {}", token.describe()),
         );

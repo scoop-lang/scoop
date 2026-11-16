@@ -88,13 +88,15 @@ pub(super) fn graph(
                     .map_err(error)?;
                 let result = match runner
                     .invoke(prepared.compiler(), invocation.request(), invocation.io())
-                    .map_err(error)?
+                    .map_err(BuildFailure::classified)?
                 {
                     ScoopcResponseEnvelopeV1::Success { result, .. } => result,
                     ScoopcResponseEnvelopeV1::Failure { diagnostics, .. } => {
-                        let mut failure = error("documentation compilation failed");
-                        failure.diagnostics = diagnostics;
-                        return Err(failure);
+                        return Err(BuildFailure::from_diagnostics(
+                            "documentation compilation failed",
+                            BuildFailurePhase::ChildDiagnostic,
+                            diagnostics,
+                        ));
                     }
                     _ => return Err(error("compiler returned an unexpected observation result")),
                 };

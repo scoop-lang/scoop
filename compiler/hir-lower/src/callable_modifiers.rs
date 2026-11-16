@@ -23,7 +23,7 @@ impl Lowerer {
             .filter_map(|parameter| {
                 if delegate && !matches!(parameter.syntax, ast::ParameterSyntax::Required) {
                     // Invalid role parameters must not request an implicit Array application.
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0727,
                         parameter.span,
                         format!(
                             "property delegate operator `{}` requires required, non-vararg parameters",
@@ -52,6 +52,7 @@ impl Lowerer {
         let operator = decl.operator.and_then(|modifier| {
             if receiver.is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0725,
                     modifier.span,
                     "`operator` requires a member or extension receiver".to_string(),
                 );
@@ -79,12 +80,14 @@ impl Lowerer {
         if let Some(infix) = decl.infix {
             if receiver.is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0725,
                     infix.span,
                     "`infix` requires a member or extension receiver".to_string(),
                 );
             }
             if params.len() != 1 {
                 self.error(
+                    scoop_source::DiagnosticCode::E0726,
                     decl.name.span,
                     format!(
                         "infix function `{}` must have exactly one parameter, found {}",
@@ -94,6 +97,7 @@ impl Lowerer {
                 );
             } else if !matches!(params[0].calling, FnParamCalling::Required) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0727,
                     decl.params[0].span,
                     format!(
                         "infix function `{}` requires one required, non-vararg parameter",
@@ -137,7 +141,7 @@ impl Lowerer {
                         format!("unknown operator role `{}`", name.text),
                     ),
                 };
-                self.error(span, message);
+                self.error(scoop_source::DiagnosticCode::E0728, span, message);
                 None
             }
         }
@@ -158,12 +162,13 @@ impl Lowerer {
         };
         if !is_ordinary {
             self.error(
+                scoop_source::DiagnosticCode::E0729,
                 decl.name.span,
                 format!("property delegate operator `{name}` must be an ordinary function"),
             );
         }
         if decl.params.len() != expected {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E0726,
                 decl.name.span,
                 format!(
                     "property delegate operator `{name}` must have exactly {expected} parameters, found {}",
@@ -173,12 +178,14 @@ impl Lowerer {
         }
         if decl.is_suspend {
             self.error(
+                scoop_source::DiagnosticCode::E0729,
                 decl.name.span,
                 format!("property delegate operator `{name}` must not be suspend"),
             );
         }
         if !decl.type_params.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0729,
                 decl.name.span,
                 format!("property delegate operator `{name}` must not declare type parameters"),
             );
@@ -188,6 +195,7 @@ impl Lowerer {
             && !self.types_equal(return_ty, self.unit)
         {
             self.error(
+                scoop_source::DiagnosticCode::E0729,
                 decl.name.span,
                 format!(
                     "property delegate operator `setValue` must return Unit, found {}",
@@ -242,6 +250,7 @@ impl Lowerer {
                 format!("exactly {expected} parameters")
             };
             self.error(
+                scoop_source::DiagnosticCode::E0726,
                 decl.name.span,
                 format!(
                     "operator `{}` must have {expected}, found {}",
@@ -257,6 +266,7 @@ impl Lowerer {
                 .find(|(_, parameter)| matches!(parameter.calling, FnParamCalling::Vararg { .. }))
         {
             self.error(
+                scoop_source::DiagnosticCode::E0727,
                 decl.params[index].span,
                 format!(
                     "operator `{}` does not accept a `vararg` parameter",
@@ -266,10 +276,12 @@ impl Lowerer {
         }
         match kind {
             K::Get if params.is_empty() => self.error(
+                scoop_source::DiagnosticCode::E0726,
                 decl.name.span,
                 "operator `get` must have at least one parameter".to_string(),
             ),
             K::Set if params.len() < 2 => self.error(
+                scoop_source::DiagnosticCode::E0726,
                 decl.name.span,
                 format!(
                     "operator `set` must have at least two parameters, found {}",
@@ -282,6 +294,7 @@ impl Lowerer {
                     Some(FnParamCalling::Vararg { .. })
                 ) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0727,
                         decl.params.last().expect("set has parameters").span,
                         "operator `set` value parameter must not be `vararg`".to_string(),
                     );
@@ -290,18 +303,21 @@ impl Lowerer {
             K::Equals => {
                 if !is_member {
                     self.error(
+                        scoop_source::DiagnosticCode::E0729,
                         decl.name.span,
                         "operator `equals` must be a member function".to_string(),
                     );
                 }
                 if decl.is_suspend {
                     self.error(
+                        scoop_source::DiagnosticCode::E0729,
                         decl.name.span,
                         "operator `equals` must not be suspend".to_string(),
                     );
                 }
                 if !decl.type_params.is_empty() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0729,
                         decl.name.span,
                         "operator `equals` must not declare type parameters".to_string(),
                     );
@@ -323,6 +339,7 @@ impl Lowerer {
     ) {
         if !self.types_equal(actual, expected) {
             self.error(
+                scoop_source::DiagnosticCode::E0729,
                 decl.name.span,
                 format!(
                     "operator `{}` must return {expected_name}, found {}",

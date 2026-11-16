@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `main` has local `action` of non-GC-free type Int.() -> Int",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Int.() -> Int is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1105",
     "message": "managed function values are not allowed in `@NoGC` code",
     "notes": [],
     "origin": {

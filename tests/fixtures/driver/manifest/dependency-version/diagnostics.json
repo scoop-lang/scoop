@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2015",
     "message": "${fixture}/program/Cone.toml: expected a complete major.minor.patch version: unexpected character 'n' while parsing major version number",
     "notes": [],
     "origin": {

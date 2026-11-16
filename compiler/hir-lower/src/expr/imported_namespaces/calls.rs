@@ -144,6 +144,6 @@ impl Lowerer {
                 owner_name, name.text
             )
         };
-        self.error(name.span, message);
+        self.error(scoop_source::DiagnosticCode::E0402, name.span, message);
     }
 }

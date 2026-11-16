@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_OUTPUT_WRITE",
+    "code": "E2201",
     "message": "${directory_write_error}",
     "phase": "Publication",
     "notes": [],

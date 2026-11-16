@@ -1,4 +1,6 @@
 //! Host input observations shared by all HIR probes in one compilation.
+use scoop_hir::CompileTimeInputError as InputError;
+use scoop_source::DiagnosticCode as C;
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -11,10 +13,10 @@ mod paths;
 mod patterns;
 type FileValues = BTreeMap<
     (scoop_identity::SourceIdentity, scoop_hir::CompileTimePath),
-    Result<files::ReadFile, String>,
+    Result<files::ReadFile, InputError>,
 >;
 
-type EnvironmentValues = BTreeMap<CompileTimeEnvironmentName, Result<Option<String>, String>>;
+type EnvironmentValues = BTreeMap<CompileTimeEnvironmentName, Result<Option<String>, InputError>>;
 type DirectoryValues = BTreeMap<
     (
         scoop_identity::SourceIdentity,
@@ -41,9 +43,10 @@ impl CompileTimeInputHost for CompileTimeInputs {
     ) -> Result<std::sync::Arc<[scoop_hir::CompileTimeFile]>, scoop_hir::CompileTimeDirectoryError>
     {
         let sources = self.sources.as_ref().ok_or_else(|| {
-            scoop_hir::CompileTimeDirectoryError::Input(
-                "include call has no physical definition source".into(),
-            )
+            scoop_hir::CompileTimeDirectoryError::Input(InputError::new(
+                C::E1604,
+                "include call has no physical definition source",
+            ))
         })?;
         self.directories
             .lock()
@@ -59,11 +62,10 @@ impl CompileTimeInputHost for CompileTimeInputs {
         &self,
         source: &scoop_identity::SourceIdentity,
         path: &scoop_hir::CompileTimePath,
-    ) -> Result<std::sync::Arc<[u8]>, String> {
-        let sources = self
-            .sources
-            .as_ref()
-            .ok_or("include call has no physical definition source")?;
+    ) -> Result<std::sync::Arc<[u8]>, InputError> {
+        let sources = self.sources.as_ref().ok_or_else(|| {
+            InputError::new(C::E1604, "include call has no physical definition source")
+        })?;
         self.files
             .lock()
             .expect("file input cache is not poisoned")
@@ -74,7 +76,7 @@ impl CompileTimeInputHost for CompileTimeInputs {
             .map_err(Clone::clone)
     }
 
-    fn environment(&self, name: &CompileTimeEnvironmentName) -> Result<Option<String>, String> {
+    fn environment(&self, name: &CompileTimeEnvironmentName) -> Result<Option<String>, InputError> {
         let mut values = self
             .environment
             .lock()
@@ -84,9 +86,12 @@ impl CompileTimeInputHost for CompileTimeInputs {
             .or_insert_with(|| match std::env::var(name.as_str()) {
                 Ok(value) => Ok(Some(value)),
                 Err(std::env::VarError::NotPresent) => Ok(None),
-                Err(std::env::VarError::NotUnicode(_)) => Err(format!(
-                    "compile-time environment variable `{}` is not valid Unicode",
-                    name.as_str(),
+                Err(std::env::VarError::NotUnicode(_)) => Err(InputError::new(
+                    C::E1606,
+                    format!(
+                        "compile-time environment variable `{}` is not valid Unicode",
+                        name.as_str(),
+                    ),
                 )),
             })
             .clone()

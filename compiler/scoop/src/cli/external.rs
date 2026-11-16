@@ -17,7 +17,8 @@ pub(super) fn execute(args: &[OsString], sysroot: Option<PathBuf>) -> BuildResul
     let cwd = std::env::current_dir().map_err(config)?;
     let sysroot = absolute(
         &cwd,
-        scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
+        scoop_toolchain::configured_sysroot_root(sysroot)
+            .map_err(crate::cli::commands::toolchain)?,
     )?;
     let mut filename = OsString::from("scoop-");
     filename.push(name);
@@ -37,7 +38,7 @@ pub(super) fn execute(args: &[OsString], sysroot: Option<PathBuf>) -> BuildResul
         .and_then(|mut child| child.wait())
         .map_err(|error| {
             BuildFailure::tool(
-                "SCOOP_COMMAND_START",
+                scoop_source::DiagnosticCode::E2202,
                 BuildFailurePhase::Run,
                 format!(
                     "cannot run external command {}: {error}",

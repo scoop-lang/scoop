@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1017",
     "message": "generic member function `id` in a class must be final",
     "notes": [],
     "origin": {

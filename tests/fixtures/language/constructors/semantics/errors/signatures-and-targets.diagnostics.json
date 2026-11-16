@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0302",
     "message": "duplicate constructor signature `Duplicate(Int)` in class `Duplicate`",
     "notes": [],
     "origin": {
@@ -13,9 +13,48 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "ambiguous constructor call `Duplicate`:\n  - class Duplicate(value: Int)\n  - class Duplicate(other: Int)",
-    "notes": [],
+    "code": "E0712",
+    "message": "ambiguous constructor call `Duplicate`",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Duplicate(value: Int)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Duplicate(other: Int)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 75,
@@ -26,9 +65,29 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for constructor `NeedsValue` in nominal constructor candidate layer:\n  - class NeedsValue(value: Int) — expects 1 argument(s), but 0 were supplied",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for constructor `NeedsValue` in nominal constructor candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class NeedsValue(value: Int)",
+        "notes": [
+          {
+            "code": "E0701",
+            "kind": "cause",
+            "message": "expects 1 argument(s), but 0 were supplied",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 339,
@@ -39,9 +98,48 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `Ambiguous` is ambiguous in current package layer:\n  - class Ambiguous(value: Int, text: String) — applicable; tied by MSC\n  - class Ambiguous(value: Int, flag: Boolean) — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `Ambiguous` is ambiguous in current package layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Ambiguous(value: Int, text: String)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Ambiguous(value: Int, flag: Boolean)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 386,
@@ -52,7 +150,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0510",
     "message": "abstract class `AbstractType` cannot be instantiated",
     "notes": [],
     "origin": {

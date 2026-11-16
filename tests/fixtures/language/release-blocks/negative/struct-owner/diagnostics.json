@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1109",
     "message": "`release` blocks are not allowed in structs; only ordinary final classes may declare them",
     "notes": [],
     "origin": {

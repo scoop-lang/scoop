@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0607",
     "message": "cannot infer the element type of an empty array literal",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0722",
     "message": "cyclic default expansion for parameter `values` in `cycle`",
     "notes": [],
     "origin": {

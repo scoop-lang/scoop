@@ -19,14 +19,17 @@ pub(super) fn materialize(
         let name = definition.primary_symbol().symbol();
         let primary = output.original_symbol(name.as_str()).ok_or_else(|| {
             CodegenError::internal(format!("missing ELF bridge definition `{name}`"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
-        let section_index = primary
-            .section_index()
-            .ok_or_else(|| CodegenError::internal(format!("ELF bridge `{name}` is undefined")))?;
+        let section_index = primary.section_index().ok_or_else(|| {
+            CodegenError::internal(format!("ELF bridge `{name}` is undefined"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
         let start = primary.address();
-        let end = start
-            .checked_add(primary.size())
-            .ok_or_else(|| CodegenError::internal("ELF bridge extent overflows".into()))?;
+        let end = start.checked_add(primary.size()).ok_or_else(|| {
+            CodegenError::internal("ELF bridge extent overflows".into())
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
         output.existing_boundary(name.as_str(), LinkageClass::ConeStrong, false)?;
         for boundary in definition.atom_boundaries() {
             let (section, start, end) = match boundary.atom_role() {
@@ -34,6 +37,7 @@ pub(super) fn materialize(
                 scoop_lir::DefinitionAtomRole::EhFrame => {
                     let section = output.file.section_by_name(".eh_frame").ok_or_else(|| {
                         CodegenError::internal("ELF generated-C bridge has no unwind table".into())
+                            .with_code(scoop_source::DiagnosticCode::ICE2302)
                     })?;
                     let (start, end) = super::unwind::require(
                         unwind_ranges.as_ref().expect("EH section was parsed"),
@@ -45,7 +49,8 @@ pub(super) fn materialize(
                 role => {
                     return Err(CodegenError::internal(format!(
                         "unexpected generated-C ELF atom {role:?}"
-                    )));
+                    ))
+                    .with_code(scoop_source::DiagnosticCode::ICE2302));
                 }
             };
             for (symbol, value) in [(boundary.start(), start), (boundary.end(), end)] {

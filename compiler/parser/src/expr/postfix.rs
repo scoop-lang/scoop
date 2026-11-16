@@ -23,8 +23,15 @@ impl Parser {
                     let navigation = self.bump();
                     if matches!(self.peek().kind, TokenKind::LBrace) {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1504,
                             navigation.span,
-                            "copy update does not support safe navigation; unwrap the Option with `when` first",
+                            "copy update does not support safe navigation".to_owned(),
+                        )
+                        .with_note(
+                            scoop_source::DiagnosticNote::without_location(
+                                scoop_source::DiagnosticCode::H1502,
+                                "unwrap the Option with `when` first".to_owned(),
+                            ),
                         ));
                     }
                     let complete = self.fragment_is_complete(checkpoint);

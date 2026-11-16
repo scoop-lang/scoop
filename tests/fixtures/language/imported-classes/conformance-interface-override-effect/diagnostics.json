@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "`read` must have the same `effect` modifier as `UnsafeReader.read`",
     "notes": [],
     "origin": {

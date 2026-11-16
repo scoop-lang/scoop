@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "interface delegate must have type I, found Int",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0913",
     "message": "a when arm with multiple conditions cannot have a guard",
     "notes": [],
     "origin": {

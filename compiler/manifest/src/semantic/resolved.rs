@@ -25,7 +25,10 @@ impl ParsedConeManifest {
     ) -> Result<Self, ManifestParseError> {
         let cone = document.cone.as_ref().ok_or_else(|| {
             ManifestParseError::new(
-                ManifestParseErrorKind::InvalidPackage("a virtual workspace is not a Cone".into()),
+                ManifestParseErrorKind::InvalidPackage(
+                    scoop_source::DiagnosticCode::E2009,
+                    "a virtual workspace is not a Cone".into(),
+                ),
                 Some(document.schema_span.clone()),
             )
         })?;
@@ -109,9 +112,10 @@ fn bind(
                 .filter(|coordinate| DependencyCoordinateKey::from_coordinate(coordinate) == *key)
                 .ok_or_else(|| {
                     ManifestParseError::new(
-                        ManifestParseErrorKind::InvalidPackage(format!(
-                            "no exact dependency binding for {key}"
-                        )),
+                        ManifestParseErrorKind::InvalidPackage(
+                            scoop_source::DiagnosticCode::ICE2201,
+                            format!("no exact dependency binding for {key}"),
+                        ),
                         Some(span.clone()),
                     )
                 })?;

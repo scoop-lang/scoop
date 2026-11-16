@@ -22,12 +22,15 @@ impl CompileTimeEnvironmentName {
 
 /// Supplied by the compiler or editor host; shared by candidate-local probes.
 pub trait CompileTimeInputHost: Send + Sync {
-    fn environment(&self, name: &CompileTimeEnvironmentName) -> Result<Option<String>, String>;
+    fn environment(
+        &self,
+        name: &CompileTimeEnvironmentName,
+    ) -> Result<Option<String>, CompileTimeInputError>;
     fn file(
         &self,
         source: &scoop_identity::SourceIdentity,
         path: &CompileTimePath,
-    ) -> Result<std::sync::Arc<[u8]>, String>;
+    ) -> Result<std::sync::Arc<[u8]>, CompileTimeInputError>;
     fn directory(
         &self,
         source: &scoop_identity::SourceIdentity,
@@ -51,7 +54,7 @@ pub struct CompileTimeFile {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CompileTimeDirectoryError {
-    Input(String),
+    Input(CompileTimeInputError),
     IncludePattern { index: usize, message: String },
     ExcludePattern { index: usize, message: String },
 }
@@ -71,3 +74,24 @@ impl CompileTimePath {
         &self.0
     }
 }
+
+/// One host-input failure, classified before it crosses the HIR service boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompileTimeInputError {
+    pub code: scoop_source::DiagnosticCode,
+    pub message: String,
+}
+impl CompileTimeInputError {
+    pub fn new(code: scoop_source::DiagnosticCode, message: impl std::fmt::Display) -> Self {
+        Self {
+            code,
+            message: message.to_string(),
+        }
+    }
+}
+impl std::fmt::Display for CompileTimeInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+impl std::error::Error for CompileTimeInputError {}

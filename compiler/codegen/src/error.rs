@@ -13,14 +13,25 @@ pub enum CodegenErrorKind {
 
 #[derive(Debug)]
 pub struct CodegenError {
+    code: scoop_source::DiagnosticCode,
     kind: CodegenErrorKind,
     message: String,
     cause: Option<Box<dyn Error + Send + Sync>>,
 }
 
 impl CodegenError {
+    pub const fn code(&self) -> scoop_source::DiagnosticCode {
+        self.code
+    }
+
+    pub fn with_code(mut self, code: scoop_source::DiagnosticCode) -> Self {
+        self.code = code;
+        self
+    }
+
     pub fn internal(message: String) -> Self {
         Self {
+            code: scoop_source::DiagnosticCode::ICE2301,
             kind: CodegenErrorKind::Internal,
             message,
             cause: None,
@@ -29,6 +40,7 @@ impl CodegenError {
 
     pub fn backend_message(message: String) -> Self {
         Self {
+            code: scoop_source::DiagnosticCode::ICE2301,
             kind: CodegenErrorKind::Backend,
             message,
             cause: None,
@@ -57,6 +69,13 @@ impl CodegenError {
         cause: impl Into<Box<dyn Error + Send + Sync>>,
     ) -> Self {
         Self {
+            code: match kind {
+                CodegenErrorKind::Internal | CodegenErrorKind::Backend => {
+                    scoop_source::DiagnosticCode::ICE2301
+                }
+                CodegenErrorKind::Io => scoop_source::DiagnosticCode::E2201,
+                CodegenErrorKind::Tool => scoop_source::DiagnosticCode::ICE2302,
+            },
             kind,
             message,
             cause: Some(cause.into()),

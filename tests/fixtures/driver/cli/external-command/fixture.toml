@@ -88,21 +88,21 @@ name = "missing"
 argv = ["${scoop}", "--sysroot", "${work}/selected root", "missing"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_COMMAND_START]: cannot run external command ${work}/selected root/commands/scoop-missing: No such file or directory (os error 2)\n"
+stderr = "error[E2202]: cannot run external command ${work}/selected root/commands/scoop-missing: No such file or directory (os error 2)\n"
 
 [[steps]]
 name = "not_executable"
 argv = ["${scoop}", "--sysroot", "${work}/selected root", "disabled"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_COMMAND_START]: cannot run external command ${work}/selected root/commands/scoop-disabled: Permission denied (os error 13)\n"
+stderr = "error[E2202]: cannot run external command ${work}/selected root/commands/scoop-disabled: Permission denied (os error 13)\n"
 
 [[steps]]
 name = "invalid_name"
 argv = ["${scoop}", "--sysroot", "${work}/selected root", "path/command"]
 exit = 1
 stdout = ""
-stderr = "error[SCOOP_CLI_CONFIG]: external command name must be a single file name\n"
+stderr = "error[E2001]: external command name must be a single file name\n"
 
 [[steps]]
 name = "shared_command"

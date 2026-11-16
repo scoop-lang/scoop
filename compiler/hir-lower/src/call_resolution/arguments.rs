@@ -121,6 +121,33 @@ pub(crate) enum ArgumentShapeFailure {
 }
 
 impl ArgumentShapeFailure {
+    pub(crate) fn diagnostic_note(&self) -> scoop_ast::DiagnosticNote {
+        let mut note = scoop_ast::DiagnosticNote::without_location(self.code(), self.describe());
+        if matches!(self, Self::TrailingForVararg { .. }) {
+            note.notes.push(scoop_ast::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0705,
+                "pass it inside parentheses",
+            ));
+        }
+        note
+    }
+
+    pub(crate) fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as Code;
+        match self {
+            Self::Arity { .. } => Code::E0701,
+            Self::UnknownName { .. } => Code::E0702,
+            Self::DuplicateParameter { .. } => Code::E0703,
+            Self::PositionalAfterNamed => Code::E0704,
+            Self::PositionalForNamedOnly => Code::E0705,
+            Self::NamedForPositionalOnly => Code::E0706,
+            Self::SpreadForRegular { .. } => Code::E0707,
+            Self::MissingRequired { .. } => Code::E0708,
+            Self::MixedVarargInputs { .. } => Code::E0709,
+            Self::TrailingForVararg { .. } => Code::E0710,
+        }
+    }
+
     pub(crate) fn describe(&self) -> String {
         match self {
             Self::Arity { expected, supplied } => {
@@ -148,9 +175,9 @@ impl ArgumentShapeFailure {
             Self::MixedVarargInputs { name } => format!(
                 "vararg parameter `{name}` cannot mix a named whole-array argument with element inputs"
             ),
-            Self::TrailingForVararg { name } => format!(
-                "trailing lambda cannot bind vararg parameter `{name}`; pass it inside parentheses"
-            ),
+            Self::TrailingForVararg { name } => {
+                format!("trailing lambda cannot bind vararg parameter `{name}`")
+            }
         }
     }
 }

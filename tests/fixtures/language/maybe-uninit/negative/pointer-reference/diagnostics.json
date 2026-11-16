@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "`addressOf` requires a GC-free value type, found MaybeUninit<String>",
     "notes": [],
     "origin": {

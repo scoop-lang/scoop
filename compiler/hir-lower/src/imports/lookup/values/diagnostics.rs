@@ -51,6 +51,7 @@ impl Lowerer {
             }
         };
         Ok(ast::DiagnosticNote::at(
+            scoop_source::DiagnosticCode::N0002,
             file,
             span,
             "candidate declared here",
@@ -98,6 +99,11 @@ impl Lowerer {
         name: &ast::Ident,
         lookup: LookupResult<ValueOrigin>,
     ) -> Result<Option<ValueOrigin>, ()> {
+        let code = match &lookup {
+            LookupResult::Inaccessible(_) => scoop_source::DiagnosticCode::E0403,
+            LookupResult::Unique(_) => scoop_source::DiagnosticCode::E0405,
+            _ => scoop_source::DiagnosticCode::E0404,
+        };
         let (message, candidates) = match lookup {
             LookupResult::Unavailable(bindings) => {
                 self.report_unavailable_lookup(name, bindings.as_slice());
@@ -126,10 +132,7 @@ impl Lowerer {
                         )
                     )
                 }) {
-                    format!(
-                        "function `{}` is not a value; use `::{}` to create a callable reference",
-                        name.text, name.text
-                    )
+                    format!("function `{}` is not a value", name.text)
                 } else {
                     format!("value `{}` is ambiguous in the {layer} layer", name.text)
                 };
@@ -140,7 +143,7 @@ impl Lowerer {
                 candidates,
             ),
         };
-        self.push_value_origin_diagnostic(name, message, candidates.as_slice());
+        self.push_value_origin_diagnostic(code, name, message, candidates.as_slice());
         Err(())
     }
 
@@ -170,24 +173,31 @@ impl Lowerer {
                 )
             )
         }) {
-            format!(
-                "function `{}` is not a value; use `::{}` to create a callable reference",
-                name.text, name.text
-            )
+            format!("function `{}` is not a value", name.text)
         } else {
             let layer = layer.call_name();
             format!("value `{}` is ambiguous in the {layer} layer", name.text)
         };
-        self.push_value_origin_diagnostic(name, message, candidates);
+        self.push_value_origin_diagnostic(
+            if candidates.len() == 1 {
+                scoop_source::DiagnosticCode::E0405
+            } else {
+                scoop_source::DiagnosticCode::E0404
+            },
+            name,
+            message,
+            candidates,
+        );
     }
 
     fn push_value_origin_diagnostic(
         &mut self,
+        code: scoop_source::DiagnosticCode,
         name: &ast::Ident,
         message: String,
         candidates: &[ValueOrigin],
     ) {
-        let mut diagnostic = ast::Diagnostic::at_file(self.current_file, name.span, message);
+        let mut diagnostic = ast::Diagnostic::at_file(code, self.current_file, name.span, message);
         match candidates
             .iter()
             .map(|origin| self.value_origin_note(origin))
@@ -199,6 +209,26 @@ impl Lowerer {
             }
             Err(message) => diagnostic.message = message,
         }
+        if code != scoop_source::DiagnosticCode::E0403
+            && candidates.iter().all(|origin| {
+                matches!(
+                    Self::non_value_origin(origin),
+                    Some(
+                        NonValueTarget::Function(_)
+                            | NonValueTarget::ImportedDependency(
+                                hir::ImportedTarget::Function(_)
+                                    | hir::ImportedTarget::GenericFunction(_)
+                            )
+                    )
+                )
+            })
+        {
+            diagnostic.code = scoop_source::DiagnosticCode::E0405.into();
+            diagnostic.notes.push(ast::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0703,
+                format!("use `::{}` to create a callable reference", name.text),
+            ));
+        }
         self.diagnostics.push(diagnostic);
     }
 
@@ -207,10 +237,7 @@ impl Lowerer {
             NonValueTarget::Function(_)
             | NonValueTarget::ImportedDependency(
                 hir::ImportedTarget::Function(_) | hir::ImportedTarget::GenericFunction(_),
-            ) => format!(
-                "function `{}` is not a value; use `::{}` to create a callable reference",
-                name.text, name.text
-            ),
+            ) => format!("function `{}` is not a value", name.text),
             NonValueTarget::ImportedDependency(hir::ImportedTarget::Type(_))
             | NonValueTarget::ImportedDependency(hir::ImportedTarget::GenericType(_)) => {
                 format!("type `{}` is a type, not a value", name.text)

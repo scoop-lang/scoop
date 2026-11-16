@@ -30,9 +30,12 @@ pub(in crate::program::native) fn candidate(
                 Ok(Candidate::Object(*id))
             }
             _ if explicit.is_none() => Ok(Candidate::Definition),
-            _ => Err(error(format!(
-                "native library {explicit:?} cannot bind {symbol}, already defined by {owner:?}"
-            ))),
+            _ => Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!(
+                    "native library {explicit:?} cannot bind {symbol}, already defined by {owner:?}"
+                ),
+            )),
         };
     }
     let mut candidates: Vec<_> = inputs
@@ -67,7 +70,7 @@ pub(in crate::program::native) fn candidate(
     choose(symbol, candidates, inputs.target.native_object_format())?.or_else(|| {
         (explicit.is_none() && matches!(inputs.namespace, crate::namespace::NativeNamespace::Coff(_)))
             .then_some(Candidate::Dynamic(crate::namespace::NativeBinding::Coff(crate::namespace::coff::CoffBinding::Linker)))
-    }).ok_or_else(|| error(match binding {
+    }).ok_or_else(|| error(scoop_source::DiagnosticCode::E2308, match binding {
         NativeLibraryBinding::Requirement(id) => format!(
             "native library {} does not provide {symbol}",
             inputs.native.libraries[&id].key.library().as_str(),
@@ -102,9 +105,10 @@ fn choose(
         .filter(|(_, binding)| binding.precedence(format) == priority);
     let (candidate, binding) = best.next().expect("maximum candidate priority exists");
     if binding == NativeSymbolBinding::Strong && best.next().is_some() {
-        return Err(error(format!(
-            "ambiguous native providers for {symbol}: multiple strong definitions"
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2306,
+            format!("ambiguous native providers for {symbol}: multiple strong definitions"),
+        ));
     }
     Ok(Some(candidate))
 }

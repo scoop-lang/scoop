@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0605",
     "message": "dependency function `genericInterfaceGet`: conflicting types for `U`: Int and String",
     "notes": [],
     "origin": {

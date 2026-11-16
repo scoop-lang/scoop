@@ -89,7 +89,7 @@ fn variable_out_of_scope_is_an_error() {
     let errors = lower_user(file).expect_err("out-of-scope reference must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown variable `y`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }
@@ -106,7 +106,7 @@ fn if_body_does_not_leak_is_an_error() {
     let errors = lower_user(file).expect_err("out-of-scope reference must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown variable `y`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }
@@ -120,7 +120,7 @@ fn unknown_variable_read_is_an_error() {
     let errors = lower_user(file).expect_err("unknown variable must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown variable `y`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }

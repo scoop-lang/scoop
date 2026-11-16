@@ -311,7 +311,7 @@ fn unrelated_bounds_with_the_same_member_are_ambiguous() {
     assert!(errors.iter().any(|error| {
         error
             .message
-            .starts_with("call to `value` is ambiguous in member candidate layer:")
+            .starts_with("call to `value` is ambiguous in member candidate layer")
     }));
 }
 

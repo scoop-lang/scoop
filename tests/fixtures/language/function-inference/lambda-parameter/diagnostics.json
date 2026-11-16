@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0607",
     "message": "lambda parameter requires a type when there is no expected function type",
     "notes": [],
     "origin": {

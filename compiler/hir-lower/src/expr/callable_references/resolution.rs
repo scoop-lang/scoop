@@ -74,7 +74,10 @@ pub(super) enum ReferenceProbeError {
 }
 impl From<ReferenceFailure> for ReferenceProbeError {
     fn from(failure: ReferenceFailure) -> Self {
-        Self::Rejected(failure)
+        match failure.reason.internal_diagnostic() {
+            Some(diagnostic) => Self::Internal(diagnostic),
+            None => Self::Rejected(failure),
+        }
     }
 }
 
@@ -292,8 +295,10 @@ impl Lowerer {
                 let pool = match comparison.most_specific_declarations(&declarations) {
                     Ok(pool) => pool,
                     Err(error) => {
-                        self.diagnostics
-                            .push(scoop_ast::Diagnostic::internal(error));
+                        self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                            scoop_source::DiagnosticCode::ICE0601,
+                            error,
+                        ));
                         return ReferenceResolutionOutcome::Failed;
                     }
                 };
@@ -335,7 +340,7 @@ impl Lowerer {
                 })
             }
             Err(message) => {
-                self.error(context.span, message);
+                self.error(scoop_source::DiagnosticCode::ICE0501, context.span, message);
                 ReferenceResolutionOutcome::Failed
             }
         }

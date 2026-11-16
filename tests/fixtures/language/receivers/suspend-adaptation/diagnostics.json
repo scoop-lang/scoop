@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of `plain` must be of type Int.() -> Int, found suspend Int.() -> Int",
     "notes": [],
     "origin": {

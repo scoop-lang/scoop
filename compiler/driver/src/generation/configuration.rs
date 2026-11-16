@@ -60,12 +60,14 @@ pub(super) fn parameters<'a>(
     ] = application.arguments.as_slice()
     else {
         return Err(diagnostic(
+            scoop_source::DiagnosticCode::E1317,
             origin,
             "GenerateWith requires String and Array<String> parameters",
         ));
     };
     if generator.trim().is_empty() {
         return Err(diagnostic(
+            scoop_source::DiagnosticCode::E1317,
             origin,
             "GenerateWith generator name must not be empty or whitespace",
         ));
@@ -90,6 +92,7 @@ pub(super) fn interface(
         &element.value
     else {
         return Err(vec![diagnostic(
+            scoop_source::DiagnosticCode::E1317,
             &origin,
             "GenerateWith interface elements must be String values",
         )]);
@@ -117,6 +120,7 @@ pub(super) fn interface(
         })
     ) {
         return Err(vec![diagnostic(
+            scoop_source::DiagnosticCode::E1317,
             &origin,
             "GenerateWith interface element must name an interface application",
         )]);
@@ -125,6 +129,7 @@ pub(super) fn interface(
         queries.type_relation(context, hir::SemanticTypeRelation::Equal, ty, interface)
     }) else {
         return Err(vec![diagnostic(
+            scoop_source::DiagnosticCode::E1317,
             &origin,
             "GenerateWith selects an interface application not inherited by this type",
         )]);

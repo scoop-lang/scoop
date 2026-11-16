@@ -164,6 +164,7 @@ impl Lowerer {
             Err(error) => {
                 self.current_file = template.signature.origin.file as usize;
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     template.signature.origin.span,
                     format!(
                         "cannot instantiate dependency constructor `{}`: {error}",

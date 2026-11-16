@@ -14,9 +14,9 @@ mod text;
 mod version;
 
 pub use diagnostic::{
-    Diagnostic, DiagnosticBindingError, DiagnosticKind, DiagnosticLocation, DiagnosticNote,
-    DiagnosticSeverity, LocalDiagnosticSource, SourceDiagnostic, SourceDiagnosticNote,
-    bind_diagnostics,
+    Diagnostic, DiagnosticBindingError, DiagnosticCategory, DiagnosticCode, DiagnosticIdentifier,
+    DiagnosticKind, DiagnosticLocation, DiagnosticNote, DiagnosticRole, DiagnosticSeverity,
+    LocalDiagnosticSource, SourceDiagnostic, SourceDiagnosticNote, bind_diagnostics,
 };
 pub use edit::SourceEdit;
 pub use line_index::LineIndex;

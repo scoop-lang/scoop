@@ -13,6 +13,7 @@ impl Lowerer {
             .expect("a direct-base member candidate is a method");
         if method.modifier == hir::MethodModifier::Abstract {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 span,
                 format!("abstract base method `{name}` cannot be called with `super`"),
             );

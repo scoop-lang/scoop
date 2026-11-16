@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1402",
     "message": "`@Intrinsic` is only allowed in the core library",
     "notes": [],
     "origin": {

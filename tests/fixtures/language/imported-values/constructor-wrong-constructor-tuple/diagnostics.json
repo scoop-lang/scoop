@@ -1,8 +1,74 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `Wide` in exact import layer:\n  - constructor `Wide` is not accessible here\n  - dependency constructor `Wide` required parameter `second` has no argument\n  - dependency constructor argument must be of type (Token, (Long, Long, Long), Token), found (Token, (Long, Long, Long), Other)\n  - dependency constructor argument must be of type Boolean, found (Token, (Int, Int, Int), Other)\n  - dependency constructor argument must be of type Long, found (Token, (Int, Int, Int), Other)",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `Wide` in exact import layer",
+    "notes": [
+      {
+        "code": "E0403",
+        "kind": "cause",
+        "message": "constructor `Wide` is not accessible here",
+        "notes": [],
+        "origin": {
+          "cone": "5e5b8cde2bf7f9db677177f85b1120c0a2b19ba56133c712d3c2783617684b2f",
+          "end": 225,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 221
+        }
+      },
+      {
+        "code": "E0708",
+        "kind": "cause",
+        "message": "dependency constructor `Wide` required parameter `second` has no argument",
+        "notes": [],
+        "origin": {
+          "cone": "5e5b8cde2bf7f9db677177f85b1120c0a2b19ba56133c712d3c2783617684b2f",
+          "end": 257,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 221
+        }
+      },
+      {
+        "code": "E0501",
+        "kind": "cause",
+        "message": "dependency constructor argument must be of type (Token, (Long, Long, Long), Token), found (Token, (Long, Long, Long), Other)",
+        "notes": [],
+        "origin": {
+          "cone": "5e5b8cde2bf7f9db677177f85b1120c0a2b19ba56133c712d3c2783617684b2f",
+          "end": 256,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 226
+        }
+      },
+      {
+        "code": "E0501",
+        "kind": "cause",
+        "message": "dependency constructor argument must be of type Boolean, found (Token, (Int, Int, Int), Other)",
+        "notes": [],
+        "origin": {
+          "cone": "5e5b8cde2bf7f9db677177f85b1120c0a2b19ba56133c712d3c2783617684b2f",
+          "end": 256,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 226
+        }
+      },
+      {
+        "code": "E0501",
+        "kind": "cause",
+        "message": "dependency constructor argument must be of type Long, found (Token, (Int, Int, Int), Other)",
+        "notes": [],
+        "origin": {
+          "cone": "5e5b8cde2bf7f9db677177f85b1120c0a2b19ba56133c712d3c2783617684b2f",
+          "end": 256,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 226
+        }
+      }
+    ],
     "origin": {
       "cone": "5e5b8cde2bf7f9db677177f85b1120c0a2b19ba56133c712d3c2783617684b2f",
       "end": 257,

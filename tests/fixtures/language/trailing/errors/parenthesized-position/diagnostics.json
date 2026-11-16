@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f(first: () -> Unit, last: () -> Unit): Unit — required parameter `last` has no argument",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `f` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun f(first: () -> Unit, last: () -> Unit): Unit",
+        "notes": [
+          {
+            "code": "E0708",
+            "kind": "cause",
+            "message": "required parameter `last` has no argument",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 69,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 64
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 50,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 69,

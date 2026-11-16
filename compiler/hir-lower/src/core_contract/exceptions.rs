@@ -30,7 +30,7 @@ impl Lowerer {
                 .first()
                 .map(|function| self.functions[*function].span)
                 .unwrap_or(files[file]);
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1404,
                 span,
                 format!(
                     "scoop.core must define exactly one internal function `{NAME}(message: String): Unit`"
@@ -52,7 +52,7 @@ impl Lowerer {
             && signature.attributes.gc_effect == hir::GcEffect::Managed
             && matches!(declaration.kind, hir::FunctionKind::User(_));
         if !valid {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 format!(
                     "function `{NAME}` in scoop.core must be internal, non-generic, non-suspend, managed, and have signature `(String) -> Unit`"
@@ -189,6 +189,7 @@ impl Lowerer {
                 .and_then(|id| self.class_files.get(&id).copied())
                 .unwrap_or(core_diagnostic_file);
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 files[core_diagnostic_file],
                 format!("scoop.core must define class `{name}`"),
             );
@@ -203,7 +204,7 @@ impl Lowerer {
             && zero_arg.is_some()
             && self.class_descends_from(id, throwable);
         if !valid {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 format!(
                     "class `{name}` in scoop.core must be a non-generic final subtype of `Throwable` callable with zero source arguments"
@@ -242,7 +243,7 @@ impl Lowerer {
             )
             && zero_arg.is_some();
         if !valid_throwable {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 "class `Throwable` in scoop.core must be a non-generic open class with a zero-argument constructor"
                     .to_string(),
@@ -297,6 +298,7 @@ impl Lowerer {
             let core_diagnostic_file = self.core_diagnostic_file();
             self.current_file = core_diagnostic_file;
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 files[core_diagnostic_file],
                 "scoop.core must define a class `Throwable`".to_string(),
             );
@@ -318,6 +320,7 @@ impl Lowerer {
                     Ok(ty) => Some(ty),
                     Err(error) => {
                         self.error(
+                            scoop_source::DiagnosticCode::E1403,
                             span,
                             format!("cannot resolve Throwable dependency type: {error:?}"),
                         );
@@ -336,6 +339,7 @@ impl Lowerer {
         let constructor = &self.class_constructors[constructor];
         if constructor.safety != hir::Safety::Safe {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 constructor.span,
                 format!("compiler exception constructor `{name}` must be safe"),
             );

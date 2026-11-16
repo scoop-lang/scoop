@@ -72,7 +72,11 @@ impl Lowerer {
         statements: &mut Vec<hir::Statement>,
     ) -> Option<()> {
         if let Some(rest) = rest {
-            self.error(rest, "a class component pattern cannot contain `..`".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0903,
+                rest,
+                "a class component pattern cannot contain `..`".into(),
+            );
             return None;
         }
         for (position, element) in elements.iter().enumerate() {

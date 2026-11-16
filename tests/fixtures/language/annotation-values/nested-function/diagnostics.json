@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0405",
     "message": "`make` is not an annotation class",
     "notes": [],
     "origin": {

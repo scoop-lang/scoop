@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected `while` after do body, found `}`",
     "notes": [],
     "origin": {

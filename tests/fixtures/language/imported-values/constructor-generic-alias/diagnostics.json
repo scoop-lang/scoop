@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "typealias `Packet` is not generic",
     "notes": [],
     "origin": {

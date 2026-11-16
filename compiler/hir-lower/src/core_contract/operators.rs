@@ -388,6 +388,7 @@ impl Lowerer {
     pub(super) fn malformed_operator_intrinsic(&mut self, function: FunctionId, intrinsic: &str) {
         self.current_file = self.function_files[&function];
         self.error(
+            scoop_source::DiagnosticCode::E1403,
             self.functions[function].span,
             format!("malformed core operator intrinsic `{intrinsic}`"),
         );

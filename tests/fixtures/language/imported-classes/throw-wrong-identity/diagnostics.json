@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0808",
     "message": "cannot throw value of type Throwable: not a subtype of Throwable",
     "notes": [],
     "origin": {

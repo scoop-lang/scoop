@@ -13,6 +13,7 @@ impl Lowerer {
         for (index, (parameter, ty)) in source_params.iter().zip(parameter_types).enumerate() {
             if self.scopes.is_declared_here(&parameter.name.text) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     parameter.name.span,
                     format!("duplicate parameter `{}`", parameter.name.text),
                 );
@@ -83,7 +84,7 @@ impl Lowerer {
                         .take()
                         .expect("return inference is active");
                     if inference.saw_bare && !inference.value_types.is_empty() {
-                        state.error(
+                        state.error(scoop_source::DiagnosticCode::E0802,
                             body.span,
                             "anonymous function mixes bare and value returns".to_string(),
                         );
@@ -103,7 +104,7 @@ impl Lowerer {
                         .can_fall_through()
                 {
                     let found = state.type_name(return_ty);
-                    state.error(
+                    state.error(scoop_source::DiagnosticCode::E0801,
                         body.span,
                         format!(
                             "anonymous function returning {found} may complete without returning a value"

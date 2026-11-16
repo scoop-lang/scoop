@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2014",
     "message": "${fixture}/program/Cone.toml: unknown field `optional`, expected one of `version`, `workspace`, `path`, `artifact`, `registry`, `git`, `github`, `branch`, `tag`, `rev`, `subdir`\n",
     "notes": [],
     "origin": {

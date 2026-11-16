@@ -5,30 +5,74 @@ use scoop_identity::{NormalizedSourcePath, SourceIdentity};
 pub(super) fn resolve(
     queries: &dyn hir::SemanticQueries,
     reported: GeneratorDiagnostic,
+    generator: &str,
     fallback: &hir::SemanticSourceLocation,
 ) -> Result<Diagnostic, Diagnostic> {
-    let invalid =
-        |message: String| diagnostic(fallback, format!("invalid generator diagnostic: {message}"));
+    let invalid = |message: String| {
+        diagnostic(
+            scoop_source::DiagnosticCode::E2511,
+            fallback,
+            format!("invalid generator diagnostic: {message}"),
+        )
+    };
     let location = reported
         .location
         .map(|location| resolve_location(queries, location))
         .transpose()
         .map_err(invalid)?
         .unwrap_or_else(|| fallback.clone());
-    let mut result = diagnostic(&location, reported.message);
+    let mut result = diagnostic(
+        scoop_source::DiagnosticCode::E2510,
+        &location,
+        reported.message,
+    );
+    result.code = reported.code.unwrap_or_else(|| {
+        scoop_source::DiagnosticIdentifier::External("GENERATOR_DIAGNOSTIC".into())
+    });
     result.severity = match reported.severity {
         GeneratorSeverity::Error => scoop_ast::DiagnosticSeverity::Error,
         GeneratorSeverity::Warning => scoop_ast::DiagnosticSeverity::Warning,
     };
-    for note in reported.notes {
-        let location = resolve_location(queries, note.location).map_err(invalid)?;
-        result.notes.push(related(&location, note.message));
+    result.notes = reported
+        .notes
+        .into_iter()
+        .map(|note| resolve_note(queries, note))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(invalid)?;
+    if result.code.category().is_none() {
+        result.notes.push(related(
+            fallback,
+            format!("reported by generator `{generator}`"),
+        ));
     }
     if location.source != fallback.source || location.span != fallback.span {
         result
             .notes
             .push(related(fallback, "implementation requested here"));
     }
+    Ok(result)
+}
+
+fn resolve_note(
+    queries: &dyn hir::SemanticQueries,
+    note: scoop_generator_protocol::GeneratorNote,
+) -> Result<DiagnosticNote, String> {
+    let code = note
+        .code
+        .unwrap_or_else(|| scoop_source::DiagnosticCode::N0001.into());
+    let mut result = match note.location {
+        Some(location) => {
+            let location = resolve_location(queries, location)?;
+            DiagnosticNote::at_source(code, location.source, location.span, note.message)
+        }
+        None => DiagnosticNote::without_location(code, note.message),
+    };
+    result.import_path = note.import_path;
+    result.notes = note
+        .notes
+        .into_iter()
+        .map(|note| resolve_note(queries, note))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(result)
 }
 

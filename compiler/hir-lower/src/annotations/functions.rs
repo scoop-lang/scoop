@@ -33,6 +33,7 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -44,7 +45,11 @@ impl Lowerer {
                         continue;
                     };
                     let Some(spec) = hir::intrinsic_spec(&value) else {
-                        self.error(annotation.span, format!("unknown intrinsic `{value}`"));
+                        self.error(
+                            scoop_source::DiagnosticCode::E1401,
+                            annotation.span,
+                            format!("unknown intrinsic `{value}`"),
+                        );
                         continue;
                     };
                     let target_matches = matches!(
@@ -54,11 +59,13 @@ impl Lowerer {
                     );
                     if !target_matches {
                         self.error(
+                            scoop_source::DiagnosticCode::E1402,
                             annotation.span,
                             "`@Intrinsic` is not allowed on this function target".to_string(),
                         );
                     } else if !self.current_provider_may_declare_intrinsics() {
                         self.error(
+                            scoop_source::DiagnosticCode::E1402,
                             annotation.span,
                             "`@Intrinsic` is only allowed in the core library".to_string(),
                         );
@@ -99,7 +106,7 @@ impl Lowerer {
                         continue;
                     };
                     if value != "cdecl" {
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E1204,
                             annotation.span,
                             format!(
                                 "calling convention `{value}` is not supported; only `cdecl` is supported"
@@ -111,6 +118,7 @@ impl Lowerer {
                     extern_ = self.annotation_extern(annotation, &decl.name.text);
                 }
                 "CLayout" | "Global" | "ThreadLocal" | "InteriorMutable" => self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("`@{name}` is not allowed on a function"),
                 ),
@@ -120,12 +128,14 @@ impl Lowerer {
 
         if saw_safe && saw_unsafe {
             self.error(
+                scoop_source::DiagnosticCode::E1118,
                 decl.span,
                 "`@Safe` and `@Unsafe` cannot be combined".to_string(),
             );
         }
         if saw_no_gc && decl.is_suspend {
             self.error(
+                scoop_source::DiagnosticCode::E1118,
                 decl.span,
                 "`@NoGC` cannot be used on a suspend function".to_string(),
             );
@@ -136,6 +146,7 @@ impl Lowerer {
                     annotation.abi = hir::ExternAbi::C(hir::CAbiCallMode::GcLeaf);
                 }
                 _ => self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     span,
                     "`@GCLeaf` requires a C ABI `@Extern` function".to_string(),
                 ),
@@ -144,30 +155,35 @@ impl Lowerer {
         if let Some(extern_annotation) = &extern_ {
             if !matches!(target, FunctionTarget::TopLevel) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "`@Extern` is only allowed on a top-level function".to_string(),
                 );
             }
             if decl.receiver_ty.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "an `@Extern` function must not have an extension receiver".to_string(),
                 );
             }
             if decl.is_suspend {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "`@Extern` cannot be used on a suspend function".to_string(),
                 );
             }
             if !decl.type_params.is_empty() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "an `@Extern` function must not be generic".to_string(),
                 );
             }
             if decl.body_form != ast::FunctionBodyForm::Omitted {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "an `@Extern` function must not have a body".to_string(),
                 );
@@ -175,13 +191,19 @@ impl Lowerer {
             match extern_annotation.abi {
                 hir::ExternAbi::C(_) => {
                     if saw_no_gc {
-                        self.error(
+                        self.error_with_note(
+                            scoop_source::DiagnosticCode::E1203,
                             decl.span,
-                            "a C ABI `@Extern` function cannot be marked `@NoGC`; use `@GCLeaf` for a no-transition call".to_string(),
+                            "a C ABI `@Extern` function cannot be marked `@NoGC`".to_owned(),
+                            scoop_source::DiagnosticNote::without_location(
+                                scoop_source::DiagnosticCode::H1201,
+                                "use `@GCLeaf` for a no-transition call".to_owned(),
+                            ),
                         );
                     }
                     if saw_safe {
                         self.error(
+                            scoop_source::DiagnosticCode::E1203,
                             decl.span,
                             "a C ABI `@Extern` function cannot be marked `@Safe`".to_string(),
                         );
@@ -201,18 +223,21 @@ impl Lowerer {
         if saw_calling_convention {
             if !matches!(target, FunctionTarget::TopLevel) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1205,
                     decl.span,
                     "`@CallingConvention` is only allowed on a top-level function".to_string(),
                 );
             }
             if !saw_no_gc && extern_.is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1205,
                     decl.span,
                     "`@CallingConvention` requires `@NoGC` on a non-extern function".to_string(),
                 );
             }
             if decl.is_suspend {
                 self.error(
+                    scoop_source::DiagnosticCode::E1205,
                     decl.span,
                     "`@CallingConvention` cannot be used on a suspend function".to_string(),
                 );
@@ -223,6 +248,7 @@ impl Lowerer {
                 && (saw_safe || saw_unsafe || saw_no_gc || saw_calling_convention)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     decl.span,
                     "this intrinsic does not allow effect annotations".to_string(),
                 );
@@ -239,6 +265,7 @@ impl Lowerer {
                     required.push("`@Unsafe`");
                 }
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     decl.span,
                     format!(
                         "intrinsic `{}` requires exactly {} effect annotation(s)",
@@ -254,12 +281,14 @@ impl Lowerer {
         }
         if intrinsic.is_some() && extern_.is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1303,
                 decl.span,
                 "`@Intrinsic` and `@Extern` cannot be combined".to_string(),
             );
         }
         if intrinsic.is_some() && decl.body_form != ast::FunctionBodyForm::Omitted {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 decl.span,
                 "`@Intrinsic` functions must not have a body (spec 13.1)".to_string(),
             );

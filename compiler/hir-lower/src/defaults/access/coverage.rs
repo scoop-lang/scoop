@@ -17,7 +17,7 @@ impl Lowerer {
             let outer_file = self.current_file;
             self.current_file =
                 usize::try_from(origin.file).expect("definition file index does not fit usize");
-            self.error(origin.span, format!(
+            self.error(scoop_source::DiagnosticCode::E0720, origin.span, format!(
                 "default expression references {target_kind} outside the callable's complete call domain"
             ));
             self.current_file = outer_file;

@@ -11,7 +11,7 @@ fn compile_env_host_values_and_cache_updates() {
         let name = CompileTimeEnvironmentName::parse(NAME).unwrap();
         let value = inputs.environment(&name);
         if case == "invalid" {
-            assert!(value.unwrap_err().contains("not valid Unicode"));
+            assert!(value.unwrap_err().message.contains("not valid Unicode"));
             assert!(!compiler_inputs_current(&[
                 scoop_protocol::CompilerInputV1::Environment(scoop_protocol::EnvironmentInputV1 {
                     name: NAME.into(),

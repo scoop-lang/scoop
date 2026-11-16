@@ -1,0 +1,15 @@
+[
+  {
+    "code": "E1801",
+    "message": "invalid percent encoding in README resource URL",
+    "notes": [],
+    "origin": {
+      "kind": "host",
+      "path": "${work}/cone/README.md",
+      "start": null,
+      "end": null
+    },
+    "phase": "Publication",
+    "severity": "error"
+  }
+]

@@ -32,7 +32,7 @@ code-actions 的编辑附带本次 buffer 版本 1；它不是磁盘文件的持
 ## 位置、结果与失败
 
 - `--line` 与 `--column` 从 1 开始，默认列以 Unicode 标量计数（utf-32），不是字节或字素簇；LF、CRLF、CR 的分行沿用 LSP。编辑器提供 UTF-16 位置时显式选择 utf-16 并将其零基行列各加 1。
-- JSON 为 `schema: 1, kind: "query"`，包含 query、status、positionEncoding、rangeBase、result、diagnostics 和 messages。result 保留原 LSP 数据，rangeBase 为 0；diagnostics 保留 URI、版本及对应诊断。文本格式显示声明/文档与一基位置。
+- JSON 为 `schema: 2, kind: "query"`，包含 query、status、positionEncoding、rangeBase、result、diagnostics 和 messages。result 保留原 LSP 数据，rangeBase 为 0；diagnostics 保留 URI、版本及对应诊断；code 使用统一规则编号，data 保留递归原因、附注、建议及导入修复路径。文本格式显示声明/文档与一基位置。
 - status 为 ok 时取得正常结果；empty 表示没有匹配；partial 表示本次工作区或正文存在错误诊断，或服务器报告了分析问题，仍返回已确定的信息。普通源码 warning 不将结果标记为 partial。不要仅因退出码 0 就假定源码能够完整编译。
 - 查询成功（包括 empty/partial）退出 0。无法读取输入、启动/通信失败或 LSP 请求失败退出 1，用法错误退出 2；失败不发布部分 stdout，stderr 按所选格式报告错误。实际构建/编译验收继续使用 `scoop check/build/test`。
 

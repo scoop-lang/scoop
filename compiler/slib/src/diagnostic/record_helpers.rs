@@ -4,48 +4,36 @@ use crate::{
     ConeRecordValidationError, DependencyRecordValidationError, SlibMemberRoleValidationError,
 };
 
-use super::{SlibDiagnostic, SlibDiagnosticRecord, SlibErrorCode, SlibPrimaryOrigin};
+use super::{DiagnosticCode, SlibDiagnostic, SlibDiagnosticRecord, SlibPrimaryOrigin};
 
 pub(super) fn cone_record_diagnostic(error: &ConeRecordValidationError) -> SlibDiagnosticRecord {
     let (code, field, origin) = match error {
-        ConeRecordValidationError::Record(crate::ConeRecordError::WindowsSubsystemOnLibrary) => (
-            SlibErrorCode::ReferenceInvalid,
-            5,
-            SlibPrimaryOrigin::Manifest,
-        ),
-        ConeRecordValidationError::Coordinate(_) | ConeRecordValidationError::Record(_) => (
-            SlibErrorCode::IdentityInvalid,
-            1,
-            SlibPrimaryOrigin::Manifest,
-        ),
-        ConeRecordValidationError::Hash(_) => (
-            SlibErrorCode::FingerprintMismatch,
-            1,
-            SlibPrimaryOrigin::Manifest,
-        ),
+        ConeRecordValidationError::Record(crate::ConeRecordError::WindowsSubsystemOnLibrary) => {
+            (DiagnosticCode::E2405, 5, SlibPrimaryOrigin::Manifest)
+        }
+        ConeRecordValidationError::Coordinate(_) | ConeRecordValidationError::Record(_) => {
+            (DiagnosticCode::E2405, 1, SlibPrimaryOrigin::Manifest)
+        }
+        ConeRecordValidationError::Hash(_) => {
+            (DiagnosticCode::E2108, 1, SlibPrimaryOrigin::Manifest)
+        }
         ConeRecordValidationError::Identity(mismatch) => (
-            SlibErrorCode::IdentityMismatch,
+            DiagnosticCode::E2405,
             2,
             SlibPrimaryOrigin::Identity {
                 kind: "cone",
                 id: *mismatch.expected().as_array(),
             },
         ),
-        ConeRecordValidationError::UnknownKind { .. } => (
-            SlibErrorCode::WireUnknownTag,
-            3,
-            SlibPrimaryOrigin::Manifest,
-        ),
-        ConeRecordValidationError::UnknownSourceForm { .. } => (
-            SlibErrorCode::WireUnknownTag,
-            4,
-            SlibPrimaryOrigin::Manifest,
-        ),
-        ConeRecordValidationError::UnknownWindowsSubsystem { .. } => (
-            SlibErrorCode::WireUnknownTag,
-            5,
-            SlibPrimaryOrigin::Manifest,
-        ),
+        ConeRecordValidationError::UnknownKind { .. } => {
+            (DiagnosticCode::E2401, 3, SlibPrimaryOrigin::Manifest)
+        }
+        ConeRecordValidationError::UnknownSourceForm { .. } => {
+            (DiagnosticCode::E2401, 4, SlibPrimaryOrigin::Manifest)
+        }
+        ConeRecordValidationError::UnknownWindowsSubsystem { .. } => {
+            (DiagnosticCode::E2401, 5, SlibPrimaryOrigin::Manifest)
+        }
         ConeRecordValidationError::Resource(error) => {
             return error.diagnostic().with_origin(SlibPrimaryOrigin::Manifest);
         }
@@ -65,15 +53,15 @@ pub(super) fn dependency_record_diagnostic(
             error.diagnostic().with_origin(SlibPrimaryOrigin::Manifest)
         }
         DependencyRecordValidationError::Coordinate(_) => {
-            SlibDiagnosticRecord::new(SlibErrorCode::ReferenceInvalid, path.field(1))
+            SlibDiagnosticRecord::new(DiagnosticCode::E2405, path.field(1))
                 .with_origin(SlibPrimaryOrigin::Manifest)
         }
         DependencyRecordValidationError::Hash(_) => {
-            SlibDiagnosticRecord::new(SlibErrorCode::FingerprintMismatch, path.field(1))
+            SlibDiagnosticRecord::new(DiagnosticCode::E2108, path.field(1))
                 .with_origin(SlibPrimaryOrigin::Manifest)
         }
         DependencyRecordValidationError::Identity(mismatch) => {
-            SlibDiagnosticRecord::new(SlibErrorCode::IdentityMismatch, path.field(2)).with_origin(
+            SlibDiagnosticRecord::new(DiagnosticCode::E2405, path.field(2)).with_origin(
                 SlibPrimaryOrigin::Identity {
                     kind: "cone",
                     id: *mismatch.expected().as_array(),
@@ -92,14 +80,12 @@ pub(super) fn member_record_diagnostic(
         .index(u64::try_from(index).unwrap_or(u64::MAX))
         .field(3);
     let code = match error {
-        SlibMemberRoleValidationError::UnsupportedWireSchema { .. } => {
-            SlibErrorCode::CompatibilitySchema
-        }
+        SlibMemberRoleValidationError::UnsupportedWireSchema { .. } => DiagnosticCode::E2402,
         SlibMemberRoleValidationError::Capability(_)
         | SlibMemberRoleValidationError::InvalidExtensionRequirement { .. } => {
-            SlibErrorCode::CapabilityInvalid
+            DiagnosticCode::E2401
         }
-        SlibMemberRoleValidationError::NativeSource(_) => SlibErrorCode::ReferenceInvalid,
+        SlibMemberRoleValidationError::NativeSource(_) => DiagnosticCode::E2405,
     };
     SlibDiagnosticRecord::new(code, path).with_origin(SlibPrimaryOrigin::Manifest)
 }

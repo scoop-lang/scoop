@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "array literal elements must have the same type, found Int and String",
     "notes": [],
     "origin": {

@@ -16,7 +16,7 @@ pub(in crate::program) fn read(
                     .as_bytes()
                     .to_vec(),
             )
-            .map_err(error)?;
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
             let origin = format!(
                 "{} (native declarations {:?})",
                 artifact.manifest().cone().coordinate(),
@@ -48,10 +48,13 @@ pub(in crate::program) fn read(
     }
     for (symbol, declarations) in &declarations {
         if let Some(difference) = &declarations.difference {
-            return Err(error(format!(
-                "native contract conflict for {symbol}: {difference}; origins: {}",
-                declarations.origins.join(", ")
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!(
+                    "native contract conflict for {symbol}: {difference}; origins: {}",
+                    declarations.origins.join(", ")
+                ),
+            ));
         }
     }
     let mut libraries = BTreeMap::new();
@@ -59,8 +62,12 @@ pub(in crate::program) fn read(
         let target = symbols.native_requirements().target();
         // Windows supplies its C++ runtime through the selected final-link
         // profile and native object directives, rather than a Unix library name.
-        let definition = scoop_target_data::definition(target.id())
-            .ok_or_else(|| error("unsupported native requirement target"))?;
+        let definition = scoop_target_data::definition(target.id()).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2301,
+                "unsupported native requirement target",
+            )
+        })?;
         let environment = definition.native_environment;
         if symbols.native_requirements().cxx()
             && definition.os != scoop_target_data::TargetOs::Windows
@@ -72,18 +79,30 @@ pub(in crate::program) fn read(
                 scoop_target_data::NativeEnvironment::Darwin => "c++",
                 scoop_target_data::NativeEnvironment::LinuxGnu => "stdc++",
                 scoop_target_data::NativeEnvironment::LinuxMusl => {
-                    return Err(error("C++ native runtime is not supported for Linux musl"));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2301,
+                        "C++ native runtime is not supported for Linux musl",
+                    ));
                 }
-                _ => return Err(error("unsupported native C++ runtime target")),
+                _ => {
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2301,
+                        "unsupported native C++ runtime target",
+                    ));
+                }
             };
             let key = NativeLinkRequirementKey::for_target(
                 target.wire_id(),
-                CanonicalNativeLibraryName::new(name).map_err(error)?,
+                CanonicalNativeLibraryName::new(name)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?,
                 NativeLibraryKind::Dynamic,
                 NativeLibraryGrouping::Independent,
             );
             libraries
-                .entry(NativeLinkRequirementId::from_key(&key).map_err(error)?)
+                .entry(
+                    NativeLinkRequirementId::from_key(&key)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?,
+                )
                 .or_insert_with(|| (key, Vec::new()))
                 .1
                 .push(format!(

@@ -67,66 +67,20 @@ impl fmt::Display for BuildFailurePhase {
     }
 }
 
-/// A stable orchestrator-owned diagnostic code.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct BuildDiagnosticCode(&'static str);
-
-impl BuildDiagnosticCode {
-    pub const LOCATOR_NOT_FOUND: Self = Self("SCOOP_LOCATOR_NOT_FOUND");
-    pub const LOCATOR_WRONG_TYPE: Self = Self("SCOOP_LOCATOR_WRONG_TYPE");
-    pub const LOCATOR_COORDINATE_MISMATCH: Self = Self("SCOOP_LOCATOR_COORDINATE_MISMATCH");
-    pub const LOCATOR_CONFLICTING_SOURCE: Self = Self("SCOOP_LOCATOR_CONFLICTING_SOURCE");
-    pub const LOCATOR_CONFLICTING_REPRESENTATION: Self =
-        Self("SCOOP_LOCATOR_CONFLICTING_REPRESENTATION");
-    pub const LOCATOR_AMBIGUOUS_ARTIFACT: Self = Self("SCOOP_LOCATOR_AMBIGUOUS_ARTIFACT");
-
-    pub const GRAPH_RESERVED_IDENTITY: Self = Self("SCOOP_GRAPH_RESERVED_IDENTITY");
-    pub const GRAPH_MULTIPLE_VERSIONS: Self = Self("SCOOP_GRAPH_MULTIPLE_VERSIONS");
-    pub const GRAPH_NON_LIBRARY_DEPENDENCY: Self = Self("SCOOP_GRAPH_NON_LIBRARY_DEPENDENCY");
-    pub const GRAPH_SINGLE_FILE_DEPENDENCY: Self = Self("SCOOP_GRAPH_SINGLE_FILE_DEPENDENCY");
-    pub const GRAPH_MISSING_CORE: Self = Self("SCOOP_GRAPH_MISSING_CORE");
-    pub const GRAPH_CYCLE: Self = Self("SCOOP_GRAPH_CYCLE");
-    pub const GRAPH_UNREACHABLE_NODE: Self = Self("SCOOP_GRAPH_UNREACHABLE_NODE");
-    pub const GRAPH_ALLOCATION: Self = Self("SCOOP_GRAPH_ALLOCATION");
-
-    pub const PREBUILT_SUMMARY_MISMATCH: Self = Self("SCOOP_PREBUILT_SUMMARY_MISMATCH");
-    pub const PREBUILT_VIEW_INVALID: Self = Self("SCOOP_PREBUILT_VIEW_INVALID");
-    pub const PREBUILT_STALE_DEPENDENCY: Self = Self("SCOOP_PREBUILT_STALE_DEPENDENCY");
-
-    pub const CACHE_IO: Self = Self("SCOOP_CACHE_IO");
-    pub const CACHE_LOCK: Self = Self("SCOOP_CACHE_LOCK");
-    pub const CACHE_PUBLISH: Self = Self("SCOOP_CACHE_PUBLISH");
-
-    pub const CHILD_TOOL_MISMATCH: Self = Self("SCOOP_CHILD_TOOL_MISMATCH");
-    pub const CHILD_TRANSPORT: Self = Self("SCOOP_CHILD_TRANSPORT");
-    pub const CHILD_PROTOCOL: Self = Self("SCOOP_CHILD_PROTOCOL");
-    pub const CHILD_EXIT: Self = Self("SCOOP_CHILD_EXIT");
-    pub const CHILD_RESPONSE_MISMATCH: Self = Self("SCOOP_CHILD_RESPONSE_MISMATCH");
-
-    pub const fn as_str(self) -> &'static str {
-        self.0
-    }
-}
-
-impl fmt::Display for BuildDiagnosticCode {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.0)
-    }
-}
+pub use scoop_source::DiagnosticCode;
 
 /// Stable outer context for an orchestration failure.
 ///
-/// `code` is absent when the frozen code family has no more specific member.
-/// It is always absent when the child supplied structured diagnostics, whose
+/// `code` is absent only when the child supplied structured diagnostics, whose
 /// original codes must be preserved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BuildFailureClassification {
     phase: BuildFailurePhase,
-    code: Option<BuildDiagnosticCode>,
+    code: Option<DiagnosticCode>,
 }
 
 impl BuildFailureClassification {
-    pub const fn new(phase: BuildFailurePhase, code: Option<BuildDiagnosticCode>) -> Self {
+    pub const fn new(phase: BuildFailurePhase, code: Option<DiagnosticCode>) -> Self {
         Self { phase, code }
     }
 
@@ -134,7 +88,7 @@ impl BuildFailureClassification {
         self.phase
     }
 
-    pub const fn code(self) -> Option<BuildDiagnosticCode> {
+    pub const fn code(self) -> Option<DiagnosticCode> {
         self.code
     }
 }
@@ -144,10 +98,7 @@ pub trait ClassifyBuildFailure {
     fn classification(&self) -> BuildFailureClassification;
 }
 
-const fn classified(
-    phase: BuildFailurePhase,
-    code: BuildDiagnosticCode,
-) -> BuildFailureClassification {
+const fn classified(phase: BuildFailurePhase, code: DiagnosticCode) -> BuildFailureClassification {
     BuildFailureClassification::new(phase, Some(code))
 }
 
@@ -158,11 +109,10 @@ const fn phase_only(phase: BuildFailurePhase) -> BuildFailureClassification {
 impl ClassifyBuildFailure for BuildGraphRequestError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::TestRequiresManifest => phase_only(BuildFailurePhase::Request),
-            Self::Toolchain(_) => classified(
-                BuildFailurePhase::Toolchain,
-                BuildDiagnosticCode::CHILD_TOOL_MISMATCH,
-            ),
+            Self::TestRequiresManifest => {
+                classified(BuildFailurePhase::Request, DiagnosticCode::E2001)
+            }
+            Self::Toolchain(e) => classified(BuildFailurePhase::Toolchain, e.code()),
         }
     }
 }
@@ -170,7 +120,7 @@ impl ClassifyBuildFailure for BuildGraphRequestError {
 impl ClassifyBuildFailure for LoadBuildRootError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::SingleFile(_) => phase_only(BuildFailurePhase::Root),
+            Self::SingleFile(e) => classified(BuildFailurePhase::Root, e.code()),
         }
     }
 }
@@ -178,33 +128,33 @@ impl ClassifyBuildFailure for LoadBuildRootError {
 impl ClassifyBuildFailure for BuildGraphDiscoveryError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::PreparedGraph(_) => phase_only(BuildFailurePhase::GraphIdentity),
+            Self::PreparedGraph(_) => {
+                classified(BuildFailurePhase::GraphIdentity, DiagnosticCode::ICE2201)
+            }
             Self::Locator(source) => source.classification(),
 
             Self::Identity(_)
             | Self::IdentityCoordinateConflict { .. }
             | Self::ConflictingDependencyEdge { .. }
             | Self::InternalSourceClaim(_)
-            | Self::InternalPrebuiltClaim(_) => phase_only(BuildFailurePhase::GraphIdentity),
-            Self::MissingLocatorProjection(_) | Self::MissingDependencySpan(_) => {
-                phase_only(BuildFailurePhase::Locator)
+            | Self::InternalPrebuiltClaim(_) => {
+                classified(BuildFailurePhase::GraphIdentity, DiagnosticCode::ICE2201)
             }
-            Self::ConflictingSourceLocator { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_CONFLICTING_SOURCE,
-            ),
-            Self::AmbiguousArtifact { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_AMBIGUOUS_ARTIFACT,
-            ),
-            Self::ConflictingNodeRepresentation { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_CONFLICTING_REPRESENTATION,
-            ),
-            Self::ReservedNodeClaim(_) => classified(
-                BuildFailurePhase::GraphIdentity,
-                BuildDiagnosticCode::GRAPH_RESERVED_IDENTITY,
-            ),
+            Self::MissingLocatorProjection(_) | Self::MissingDependencySpan(_) => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::ICE2201)
+            }
+            Self::ConflictingSourceLocator { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2106)
+            }
+            Self::AmbiguousArtifact { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2106)
+            }
+            Self::ConflictingNodeRepresentation { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2106)
+            }
+            Self::ReservedNodeClaim(_) => {
+                classified(BuildFailurePhase::GraphIdentity, DiagnosticCode::E2011)
+            }
         }
     }
 }
@@ -212,39 +162,33 @@ impl ClassifyBuildFailure for BuildGraphDiscoveryError {
 impl ClassifyBuildFailure for DependencyLocatorError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::ArtifactNotFound { .. } | Self::SysrootArtifactNotFound { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_NOT_FOUND,
-            ),
-            Self::InvalidArtifactSourceForm { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_WRONG_TYPE,
-            ),
-            Self::CoordinateMismatch { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_COORDINATE_MISMATCH,
-            ),
-            Self::AmbiguousArtifact { .. } => classified(
-                BuildFailurePhase::Locator,
-                BuildDiagnosticCode::LOCATOR_AMBIGUOUS_ARTIFACT,
-            ),
-            Self::ReservedArtifact { .. } => classified(
-                BuildFailurePhase::GraphIdentity,
-                BuildDiagnosticCode::GRAPH_RESERVED_IDENTITY,
-            ),
-            Self::NonLibraryDependency { .. } => classified(
-                BuildFailurePhase::GraphVersionKind,
-                BuildDiagnosticCode::GRAPH_NON_LIBRARY_DEPENDENCY,
-            ),
-            Self::Summary { .. } => classified(
-                BuildFailurePhase::Summary,
-                BuildDiagnosticCode::PREBUILT_VIEW_INVALID,
-            ),
-            Self::UndeclaredDependency(_)
-            | Self::MissingLocatorProjection(_)
-            | Self::Manifest(_)
-            | Self::Io { .. }
-            | Self::SelfSourceLocator { .. } => phase_only(BuildFailurePhase::Locator),
+            Self::ArtifactNotFound { .. } | Self::SysrootArtifactNotFound { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2101)
+            }
+            Self::InvalidArtifactSourceForm { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2103)
+            }
+            Self::CoordinateMismatch { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2102)
+            }
+            Self::AmbiguousArtifact { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2106)
+            }
+            Self::ReservedArtifact { .. } => {
+                classified(BuildFailurePhase::GraphIdentity, DiagnosticCode::E2011)
+            }
+            Self::NonLibraryDependency { .. } => {
+                classified(BuildFailurePhase::GraphVersionKind, DiagnosticCode::E2103)
+            }
+            Self::Summary { source, .. } => classified(BuildFailurePhase::Summary, source.code()),
+            Self::UndeclaredDependency(_) | Self::MissingLocatorProjection(_) => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::ICE2201)
+            }
+            Self::Manifest(e) => classified(BuildFailurePhase::Locator, e.code()),
+            Self::Io { .. } => classified(BuildFailurePhase::Locator, DiagnosticCode::E2201),
+            Self::SelfSourceLocator { .. } => {
+                classified(BuildFailurePhase::Locator, DiagnosticCode::E2105)
+            }
         }
     }
 }
@@ -252,34 +196,27 @@ impl ClassifyBuildFailure for DependencyLocatorError {
 impl ClassifyBuildFailure for ResolveBuildGraphError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::Allocation { .. } => classified(
-                BuildFailurePhase::GraphCycleOrder,
-                BuildDiagnosticCode::GRAPH_ALLOCATION,
-            ),
-            Self::InvalidReservedNode { .. } => classified(
-                BuildFailurePhase::GraphIdentity,
-                BuildDiagnosticCode::GRAPH_RESERVED_IDENTITY,
-            ),
-            Self::NonLibraryDependency { .. } => classified(
-                BuildFailurePhase::GraphVersionKind,
-                BuildDiagnosticCode::GRAPH_NON_LIBRARY_DEPENDENCY,
-            ),
-            Self::MultipleVersions(_) => classified(
-                BuildFailurePhase::GraphVersionKind,
-                BuildDiagnosticCode::GRAPH_MULTIPLE_VERSIONS,
-            ),
-            Self::MissingTrustedCore | Self::MissingDirectCore { .. } => classified(
-                BuildFailurePhase::GraphVersionKind,
-                BuildDiagnosticCode::GRAPH_MISSING_CORE,
-            ),
-            Self::UnreachableNodes(_) => classified(
-                BuildFailurePhase::GraphCycleOrder,
-                BuildDiagnosticCode::GRAPH_UNREACHABLE_NODE,
-            ),
-            Self::Cycles(_) => classified(
-                BuildFailurePhase::GraphCycleOrder,
-                BuildDiagnosticCode::GRAPH_CYCLE,
-            ),
+            Self::Allocation { .. } => {
+                classified(BuildFailurePhase::GraphCycleOrder, DiagnosticCode::E2205)
+            }
+            Self::InvalidReservedNode { .. } => {
+                classified(BuildFailurePhase::GraphIdentity, DiagnosticCode::E2011)
+            }
+            Self::NonLibraryDependency { .. } => {
+                classified(BuildFailurePhase::GraphVersionKind, DiagnosticCode::E2103)
+            }
+            Self::MultipleVersions(_) => {
+                classified(BuildFailurePhase::GraphVersionKind, DiagnosticCode::E2104)
+            }
+            Self::MissingTrustedCore | Self::MissingDirectCore { .. } => {
+                classified(BuildFailurePhase::GraphVersionKind, DiagnosticCode::E2101)
+            }
+            Self::UnreachableNodes(_) => {
+                classified(BuildFailurePhase::GraphCycleOrder, DiagnosticCode::ICE2201)
+            }
+            Self::Cycles(_) => {
+                classified(BuildFailurePhase::GraphCycleOrder, DiagnosticCode::E2105)
+            }
             Self::Identity(_)
             | Self::MissingRoot(_)
             | Self::NodeIdentityMismatch { .. }
@@ -288,12 +225,14 @@ impl ClassifyBuildFailure for ResolveBuildGraphError {
             | Self::MissingEdgeEndpoint { .. }
             | Self::EdgeCoordinateMismatch { .. }
             | Self::DependencyRecordMismatch { .. }
-            | Self::InvalidEdgeOrigin { .. } => phase_only(BuildFailurePhase::GraphIdentity),
+            | Self::InvalidEdgeOrigin { .. } => {
+                classified(BuildFailurePhase::GraphIdentity, DiagnosticCode::ICE2201)
+            }
             Self::InternalCyclePath(_)
             | Self::InternalCycleEdge { .. }
             | Self::InternalTopologicalState(_)
             | Self::InternalTopologicalLength { .. } => {
-                phase_only(BuildFailurePhase::GraphCycleOrder)
+                classified(BuildFailurePhase::GraphCycleOrder, DiagnosticCode::ICE2201)
             }
         }
     }
@@ -302,10 +241,10 @@ impl ClassifyBuildFailure for ResolveBuildGraphError {
 impl ClassifyBuildFailure for PrepareBuildGraphError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::SourceDiscovery(_)
-            | Self::Native(_)
-            | Self::SingleFile(_)
-            | Self::Manifest(_) => phase_only(BuildFailurePhase::SourceSnapshot),
+            Self::SourceDiscovery(e) => classified(BuildFailurePhase::SourceSnapshot, e.code()),
+            Self::Native(e) => classified(BuildFailurePhase::SourceSnapshot, e.code()),
+            Self::SingleFile(e) => classified(BuildFailurePhase::SourceSnapshot, e.code()),
+            Self::Manifest(e) => classified(BuildFailurePhase::SourceSnapshot, e.code()),
         }
     }
 }
@@ -314,9 +253,9 @@ impl ClassifyBuildFailure for BuildGraphExecutionError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
             Self::MissingPreparedNode(_) | Self::RequestIdOverflow => {
-                phase_only(BuildFailurePhase::ChildTransport)
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::ICE2201)
             }
-            Self::CacheKey(_, _) => phase_only(BuildFailurePhase::Cache),
+            Self::CacheKey(_, _) => classified(BuildFailurePhase::Cache, DiagnosticCode::ICE2201),
             Self::Prebuilt(_, source) => source.classification(),
             Self::Ordinary(_, source) => source.classification(),
         }
@@ -340,19 +279,25 @@ impl ClassifyBuildFailure for OrdinarySourceExecutionError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
             Self::ProducedOutput { source, .. } => source.classification(),
-            Self::Observation(_) | Self::UnexpectedResponse => classified(
-                BuildFailurePhase::ChildOutput,
-                BuildDiagnosticCode::CHILD_RESPONSE_MISMATCH,
-            ),
+            Self::Observation(error) if error.kind() != std::io::ErrorKind::InvalidData => {
+                classified(BuildFailurePhase::ChildOutput, DiagnosticCode::E2201)
+            }
+            Self::Observation(_) | Self::UnexpectedResponse => {
+                classified(BuildFailurePhase::ChildOutput, DiagnosticCode::E2502)
+            }
             Self::CacheStore(source) => source.classification(),
 
             Self::ChildTransport(source) => source.classification(),
             Self::ChildFailure(_) => phase_only(BuildFailurePhase::ChildDiagnostic),
-            Self::Completion(_) => phase_only(BuildFailurePhase::ChildOutput),
-            Self::NotOrdinarySource(_) | Self::RequestPlan(_) => {
-                phase_only(BuildFailurePhase::ChildTransport)
+            Self::Completion(_) => {
+                classified(BuildFailurePhase::ChildOutput, DiagnosticCode::ICE2201)
             }
-            Self::CacheKey(_) | Self::Generators(_) => phase_only(BuildFailurePhase::Cache),
+            Self::NotOrdinarySource(_) | Self::RequestPlan(_) => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::ICE2201)
+            }
+            Self::CacheKey(_) | Self::Generators(_) => {
+                classified(BuildFailurePhase::Cache, DiagnosticCode::ICE2201)
+            }
         }
     }
 }
@@ -360,22 +305,19 @@ impl ClassifyBuildFailure for OrdinarySourceExecutionError {
 impl ClassifyBuildFailure for PrebuiltCompletionError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::StalePrebuiltDependency { .. } => classified(
-                BuildFailurePhase::PrebuiltArtifact,
-                BuildDiagnosticCode::PREBUILT_STALE_DEPENDENCY,
-            ),
-            Self::CandidateDisagreement { .. } => classified(
-                BuildFailurePhase::PrebuiltArtifact,
-                BuildDiagnosticCode::PREBUILT_SUMMARY_MISMATCH,
-            ),
+            Self::StalePrebuiltDependency { .. } => {
+                classified(BuildFailurePhase::PrebuiltArtifact, DiagnosticCode::E2108)
+            }
+            Self::CandidateDisagreement { .. } => {
+                classified(BuildFailurePhase::PrebuiltArtifact, DiagnosticCode::E2107)
+            }
             Self::NotPrebuilt(_)
             | Self::EmptyCandidateSet(_)
             | Self::DuplicateCompletedNode(_)
             | Self::CurrentNodeAlreadyCompleted(_)
-            | Self::CandidatePlan { .. } => classified(
-                BuildFailurePhase::PrebuiltArtifact,
-                BuildDiagnosticCode::PREBUILT_VIEW_INVALID,
-            ),
+            | Self::CandidatePlan { .. } => {
+                classified(BuildFailurePhase::PrebuiltArtifact, DiagnosticCode::ICE2201)
+            }
         }
     }
 }
@@ -386,21 +328,15 @@ impl ClassifyBuildFailure for CompileCacheStoreError {
             Self::Io {
                 operation: CacheIoOperation::Lock,
                 ..
-            }
-            | Self::WrongLock => {
-                classified(BuildFailurePhase::Cache, BuildDiagnosticCode::CACHE_LOCK)
-            }
+            } => classified(BuildFailurePhase::Cache, DiagnosticCode::E2201),
+            Self::WrongLock => classified(BuildFailurePhase::Cache, DiagnosticCode::ICE2201),
             Self::Io {
                 operation: CacheIoOperation::Publish | CacheIoOperation::Write,
                 ..
-            }
-            | Self::Encode(_) => classified(
-                BuildFailurePhase::CachePublish,
-                BuildDiagnosticCode::CACHE_PUBLISH,
-            ),
-            Self::Io { .. } | Self::Decode(_) => {
-                classified(BuildFailurePhase::Cache, BuildDiagnosticCode::CACHE_IO)
-            }
+            } => classified(BuildFailurePhase::CachePublish, DiagnosticCode::E2201),
+            Self::Encode(_) => classified(BuildFailurePhase::CachePublish, DiagnosticCode::ICE2501),
+            Self::Decode(_) => classified(BuildFailurePhase::Cache, DiagnosticCode::ICE2501),
+            Self::Io { .. } => classified(BuildFailurePhase::Cache, DiagnosticCode::E2201),
         }
     }
 }
@@ -408,30 +344,30 @@ impl ClassifyBuildFailure for CompileCacheStoreError {
 impl ClassifyBuildFailure for ChildTransportError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::Request(_) | Self::Response { .. } | Self::RequestIdMismatch { .. } => {
-                classified(
-                    BuildFailurePhase::ChildTransport,
-                    BuildDiagnosticCode::CHILD_PROTOCOL,
-                )
+            Self::Response { .. } | Self::RequestIdMismatch { .. } => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::E2502)
             }
-            Self::Signal | Self::ExitMismatch { .. } => classified(
-                BuildFailurePhase::ChildTransport,
-                BuildDiagnosticCode::CHILD_EXIT,
-            ),
-            Self::MissingExecutableParent { .. }
-            | Self::TemporaryDirectory(_)
-            | Self::Spawn { .. }
-            | Self::MissingPipe(_)
-            | Self::WriteRequest(_)
-            | Self::WriteLog(_)
-            | Self::Wait(_)
-            | Self::ReadStream { .. }
-            | Self::ReaderPanicked(_)
-            | Self::WorkerSpawn(_)
-            | Self::WorkerPanicked => classified(
-                BuildFailurePhase::ChildTransport,
-                BuildDiagnosticCode::CHILD_TRANSPORT,
-            ),
+            Self::Signal | Self::ExitMismatch { .. } => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::E2203)
+            }
+            Self::Request(_) => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::ICE2501)
+            }
+            Self::MissingExecutableParent { .. } => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::E2302)
+            }
+            Self::TemporaryDirectory(_) | Self::WriteLog(_) => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::E2201)
+            }
+            Self::Spawn { .. } | Self::WorkerSpawn(_) => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::E2202)
+            }
+            Self::MissingPipe(_) | Self::ReaderPanicked(_) | Self::WorkerPanicked => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::ICE2201)
+            }
+            Self::WriteRequest(_) | Self::Wait(_) | Self::ReadStream { .. } => {
+                classified(BuildFailurePhase::ChildTransport, DiagnosticCode::E2204)
+            }
         }
     }
 }

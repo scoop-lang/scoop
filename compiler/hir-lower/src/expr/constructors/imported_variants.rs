@@ -89,16 +89,28 @@ impl Lowerer {
             )) {
             Ok(candidate) => candidate,
             Err(error) => {
-                self.error(name.span, format!("invalid dependency variant: {error}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    name.span,
+                    format!("invalid dependency variant: {error}"),
+                );
                 return None;
             }
         };
         let owner = match self.imported_signature_type(candidate.interface().result()) {
             Ok(owner) => owner,
             Err(_) => {
-                self.error(
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E0607,
                     name.span,
-                    format!("cannot infer the enum type arguments for variant `{}`; provide an expected enum type", name.text),
+                    format!(
+                        "cannot infer the enum type arguments for variant `{}`",
+                        name.text
+                    ),
+                    scoop_ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H0502,
+                        "provide an expected enum type".to_string(),
+                    ),
                 );
                 return None;
             }
@@ -124,13 +136,17 @@ impl Lowerer {
         let enumeration = self.enum_definition(self.enum_applications[application].template);
         let variant = &enumeration.variants[index];
         if variant.style != hir::VariantStyle::Unit {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0732,
                 name.span,
                 format!(
-                    "variant `{}` of `{}` takes arguments; use `{}(...)` to construct it",
+                    "variant `{}` of `{}` takes arguments",
                     name.text,
-                    self.type_name(owner),
-                    name.text,
+                    self.type_name(owner)
+                ),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0704,
+                    format!("use `{}(...)` to construct it", name.text),
                 ),
             );
             return None;
@@ -187,7 +203,11 @@ impl Lowerer {
         {
             Ok(candidate) => candidate,
             Err(error) => {
-                self.error(span, format!("invalid dependency variant: {error}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("invalid dependency variant: {error}"),
+                );
                 return None;
             }
         };

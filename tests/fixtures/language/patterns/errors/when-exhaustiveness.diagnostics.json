@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Some(-2147483648)",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Value(false)",
     "notes": [],
     "origin": {
@@ -26,9 +26,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "non-exhaustive when: missing pattern Some((-2147483648, false)); guarded arms do not contribute to exhaustiveness",
-    "notes": [],
+    "code": "E0904",
+    "message": "non-exhaustive when: missing pattern Some((-2147483648, false))",
+    "notes": [
+      {
+        "code": "N0901",
+        "kind": "note",
+        "message": "guarded arms do not contribute to exhaustiveness",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 534,
@@ -39,7 +49,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern (true, true)",
     "notes": [],
     "origin": {
@@ -52,7 +62,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Value(\"a\")",
     "notes": [],
     "origin": {
@@ -65,7 +75,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Some(-2147483648)",
     "notes": [],
     "origin": {
@@ -78,7 +88,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Value((false,))",
     "notes": [],
     "origin": {

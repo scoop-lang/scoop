@@ -117,7 +117,7 @@ impl DynamicProvider {
                     profile,
                 },
             )
-            .map_err(error)?,
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         ))
     }
 }

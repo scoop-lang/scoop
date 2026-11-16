@@ -22,7 +22,7 @@ pub struct StrongLirCapabilityError {
 }
 
 impl StrongLirCapabilityError {
-    pub const CODE: &'static str = "SCOOPC_CAPABILITY_ODR_UNAVAILABLE";
+    pub const CODE: &'static str = "E2411";
 
     pub const fn function(&self) -> mir::FunctionId {
         self.function

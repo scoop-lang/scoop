@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2201",
     "message": "${work}/cone/Cone.toml: Is a directory (os error 21)",
     "notes": [],
     "origin": {

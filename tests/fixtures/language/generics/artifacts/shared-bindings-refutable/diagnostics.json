@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0902",
     "message": "refutable patterns are only allowed in `when`",
     "notes": [],
     "origin": {
@@ -13,9 +13,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown variable `value`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "code": "E0401",
+    "message": "unknown variable `value`",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "a47722040c99cb4e8eeed9545b056fa4bb78c9c25665407728f9a2c71bfee82a",
       "end": 146,

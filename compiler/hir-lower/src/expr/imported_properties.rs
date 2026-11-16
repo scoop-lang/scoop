@@ -66,6 +66,7 @@ impl Lowerer {
             Ok(candidate) => Some(candidate),
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid imported dependency property: {error}"),
                 );
@@ -90,6 +91,7 @@ impl Lowerer {
             Ok(candidate) => candidate,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid imported dependency property: {error}"),
                 );
@@ -107,7 +109,11 @@ impl Lowerer {
             } else {
                 callable_requirement(&candidate, false)
             };
-            self.error(span, requirement.diagnostic(subject));
+            self.error(
+                scoop_source::DiagnosticCode::E2411,
+                span,
+                requirement.diagnostic(subject),
+            );
             return None;
         }
         Some(candidate)
@@ -131,6 +137,7 @@ impl Lowerer {
                     None => {
                         let Some(value) = self.imported_object_value(owner) else {
                             self.error(
+                                scoop_source::DiagnosticCode::E0716,
                                 span,
                                 "dependency member property requires a receiver".into(),
                             );
@@ -150,6 +157,7 @@ impl Lowerer {
                 )?;
                 if !self.is_subtype(receiver.static_type, expected) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         span,
                         format!(
                             "dependency property expects receiver {}, found {}",
@@ -166,6 +174,7 @@ impl Lowerer {
                 _,
             ) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E2411,
                     span,
                     ImportedCapabilityRequirement::Generic
                         .diagnostic("dependency property receiver"),
@@ -175,6 +184,7 @@ impl Lowerer {
             (hir::PublicDeclarationOwnerV1::TopLevel, Some(_))
             | (hir::PublicDeclarationOwnerV1::Extension, None) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     "invalid imported dependency property receiver".to_string(),
                 );
@@ -205,6 +215,7 @@ impl Lowerer {
             Ok(ty) => Some(ty),
             Err(crate::imported_core::ImportedSignatureTypeError::Generic) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E2411,
                     span,
                     ImportedCapabilityRequirement::Generic.diagnostic(subject),
                 );
@@ -212,6 +223,7 @@ impl Lowerer {
             }
             Err(crate::imported_core::ImportedSignatureTypeError::Structural) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E2411,
                     span,
                     ImportedCapabilityRequirement::Layout.diagnostic(subject),
                 );
@@ -236,6 +248,7 @@ impl Lowerer {
             Ok(selected) => selected,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("failed to select imported dependency accessor: {error}"),
                 );

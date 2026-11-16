@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1310",
     "message": "automatic decode requires a final class without a class base; Item requires an explicit implementation",
     "notes": [],
     "origin": {

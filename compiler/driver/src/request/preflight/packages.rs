@@ -45,7 +45,12 @@ pub(super) fn validate(
                 )
             }
         };
-        diagnostics.push(Diagnostic::at_file(file, span, message));
+        diagnostics.push(Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E2007,
+            file,
+            span,
+            message,
+        ));
     }
     if diagnostics.is_empty() {
         Ok(())
@@ -65,7 +70,7 @@ pub(super) fn single_file_warnings(sources: &CurrentConeParsedSources) -> Vec<Di
         let PackageSyntax::QualifiedPackage { span, .. } = &source.source().ast().package else {
             return None;
         };
-        Some(Diagnostic::warning_at_file(file, *span,
+        Some(Diagnostic::warning_at_file(scoop_source::DiagnosticCode::W2001, file, *span,
             "package declaration is ignored in single-file mode; using the default root package"))
     }).collect()
 }

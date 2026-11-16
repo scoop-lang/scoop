@@ -42,6 +42,7 @@ impl Lowerer {
                 };
                 let hir::ConstPropertyValue::Integer(value) = value.value else {
                     self.error(
+                        scoop_source::DiagnosticCode::E1521,
                         expression.span(),
                         "integral enum values must be integer constants".into(),
                     );
@@ -49,6 +50,7 @@ impl Lowerer {
                 };
                 if value.kind() != kind {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         expression.span(),
                         format!(
                             "integral enum value must have type {}, found {}",
@@ -59,7 +61,11 @@ impl Lowerer {
                     continue;
                 }
                 if !seen.insert(value.raw_bits()) {
-                    self.error(expression.span(), "duplicate integral enum value".into());
+                    self.error(
+                        scoop_source::DiagnosticCode::E1522,
+                        expression.span(),
+                        "duplicate integral enum value".into(),
+                    );
                 }
                 values.push(value.raw_bits());
             }

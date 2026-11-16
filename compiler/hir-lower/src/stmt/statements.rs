@@ -79,6 +79,7 @@ impl Lowerer {
                     hir::StatementKind::Expr(lowered)
                 } else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0813,
                         statement.span,
                         "statement must be a function call".to_string(),
                     );
@@ -279,7 +280,9 @@ impl Lowerer {
         if !self.is_subtype(init.ty, expected) {
             let expected_name = self.type_name(expected);
             let found = self.type_name(init.ty);
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                decl.init.span(),
                 format!(
                     "initializer of `{}` must be of type {expected_name}, found {found}",
                     ast::dump_pattern(&decl.target)
@@ -287,7 +290,6 @@ impl Lowerer {
                 init.ty,
                 expected,
             );
-            self.error(decl.init.span(), message);
             return None;
         }
         Some((self.adapt_to(init, expected), expected))
@@ -323,6 +325,7 @@ impl Lowerer {
         if !self.is_subtype(cond.ty, self.boolean) {
             let found = self.type_name(cond.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 cond.span,
                 format!("{keyword} condition must be Boolean, found {found}"),
             );

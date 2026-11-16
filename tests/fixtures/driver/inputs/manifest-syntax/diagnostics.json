@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2008",
     "message": "${work}/cone/Cone.toml: invalid Cone.toml: TOML parse error at line 1, column 12\n  |\n1 | schema = [\n  |            ^\ninvalid array\nexpected `]`\n",
     "notes": [],
     "origin": {

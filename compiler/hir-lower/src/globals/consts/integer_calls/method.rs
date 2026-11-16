@@ -28,6 +28,7 @@ impl Lowerer {
     ) -> Option<EvaluatedConst> {
         if navigation != ast::Navigation::Direct || !type_args.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 span,
                 "const integer intrinsics require a direct non-generic call".to_string(),
             );
@@ -99,6 +100,7 @@ impl Lowerer {
         }
         if self.float_kind(receiver.ty).is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 name.span,
                 "const initializer did not resolve to an exact typed core floating intrinsic"
                     .into(),
@@ -107,6 +109,7 @@ impl Lowerer {
         }
         let hir::Type::Integer(source_kind) = self.types[receiver.ty] else {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 name.span,
                 "integer const intrinsic requires an integer receiver".to_string(),
             );
@@ -117,6 +120,7 @@ impl Lowerer {
         };
         let Some(resolved) = self.resolve_const_integer_intrinsic(source_kind, &name.text) else {
             self.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 name.span,
                 "const initializer did not resolve to the exact typed core integer intrinsic"
                     .to_string(),
@@ -161,6 +165,7 @@ impl Lowerer {
                         )?;
                         if !self.types_equal(value.ty, expected) {
                             self.error(
+                                scoop_source::DiagnosticCode::E0501,
                                 argument.span,
                                 format!(
                                     "integer const intrinsic expected {}, found {}",
@@ -172,6 +177,7 @@ impl Lowerer {
                         }
                         let hir::ConstPropertyValue::Integer(value) = value.value else {
                             self.error(
+                                scoop_source::DiagnosticCode::E0501,
                                 argument.span,
                                 "integer const intrinsic requires an integer argument".to_string(),
                             );
@@ -180,7 +186,7 @@ impl Lowerer {
                         Some(value)
                     }
                     _ => {
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::ICE0501,
                             span,
                             "const integer intrinsic arguments do not match the exact typed core declaration"
                                 .to_string(),
@@ -197,7 +203,7 @@ impl Lowerer {
             }
             ConstIntegerIntrinsicKind::ManagedDivRem(operation) => {
                 let [argument] = args else {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::ICE0501,
                         span,
                         "const integer div/rem arguments do not match the exact typed core declaration"
                             .to_string(),
@@ -213,7 +219,7 @@ impl Lowerer {
                         .is_some_and(|parameter| *parameter == argument_name.text),
                 };
                 if !matches!(argument.spread, ast::SpreadSyntax::Plain) || !named_argument_matches {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::ICE0501,
                         span,
                         "const integer div/rem arguments do not match the exact typed core declaration"
                             .to_string(),
@@ -232,6 +238,7 @@ impl Lowerer {
                 parameter_type = Some(receiver.ty);
                 if !self.types_equal(right.ty, receiver.ty) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         argument.span,
                         format!(
                             "integer const intrinsic expected {}, found {}",
@@ -243,6 +250,7 @@ impl Lowerer {
                 }
                 let hir::ConstPropertyValue::Integer(right_value) = right.value else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         argument.span,
                         "integer const intrinsic requires an integer argument".to_string(),
                     );
@@ -258,7 +266,11 @@ impl Lowerer {
                         ty: receiver.ty,
                     }),
                     IntegerBinaryResult::DivisionByZero => {
-                        self.error(span, "division by zero in const initializer".to_string());
+                        self.error(
+                            scoop_source::DiagnosticCode::E1519,
+                            span,
+                            "division by zero in const initializer".to_string(),
+                        );
                         None
                     }
                     IntegerBinaryResult::Unsupported => {
@@ -268,7 +280,7 @@ impl Lowerer {
             }
             ConstIntegerIntrinsicKind::Conversion(target_kind) => {
                 if !args.is_empty() {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::ICE0501,
                         span,
                         "const integer conversion arguments do not match the exact typed core declaration"
                             .to_string(),

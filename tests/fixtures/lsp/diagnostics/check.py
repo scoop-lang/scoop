@@ -159,6 +159,7 @@ class Checks:
 
         converted = [
             {
+                "code": item["code"],
                 "message": item["message"],
                 "range": {
                     "start": point(text, item["origin"]["start"]),
@@ -172,28 +173,39 @@ class Checks:
         for expected, actual in zip(
             sorted(converted, key=key), sorted(comparable, key=key), strict=True
         ):
+            assert expected["code"] == actual["code"], (expected, actual)
             assert expected["message"] == actual["message"], (expected, actual)
             assert expected["range"] == actual["range"], (expected, actual)
-            paths = sorted(note["importPath"] for note in expected["notes"] if "importPath" in note)
+            notes = list(walk_diagnostics(expected["notes"]))
+            paths = sorted(note["importPath"] for note in notes if "importPath" in note)
             assert paths == actual.get("data", {}).get("imports", []), (expected, actual)
-            assert sorted(note["message"] for note in expected["notes"]) == sorted(
-                note["message"] for note in actual.get("relatedInformation", [])
-            ), (expected, actual)
-            for note in expected["notes"]:
-                related = next(
-                    item
-                    for item in actual["relatedInformation"]
-                    if item["message"] == note["message"]
-                )
-                location = related["location"]
-                path = Path(url2pathname(urlsplit(location["uri"]).path))
-                origin = note["origin"]
-                assert path.as_posix().endswith("/" + origin["path"]), (note, related)
-                contents = path.read_bytes().decode()
-                assert location["range"] == {
-                    "start": point(contents, origin["start"]),
-                    "end": point(contents, origin["end"]),
-                }, (note, related)
+            related = []
+
+            def compare_notes(expected_notes, actual_notes, related):
+                assert len(expected_notes) == len(actual_notes), (expected_notes, actual_notes)
+                for note, projected in zip(expected_notes, actual_notes, strict=True):
+                    for field in ("code", "kind", "message"):
+                        assert note[field] == projected[field], (note, projected)
+                    assert note.get("importPath", []) == projected["importPath"]
+                    location = projected["location"]
+                    origin = note["origin"]
+                    if origin["kind"] == "none":
+                        assert location is None, (note, projected)
+                    else:
+                        path = Path(url2pathname(urlsplit(location["uri"]).path))
+                        assert path.as_posix().endswith("/" + origin["path"]), (note, projected)
+                        contents = path.read_bytes().decode()
+                        assert location["range"] == {
+                            "start": point(contents, origin["start"]),
+                            "end": point(contents, origin["end"]),
+                        }, (note, projected)
+                        related.append(
+                            {"message": f"[{note['code']}] {note['message']}", "location": location}
+                        )
+                    compare_notes(note["notes"], projected["notes"], related)
+
+            compare_notes(expected["notes"], actual.get("data", {}).get("notes", []), related)
+            assert related == actual.get("relatedInformation", []), (expected, actual)
         return cli, lsp
 
     def actions(self, diagnostic):
@@ -220,6 +232,16 @@ class Checks:
         return actions
 
 
+def walk_diagnostics(diagnostics):
+    for diagnostic in diagnostics:
+        yield diagnostic
+        yield from walk_diagnostics(diagnostic["notes"])
+
+
+def diagnostic_text(diagnostic):
+    return "\n".join(item["message"] for item in walk_diagnostics([diagnostic]))
+
+
 def check_roots(checks):
     header = "package test.app\nimport scoop.test.assertEquals\nfun optional(value: String?): String? = value\n"
     for call in [
@@ -230,17 +252,16 @@ def check_roots(checks):
         cli, lsp = checks.agree(header + f"fun check() {{ {call} }}\n")
         assert len(cli) == 1, cli
         error = cli[0]
-        assert "optional" in error["message"] and "Option<String>" in error["message"], error
-        assert "assertEquals" not in error["message"] and "Equals" not in error["message"], error
+        text = diagnostic_text(error)
+        assert "optional" in text and "Option<String>" in text, error
+        assert "assertEquals" not in text and "Equals" not in text, error
         assert (
             checks.text.encode()[error["origin"]["start"] : error["origin"]["end"]] == b'"bad"'
         ), error
         assert checks.actions(lsp[0]) == []
         human = checks.compiler(human=True)
         assert human.returncode == 1, human.stderr
-        assert all(line.strip() in human.stderr for line in error["message"].splitlines()), (
-            human.stderr
-        )
+        assert all(line.strip() in human.stderr for line in text.splitlines()), human.stderr
         assert checks.agree(checks.text.replace('optional("bad")', 'optional(Some("x"))')) == (
             [],
             [],
@@ -260,7 +281,9 @@ def check_roots(checks):
         'fun unrelated() { nominal(Some("x")) }\n'
     )
     assert len(cli) == 2, cli
-    assert any("nominal" in item["message"] and "Equals" in item["message"] for item in cli), cli
+    assert any(
+        "nominal" in diagnostic_text(item) and "Equals" in diagnostic_text(item) for item in cli
+    ), cli
     cli, _ = checks.agree(
         "package test.app\nfun invalid(value: String?) { if (value != None) { value.charLength } }\n"
     )

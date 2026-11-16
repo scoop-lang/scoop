@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "unsafe member requirement invocation requires an unsafe context",
     "notes": [],
     "origin": {

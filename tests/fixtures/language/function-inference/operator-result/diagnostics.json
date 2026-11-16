@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "operator `contains` must return Boolean, found Int",
     "notes": [],
     "origin": {

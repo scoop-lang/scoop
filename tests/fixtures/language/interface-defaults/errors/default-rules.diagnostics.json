@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1515",
     "message": "interface property `stored` cannot have storage, an initializer, or a delegate",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0308",
     "message": "private interface method `helper` must have a body",
     "notes": [],
     "origin": {
@@ -26,9 +26,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "class `Conflict` inherits conflicting defaults for `value` from Left.value and Right.value; declare an explicit override",
-    "notes": [],
+    "code": "E1010",
+    "message": "class `Conflict` inherits conflicting defaults for `value` from Left.value and Right.value",
+    "notes": [
+      {
+        "code": "H1001",
+        "kind": "help",
+        "message": "declare an explicit override",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 119,
@@ -39,7 +49,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1507",
     "message": "struct `InvalidValue` cannot implement mutable interface property `state`",
     "notes": [],
     "origin": {
@@ -52,7 +62,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1025",
     "message": "interface `IndirectParent` is not a direct superinterface of class `WrongQualifier`",
     "notes": [],
     "origin": {
@@ -65,7 +75,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1025",
     "message": "abstract interface getter `code` cannot be called with qualified `super`",
     "notes": [],
     "origin": {
@@ -78,7 +88,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Missing` does not implement interface method `AbstractChild.number`",
     "notes": [],
     "origin": {

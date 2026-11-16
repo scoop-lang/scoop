@@ -18,22 +18,10 @@ pub(super) fn convert(
                 DiagnosticSeverity::Error => DiagnosticSeverityV1::Error,
                 DiagnosticSeverity::Warning => DiagnosticSeverityV1::Warning,
             };
-            let notes = diagnostic
-                .notes
-                .iter()
-                .map(|note| {
-                    DiagnosticNoteV1::new(note.message.clone(), origin(&path, Some(note.span))?)
-                        .map_err(config)
-                })
-                .collect::<scoop::BuildResult<_>>()?;
+            let notes = diagnostics_notes(&path, &diagnostic.notes)?;
             StructuredDiagnosticV1::new(
                 severity,
-                if severity.is_error() {
-                    "SCOOPC_PARSE_ERROR"
-                } else {
-                    "SCOOPC_COMPILER_WARNING"
-                }
-                .into(),
+                diagnostic.code.to_string(),
                 diagnostic.message.clone(),
                 origin(&path, diagnostic.span())?,
                 notes,
@@ -51,4 +39,20 @@ fn origin(path: &HostPathCarrier, span: Option<Span>) -> scoop::BuildResult<Diag
         },
         None => DiagnosticOriginV1::HostPath { path: path.clone() },
     })
+}
+
+fn diagnostics_notes(
+    path: &HostPathCarrier,
+    notes: &[scoop_source::DiagnosticNote],
+) -> scoop::BuildResult<Vec<DiagnosticNoteV1>> {
+    notes
+        .iter()
+        .map(|note| {
+            let children = diagnostics_notes(path, &note.notes)?;
+            DiagnosticNoteV1::new(&note.code, note.message.clone(), origin(path, note.span())?)
+                .and_then(|result| result.with_import_path(note.import_path.clone()))
+                .map(|note| note.with_notes(children))
+                .map_err(config)
+        })
+        .collect()
 }

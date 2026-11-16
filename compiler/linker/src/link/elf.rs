@@ -28,7 +28,9 @@ pub(super) fn link(
     candidate: &Path,
     keep_symbols: bool,
 ) -> Result<(), LinkError> {
-    let mut command = profile.command(directory, candidate).map_err(error)?;
+    let mut command = profile
+        .command(directory, candidate)
+        .map_err(|cause| error(cause.code(), cause))?;
     if !keep_symbols {
         command.arg("-Xlinker").arg("--strip-all");
     }
@@ -41,14 +43,20 @@ pub(super) fn link(
     ));
     shared::append(inputs, directory, &mut command)?;
     profile.append_system_libraries(&mut command);
-    let result = command
-        .scoop_output()
-        .map_err(|err| error(format!("cannot start ELF linker: {err}")))?;
+    let result = command.scoop_output().map_err(|err| {
+        error(
+            scoop_source::DiagnosticCode::E2202,
+            format!("cannot start ELF linker: {err}"),
+        )
+    })?;
     if !result.status.success() {
-        return Err(error(format!(
-            "ELF linker failed: {}",
-            String::from_utf8_lossy(&result.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2304,
+            format!(
+                "ELF linker failed: {}",
+                String::from_utf8_lossy(&result.stderr)
+            ),
+        ));
     }
     Ok(())
 }

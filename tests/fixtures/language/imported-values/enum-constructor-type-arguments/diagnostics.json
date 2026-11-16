@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "dependency constructor `Pair` expects 0 type argument(s), found 1",
     "notes": [],
     "origin": {

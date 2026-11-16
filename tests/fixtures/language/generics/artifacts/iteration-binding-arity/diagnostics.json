@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0906",
     "message": "pattern has 3 element(s), but tuple of type (Int, Int) has 2",
     "notes": [],
     "origin": {

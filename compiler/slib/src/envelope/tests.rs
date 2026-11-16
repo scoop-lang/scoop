@@ -2,9 +2,9 @@ use scoop_identity::ConeCoordinate;
 
 use super::*;
 use crate::{
-    CompatibilityRecord, ConeKind, ConeRecord, ConeSourceForm, HirFingerprint, LirFingerprint,
-    MemberStableKey, MirFingerprint, ProducerRecord, SemanticFingerprintRecord, SlibDiagnostic,
-    SlibErrorCode, SlibMemberRole, SlibPrimaryOrigin,
+    CompatibilityRecord, ConeKind, ConeRecord, ConeSourceForm, DiagnosticCode, HirFingerprint,
+    LirFingerprint, MemberStableKey, MirFingerprint, ProducerRecord, SemanticFingerprintRecord,
+    SlibDiagnostic, SlibMemberRole, SlibPrimaryOrigin,
 };
 
 fn selection() -> ValidatedLirTargetSelection {
@@ -123,7 +123,7 @@ fn envelope_reports_invalid_manifest_headers() {
             if **error == BootstrapManifestValidationError::BadMagic
     ));
     let diagnostic = error.diagnostic();
-    assert_eq!(diagnostic.code(), SlibErrorCode::WireNonCanonical);
+    assert_eq!(diagnostic.code(), DiagnosticCode::E2401);
     assert_eq!(diagnostic.path().to_string(), "$.1");
     assert_eq!(
         diagnostic.primary_origin(),

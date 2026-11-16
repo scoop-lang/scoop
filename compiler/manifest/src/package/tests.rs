@@ -141,12 +141,12 @@ fn normalizes_registry_urls_and_reuses_source_and_native_validation() {
     let source = format!("{CONE}[[sources]]\npath = '../escape'\n");
     assert!(matches!(
         parse(&source).unwrap_err().kind(),
-        ManifestParseErrorKind::InvalidSelection(_)
+        ManifestParseErrorKind::InvalidSelection(..)
     ));
     let native = format!("{CONE}[native]\nc_flags = ['-o', 'out']\n");
     assert!(matches!(
         parse(&native).unwrap_err().kind(),
-        ManifestParseErrorKind::InvalidNative(_)
+        ManifestParseErrorKind::InvalidNative(..)
     ));
 }
 

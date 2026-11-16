@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0504",
     "message": "ordinary and suspend function types are incompatible",
     "notes": [],
     "origin": {

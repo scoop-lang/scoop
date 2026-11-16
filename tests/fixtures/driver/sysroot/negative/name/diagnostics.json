@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2102",
     "message": "expected scoop:scoop.platform from sysroot/artifact search roots, source declares scoop:scoop.different:0.1.0",
     "notes": [],
     "origin": {

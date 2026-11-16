@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0603",
     "message": "type argument `T` for `T` of target of typealias `Marked` must satisfy interface upper bound `Marker`",
     "notes": [],
     "origin": {

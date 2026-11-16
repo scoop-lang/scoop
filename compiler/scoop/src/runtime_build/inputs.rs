@@ -14,16 +14,22 @@ pub(super) struct Inputs {
 impl Inputs {
     pub fn read(request: &RuntimeBuildRequest<'_>) -> Result<Self, RuntimeBuildError> {
         let root = dunce::canonicalize(request.runtime_root).map_err(|cause| {
-            error(format!(
-                "runtime source root {}: {cause}",
-                request.runtime_root.display()
-            ))
+            error(
+                scoop_source::DiagnosticCode::E2201,
+                format!(
+                    "runtime source root {}: {cause}",
+                    request.runtime_root.display()
+                ),
+            )
         })?;
         let vendor = dunce::canonicalize(request.vendor_root).map_err(|cause| {
-            error(format!(
-                "vendor source root {}: {cause}",
-                request.vendor_root.display()
-            ))
+            error(
+                scoop_source::DiagnosticCode::E2201,
+                format!(
+                    "vendor source root {}: {cause}",
+                    request.vendor_root.display()
+                ),
+            )
         })?;
         let sources = request
             .target
@@ -34,7 +40,12 @@ impl Inputs {
                 path.strip_prefix("runtime/")
                     .map(|path| root.join(path))
                     .or_else(|| path.strip_prefix("vendor/").map(|path| vendor.join(path)))
-                    .ok_or_else(|| error(format!("invalid runtime source rule {path}")))
+                    .ok_or_else(|| {
+                        error(
+                            scoop_source::DiagnosticCode::ICE2201,
+                            format!("invalid runtime source rule {path}"),
+                        )
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut includes: Vec<_> = request
@@ -50,7 +61,7 @@ impl Inputs {
             request.target.lir_target(),
             request.unwind_prefix,
         )
-        .map_err(error)?
+        .map_err(|cause| error(cause.code(), cause))?
         {
             includes.push(include);
         }
@@ -77,7 +88,10 @@ impl Inputs {
             ])
             .map(str::to_owned)
             .collect();
-        let path = |p: &Path| HostPathCarrier::from_path(p).map_err(error);
+        let path = |p: &Path| {
+            HostPathCarrier::from_path(p)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
+        };
         let minimum_os = match request
             .target
             .c_bridge_toolchain()
@@ -103,11 +117,13 @@ impl Inputs {
                 .iter()
                 .map(|p| path(p))
                 .collect::<Result<Vec<_>, _>>()?,
-            encode(&request.target.lir_target().wire_id()).map_err(error)?,
+            encode(&request.target.lir_target().wire_id())
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
             minimum_os,
-            encode(&scoop_lir::RuntimeAbiContract).map_err(error)?,
+            encode(&scoop_lir::RuntimeAbiContract)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         ))
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
         Ok(Self {
             root,
             vendor,

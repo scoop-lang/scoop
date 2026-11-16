@@ -11,6 +11,7 @@ pub(super) fn plan(
         let origin = queries.source_location(annotation.application.definition_origin);
         if matches!(annotation.owner, hir::NominalOwner::Interface(_)) {
             diagnostics.push(diagnostic(
+                scoop_source::DiagnosticCode::E1317,
                 &origin,
                 "GenerateWith must be applied to an implementation type, not an interface",
             ));
@@ -102,6 +103,7 @@ impl Planner {
     ) -> Result<(), Diagnostic> {
         if let Some(previous) = self.bindings.get(&(owner, binding.interface)) {
             return Err(diagnostic(
+                scoop_source::DiagnosticCode::E1318,
                 &binding.origin,
                 "duplicate GenerateWith interface application",
             )
@@ -121,7 +123,7 @@ impl Planner {
             if let Some((previous_generator, previous_origin)) = self.methods.get(&method.function)
             {
                 if previous_generator != generator {
-                    return Err(diagnostic(&binding.origin, format!(
+                    return Err(diagnostic(scoop_source::DiagnosticCode::E1318, &binding.origin, format!(
                         "generators `{previous_generator}` and `{generator}` select the same missing method"))
                         .with_note(related(previous_origin, "previous method binding is here")));
                 }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
+    "code": "E2106",
     "message": "different complete artifacts for 164c9bccccad6e96ec261f10d5fdca35668152e226750c0416c64e6f904575c6: ${work}/artifacts/1.slib and ${work}/artifacts/changed.slib",
     "notes": [],
     "origin": {

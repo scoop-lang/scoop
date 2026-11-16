@@ -74,6 +74,7 @@ impl Lowerer {
     ) -> Option<EvaluatedConst> {
         if !resolved.arguments_match(args) {
             self.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 span,
                 "const floating intrinsic arguments do not match its declaration".into(),
             );
@@ -91,6 +92,7 @@ impl Lowerer {
             )?;
             if !self.types_equal(receiver.ty, value.ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     argument.span,
                     format!(
                         "const floating intrinsic expected {}, found {}",

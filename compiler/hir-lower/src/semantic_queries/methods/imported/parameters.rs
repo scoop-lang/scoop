@@ -72,13 +72,17 @@ impl Lowerer {
             for (parameter, binder) in parameters.iter_mut().zip(owner_binders.binders()) {
                 *parameter = self
                     .resolve_imported_type_parameter(binder, parameter.id, &bindings, span)
-                    .map_err(|error| Diagnostic::at(span, error))?;
+                    .map_err(|error| {
+                        Diagnostic::at(scoop_source::DiagnosticCode::ICE0501, span, error)
+                    })?;
             }
         }
         for (binder, id) in binders.iter().zip(ids) {
             parameters.push(
                 self.resolve_imported_type_parameter(binder, id, &bindings, span)
-                    .map_err(|error| Diagnostic::at(span, error))?,
+                    .map_err(|error| {
+                        Diagnostic::at(scoop_source::DiagnosticCode::ICE0501, span, error)
+                    })?,
             );
         }
         self.query_imported_method_parameters

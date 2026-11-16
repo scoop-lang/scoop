@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0904",
     "message": "non-exhaustive when: missing pattern Pair { left: -9223372036854775808, marker: Token {  }, right: -9223372036854775808 }",
     "notes": [],
     "origin": {

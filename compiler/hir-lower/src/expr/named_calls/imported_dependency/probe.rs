@@ -94,6 +94,7 @@ impl Lowerer {
             .map_err(|error| {
                 let mut state = self.clone();
                 state.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     name.span,
                     format!("invalid imported dependency callable: {error}"),
                 );
@@ -220,6 +221,7 @@ impl Lowerer {
                 ))
         {
             state.error(
+                scoop_source::DiagnosticCode::E0510,
                 call.span,
                 "`ForeignCallback` values can only be produced by `foreignCallback`".into(),
             );
@@ -234,6 +236,7 @@ impl Lowerer {
             interface.declared_visibility() != hir::DeclaredVisibilityV1::Public
         } {
             state.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!("constructor `{}` is not accessible here", name.text),
             );
@@ -284,7 +287,7 @@ impl Lowerer {
                 alias.parameters.len() - alias.outer_parameter_count
             });
         if !call.type_args.is_empty() && call.type_args.len() != expected_type_arguments {
-            state.error(
+            state.error(scoop_source::DiagnosticCode::E0601,
                 name.span,
                 format!(
                     "dependency {kind} `{}` expects {expected_type_arguments} type argument(s), found {}",
@@ -302,7 +305,7 @@ impl Lowerer {
             match state.imported_call_declaration(&candidate, constructor_owner.is_some()) {
                 Ok(declaration) => declaration,
                 Err(error) => {
-                    state.error(call.span, error);
+                    state.error(scoop_source::DiagnosticCode::ICE0501, call.span, error);
                     return Err(state);
                 }
             };
@@ -359,6 +362,7 @@ impl Lowerer {
         kind: &str,
     ) {
         self.error(
+            error.code(),
             call.span,
             format!("dependency {kind} `{}` {}", name.text, error.describe()),
         );

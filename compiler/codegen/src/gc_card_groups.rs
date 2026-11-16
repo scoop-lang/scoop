@@ -148,4 +148,5 @@ pub(crate) fn inline_fast_paths(
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
     CodegenError::internal(format!("card group guard: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

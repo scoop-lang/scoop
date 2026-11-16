@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1314",
     "message": "automatic encode has duplicate field name `same`",
     "notes": [],
     "origin": {

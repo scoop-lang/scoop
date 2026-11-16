@@ -65,6 +65,7 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -76,6 +77,7 @@ impl Lowerer {
                     if self.annotation_marker(annotation) {
                         if storage.is_some() {
                             self.error(
+                                scoop_source::DiagnosticCode::E1208,
                                 annotation.span,
                                 "`@Global` and `@ThreadLocal` cannot be combined".to_string(),
                             );
@@ -85,6 +87,7 @@ impl Lowerer {
                     }
                 }
                 _ => self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("`@{name}` is not allowed on a top-level storage declaration"),
                 ),
@@ -94,18 +97,21 @@ impl Lowerer {
         if let Some(extern_annotation) = &extern_ {
             if !extern_annotation.abi.is_c() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "an extern global supports only the C data ABI".to_string(),
                 );
             }
             if decl.initializer().is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1203,
                     decl.span,
                     "an `@Extern` global must not have an initializer".to_string(),
                 );
             }
             if decl.mutable && storage.is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1208,
                     decl.span,
                     "an extern `var` requires exactly one of `@Global` or `@ThreadLocal`"
                         .to_string(),
@@ -113,20 +119,26 @@ impl Lowerer {
             }
             if !decl.mutable && storage.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1208,
                     decl.span,
                     "an extern `val` must not use `@Global` or `@ThreadLocal`".to_string(),
                 );
             }
         } else {
             if !decl.mutable {
-                self.error(
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E1208,
                     decl.span,
-                    "a local top-level `val` is not supported; use a local binding or `@Extern val`"
-                        .to_string(),
+                    "a local top-level `val` is not supported".to_owned(),
+                    scoop_source::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H1202,
+                        "use a local binding or `@Extern val`".to_owned(),
+                    ),
                 );
             }
             if storage.is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1208,
                     decl.span,
                     "a local top-level `var` requires exactly one of `@Global` or `@ThreadLocal`"
                         .to_string(),
@@ -134,6 +146,7 @@ impl Lowerer {
             }
             if decl.initializer().is_none() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1212,
                     decl.span,
                     "a local global requires a compile-time constant initializer".to_string(),
                 );
@@ -162,6 +175,7 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -191,11 +205,13 @@ impl Lowerer {
                 }
                 "Extern" | "Unsafe" | "Safe" | "CallingConvention" | "Global" | "ThreadLocal" => {
                     self.error(
+                        scoop_source::DiagnosticCode::E1301,
                         annotation.span,
                         format!("`@{name}` is not allowed on a struct"),
                     )
                 }
                 _ => self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("unsupported annotation `@{name}` for this declaration"),
                 ),
@@ -203,6 +219,7 @@ impl Lowerer {
         }
         if intrinsic.is_some() && seen.iter().any(|name| name != "Intrinsic") {
             self.error(
+                scoop_source::DiagnosticCode::E1303,
                 decl.span,
                 "`@Intrinsic` cannot be combined with other annotations on a type".to_string(),
             );
@@ -231,6 +248,7 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -241,11 +259,13 @@ impl Lowerer {
                     .check_intrinsic_type_annotation(annotation, hir::IntrinsicTypeTarget::Class);
             } else if is_core_annotation(name) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("`@{name}` is not allowed on a class"),
                 );
             } else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("unsupported annotation `@{name}` in milestone M14"),
                 );
@@ -261,11 +281,16 @@ impl Lowerer {
     ) -> Option<&'static hir::IntrinsicTypeSpec> {
         let value = self.annotation_string(annotation, "name")?;
         let Some(spec) = hir::intrinsic_type_spec(&value) else {
-            self.error(annotation.span, format!("unknown intrinsic type `{value}`"));
+            self.error(
+                scoop_source::DiagnosticCode::E1401,
+                annotation.span,
+                format!("unknown intrinsic type `{value}`"),
+            );
             return None;
         };
         if spec.kind.target() != target {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 annotation.span,
                 format!(
                     "intrinsic type `{value}` requires a {} declaration",
@@ -279,6 +304,7 @@ impl Lowerer {
         }
         if !self.current_provider_may_declare_intrinsics() {
             self.error(
+                scoop_source::DiagnosticCode::E1402,
                 annotation.span,
                 "`@Intrinsic` is only allowed in the core library".to_string(),
             );
@@ -302,6 +328,7 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -310,10 +337,12 @@ impl Lowerer {
             match name {
                 "NoGC" => no_gc = self.annotation_marker(annotation),
                 _ if is_core_annotation(name) => self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("`@{name}` is not allowed on an enum"),
                 ),
                 _ => self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("unsupported annotation `@{name}` in milestone M13"),
                 ),
@@ -336,16 +365,19 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
             } else if is_core_annotation(name) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("`@{name}` is not allowed on {kind}"),
                 );
             } else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("unsupported annotation `@{name}` for this declaration"),
                 );
@@ -371,16 +403,19 @@ impl Lowerer {
             };
             if !seen.insert(name.to_string()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
             } else if is_core_annotation(name) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("`@{name}` is not allowed on {kind}"),
                 );
             } else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!("unsupported annotation `@{name}` on {kind}"),
                 );

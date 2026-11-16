@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1214",
     "message": "`addressOf` argument must be an addressable local, parameter, global, or value-type `this`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1214",
     "message": "`addressOf` argument must be an addressable local, parameter, global, or value-type `this`",
     "notes": [],
     "origin": {

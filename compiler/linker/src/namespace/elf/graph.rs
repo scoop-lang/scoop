@@ -36,6 +36,7 @@ impl ElfNamespace {
                 }
                 if name.starts_with("libgcc_s.so") {
                     return Err(error(
+                        scoop_source::DiagnosticCode::E2307,
                         "native DSO requires a second EH provider alongside LLVM libunwind",
                     ));
                 }
@@ -53,10 +54,13 @@ impl ElfNamespace {
                     native.files.entry(child).or_insert(file);
                     self.insert(native, child, &mut names)?;
                     if self.providers[&child].name != *name {
-                        return Err(error(format!(
-                            "ELF dependency {name} has different SONAME {}",
-                            self.providers[&child].name
-                        )));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2305,
+                            format!(
+                                "ELF dependency {name} has different SONAME {}",
+                                self.providers[&child].name
+                            ),
+                        ));
                     }
                     child
                 };
@@ -76,7 +80,10 @@ impl ElfNamespace {
     ) -> Result<(), LinkError> {
         let file = &native.files[&id];
         let NativeContent::ElfDynamic(interface) = &file.content else {
-            return Err(error("ELF dependency resolved to a static input"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                "ELF dependency resolved to a static input",
+            ));
         };
         let name = match &interface.soname {
             Some(name) => name.clone(),
@@ -84,20 +91,27 @@ impl ElfNamespace {
                 .locator
                 .file_name()
                 .and_then(|name| name.to_str())
-                .ok_or_else(|| error("ELF library without SONAME requires a UTF-8 filename"))?
+                .ok_or_else(|| {
+                    error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "ELF library without SONAME requires a UTF-8 filename",
+                    )
+                })?
                 .to_owned(),
         };
         if self.needed.contains(&name) {
-            return Err(error(format!(
-                "native ELF library {name} conflicts with the selected system library"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("native ELF library {name} conflicts with the selected system library"),
+            ));
         }
         if let Some(previous) = names.insert(name.clone(), id)
             && previous != id
         {
-            return Err(error(format!(
-                "conflicting ELF providers for SONAME {name}"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("conflicting ELF providers for SONAME {name}"),
+            ));
         }
         self.providers.entry(id).or_insert_with(|| ElfProvider {
             name,
@@ -115,10 +129,12 @@ impl ElfNamespace {
         profile: &ValidatedFinalLinkProfile,
         observed: &mut Vec<PathBuf>,
     ) -> Result<crate::native_input::NativeFile, LinkError> {
-        let parent = provider
-            .locator
-            .parent()
-            .ok_or_else(|| error("ELF provider has no parent directory"))?;
+        let parent = provider.locator.parent().ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "ELF provider has no parent directory",
+            )
+        })?;
         let expand = |value: &str| {
             value
                 .replace("${ORIGIN}", &parent.to_string_lossy())
@@ -163,7 +179,10 @@ impl ElfNamespace {
             match std::fs::symlink_metadata(path) {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(cause) => {
-                    return Err(error(format!("ELF dependency {}: {cause}", path.display())));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2201,
+                        format!("ELF dependency {}: {cause}", path.display()),
+                    ));
                 }
                 Ok(_) => {}
             }
@@ -174,25 +193,33 @@ impl ElfNamespace {
                 false,
             )
             .map_err(|err| {
-                error(format!(
-                    "ELF dependency {} for {}: {err}",
-                    path.display(),
-                    provider.name
-                ))
+                error(
+                    err.code(),
+                    format!(
+                        "ELF dependency {} for {}: {err}",
+                        path.display(),
+                        provider.name
+                    ),
+                )
             })?;
             candidates.entry(file.id).or_insert(file);
         }
         if candidates.len() != 1 {
-            return Err(error(format!(
-                "ELF dependency {name} for {} has {} candidates in {paths:?}",
-                provider.name,
-                candidates.len()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!(
+                    "ELF dependency {name} for {} has {} candidates in {paths:?}",
+                    provider.name,
+                    candidates.len()
+                ),
+            ));
         }
-        candidates
-            .into_values()
-            .next()
-            .ok_or_else(|| error("ELF dependency disappeared"))
+        candidates.into_values().next().ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "ELF dependency disappeared",
+            )
+        })
     }
 
     pub fn project(
@@ -224,10 +251,13 @@ impl ElfNamespace {
                 })
                 && actual != input
             {
-                return Err(error(format!(
-                    "ELF native symbol {symbol} conflicts: {} is searched before required {}",
-                    self.providers[actual].name, self.providers[input].name
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2306,
+                    format!(
+                        "ELF native symbol {symbol} conflicts: {} is searched before required {}",
+                        self.providers[actual].name, self.providers[input].name
+                    ),
+                ));
             }
         }
         for id in &self.selected {
@@ -253,10 +283,13 @@ impl ElfNamespace {
                 }) {
                     continue;
                 }
-                return Err(error(format!(
-                    "unresolved ELF import {} version {:?} from {}",
-                    import.name, import.version, provider.name
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2308,
+                    format!(
+                        "unresolved ELF import {} version {:?} from {}",
+                        import.name, import.version, provider.name
+                    ),
+                ));
             }
         }
         for id in &self.selected {
@@ -266,7 +299,12 @@ impl ElfNamespace {
                 provider
                     .locator
                     .parent()
-                    .ok_or_else(|| error("ELF library has no parent directory"))?
+                    .ok_or_else(|| {
+                        error(
+                            scoop_source::DiagnosticCode::E2305,
+                            "ELF library has no parent directory",
+                        )
+                    })?
                     .to_owned(),
             );
         }

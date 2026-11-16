@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "managed dependency calls are not allowed in `@NoGC` code",
     "notes": [],
     "origin": {

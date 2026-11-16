@@ -21,5 +21,5 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{code = "SCOOP_BUILD_FAILED", message = "invalid MACOSX_DEPLOYMENT_TARGET \"${version}\": ${reason}", notes = [], origin = {kind = "none"}, phase = "SourceSnapshot", severity = "error"}]
+diagnostics = [{"code" = "E2303", "message" = "invalid MACOSX_DEPLOYMENT_TARGET \"${version}\": ${reason}", "notes" = [], "origin" = {"kind" = "none"}, "phase" = "SourceSnapshot", "severity" = "error"}]
 checks = [{file = "${work}/program", exists = false}]

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0105",
     "message": "floating fraction or exponent must contain a decimal digit",
     "notes": [],
     "origin": {

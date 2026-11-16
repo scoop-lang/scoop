@@ -108,5 +108,5 @@ argv = ["${scoop-link}", "--sysroot", "${sysroot}", "--root-slib", "${build.resu
 timeout = 300
 exit = 1
 stdout = ""
-stderr = "scoop-link: unresolved ELF import m28_leaf version Some(\"LEAF_1\") from libm28_versions.so.2\n"
+stderr = "error[E2308]: unresolved ELF import m28_leaf version Some(\"LEAF_1\") from libm28_versions.so.2\n"
 checks = [{ file = "${work}/relinked", same_as = "${work}/before-failed-link" }]

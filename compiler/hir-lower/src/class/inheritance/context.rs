@@ -25,7 +25,7 @@ impl Lowerer {
             .map(|p| p.ty)
             .collect::<Vec<_>>();
         if !self.same_context_types(&actual, required) {
-            self.error(span, format!(
+            self.error(scoop_source::DiagnosticCode::E1013, span, format!(
                 "context requirements must have the same count, order and exact types as `{target}`"
             ));
         }
@@ -56,6 +56,7 @@ impl Lowerer {
                         )
                 }) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1013,
                         span,
                         format!(
                             "{} inherits conflicting context requirements for `{}`",
@@ -112,7 +113,7 @@ impl Lowerer {
         target: &str,
     ) {
         if !self.same_context_types(&actual.context_parameters, &required.context_parameters) {
-            self.error(span, format!(
+            self.error(scoop_source::DiagnosticCode::E1013, span, format!(
                 "context requirements must have the same count, order and exact types as `{target}`"
             ));
         }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "contextual properties cannot be const",
     "notes": [],
     "origin": {

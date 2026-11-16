@@ -245,6 +245,7 @@ impl Lowerer {
             return true;
         }
         self.error(
+            scoop_source::DiagnosticCode::E1101,
             span,
             format!(
                 "value of type {} contains `@InteriorMutable` state and requires an unsafe context",

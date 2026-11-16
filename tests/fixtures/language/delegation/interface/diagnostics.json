@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1007",
     "message": "interface implementation delegation is only allowed in class and object declarations",
     "notes": [],
     "origin": {

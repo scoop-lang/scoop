@@ -78,13 +78,17 @@ struct Libraries {
 pub(super) fn parse(bytes: &[u8]) -> Result<Vec<Record>, ToolchainError> {
     serde_yaml_ng::Deserializer::from_slice(bytes)
         .map(|document| {
-            let record = Record::deserialize(document)
-                .map_err(|error| ToolchainError(format!("invalid SDK text stub: {error}")))?;
+            let record = Record::deserialize(document).map_err(|error| {
+                ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!("invalid SDK text stub: {error}"),
+                )
+            })?;
             if record.tbd_version != 4 {
-                return Err(ToolchainError(format!(
-                    "SDK text stub version {} is not v4",
-                    record.tbd_version
-                )));
+                return Err(ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!("SDK text stub version {} is not v4", record.tbd_version),
+                ));
             }
             Ok(record)
         })
@@ -110,10 +114,13 @@ impl Record {
             .iter()
             .find(|target| self.targets.iter().any(|value| value == *target))
             .ok_or_else(|| {
-                ToolchainError(format!(
-                    "SDK {} has no compatible {ordinary} target",
-                    self.install_name
-                ))
+                ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!(
+                        "SDK {} has no compatible {ordinary} target",
+                        self.install_name
+                    ),
+                )
             })?;
         for library in &self.reexported_libraries {
             if library.targets.iter().any(|value| value == *target) {
@@ -191,9 +198,10 @@ pub(super) fn insert(
     if let Some(previous) = exports.insert(symbol.clone(), kind)
         && previous.kind != kind.kind
     {
-        return Err(ToolchainError(format!(
-            "SDK export {symbol} has conflicting TLS storage"
-        )));
+        return Err(ToolchainError::new(
+            scoop_source::DiagnosticCode::E2303,
+            format!("SDK export {symbol} has conflicting TLS storage"),
+        ));
     }
     Ok(())
 }

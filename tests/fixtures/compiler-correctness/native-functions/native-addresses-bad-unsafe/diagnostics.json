@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "taking the address of an unsafe callback requires an unsafe context",
     "notes": [],
     "origin": {

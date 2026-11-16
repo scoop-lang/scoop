@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1316",
     "message": "cannot derive `equals` for `Choice`: field `Choice.Hold._1` of type `Any` has no applicable member operator `equals`",
     "notes": [],
     "origin": {

@@ -57,7 +57,10 @@ impl ElfNamespace {
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<Self, LinkError> {
         let ValidatedFinalLinkProfile::Linux(linux) = profile else {
-            return Err(error("ELF namespace requires a Linux target"));
+            return Err(error(
+                scoop_source::DiagnosticCode::ICE2201,
+                "ELF namespace requires a Linux target",
+            ));
         };
         let mut result = Self {
             system: BTreeMap::new(),

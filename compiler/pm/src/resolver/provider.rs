@@ -72,10 +72,13 @@ where
         let mut range = Domain::empty();
         for candidate in candidates {
             if candidate.key() != dependency.key {
-                let mut error = PmError::new(format!(
-                    "expected {} from {}, source declares {}",
-                    dependency.key, dependency.source, candidate.coordinate
-                ));
+                let mut error = PmError::new(
+                    scoop_source::DiagnosticCode::E2102,
+                    format!(
+                        "expected {} from {}, source declares {}",
+                        dependency.key, dependency.source, candidate.coordinate
+                    ),
+                );
                 error.origins = dependency.origins.clone();
                 return Err(error);
             }
@@ -210,6 +213,7 @@ where
     }
 
     fn should_cancel(&self) -> PmResult<()> {
-        scoop_process::check_interrupted().map_err(|error| PmError::new(error.to_string()))
+        scoop_process::check_interrupted()
+            .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2204, error.to_string()))
     }
 }

@@ -11,6 +11,7 @@ impl Parser {
         let keyword = self.bump();
         if !matches!(self.peek().kind, TokenKind::LBrace) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "`release` must be followed by a block without parameters or a return type",
             ));
@@ -32,6 +33,7 @@ impl Parser {
 
     pub(in crate::decl) fn invalid_release_owner<T>(&self, owner: &str) -> Result<T, Diagnostic> {
         Err(Diagnostic::at(
+            scoop_source::DiagnosticCode::E1109,
             self.peek().span,
             format!(
                 "`release` blocks are not allowed in {owner}; only ordinary final classes may declare them"

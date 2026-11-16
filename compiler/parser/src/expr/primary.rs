@@ -143,12 +143,14 @@ impl Parser {
         let checkpoint = self.checkpoint();
         if matches!(self.peek().kind, TokenKind::QuestionDot) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1025,
                 self.peek().span,
                 "safe navigation is not allowed on `super`",
             ));
         }
         if matches!(self.peek().kind, TokenKind::DoubleColon) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0713,
                 self.peek().span,
                 "callable references cannot target `super`",
             ));
@@ -158,6 +160,7 @@ impl Parser {
         }
         if !matches!(self.peek().kind, TokenKind::Dot) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1025,
                 super_span,
                 "`super` is only valid as the receiver of a direct base method call",
             ));
@@ -167,6 +170,7 @@ impl Parser {
         let type_args = self.parse_explicit_call_type_args()?;
         if !matches!(self.peek().kind, TokenKind::LParen) && !self.starts_trailing_lambda() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1025,
                 name.span,
                 "`super` only supports method calls, not field access",
             ));
@@ -220,6 +224,7 @@ impl Parser {
         }
         if !type_args.is_empty() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1025,
                 name.span,
                 "qualified `super` member type arguments require a method call",
             ));
@@ -346,6 +351,7 @@ impl Parser {
         {
             if saw_infer {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0207,
                     self.tokens[start.position].span,
                     "`_` is only allowed in a type argument list immediately followed by a call",
                 ));

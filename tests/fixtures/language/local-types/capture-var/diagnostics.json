@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1502",
     "message": "cannot capture mutable local `value`; bind its current value to a `val` snapshot or capture explicit reference state",
     "notes": [],
     "origin": {

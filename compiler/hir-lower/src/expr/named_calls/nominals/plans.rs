@@ -18,6 +18,7 @@ impl Lowerer {
                         hir::ObjectKind::Companion(_) => "companion object",
                     };
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         format!("{kind} `{}` cannot be constructed", call.callee.text),
                     );
@@ -62,6 +63,7 @@ impl Lowerer {
                     .ok_or(())?;
                 let Some(owner) = self.imported_nominal_owner(ty) else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         format!(
                             "type `{}` does not name a constructible type",
@@ -82,7 +84,7 @@ impl Lowerer {
             }
             NamedCallTarget::Value(ValueTarget::Variant(target)) => {
                 if self.resolved_variant_style(target) == VariantStyle::Unit {
-                    self.error(call.span, format!("unit variant `{}` of `{}` does not take arguments; use `{}` without parentheses", call.callee.text, self.enums[target.enumeration()].name, call.callee.text));
+                    self.error_with_note(scoop_source::DiagnosticCode::E0732, call.span, format!("unit variant `{__diagnostic_arg0}` of `{__diagnostic_arg1}` does not take arguments" , __diagnostic_arg0 = call.callee.text, __diagnostic_arg1 = self.enums[target.enumeration()].name), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H0704, format!("use `{__diagnostic_arg2}` without parentheses" , __diagnostic_arg2 = call.callee.text)));
                     return Err(());
                 }
                 return Ok(PreparedNominalPlans::Nominal(
@@ -114,6 +116,7 @@ impl Lowerer {
             crate::NominalTarget::Struct(id) => {
                 if Some(id) == self.ffi_foreign_callback {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         "`ForeignCallback` values can only be produced by `foreignCallback`"
                             .to_string(),
@@ -122,6 +125,7 @@ impl Lowerer {
                 }
                 if Some(id) == self.ffi_fun_ptr {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         "intrinsic struct `FunPtr` has no source constructor".to_string(),
                     );
@@ -129,6 +133,7 @@ impl Lowerer {
                 }
                 if Some(id) == self.ffi_gc_leaf_fun_ptr {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         "intrinsic struct `GCLeafFunPtr` has no source constructor".to_string(),
                     );
@@ -145,6 +150,7 @@ impl Lowerer {
                     hir::StructRepresentation::Intrinsic(_)
                 ) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         format!(
                             "intrinsic struct `{}` has no source constructor",
@@ -206,6 +212,7 @@ impl Lowerer {
                 }
                 if self.classes[id].modifier == hir::ClassModifier::Abstract {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         format!(
                             "abstract class `{}` cannot be instantiated",
@@ -216,6 +223,7 @@ impl Lowerer {
                 }
                 if !self.classes[id].has_source_constructors() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         call.span,
                         format!(
                             "intrinsic class `{}` has no source constructor",
@@ -230,6 +238,7 @@ impl Lowerer {
             }
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     call.span,
                     format!(
                         "type `{}` does not name a constructible type",
@@ -252,6 +261,7 @@ impl Lowerer {
         }
         if plans.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 call.span,
                 format!(
                     "constructor of type `{}` is not accessible here",

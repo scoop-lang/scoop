@@ -40,7 +40,9 @@ pub fn metadata_with_overlays(
     if overlays.is_empty() {
         return metadata(request);
     }
-    request.validate().map_err(PmError::new)?;
+    request
+        .validate()
+        .map_err(|message| PmError::new(scoop_source::DiagnosticCode::E2502, message))?;
     let cwd = path(&request.cwd)?;
     let explicit_cache = request.package_cache.as_ref().map(path).transpose()?;
     let cache = crate::cache::PackageCache::resolve(&cwd, explicit_cache.as_deref())?;
@@ -54,7 +56,9 @@ fn prepare_with_sources(
     request: PrepareRequestV1,
     local_sources_only: bool,
 ) -> PmResult<PreparedWorkspaceV1> {
-    request.validate().map_err(PmError::new)?;
+    request
+        .validate()
+        .map_err(|message| PmError::new(scoop_source::DiagnosticCode::E2502, message))?;
     let cwd = path(&request.cwd)?;
     let explicit_cache = request.package_cache.as_ref().map(path).transpose()?;
     let cache = crate::cache::PackageCache::resolve(&cwd, explicit_cache.as_deref())?;
@@ -136,7 +140,12 @@ fn project_root(root: ResolvedRoot) -> PmResult<PreparedResolutionV1> {
                     &bindings,
                     include_tests,
                 )
-                .map_err(|error| PmError::new(format!("{}: {error}", member.manifest.display())))?;
+                .map_err(|error| {
+                    PmError::new(
+                        error.code(),
+                        format!("{}: {error}", member.manifest.display()),
+                    )
+                })?;
                 PreparedConeV1::Source {
                     config: Box::new(ExpandedConeInputV1 {
                         input_root: host(&member.input_directory)?,
@@ -174,9 +183,10 @@ fn project_root(root: ResolvedRoot) -> PmResult<PreparedResolutionV1> {
 fn path(carrier: &HostPathCarrier) -> PmResult<std::path::PathBuf> {
     carrier
         .to_path_buf()
-        .map_err(|error| PmError::new(error.to_string()))
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2502, error.to_string()))
 }
 
 fn host(path: &Path) -> PmResult<HostPathCarrier> {
-    HostPathCarrier::from_path(path).map_err(|error| PmError::new(error.to_string()))
+    HostPathCarrier::from_path(path)
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string()))
 }

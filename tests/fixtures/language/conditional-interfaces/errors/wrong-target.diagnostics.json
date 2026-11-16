@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1012",
     "message": "`read` does not override a member of this interface implementation's target",
     "notes": [],
     "origin": {

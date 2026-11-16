@@ -59,9 +59,15 @@ impl Lowerer {
                     &signature.name
                 };
                 if signature.accessor.is_none() || reported_properties.insert(name.to_owned()) {
-                    self.error(self.class_fields[candidate.field].span, format!(
-                        "multiple interface delegates provide `{name}`; declare an explicit override",
-                    ));
+                    self.error_with_note(
+                        scoop_source::DiagnosticCode::E1010,
+                        self.class_fields[candidate.field].span,
+                        format!("multiple interface delegates provide `{name}`"),
+                        scoop_source::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::H1001,
+                            "declare an explicit override".to_owned(),
+                        ),
+                    );
                 }
                 DelegateSelection::Conflict
             };

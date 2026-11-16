@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0912",
     "message": "an abbreviated `is` condition requires a when subject",
     "notes": [],
     "origin": {

@@ -53,6 +53,7 @@ impl Lowerer {
             self.member_override_interfaces(owner, condition.map(|guard| guard.declaration));
         if condition.is_some() && !self.conditional_member_has_slot(id, &interfaces) {
             self.error(
+                scoop_source::DiagnosticCode::E1012,
                 decl.name.span,
                 format!(
                     "`{}` does not override a member of this interface implementation's target",
@@ -234,6 +235,7 @@ impl Lowerer {
                 );
                 if let Some(index) = mismatch {
                     self.error(
+                        scoop_source::DiagnosticCode::E1013,
                         decl.parameter_spans[index],
                         format!(
                             "parameter `{}` of `{short}` must have the same `vararg` shape as `{}`",
@@ -331,6 +333,7 @@ impl Lowerer {
                     "effect"
                 };
                 self.error(
+                    scoop_source::DiagnosticCode::E1013,
                     decl.name.span,
                     format!("`{short}` must have the same `{modifier}` modifier as `{target}`"),
                 );
@@ -345,6 +348,7 @@ impl Lowerer {
         {
             let owner = self.functions[*candidate].name.clone();
             self.error(
+                scoop_source::DiagnosticCode::E1014,
                 decl.name.span,
                 format!("`{short}` cannot override final method `{owner}`"),
             );
@@ -354,6 +358,7 @@ impl Lowerer {
             && method.declaration.interface().modality() == hir::CallableModalityV1::Final
         {
             self.error(
+                scoop_source::DiagnosticCode::E1014,
                 decl.name.span,
                 format!(
                     "`{short}` cannot override final method `{}.{short}`",
@@ -426,10 +431,12 @@ impl Lowerer {
             });
         match (overridden_name, decl.is_override) {
             (Some(target), false) => self.error(
+                scoop_source::DiagnosticCode::E1015,
                 decl.name.span,
                 format!("`{short}` overrides `{target}` and must be marked `override`"),
             ),
             (None, true) => self.error(
+                scoop_source::DiagnosticCode::E1012,
                 decl.name.span,
                 format!("`{short}` is marked `override` but does not override any method"),
             ),

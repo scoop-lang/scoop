@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
+    "code": "E2001",
     "message": "program root must be an executable or native-app Cone",
     "notes": [],
     "origin": {

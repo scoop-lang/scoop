@@ -9,6 +9,7 @@ pub(super) fn require_callable_entry<'ctx>(
         CodegenError::internal(format!(
             "initialization callable `{symbol}` is not declared in the LLVM module"
         ))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
     })
 }
 

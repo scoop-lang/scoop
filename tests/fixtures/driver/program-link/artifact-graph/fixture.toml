@@ -144,6 +144,30 @@ files = [{"copy" = {"from" = "${work}/program", "to" = "${work}/previous-program
 checks = []
 
 [[steps]]
+name = "root_dependency"
+argv = ["${scoop}", "link", "--root-slib", "${work}/artifacts/root.slib", "--dependency-slib", "${work}/artifacts/root.slib", "--runtime-objects", "${build.result.runtime_index}", "--sysroot", "${sysroot}", {"each" = "${link_args}"}, "--message-format", "json", "--dump-plan", "-o", "${work}/program", "--cache-dir", "${cache}"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {"file" = "root_dependency.json"}
+checks = [{"file" = "${work}/program", "same_as" = "${work}/previous-program"}]
+
+[[steps]]
+name = "prepare_wrong_coordinate"
+files = [{copy = {from = "${work}/artifacts/extra.slib", to = "${work}/locator/dev.programlink/library/0.1.0/cone.slib"}}]
+
+[[steps]]
+name = "wrong_coordinate"
+argv = ["${scoop}", "link", "--cone-path", "${work}/locator", "--root-slib", "${work}/artifacts/root.slib", "--dependency-slib", "${work}/artifacts/0.slib", "--runtime-objects", "${build.result.runtime_index}", "--sysroot", "${sysroot}", {"each" = "${link_args}"}, "--message-format", "json", "--dump-plan", "-o", "${work}/program", "--cache-dir", "${cache}"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {"file" = "wrong_coordinate.json"}
+checks = [{"file" = "${work}/program", "same_as" = "${work}/previous-program"}]
+
+[[steps]]
 name = "library_root"
 argv = ["${scoop}", "link", "--root-slib", "${work}/artifacts/1.slib", "--dependency-slib", "${work}/artifacts/0.slib", "--runtime-objects", "${build.result.runtime_index}", "--sysroot", "${sysroot}", {"each" = "${link_args}"}, "--message-format", "json", "--dump-plan", "-o", "${work}/program", "--cache-dir", "${cache}"]
 exit = 1

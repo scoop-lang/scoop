@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0503",
     "message": "lambda has 1 parameter(s), but the expected function type has 2",
     "notes": [],
     "origin": {

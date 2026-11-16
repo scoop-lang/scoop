@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "package `dev.example` has no accessible type `dependency`",
     "notes": [],
     "origin": {

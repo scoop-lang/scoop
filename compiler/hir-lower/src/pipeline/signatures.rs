@@ -73,6 +73,7 @@ impl Lowerer {
             if self.ffi_ptr != Some(core.ptr) {
                 self.current_file = primary_output_file;
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     files[core_diagnostic_file],
                     "the `Ptr` FFI core owner must be the `core_ptr` intrinsic type".to_string(),
                 );
@@ -80,6 +81,7 @@ impl Lowerer {
             if self.ffi_fun_ptr != Some(core.fun_ptr) {
                 self.current_file = primary_output_file;
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     files[core_diagnostic_file],
                     "the `FunPtr` FFI core owner must be the `core_fun_ptr` intrinsic type"
                         .to_string(),
@@ -87,7 +89,7 @@ impl Lowerer {
             }
             if self.ffi_gc_leaf_fun_ptr != Some(core.gc_leaf_fun_ptr) {
                 self.current_file = primary_output_file;
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1403,
                     files[core_diagnostic_file],
                     "the `GCLeafFunPtr` FFI core owner must be the `core_gc_leaf_fun_ptr` intrinsic type"
                         .to_string(),
@@ -162,7 +164,11 @@ impl Lowerer {
         }
         if let Err(error) = self.establish_enum_member_identities() {
             self.current_file = error.file();
-            self.error(error.span(), error.to_string());
+            self.error(
+                scoop_source::DiagnosticCode::ICE0401,
+                error.span(),
+                error.to_string(),
+            );
             return Err(self.take_source_diagnostics().into());
         }
         if defines_core {

@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "recursive declaration type inference: first -> second -> first; add an explicit return type",
-    "notes": [],
+    "code": "E0609",
+    "message": "recursive declaration type inference: first -> second -> first",
+    "notes": [
+      {
+        "code": "H0502",
+        "kind": "help",
+        "message": "add an explicit return type",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 9,

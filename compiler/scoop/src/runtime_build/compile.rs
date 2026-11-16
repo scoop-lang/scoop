@@ -10,7 +10,8 @@ pub(super) fn compile(
 ) -> Result<(Vec<PathBuf>, dependencies::Dependencies), RuntimeBuildError> {
     let mut objects = Vec::with_capacity(inputs.sources.len());
     let mut observed = BTreeSet::new();
-    let temporary = tempfile::tempdir_in(staging).map_err(error)?;
+    let temporary = tempfile::tempdir_in(staging)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     for (index, source) in inputs.sources.iter().enumerate() {
         let object = staging.join(format!("runtime-{index}.o"));
         let depfile = temporary.path().join("unit.d");
@@ -33,16 +34,25 @@ pub(super) fn compile(
         let mut search = inputs.includes.clone();
         search.extend(scoop_toolchain::native_include_search_paths(&output.stderr));
         let bytes = scoop_toolchain::strip_native_include_observations(
-            &std::fs::read(&preprocessed).map_err(error)?,
+            &std::fs::read(&preprocessed)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
             &inputs.root,
             &search,
             &mut observed,
         )
-        .map_err(error)?;
-        std::fs::write(&preprocessed, bytes).map_err(error)?;
-        let dependencies = std::fs::read_to_string(&depfile).map_err(error)?;
-        let paths = scoop_process::parse_make_dependencies(&dependencies, "runtime.o")
-            .ok_or_else(|| error("C compiler returned an invalid runtime dependency file"))?;
+        .map_err(|cause| error(cause.code(), cause))?;
+        std::fs::write(&preprocessed, bytes)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+        let dependencies = std::fs::read_to_string(&depfile)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+        let paths = scoop_process::parse_make_dependencies(&dependencies, "runtime.o").ok_or_else(
+            || {
+                error(
+                    scoop_source::DiagnosticCode::E2303,
+                    "C compiler returned an invalid runtime dependency file",
+                )
+            },
+        )?;
         observed.extend(paths.into_iter().map(|p| inputs.root.join(p)));
         let mut compile = request
             .target
@@ -78,13 +88,18 @@ fn configure(command: &mut Command, inputs: &inputs::Inputs) {
 }
 
 fn run(command: &mut Command, source: &Path) -> Result<std::process::Output, RuntimeBuildError> {
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "{}: C compiler failed: {}",
-            source.display(),
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "{}: C compiler failed: {}",
+                source.display(),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
     }
     Ok(output)
 }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0205",
     "message": "copy update field list does not allow rest entries",
     "notes": [],
     "origin": {

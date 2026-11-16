@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0808",
     "message": "catch parameter type Counter is not a subtype of Throwable",
     "notes": [],
     "origin": {

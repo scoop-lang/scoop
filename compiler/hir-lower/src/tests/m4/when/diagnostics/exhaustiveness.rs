@@ -106,7 +106,7 @@ fn guarded_arm_does_not_count_for_exhaustiveness() {
     let errors = lower_user(file).expect_err("guarded arm must not count");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "non-exhaustive when: missing pattern Red; guarded arms do not contribute to exhaustiveness"
     );
 }
@@ -282,7 +282,7 @@ fn nested_literal_and_guarded_payloads_do_not_contribute_coverage() {
     let errors = lower_user(file).expect_err("guarded and nested literal arms stay refutable");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "non-exhaustive when: missing pattern Some((-2147483648, false)); guarded arms do not contribute to exhaustiveness"
     );
 }
@@ -488,7 +488,7 @@ fn recursive_value_layouts_are_rejected_before_when_proof() {
     assert_eq!(
         errors
             .iter()
-            .map(|error| error.message.as_str())
+            .map(crate::tests::diagnostic_text)
             .collect::<Vec<_>>(),
         vec![
             "recursive value layout does not cross a reference boundary: Recursive -> Recursive",

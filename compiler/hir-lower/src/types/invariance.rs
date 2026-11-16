@@ -2,20 +2,29 @@ use super::*;
 use crate::Owner;
 
 impl Lowerer {
-    /// Add the source-level explanation for the otherwise easy-to-misread
-    /// `G<S>` versus `G<T>` mismatch. The source application may be reached
-    /// through an ordinary class/interface supertype (for example
-    /// `Derived : Base<String>` checked against `Base<Any>`).
-    pub(crate) fn with_nominal_invariance_detail(
+    pub(crate) fn error_with_invariance(
         &mut self,
+        code: scoop_source::DiagnosticCode,
+        span: scoop_ast::Span,
         message: String,
         found: TypeId,
         expected: TypeId,
-    ) -> String {
-        let Some(detail) = self.nominal_invariance_detail(found, expected) else {
-            return message;
-        };
-        format!("{message}; {detail}")
+    ) {
+        let mut diagnostic = scoop_ast::Diagnostic::at(code, span, message);
+        diagnostic.set_file(self.current_text_file());
+        if let Some(detail) = self.nominal_invariance_detail(found, expected) {
+            diagnostic.notes.push(
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0501,
+                    detail,
+                )
+                .with_note(scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0501,
+                    "construct the target application directly or convert explicitly",
+                )),
+            );
+        }
+        self.diagnostics.push(diagnostic);
     }
 
     fn nominal_invariance_detail(&mut self, found: TypeId, expected: TypeId) -> Option<String> {
@@ -42,7 +51,7 @@ impl Lowerer {
                 let source_argument = self.type_name(source.arguments[index]);
                 let target_argument = self.type_name(target.arguments[index]);
                 return Some(format!(
-                    "nominal application `{}` is invariant: first differing type argument {} (`{parameter}`) is `{source_argument}` in `{source_application}`, but `{target_argument}` in `{target_application}`; construct the target application directly or convert explicitly",
+                    "nominal application `{}` is invariant: first differing type argument {} (`{parameter}`) is `{source_argument}` in `{source_application}`, but `{target_argument}` in `{target_application}`",
                     self.nominal_template_name(target.template),
                     index + 1,
                 ));

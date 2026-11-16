@@ -46,6 +46,7 @@ impl Lowerer {
     ) -> Result<hir::Expr, ()> {
         let [argument] = call.type_args.as_slice() else {
             self.error(
+                scoop_source::DiagnosticCode::E1405,
                 call.span,
                 "annotationKey requires exactly one explicit annotation declaration".into(),
             );
@@ -53,6 +54,7 @@ impl Lowerer {
         };
         if !call.args.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0701,
                 call.span,
                 "annotationKey does not accept value arguments".into(),
             );
@@ -60,6 +62,7 @@ impl Lowerer {
         }
         let ast::CallTypeArgument::Explicit(argument) = argument else {
             self.error(
+                scoop_source::DiagnosticCode::E1405,
                 argument.span(),
                 "annotationKey requires an explicit annotation declaration".into(),
             );
@@ -70,6 +73,7 @@ impl Lowerer {
             ast::TypeRefKind::Qualified { path, arguments } if arguments.is_empty() => path,
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1405,
                     argument.span,
                     "annotationKey argument must name an annotation declaration".into(),
                 );
@@ -78,6 +82,7 @@ impl Lowerer {
         };
         if !argument.annotations.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E1405,
                 argument.span,
                 "annotationKey argument is a declaration, not an annotated type use".into(),
             );
@@ -89,6 +94,7 @@ impl Lowerer {
             .any(|parameter| parameter.name == path[0].text)
         {
             self.error(
+                scoop_source::DiagnosticCode::E1405,
                 argument.span,
                 "annotationKey argument must name an annotation declaration".into(),
             );
@@ -97,6 +103,7 @@ impl Lowerer {
         let declaration = self.resolve_type_name_path(path, &[])?;
         let Some(crate::types::ResolvedTypeName::Annotation(annotation)) = declaration else {
             self.error(
+                scoop_source::DiagnosticCode::E1405,
                 argument.span,
                 "annotationKey argument must name an annotation declaration".into(),
             );
@@ -114,6 +121,7 @@ impl Lowerer {
                 self.imported_signature_type(candidate.interface().result())
                     .map_err(|error| {
                         self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
                             call.span,
                             format!("cannot load annotation query result: {error:?}"),
                         );
@@ -122,7 +130,7 @@ impl Lowerer {
             _ => unreachable!("annotation queries are bound core functions"),
         };
         self.prepare_type_reference_factory()
-            .map_err(|error| self.error(call.span, error))?;
+            .map_err(|error| self.error(scoop_source::DiagnosticCode::E1403, call.span, error))?;
         Ok(hir::Expr {
             kind: hir::ExprKind::AnnotationKey(annotation),
             ty,

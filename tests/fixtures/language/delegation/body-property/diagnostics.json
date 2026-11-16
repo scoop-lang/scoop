@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0810",
     "message": "field `value` is not initialized during initialization of class `Host`; initializing receiver cannot observe a field before its store completes",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0607",
     "message": "dependency function `unused`: cannot infer a unique type argument for `U`",
     "notes": [],
     "origin": {

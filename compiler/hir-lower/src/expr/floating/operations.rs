@@ -14,6 +14,7 @@ impl Lowerer {
         let (lhs, rhs) = self.lower_ordered_rhs(lhs, rhs, sink, Some(ty), "$equality.lhs")?;
         if !self.types_equal(lhs.ty, rhs.ty) && !self.is_nothing_ty(rhs.ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "floating comparison requires matching operand types, found {} and {}",

@@ -1,8 +1,73 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `ambiguous` is ambiguous in current-unit top-level candidate layer:\n  - fun ambiguous(first: Int, second: Any, extra: Int): Int — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `first` = Int, argument for `second` = Int\n  - fun ambiguous(first: Any, second: Int): Int — tied after pairwise declaration forwarding; requires integer literal exact commits: argument for `first` = Int, argument for `second` = Int",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `ambiguous` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun ambiguous(first: Int, second: Any, extra: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `first` = Int, argument for `second` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "1f76eba04ae46494bf0ea77073b0a1ba5d523cb2c77cff811d9434eca9579757",
+          "end": 91,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 20
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun ambiguous(first: Any, second: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `first` = Int, argument for `second` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "1f76eba04ae46494bf0ea77073b0a1ba5d523cb2c77cff811d9434eca9579757",
+          "end": 147,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 92
+        }
+      }
+    ],
     "origin": {
       "cone": "1f76eba04ae46494bf0ea77073b0a1ba5d523cb2c77cff811d9434eca9579757",
       "end": 193,

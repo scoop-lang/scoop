@@ -29,13 +29,18 @@ pub struct ProgramLinkArtifact {
 impl ProgramLinkArtifact {
     pub fn object_bytes(&self, member: crate::SlibMemberId) -> Result<&[u8], ProgramLinkReadError> {
         self.source
-            .member(self.source.directory().map_err(error)?, member)
-            .map_err(error)?
+            .member(
+                self.source
+                    .directory()
+                    .map_err(|cause| error(crate::SlibDiagnostic::code(&cause), cause))?,
+                member,
+            )
+            .map_err(|cause| error(crate::SlibDiagnostic::code(&cause), cause))?
             .ok_or_else(|| {
-                error(format!(
-                    "missing object member {member} in Cone {}",
-                    self.identity()
-                ))
+                error(
+                    scoop_source::DiagnosticCode::E2403,
+                    format!("missing object member {member} in Cone {}", self.identity()),
+                )
             })
     }
 

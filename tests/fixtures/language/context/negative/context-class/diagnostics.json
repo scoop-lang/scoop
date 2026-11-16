@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "`context` may only prefix a named function or computed/abstract property",
     "notes": [],
     "origin": {

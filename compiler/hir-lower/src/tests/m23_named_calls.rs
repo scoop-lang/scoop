@@ -9,12 +9,13 @@ fn mixed_inapplicable_partition_reports_each_typed_origin() {
     ]);
     let errors = lower_sources(vec![user], core_file()).expect_err("both kinds are inapplicable");
     assert!(
-        errors.iter().any(
-            |diagnostic| diagnostic.message.contains("no applicable candidate")
-                && diagnostic.message.contains("Choose(value: Boolean)")
-                && diagnostic.message.contains("value: Int")
-                && diagnostic.message.contains("String")
-        ),
+        errors
+            .iter()
+            .any(|diagnostic| crate::tests::diagnostic_text(diagnostic)
+                .contains("no applicable candidate")
+                && crate::tests::diagnostic_text(diagnostic).contains("Choose(value: Boolean)")
+                && crate::tests::diagnostic_text(diagnostic).contains("value: Int")
+                && crate::tests::diagnostic_text(diagnostic).contains("String")),
         "{errors:?}"
     );
 }
@@ -355,7 +356,7 @@ fn failed_named_call_reports_the_source_use_after_exhausting_layers() {
         errors
             .iter()
             .any(|error| error.span() == Some(ast::Span::new(100, 106))
-                && error.message.contains("choose")),
+                && crate::tests::diagnostic_text(error).contains("choose")),
         "{errors:?}"
     );
 }
@@ -472,10 +473,10 @@ fn equally_specific_function_and_constructor_are_ambiguous_in_any_import_order()
         let errors = lower_sources(vec![left.clone(), right.clone(), user.clone()], core_file())
             .expect_err("cross-kind ties cannot use declaration or import order");
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("ambiguous")
-                    && error.span() == Some(ast::Span::new(100, 106))),
+            errors.iter().any(
+                |error| crate::tests::diagnostic_text(error).contains("ambiguous")
+                    && error.span() == Some(ast::Span::new(100, 106))
+            ),
             "{errors:?}"
         );
     }
@@ -744,10 +745,10 @@ fn applicable_exact_ambiguity_does_not_fall_through_to_current_package() {
         let errors = lower_sources(vec![left.clone(), right.clone(), user.clone()], core_file())
             .expect_err("an applicable ambiguous layer is terminal, not a fallback trigger");
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("ambiguous")
-                    && error.span() == Some(ast::Span::new(100, 106))),
+            errors.iter().any(
+                |error| crate::tests::diagnostic_text(error).contains("ambiguous")
+                    && error.span() == Some(ast::Span::new(100, 106))
+            ),
             "{errors:?}"
         );
     }
@@ -894,10 +895,10 @@ fn distinct_property_invoke_pairs_at_one_effective_layer_are_not_first_match() {
             "exact property/star invoke and star property/exact invoke share one ambiguous layer",
         );
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("ambiguous")
-                    && error.span() == Some(ast::Span::new(100, 106))),
+            errors.iter().any(
+                |error| crate::tests::diagnostic_text(error).contains("ambiguous")
+                    && error.span() == Some(ast::Span::new(100, 106))
+            ),
             "{errors:?}"
         );
     }

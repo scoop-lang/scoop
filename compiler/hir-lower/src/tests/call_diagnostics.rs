@@ -19,10 +19,22 @@ fn nested_argument_errors_survive_earlier_outer_bound_failures() {
             lower(&[complete_core_file(), scoop_parser::parse(&source).unwrap()]).unwrap_err();
         assert_eq!(errors.len(), 1, "{errors:#?}");
         let error = &errors[0];
-        assert!(error.message.contains("optional"), "{error:#?}");
-        assert!(error.message.contains("Option<String>"), "{error:#?}");
-        assert!(!error.message.contains("compare"), "{error:#?}");
-        assert!(!error.message.contains("Equals"), "{error:#?}");
+        assert!(
+            crate::tests::diagnostic_text(error).contains("optional"),
+            "{error:#?}"
+        );
+        assert!(
+            crate::tests::diagnostic_text(error).contains("Option<String>"),
+            "{error:#?}"
+        );
+        assert!(
+            !crate::tests::diagnostic_text(error).contains("compare"),
+            "{error:#?}"
+        );
+        assert!(
+            !crate::tests::diagnostic_text(error).contains("Equals"),
+            "{error:#?}"
+        );
         let start = source.find("\"bad\"").unwrap() as u32;
         assert_eq!(error.span(), Some(Span::new(start, start + 5)));
     }
@@ -56,11 +68,10 @@ fun unrelated() {{ nominal(Some("x")) }}
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("optional"))
+            .any(|error| crate::tests::diagnostic_text(error).contains("optional"))
     );
-    assert!(
-        errors
-            .iter()
-            .any(|error| { error.message.contains("nominal") && error.message.contains("Equals") })
-    );
+    assert!(errors.iter().any(|error| {
+        crate::tests::diagnostic_text(error).contains("nominal")
+            && crate::tests::diagnostic_text(error).contains("Equals")
+    }));
 }

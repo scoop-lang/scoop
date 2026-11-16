@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0305",
     "message": "top-level function cannot be protected",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "member `hiddenObligation` of public interface `PublicContract` must be explicitly public",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "abstract method `hiddenAbstract` is not visible throughout the inheritance domain of class `AbstractApi`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `run` does not cover inherited slot `PublicBase.run`",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "signature of function `leak` exposes type `Hidden` outside its access domain",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0411",
     "message": "protected method `secret` cannot be accessed through receiver of static type `PublicBase`; receiver must be `NarrowOverride` or one of its subclasses",
     "notes": [],
     "origin": {

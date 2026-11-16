@@ -169,6 +169,7 @@ impl Lowerer {
                 .can_fall_through()
         {
             self.error(
+                scoop_source::DiagnosticCode::E0801,
                 block.span,
                 format!("non-Unit function `{name}` may complete without returning a value"),
             );
@@ -203,12 +204,13 @@ impl Lowerer {
                     if !self.is_subtype(value.ty, return_ty) {
                         let expected = self.type_name(return_ty);
                         let found = self.type_name(value.ty);
-                        let message = self.with_nominal_invariance_detail(
+                        self.error_with_invariance(
+                            scoop_source::DiagnosticCode::E0501,
+                            expr.span(),
                             format!("body of `{name}` must be of type {expected}, found {found}"),
                             value.ty,
                             return_ty,
                         );
-                        self.error(expr.span(), message);
                     } else {
                         let value = self.adapt_to(value, return_ty);
                         statements.extend(sink);

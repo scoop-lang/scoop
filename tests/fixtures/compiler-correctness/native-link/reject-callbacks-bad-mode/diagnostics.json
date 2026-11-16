@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1218",
     "message": "foreign callback mode must be the constant `Reusable` or `OneShot`",
     "notes": [],
     "origin": {

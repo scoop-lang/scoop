@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1023",
     "message": "cyclic conditional interface proof: the implementation cannot establish its own condition (LocalGate<LocalCycle> : LocalMark -> LocalGate<LocalCycle> : LocalMark)",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1023",
     "message": "cyclic conditional interface proof: the implementation cannot establish its own condition (RemoteGate<RemoteCycle> : RemoteMark -> RemoteGate<RemoteCycle> : RemoteMark)",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1023",
     "message": "expanding conditional interface proof: the implementation cannot establish its own condition (LocalGate<Expanding<Wrap<T>>> : LocalMark -> LocalGate<Expanding<Wrap<Wrap<T>>>> : LocalMark)",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1023",
     "message": "expanding conditional interface proof: the implementation cannot establish its own condition (LocalGate<Expanding<Wrap<Wrap<T>>>> : LocalMark -> LocalGate<Expanding<Wrap<Wrap<Wrap<T>>>>> : LocalMark)",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1023",
     "message": "expanding conditional interface proof: the implementation cannot establish its own condition (LocalGate<Expanding<Wrap<Wrap<Wrap<T>>>>> : LocalMark -> LocalGate<Expanding<Wrap<Wrap<Wrap<Wrap<T>>>>>> : LocalMark)",
     "notes": [],
     "origin": {

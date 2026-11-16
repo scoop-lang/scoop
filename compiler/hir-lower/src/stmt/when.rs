@@ -195,6 +195,7 @@ impl Lowerer {
             Some(hir::WhenFallback::Else(body))
         } else if value_position {
             self.error(
+                scoop_source::DiagnosticCode::E0904,
                 when.span,
                 "non-exhaustive when: a subjectless value when requires `else`".into(),
             );

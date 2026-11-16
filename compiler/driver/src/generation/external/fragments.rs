@@ -33,6 +33,7 @@ pub(super) fn collect(
     for body in bodies {
         let Some(method) = methods.get(&body.method) else {
             errors.push(diagnostic(
+                scoop_source::DiagnosticCode::E2511,
                 fallback,
                 "generator returned a method outside its pending batch",
             ));
@@ -40,6 +41,7 @@ pub(super) fn collect(
         };
         if !seen.insert(body.method) {
             errors.push(diagnostic(
+                scoop_source::DiagnosticCode::E2511,
                 &method.origin,
                 "generator returned the same method more than once",
             ));
@@ -82,9 +84,9 @@ pub(super) fn parse(
             Err(diagnostics) => errors.extend(diagnostics.into_iter().map(|mut error| {
                 error.set_source(source.identity.clone());
                 for note in &mut error.notes {
-                    note.source = scoop_source::LocalDiagnosticSource::Bound(Box::new(
+                    note.set_source(scoop_source::LocalDiagnosticSource::Bound(Box::new(
                         source.identity.clone(),
-                    ));
+                    )));
                 }
                 error
                     .notes

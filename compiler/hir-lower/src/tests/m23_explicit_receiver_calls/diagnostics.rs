@@ -47,9 +47,11 @@ fn extension_failures_retain_lambda_errors_in_both_declaration_orders() {
         for result in check_local_and_imported(&provider, consumer) {
             let errors = result.unwrap_err();
             assert!(
-                errors.iter().any(|error| error.message.contains(
-                    "unsafe function `danger` may only be called from an unsafe context"
-                )),
+                errors
+                    .iter()
+                    .any(|error| crate::tests::diagnostic_text(error).contains(
+                        "unsafe function `danger` may only be called from an unsafe context"
+                    )),
                 "{errors:#?}"
             );
         }
@@ -70,7 +72,7 @@ fn extension_failures_deduplicate_context_independent_argument_errors() {
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1, "{errors:#?}");
         assert!(
-            errors[0].message.contains("unknown variable `missing`"),
+            crate::tests::diagnostic_text(&errors[0]).contains("unknown variable `missing`"),
             "{errors:#?}"
         );
     }
@@ -119,9 +121,18 @@ fn callable_properties_retain_argument_errors() {
     for result in check_local_and_imported(provider, consumer) {
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1, "{errors:#?}");
-        assert!(errors[0].message.contains("Long"), "{errors:#?}");
-        assert!(errors[0].message.contains("String"), "{errors:#?}");
-        assert!(!errors[0].message.contains("not callable"), "{errors:#?}");
+        assert!(
+            crate::tests::diagnostic_text(&errors[0]).contains("Long"),
+            "{errors:#?}"
+        );
+        assert!(
+            crate::tests::diagnostic_text(&errors[0]).contains("String"),
+            "{errors:#?}"
+        );
+        assert!(
+            !crate::tests::diagnostic_text(&errors[0]).contains("not callable"),
+            "{errors:#?}"
+        );
     }
 }
 

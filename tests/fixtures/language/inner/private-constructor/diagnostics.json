@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "constructor of inner class `Inner` is not accessible here",
     "notes": [],
     "origin": {

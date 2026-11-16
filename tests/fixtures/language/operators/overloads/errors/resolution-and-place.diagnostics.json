@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "type `Plain` has no method `plus`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1506",
     "message": "operator `plus` is applicable, but compound-assignment fallback is not writable",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0730",
     "message": "compound assignment is ambiguous: both `plusAssign` and `plus` are applicable",
     "notes": [],
     "origin": {

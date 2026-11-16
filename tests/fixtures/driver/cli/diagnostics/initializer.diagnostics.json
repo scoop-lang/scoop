@@ -1,7 +1,7 @@
 [
   {
     "severity": "error",
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0502",
     "message": "value of type Long is not callable",
     "origin": {
       "cone": "8d9f507165c2d6692afbdeaf99f9951e7f6adcc6c42a3d37700ce92bbd4b6357",

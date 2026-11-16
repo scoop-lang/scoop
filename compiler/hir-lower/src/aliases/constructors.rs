@@ -20,7 +20,7 @@ impl Lowerer {
     ) -> Option<AliasConstructorSignature<D>> {
         let own_count = alias.parameters.len() - alias.outer_parameter_count;
         if !explicit.is_empty() && explicit.len() != own_count {
-            self.error(span, format!("typealias constructor expects {own_count} type argument(s), but {} were supplied", explicit.len()));
+            self.error(scoop_source::DiagnosticCode::E0601, span, format!("typealias constructor expects {own_count} type argument(s), but {} were supplied", explicit.len()));
             return None;
         }
         let mut arguments = self

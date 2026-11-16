@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown function `selected`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "code": "E0401",
+    "message": "unknown function `selected`",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "d8c93b6aa24442657262de95519311c5994bdd9a13c30501b14fa359e490acff",
       "end": 57,
@@ -13,9 +23,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown function `selected`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "code": "E0401",
+    "message": "unknown function `selected`",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "d8c93b6aa24442657262de95519311c5994bdd9a13c30501b14fa359e490acff",
       "end": 243,
@@ -26,11 +46,14 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "import target is not accessible from this source location",
     "notes": [
       {
+        "code": "N0401",
+        "kind": "note",
         "message": "declaration is outside this file's permitted access domain",
+        "notes": [],
         "origin": {
           "cone": "d8c93b6aa24442657262de95519311c5994bdd9a13c30501b14fa359e490acff",
           "end": 67,
@@ -50,7 +73,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0406",
     "message": "import target is not available in the current compilation unit",
     "notes": [],
     "origin": {
@@ -63,11 +86,14 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0404",
     "message": "value `value` is ambiguous in the block exact import layer",
     "notes": [
       {
+        "code": "N0002",
+        "kind": "note",
         "message": "candidate declared here",
+        "notes": [],
         "origin": {
           "cone": "d8c93b6aa24442657262de95519311c5994bdd9a13c30501b14fa359e490acff",
           "end": 101,
@@ -77,7 +103,10 @@
         }
       },
       {
+        "code": "N0002",
+        "kind": "note",
         "message": "candidate declared here",
+        "notes": [],
         "origin": {
           "cone": "d8c93b6aa24442657262de95519311c5994bdd9a13c30501b14fa359e490acff",
           "end": 134,
@@ -97,7 +126,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0404",
     "message": "import target is ambiguous in the current compilation unit",
     "notes": [],
     "origin": {

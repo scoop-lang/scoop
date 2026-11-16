@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0310",
     "message": "annotation classes cannot have type parameters",
     "notes": [],
     "origin": {

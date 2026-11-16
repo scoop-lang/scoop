@@ -21,6 +21,7 @@ impl Parser {
     ) -> Result<InterfaceImplementationDecl, Diagnostic> {
         let start = prefix.modifiers.override_span.take().ok_or_else(|| {
             Diagnostic::at(
+                scoop_source::DiagnosticCode::E1015,
                 self.peek().span,
                 "an interface implementation requires `override`",
             )
@@ -28,12 +29,14 @@ impl Parser {
         self.require_empty_member_prefix(&prefix, "an interface implementation")?;
         if let Some(span) = prefix.modifiers.sealed_span.or(prefix.modifiers.inner_span) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0305,
                 span,
                 "invalid modifier on an interface implementation",
             ));
         }
         if !prefix.modifiers.context_parameters.is_empty() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1024,
                 start,
                 "an interface implementation cannot declare context parameters",
             ));
@@ -41,10 +44,20 @@ impl Parser {
         self.expect("`interface`", |kind| matches!(kind, TokenKind::Interface))?;
         let interface = self.parse_type_ref()?;
         let where_clause = self.parse_where_clause()?.ok_or_else(|| {
-            Diagnostic::at(interface.span, "`override interface` requires a non-empty `where` clause; declare an unconditional interface in the type or companion's interface list")
+            Diagnostic::at(
+                scoop_source::DiagnosticCode::E1024,
+                interface.span,
+                "`override interface` requires a non-empty `where` clause".to_owned(),
+            )
+            .with_note(scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H1002,
+                "declare an unconditional interface in the type or companion's interface list"
+                    .to_owned(),
+            ))
         })?;
         if let Some(requirement) = where_clause.requirements.first() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1024,
                 requirement.span,
                 "`requires` is not allowed in an interface implementation",
             ));
@@ -55,6 +68,7 @@ impl Parser {
             .find(|condition| matches!(condition.bound, TypeBound::ExcludedInterface(_)))
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1024,
                 condition.span,
                 "interface implementation conditions must be positive",
             ));
@@ -103,6 +117,7 @@ impl Parser {
         let prefix = self.parse_member_prefix()?;
         if prefix.modifiers.override_span.is_none() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "interface implementation members must be `override` methods or computed properties",
             ));
@@ -113,6 +128,7 @@ impl Parser {
                     self.parse_prefixed_member_function(prefix, FunctionContext::TypeBody)?;
                 if let Some(parameter) = function.type_params.first() {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0310,
                         parameter.span,
                         "interface implementation methods cannot declare type parameters",
                     ));
@@ -126,6 +142,7 @@ impl Parser {
                     PropertyBodySyntax::Computed(_) | PropertyBodySyntax::Abstract
                 ) {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E1024,
                         property.span,
                         "interface implementations cannot declare property storage or delegation",
                     ));
@@ -133,6 +150,7 @@ impl Parser {
                 Ok(InterfaceImplementationMember::Property(Box::new(property)))
             }
             _ => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "interface implementations contain only override methods and computed properties",
             )),

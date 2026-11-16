@@ -57,9 +57,9 @@ fn struct_init_arity_is_an_error() {
         let errors = lower_user(file).expect_err("wrong arity must fail");
         assert_eq!(errors.len(), 1);
         assert_eq!(
-            errors[0].message,
+            crate::tests::diagnostic_text(&errors[0]),
             format!(
-                "no applicable candidate for constructor `Point` in nominal constructor candidate layer:\n  - struct Point(x: Int, y: Int) — expects {expected} argument(s), but {supplied} were supplied"
+                "no applicable candidate for constructor `Point` in nominal constructor candidate layer; struct Point(x: Int, y: Int); expects {expected} argument(s), but {supplied} were supplied"
             )
         );
     }
@@ -74,8 +74,8 @@ fn struct_init_arity_singular_noun() {
     let errors = lower_user(file).expect_err("wrong arity must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Box` in nominal constructor candidate layer:\n  - struct Box(v: Int) — expects 1 argument(s), but 0 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Box` in nominal constructor candidate layer; struct Box(v: Int); expects 1 argument(s), but 0 were supplied"
     );
 }
 
@@ -94,8 +94,8 @@ fn struct_init_field_type_is_an_error() {
     let errors = lower_user(file).expect_err("field type mismatch must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Point` in nominal constructor candidate layer:\n  - struct Point(x: Int, y: Int) — argument for `y` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Point` in nominal constructor candidate layer; struct Point(x: Int, y: Int); argument for `y` has type String, which is not a subtype of Int"
     );
 }
 

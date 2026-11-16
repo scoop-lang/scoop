@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1004",
     "message": "an enum may have only one integer parent",
     "notes": [],
     "origin": {

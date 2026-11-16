@@ -16,16 +16,23 @@ fn artifact_mapping_keeps_note_locations_messages_and_unrelated_origins() {
         origin("/staging/consumer.slib", "lir/initialization/role"),
         vec![
             DiagnosticNoteV1::new(
+                scoop_source::DiagnosticCode::N0001,
                 "same artifact".to_owned(),
                 origin("/staging/consumer.slib", "mir/callable"),
             )
             .unwrap(),
             DiagnosticNoteV1::new(
+                scoop_source::DiagnosticCode::N0001,
                 "another artifact".to_owned(),
                 origin("/inputs/provider.slib", "hir/declaration"),
             )
             .unwrap(),
-            DiagnosticNoteV1::new("tool note".to_owned(), DiagnosticOriginV1::None).unwrap(),
+            DiagnosticNoteV1::new(
+                scoop_source::DiagnosticCode::N0001,
+                "tool note".to_owned(),
+                DiagnosticOriginV1::None,
+            )
+            .unwrap(),
         ],
     )
     .unwrap();

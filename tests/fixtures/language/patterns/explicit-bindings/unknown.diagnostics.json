@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "enum `E` has no variant `Bad`; use `val Bad` to bind the matched value",
-    "notes": [],
+    "code": "E0402",
+    "message": "enum `E` has no variant `Bad`",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use `val Bad` to bind the matched value",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 100,
@@ -13,9 +23,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "bare pattern `text` cannot match String; use `val text` to bind the matched value",
-    "notes": [],
+    "code": "E0901",
+    "message": "bare pattern `text` cannot match String",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use `val text` to bind the matched value",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 172,
@@ -26,9 +46,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "bare pattern `first` cannot match Int; use `val first` to bind the matched value",
-    "notes": [],
+    "code": "E0901",
+    "message": "bare pattern `first` cannot match Int",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use `val first` to bind the matched value",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 250,
@@ -39,9 +69,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "enum `E` has no variant `payload`; use `val payload` to bind the matched value",
-    "notes": [],
+    "code": "E0402",
+    "message": "enum `E` has no variant `payload`",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use `val payload` to bind the matched value",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 333,
@@ -52,9 +92,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "enum `E` has no variant `Bad`; use `val Bad` to bind the matched value",
-    "notes": [],
+    "code": "E0402",
+    "message": "enum `E` has no variant `Bad`",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use `val Bad` to bind the matched value",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 409,
@@ -65,9 +115,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "enum `E` has no variant `saved`; use `val saved` to bind the matched value",
-    "notes": [],
+    "code": "E0402",
+    "message": "enum `E` has no variant `saved`",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use `val saved` to bind the matched value",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 508,

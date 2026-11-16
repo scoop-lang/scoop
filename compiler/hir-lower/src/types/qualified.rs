@@ -29,6 +29,7 @@ impl Lowerer {
             );
             if path.len() != 2 {
                 self.error(
+                    scoop_source::DiagnosticCode::E0618,
                     span,
                     "a dependent type only supports the `Companion` projection".into(),
                 );
@@ -38,12 +39,17 @@ impl Lowerer {
         }
         let Some(target) = self.resolve_type_name_path(path, arguments).ok()? else {
             let first = path.first().expect("a qualified type path is non-empty");
-            self.error(first.span, format!("unknown type `{}`", first.text));
+            self.error(
+                scoop_source::DiagnosticCode::E0401,
+                first.span,
+                format!("unknown type `{}`", first.text),
+            );
             return None;
         };
         match target {
             ResolvedTypeName::Annotation(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     span,
                     "annotation declarations cannot be used as value types".into(),
                 );

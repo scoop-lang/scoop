@@ -7,10 +7,12 @@ pub(super) fn expand(
     loaded: &LoadedManifest,
     workspace: Option<&LoadedManifest>,
 ) -> PmResult<ExpandedCone> {
-    let declaration =
-        loaded.document.cone.as_ref().ok_or_else(|| {
-            PmError::new(format!("{} does not define a Cone", loaded.path.display()))
-        })?;
+    let declaration = loaded.document.cone.as_ref().ok_or_else(|| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2002,
+            format!("{} does not define a Cone", loaded.path.display()),
+        )
+    })?;
     let group = inherit("group", &declaration.group, loaded, workspace)?;
     let version = inherit("version", &declaration.version, loaded, workspace)?;
     let coordinate =
@@ -29,7 +31,8 @@ pub(super) fn expand(
                     (version.1, Some(&declaration.version))
                 }
             };
-            let mut error = PmError::new(error.to_string()).at(origin);
+            let mut error =
+                PmError::new(scoop_source::DiagnosticCode::E2010, error.to_string()).at(origin);
             if let Some(InheritableValue::Workspace { span }) = field {
                 error = error.at(loaded.origin(span.clone()));
             }
@@ -37,6 +40,7 @@ pub(super) fn expand(
         })?;
     if coordinate == ConeCoordinate::reserved_single_file() {
         return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2011,
             "user manifest cannot declare the reserved single-file coordinate",
         )
         .at(loaded.origin(declaration.name.span.clone())));
@@ -44,9 +48,11 @@ pub(super) fn expand(
     if coordinate == ConeCoordinate::reserved_core()
         && declaration.kind != RequestedConeKind::Library
     {
-        return Err(
-            PmError::new("core must be a library").at(loaded.origin(declaration.kind_span.clone()))
-        );
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2011,
+            "core must be a library",
+        )
+        .at(loaded.origin(declaration.kind_span.clone())));
     }
     let mut metadata = BTreeMap::new();
     for (key, value) in [
@@ -91,16 +97,20 @@ fn inherit(
             let (owner, definition) = workspace
                 .and_then(|owner| owner.document.workspace.as_ref().map(|ws| (owner, ws)))
                 .ok_or_else(|| {
-                    PmError::new(format!(
-                        "cannot inherit {field}: Cone is not a workspace member"
-                    ))
+                    PmError::new(
+                        scoop_source::DiagnosticCode::E2019,
+                        format!("cannot inherit {field}: Cone is not a workspace member"),
+                    )
                     .at(loaded.origin(span.clone()))
                 })?;
             let value = definition.cone.get(field).ok_or_else(|| {
-                PmError::new(format!(
-                    "workspace {} does not define cone.{field}",
-                    owner.path.display()
-                ))
+                PmError::new(
+                    scoop_source::DiagnosticCode::E2019,
+                    format!(
+                        "workspace {} does not define cone.{field}",
+                        owner.path.display()
+                    ),
+                )
                 .at(loaded.origin(span.clone()))
             })?;
             Ok((value.value.clone(), owner.origin(value.span.clone())))
@@ -122,16 +132,20 @@ fn dependencies(
                     let (owner, ws) = workspace
                         .and_then(|owner| owner.document.workspace.as_ref().map(|ws| (owner, ws)))
                         .ok_or_else(|| {
-                            PmError::new(format!(
-                                "cannot inherit {key}: Cone is not a workspace member"
-                            ))
+                            PmError::new(
+                                scoop_source::DiagnosticCode::E2019,
+                                format!("cannot inherit {key}: Cone is not a workspace member"),
+                            )
                             .at(loaded.origin(span.clone()))
                         })?;
                     let request = ws.dependencies.get(key).ok_or_else(|| {
-                        PmError::new(format!(
-                            "workspace {} does not define dependency {key}",
-                            owner.path.display()
-                        ))
+                        PmError::new(
+                            scoop_source::DiagnosticCode::E2019,
+                            format!(
+                                "workspace {} does not define dependency {key}",
+                                owner.path.display()
+                            ),
+                        )
                         .at(loaded.origin(span.clone()))
                     })?;
                     (request, owner, Some(loaded.origin(span.clone())))

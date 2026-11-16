@@ -62,12 +62,14 @@ pub fn select_cone_output_kind(
         )]),
         [first, rest @ ..] => {
             let diagnostic = Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1701,
                 first.file,
                 first.span,
                 format!("multiple {kind} entries: declare exactly one ordinary {forms}"),
             );
             let diagnostic = rest.iter().fold(diagnostic, |diagnostic, declaration| {
                 diagnostic.with_note(DiagnosticNote::at(
+                    scoop_source::DiagnosticCode::N0001,
                     declaration.file,
                     declaration.span,
                     format!("another {kind} entry candidate is declared here"),
@@ -263,11 +265,13 @@ fn missing_entry_diagnostic(
         .min_by(|(_, left), (_, right)| left.identity.cmp(&right.identity));
     let diagnostic = match anchor {
         Some((file, _)) => Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E1702,
             file,
             Span::new(0, 0),
             format!("missing {kind} entry: declare exactly one ordinary {forms}"),
         ),
         None => Diagnostic::without_span(
+            scoop_source::DiagnosticCode::E1702,
             DiagnosticSeverity::Error,
             0,
             format!("missing {kind} entry: current Cone has no source in HIR"),
@@ -280,6 +284,7 @@ fn missing_entry_diagnostic(
             let function = &module.functions[declaration.function];
             if kind == "native-app" && !matches!(function.kind, hir::FunctionKind::User(_)) {
                 return diagnostic.with_note(DiagnosticNote::at(
+                    scoop_source::DiagnosticCode::N1701,
                     declaration.file,
                     declaration.span,
                     format!(
@@ -290,6 +295,7 @@ fn missing_entry_diagnostic(
                 ));
             }
             diagnostic.with_note(DiagnosticNote::at(
+                scoop_source::DiagnosticCode::N1701,
                 declaration.file,
                 declaration.span,
                 format!(
@@ -322,6 +328,7 @@ fn diagnostic_span(span: SourceSpan) -> Result<Span, String> {
 
 fn invalid_hir_diagnostic(message: impl Into<String>) -> Diagnostic {
     Diagnostic::without_span(
+        scoop_source::DiagnosticCode::ICE0401,
         DiagnosticSeverity::Error,
         0,
         format!("invalid HIR entry relation: {}", message.into()),

@@ -47,7 +47,12 @@ pub(super) struct UpdateArgs {
 pub(super) fn update(args: UpdateArgs) -> PmResult<()> {
     let precise = match args.precise {
         Some(value) if args.package.len() == 1 => Some((args.package[0].clone(), value)),
-        Some(_) => return Err(PmError::new("--precise requires exactly one --package")),
+        Some(_) => {
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2001,
+                "--precise requires exactly one --package",
+            ));
+        }
         None => None,
     };
     execute(args.resolve, false, Some(args.package), precise)
@@ -59,7 +64,8 @@ pub(super) fn execute(
     update: Option<Vec<DependencyCoordinateKey>>,
     precise: Option<(DependencyCoordinateKey, String)>,
 ) -> PmResult<()> {
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let members = if args.workspace {
         MemberSelection::All
     } else if args.member.is_empty() {
@@ -76,9 +82,9 @@ pub(super) fn execute(
             .target
             .map(Ok)
             .unwrap_or_else(|| scoop_toolchain::host_target_triple().map(str::to_owned))
-            .map_err(|error| PmError::new(error.to_string()))?,
+            .map_err(|error| PmError::new(error.code(), error.to_string()))?,
         sysroot: scoop_toolchain::configured_sysroot_root(args.sysroot)
-            .map_err(|error| PmError::new(error.to_string()))?,
+            .map_err(|error| PmError::new(error.code(), error.to_string()))?,
         artifact_roots: args.cone_path,
         package_cache: args.package_cache_dir,
         lockfile: args.lockfile,
@@ -99,7 +105,10 @@ pub(super) fn execute(
         };
         println!(
             "{}",
-            serde_json::to_string_pretty(&lock).map_err(|error| PmError::new(error.to_string()))?
+            serde_json::to_string_pretty(&lock).map_err(|error| PmError::new(
+                scoop_source::DiagnosticCode::ICE2501,
+                error.to_string()
+            ))?
         );
     } else {
         for root in result.roots {

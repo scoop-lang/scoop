@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of property `inherited` must be of type Int, found T",
     "notes": [],
     "origin": {

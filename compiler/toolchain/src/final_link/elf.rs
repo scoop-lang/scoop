@@ -43,9 +43,11 @@ impl<'a> GnuElfLinkPlan<'a> {
         scratch: &Path,
         output: &Path,
     ) -> Result<(), ToolchainError> {
-        std::fs::create_dir_all(scratch).map_err(error)?;
+        std::fs::create_dir_all(scratch)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let script = scratch.join("scoop-metadata.ld");
-        std::fs::write(&script, self.metadata_script()).map_err(error)?;
+        std::fs::write(&script, self.metadata_script())
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         command
             .args(GNU_ELF_OPTIONS)
             .args(self.output_flags())
@@ -62,7 +64,7 @@ impl<'a> GnuElfLinkPlan<'a> {
                     super::output::NATIVE_APP_ENTRY
                 ),
             )
-            .map_err(error)?;
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             command
                 .args(["-Xlinker", "--version-script", "-Xlinker"])
                 .arg(exports)

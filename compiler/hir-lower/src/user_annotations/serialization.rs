@@ -29,10 +29,15 @@ impl Lowerer {
                 _ => false,
             };
             if !permitted {
-                self.error(span, "`@Serialize` is not allowed on this target".into());
+                self.error(
+                    scoop_source::DiagnosticCode::E1301,
+                    span,
+                    "`@Serialize` is not allowed on this target".into(),
+                );
             }
             if config.ignore && (!config.rename.is_empty() || config.required || config.emit_null) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1303,
                     span,
                     "Serialize ignore cannot be combined with rename, required, or emitNull".into(),
                 );
@@ -40,6 +45,7 @@ impl Lowerer {
             if matches!(target, hir::SourceAnnotationTarget::Variant(_)) {
                 if config.required || config.emit_null || config.ignore {
                     self.error(
+                        scoop_source::DiagnosticCode::E1309,
                         span,
                         "Serialize on an enum variant only supports rename".into(),
                     );
@@ -50,6 +56,7 @@ impl Lowerer {
                     .is_some_and(|ty| self.as_option(ty).is_some())
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1309,
                     span,
                     "Serialize emitNull requires a field declared as core Option".into(),
                 );

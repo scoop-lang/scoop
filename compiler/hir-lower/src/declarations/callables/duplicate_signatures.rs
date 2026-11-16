@@ -50,6 +50,7 @@ impl Lowerer {
                 rejected.extend(duplicates);
                 self.current_file = file_index;
                 self.error(
+                    scoop_source::DiagnosticCode::E0302,
                     decl.name.span,
                     format!(
                         "function `{}` is already declared with the same signature",
@@ -79,6 +80,7 @@ impl Lowerer {
                 let host = owner.describe(self);
                 self.current_file = file_index;
                 self.error(
+                    scoop_source::DiagnosticCode::E0302,
                     decl.name.span,
                     format!(
                         "function `{}` in {host} is already declared with the same signature",

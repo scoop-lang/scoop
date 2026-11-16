@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0302",
     "message": "function `duplicate` is already declared with the same signature",
     "notes": [],
     "origin": {

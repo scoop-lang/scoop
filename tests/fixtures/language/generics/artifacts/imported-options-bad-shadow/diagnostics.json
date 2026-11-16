@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "`return` value of `result` must be of type Option<Int>, found Int",
     "notes": [],
     "origin": {
@@ -13,9 +13,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_COMPILER_WARNING",
-    "message": "binding `None` shadows an enum variant available here; rename the binding or qualify the variant",
-    "notes": [],
+    "code": "W0901",
+    "message": "binding `None` shadows an enum variant available here",
+    "notes": [
+      {
+        "code": "H0903",
+        "kind": "help",
+        "message": "rename the binding or qualify the variant",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "cf0062f00d9a72578e2470f1f5b5e00d3fbdabe85c7c7ba02abc380ba8ea1e2a",
       "end": 78,

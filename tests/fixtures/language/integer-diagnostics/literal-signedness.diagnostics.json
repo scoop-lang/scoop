@@ -1,7 +1,7 @@
 [
   {
     "severity": "error",
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0107",
     "message": "integer literal `2` is not representable as UInt8; primitive integer operands require one exact type; convert this operand explicitly with `toUByte()`",
     "origin": {
       "kind": "source",

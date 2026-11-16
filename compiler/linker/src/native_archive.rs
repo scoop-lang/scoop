@@ -18,7 +18,8 @@ pub(crate) fn prepare_object(
 ) -> Result<Cow<'_, [u8]>, LinkError> {
     if target.native_object_format() == NativeObjectFormat::MachO64 {
         Ok(Cow::Owned(
-            scoop_slib::remove_empty_macho_code_labels(&bytes).map_err(error)?,
+            scoop_slib::remove_empty_macho_code_labels(&bytes)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?,
         ))
     } else {
         Ok(bytes)
@@ -38,8 +39,12 @@ pub(crate) fn write(
     kind: ArchiveKind,
     members: &[NewArchiveMember<'_>],
 ) -> Result<(), LinkError> {
-    let mut writer = BufWriter::new(File::create(path).map_err(error)?);
+    let mut writer = BufWriter::new(
+        File::create(path).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+    );
     ar_archive_writer::write_archive_to_stream(&mut writer, members, kind, false, None)
-        .map_err(error)?;
-    writer.flush().map_err(error)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    writer
+        .flush()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
 }

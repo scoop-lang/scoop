@@ -1,8 +1,65 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "callable reference `::conflict` is ambiguous in dependency top-level candidate layer:\n  - fun conflict<T>(left: Int, right: T): Int — matches the expected function type\n  - fun conflict<T>(left: T, right: Int): Int — matches the expected function type",
-    "notes": [],
+    "code": "E0712",
+    "message": "callable reference `::conflict` is ambiguous in dependency top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun conflict<T>(left: Int, right: T): Int",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "matches the expected function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun conflict<T>(left: T, right: Int): Int",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "matches the expected function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "e3d53dd864f0cbdd1e732908e3981c28c0db97835a879d38fc536065df087469",
       "end": 141,

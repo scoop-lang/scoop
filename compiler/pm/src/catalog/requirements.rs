@@ -92,22 +92,60 @@ impl Catalog<'_> {
                 let path = lexical(&declaration.base.join(path));
                 match context {
                     Context::Git(checkout) => {
-                        if !path.starts_with(&checkout.root) { return Err(PmError::new(format!("Git dependency {key} has a path outside its checkout")).at(declaration.origin.clone())); }
-                        SourceRequest::GitPath { checkout: checkout.clone(), subdir: relative(&path, &checkout.root)? }
-                    },
+                        if !path.starts_with(&checkout.root) {
+                            return Err(PmError::new(
+                                scoop_source::DiagnosticCode::E2014,
+                                format!("Git dependency {key} has a path outside its checkout"),
+                            )
+                            .at(declaration.origin.clone()));
+                        }
+                        SourceRequest::GitPath {
+                            checkout: checkout.clone(),
+                            subdir: relative(&path, &checkout.root)?,
+                        }
+                    }
                     Context::Local => SourceRequest::Path(path),
                 }
+            }
+            PackageSource::Git(source) => SourceRequest::Git {
+                source: source.clone(),
+                base: declaration.base.clone(),
             },
-            PackageSource::Git(source) => SourceRequest::Git { source: source.clone(), base: declaration.base.clone() },
             PackageSource::Registry(registry) => SourceRequest::Registry(registry.clone()),
             PackageSource::Artifact(path) => {
-                if !matches!(context, Context::Local) { return Err(PmError::new("remote packages cannot contain local artifact locators").at(declaration.origin.clone())); }
+                if !matches!(context, Context::Local) {
+                    return Err(PmError::new(
+                        scoop_source::DiagnosticCode::E2014,
+                        "remote packages cannot contain local artifact locators",
+                    )
+                    .at(declaration.origin.clone()));
+                }
                 SourceRequest::Artifact(lexical(&declaration.base.join(path)))
-            },
+            }
             PackageSource::Default if key.group() == "scoop" => SourceRequest::System,
-            PackageSource::Default => SourceRequest::Registry(declaration.registry.clone().or_else(|| {
-                if matches!(context, Context::Local) { self.options.default_registry.clone() } else { None }
-            }).ok_or_else(|| PmError::new(format!("no default registry for {key}; declare registry.default or an explicit registry URL")).at(declaration.origin.clone()))?),
+            PackageSource::Default => SourceRequest::Registry(
+                declaration
+                    .registry
+                    .clone()
+                    .or_else(|| {
+                        if matches!(context, Context::Local) {
+                            self.options.default_registry.clone()
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or_else(|| {
+                        PmError::new(
+                            scoop_source::DiagnosticCode::E2116,
+                            format!("no default registry for {key}"),
+                        )
+                        .with_help(
+                            scoop_source::DiagnosticCode::H2103,
+                            "declare registry.default or an explicit registry URL".to_owned(),
+                        )
+                        .at(declaration.origin.clone())
+                    })?,
+            ),
         })
     }
 
@@ -130,8 +168,11 @@ impl Catalog<'_> {
                         source: GitSource {
                             repository: git.clone(),
                             reference: GitReference::Revision(commit.clone()),
-                            subdir: scoop_manifest::ConeRelativePath::new(subdir)
-                                .map_err(PmError::new)?,
+                            subdir: scoop_manifest::ConeRelativePath::new(subdir).map_err(
+                                |message| {
+                                    PmError::new(scoop_source::DiagnosticCode::E2012, message)
+                                },
+                            )?,
                         },
                         base: self.cache.root().to_owned(),
                     },

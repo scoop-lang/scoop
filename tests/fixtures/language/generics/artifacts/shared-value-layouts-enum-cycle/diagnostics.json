@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0509",
     "message": "recursive value layout does not cross a reference boundary: Recursive -> Recursive",
     "notes": [],
     "origin": {

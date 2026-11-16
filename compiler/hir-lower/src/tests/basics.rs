@@ -90,7 +90,7 @@ fn unknown_function_is_an_error_with_callee_span() {
     let errors = lower_user(file).expect_err("unknown callee must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown function `hello`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
     assert_eq!(errors[0].span(), Some(callee_span));
@@ -104,9 +104,9 @@ fn print_requires_exactly_one_argument() {
         let errors = lower_user(file).expect_err("wrong arity must fail");
         assert_eq!(errors.len(), 1);
         assert_eq!(
-            errors[0].message,
+            crate::tests::diagnostic_text(&errors[0]),
             format!(
-                "no applicable candidate for `print` in implicit-import candidate layer:\n  - fun print<T : ToString>(value: T): Unit — expects 1 argument(s), but {supplied} were supplied"
+                "no applicable candidate for `print` in implicit-import candidate layer; fun print<T : ToString>(value: T): Unit; expects 1 argument(s), but {supplied} were supplied"
             )
         );
     }
@@ -121,8 +121,8 @@ fn user_function_arity_is_an_error() {
     let errors = lower_user(file).expect_err("argument to `helper` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `helper` in current-unit top-level candidate layer:\n  - fun helper(): Unit — expects 0 argument(s), but 1 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `helper` in current-unit top-level candidate layer; fun helper(): Unit; expects 0 argument(s), but 1 were supplied"
     );
 }
 
@@ -158,11 +158,11 @@ fn collects_multiple_diagnostics() {
     let errors = lower_user(file).expect_err("unknown callees must fail");
     assert_eq!(errors.len(), 2);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown function `missing_one`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
     assert_eq!(
-        errors[1].message,
+        crate::tests::diagnostic_text(&errors[1]),
         "unknown function `missing_two`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }

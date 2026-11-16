@@ -3,6 +3,7 @@ use super::*;
 impl Projection<'_> {
     pub(super) fn warning(&self, warning: &scoop_ast::SourceDiagnostic) -> Result<DocWarning> {
         Ok(DocWarning {
+            code: warning.code.clone(),
             location: self.diagnostic_location(
                 warning
                     .source()
@@ -15,12 +16,25 @@ impl Projection<'_> {
             notes: warning
                 .notes
                 .iter()
-                .map(|note| {
-                    Ok(DocWarningNote {
-                        location: self.diagnostic_location(&note.source, note.span)?,
-                        message: note.message.clone(),
-                    })
-                })
+                .map(|note| self.warning_note(note))
+                .collect::<Result<_>>()?,
+        })
+    }
+
+    fn warning_note(&self, note: &scoop_source::SourceDiagnosticNote) -> Result<DocWarningNote> {
+        Ok(DocWarningNote {
+            code: note.code.clone(),
+            location: note
+                .source()
+                .zip(note.span())
+                .map(|(source, span)| self.diagnostic_location(source, span))
+                .transpose()?,
+            message: note.message.clone(),
+            import_path: note.import_path.clone(),
+            notes: note
+                .notes
+                .iter()
+                .map(|note| self.warning_note(note))
                 .collect::<Result<_>>()?,
         })
     }

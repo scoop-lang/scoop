@@ -169,17 +169,23 @@ impl ValidatedCBridgeToolchainInvocation {
             .object_compilation_command(source, object)
             .scoop_output()
             .map_err(|error| {
-                crate::ToolchainError(format!(
-                    "failed to run generated-C compiler `{}`: {error}",
-                    self.compiler_driver().display()
-                ))
+                crate::ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2202,
+                    format!(
+                        "failed to run generated-C compiler `{}`: {error}",
+                        self.compiler_driver().display()
+                    ),
+                )
             })?;
         if !output.status.success() {
-            return Err(crate::ToolchainError(format!(
-                "generated-C compilation failed (status {}): {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            )));
+            return Err(crate::ToolchainError::new(
+                scoop_source::DiagnosticCode::E2203,
+                format!(
+                    "generated-C compilation failed (status {}): {}",
+                    output.status,
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ),
+            ));
         }
         Ok(())
     }

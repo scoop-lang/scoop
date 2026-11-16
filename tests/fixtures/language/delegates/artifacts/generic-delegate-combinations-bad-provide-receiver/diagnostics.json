@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0726",
     "message": "property delegate operator `provideDelegate` must have exactly 0 parameters, found 1",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1306",
     "message": "recursive annotation parameter or default dependency",
     "notes": [],
     "origin": {

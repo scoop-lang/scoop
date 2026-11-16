@@ -91,6 +91,7 @@ impl Lowerer {
             };
             let Some(context) = call.arguments.source(context.index()) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1219,
                     call.span,
                     "foreign callback `contextIndex` must be a compile-time integer literal".into(),
                 );
@@ -156,6 +157,7 @@ impl Lowerer {
             if candidate.pointer_intrinsic() == Some(hir::PointerIntrinsic::AddressOf) {
                 let Some(source) = call.arguments.source(0) else {
                     self.error(
+                        scoop_source::DiagnosticCode::E1214,
                         call.span,
                         "`addressOf` requires an addressable source argument".into(),
                     );
@@ -206,8 +208,10 @@ impl Lowerer {
             Ok(arguments) => arguments,
             Err(failure) => {
                 if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
-                    self.diagnostics
-                        .push(scoop_ast::Diagnostic::internal(error));
+                    self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                        scoop_source::DiagnosticCode::ICE0601,
+                        error,
+                    ));
                 }
                 if let ArgumentInferenceFailureKind::Constraint(failure) = failure.kind {
                     if alias_signature.is_some() {
@@ -217,6 +221,7 @@ impl Lowerer {
                             &failure,
                         );
                         self.error(
+                            failure.code(),
                             call.span,
                             format!("typealias constructor `{}`: {message}", name.text),
                         );
@@ -303,7 +308,11 @@ impl Lowerer {
         ) {
             Ok(plan) => plan,
             Err(error) => {
-                self.error(call.span, error.to_string());
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    call.span,
+                    error.to_string(),
+                );
                 return Err(self);
             }
         };

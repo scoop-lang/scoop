@@ -18,6 +18,7 @@ impl SelectedMembers {
                 }
                 let StrongDefinitionEntityKind::CallableBody(owner) = plan.entity.kind() else {
                     return Err(error(
+                        scoop_source::DiagnosticCode::E2409,
                         "selected callable definition has a non-callable entity",
                     ));
                 };
@@ -42,18 +43,24 @@ fn insert_site(
     if let Some(previous) = ids.insert(id, site.site)
         && previous != site.site
     {
-        return Err(error(format!(
-            "selected safepoints {previous} and {} share runtime ID {id}",
-            site.site
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2412,
+            format!(
+                "selected safepoints {previous} and {} share runtime ID {id}",
+                site.site
+            ),
+        ));
     }
     if let Some(previous) = owners.insert(site.site, owner)
         && previous != owner
     {
-        return Err(error(format!(
-            "selected safepoint {} has owners {previous} and {owner}",
-            site.site
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2412,
+            format!(
+                "selected safepoint {} has owners {previous} and {owner}",
+                site.site
+            ),
+        ));
     }
     Ok(())
 }

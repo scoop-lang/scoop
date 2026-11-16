@@ -1,8 +1,55 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer:\n  - fun choose(block: () -> Int): Int — tied after pairwise declaration forwarding\n  - fun choose(block: suspend () -> Int): Long — tied after pairwise declaration forwarding",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose(block: () -> Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 37,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose(block: suspend () -> Int): Long",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 85,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 38
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 242,
@@ -13,9 +60,56 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `pair` is ambiguous in current-unit top-level candidate layer:\n  - fun pair(first: () -> Int, second: suspend () -> Int): Int — tied after pairwise declaration forwarding\n  - fun pair(first: suspend () -> Int, second: () -> Int): Int — tied after pairwise declaration forwarding",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `pair` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun pair(first: () -> Int, second: suspend () -> Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 148,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 86
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun pair(first: suspend () -> Int, second: () -> Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 211,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 149
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 265,

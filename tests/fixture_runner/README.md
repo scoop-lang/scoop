@@ -185,7 +185,7 @@ stdin 默认空；cwd 默认 `${work}`；env 继承调用者并应用显式键�
 stdout/stderr 的地址等非确定性输出可用 `{regex = "..."}` 对完整 UTF-8 字节流匹配；不隐式添加通配符，不用于 stdin。保留固定诊断文本并限定动态字段，栈诊断用例另外验证原抛出位置及重抛后内容一致。
 stdout/stderr 也可显式声明 `{snapshot = "symbols.${target}.txt"}`，沿用 snapshot
 更新规则；正常验收仍比较完整原始字节。仅用于小而受控的结构或工具输出专测；普通功能用例不保存完整符号表。
-`json = "stderr"` 解析 Scoop schema 1 前缀，遇到成功结果即停止，后续字节归程序。
+`json = "stderr"` 解析 Scoop schema 2 前缀，遇到成功结果即停止，后续字节归程序。
 `scoop doc` 返回 `documentation` 结果，包含站点入口、各 Cone 入口、渲染更新状态和实际编译调用。
 `scoop check` 返回无产物的 `check` 结果，包含根身份、target、用途、缓存命中和实际 child 调用；调用区分根检查与源码依赖的 artifact 编译。
 `scoop fmt` 返回 `format` 结果，包含写回／检查模式、成功状态、有序文件状态与计数；格式差异或部分文件失败时仍返回完整结果，进程退出 1。

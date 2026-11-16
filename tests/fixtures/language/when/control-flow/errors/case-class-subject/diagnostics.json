@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0911",
     "message": "case subject must be an enum, tuple, struct or scalar value, found Key",
     "notes": [],
     "origin": {

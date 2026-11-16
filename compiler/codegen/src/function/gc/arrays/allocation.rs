@@ -29,7 +29,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     return Err(CodegenError::internal(format!(
                         "array_alloc @{} has an invalid result or internal machine-scalar element type",
                         function.symbol()
-                    )));
+                    )).with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 for (index, element_value) in elements.iter().enumerate() {
                     let actual = function.value_ty(self.globals_arena, *element_value);
@@ -40,7 +40,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             index,
                             actual.dump(),
                             element_lir_ty.dump()
-                        )));
+                        ))
+                        .with_code(scoop_source::DiagnosticCode::ICE1101));
                     }
                 }
                 let safepoint = self.safepoint_id(*safepoint);
@@ -55,12 +56,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         ),
                         cause,
                     )
+                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })?;
                 let total = layout.allocation_size(element_count).ok_or_else(|| {
                     CodegenError::internal(format!(
                         "array allocation @{} exceeds count or target storage limits",
                         function.symbol()
                     ))
+                    .with_code(scoop_source::DiagnosticCode::ICE1101)
                 })?;
                 let array = self.managed_alloc_value(
                     td,

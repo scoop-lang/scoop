@@ -16,7 +16,12 @@ fn source_equality_is_independent_of_cached_indices() {
     let first = SourceText::new("one\rtwo\n中😀".to_owned());
     let second = SourceText::new(first.as_str().to_owned());
     first.line_index();
-    Diagnostic::at(Span::new(4, 5), "bad value").render_with_source("main.scoop", &second);
+    Diagnostic::at(
+        scoop_source::DiagnosticCode::E0501,
+        Span::new(4, 5),
+        "bad value",
+    )
+    .render_with_source("main.scoop", &second);
     assert_eq!(first, second);
 }
 
@@ -25,8 +30,13 @@ fn shared_source_renders_the_same_ranges_and_related_locations() {
     let text = SourceText::new("one\r\n中😀\rnext\nlast".to_owned());
     for offset in 0..text.len() as u32 + 3 {
         let span = Span::new(offset, offset);
-        let diagnostic = Diagnostic::at(span, "bad value");
-        let note = DiagnosticNote::at(0, span, "declared here");
+        let diagnostic = Diagnostic::at(scoop_source::DiagnosticCode::E0501, span, "bad value");
+        let note = DiagnosticNote::at(
+            scoop_source::DiagnosticCode::N0001,
+            0,
+            span,
+            "declared here",
+        );
         assert_eq!(
             diagnostic.render_with_source("main.scoop", &text),
             diagnostic.render("main.scoop", text.as_str())
@@ -36,8 +46,12 @@ fn shared_source_renders_the_same_ranges_and_related_locations() {
             note.render("main.scoop", text.as_str())
         );
     }
-    let rendered =
-        Diagnostic::at(Span::new(14, 15), "bad value").render_with_source("main.scoop", &text);
+    let rendered = Diagnostic::at(
+        scoop_source::DiagnosticCode::E0501,
+        Span::new(14, 15),
+        "bad value",
+    )
+    .render_with_source("main.scoop", &text);
     assert!(rendered.contains("main.scoop:2:5"), "{rendered}");
     assert!(rendered.contains('^'), "{rendered}");
 }

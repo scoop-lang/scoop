@@ -14,6 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct BuildFailure {
     pub message: String,
+    pub notes: Vec<scoop_protocol::DiagnosticNoteV1>,
     pub code: String,
     pub phase: BuildFailurePhase,
     pub location: BuildFailureLocation,
@@ -36,10 +37,50 @@ pub enum BuildFailureLocation {
 }
 
 impl BuildFailure {
-    pub fn tool(code: &str, phase: BuildFailurePhase, message: impl fmt::Display) -> Box<Self> {
+    pub fn toolchain(
+        phase: BuildFailurePhase,
+        error: scoop_toolchain::ToolchainError,
+    ) -> Box<Self> {
+        let mut failure = Self::tool(error.code(), phase, &error.0);
+        failure.notes = error.2.iter().map(tool_note).collect();
+        failure
+    }
+    pub fn link(error: scoop_linker::LinkError) -> Box<Self> {
+        let mut failure = Self::tool(error.code(), BuildFailurePhase::FinalLink, &error.0);
+        failure.notes = error.2.iter().map(tool_note).collect();
+        failure
+    }
+    pub fn from_diagnostics(
+        message: impl fmt::Display,
+        phase: BuildFailurePhase,
+        diagnostics: Vec<StructuredDiagnosticV1>,
+    ) -> Box<Self> {
+        let code = diagnostics
+            .first()
+            .expect("a failed compilation supplies diagnostics")
+            .code()
+            .to_owned();
         Box::new(Self {
+            notes: Vec::new(),
             message: message.to_string(),
-            code: code.to_owned(),
+            code,
+            phase,
+            location: BuildFailureLocation::None,
+            diagnostics,
+            warnings: Vec::new(),
+            sources: Vec::new(),
+        })
+    }
+
+    pub fn tool(
+        code: scoop_source::DiagnosticCode,
+        phase: BuildFailurePhase,
+        message: impl fmt::Display,
+    ) -> Box<Self> {
+        Box::new(Self {
+            notes: Vec::new(),
+            message: message.to_string(),
+            code: code.to_string(),
             phase,
             location: BuildFailureLocation::None,
             diagnostics: Vec::new(),
@@ -56,6 +97,18 @@ impl BuildFailure {
         self
     }
 
+    pub fn with_help(
+        mut self: Box<Self>,
+        code: scoop_source::DiagnosticCode,
+        message: impl Into<String>,
+    ) -> Box<Self> {
+        self.notes
+            .push(tool_note(&scoop_source::DiagnosticNote::without_location(
+                code, message,
+            )));
+        self
+    }
+
     pub fn at_host(mut self: Box<Self>, path: &Path) -> Box<Self> {
         self.location = BuildFailureLocation::Host {
             path: path.to_owned(),
@@ -64,15 +117,20 @@ impl BuildFailure {
         self
     }
 
-    pub fn classified(error: impl fmt::Display + ClassifyBuildFailure) -> Box<Self> {
+    pub fn classified(error: impl std::error::Error + ClassifyBuildFailure + 'static) -> Box<Self> {
         let classification = error.classification();
-        Self::tool(
+        let notes = scoop_toolchain::ToolchainError::in_chain(&error)
+            .map(|error| error.2.iter().map(tool_note).collect())
+            .unwrap_or_default();
+        let mut failure = Self::tool(
             classification
                 .code()
-                .map_or("SCOOP_BUILD_FAILED", |code| code.as_str()),
+                .expect("child diagnostics are handled by execution"),
             classification.phase(),
             error,
-        )
+        );
+        failure.notes = notes;
+        failure
     }
 
     pub(crate) fn root(error: LoadBuildRootError) -> Box<Self> {
@@ -118,7 +176,20 @@ impl BuildFailure {
     ) -> Box<Self> {
         let diagnostics = error.child_diagnostics().unwrap_or_default().to_vec();
         let warnings = error.warnings().to_vec();
-        let mut failure = Self::classified(error);
+        let mut failure = if let Some(diagnostic) = diagnostics.first() {
+            Box::new(Self {
+                notes: Vec::new(),
+                message: error.to_string(),
+                code: diagnostic.code().to_owned(),
+                phase: error.classification().phase(),
+                location: BuildFailureLocation::None,
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                sources: Vec::new(),
+            })
+        } else {
+            Self::classified(error)
+        };
         failure.diagnostics = diagnostics;
         failure.warnings = warnings;
         failure.sources = sources.to_vec();
@@ -191,3 +262,13 @@ impl fmt::Display for BuildFailure {
 impl std::error::Error for BuildFailure {}
 
 pub type BuildResult<T> = Result<T, Box<BuildFailure>>;
+
+fn tool_note(note: &scoop_source::DiagnosticNote) -> scoop_protocol::DiagnosticNoteV1 {
+    scoop_protocol::DiagnosticNoteV1::new(
+        &note.code,
+        note.message.clone(),
+        scoop_protocol::DiagnosticOriginV1::None,
+    )
+    .expect("tool note has valid text")
+    .with_notes(note.notes.iter().map(tool_note).collect())
+}

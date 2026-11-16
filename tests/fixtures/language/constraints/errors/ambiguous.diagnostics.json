@@ -1,8 +1,73 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer:\n  - fun choose<T : !I>(value: T): Int — tied after pairwise declaration forwarding; requires integer literal exact commit: argument for `value` = Int\n  - fun choose<T : !J>(value: T): Int — tied after pairwise declaration forwarding; requires integer literal exact commit: argument for `value` = Int",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose<T : !I>(value: T): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `value` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 68,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 30
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun choose<T : !J>(value: T): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0704",
+            "kind": "note",
+            "message": "requires integer literal exact commits: argument for `value` = Int",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 107,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 69
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 134,

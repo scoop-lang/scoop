@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0912",
     "message": "case patterns require a when subject",
     "notes": [],
     "origin": {

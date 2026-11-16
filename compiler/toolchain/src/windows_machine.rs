@@ -16,7 +16,12 @@ impl WindowsToolchainMachine {
                 definition.os == scoop_target_data::TargetOs::Windows
                     && definition.selection.target() == target
             })
-            .ok_or_else(|| ToolchainError("a registered Windows target is required".into()))?;
+            .ok_or_else(|| {
+                ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2301,
+                    "a registered Windows target is required".into(),
+                )
+            })?;
         match (
             definition.architecture,
             target.native_object_format(),
@@ -25,9 +30,12 @@ impl WindowsToolchainMachine {
             (TargetArchitecture::X86_64, NativeObjectFormat::Coff64, ObjectMachineV1::X86_64) => {
                 Ok(Self::Amd64)
             }
-            (architecture, object_format, object_machine) => Err(ToolchainError(format!(
-                "no Windows toolchain machine for {architecture:?}/{object_format:?}/{object_machine:?}"
-            ))),
+            (architecture, object_format, object_machine) => Err(ToolchainError::new(
+                scoop_source::DiagnosticCode::E2301,
+                format!(
+                    "no Windows toolchain machine for {architecture:?}/{object_format:?}/{object_machine:?}"
+                ),
+            )),
         }
     }
 

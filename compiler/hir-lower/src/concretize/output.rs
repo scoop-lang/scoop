@@ -16,6 +16,7 @@ pub(crate) fn lower_output(
         .with_materialized_nominals(output.module(), &nominals, dependencies)
         .map_err(|error| {
             vec![scoop_ast::Diagnostic::without_span(
+                scoop_source::DiagnosticCode::ICE2401,
                 scoop_ast::DiagnosticSeverity::Error,
                 0,
                 format!("failed to project materialized source declarations: {error}"),

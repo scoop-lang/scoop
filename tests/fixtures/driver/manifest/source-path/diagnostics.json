@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2012",
     "message": "${fixture}/program/Cone.toml: invalid source path \"../outside\": path must not escape the Cone root",
     "notes": [],
     "origin": {

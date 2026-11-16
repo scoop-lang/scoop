@@ -74,10 +74,12 @@ pub(super) fn execute(
         ));
     }
     let triple = target(args.target)?;
-    let selection = scoop_toolchain::select_target(&triple).map_err(config)?;
+    let selection =
+        scoop_toolchain::select_target(&triple).map_err(crate::cli::commands::toolchain)?;
     let sysroot = absolute(
         &cwd,
-        scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
+        scoop_toolchain::configured_sysroot_root(sysroot)
+            .map_err(crate::cli::commands::toolchain)?,
     )?;
     let target = scoop_toolchain::CToolchainOptions {
         sysroot: Some(sysroot.clone()),
@@ -89,10 +91,11 @@ pub(super) fn execute(
             .transpose()?,
     }
     .request(selection.target().contract().canonical_triple().into())
-    .map_err(config)?;
+    .map_err(crate::cli::commands::toolchain)?;
     let compiler = match args.scoopc {
         Some(path) => absolute(&cwd, path)?,
-        None => scoop_toolchain::installed_host_tool("scoopc").map_err(config)?,
+        None => scoop_toolchain::installed_host_tool("scoopc")
+            .map_err(crate::cli::commands::toolchain)?,
     };
     let search = paths(&cwd, args.cone_path)?;
     let roots = if args.roots.is_empty() {

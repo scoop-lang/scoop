@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1217",
     "message": "no eligible `@NoGC` top-level function `::Box` exactly matches the expected FunPtr signature",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "`FunPtr` signature is not C-FFI-safe: FunPtr<() -> Box>.return: ref type `Box` is managed",
     "notes": [],
     "origin": {

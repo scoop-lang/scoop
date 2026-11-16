@@ -9,7 +9,12 @@ pub fn read_program_link_closure(
     let graph = super::graph::read(root, dependencies, selection)?;
     let mut files = std::collections::BTreeMap::new();
     for file in std::iter::once(root).chain(dependencies.iter().copied()) {
-        let identity = file.directory().map_err(error)?.manifest.cone().identity();
+        let identity = file
+            .directory()
+            .map_err(|cause| error(crate::SlibDiagnostic::code(&cause), cause))?
+            .manifest
+            .cone()
+            .identity();
         files.entry(identity).or_insert(file);
     }
     let mut artifacts = Vec::with_capacity(graph.dependency_first.len());
@@ -38,7 +43,7 @@ pub fn read_program_link_closure(
             )
         },
     ))
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::E2412, cause))?;
     Ok(ProgramLinkClosure {
         root: graph.current,
         artifacts,
@@ -77,14 +82,16 @@ fn read_artifact(
         dependencies.iter().map(|dependency| &dependency.identities),
         scoop_identity::PendingIdentityValidation::for_link(),
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::E2405, cause))?;
     let foundation = foundation
         .read_link(graph.identity(), &mut identities)
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2405, cause))?;
     let production = production
         .read_link(&foundation, &mut identities)
-        .map_err(error)?;
-    let native_values = layout.read_link_values(&mut identities).map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2409, cause))?;
+    let native_values = layout
+        .read_link_values(&mut identities)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2408, cause))?;
     let symbols = ProgramLinkData::read(
         &link,
         graph.envelope.manifest(),
@@ -92,7 +99,7 @@ fn read_artifact(
         &foundation,
         selection,
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::E2409, cause))?;
     let native_objects = super::native::read(&mut graph)?;
     Ok((
         ProgramLinkArtifact {

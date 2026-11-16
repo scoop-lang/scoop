@@ -640,7 +640,7 @@ fn source_identity_permutation_preserves_ambiguity_origins() {
         let mut origins = diagnostic
             .notes
             .iter()
-            .map(|note| bound_source(&note.source).clone())
+            .map(|note| bound_source(note.source().unwrap()).clone())
             .collect::<Vec<_>>();
         origins.sort_unstable();
         observed.push(origins);

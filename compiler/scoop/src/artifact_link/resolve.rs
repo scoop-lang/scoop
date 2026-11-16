@@ -19,8 +19,11 @@ pub(super) fn artifacts(
         let artifact = read(path, selection)?;
         let identity = artifact.summary.cone().identity();
         if identity == root_id {
-            return Err(failure("root artifact cannot also be a dependency")
-                .at_artifact(&artifact.path, "manifest:cone.identity"));
+            return Err(failure(
+                scoop_source::DiagnosticCode::E2107,
+                "root artifact cannot also be a dependency",
+            )
+            .at_artifact(&artifact.path, "manifest:cone.identity"));
         }
         insert(&mut artifacts, artifact)?;
     }
@@ -58,13 +61,14 @@ pub(super) fn artifacts(
 }
 
 fn read(path: &Path, selection: ValidatedLirTargetSelection) -> BuildResult<LocatedLinkArtifact> {
-    let file = ArtifactFile::open(path, selection)
-        .map_err(|error| failure(error).at_artifact(path, "container:$"))?;
+    let file = ArtifactFile::open(path, selection).map_err(|error| {
+        failure(scoop_source::DiagnosticCode::E2201, error).at_artifact(path, "container:$")
+    })?;
     let summary = file
         .summary()
         .map_err(|error| {
             let member = error.diagnostic().semantic_path();
-            failure(error).at_artifact(path, member)
+            failure(error.code(), error).at_artifact(path, member)
         })?
         .clone();
     Ok(LocatedLinkArtifact {
@@ -81,11 +85,14 @@ fn insert(
     let identity = artifact.summary.cone().identity();
     if let Some(previous) = artifacts.get(&identity) {
         if previous.summary.artifact_fingerprint() != artifact.summary.artifact_fingerprint() {
-            return Err(failure(format!(
-                "different complete artifacts for {identity}: {} and {}",
-                previous.path.display(),
-                artifact.path.display()
-            ))
+            return Err(failure(
+                scoop_source::DiagnosticCode::E2106,
+                format!(
+                    "different complete artifacts for {identity}: {} and {}",
+                    previous.path.display(),
+                    artifact.path.display()
+                ),
+            )
             .at_artifact(&artifact.path, "manifest:cone.identity"));
         }
         if previous.path <= artifact.path {
@@ -118,18 +125,24 @@ fn locate(
             match std::fs::symlink_metadata(&path) {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => {
-                    return Err(failure(format!("artifact {}: {error}", path.display()))
-                        .at_artifact(&path, "container:$"));
+                    return Err(failure(
+                        scoop_source::DiagnosticCode::E2201,
+                        format!("artifact {}: {error}", path.display()),
+                    )
+                    .at_artifact(&path, "container:$"));
                 }
                 Ok(_) => {}
             }
             let artifact = read(&path, selection)?;
             if artifact.summary.cone().coordinate() != coordinate {
-                return Err(failure(format!(
-                    "artifact {} has coordinate {}, expected {coordinate}",
-                    path.display(),
-                    artifact.summary.cone().coordinate()
-                ))
+                return Err(failure(
+                    scoop_source::DiagnosticCode::E2102,
+                    format!(
+                        "artifact {} has coordinate {}, expected {coordinate}",
+                        path.display(),
+                        artifact.summary.cone().coordinate()
+                    ),
+                )
                 .at_artifact(&path, "manifest:cone.coordinate"));
             }
             insert(&mut candidates, artifact)?;
@@ -139,14 +152,22 @@ fn locate(
         }
     }
     Err(match default {
-        Some(path) => failure(crate::DependencyLocatorError::SysrootArtifactNotFound {
-            coordinate: coordinate.clone(),
-            target: selection.target().contract().canonical_triple(),
-            path: path.clone(),
-        })
+        Some(path) => failure(
+            scoop_source::DiagnosticCode::E2101,
+            crate::DependencyLocatorError::SysrootArtifactNotFound {
+                coordinate: coordinate.clone(),
+                target: selection.target().contract().canonical_triple(),
+                path: path.clone(),
+            },
+        )
         .at_host(&path),
-        None => failure(format!(
-            "artifact not found for {coordinate}; provide --dependency-slib or --cone-path"
-        )),
+        None => failure(
+            scoop_source::DiagnosticCode::E2101,
+            format!("artifact not found for {coordinate}"),
+        )
+        .with_help(
+            scoop_source::DiagnosticCode::H2001,
+            "provide --dependency-slib or --cone-path".to_string(),
+        ),
     })
 }

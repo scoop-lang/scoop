@@ -7,12 +7,19 @@ impl DynamicInputs {
         roots: &[PathBuf],
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<Self, LinkError> {
-        let system = profile.system_provider().map_err(error)?;
+        let system = profile
+            .system_provider()
+            .map_err(|cause| error(cause.code(), cause))?;
         let file = system
             .files()
             .iter()
             .find(|file| file.relative_path() == system.root_stub())
-            .ok_or_else(|| error("system provider has no root stub"))?;
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "system provider has no root stub",
+                )
+            })?;
         let input = NativeInputId::from_digest(
             file.digest(),
             file.byte_len(),
@@ -37,7 +44,7 @@ impl DynamicInputs {
             locator: profile
                 .startup_toolchain()
                 .sdk_root()
-                .map_err(error)?
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
                 .join(system.root_stub()),
         });
         let mut result = Self {
@@ -50,9 +57,12 @@ impl DynamicInputs {
         let mut names = BTreeMap::from([(system.install_name().to_owned(), id)]);
         for file in native.ordered_files() {
             if let NativeContent::Dynamic(records) = &file.content {
-                let root = records
-                    .first()
-                    .ok_or_else(|| error("dynamic library has no root record"))?;
+                let root = records.first().ok_or_else(|| {
+                    error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "dynamic library has no root record",
+                    )
+                })?;
                 locate::runpath(root, roots, profile)?;
                 result.roots.insert(root.id);
                 for record in records {
@@ -79,14 +89,20 @@ impl DynamicInputs {
                         &mut native.observed_paths,
                     )?;
                     let NativeContent::Dynamic(records) = &file.content else {
-                        return Err(error("dynamic dependency resolved to a static input"));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2305,
+                            "dynamic dependency resolved to a static input",
+                        ));
                     };
                     let target = records
                         .iter()
                         .find(|record| record.install_name == edge.name)
                         .or_else(|| edge.name.starts_with("@loader_path/").then(|| &records[0]))
                         .ok_or_else(|| {
-                            error(format!("dynamic file does not contain {}", edge.name))
+                            error(
+                                scoop_source::DiagnosticCode::E2305,
+                                format!("dynamic file does not contain {}", edge.name),
+                            )
                         })?
                         .id;
                     for record in records {
@@ -98,10 +114,13 @@ impl DynamicInputs {
                 };
                 let child = &result.providers[&target];
                 if child.current_version < edge.compatibility_version {
-                    return Err(error(format!(
-                        "dynamic dependency {} has incompatible version for {}",
-                        child.install_name, provider.install_name
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        format!(
+                            "dynamic dependency {} has incompatible version for {}",
+                            child.install_name, provider.install_name
+                        ),
+                    ));
                 }
                 result.edges.insert((id, index), target);
             }
@@ -117,12 +136,15 @@ impl DynamicInputs {
         if let Some(previous) = names.insert(record.install_name.clone(), record.id)
             && previous != record.id
         {
-            return Err(error(format!(
-                "conflicting native providers for install name {}: {} and {}",
-                record.install_name,
-                self.providers[&previous].locator.display(),
-                record.locator.display()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!(
+                    "conflicting native providers for install name {}: {} and {}",
+                    record.install_name,
+                    self.providers[&previous].locator.display(),
+                    record.locator.display()
+                ),
+            ));
         }
         self.providers.entry(record.id).or_insert(record);
         Ok(())
@@ -142,12 +164,20 @@ impl DynamicInputs {
                 .insert(symbol.clone(), binding.interface);
         }
         // The fixed provider remains an explicit load input even without calls.
-        let system_name = profile.system_provider().map_err(error)?.install_name();
+        let system_name = profile
+            .system_provider()
+            .map_err(|cause| error(cause.code(), cause))?
+            .install_name();
         let system = self
             .providers
             .values()
             .find(|provider| provider.install_name == system_name)
-            .ok_or_else(|| error("missing fixed system provider"))?;
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "missing fixed system provider",
+                )
+            })?;
         imports.entry(system.id).or_default();
         for id in imports.keys() {
             if let Some(path) = locate::runpath(&self.providers[id], roots, profile)? {
@@ -174,13 +204,14 @@ impl DynamicInputs {
         for (id, symbols) in imports {
             let provider = &self.providers[&id];
             let stub = scoop_toolchain::write_link_stub(
-                scoop_slib::MachOArchitecture::for_target(profile.target().id()).map_err(error)?,
+                scoop_slib::MachOArchitecture::for_target(profile.target().id())
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?,
                 &provider.install_name,
                 provider.current_version,
                 provider.compatibility_version,
                 &symbols,
             )
-            .map_err(error)?;
+            .map_err(|cause| error(cause.code(), cause))?;
             self.stubs.insert(id, stub);
         }
         Ok(())

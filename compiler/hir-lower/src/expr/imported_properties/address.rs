@@ -22,7 +22,7 @@ impl Lowerer {
         match self.external_global_place(property) {
             Ok(place) => Some(Some(place)),
             Err(message) => {
-                self.error(span, message);
+                self.error(scoop_source::DiagnosticCode::ICE0501, span, message);
                 None
             }
         }

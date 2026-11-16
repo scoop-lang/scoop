@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "annotation `@Repeatable` is not allowed on Class",
     "notes": [],
     "origin": {

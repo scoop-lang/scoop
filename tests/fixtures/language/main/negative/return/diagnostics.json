@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1702",
     "message": "missing executable entry: declare exactly one ordinary `fun main(): Unit`, `fun main(): Int`, `fun main(args: Array<String>): Unit`, or `fun main(args: Array<String>): Int`",
     "notes": [
       {
+        "code": "N1701",
+        "kind": "note",
         "message": "`fun main(): Long` is not eligible because it must return `Unit` or `Int`",
+        "notes": [],
         "origin": {
           "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
           "end": 21,

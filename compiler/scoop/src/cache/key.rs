@@ -12,7 +12,7 @@ use scoop_wire::{Encoder, HashError, WireEncode, domain_separated_cbor_hash};
 mod testing;
 pub use testing::TestCompileConfiguration;
 
-const CACHE_KEY_DOMAIN: &str = "scoop-cone-compile-cache-v12";
+const CACHE_KEY_DOMAIN: &str = "scoop-cone-compile-cache-v13";
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ConeCompileCacheKeyV1([u8; 32]);

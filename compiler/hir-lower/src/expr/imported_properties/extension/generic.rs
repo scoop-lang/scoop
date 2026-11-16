@@ -93,6 +93,7 @@ impl Lowerer {
             .accessors();
         let Some(setter_id) = accessors.setter() else {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 name.span,
                 format!("cannot assign to immutable property `{}`", name.text),
             );
@@ -106,6 +107,7 @@ impl Lowerer {
             .expect("a writable property retains its setter declaration");
         if !self.imported_callable_is_accessible(setter.interface(), Some(receiver.static_type)) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!("setter of property `{}` is not accessible", name.text),
             );
@@ -114,7 +116,7 @@ impl Lowerer {
         let template = match self.request_imported_generic_template(setter) {
             Ok(template) => template,
             Err(error) => {
-                self.error(name.span, error);
+                self.error(scoop_source::DiagnosticCode::ICE0501, name.span, error);
                 return None;
             }
         };

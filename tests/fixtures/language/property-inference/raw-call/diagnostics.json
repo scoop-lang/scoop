@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1212",
     "message": "global initializer must be a GC-free compile-time constant and must not call functions or read another global",
     "notes": [],
     "origin": {

@@ -13,14 +13,17 @@ pub(super) struct InputRoots {
 impl InputRoots {
     pub(super) fn check_source(&self, relative: &Path) -> Result<(), ToolchainError> {
         let path = self.cone.join(relative);
-        let metadata = path
-            .metadata()
-            .map_err(|e| error(format!("{}: {e}", path.display())))?;
+        let metadata = path.metadata().map_err(|e| {
+            error(
+                scoop_source::DiagnosticCode::E2201,
+                format!("{}: {e}", path.display()),
+            )
+        })?;
         if !metadata.is_file() {
-            return Err(error(format!(
-                "{} must be a regular file",
-                relative.display()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2002,
+                format!("{} must be a regular file", relative.display()),
+            ));
         }
         Ok(())
     }
@@ -41,7 +44,9 @@ impl InputRoots {
     }
 
     pub(super) fn logical(&self, path: &Path) -> Result<String, ToolchainError> {
-        let resolved = path.canonicalize().map_err(error)?;
+        let resolved = path
+            .canonicalize()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         if let Some(logical) = self.remap(&resolved) {
             return Ok(logical);
         }

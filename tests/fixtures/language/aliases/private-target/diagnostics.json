@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "signature of typealias `Exposed` exposes type `Hidden<T>` outside its access domain",
     "notes": [],
     "origin": {

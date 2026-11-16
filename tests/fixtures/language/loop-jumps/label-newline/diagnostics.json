@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected loop label on the same line, found `outer`",
     "notes": [],
     "origin": {

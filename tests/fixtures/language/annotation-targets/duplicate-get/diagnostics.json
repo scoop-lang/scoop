@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1302",
     "message": "annotation `@Mark` must not be repeated on the same target",
     "notes": [],
     "origin": {

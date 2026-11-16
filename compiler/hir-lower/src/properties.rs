@@ -137,6 +137,7 @@ impl Lowerer {
             receiver.as_ref().map(|receiver| receiver.ty),
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!(
                     "getter of property `{}` is not accessible",
@@ -235,6 +236,7 @@ impl Lowerer {
         self.record_property_initialization_dependency(&declaration, span);
         let Some(setter) = declaration.capability.setter() else {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 span,
                 format!("cannot assign to immutable property `{}`", declaration.name),
             );
@@ -247,6 +249,7 @@ impl Lowerer {
             receiver.as_ref().map(|receiver| receiver.ty),
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!(
                     "setter of property `{}` is not accessible",
@@ -387,6 +390,7 @@ impl Lowerer {
         let context = self.backing_field_context.clone()?;
         if self.capture_contexts.len() > context.capture_depth {
             self.error(
+                scoop_source::DiagnosticCode::E1514,
                 span,
                 "`field` is only available in the direct property accessor body".to_string(),
             );

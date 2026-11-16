@@ -114,6 +114,11 @@ impl NativeInputs {
             .into_iter()
             .find(|(candidate, _, _, _)| *candidate == id)
             .map(|(_, index, range, _)| (index, range))
-            .ok_or_else(|| error(format!("missing native object {id}")))
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::ICE2201,
+                    format!("missing native object {id}"),
+                )
+            })
     }
 }

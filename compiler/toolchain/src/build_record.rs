@@ -28,9 +28,10 @@ pub(crate) fn cached<T: Serialize + DeserializeOwned>(
         let file = match File::open(&path) {
             Ok(file) => file,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(error(e)),
+            Err(e) => return Err(error(scoop_source::DiagnosticCode::E2201, e)),
         };
-        let record: Record<T> = serde_json::from_reader(BufReader::new(file)).map_err(error)?;
+        let record: Record<T> = serde_json::from_reader(BufReader::new(file))
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
         for input in &record.inputs {
             if !input.is_current()? {
                 return Ok(None);
@@ -41,33 +42,55 @@ pub(crate) fn cached<T: Serialize + DeserializeOwned>(
     if let Some(record) = lookup()? {
         return Ok(record);
     }
-    std::fs::create_dir_all(directory).map_err(error)?;
+    std::fs::create_dir_all(directory)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let lock = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
         .open(directory.join(format!("{key}.lock")))
-        .map_err(error)?;
-    fs4::FileExt::lock(&lock).map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    fs4::FileExt::lock(&lock).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     if let Some(record) = lookup()? {
         return Ok(record);
     }
     let record = build()?;
-    let mut file = tempfile::NamedTempFile::new_in(directory).map_err(error)?;
+    // tempfile passes both paths directly to the native Windows rename API.
+    #[cfg(windows)]
+    let directory = std::fs::canonicalize(directory)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    #[cfg(windows)]
+    let directory = directory.as_path();
+    #[cfg(windows)]
+    let path = directory.join(format!("{key}.json"));
+    let mut file = tempfile::NamedTempFile::new_in(directory)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     {
         let mut writer = BufWriter::new(&mut file);
-        serde_json::to_writer(&mut writer, &record).map_err(error)?;
-        writer.flush().map_err(error)?;
+        serde_json::to_writer(&mut writer, &record)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
+        writer
+            .flush()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     }
-    file.persist(path).map_err(|e| error(e.error))?;
+    file.persist(path)
+        .map_err(|e| error(scoop_source::DiagnosticCode::E2201, e.error))?;
     Ok(record)
 }
 
 pub(crate) fn fingerprint(value: &impl Serialize) -> Result<Digest256, ToolchainError> {
-    Ok(sha256(&serde_json::to_vec(value).map_err(error)?))
+    Ok(sha256(&serde_json::to_vec(value).map_err(|cause| {
+        error(scoop_source::DiagnosticCode::ICE2201, cause)
+    })?))
 }
 
-pub(crate) fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("native build record: {value}"))
+pub(crate) fn error(
+    code: scoop_source::DiagnosticCode,
+    value: impl std::fmt::Display,
+) -> ToolchainError {
+    ToolchainError::new(code, format!("native build record: {value}"))
 }
+
+#[cfg(all(test, windows))]
+mod tests;

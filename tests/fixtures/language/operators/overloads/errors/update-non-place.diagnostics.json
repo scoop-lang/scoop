@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1506",
     "message": "update operand must be an assignable place",
     "notes": [],
     "origin": {

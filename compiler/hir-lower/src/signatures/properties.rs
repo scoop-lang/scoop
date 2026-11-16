@@ -13,6 +13,7 @@ impl Lowerer {
         }) {
             if !seen.insert(property.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     property.name.span,
                     format!(
                         "duplicate property `{}` in struct `{}`",

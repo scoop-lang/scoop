@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1113",
     "message": "an anonymous function is not allowed in a `release` block",
     "notes": [],
     "origin": {

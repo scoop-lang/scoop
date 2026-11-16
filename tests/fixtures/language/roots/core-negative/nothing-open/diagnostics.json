@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1403",
     "message": "an intrinsic class declaration must be final",
     "notes": [],
     "origin": {

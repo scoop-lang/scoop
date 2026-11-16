@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1220",
     "message": "`captureErrno = true` is not allowed on an extern variable",
     "notes": [],
     "origin": {

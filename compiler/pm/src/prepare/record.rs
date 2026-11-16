@@ -65,8 +65,9 @@ impl PreparedRecord {
             .as_deref()
             .map(host)
             .transpose()?;
-        let key = serde_json::to_vec(&(scoop_toolchain::VERSION, request, configuration))
-            .map_err(|error| PmError::new(error.to_string()))?;
+        let key = serde_json::to_vec(&(scoop_toolchain::VERSION, request, configuration)).map_err(
+            |error| PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string()),
+        )?;
         let stem = cache
             .root()
             .join("records/prepared-v1")
@@ -86,14 +87,17 @@ impl PreparedRecord {
         let Some(bytes) = read(&self.inputs)? else {
             return Ok(None);
         };
-        let inputs: Inputs =
-            serde_json::from_slice(&bytes).map_err(|error| PmError::new(error.to_string()))?;
+        let inputs: Inputs = serde_json::from_slice(&bytes).map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+        })?;
         if !inputs.unchanged()? {
             return Ok(None);
         }
         read(&self.response)?
             .map(|bytes| {
-                serde_json::from_slice(&bytes).map_err(|error| PmError::new(error.to_string()))
+                serde_json::from_slice(&bytes).map_err(|error| {
+                    PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+                })
             })
             .transpose()
     }
@@ -101,12 +105,16 @@ impl PreparedRecord {
     pub fn publish(&self, response: &PreparedWorkspaceV1, inputs: &Inputs) -> PmResult<()> {
         if !inputs.unchanged()? {
             return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2206,
                 "input changed while preparing packages; retry the command",
             ));
         }
-        let response =
-            serde_json::to_vec(response).map_err(|error| PmError::new(error.to_string()))?;
-        let inputs = serde_json::to_vec(inputs).map_err(|error| PmError::new(error.to_string()))?;
+        let response = serde_json::to_vec(response).map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+        })?;
+        let inputs = serde_json::to_vec(inputs).map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+        })?;
         atomic_write(&self.response, &response)?;
         atomic_write(&self.inputs, &inputs)
     }

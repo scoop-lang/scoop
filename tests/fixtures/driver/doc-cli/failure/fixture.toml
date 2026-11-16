@@ -40,6 +40,27 @@ checks = [
 ]
 
 [[steps]]
+name = "invalid_resource_input"
+files = [{write = {path = "${work}/cone/README.md", data = "[Guide](bad%ZZ)\n"}}]
+
+[[steps]]
+name = "invalid_resource"
+argv = ["${scoop}", "doc", "${work}/cone", {"each" = "${compile_args}"}, "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--output-dir", "${work}/site", "--deny-doc-warnings", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "resource-path.json"}
+checks = [
+  {file = "${work}/site/index.html", same_as = "${work}/previous.html"},
+  {file = "${work}/site/.scoop-doc.json", same_as = "${work}/previous.json"},
+]
+
+[[steps]]
+name = "restore_readme"
+files = [{write = {path = "${work}/cone/README.md", data = ""}}]
+
+[[steps]]
 name = "body_error"
 files = [{replace = {path = "${work}/cone/src/api.scoop", old = "= 42", new = "= \"wrong\""}}]
 

@@ -53,7 +53,9 @@ impl InvocationRecord {
     ) -> Result<Self, ToolchainError> {
         let platform = match c.profile().contract().platform() {
             CBridgePlatformContractV1::Windows { compiler } => {
-                let environment = c.windows_environment().map_err(error)?;
+                let environment = c
+                    .windows_environment()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
                 PlatformRecord::Windows {
                     native_sysroot: environment
                         .native_sysroot
@@ -85,7 +87,10 @@ impl InvocationRecord {
                 deployment,
                 compiler,
             } => PlatformRecord::Darwin {
-                sdk_root: path(c.sdk_root().map_err(error)?)?,
+                sdk_root: path(
+                    c.sdk_root()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
+                )?,
                 minimum_os: deployment.minimum_os().packed(),
                 sdk: deployment.sdk().packed(),
                 compiler: (
@@ -137,7 +142,10 @@ impl InvocationRecord {
         self,
         target: scoop_lir::LirTargetProfile,
     ) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
-        let driver = self.driver.to_path_buf().map_err(error)?;
+        let driver = self
+            .driver
+            .to_path_buf()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
         match self.platform {
             PlatformRecord::Windows {
                 native_sysroot,
@@ -149,7 +157,10 @@ impl InvocationRecord {
                 version,
                 configuration,
             } => {
-                let decode = |path: HostPathCarrier| path.to_path_buf().map_err(error);
+                let decode = |path: HostPathCarrier| {
+                    path.to_path_buf()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))
+                };
                 let environment = crate::windows_c::WindowsCEnvironment {
                     machine: crate::windows_machine::WindowsToolchainMachine::select(target)?,
                     bundled_mingw,
@@ -169,15 +180,15 @@ impl InvocationRecord {
                     version,
                     Digest256::from_array(configuration),
                 );
-                let profile =
-                    scoop_target_data::windows_c_bridge_profile(target, compiler).map_err(error)?;
+                let profile = scoop_target_data::windows_c_bridge_profile(target, compiler)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
                 ValidatedCBridgeToolchainInvocation::new_windows(
                     target,
                     profile,
                     driver,
                     environment,
                 )
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))
             }
             PlatformRecord::Darwin {
                 sdk_root,
@@ -193,32 +204,43 @@ impl InvocationRecord {
                             1 => DarwinBuildToolIdV1::Clang,
                             3 => DarwinBuildToolIdV1::Ld,
                             4 => DarwinBuildToolIdV1::Lld,
-                            _ => return Err(error("unknown Darwin build tool")),
+                            _ => {
+                                return Err(error(
+                                    scoop_source::DiagnosticCode::E2303,
+                                    "unknown Darwin build tool",
+                                ));
+                            }
                         };
                         Ok(DarwinBuildToolVersionContractV1::new(
                             tool,
-                            DarwinPackedVersionV1::new(version).map_err(error)?,
+                            DarwinPackedVersionV1::new(version).map_err(|cause| {
+                                error(scoop_source::DiagnosticCode::E2502, cause)
+                            })?,
                         ))
                     })
                     .collect::<Result<_, ToolchainError>>()?;
                 let deployment = DarwinCBridgeDeploymentContractV1::new(
-                    DarwinPackedVersionV1::new(minimum_os).map_err(error)?,
-                    DarwinPackedVersionV1::new(sdk).map_err(error)?,
+                    DarwinPackedVersionV1::new(minimum_os)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?,
+                    DarwinPackedVersionV1::new(sdk)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?,
                     tools,
                 )
-                .map_err(error)?;
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
                 let compiler = AppleClangCompilerIdentityV1::new(major, minor, patch, &build)
-                    .map_err(error)?;
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
                 let profile =
                     scoop_target_data::darwin_c_bridge_profile(target, deployment, compiler)
-                        .map_err(error)?;
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
                 ValidatedCBridgeToolchainInvocation::new(
                     target,
                     profile,
                     driver,
-                    sdk_root.to_path_buf().map_err(error)?,
+                    sdk_root
+                        .to_path_buf()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?,
                 )
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))
             }
             PlatformRecord::Linux {
                 native_sysroot,
@@ -230,15 +252,20 @@ impl InvocationRecord {
                 let inputs = Digest256::from_array(configuration);
                 let compiler = match compiler {
                     LinuxCompilerRecord::Gcc(version) => LinuxCCompilerIdentityV1::Gcc(
-                        GccCompilerIdentityV1::new(&version, inputs).map_err(error)?,
+                        GccCompilerIdentityV1::new(&version, inputs)
+                            .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?,
                     ),
                     LinuxCompilerRecord::Clang(version) => LinuxCCompilerIdentityV1::Clang(
                         scoop_lir::ClangCompilerIdentityV1::new(version, inputs),
                     ),
                 };
-                let profile =
-                    scoop_target_data::linux_c_bridge_profile(target, compiler).map_err(error)?;
-                let decode = |value: HostPathCarrier| value.to_path_buf().map_err(error);
+                let profile = scoop_target_data::linux_c_bridge_profile(target, compiler)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?;
+                let decode = |value: HostPathCarrier| {
+                    value
+                        .to_path_buf()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))
+                };
                 ValidatedCBridgeToolchainInvocation::new_linux(
                     target,
                     profile,
@@ -251,7 +278,7 @@ impl InvocationRecord {
                         .unwrap_or_default()
                         .into_os_string(),
                 )
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))
             }
         }
     }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0107",
     "message": "floating literal is out of range for Double: rounding produces infinity",
     "notes": [],
     "origin": {

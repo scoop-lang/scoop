@@ -31,10 +31,13 @@ impl FileStamp {
 
     pub fn unchanged(&self, path: &Path) -> PmResult<()> {
         if self != &Self::read(path)? {
-            return Err(PmError::new(format!(
-                "input changed while preparing packages: {}; retry the command",
-                path.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2206,
+                format!(
+                    "input changed while preparing packages: {}; retry the command",
+                    path.display()
+                ),
+            ));
         }
         Ok(())
     }
@@ -55,7 +58,7 @@ impl PackageCache {
             scoop_toolchain::VERSION,
             scoop_toolchain::SOURCE_CATALOG_KEY,
         ))
-        .map_err(|error| PmError::new(error.to_string()))?;
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string()))?;
         Ok(self
             .root
             .join("records")

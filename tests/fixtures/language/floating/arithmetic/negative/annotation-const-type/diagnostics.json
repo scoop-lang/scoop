@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "annotation argument must be Float, found Double",
     "notes": [],
     "origin": {

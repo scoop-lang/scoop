@@ -33,6 +33,7 @@ impl Lowerer {
         for property in declaration.properties {
             if !names.insert(property.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     property.name.span,
                     format!(
                         "duplicate property `{}` in interface `{}`",
@@ -72,6 +73,7 @@ impl Lowerer {
                 )
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     property.name.span,
                     format!(
                         "member `{}` of public interface `{}` must be explicitly public",
@@ -81,6 +83,7 @@ impl Lowerer {
             }
             if private && property.is_override {
                 self.error(
+                    scoop_source::DiagnosticCode::E1016,
                     property.name.span,
                     format!(
                         "private interface property `{}` cannot be an override",
@@ -107,6 +110,7 @@ impl Lowerer {
         self.reject_logical_property_annotations("a value-type property", &declaration.annotations);
         if declaration.receiver_ty.is_some() || !declaration.type_params.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0307,
                 declaration.span,
                 "extension properties may only be declared at top level".to_string(),
             );
@@ -114,6 +118,7 @@ impl Lowerer {
         }
         if declaration.mutable {
             self.error(
+                scoop_source::DiagnosticCode::E1507,
                 declaration.name.span,
                 format!(
                     "value-type property `{}` cannot be mutable",
@@ -124,6 +129,7 @@ impl Lowerer {
         }
         if declaration.modifier != ast::MethodModifier::Final {
             self.error(
+                scoop_source::DiagnosticCode::E1507,
                 declaration.name.span,
                 format!(
                     "value-type property `{}` cannot be open or abstract",
@@ -134,6 +140,7 @@ impl Lowerer {
         }
         if !matches!(declaration.body, ast::PropertyBodySyntax::Computed(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E1507,
                 declaration.span,
                 format!(
                     "value-type property `{}` must be a computed val",

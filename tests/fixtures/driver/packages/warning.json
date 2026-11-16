@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_COMPILER_WARNING",
+    "code": "W2001",
     "message": "package declaration is ignored in single-file mode; using the default root package",
     "notes": [],
     "origin": {

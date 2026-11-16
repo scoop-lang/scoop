@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2013",
     "message": "${work}/cone/Cone.toml: target predicate \"os\" requires a string or an array of strings",
     "notes": [],
     "origin": {

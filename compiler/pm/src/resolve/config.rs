@@ -49,17 +49,23 @@ pub(super) fn registry(cache: &PackageCache) -> PmResult<LoadedConfig> {
     };
     let record = cache.input_record("config-v1", &path, &stamp, &[])?;
     let config: Config = match fs::read(&record) {
-        Ok(bytes) => {
-            serde_json::from_slice(&bytes).map_err(|error| PmError::new(error.to_string()))?
-        }
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+        })?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             let text = fs::read_to_string(&path).map_err(|error| PmError::io(&path, error))?;
-            let config: Config = toml::from_str(&text)
-                .map_err(|error| PmError::new(format!("{}: {error}", path.display())))?;
+            let config: Config = toml::from_str(&text).map_err(|error| {
+                PmError::new(
+                    scoop_source::DiagnosticCode::E2008,
+                    format!("{}: {error}", path.display()),
+                )
+            })?;
             stamp.unchanged(&path)?;
             atomic_write(
                 &record,
-                &serde_json::to_vec(&config).map_err(|error| PmError::new(error.to_string()))?,
+                &serde_json::to_vec(&config).map_err(|error| {
+                    PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+                })?,
             )?;
             config
         }

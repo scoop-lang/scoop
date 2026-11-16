@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0304",
     "message": "`sealed` cannot be combined with open, final or abstract",
     "notes": [],
     "origin": {

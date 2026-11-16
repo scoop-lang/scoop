@@ -335,11 +335,9 @@ fn reference_without_expected_type_requires_one_non_generic_candidate() {
         .expect_err("MSC cannot choose a callable reference without an expected type");
     assert!(
         errors.iter().any(|error| {
-            error
-                .message
+            crate::tests::diagnostic_text(error)
                 .contains("callable reference `::choose` is ambiguous")
-                && error
-                    .message
+                && crate::tests::diagnostic_text(error)
                     .contains("forms a complete non-generic function type")
         }),
         "{errors:?}"
@@ -360,9 +358,10 @@ fn applicable_reference_ambiguity_is_terminal_for_its_layer() {
     let errors = lower_sources(vec![left, right, user], core_file())
         .expect_err("an applicable ambiguous exact layer cannot fall through");
     assert!(
-        errors.iter().any(|error| error
-            .message
-            .contains("callable reference `::choose` is ambiguous")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error)
+                .contains("callable reference `::choose` is ambiguous")),
         "{errors:?}"
     );
 }
@@ -492,8 +491,8 @@ fn rejected_exact_object_members_do_not_hide_a_star_top_level_reference() {
     }));
     assert!(
         errors.iter().any(|error| {
-            error.message.contains("callable reference `::choose`")
-                && error.message.contains("fun choose(value: String): Int")
+            crate::tests::diagnostic_text(error).contains("callable reference `::choose`")
+                && crate::tests::diagnostic_text(error).contains("fun choose(value: String): Int")
         }),
         "the filtered member role must leave the star reference visible: {errors:?}"
     );

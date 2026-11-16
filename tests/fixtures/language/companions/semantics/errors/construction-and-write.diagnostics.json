@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0510",
     "message": "companion object `Companion` cannot be constructed",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1501",
     "message": "cannot assign to immutable property `version`",
     "notes": [],
     "origin": {

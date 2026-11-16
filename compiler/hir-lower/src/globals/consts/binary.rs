@@ -39,6 +39,7 @@ impl Lowerer {
             };
             if !self.types_equal(lhs.ty, rhs.ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     span,
                     format!(
                         "const operator operands must have the same type, found {} and {}",
@@ -52,6 +53,7 @@ impl Lowerer {
                 (lhs.value, rhs.value)
             else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     span,
                     "boolean const operator requires Boolean operands".to_string(),
                 );
@@ -121,6 +123,7 @@ impl Lowerer {
         )?;
         if !self.types_equal(lhs.ty, rhs.ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "const operator operands must have the same type, found {} and {}",
@@ -145,7 +148,11 @@ impl Lowerer {
                 match self.evaluate_typed_integer_binary_operator(operator, left, right) {
                     IntegerBinaryResult::Value(value) => Some(value),
                     IntegerBinaryResult::DivisionByZero => {
-                        self.error(span, "division by zero in const initializer".to_string());
+                        self.error(
+                            scoop_source::DiagnosticCode::E1519,
+                            span,
+                            "division by zero in const initializer".to_string(),
+                        );
                         return None;
                     }
                     IntegerBinaryResult::Unsupported => None,
@@ -177,6 +184,7 @@ impl Lowerer {
         };
         let Some(value) = result else {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 span,
                 "invalid binary operator in const initializer".to_string(),
             );

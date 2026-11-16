@@ -6,8 +6,9 @@ fn bare_typo_is_an_error_at_the_name_even_with_an_else() {
     let errors = lower_user_output(scoop_parser::parse(source).unwrap()).unwrap_err();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(errors[0].severity, ast::DiagnosticSeverity::Error);
+    assert_eq!(errors[0].code, scoop_source::DiagnosticCode::E0402);
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "enum `E` has no variant `Bad`; use `val Bad` to bind the matched value"
     );
     let span = errors[0].span().unwrap();
@@ -28,9 +29,17 @@ fn implicit_bindings_are_rejected_at_every_match_depth() {
         );
         let errors = lower_user_output(scoop_parser::parse(&source).unwrap()).unwrap_err();
         assert_eq!(errors.len(), 1, "{pattern}: {errors:?}");
-        assert!(errors[0].message.contains(&format!("`{name}`")));
-        assert!(errors[0].message.contains(ty));
-        assert!(errors[0].message.contains(&format!("use `val {name}`")));
+        assert_eq!(
+            errors[0].code,
+            if ty == "E" {
+                scoop_source::DiagnosticCode::E0402
+            } else {
+                scoop_source::DiagnosticCode::E0901
+            }
+        );
+        assert!(crate::tests::diagnostic_text(&errors[0]).contains(&format!("`{name}`")));
+        assert!(crate::tests::diagnostic_text(&errors[0]).contains(ty));
+        assert!(crate::tests::diagnostic_text(&errors[0]).contains(&format!("use `val {name}`")));
     }
 }
 
@@ -73,7 +82,7 @@ fn a_guarded_whole_value_binding_does_not_prove_exhaustiveness() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("non-exhaustive")),
+            .any(|error| crate::tests::diagnostic_text(error).contains("non-exhaustive")),
         "{errors:?}"
     );
 }

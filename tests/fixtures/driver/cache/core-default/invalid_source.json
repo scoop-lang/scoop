@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2008",
     "message": "${work}/private-sysroot/src/scoop.core/Cone.toml: invalid Cone.toml: TOML parse error at line 1, column 10\n  |\n1 | schema = true\n  |          ^^^^\ninvalid type: boolean `true`, expected i64\n",
     "notes": [
       {
+        "code": "N0001",
+        "kind": "note",
         "message": "related declaration",
+        "notes": [],
         "origin": {
           "end": 177,
           "kind": "host",

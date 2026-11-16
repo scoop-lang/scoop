@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `choose` does not cover inherited slot `PublicMiddle.choose`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `choose` does not cover inherited slot `ProtectedRoot.choose`",
     "notes": [],
     "origin": {

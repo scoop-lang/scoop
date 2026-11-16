@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1015",
     "message": "`read` overrides `Parent.read` and must be marked `override`",
     "notes": [],
     "origin": {

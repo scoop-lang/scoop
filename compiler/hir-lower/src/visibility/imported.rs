@@ -5,7 +5,7 @@ impl Lowerer {
         &mut self,
         receiver: hir::TypeId,
         name: &str,
-    ) -> Option<String> {
+    ) -> Option<(scoop_source::DiagnosticCode, String)> {
         use hir::ImportedCallableSource;
         let candidates = self
             .imported_member_candidates_for_receiver(
@@ -24,10 +24,13 @@ impl Lowerer {
         let current = self
             .protected_scope_classes(self.current_owner?)
             .find(|class| self.class_inherits_declaration(*class, base))?;
-        Some(format!(
-            "protected method `{name}` cannot be accessed through receiver of static type `{}`; receiver must be `{}` or one of its subclasses",
-            self.type_name(receiver),
-            self.classes[current].name
+        Some((
+            scoop_source::DiagnosticCode::E0411,
+            format!(
+                "protected method `{name}` cannot be accessed through receiver of static type `{}`; receiver must be `{}` or one of its subclasses",
+                self.type_name(receiver),
+                self.classes[current].name
+            ),
         ))
     }
 

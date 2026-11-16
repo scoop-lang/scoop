@@ -19,6 +19,7 @@ pub(super) fn suffixes(
         .collect()),
         NativeLibraryKind::StaticArchive | NativeLibraryKind::Dynamic => Ok(archives.into()),
         NativeLibraryKind::Framework => Err(error(
+            scoop_source::DiagnosticCode::E2301,
             "framework libraries are not supported by the Windows target",
         )),
     }
@@ -55,7 +56,10 @@ pub(super) fn system(
         for (suffix, kind) in &suffixes {
             let path = directory.join(suffix);
             observed.push(path.clone());
-            if !path.try_exists().map_err(error)? {
+            if !path
+                .try_exists()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+            {
                 continue;
             }
             let file = read(&path, *kind, profile, true)?;
@@ -68,9 +72,12 @@ pub(super) fn system(
             }
         }
     }
-    Err(error(format!(
-        "native library {:?} is unavailable for {}",
-        key.library().as_str(),
-        profile.canonical_triple()
-    )))
+    Err(error(
+        scoop_source::DiagnosticCode::E2302,
+        format!(
+            "native library {:?} is unavailable for {}",
+            key.library().as_str(),
+            profile.canonical_triple()
+        ),
+    ))
 }

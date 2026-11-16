@@ -109,7 +109,8 @@ impl SmartFlow<'_> {
         if !self.state.diagnostics.iter().any(|diagnostic| {
             diagnostic.span() == Some(value.span) && diagnostic.message == message
         }) {
-            self.state.error(value.span, message);
+            self.state
+                .error(scoop_source::DiagnosticCode::E0812, value.span, message);
         }
     }
 }

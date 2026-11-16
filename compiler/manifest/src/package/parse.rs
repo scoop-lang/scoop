@@ -21,6 +21,7 @@ pub fn parse_package_manifest(
     }
     if raw.cone.is_none() && raw.workspace.is_none() {
         return Err(invalid(
+            scoop_source::DiagnosticCode::E2008,
             "manifest requires cone or workspace",
             raw.schema.span(),
         ));
@@ -32,6 +33,7 @@ pub fn parse_package_manifest(
             || raw.test.sources.is_some())
     {
         return Err(invalid(
+            scoop_source::DiagnosticCode::E2009,
             "a virtual workspace cannot declare Cone dependencies or sources",
             raw.schema.span(),
         ));
@@ -52,6 +54,7 @@ pub fn parse_package_manifest(
     }
     if let (None, Some(bundle)) = (&raw.cone, &raw.bundle) {
         return Err(invalid(
+            scoop_source::DiagnosticCode::E2009,
             "bundle metadata requires a Cone member",
             bundle.span(),
         ));
@@ -71,6 +74,7 @@ pub fn parse_package_manifest(
     if cone.is_none() && (native != NativeConfig::default() || publish != PublishConfig::default())
     {
         return Err(invalid(
+            scoop_source::DiagnosticCode::E2009,
             "a virtual workspace cannot declare native or publish inputs",
             raw.schema.span(),
         ));
@@ -83,10 +87,9 @@ pub fn parse_package_manifest(
             .registry
             .default
             .map(|value| {
-                value
-                    .get_ref()
-                    .parse()
-                    .map_err(|message| invalid(message, value.span()))
+                value.get_ref().parse().map_err(|message| {
+                    invalid(scoop_source::DiagnosticCode::E2016, message, value.span())
+                })
             })
             .transpose()?,
         dependencies,
@@ -117,10 +120,14 @@ fn cone(value: Spanned<RawCone>) -> Result<ConeDeclaration, ManifestParseError> 
     };
     if let Some(value) = &raw.readme {
         if path(value.get_ref())
-            .map_err(|message| invalid(message, value.span()))?
+            .map_err(|message| invalid(scoop_source::DiagnosticCode::E2012, message, value.span()))?
             .is_absolute()
         {
-            return Err(invalid("readme must be a relative path", value.span()));
+            return Err(invalid(
+                scoop_source::DiagnosticCode::E2012,
+                "readme must be a relative path",
+                value.span(),
+            ));
         }
     }
     Ok(ConeDeclaration {
@@ -144,6 +151,7 @@ fn workspace(raw: RawWorkspace) -> Result<WorkspaceDefinition, ManifestParseErro
     for (key, value) in raw.cone {
         if !matches!(key.as_str(), "group" | "version" | "license" | "repository") {
             return Err(invalid(
+                scoop_source::DiagnosticCode::E2008,
                 format!("workspace.cone cannot define {key:?}"),
                 value.span(),
             ));
@@ -175,7 +183,11 @@ fn inheritable(value: Spanned<toml::Value>) -> Result<InheritableValue, Manifest
         {
             Ok(InheritableValue::Workspace { span })
         }
-        _ => Err(invalid("expected a string or { workspace = true }", span)),
+        _ => Err(invalid(
+            scoop_source::DiagnosticCode::E2008,
+            "expected a string or { workspace = true }",
+            span,
+        )),
     }
 }
 
@@ -188,8 +200,9 @@ fn field<T>(value: Spanned<T>) -> ManifestValue<T> {
 
 fn relative(value: Spanned<String>) -> Result<ManifestValue<ConeRelativePath>, ManifestParseError> {
     Ok(ManifestValue {
-        value: ConeRelativePath::new(value.get_ref())
-            .map_err(|message| invalid(message, value.span()))?,
+        value: ConeRelativePath::new(value.get_ref()).map_err(|message| {
+            invalid(scoop_source::DiagnosticCode::E2012, message, value.span())
+        })?,
         span: value.span(),
     })
 }
@@ -208,10 +221,16 @@ fn publish(raw: RawPublish) -> Result<PublishConfig, ManifestParseError> {
             .files
             .into_iter()
             .map(|value| {
-                let from = path(value.from.get_ref())
-                    .map_err(|message| invalid(message, value.from.span()))?;
+                let from = path(value.from.get_ref()).map_err(|message| {
+                    invalid(
+                        scoop_source::DiagnosticCode::E2012,
+                        message,
+                        value.from.span(),
+                    )
+                })?;
                 if from.is_absolute() {
                     return Err(invalid(
+                        scoop_source::DiagnosticCode::E2012,
                         "publish.files.from must be a relative path",
                         value.from.span(),
                     ));

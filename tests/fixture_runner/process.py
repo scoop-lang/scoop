@@ -13,11 +13,11 @@ from .model import AssertionFailure, EnvironmentError, check_interrupted
 from .values import argv_values, byte_value, expand, path
 
 
-def canonical(diagnostic):
+def canonical(diagnostic, *, primary=True):
     return {
-        key: [canonical(note) for note in value] if key == "notes" else value
+        key: [canonical(note, primary=False) for note in value] if key == "notes" else value
         for key, value in diagnostic.items()
-        if key not in {"schema", "kind", "display"}
+        if key not in {"schema", "display"} and (key != "kind" or not primary)
     }
 
 
@@ -35,7 +35,7 @@ def decode_streams(stdout, stderr, mode):
                 record = json.loads(line)
             except (ValueError, UnicodeError):
                 break
-            if not isinstance(record, dict) or record.get("schema") != 1:
+            if not isinstance(record, dict) or record.get("schema") != 2:
                 break
             kinds = {
                 "diagnostic",

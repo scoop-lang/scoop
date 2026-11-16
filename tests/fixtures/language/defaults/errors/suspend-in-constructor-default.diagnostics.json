@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1103",
     "message": "suspend function `awaitValue` cannot be called from non-suspend default expression `value` of `Invalid`",
     "notes": [],
     "origin": {

@@ -66,9 +66,7 @@ impl Lowerer {
                 &mut violations,
                 &mut requirements,
             );
-            for (span, message) in violations {
-                self.error(span, message);
-            }
+            self.diagnostics.extend(violations);
             let mut requirements = requirements.into_iter().collect::<Vec<_>>();
             requirements.sort_by_key(|p| p.into_raw());
             self.struct_constructors[id].no_gc_type_params = requirements;
@@ -80,12 +78,14 @@ impl Lowerer {
         ty: hir::TypeId,
         span: Span,
         context: &str,
-        violations: &mut Vec<(Span, String)>,
+        violations: &mut Vec<scoop_ast::Diagnostic>,
         requirements: &mut HashSet<hir::TypeParamId>,
     ) {
         match self.gc_free_requirements(ty) {
             Some(required) => requirements.extend(required),
-            None => violations.push((
+            None => violations.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1106,
+                self.current_text_file(),
                 span,
                 format!(
                     "`@NoGC` {context} has non-GC-free type {}",
@@ -99,7 +99,7 @@ impl Lowerer {
         &self,
         constructor: hir::StructConstructorDefinition,
         span: Span,
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
     ) {
         let (name, managed) = match constructor {
             hir::StructConstructorDefinition::Local(constructor) => {
@@ -129,7 +129,9 @@ impl Lowerer {
             }
         };
         if managed {
-            out.push((
+            out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1104,
+                self.current_text_file(),
                 span,
                 format!("`@NoGC` code may not call managed constructor `{name}`"),
             ));

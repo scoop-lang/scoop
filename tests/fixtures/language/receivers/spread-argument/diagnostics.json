@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0707",
     "message": "function values do not accept spread arguments",
     "notes": [],
     "origin": {

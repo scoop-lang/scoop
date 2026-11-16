@@ -23,7 +23,7 @@ impl Lowerer {
             .collect::<Vec<_>>();
         let (Some(reference), [factory]) = (reference, candidates.as_slice()) else {
             self.current_file = self.core_diagnostic_file();
-            self.error(files[self.current_file],
+            self.error(scoop_source::DiagnosticCode::E1403, files[self.current_file],
                 "scoop.core must define TypeRef and one internal `fun <T> __scoopTypeReference(): TypeRef`".into());
             return None;
         };
@@ -40,7 +40,7 @@ impl Lowerer {
             || signature.attributes != hir::FunctionAttributes::default()
             || !matches!(declaration.kind, hir::FunctionKind::User(_))
         {
-            self.error(declaration.span,
+            self.error(scoop_source::DiagnosticCode::E1403, declaration.span,
                 "core type reference factory must be internal, managed, non-suspend `fun <T> __scoopTypeReference(): TypeRef`".into());
         }
         for (kind, result) in [
@@ -72,7 +72,7 @@ impl Lowerer {
                 || signature.return_ty != result
                 || signature.attributes != hir::FunctionAttributes::default()
             {
-                self.error(declaration.span, format!("intrinsic `{}` must have one type parameter, no value parameters, and its core description result type", kind.name()));
+                self.error(scoop_source::DiagnosticCode::E1403, declaration.span, format!("intrinsic `{}` must have one type parameter, no value parameters, and its core description result type", kind.name()));
             }
             self.set_source_context(hir::SourceContextSubject::Function(function));
         }

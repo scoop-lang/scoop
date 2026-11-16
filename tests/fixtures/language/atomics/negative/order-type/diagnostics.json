@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `load`: WrongOrder is not a subtype of MemoryOrder",
     "notes": [],
     "origin": {

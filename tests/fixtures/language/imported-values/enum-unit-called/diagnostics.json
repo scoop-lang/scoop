@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unit variant `On` of `Flag` does not take arguments; use `On` without parentheses",
-    "notes": [],
+    "code": "E0732",
+    "message": "unit variant `On` of `Flag` does not take arguments",
+    "notes": [
+      {
+        "code": "H0704",
+        "kind": "help",
+        "message": "use `On` without parentheses",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "0e9dafbed80ff7a851c0a47d8afc269906040b65336fa5ad26baff97d8096413",
       "end": 92,

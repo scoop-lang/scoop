@@ -43,7 +43,8 @@ pub(crate) fn prepare(llvm: &Module<'_>, symbols: &SymbolPlanIndex) -> Result<()
         {
             return Err(CodegenError::internal(format!(
                 "COFF storage belongs to both {previous} and {group}"
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         // Real section definitions carry COMDAT selection, not weak fallback.
         if unsafe { !LLVMIsAGlobalAlias(value.as_value_ref()).is_null() } {
@@ -58,7 +59,8 @@ pub(crate) fn prepare(llvm: &Module<'_>, symbols: &SymbolPlanIndex) -> Result<()
             LinkageClass::RuntimeAbi => {
                 return Err(CodegenError::internal(
                     "runtime declaration cannot own compiler storage".into(),
-                ));
+                )
+                .with_code(scoop_source::DiagnosticCode::ICE2302));
             }
         });
         owner.set_comdat(comdat);

@@ -68,7 +68,7 @@ impl Lowerer {
         let host = self.intern_type(Type::Param(parameter));
         let ty = self
             .projected_companion_type(host)
-            .map_err(|message| self.error(span, message))
+            .map_err(|message| self.error(scoop_source::DiagnosticCode::E0617, span, message))
             .ok()?;
         Some(hir::Expr {
             kind: ExprKind::SingletonValue(hir::SingletonValueTarget::Companion(parameter)),

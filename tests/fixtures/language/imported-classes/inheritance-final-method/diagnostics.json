@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1014",
     "message": "`direct` cannot override final method `Parent.direct`",
     "notes": [],
     "origin": {

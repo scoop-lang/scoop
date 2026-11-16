@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1512",
     "message": "setter of property `invalid` cannot be more visible than the property",
     "notes": [],
     "origin": {

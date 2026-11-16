@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0703",
     "message": "dependency constructor `Pair` parameter `left` is supplied more than once",
     "notes": [],
     "origin": {

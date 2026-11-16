@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1210",
     "message": "raw storage of type String has no valid all-zero initial image",
     "notes": [],
     "origin": {

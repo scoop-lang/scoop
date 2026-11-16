@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `read` in current-unit top-level candidate layer:\n  - fun read<T : IndexGet<Long, Int>>(value: T): Int — type argument `Box` for `T` must satisfy interface upper bound `IndexGet<Long, Int>`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `read` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun read<T : IndexGet<Long, Int>>(value: T): Int",
+        "notes": [
+          {
+            "code": "E0603",
+            "kind": "cause",
+            "message": "type argument `Box` for `T` must satisfy interface upper bound `IndexGet<Long, Int>`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 159,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 148
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 126,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 65
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 159,

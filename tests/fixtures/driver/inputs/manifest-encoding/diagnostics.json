@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2003",
     "message": "${work}/cone/Cone.toml: stream did not contain valid UTF-8",
     "notes": [],
     "origin": {

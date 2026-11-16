@@ -1,0 +1,14 @@
+[
+  {
+    "code": "E2107",
+    "message": "root artifact cannot also be a dependency",
+    "notes": [],
+    "origin": {
+      "kind": "artifact",
+      "member": "manifest:cone.identity",
+      "path": "${work}/artifacts/root.slib"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

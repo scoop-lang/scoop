@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Acquire is not allowed with success order Relaxed",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Release is not allowed with success order Relaxed",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order AcqRel is not allowed with success order Relaxed",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order SeqCst is not allowed with success order Relaxed",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Release is not allowed with success order Acquire",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order AcqRel is not allowed with success order Acquire",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order SeqCst is not allowed with success order Acquire",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Acquire is not allowed with success order Release",
     "notes": [],
     "origin": {
@@ -104,7 +104,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Release is not allowed with success order Release",
     "notes": [],
     "origin": {
@@ -117,7 +117,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order AcqRel is not allowed with success order Release",
     "notes": [],
     "origin": {
@@ -130,7 +130,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order SeqCst is not allowed with success order Release",
     "notes": [],
     "origin": {
@@ -143,7 +143,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Release is not allowed with success order AcqRel",
     "notes": [],
     "origin": {
@@ -156,7 +156,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order AcqRel is not allowed with success order AcqRel",
     "notes": [],
     "origin": {
@@ -169,7 +169,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order SeqCst is not allowed with success order AcqRel",
     "notes": [],
     "origin": {
@@ -182,7 +182,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order Release is not allowed with success order SeqCst",
     "notes": [],
     "origin": {
@@ -195,7 +195,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "atomic CAS failure order AcqRel is not allowed with success order SeqCst",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0715",
     "message": "inner constructor requires a matching outer instance",
     "notes": [],
     "origin": {

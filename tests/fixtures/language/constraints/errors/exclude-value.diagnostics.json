@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "negative bound of type parameter `T` must be an interface, found `Int`",
     "notes": [],
     "origin": {

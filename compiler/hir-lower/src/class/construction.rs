@@ -130,6 +130,7 @@ impl Lowerer {
             && spec.constructor_arguments().is_some()
         {
             self.error(
+                scoop_source::DiagnosticCode::E1001,
                 spec.span,
                 "a class without a primary constructor cannot pass base arguments in its header"
                     .into(),

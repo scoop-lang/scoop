@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1105",
     "message": "integer division is not allowed in `@NoGC` code because it may throw",
     "notes": [],
     "origin": {

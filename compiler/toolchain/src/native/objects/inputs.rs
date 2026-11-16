@@ -17,7 +17,7 @@ pub(super) fn configuration(
             config
                 .source_language(s.path(), target_facts)
                 .map(|language| (s.path().as_str(), language.input_name()))
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause))
         })
         .collect::<Result<_, _>>()?;
     sources.sort();
@@ -30,17 +30,18 @@ pub(super) fn configuration(
     };
     let libraries = config
         .library_requirements(target.id())
-        .map_err(error)?
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause))?
         .iter()
         .map(scoop_wire::encode)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let include: Vec<_> = config
         .includes(target.id())
         .filter(|_| !sources.is_empty())
         .collect();
     fingerprint(&(
-        HostPathCarrier::from_path(manifest.real_root()).map_err(error)?,
+        HostPathCarrier::from_path(manifest.real_root())
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         &sources,
         include,
         flags(NativeSourceLanguage::C),
@@ -48,11 +49,12 @@ pub(super) fn configuration(
         flags(NativeSourceLanguage::ObjectiveC),
         config.cxx(target.id()),
         libraries,
-        scoop_wire::encode(&optimization).map_err(error)?,
+        scoop_wire::encode(&optimization)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         (!sources.is_empty())
             .then(|| HostPathCarrier::from_path(sysroot))
             .transpose()
-            .map_err(error)?,
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         target.contract().canonical_triple(),
     ))
 }

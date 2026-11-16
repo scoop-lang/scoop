@@ -36,7 +36,7 @@ name = "producer"
 argv = ["${scoopc}", "build", "--profile", "release", "${work}/parent/child/Cone.toml", "--sysroot", "${sysroot}", "--target", "${target}", "--out-slib", "${work}/producer.slib"]
 exit = 1
 stdout = ""
-stderr = "error: scoopc does not read Cone.toml; use scoop build/check for Cone projects\n"
+stderr = "error[E2001]: scoopc does not read Cone.toml\n  help[H2001]: use scoop build/check for Cone projects\n"
 cwd = "${work}/parent/child"
 checks = [
   {"file" = "${work}/producer.slib", "exists" = false},

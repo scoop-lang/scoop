@@ -119,7 +119,7 @@ impl Lowerer {
         );
         match (assign_probe, fallback_probe) {
             (Ok(_), Ok(_)) => {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E0730,
                     assign.span,
                     format!(
                         "compound assignment is ambiguous: both `{assign_name}` and `{fallback_name}` are applicable"
@@ -135,7 +135,7 @@ impl Lowerer {
             }
             (Err(_), Ok(probe)) => {
                 if matches!(&plan.write, WriteCapability::ReadOnly) {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E1506,
                         assign.span,
                         format!(
                             "operator `{fallback_name}` is applicable, but compound-assignment fallback is not writable"
@@ -146,7 +146,7 @@ impl Lowerer {
                 *self = *probe.state;
                 sink.extend(probe.sink);
                 if !self.is_subtype(probe.value.ty, plan.ty) {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0501,
                         assign.span,
                         format!(
                             "operator `{fallback_name}` returns {}, which cannot be assigned to place of type {}",
@@ -164,7 +164,7 @@ impl Lowerer {
             (Err(assign_failure), Err(fallback_failure)) => {
                 let assign_reason = assign_failure.messages.join("; ");
                 let fallback_reason = fallback_failure.messages.join("; ");
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E0731,
                     assign.span,
                     format!(
                         "compound assignment has no applicable operator:\n  - {assign_name}: {assign_reason}\n  - {fallback_name}: {fallback_reason}"

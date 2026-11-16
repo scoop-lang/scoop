@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1524",
     "message": "initialization cycle: top-level:left -> top-level:right -> top-level:left",
     "notes": [],
     "origin": {

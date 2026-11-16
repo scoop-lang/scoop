@@ -7,8 +7,13 @@ pub fn configured_cache_root(explicit: Option<PathBuf>) -> Result<PathBuf, crate
         .or_else(default_cache)
         .map(versioned_cache_root)
         .ok_or_else(|| {
-            crate::ToolchainError(
-                "no usable platform cache directory; provide --cache-dir or SCOOP_CACHE_DIR".into(),
+            crate::ToolchainError::new(
+                scoop_source::DiagnosticCode::E2302,
+                "no usable platform cache directory".to_owned(),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2001,
+                "provide --cache-dir or SCOOP_CACHE_DIR",
             )
         })
 }
@@ -73,17 +78,22 @@ pub fn configured_sysroot_root(
         .and_then(Path::parent)
         .map(Path::to_owned)
         .ok_or_else(|| {
-            crate::ToolchainError(format!(
-                "cannot locate sysroot from {}",
-                executable.display()
-            ))
+            crate::ToolchainError::new(
+                scoop_source::DiagnosticCode::E2302,
+                format!("cannot locate sysroot from {}", executable.display()),
+            )
         })
 }
 
 pub fn installed_executable() -> Result<PathBuf, crate::ToolchainError> {
     std::env::current_exe()
         .and_then(std::fs::canonicalize)
-        .map_err(|error| crate::ToolchainError(format!("cannot locate executable: {error}")))
+        .map_err(|error| {
+            crate::ToolchainError::new(
+                scoop_source::DiagnosticCode::E2302,
+                format!("cannot locate executable: {error}"),
+            )
+        })
 }
 
 pub fn host_executable_name(name: impl AsRef<OsStr>) -> OsString {
@@ -119,10 +129,13 @@ pub(crate) fn find_program(
             .find(|path| path.is_file())
     };
     let candidate = candidate.ok_or_else(|| {
-        crate::ToolchainError(format!("native tool not found: {}", program.display()))
+        crate::ToolchainError::new(
+            scoop_source::DiagnosticCode::E2302,
+            format!("native tool not found: {}", program.display()),
+        )
     })?;
     std::path::absolute(dunce::simplified(&candidate))
-        .map_err(|e| crate::ToolchainError(e.to_string()))
+        .map_err(|e| crate::ToolchainError::new(scoop_source::DiagnosticCode::E2201, e.to_string()))
 }
 
 pub fn development_runtime_root() -> PathBuf {

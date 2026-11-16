@@ -101,9 +101,9 @@ fn prepare_c_objects<'a>(
             for path in &outputs.objects {
                 if !path
                     .to_path_buf()
-                    .map_err(error)?
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
                     .try_exists()
-                    .map_err(error)?
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
                 {
                     return Ok(false);
                 }
@@ -115,7 +115,7 @@ fn prepare_c_objects<'a>(
             let temporary = tempfile::Builder::new()
                 .prefix("objects-")
                 .tempdir_in(&directory)
-                .map_err(error)?;
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             let prepared = compiler.prepare(manifest, optimization, sysroot, temporary.path())?;
             let mut objects = Vec::new();
             for (index, unit) in prepared.units().iter().enumerate() {
@@ -127,7 +127,10 @@ fn prepare_c_objects<'a>(
                     optimization,
                     &object,
                 )?;
-                objects.push(HostPathCarrier::from_path(&object).map_err(error)?);
+                objects.push(
+                    HostPathCarrier::from_path(&object)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
+                );
             }
             let inputs = prepared
                 .observed_paths
@@ -138,7 +141,7 @@ fn prepare_c_objects<'a>(
                 match std::fs::remove_file(temporary.path().join(name)) {
                     Ok(()) => {}
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(err) => return Err(error(err)),
+                    Err(err) => return Err(error(scoop_source::DiagnosticCode::E2201, err)),
                 }
             }
             let _ = temporary.keep();
@@ -154,7 +157,10 @@ fn prepare_c_objects<'a>(
             .result
             .objects
             .into_iter()
-            .map(|p| p.to_path_buf().map_err(error))
+            .map(|p| {
+                p.to_path_buf()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
+            })
             .collect::<Result<_, _>>()?,
         inputs: record.inputs,
     })

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1704",
     "message": "a test container must be a top-level non-generic concrete class; abstract, sealed, local and nested declarations are not allowed",
     "notes": [],
     "origin": {

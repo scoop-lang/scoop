@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0730",
     "message": "compound assignment is ambiguous: both `plusAssign` and `plus` are applicable",
     "notes": [],
     "origin": {

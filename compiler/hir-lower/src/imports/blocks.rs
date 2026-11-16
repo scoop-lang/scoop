@@ -14,6 +14,7 @@ impl Lowerer {
         } = exposure
         {
             self.error(
+                scoop_source::DiagnosticCode::E0407,
                 public_keyword_span,
                 "public import is only allowed in a file header".into(),
             );

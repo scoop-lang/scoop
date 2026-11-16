@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Missing` does not implement interface method `Readable.read`",
     "notes": [],
     "origin": {

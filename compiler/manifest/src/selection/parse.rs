@@ -46,10 +46,10 @@ fn parse_path(
     }
     .map_err(|reason| {
         ManifestParseError::new(
-            ManifestParseErrorKind::InvalidSelection(format!(
-                "invalid source path {:?}: {reason}",
-                raw.path.get_ref()
-            )),
+            ManifestParseErrorKind::InvalidSelection(
+                scoop_source::DiagnosticCode::E2012,
+                format!("invalid source path {:?}: {reason}", raw.path.get_ref()),
+            ),
             Some(raw.path.span()),
         )
     })?;
@@ -67,7 +67,10 @@ pub(crate) fn parse_predicate(
     for (key, value) in when.into_iter().flatten() {
         let error = |reason: String| {
             ManifestParseError::new(
-                ManifestParseErrorKind::InvalidSelection(reason),
+                ManifestParseErrorKind::InvalidSelection(
+                    scoop_source::DiagnosticCode::E2013,
+                    reason,
+                ),
                 Some(value.span()),
             )
         };

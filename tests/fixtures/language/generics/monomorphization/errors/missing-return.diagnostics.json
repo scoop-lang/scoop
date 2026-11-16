@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0801",
     "message": "non-Unit function `f` may complete without returning a value",
     "notes": [],
     "origin": {

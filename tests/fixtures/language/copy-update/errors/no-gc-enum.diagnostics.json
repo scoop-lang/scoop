@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1504",
     "message": "copy update requires an exact declared struct value, found Event",
     "notes": [],
     "origin": {

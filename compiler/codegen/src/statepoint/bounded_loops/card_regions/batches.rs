@@ -252,4 +252,5 @@ fn sink<'ctx>(
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
     CodegenError::internal(format!("card batch: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

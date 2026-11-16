@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1505",
     "message": "copy update field `value` is specified more than once",
     "notes": [],
     "origin": {

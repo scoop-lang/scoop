@@ -98,17 +98,12 @@ impl Lowerer {
                                         Some(expected),
                                     )?;
                                     if !this.is_subtype(value.ty, expected) {
-                                        let message = this.with_nominal_invariance_detail(
-                                            format!(
+                                        this.error_with_invariance(scoop_source::DiagnosticCode::E0501, property_initializer.span(), format!(
                                                 "initializer of property `{}` must be of type {}, found {}",
                                                 property.name.text,
                                                 this.type_name(expected),
                                                 this.type_name(value.ty)
-                                            ),
-                                            value.ty,
-                                            expected,
-                                        );
-                                        this.error(property_initializer.span(), message);
+                                            ), value.ty, expected);
                                         return None;
                                     }
                                     Some(this.adapt_to(value, expected))

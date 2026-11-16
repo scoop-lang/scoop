@@ -35,7 +35,7 @@ pub(super) fn run(
             .map_err(error)?;
         match runner
             .invoke(prepared.compiler(), invocation.request(), invocation.io())
-            .map_err(error)?
+            .map_err(BuildFailure::classified)?
         {
             ScoopcResponseEnvelopeV1::Success { result, .. }
                 if matches!(result.product(), ScoopcProductV1::Check) =>
@@ -43,9 +43,11 @@ pub(super) fn run(
                 Ok(result)
             }
             ScoopcResponseEnvelopeV1::Failure { diagnostics, .. } => {
-                let mut failure = error("root check failed");
-                failure.diagnostics = diagnostics;
-                Err(failure)
+                Err(BuildFailure::from_diagnostics(
+                    "root check failed",
+                    BuildFailurePhase::ChildDiagnostic,
+                    diagnostics,
+                ))
             }
             _ => Err(error("compiler returned an unexpected check result")),
         }

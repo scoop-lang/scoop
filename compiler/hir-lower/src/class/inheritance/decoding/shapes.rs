@@ -12,6 +12,7 @@ impl Lowerer {
             .expect("a record has a nominal type");
         if self.nominal_intrinsic_kind(application.template).is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1310,
                 span,
                 format!(
                     "intrinsic type {} requires an explicit decode implementation",
@@ -136,6 +137,7 @@ impl Lowerer {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("cannot resolve decoding constructor parameters: {error:?}"),
                 )

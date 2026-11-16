@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "generic function `loadDefault` requires type argument Value for `T` to be a GC-free `Ptr` pointee",
     "notes": [],
     "origin": {

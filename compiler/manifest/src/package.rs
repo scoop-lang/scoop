@@ -131,9 +131,13 @@ pub struct PackageDocument {
     pub bundle: Option<BundleMetadata>,
 }
 
-fn invalid(message: impl Into<String>, span: Range<usize>) -> ManifestParseError {
+fn invalid(
+    code: scoop_source::DiagnosticCode,
+    message: impl Into<String>,
+    span: Range<usize>,
+) -> ManifestParseError {
     ManifestParseError::new(
-        ManifestParseErrorKind::InvalidPackage(message.into()),
+        ManifestParseErrorKind::InvalidPackage(code, message.into()),
         Some(span),
     )
 }

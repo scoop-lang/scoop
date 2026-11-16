@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1311",
     "message": "property `value` requires an explicit encode implementation or Serialize(ignore = true)",
     "notes": [],
     "origin": {

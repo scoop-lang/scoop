@@ -7,21 +7,24 @@ pub fn record_generator_input(
     version: u32,
 ) -> Result<GeneratorToolInputV1, ToolchainError> {
     let metadata = program.metadata().map_err(|source| {
-        error(format!(
-            "cannot inspect generator {}: {source}",
-            program.display()
-        ))
+        error(
+            scoop_source::DiagnosticCode::E2201,
+            format!("cannot inspect generator {}: {source}", program.display()),
+        )
     })?;
     let registration = GeneratorRegistrationV1::new(
         name.to_owned(),
-        HostPathCarrier::from_path(program).map_err(error)?,
+        HostPathCarrier::from_path(program)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2501, cause))?,
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2501, cause))?;
     Ok(GeneratorToolInputV1::new(
         registration,
         version,
         metadata.len(),
-        metadata.modified().map_err(error)?,
+        metadata
+            .modified()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
     ))
 }
 
@@ -36,7 +39,12 @@ impl GeneratorPrograms {
             let Some(program) = self.program_for_compiler(registration.name(), compiler) else {
                 return Ok(false);
             };
-            if program != registration.program().to_path_buf().map_err(error)? {
+            if program
+                != registration
+                    .program()
+                    .to_path_buf()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2502, cause))?
+            {
                 return Ok(false);
             }
             let metadata = match program.metadata() {
@@ -50,14 +58,17 @@ impl GeneratorPrograms {
                     return Ok(false);
                 }
                 Err(source) => {
-                    return Err(error(format!(
-                        "cannot inspect generator {}: {source}",
-                        program.display()
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2201,
+                        format!("cannot inspect generator {}: {source}", program.display()),
+                    ));
                 }
             };
             if metadata.len() != input.byte_length()
-                || metadata.modified().map_err(error)? != input.modified()
+                || metadata
+                    .modified()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+                    != input.modified()
             {
                 return Ok(false);
             }

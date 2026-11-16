@@ -144,7 +144,7 @@ impl Lowerer {
                         } else {
                             let expected = self.type_name(ty);
                             let found = self.type_name(value.ty);
-                            self.error(
+                            self.error(scoop_source::DiagnosticCode::E0501,
                                 expression.span(),
                                 format!(
                                     "top-level property initializer must be of type {expected}, found {found}"
@@ -348,6 +348,7 @@ impl Lowerer {
                     }
                 };
                 self.error(
+                    scoop_source::DiagnosticCode::E1524,
                     dependency.span,
                     format!("initialization cycle: {}", path.join(" -> ")),
                 );

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2110",
     "message": "dependency resolution failed:\ndev.m33:sysroot-reject 0.1.0 [path .] depends on scoop:scoop.platform ∅\n  dev.m33:sysroot-reject -> scoop:scoop.platform: dev.m33:sysroot-reject:0.1.0 requires 0.1.0 from sysroot/artifact search roots\n    ${work}/cone/Cone.toml (bytes 138..145)\n    candidate 0.2.0 [sysroot scoop.platform]: does not satisfy 0.1.0",
     "notes": [],
     "origin": {

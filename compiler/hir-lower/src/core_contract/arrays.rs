@@ -62,6 +62,7 @@ impl Lowerer {
             && result_matches;
         if !valid {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 self.functions[function].span,
                 format!("malformed core array intrinsic `{}`", kind.name()),
             );

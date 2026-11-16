@@ -1,8 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "body of `wrong` must be of type View<Unit, Any>, found Swap<Int, Unit>; nominal application `View` is invariant: first differing type argument 2 (`B`) is `Int` in `View<Unit, Int>`, but `Any` in `View<Unit, Any>`; construct the target application directly or convert explicitly",
-    "notes": [],
+    "code": "E0501",
+    "message": "body of `wrong` must be of type View<Unit, Any>, found Swap<Int, Unit>",
+    "notes": [
+      {
+        "code": "N0501",
+        "kind": "note",
+        "message": "nominal application `View` is invariant: first differing type argument 2 (`B`) is `Int` in `View<Unit, Int>`, but `Any` in `View<Unit, Any>`",
+        "notes": [
+          {
+            "code": "H0501",
+            "kind": "help",
+            "message": "construct the target application directly or convert explicitly",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "1ae7ec5541fa1e4ca5c90e10ae6e49ee955152218a69a702357d6eed65d10e57",
       "end": 136,

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "memory order Release is not valid for atomic load; expected Relaxed, Acquire, or SeqCst",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "memory order AcqRel is not valid for atomic load; expected Relaxed, Acquire, or SeqCst",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "memory order Acquire is not valid for atomic store; expected Relaxed, Release, or SeqCst",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1222",
     "message": "memory order AcqRel is not valid for atomic store; expected Relaxed, Release, or SeqCst",
     "notes": [],
     "origin": {

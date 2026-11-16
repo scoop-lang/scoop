@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 fn path(path: &Path) -> Result<HostPathCarrier, ToolchainError> {
-    HostPathCarrier::from_path(path).map_err(error)
+    HostPathCarrier::from_path(path)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
 }
 use std::collections::BTreeSet;
 
@@ -31,11 +32,18 @@ impl Input {
     }
 
     pub fn is_current(&self) -> Result<bool, ToolchainError> {
-        Ok(state(&self.path.to_path_buf().map_err(error)?)? == self.state)
+        Ok(state(
+            &self
+                .path
+                .to_path_buf()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
+        )? == self.state)
     }
 
     pub fn path(&self) -> Result<PathBuf, ToolchainError> {
-        self.path.to_path_buf().map_err(error)
+        self.path
+            .to_path_buf()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
     }
 }
 
@@ -51,22 +59,26 @@ fn state(path: &Path) -> Result<Option<State>, ToolchainError> {
             return Ok(None);
         }
         Err(source) => {
-            return Err(error(format!(
-                "cannot inspect {}: {source}",
-                path.display()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2201,
+                format!("cannot inspect {}: {source}", path.display()),
+            ));
         }
     };
     let (before, elapsed) = match metadata
         .modified()
-        .map_err(error)?
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
         .duration_since(std::time::UNIX_EPOCH)
     {
         Ok(elapsed) => (false, elapsed),
         Err(error) => (true, error.duration()),
     };
     Ok(Some(State {
-        resolved: self::path(&path.canonicalize().map_err(error)?)?,
+        resolved: self::path(
+            &path
+                .canonicalize()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+        )?,
         length: metadata.len(),
         modified: (before, elapsed.as_secs(), elapsed.subsec_nanos()),
     }))

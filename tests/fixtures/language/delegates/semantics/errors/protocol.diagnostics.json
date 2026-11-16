@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `NoGet` has no applicable property delegate operator `getValue`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `OrdinaryOnly` has no applicable property delegate operator `getValue`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "property delegate getter for `wrong` returns String, which is not assignable to Int",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `NoSet` has no applicable property delegate operator `setValue`",
     "notes": [],
     "origin": {

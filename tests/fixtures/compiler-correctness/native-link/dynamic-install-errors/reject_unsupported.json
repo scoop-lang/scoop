@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
+    "code": "E2305",
     "message": "direct dynamic provider has unsupported install name @executable_path/libm23_a.dylib",
     "notes": [],
     "origin": {

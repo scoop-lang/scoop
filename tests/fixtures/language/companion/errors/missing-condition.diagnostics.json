@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0617",
     "message": "the generic environment does not require a public companion for `T`",
     "notes": [],
     "origin": {

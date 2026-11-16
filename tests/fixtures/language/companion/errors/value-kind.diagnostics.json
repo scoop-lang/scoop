@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "`T.Companion` is a reference singleton and cannot satisfy a value bound",
     "notes": [],
     "origin": {

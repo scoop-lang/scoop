@@ -33,7 +33,7 @@ impl Lowerer {
             _ => false,
         };
         if !has_source {
-            self.error(source.name.span, format!("property `{}` requires an explicit type without an initializer, expression getter, or delegate", source.name.text));
+            self.error(scoop_source::DiagnosticCode::E1508, source.name.span, format!("property `{}` requires an explicit type without an initializer, expression getter, or delegate", source.name.text));
             return None;
         }
         // This value is confined to declaration allocation. Every semantic
@@ -102,9 +102,14 @@ impl Lowerer {
             InferenceState::Active => {
                 let names = self.declaration_inference_path(DeclarationKey::Property(property));
                 let file = std::mem::replace(&mut self.current_file, query.file);
-                self.error(
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E0609,
                     query.source.name.span,
-                    format!("recursive declaration type inference: {names}; add an explicit type"),
+                    format!("recursive declaration type inference: {names}"),
+                    scoop_source::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H0502,
+                        "add an explicit type".to_owned(),
+                    ),
                 );
                 self.current_file = file;
                 return None;

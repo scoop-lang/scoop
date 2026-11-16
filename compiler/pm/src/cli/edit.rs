@@ -78,7 +78,8 @@ pub(super) fn remove(args: EditArgs) -> PmResult<()> {
 }
 
 fn discover(args: &EditArgs) -> PmResult<(PathBuf, Workspace)> {
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let workspace = Workspace::discover(&cwd, args.input.as_deref())?;
     Ok((cwd, workspace))
 }
@@ -96,8 +97,10 @@ fn selected<'a>(
     match members.as_slice() {
         [member] => Ok(member),
         _ => Err(PmError::new(
-            "add/remove requires exactly one selected Cone; use -p group:name",
-        )),
+            scoop_source::DiagnosticCode::E2001,
+            "add/remove requires exactly one selected Cone".to_owned(),
+        )
+        .with_help(scoop_source::DiagnosticCode::H2001, "use -p group:name")),
     }
 }
 
@@ -143,13 +146,18 @@ fn declaration(args: &AddArgs, cwd: &Path, member: &Path) -> PmResult<Value> {
 
 fn relative(cwd: &Path, member: &Path, path: &Path) -> PmResult<String> {
     if path.as_os_str().is_empty() {
-        return Err(PmError::new("dependency path must not be empty"));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2001,
+            "dependency path must not be empty",
+        ));
     }
     let absolute = cwd.join(path);
     let relative = pathdiff::diff_paths(dunce::simplified(&absolute), dunce::simplified(member))
         .unwrap_or(absolute);
-    relative
-        .to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| PmError::new("manifest dependency path must be UTF-8"))
+    relative.to_str().map(str::to_owned).ok_or_else(|| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2001,
+            "manifest dependency path must be UTF-8",
+        )
+    })
 }

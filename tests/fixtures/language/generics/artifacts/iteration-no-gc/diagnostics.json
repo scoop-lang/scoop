@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `invalid` has non-GC-free parameter `values` of type Array<Int>",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `invalid` has local `$for.source.0` of non-GC-free type Array<Int>",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `invalid` has local `$dependency.receiver` of non-GC-free type Array<Int>",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `invalid` has local `$for.iterator.result.1` of non-GC-free type Iterator<Int>",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `invalid` has local `$for.iterator.2` of non-GC-free type Iterator<Int>",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Array<Int> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Array<Int> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Iterator<Int> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -104,7 +104,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "calling a managed dependency function is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -117,7 +117,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Array<Int> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -130,7 +130,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Iterator<Int> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -143,7 +143,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "calling a managed dependency function is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -156,7 +156,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Iterator<Int> is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {

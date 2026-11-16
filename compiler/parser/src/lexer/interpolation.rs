@@ -60,6 +60,7 @@ impl Lexer<'_> {
             match self.peek_char() {
                 None | Some('\n' | '\r') if !raw || self.pos == self.source.len() => {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0102,
                         self.span_from(opening),
                         "unterminated f-string literal",
                     ));
@@ -77,9 +78,14 @@ impl Lexer<'_> {
                     }
                     let name = &self.source[start + 1..self.pos];
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0110,
                         self.span_from(start),
-                        format!("`${name}` interpolation requires braces; use `${{{name}}}`"),
-                    ));
+                        format!("`${name}` interpolation requires braces"),
+                    )
+                    .with_note(scoop_source::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H0101,
+                        format!("use `${{{name}}}`"),
+                    )));
                 }
                 Some('\\') if !raw => value.push(self.escape()?),
                 Some(c) => {

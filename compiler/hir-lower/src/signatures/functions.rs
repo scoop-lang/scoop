@@ -21,6 +21,7 @@ impl Lowerer {
         // Member-only flags on a top-level function (M6).
         if decl.modifier == ast::MethodModifier::Abstract {
             self.error(
+                scoop_source::DiagnosticCode::E1018,
                 decl.name.span,
                 format!(
                     "abstract function `{}` is only allowed in abstract classes",
@@ -30,6 +31,7 @@ impl Lowerer {
         }
         if decl.is_override {
             self.error(
+                scoop_source::DiagnosticCode::E1012,
                 decl.name.span,
                 format!(
                     "`{}` is marked `override` but does not override any method",
@@ -44,6 +46,7 @@ impl Lowerer {
             })
         {
             self.error(
+                scoop_source::DiagnosticCode::E0308,
                 decl.name.span,
                 format!("function `{}` must have a body", decl.name.text),
             );
@@ -55,6 +58,7 @@ impl Lowerer {
                 .any(|existing: &hir::TypeParamDecl| existing.name == param.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     param.span,
                     format!("duplicate type parameter `{}`", param.name.text),
                 );

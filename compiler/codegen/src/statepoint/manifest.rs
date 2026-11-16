@@ -106,7 +106,8 @@ pub(crate) fn expectations(module: &scoop_lir::Module) -> Result<ExpectedSafepoi
             return Err(CodegenError::internal(format!(
                 "duplicate LIR function symbol `{}` in statepoint manifest",
                 function.symbol()
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101));
         }
         for (_, block) in function.blocks.iter() {
             let instruction_sites =
@@ -187,6 +188,7 @@ pub(crate) fn expectations(module: &scoop_lir::Module) -> Result<ExpectedSafepoi
                             function.symbol(),
                             safepoint.into_u32()
                         ))
+                        .with_code(scoop_source::DiagnosticCode::ICE1101)
                     })?
                     .runtime_id();
                 if function.gc_effect == GcEffect::NoGc {
@@ -194,7 +196,8 @@ pub(crate) fn expectations(module: &scoop_lir::Module) -> Result<ExpectedSafepoi
                         "NoGc LIR function `{}` contains safepoint {}",
                         function.symbol(),
                         safepoint.get()
-                    )));
+                    ))
+                    .with_code(scoop_source::DiagnosticCode::ICE1101));
                 }
                 insert_expectation(
                     &mut sites,
@@ -249,7 +252,8 @@ fn insert_expectation(
         return Err(CodegenError::internal(format!(
             "duplicate image SafepointId {} in complete LIR",
             id.get()
-        )));
+        ))
+        .with_code(scoop_source::DiagnosticCode::ICE1101));
     }
     Ok(())
 }

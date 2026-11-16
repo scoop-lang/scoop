@@ -45,33 +45,46 @@ pub(super) fn read(
     profile: &ValidatedFinalLinkProfile,
 ) -> Result<Vec<Member>, LinkError> {
     let data = &bytes[slice.clone()];
-    let archive = ArchiveFile::parse(data).map_err(error)?;
+    let archive = ArchiveFile::parse(data)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     if archive.is_thin() || archive.kind() == ArchiveKind::AixBig {
         return Err(error(
+            scoop_source::DiagnosticCode::E2305,
             "native archive must be a normal BSD/GNU/COFF archive, not thin or external-member",
         ));
     }
     let mut members = Vec::new();
     for (ordinal, member) in archive.members().enumerate() {
         let ordinal = ordinal as u64;
-        let member = member.map_err(error)?;
-        let header = member
-            .header()
-            .ok_or_else(|| error("native archive has no normal member header"))?;
+        let member = member.map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
+        let header = member.header().ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "native archive has no normal member header",
+            )
+        })?;
         let header_offset = (header as *const _ as usize)
             .checked_sub(data.as_ptr() as usize)
-            .ok_or_else(|| error("native archive header is outside its input"))?;
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "native archive header is outside its input",
+                )
+            })?;
         let (offset, length) = member.file_range();
-        let payload = member.data(data).map_err(error)?;
+        let payload = member
+            .data(data)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         let name = std::str::from_utf8(member.name())
-            .map_err(error)?
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
             .to_owned();
         if payload.starts_with(&object::archive::MAGIC)
             || payload.starts_with(&object::archive::THIN_MAGIC)
         {
-            return Err(error(format!(
-                "native archive member {ordinal} ({name}) is a nested archive"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                format!("native archive member {ordinal} ({name}) is a nested archive"),
+            ));
         }
         let index = if profile.target().native_object_format()
             == scoop_lir::NativeObjectFormat::Coff64
@@ -89,14 +102,30 @@ pub(super) fn read(
                     imports: false,
                 })
         }
-        .map_err(|err| error(format!("archive member {ordinal} ({name}): {err}")))?;
+        .map_err(|err| {
+            error(
+                err.code(),
+                format!("archive member {ordinal} ({name}): {err}"),
+            )
+        })?;
         let start = slice
             .start
-            .checked_add(usize::try_from(offset).map_err(error)?)
-            .ok_or_else(|| error("archive payload offset overflow"))?;
-        let end = start
-            .checked_add(payload.len())
-            .ok_or_else(|| error("archive payload end overflow"))?;
+            .checked_add(
+                usize::try_from(offset)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?,
+            )
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "archive payload offset overflow",
+                )
+            })?;
+        let end = start.checked_add(payload.len()).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "archive payload end overflow",
+            )
+        })?;
         let id = NativeArchiveMemberId {
             input,
             ordinal,

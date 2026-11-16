@@ -9,9 +9,14 @@ use record::Record;
 const RECORD: &str = ".scoop-doc.json";
 
 pub(super) fn lock(output: &Path) -> BuildResult<std::fs::File> {
-    let parent = output
-        .parent()
-        .ok_or_else(|| io_error(output, "site directory has no parent"))?;
+    let parent = output.parent().ok_or_else(|| {
+        BuildFailure::tool(
+            scoop_source::DiagnosticCode::E2004,
+            BuildFailurePhase::Publication,
+            "site directory has no parent",
+        )
+        .at_host(output)
+    })?;
     std::fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
     let key = input_key(&output.as_os_str().as_encoded_bytes())?;
     let path = parent.join(format!(".scoop-doc-{key}.lock"));
@@ -25,7 +30,7 @@ pub(super) fn publish(
     sites: &[plan::Site],
     overviews: &[BTreeMap<ConeIdentity, overview::Overview>],
 ) -> BuildResult<(bool, Vec<PathBuf>)> {
-    let tool = std::env::current_exe().map_err(error)?;
+    let tool = std::env::current_exe().map_err(|cause| io_error(&request.output, cause))?;
     let configuration = input_key(&(
         "root-catalogs-v1",
         request.private,

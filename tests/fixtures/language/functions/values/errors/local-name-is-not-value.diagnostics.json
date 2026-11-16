@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "function `answer` is not a value; use `::answer` to create a callable reference",
-    "notes": [],
+    "code": "E0405",
+    "message": "function `answer` is not a value",
+    "notes": [
+      {
+        "code": "H0703",
+        "kind": "help",
+        "message": "use `::answer` to create a callable reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 66,

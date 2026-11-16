@@ -372,7 +372,10 @@ impl Lowerer {
                 let mut tied = match self.most_specific_candidates(&prepared, &indices) {
                     Ok(tied) => tied,
                     Err(error) => {
-                        self.diagnostics.push(ast::Diagnostic::internal(error));
+                        self.diagnostics.push(ast::Diagnostic::internal(
+                            scoop_source::DiagnosticCode::ICE0601,
+                            error,
+                        ));
                         return OverloadResolutionOutcome::Failed;
                     }
                 };

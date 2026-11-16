@@ -347,7 +347,7 @@ fn bare_payload_variant_in_match_requires_an_explicit_shape() {
     let diagnostics = lower_user(source).expect_err("payload variants need a pattern shape");
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(
-        diagnostics[0].message,
+        crate::tests::diagnostic_text(&diagnostics[0]),
         "variant `Payload` of `Signal` has 1 field(s); use `Payload(...)` to match it"
     );
 }
@@ -409,7 +409,7 @@ fn match_field_shorthand_classifies_its_same_named_subpattern_from_the_field_typ
                 .expect_err("a payload variant used through shorthand still needs a shape");
             assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
             assert_eq!(
-                diagnostics[0].message,
+                crate::tests::diagnostic_text(&diagnostics[0]),
                 "variant `Payload` of `Signal` has 1 field(s); use `Payload(...)` to match it"
             );
             continue;

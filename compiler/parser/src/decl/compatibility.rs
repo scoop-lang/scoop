@@ -31,12 +31,14 @@ impl Parser {
         self.skip_parameter_compatibility_modifiers();
         if matches!(self.peek().kind, TokenKind::Vararg) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0303,
                 self.peek().span,
                 "duplicate `vararg` modifier on parameter",
             ));
         }
         if existing.is_some() {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0719,
                 modifier.span,
                 "a parameter list may declare at most one `vararg` parameter",
             ));
@@ -78,6 +80,7 @@ impl Parser {
                 kind if visibility_token(kind).is_some() => {
                     if !matches!(visibility, VisibilitySyntax::Omitted) {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0303,
                             self.peek().span,
                             "a declaration may have only one visibility modifier",
                         ));

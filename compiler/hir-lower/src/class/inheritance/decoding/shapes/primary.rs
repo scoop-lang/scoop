@@ -31,6 +31,7 @@ impl Lowerer {
         if let Some(local) = local {
             let Some(source) = local else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1310,
                     span,
                     format!(
                         "automatic decode requires a primary constructor for {}",
@@ -55,6 +56,7 @@ impl Lowerer {
         };
         let Some(constructor) = constructor else {
             self.error(
+                scoop_source::DiagnosticCode::E1310,
                 span,
                 format!(
                     "automatic decode requires a primary constructor for {}",

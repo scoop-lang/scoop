@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1703",
     "message": "`@Test` is only allowed in test sources",
     "notes": [],
     "origin": {

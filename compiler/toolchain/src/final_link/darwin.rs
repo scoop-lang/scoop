@@ -50,13 +50,15 @@ impl DarwinFinalLinkProfile {
         let linker = tools::resolve(tools::candidates(options.linker.as_deref())?)?;
         let system = SystemProvider::read(
             scoop_slib::MachOArchitecture::for_target(startup.profile().contract().target().id())
-                .map_err(error)?,
-            startup.sdk_root().map_err(error)?,
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?,
+            startup
+                .sdk_root()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
             startup
                 .profile()
                 .contract()
                 .deployment()
-                .map_err(error)?
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
                 .minimum_os(),
         )?;
         Ok(Self {
@@ -125,7 +127,8 @@ impl DarwinFinalLinkProfile {
     }
 
     pub fn fingerprint(&self) -> Result<Digest256, ToolchainError> {
-        domain_separated_cbor_hash("scoop-final-link-profile-v3", self).map_err(error)
+        domain_separated_cbor_hash("scoop-final-link-profile-v3", self)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
     }
 
     /// Callers append the ordered objects, aliases and selected system stubs.
@@ -140,7 +143,7 @@ impl DarwinFinalLinkProfile {
             .profile()
             .contract()
             .deployment()
-            .map_err(error)?;
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
         // The link plan supplies the selected SDK and C++ stubs explicitly.
         let mut command = Command::new(&self.data.linker);
         command
@@ -154,15 +157,18 @@ impl DarwinFinalLinkProfile {
         // Unwind boundary aliases refer to input records consumed by LLD. Resolve
         // their relocations, but do not emit these production-only aliases into
         // the final symbol table. Real callable and data symbols remain available.
-        std::fs::create_dir_all(scratch).map_err(error)?;
+        std::fs::create_dir_all(scratch)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let production_symbols = scratch.join("production-symbols.txt");
-        std::fs::write(&production_symbols, PRODUCTION_SYMBOLS).map_err(error)?;
+        std::fs::write(&production_symbols, PRODUCTION_SYMBOLS)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         command
             .arg("-non_global_symbols_strip_list")
             .arg(production_symbols);
         if self.data.output.kind() == FinalOutputKind::SharedLibrary {
             let exports = scratch.join("native-app.exports");
-            std::fs::write(&exports, format!("_{NATIVE_APP_ENTRY}\n")).map_err(error)?;
+            std::fs::write(&exports, format!("_{NATIVE_APP_ENTRY}\n"))
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             self.linker_argument(&mut command, "-exported_symbols_list");
             self.linker_argument(&mut command, exports);
             self.linker_argument(&mut command, "-install_name");
@@ -228,6 +234,6 @@ impl WireEncode for DarwinFinalLinkProfile {
     }
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("final-link toolchain: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("final-link toolchain: {value}"))
 }

@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "ambiguous constructor call `Cases`:\n  - class Cases(first: Int)\n  - class Cases(second: String)",
-    "notes": [],
+    "code": "E0712",
+    "message": "ambiguous constructor call `Cases`",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Cases(first: Int)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Cases(second: String)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "a17e2e471e5f964540ffba80e904b816ed7abaaa25546981b8e89aec5d52eacd",
       "end": 42,

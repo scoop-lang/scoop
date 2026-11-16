@@ -25,7 +25,7 @@ fn windows_subsystem_reports_bad_values_and_fields() {
     let error = parse_cone_manifest(&bad).unwrap_err();
     assert!(matches!(
         error.kind(),
-        ManifestParseErrorKind::InvalidWindows(_)
+        ManifestParseErrorKind::InvalidWindows(..)
     ));
     assert_eq!(&bad[error.span().unwrap().range()], "\"GUI\"");
     for field in ["subsystem = 1", "subsystem = false", "subsytem = \"gui\""] {
@@ -38,7 +38,7 @@ fn libraries_reject_windows_executable_configuration() {
     let error = parse_cone_manifest(&format!("{MINIMAL}\n[windows]\n")).unwrap_err();
     assert!(matches!(
         error.kind(),
-        ManifestParseErrorKind::InvalidWindows(_)
+        ManifestParseErrorKind::InvalidWindows(..)
     ));
     assert!(error.to_string().contains("kind = \"executable\""));
 }
@@ -63,7 +63,7 @@ fn windows_resources_use_native_relative_paths_without_reading_inputs() {
         let error = parse_cone_manifest(&text).unwrap_err();
         assert!(matches!(
             error.kind(),
-            ManifestParseErrorKind::InvalidWindows(_)
+            ManifestParseErrorKind::InvalidWindows(..)
         ));
         assert_eq!(&text[error.span().unwrap().range()], format!("\"{path}\""));
     }

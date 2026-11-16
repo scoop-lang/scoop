@@ -17,7 +17,11 @@ impl Lowerer {
         if self.imported_intrinsic_types.contains_key(&kind) {
             for interface in interfaces {
                 if let Err(error) = self.require_imported_bound_interface(interface) {
-                    self.error(span, error.diagnostic("integer parent interface"));
+                    self.error(
+                        scoop_source::DiagnosticCode::E1004,
+                        span,
+                        error.diagnostic("integer parent interface"),
+                    );
                     return Vec::new();
                 }
             }

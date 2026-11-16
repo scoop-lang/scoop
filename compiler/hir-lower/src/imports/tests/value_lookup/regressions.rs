@@ -51,13 +51,13 @@ fn non_value_bindings_occupy_exact_current_and_star_before_lower_values() {
             assert!(
                 errors
                     .iter()
-                    .any(|error| error.message.contains("not a value")),
+                    .any(|error| crate::tests::diagnostic_text(error).contains("not a value")),
                 "{errors:#?}"
             );
             assert!(
                 !errors
                     .iter()
-                    .any(|error| error.message.contains("unknown variable"))
+                    .any(|error| crate::tests::diagnostic_text(error).contains("unknown variable"))
             );
         }
         let library = package(file(vec![ast::Decl::Global(constant("Chosen"))]), &["api"]);
@@ -69,7 +69,7 @@ fn non_value_bindings_occupy_exact_current_and_star_before_lower_values() {
         assert!(
             errors
                 .iter()
-                .any(|error| error.message.contains("not a value"))
+                .any(|error| crate::tests::diagnostic_text(error).contains("not a value"))
         );
     }
 }
@@ -127,9 +127,14 @@ fn overloaded_function_blocker_reports_non_value_without_selecting_an_overload()
         lower_sources(vec![library, user]).expect_err("overload group is not an ordinary value");
     let error = errors
         .iter()
-        .find(|error| error.message.contains("function `Chosen` is not a value"))
+        .find(|error| {
+            crate::tests::diagnostic_text(error).contains("function `Chosen` is not a value")
+        })
         .expect("non-value diagnostic");
-    assert_eq!(error.notes.len(), 2);
+    assert_eq!(error.notes.len(), 3);
+    assert_eq!(error.notes[0].code, ast::DiagnosticCode::N0002);
+    assert_eq!(error.notes[1].code, ast::DiagnosticCode::N0002);
+    assert_eq!(error.notes[2].code, ast::DiagnosticCode::H0703);
 }
 
 #[test]
@@ -169,10 +174,10 @@ fn blockers_prevent_assignment_place_const_and_static_initializer_fallback() {
         let errors = lower_sources(vec![user, library.clone()])
             .expect_err("all non-call uses share the occupied layer");
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("not a value")
-                    || error.message.contains("not const")),
+            errors.iter().any(
+                |error| crate::tests::diagnostic_text(error).contains("not a value")
+                    || crate::tests::diagnostic_text(error).contains("not const")
+            ),
             "{errors:#?}"
         );
     }
@@ -220,10 +225,10 @@ fn core_non_value_bindings_block_contextual_variant_fallback() {
         let errors = lower_sources_with_core(vec![user], core)
             .expect_err("prelude occupancy precedes contextual enum");
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("not a value")
-                    || error.message.contains("requires a receiver")),
+            errors.iter().any(
+                |error| crate::tests::diagnostic_text(error).contains("not a value")
+                    || crate::tests::diagnostic_text(error).contains("requires a receiver")
+            ),
             "{errors:#?}"
         );
     }
@@ -311,9 +316,7 @@ fn failed_named_property_write_does_not_commit_rhs_sink() {
         .collect();
     let statements = state.lower_block(&block(vec![assign("flag", conditional(bool_lit(true)))]));
     assert!(state.diagnostics.iter().any(|error| {
-        error
-            .message
-            .contains("cannot assign to immutable property")
+        crate::tests::diagnostic_text(error).contains("cannot assign to immutable property")
     }));
     assert!(
         statements.is_empty(),
@@ -352,7 +355,7 @@ fn core_const_fallback_enforces_complete_access_domain() {
             assert!(
                 errors.iter().any(|error| diagnostic_source(error)
                     == &test_source_identity("src/first.scoop")
-                    && error.message.contains("not accessible")),
+                    && crate::tests::diagnostic_text(error).contains("not accessible")),
                 "{errors:#?}"
             );
             assert!(

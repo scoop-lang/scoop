@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0614",
     "message": "type parameter `T` of function cannot have more than one class upper bound; found `Other`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0614",
     "message": "type parameter `T` of function cannot combine nominal upper bounds with a kind bound",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "upper bound of type parameter `T` must be a class or interface, found `Int`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "upper bound of type parameter `T` must be a class or interface, found `Any`",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "upper bound of type parameter `T` must be a class or interface, found `() -> String`",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "upper bound of type parameter `T` must be a class or interface, found `U`",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "generic class `Base` requires 1 type argument(s)",
     "notes": [],
     "origin": {
@@ -91,9 +91,37 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `requireBase` in current-unit top-level candidate layer:\n  - fun requireBase<T : Base<Int>>(value: T): T — type argument `Other` for `T` must satisfy class upper bound `Base<Int>`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `requireBase` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun requireBase<T : Base<Int>>(value: T): T",
+        "notes": [
+          {
+            "code": "E0603",
+            "kind": "cause",
+            "message": "type argument `Other` for `T` must satisfy class upper bound `Base<Int>`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 523,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 503
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 97,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 37
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 523,

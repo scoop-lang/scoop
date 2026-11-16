@@ -17,6 +17,7 @@ impl Lowerer {
         ) {
             for constructor in decl.secondary_constructors() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     constructor.span,
                     "an intrinsic struct cannot declare constructors".into(),
                 );
@@ -32,6 +33,7 @@ impl Lowerer {
         let mut parameter_calling = Vec::new();
         if decl.fields.is_omitted() {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 decl.name.span,
                 "an omitted struct representation requires a validated intrinsic type declaration"
                     .to_string(),
@@ -40,6 +42,7 @@ impl Lowerer {
         for field in &decl.fields {
             if !seen.insert(field.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     field.name.span,
                     format!(
                         "duplicate field `{}` in struct `{}`",
@@ -138,6 +141,7 @@ impl Lowerer {
             for parameter in &source.params {
                 if !names.insert(parameter.name.text.clone()) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0301,
                         parameter.name.span,
                         format!("duplicate constructor parameter `{}`", parameter.name.text),
                     );
@@ -207,6 +211,7 @@ impl Lowerer {
         for (index, variant) in decl.variants.iter().enumerate() {
             if !seen.insert(variant.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     variant.name.span,
                     format!(
                         "duplicate variant `{}` in enum `{}`",
@@ -218,7 +223,7 @@ impl Lowerer {
             let integral = self.enums[id].representation.integer_kind().is_some();
             let constant = matches!(variant.kind, ast::VariantDeclKind::Constant(_));
             if integral != constant {
-                self.error(variant.span, if integral {
+                self.error(scoop_source::DiagnosticCode::E1521, variant.span, if integral {
                     "integral enum variants require an explicit integer constant and cannot have payload"
                 } else {
                     "explicit enum values require a primitive integer parent"
@@ -278,6 +283,7 @@ impl Lowerer {
         for property in decl.properties {
             if !properties.insert(property.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     property.name.span,
                     format!(
                         "duplicate property `{}` in enum `{}`",
@@ -334,6 +340,7 @@ impl Lowerer {
                 for field in fields {
                     if !seen.insert(field.name.text.clone()) {
                         self.error(
+                            scoop_source::DiagnosticCode::E0301,
                             field.name.span,
                             format!(
                                 "duplicate field `{}` in variant `{}`",
@@ -350,7 +357,7 @@ impl Lowerer {
                                 | ast::ParameterSyntax::Vararg { .. }
                         )
                     {
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E0724,
                             field.span,
                             format!(
                                 "default value of field `{}` in variant `{}` is only allowed on constructor-style variants",

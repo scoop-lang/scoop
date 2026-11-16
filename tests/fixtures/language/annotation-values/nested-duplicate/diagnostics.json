@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0703",
     "message": "annotation parameter `text` is supplied more than once",
     "notes": [],
     "origin": {

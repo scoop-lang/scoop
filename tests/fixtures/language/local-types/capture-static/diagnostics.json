@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1503",
     "message": "this type cannot capture runtime binding `value`; only a local class instance may capture values",
     "notes": [],
     "origin": {

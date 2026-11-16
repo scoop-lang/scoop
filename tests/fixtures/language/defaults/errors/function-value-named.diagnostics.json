@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0706",
     "message": "function values do not accept named arguments",
     "notes": [],
     "origin": {

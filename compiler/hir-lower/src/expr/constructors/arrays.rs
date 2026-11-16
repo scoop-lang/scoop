@@ -25,7 +25,11 @@ impl Lowerer {
             ) {
                 Ok(argument_map) => argument_map,
                 Err(failure) => {
-                    self.diagnose_nominal_shape_failure(&view, call.span, failure.describe());
+                    self.diagnose_nominal_shape_failure(
+                        &view,
+                        call.span,
+                        failure.diagnostic_note(),
+                    );
                     return None;
                 }
             };
@@ -36,10 +40,13 @@ impl Lowerer {
             self.diagnose_nominal_shape_failure(
                 &view,
                 call.span,
-                format!(
-                    "expects {} explicit type argument(s), but {} were supplied",
-                    view.signature.owner_parameters.len(),
-                    explicit_type_args.len()
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::E0601,
+                    format!(
+                        "expects {} explicit type argument(s), but {} were supplied",
+                        view.signature.owner_parameters.len(),
+                        explicit_type_args.len()
+                    ),
                 ),
             );
             return None;

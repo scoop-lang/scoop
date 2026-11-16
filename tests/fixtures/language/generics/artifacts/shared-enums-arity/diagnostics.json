@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0906",
     "message": "pattern has 2 element(s), but variant `Item` of `Choice` has 1",
     "notes": [],
     "origin": {

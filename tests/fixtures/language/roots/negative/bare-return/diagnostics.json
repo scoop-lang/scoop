@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0803",
     "message": "`return` without a value in function `bad` returning Nothing",
     "notes": [],
     "origin": {

@@ -108,13 +108,18 @@ impl Lowerer {
             let keyword = kind.keyword();
             match label {
                 Some(label) => self.error(
+                    scoop_source::DiagnosticCode::E0806,
                     label.span,
                     format!(
                         "unknown loop label `{}` in this callable for `{keyword}`",
                         label.text
                     ),
                 ),
-                None => self.error(span, format!("`{keyword}` is only allowed inside a loop")),
+                None => self.error(
+                    scoop_source::DiagnosticCode::E0806,
+                    span,
+                    format!("`{keyword}` is only allowed inside a loop"),
+                ),
             }
             return None;
         };

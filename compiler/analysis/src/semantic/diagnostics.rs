@@ -63,7 +63,7 @@ impl SemanticSession {
         snapshot.check_cancelled()?;
         if let Some(internal) = diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.kind == scoop_source::DiagnosticKind::Internal)
+            .find(|diagnostic| diagnostic.kind() == scoop_source::DiagnosticKind::Internal)
         {
             return Err(ProjectAnalysisError::Internal(internal.message.clone()));
         }

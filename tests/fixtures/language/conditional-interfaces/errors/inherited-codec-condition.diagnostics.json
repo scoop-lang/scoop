@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `encode` in member candidate layer:\n  - fun Derived<T>.encode(value: Payload<T>, encoder: Encoder): Unit — the generic environment does not require a public companion for `T`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `encode` in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Derived<T>.encode(value: Payload<T>, encoder: Encoder): Unit",
+        "notes": [
+          {
+            "code": "E0617",
+            "kind": "cause",
+            "message": "the generic environment does not require a public companion for `T`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 484,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 450
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 337,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 309
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 484,
@@ -13,9 +41,29 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for bound callable reference `receiver::encode` in member candidate layer:\n  - fun Derived<T>.encode(value: Payload<T>, encoder: Encoder): Unit — the generic environment does not require a public companion for `T`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for bound callable reference `receiver::encode` in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Derived<T>.encode(value: Payload<T>, encoder: Encoder): Unit",
+        "notes": [
+          {
+            "code": "E0617",
+            "kind": "cause",
+            "message": "the generic environment does not require a public companion for `T`",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 560,
@@ -26,9 +74,37 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `encode` in member candidate layer:\n  - fun Constructed<T>.encode(value: Payload<Wrapper<T>>, encoder: Encoder): Unit — Wrapper.Companion<Absent> is not a subtype of ValueEncoder<T0>",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `encode` in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Constructed<T>.encode(value: Payload<Wrapper<T>>, encoder: Encoder): Unit",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "Wrapper.Companion<Absent> is not a subtype of ValueEncoder<T0>",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 671,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 628
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 379,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 338
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 671,

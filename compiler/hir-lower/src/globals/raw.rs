@@ -13,6 +13,7 @@ impl Lowerer {
         match &decl.body {
             ast::PropertyBodySyntax::Delegated { by_span, .. } => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1209,
                     *by_span,
                     "delegated properties cannot use raw or extern storage annotations".to_string(),
                 );
@@ -21,6 +22,7 @@ impl Lowerer {
             ast::PropertyBodySyntax::Const(_) => unreachable!("handled above"),
             ast::PropertyBodySyntax::OptionalOmitted => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1209,
                     decl.span,
                     "Option shorthand cannot use raw or extern storage annotations".to_string(),
                 );
@@ -28,6 +30,7 @@ impl Lowerer {
             }
             ast::PropertyBodySyntax::Abstract => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0305,
                     decl.span,
                     "top-level properties cannot be abstract".to_string(),
                 );
@@ -37,6 +40,7 @@ impl Lowerer {
                 if accessors.getter.is_some() || accessors.setter.is_some() =>
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1209,
                     decl.span,
                     "raw or extern storage cannot declare property accessors".to_string(),
                 );
@@ -63,6 +67,7 @@ impl Lowerer {
         } else {
             let Some(initializer) = self.zero_constant_image(ty) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1210,
                     decl.span,
                     format!(
                         "raw storage of type {} has no valid all-zero initial image",
@@ -143,6 +148,7 @@ impl Lowerer {
                     let property_name = self.properties[global.property].name.clone();
                     if let Err(reason) = self.validate_c_global_type(global.ty, &property_name) {
                         self.error(
+                            scoop_source::DiagnosticCode::E1201,
                             decl.type_span(),
                             format!("extern global type is not C-FFI-safe: {reason}"),
                         );
@@ -151,6 +157,7 @@ impl Lowerer {
                 hir::GlobalStorage::Local { thread_local, .. } => {
                     if decl.ty.is_none() && self.zero_constant_image(global.ty).is_none() {
                         self.error(
+                            scoop_source::DiagnosticCode::E1210,
                             decl.span,
                             format!(
                                 "raw storage of type {} has no valid all-zero initial image",
@@ -161,6 +168,7 @@ impl Lowerer {
                     }
                     if self.type_contains_param(global.ty) || !self.is_gc_free(global.ty) {
                         self.error(
+                            scoop_source::DiagnosticCode::E1211,
                             decl.type_span(),
                             format!(
                                 "global storage requires a concrete GC-free value type, found {}",
@@ -175,7 +183,7 @@ impl Lowerer {
                                 initializer,
                             };
                         } else {
-                            self.error(
+                            self.error(scoop_source::DiagnosticCode::E1212,
                                 expr.span(),
                                 "global initializer must be a GC-free compile-time constant and must not call functions or read another global"
                                     .to_string(),

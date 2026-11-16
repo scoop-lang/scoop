@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0703",
     "message": "duplicate `@Extern` argument `captureErrno`",
     "notes": [],
     "origin": {

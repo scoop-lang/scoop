@@ -48,7 +48,10 @@ impl ValidatedRuntimeBuildProfile {
         let definition = scoop_target_data::definition(target.id())
             .filter(|definition| definition.selection.target() == target)
             .ok_or_else(|| {
-                crate::ToolchainError(format!("unsupported runtime target {target:?}"))
+                crate::ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2307,
+                    format!("unsupported runtime target {target:?}"),
+                )
             })?;
         let (os, os_flags, trace, thread_vm_ops_flag): (_, &[_], _, _) = match definition.os {
             TargetOs::Darwin => (
@@ -74,9 +77,10 @@ impl ValidatedRuntimeBuildProfile {
             4 => "-DSCOOP_TARGET_LONG_SIZE=4",
             8 => "-DSCOOP_TARGET_LONG_SIZE=8",
             size => {
-                return Err(crate::ToolchainError(format!(
-                    "unsupported target C long size {size}"
-                )));
+                return Err(crate::ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2307,
+                    format!("unsupported target C long size {size}"),
+                ));
             }
         };
         let gc_forwarding_flag = match definition.runtime_tuning {
@@ -108,7 +112,8 @@ impl ValidatedRuntimeBuildProfile {
                     (&[], &[], sources::PE_METADATA_IMAGE_OPS)
                 }
                 _ => {
-                    return Err(crate::ToolchainError(
+                    return Err(crate::ToolchainError::new(
+                        scoop_source::DiagnosticCode::E2307,
                         "no runtime loader adapters for the selected OS and object format".into(),
                     ));
                 }
@@ -149,7 +154,8 @@ impl ValidatedRuntimeBuildProfile {
                 sources::WIN64_COFF_MANAGED_ENTRY
             }
             _ => {
-                return Err(crate::ToolchainError(
+                return Err(crate::ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2307,
                     "no runtime ManagedEntry for the selected procedure ABI and object target"
                         .into(),
                 ));
@@ -176,10 +182,8 @@ impl ValidatedRuntimeBuildProfile {
                 ObjectTargetProfileV1::CoffAmd64,
             ) => sources::X86_64_TAGGED_FLOATING_ABI_SHIM,
             _ => {
-                return Err(crate::ToolchainError(
-                    "no runtime Scoop ABI shim for the selected procedure ABI, Scoop ABI and object target"
-                        .into(),
-                ));
+                return Err(crate::ToolchainError::new(scoop_source::DiagnosticCode::E2307, "no runtime Scoop ABI shim for the selected procedure ABI, Scoop ABI and object target"
+                        .into()));
             }
         };
         let components = RuntimeComponents {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "typealias `Row` requires a complete host type application",
     "notes": [],
     "origin": {

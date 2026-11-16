@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `get`: String is not a subtype of Long",
     "notes": [],
     "origin": {

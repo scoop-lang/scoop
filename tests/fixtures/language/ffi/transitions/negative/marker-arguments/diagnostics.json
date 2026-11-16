@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "`@GCLeaf` does not accept arguments",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1302",
     "message": "annotation `@GCLeaf` must not be repeated",
     "notes": [],
     "origin": {

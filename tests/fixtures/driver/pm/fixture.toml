@@ -11,7 +11,7 @@ argv = ["${scoop-pm}", "--diagnostic-format", "human", "prepare"]
 stdin = "{"
 exit = 1
 stdout = ""
-stderr = {regex = "error: invalid package preparation request: [^\\r\\n]+\\n"}
+stderr = {regex = "error\\[E2502\\]: invalid package preparation request: [^\\r\\n]+\\n"}
 
 [[steps]]
 name = "create"
@@ -59,7 +59,7 @@ name = "refuse_overwrite"
 argv = ["${scoop}", "--package-manager", "${scoop-pm}", "pm", "new", "--workspace", "${work}/new workspace"]
 exit = 1
 stdout = ""
-stderr = "error: refusing to overwrite ${work}/new workspace\n"
+stderr = "error[E2020]: refusing to overwrite ${work}/new workspace\n"
 
 [[steps]]
 name = "deps"
@@ -73,5 +73,5 @@ name = "missing_test_lock"
 argv = ["${scoop-pm}", "deps", "${work}/project", "--target", "aarch64-apple-darwin", "--purpose", "test"]
 exit = 1
 stdout = ""
-stderr = "error: no locked resolution for dev.example:server:0.1.0 / test / aarch64-apple-darwin; resolve dependencies first\n"
+stderr = "error[E2111]: no locked resolution for dev.example:server:0.1.0 / test / aarch64-apple-darwin\nhelp[H2101]: resolve dependencies first\n"
 checks = [{file = "${work}/project/Cone.lock", same_as = "${root}/Cone.lock"}]

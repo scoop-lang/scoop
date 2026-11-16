@@ -33,6 +33,7 @@ impl Lowerer {
         )?;
         if !self.types_equal(selected.ty, self.boolean) {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 span,
                 "test execution requires isTestSelected to return Boolean".into(),
             );

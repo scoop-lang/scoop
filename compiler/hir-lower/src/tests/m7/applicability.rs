@@ -73,8 +73,8 @@ fn no_applicable_overload_lists_argument_types() {
     let errors = lower_user(file).expect_err("no applicable overload must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f(x: Int): Unit — argument for `x` has type Boolean, which is not a subtype of Int\n  - fun f(s: String): Unit — argument for `s` has type Boolean, which is not a subtype of String"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `f` in current-unit top-level candidate layer; fun f(x: Int): Unit; argument for `x` has type Boolean, which is not a subtype of Int; fun f(s: String): Unit; argument for `s` has type Boolean, which is not a subtype of String"
     );
 }
 
@@ -99,8 +99,8 @@ fn mixed_arity_no_match_lists_argument_types() {
     let errors = lower_user(file).expect_err("no applicable overload must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f(x: Int): Unit — argument for `x` has type String, which is not a subtype of Int\n  - fun f(x: Int, y: Int): Unit — expects 2 argument(s), but 1 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `f` in current-unit top-level candidate layer; fun f(x: Int): Unit; argument for `x` has type String, which is not a subtype of Int; fun f(x: Int, y: Int): Unit; expects 2 argument(s), but 1 were supplied"
     );
 }
 
@@ -125,8 +125,8 @@ fn uniform_arity_mismatch_traces_each_candidate() {
     let errors = lower_user(file).expect_err("arity mismatch must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f(x: Int): Unit — expects 1 argument(s), but 0 were supplied\n  - fun f(s: String): Unit — expects 1 argument(s), but 0 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `f` in current-unit top-level candidate layer; fun f(x: Int): Unit; expects 1 argument(s), but 0 were supplied; fun f(s: String): Unit; expects 1 argument(s), but 0 were supplied"
     );
 }
 

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_RUNTIME_BUILD",
+    "code": "E2201",
     "message": "runtime index ${work}/sysroot/lib/${target}/runtime/index.cbor for ${target}: No such file or directory (os error 2)",
     "notes": [],
     "origin": {

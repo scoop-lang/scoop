@@ -76,6 +76,33 @@ fn published_result_is_reused_and_missing_output_requires_update() {
     assert_eq!(std::fs::read(rebuilt.artifact).unwrap(), bytes);
 }
 
+#[cfg(windows)]
+#[test]
+fn long_cache_paths_publish_reuse_and_replace_records() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp
+        .path()
+        .join("long-cache-directory-".repeat(4))
+        .join("long-cache-directory-".repeat(4));
+    let store = store(&root);
+    let lock = store.acquire_exclusive(key(b"long-path")).unwrap();
+    let path = store.entry_path(lock.key).join(RECORD_FILE);
+    assert!(path.as_os_str().len() > 260);
+    assert!(!path.to_string_lossy().starts_with(r"\\?\"));
+    let output = temp.path().join("output.slib");
+    for name in ["first", "replacement"] {
+        let (bytes, record) = fixture_named(name);
+        std::fs::write(&output, &bytes).unwrap();
+        let result = store.publish(&lock, &output, record.clone()).unwrap();
+        let CompileCacheLookupV1::Hit(reused) = store.lookup(&lock).unwrap() else {
+            panic!("published long-path result missing")
+        };
+        assert_eq!(reused.record, record);
+        assert_eq!(reused.artifact, result.artifact);
+        assert_eq!(std::fs::read(&result.artifact).unwrap(), bytes);
+    }
+}
+
 #[test]
 fn failed_output_publication_does_not_publish_a_build_record() {
     let temp = tempfile::tempdir().unwrap();

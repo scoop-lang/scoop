@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1220",
     "message": "`captureErrno = true` requires a C ABI extern function",
     "notes": [],
     "origin": {

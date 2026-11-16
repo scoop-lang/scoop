@@ -22,6 +22,7 @@ impl Lowerer {
             {
                 let found = self.type_name(receiver.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     name.span,
                     format!(
                         "type `{found}` has no matching callable role `{}`",
@@ -32,6 +33,7 @@ impl Lowerer {
             }
             if !call.type_args.is_empty() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0601,
                     name.span,
                     "function values do not accept explicit type arguments".to_string(),
                 );
@@ -56,7 +58,7 @@ impl Lowerer {
             if candidates.is_empty() && before != 0 {
                 let found = self.type_name(receiver.ty);
                 let mut failure = self.clone();
-                failure.error(
+                failure.error(scoop_source::DiagnosticCode::E0714,
                     name.span,
                     format!(
                         "generic member function `{}` cannot be called through interface type `{found}`",
@@ -169,6 +171,7 @@ impl Lowerer {
         } else {
             let found = self.type_name(receiver.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 name.span,
                 format!("type `{found}` has no method `{}`", name.text),
             );
