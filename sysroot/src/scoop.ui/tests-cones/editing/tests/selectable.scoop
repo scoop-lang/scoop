@@ -224,6 +224,8 @@ internal fun advanceSelectableText(probe: EditProbe) {
         case 63 -> {
             assertEquals(2, test.clicks)
             probe.next {
+                // This scenario extends a selection from a link, rather than exporting it.
+                host.setSelection(TextPosition(1L), TextPosition(1L))
                 host.area.requestFocus();
                 editorPointer(window, selectablePoint(host, 1L), true)
             }

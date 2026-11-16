@@ -24,7 +24,10 @@ internal class ScrollScene(private val probe: ScrollProbe, scope: ComponentScope
                     )
                 else
                     empty(),
-                element({ mount -> SecondViewport(probe, scope = mount) }),
+                element(
+                    SecondViewportProps(probe.padding.value, probe.edgePoint.value),
+                    { props, mount -> SecondViewport(probe, props, scope = mount) }
+                ),
                 component({ mount -> ScrollObserver(probe, scope = mount) })
             ]
         )
@@ -164,9 +167,13 @@ private class FirstViewport(
     }
 }
 
-private class SecondViewport(private val probe: ScrollProbe, scope: ComponentScope): Element<
-    ScrollLayout
->(scope) {
+private struct SecondViewportProps(val padding: ScrollPadding, val edgePoint: Point)
+
+private class SecondViewport(
+    private val probe: ScrollProbe,
+    private val props: Props<SecondViewportProps>,
+    scope: ComponentScope
+): Element<ScrollLayout>(scope) {
     private var viewport: ScrollViewport? = None
     private val edge = scope.createArea(focusable = true) { _, _ -> }
     private val edgeFocus = scope.focusTarget(edge, FocusOptions(Some(probe.edgeFocus)))
@@ -204,7 +211,7 @@ private class SecondViewport(private val probe: ScrollProbe, scope: ComponentSco
                 Size(100.0, 80.0),
                 Size(200.0, 300.0),
                 adjustment,
-                probe.padding.value
+                props.value.padding
             )
         val snapshot = layout.snapshot
         if (probe.checkAnimationRange && moving) {
@@ -239,7 +246,7 @@ private class SecondViewport(private val probe: ScrollProbe, scope: ComponentSco
                 }
             }
         }
-        val point = probe.edgePoint.value
+        val point = props.value.edgePoint
         viewport!!.present(
             context,
             measured,

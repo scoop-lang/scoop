@@ -276,21 +276,43 @@ private fun scrollKey(
                     current.visibleSize.width,
                 0.0
             )
+    val start =
+        Point(
+            if (axes.horizontal)
+                0.0
+            else
+                current.offset.x,
+            if (axes.vertical)
+                0.0
+            else
+                current.offset.y
+        )
+    val end =
+        Point(
+            if (axes.horizontal)
+                current.maximum.x
+            else
+                current.offset.x,
+            if (axes.vertical)
+                current.maximum.y
+            else
+                current.offset.y
+        )
     when (key.logicalKey) {
         case Named(NamedKey.PageUp) -> state.scrollBy(Point(-step.x, -step.y), ScrollOrigin.User)
         case Named(NamedKey.PageDown) -> state.scrollBy(step, ScrollOrigin.User)
         case Named(NamedKey.Home) -> state.scrollTo(
             if (reversed)
-                current.maximum
+                end
             else
-                Point(0.0, 0.0),
+                start,
             ScrollOrigin.User
         )
         case Named(NamedKey.End) -> state.scrollTo(
             if (reversed)
-                Point(0.0, 0.0)
+                start
             else
-                current.maximum,
+                end,
             ScrollOrigin.User
         )
         else -> return false

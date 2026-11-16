@@ -165,10 +165,17 @@ internal class SemanticSceneProbe: Closeable {
                 assertTrue(reference!!.flag(0))
                 assertEquals(identity, Some(semantic!!.id))
                 skip = false
+                alpha = 1.0
                 phase += 1
                 root!!.requestLayout()
             }
             case 5 -> {
+                checkBounds(50.0, 50.0)
+                // Accepted readmission invalidates the previous inactive scene once.
+                phase = -3
+                root!!.requestFrame()
+            }
+            case - 3 -> {
                 checkBounds(50.0, 50.0)
                 scenesBefore = leafScenes
                 val before = frames

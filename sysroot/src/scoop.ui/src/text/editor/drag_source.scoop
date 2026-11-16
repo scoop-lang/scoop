@@ -50,6 +50,10 @@ internal class EditorDragSource(
     fun update() {
         if (closed)
             return
+        if (host.closed || !host.scope.isMounted || binding.isClosed) {
+            close()
+            return
+        }
         when (pending) {
             case Some(val value) -> if (!valid(value))
                 cancelCandidate()

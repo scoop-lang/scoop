@@ -172,9 +172,9 @@ scrollArea(content) {
 }
 ```
 
-类型位于 `scoop.ui.component`，Duration 位于 `scoop.time`。`autoHide = Some(false)`、`widenOnHover = Some(false)`、`shadeOnHover = Some(false)` 分别关闭隐藏、展宽或深浅变化；时长零表示立即切换。`revealOnScroll`、`revealOnViewportHover`、`revealOnEdgeHover`、`revealOnKeyboard` 控制唤醒，默认除整个视口 hover 外均开启；`repeatDelay = None` 禁用轨道／箭头按住重复。`showTrack = Some(false)` 只取消轨道绘制。重复 receiver 调用保留先前覆盖，`copy` 不修改旧值。隐藏不截获正文点击；减少动画保留隐藏但立即切换，减少透明度使用不透明反馈。`placement` 可选 Overlay／Gutter；ScrollArea、VirtualList、MessageScroller 默认 Overlay，Textarea 默认 Gutter。Gutter 在测量前扣除固定最大条带，Auto／Always 和 idle／hover／hidden 之间保持正文尺寸；Hidden 不预留。Overlay 不缩小测量约束，以 ScrollPadding 为边缘焦点和插入点保留可滚到的空白，显露与翻页使用扣除条带的有效视口。Auto 只依据原始正文溢出，额外留白不会触发另一条。
+类型位于 `scoop.ui.component`，Duration 位于 `scoop.time`。`autoHide = Some(false)`、`widenOnHover = Some(false)`、`shadeOnHover = Some(false)` 分别关闭隐藏、展宽或深浅变化；时长零表示立即切换。`revealOnScroll`、`revealOnViewportHover`、`revealOnEdgeHover`、`revealOnKeyboard` 控制唤醒，默认除整个视口 hover 外均开启；悬停触发开启时会重新检查当前指针，已经位于对应区域也可唤醒；`repeatDelay = None` 禁用轨道／箭头按住重复。`showTrack = Some(false)` 只取消轨道绘制。重复 receiver 调用保留先前覆盖，`copy` 不修改旧值。隐藏不截获正文点击；减少动画保留隐藏但立即切换，减少透明度使用不透明反馈。`placement` 可选 Overlay／Gutter；ScrollArea、VirtualList、MessageScroller 默认 Overlay，Textarea 默认 Gutter。Gutter 在测量前扣除固定最大条带，Auto／Always 和 idle／hover／hidden 之间保持正文尺寸；Hidden 不预留。Overlay 不缩小测量约束，以 ScrollPadding 为边缘焦点和插入点保留可滚到的空白，显露与翻页使用扣除条带的有效视口。Auto 只依据原始正文溢出，额外留白不会触发另一条。
 
-滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。竖条随 LayoutDirection 位于逻辑 End，双轴条在同一角落让位；方向热切换保留内容和焦点，并取消旧位置的拖条；左侧留白变化通过 LayoutCorrection 尽可能保持正文位置，不生成用户滚动意图。ScrollArea 的 `style { corners(Corners.all(8.0)); border(Some(Border.all(1.0, color))) }` 可配置视口装饰和圆角裁剪，不改变内容尺寸；`focusOutline` 可覆盖主题焦点环，焦点指示遵守 FocusVisibility。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
+滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。竖条随 LayoutDirection 位于逻辑 End，双轴条在同一角落让位；方向热切换保留内容和焦点，并取消旧位置的拖条；左侧留白变化通过 LayoutCorrection 尽可能保持正文位置，不生成用户滚动意图。ScrollArea 的 `style { corners(Corners.all(8.0)); border(Some(Border.all(1.0, color))) }` 可配置视口装饰和圆角裁剪，不改变内容尺寸；`focusOutline` 可覆盖主题焦点环，焦点指示遵守 FocusVisibility。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End；Home／End 只定位启用的滚动轴，其他轴保留当前偏移，水平 RTL 的起终点对应物理右侧／左侧。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
 
 ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(tileSize = 256, overscan = 1)`，默认 None。策略只缓存 UI drawLayer 声明的有限内容，公共 ParagraphHost 正文自动使用该入口；普通 draw 保持直接执行。绘制缓存与 retention 独立，切换不会替换 ScrollState 或子项实例。含滤镜的记录按 Graphics 的独立裁剪能力正常重放，滤镜也可放在完整内容合成阶段。`tests-cones/paint-cache` 验证四种缓存组合、真实输入、文字更新和停帧。
 
@@ -202,7 +202,7 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 
 `handle.focusItem(key, ItemFocusEdge.First)` 按需实现并定位条目，再聚焦行内首个可用 Tab 目标；Last 选择末个目标。isPending 也包含这个聚焦过程。未知 key、没有可用目标、真实删除、禁用或更新的焦点／滚动请求会结束旧等待；外层缓存的列表可以因待聚焦归属恢复布局。`tests-cones/focus-items` 检查真实按 key 聚焦与实例数量。
 
-`navigation = ItemNavigation.Sequential` 启用逐行 Tab 访问；`ItemNavigation.Roving(direction = TextDirection.Ltr, loop = false)` 让列表占一个 Tab 停靠点，并用方向键和 Home／End 导航。轴沿 orientation，入口顺序沿 focus.order；启用时视口自身不再额外占一个 Tab 停靠点，None 默认模式保持普通滚动视口行为。选择／激活由上层组件决定。`tests-cones/navigation-items` 覆盖真实键盘、嵌套列表与焦点作用域、禁用／空项、实例卸载后的返回、RTL、循环和默认动作优先级。
+`navigation = ItemNavigation.Sequential` 启用逐行 Tab 访问；`ItemNavigation.Roving(direction = LayoutDirection.Ltr, loop = false)` 让列表占一个 Tab 停靠点，并用方向键和 Home／End 导航。轴沿 orientation，入口顺序沿 focus.order；启用时视口自身不再额外占一个 Tab 停靠点，None 默认模式保持普通滚动视口行为。选择／激活由上层组件决定。`tests-cones/navigation-items` 覆盖真实键盘、嵌套列表与焦点作用域、禁用／空项、实例卸载后的返回、RTL、循环和默认动作优先级。
 
 
 `checkbox(checked)` 的混合态激活后变为 Checked，不做三态循环；Boolean 工厂与三态工厂共享同一个 Checkbox 和 Press，显式 CheckboxProps 使用 CheckState 绑定。全选框可以用普通 Binding 从子项派生 Mixed 并写回所有子项。

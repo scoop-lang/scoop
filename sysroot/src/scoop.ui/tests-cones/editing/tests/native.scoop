@@ -138,6 +138,20 @@ internal fun editorSelectPinyin(window: Window) {
     )
 }
 
+internal fun editorShiftF10(window: Window) {
+    // AppKit function keys carry NSF10FunctionKey, not an empty text replacement.
+    editorKey(window, 109, "\uF70D", 1)
+}
+
+internal fun assertClipboardText(window: Window, expected: String) {
+    val actual = window.clipboard.readText()
+    assertEquals(
+        Some(expected),
+        actual,
+        Some("clipboard expected " + expected + ", actual " + (actual ?: "<no text>"))
+    )
+}
+
 internal fun editorImeKey(window: Window, code: Int) {
     assertEquals(
         0,

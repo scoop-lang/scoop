@@ -76,7 +76,13 @@ internal class ScrollbarFeedback(
             )
     }
     fun update() {
+        val previous = options
         options = resolve()
+        // Newly enabled triggers also apply to the current accepted pointer.
+        if (!previous.input.revealOnViewportHover && options.input.revealOnViewportHover)
+            within = false
+        if (!previous.input.revealOnEdgeHover && options.input.revealOnEdgeHover)
+            edge = false
         if (state !== props().state) {
             intent?.close()
             state = props().state
@@ -91,7 +97,7 @@ internal class ScrollbarFeedback(
             keys.clear()
         if (!allowed() || options.input.repeatDelay == None)
             repeating = None
-        refresh()
+        pointer(probe.pointerPosition)
         changed()
     }
     private fun allowed(): Boolean =

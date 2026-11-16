@@ -20,7 +20,7 @@ internal fun advanceListPlacement(probe: ListProbe, active: ActiveApplication): 
             probe.row(12L).local.value = 91
             probe.behavior.value =
                 probe.behavior.value.copy { placement = ScrollbarPlacement.Gutter }
-            probe.refresh()
+            probe.redraw()
         }
         case 1 -> {
             assertEquals(Size(160.0, 60.0 - band), scroll.viewport)
@@ -30,14 +30,14 @@ internal fun advanceListPlacement(probe: ListProbe, active: ActiveApplication): 
             assertEquals(91, probe.row(12L).local.value)
             assertTrue(probe.handle.reading!!.atEnd)
             probe.orientation.value = Orientation.Vertical
-            probe.refresh()
+            probe.redraw()
         }
         case 2 -> {
             assertEquals(Size(160.0 - band, 60.0), scroll.viewport)
             assertEquals(Size(160.0 - band, 400.0), scroll.content)
             probe.behavior.value =
                 probe.behavior.value.copy { placement = ScrollbarPlacement.Overlay }
-            probe.refresh()
+            probe.redraw()
         }
         case 3 -> {
             assertEquals(Size(160.0, 60.0), scroll.viewport)

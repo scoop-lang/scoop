@@ -330,6 +330,8 @@ ScrollbarPlacement.Overlay 覆盖视口边缘，不改变正文测量；Gutter �
 
 滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头在默认阶段接管按下，按下及重复行为由下述 ScrollbarBehavior 配置。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
 
+Home／End 只定位启用的滚动轴，其他轴保留当前 offset。Overlay 为显露正文而增加的边缘留白不能使这些按键移动未启用的轴；例如水平 RTL 列表的 Home 到达物理最右端时，纵向阅读位置保持不变。
+
 ScrollAreaProps／VirtualListProps／TextareaProps 及对应 builder 提供 scrollbarBehavior；ScrollArea、VirtualList 与 MessageScroller 默认 `scrollbarBehavior()`（Overlay），Textarea 默认 `scrollbarBehavior { placement = ScrollbarPlacement.Gutter }`，同名 receiver 方法在当前配置上调用 copy，重复配置保留先前覆盖。`scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit = {}): ScrollbarBehavior` 构造不可变值；`copy` 使用相同 builder。行为不属于主题：主题继续负责静态颜色、形状、按钮与基础厚度，Behavior 负责出现条件、运动和操作。ScrollbarVisibility.Auto 仅在原始正文溢出时呈现，Always 允许呈现实际零范围的禁用外观，Hidden 不呈现；这组条件与闲置自动隐藏分别判断。
 
 | ScrollbarBehaviorBuilder 字段 | 默认值与含义 |
@@ -357,6 +359,8 @@ FollowSystem 读取根的有效 InteractionPreferences.autoHideScrollbars，未�
 所有时长非负，repeatInterval 必须为正；宽度／边缘长度必须有限且非负，透明度必须有限且位于 0～1。无效配置抛 IllegalArgumentException。固定条带宽取有效 idle／hover／drag 绘制宽度和最小命中厚度的最大值，动画不改变正文测量或双轴角部。thumb／按钮的命中范围沿交叉轴扩展到条带，主轴仍采用实际主题几何。展宽绘制沿交叉轴缩放完整主题形状，内缩和描边同时缩放；不通过修改主轴内缩改变 thumb 行程，细条也不会被原主题的大内缩挤空。完全透明时不登记可操作区域；隐藏的边缘观察不消费正文按下，重新出现需新帧 Accepted 后才可操作。
 
 同一滚动控件共用出现状态和一个实际 deadline，动画沿 Surface 的 Animatable 推进。滚动定位、配置允许的视口／边缘进入和真实键盘活动唤醒；LayoutCorrection 不刷新闲置时间。可见条上的 hover、按住、thumb 拖动、当前子树的滚动路由／momentum、相关按住键及程序滚动动画暂缓隐藏，活动结束后重新等待 idleDelay。禁用、输入域退出、状态替换、卸载及失去有效几何取消重复操作；隐藏后不保留周期轮询。Page 按住仅向初始方向翻页，thumb 到达指针、离开原部件或抵达边界后停止；重新进入可继续。Jump 不做分页重复。端部按钮每步使用 lineStep。
+
+视口／边缘悬停触发由关闭改为开启时，使用当前 Accepted 几何、有效输入域和指针位置重新判定；已经处于对应区域的指针可以立即唤醒，不要求先离开再进入。配置更新不沿用已失效的悬停事实，新出现的条仍须经新帧 Accepted 才可操作。
 
 Gutter 的最大条带在内容测量前从实际视口扣除；ScrollArea 的无界交叉轴在一次正文测量后加回占位，最终外尺寸仍服从父约束。竖条及占位在 End，横条在底部。Auto／Always 预留相同空间，Hidden 不预留；范围、hover、fade 或闲置隐藏均不改变正文尺寸。显式 placement、条带宽度、可见条件或主题度量变化才请求需要的重新布局。Textarea 使用同一规则，wrap=true 只允许竖条。
 

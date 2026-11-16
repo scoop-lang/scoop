@@ -68,6 +68,8 @@ TextEditOptions 与 SelectableTextOptions 增加 drag: TextDragOptions。TextDra
 
 TextDragResult 为 Copied、Moved、SourceRetained、NotDropped、Failed(WindowException)。SourceRetained 表示目标报告 Move 成功但源未完成删除，不能解释成完整移动。完成回调属于开始时的 TextDragOptions，只在来源仍有合法业务回调时调用；该回调不对已经关闭的控件复活。复制、菜单、键盘与语义编辑仍操作同一模型，移动结果沿现有正文／选区通知发布。
 
+根停止后，焦点和文本输入仍按原合同发送终止通知，宿主可以结束 composition 并发布最终交互状态。文本来源的内部刷新遇到已退休的挂载或绑定时只收束自身资源，不再更新已关闭的 DragSource，也不重新登记来源或恢复业务完成回调。
+
 ## 6. 验证范围
 
 Surface 以真实离屏几何覆盖路径、变换、裁剪、边界和无副作用查询。UI 逻辑测试使用真实挂载、InputArea 和资源，分别验证候选路径、最新处理器、实际接受与生命周期。完整 GUI 场景单独构建和运行；这些分层结果不能代替真实 Accepted 命中与独立进程拖放会话。

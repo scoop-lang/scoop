@@ -59,7 +59,11 @@ private class PublicTextEditHostTest {
                         assertFalse(probe.frames!!.snapshot().required)
                         assertFalse(fonts.isClosed)
                     } catch (error: Throwable) {
-                        println("editing phase=" + probe.phase.toString())
+                        println(
+                            f"editing phase=${probe.phase}, menus complete=${
+                                probe.contextMenus.complete
+                            }, destroyed=${probe.finished}"
+                        )
                         editingFailure(error)
                         throw error
                     } finally {
@@ -135,6 +139,7 @@ internal class EditProbe(val fonts: FontCollection) {
     var acceptedRevisions: Array<Long> = [-1L, -1L]
     var phase = 0
     var waiting = false
+    var popupPending = false
     var retriedFocus = false
     var finished = false
     var window: Window? = None
@@ -197,6 +202,7 @@ internal class EditProbe(val fonts: FontCollection) {
     }
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
+            case PopupCompleted(_, _) -> popupPending = false
             case Resumed -> {
                 active = Some(application)
                 val native =
@@ -255,7 +261,9 @@ internal class EditProbe(val fonts: FontCollection) {
     }
     private fun nativeFocused(): Boolean = window!!.isFocused
     private fun settled(): Boolean {
-        if (accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
+        if (window!!.state != WindowState.Open)
+            return false
+        if (popupPending || accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
             return false
         if (acceptedVersion != revision.value)
             return false

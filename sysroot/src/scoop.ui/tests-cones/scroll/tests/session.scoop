@@ -95,13 +95,19 @@ internal class ScrollProbe {
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )
             }
-            case AboutToWait -> if (!finished && committed == generation.value)
-                advance()
+            case AboutToWait -> {
+                if (!finished && committed == generation.value)
+                    advance()
+            }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(
                     f"scroll state timeout phase=${this @ScrollProbe.phase}, passes=${
                         this @ScrollProbe.passes
-                    }"
+                    }, visible=${window!!.isVisible}, occluded=${window!!.isOccluded}, focused=${
+                        window!!.isFocused
+                    }, required=${frames!!.snapshot().required}, animating=${
+                        second.isAnimating
+                    }, committed=${committed}, generation=${generation.value}"
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> {

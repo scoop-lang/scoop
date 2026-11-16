@@ -56,6 +56,16 @@ int32_t scoop_test_editor_context_click(void *pointer, double x, double y,
                eventNumber:1
                 clickCount:1
                   pressure:release ? 0.0 : 1.0];
+    // The NSEvent constructor leaves buttonNumber at zero for right events.
+    if (!control) {
+      CGEventRef input = CGEventCreateCopy(event.CGEvent);
+      if (!input)
+        return 1;
+      CGEventSetIntegerValueField(input, kCGMouseEventButtonNumber,
+                                  kCGMouseButtonRight);
+      event = [NSEvent eventWithCGEvent:input];
+      CFRelease(input);
+    }
     if (control) {
       if (release)
         [view mouseUp:event];

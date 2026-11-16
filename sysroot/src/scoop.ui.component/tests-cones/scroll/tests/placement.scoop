@@ -26,7 +26,7 @@ internal fun advanceScrollbarPlacement(probe: AreaProbe, active: ActiveApplicati
             val band = probe.bar().bounds.width
             assertEquals(
                 Some(Rect(20.0 + band + 240.0 - 50.0, 20.0 + 400.0 - 60.0, 50.0, 30.0)),
-                probe.leafArea!!.toWindow(Rect(240.0, 400.0, 50.0, 30.0))
+                probe.leafArea!!.toWindow(Rect(0.0, 0.0, 50.0, 30.0))
             )
             assertTrue(probe.leafFocus.requestFocus())
         }

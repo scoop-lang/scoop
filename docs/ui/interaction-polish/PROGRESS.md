@@ -12,12 +12,12 @@
 
 | 批次 | 状态 | 已完成与剩余 |
 | --- | --- | --- |
-| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
-| S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，场景构建通过但实窗待验；其余控件、复杂关系、激活点和外部客户端仍待完成 |
-| S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
-| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及四个原生场景的源码检查／构建通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；Reveal、滚动实窗及平台验收待继续 |
-| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
+| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常仍待独立客户端复验；系统文本服务、拖放与其他平台验证待继续 |
+| S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题离屏测试、实窗双根偏好热切换及帧复用回归通过；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；其余控件、复杂关系、激活点和外部客户端仍待完成 |
+| S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，两类宿主的真实文本菜单与 IME 组合实窗回归通过；多击组合、文本 provider／系统服务和其他平台仍待继续 |
+| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；语义 Reveal 与平台验收待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
@@ -311,3 +311,18 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - Window／UI／Component 含测试检查及示例 release 检查／链接通过；ComponentReceiverDslTests 六项和 InputOtpTest 五项通过，复用同一测试产物。更新 Window、Surface、UI、Style 与四套主题的开发产物；43 个 Scoop 文件、3 个 native 文件格式检查和 native 严格编译通过。15 项 API 查询核对默认值、类型、导入、Props／builder 访问器及 Textarea 的继承声明；规范、设计、计划、库／示例 README 和编程导航同步，本地 Markdown 链接检查通过。三个临时 API 站点和两个临时应用包在验证后清理，保留后续需要的开发产物与共享缓存。
 
 本批已完成本地文本来源与 Move 的交付，S6 的文件、取消／活动源关闭、模态和其他平台仍按原计划继续；VoiceOver 操作、真实设备与完整 accessibility provider 没有据文本拖放结果记为完成。
+
+### 桌面恢复后的本地实窗回归
+
+- 沿用普通 macOS 应用包运行正式测试二进制，以 SCOOP_TEST_RUN_DIR 的完成事件和失败列表判定结果；窗口场景顺序执行，每个 Application 用例单独启动进程。没有改变焦点策略或放宽真实呈现、原生选区和停帧断言。
+- 文本来源内部刷新在宿主、挂载或绑定退休后只收束资源，修复根停止后的焦点／IME 终止通知再次更新已关闭 DragSource 的错误。公共来源关闭后的更新仍拒绝；编辑、帧复用与文本拖放宿主的关闭回归通过。
+- accessibility 场景通过变换／裁剪、Rect 缓存重放、Path 洞、属性失效、焦点、遮挡重排及 Accepted／Discarded 组合。测试先验证透明度为零时保留语义，再恢复有实际 Drawing 的场景并等待重新参与的 Accepted 帧，之后严格验证纯标签更新的缓存复用。
+- 编辑长场景的最终版本连续通过三次，覆盖真实 IME、投影、多击选择、编辑／只读原生菜单、语义菜单入口、受保护用途、编辑策略、撤销、换绑、迟到动作和菜单中关窗。测试修正右键事件的真实按钮号与 Shift+F10 的 AppKit 功能键文字；以 PopupCompleted 区分会话完成，并区分禁用但仍挂载与已经关闭的宿主。链接扩选从折叠选区开始，保留默认数据拖出行为。
+- 帧复用和双窗口主题偏好热切换通过，保留编辑状态／焦点并在动画结束后停帧。基础 ScrollViewport、TextControls 及 TextDropHost 实窗回归通过；基础滚动测试按现有 State 合同在 render 读取动态内边距与焦点点位，再通过 Props 传入 Element。
+
+- ScrollArea 与 VirtualList 的完整实窗场景通过。共享 Home／End 仅定位启用轴，修复水平 RTL 列表误写纵向留白偏移；悬停触发开启后重新核对当前 Accepted 指针，覆盖边缘开关、离开后重新进入和视口内直接开启三条路径。轨道跳转／按住重复／释放停止、Gutter／Overlay、RTL、范围变化和边缘焦点显露保持严格断言。占位测试改用子元素局部坐标，并分离子场景重绘与主场景推进，确保后续步骤实际执行。
+- 最终组件产物再次通过帧复用、双窗口主题偏好和 TextControls 回归。相关源码检查、release 构建与格式检查通过；UI、Style、四套主题及 Component 的开发产物保持配套，复用共享依赖缓存。规范、计划与 README 同步更新，没有改变公开签名。
+
+上述原生方法和实际窗口结果不代替语义 Reveal、外部 AX 客户端、VoiceOver、完整硬件输入或其他平台的验收。
+
+临时应用包、原生对照探针和逐次运行报告已清理；保留后续使用的 GUI 启动脚本、配套开发产物与共享缓存。

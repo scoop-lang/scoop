@@ -38,9 +38,9 @@ internal class SelectableMenuProbe: Closeable {
                 choose("Menu Copy")
             }
             case 2 -> {
-                assertEquals(Some("x link [fresh]"), window.clipboard.readText())
+                assertClipboardText(window, "x link [fresh]")
                 host.setSelection(TextPosition(2L), TextPosition(2L))
-                open(probe, { editorKey(window, 109, "", 1) }) {
+                open(probe, { editorShiftF10(window) }) {
                     assertEquals(0, menuEnabled("Menu Copy"))
                     assertEquals(1, menuEnabled("Menu Select All"))
                     choose("Menu Select All")
@@ -57,8 +57,9 @@ internal class SelectableMenuProbe: Closeable {
                 }
             }
             case 4 -> {
-                assertEquals(Some("link"), window.clipboard.readText())
+                assertClipboardText(window, "link")
                 window.clipboard.writeText("unchanged")
+                assertClipboardText(window, "unchanged")
                 options =
                     SelectableTextOptions(
                         contextMenu =
@@ -76,7 +77,7 @@ internal class SelectableMenuProbe: Closeable {
                 }
             }
             case 5 -> {
-                assertEquals(Some("unchanged"), window.clipboard.readText())
+                assertClipboardText(window, "unchanged")
                 open(
                     probe,
                     {
@@ -99,7 +100,7 @@ internal class SelectableMenuProbe: Closeable {
                 }
             }
             case 7 -> {
-                assertEquals(Some("unchanged"), window.clipboard.readText())
+                assertClipboardText(window, "unchanged")
                 open(probe, { assertTrue(host.showContextMenu()) }) {
                     test.content = selectableContent(true, "[changed]", 22.0)
                     update(probe)
@@ -112,7 +113,7 @@ internal class SelectableMenuProbe: Closeable {
                 }
             }
             case 8 -> {
-                assertEquals(Some("x link [changed]"), window.clipboard.readText())
+                assertClipboardText(window, "x link [changed]")
                 options =
                     SelectableTextOptions(
                         contextMenu = textContextMenu { mode = TextContextMenuMode.Disabled }
@@ -173,6 +174,7 @@ internal class SelectableMenuProbe: Closeable {
     }
 
     private fun open(probe: EditProbe, request: () -> Unit, during: () -> Unit) {
+        probe.popupPending = true
         request()
         probe.later {
             @Unsafe

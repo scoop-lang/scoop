@@ -83,8 +83,9 @@ internal class EditorContextMenuProbe {
             }
             case 3 -> {
                 assertEquals("one ", state.text)
-                assertEquals(Some("two"), window.clipboard.readText())
+                assertClipboardText(window, "two")
                 assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("one two", state.text)
                 state.setSelection(Utf8Selection(3L, 0L))
                 options = options.copy { selection = TextContextMenuSelection.PlaceCaret }
                 changed(probe)
@@ -110,13 +111,16 @@ internal class EditorContextMenuProbe {
             }
             case 7 -> {
                 assertEquals(" two", state.text)
-                assertEquals(Some("two"), window.clipboard.readText())
+                assertClipboardText(window, "two")
                 assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("one two", state.text)
                 probe.policy = textEditPolicy { maxLength = Some(7L) }
                 state.setSelection(Utf8Selection(3L, 0L))
                 changed(probe)
             }
-            case 8 -> open(probe, { editorKey(window, 109, "", 1) }) {
+            case 8 -> open(probe, { editorShiftF10(window) }) {
+                assertEquals("one two", state.text)
+                assertEquals(Utf8Selection(3L, 0L), state.selection)
                 window.clipboard.writeText("fresh")
                 choose("Menu Paste")
             }
@@ -144,14 +148,14 @@ internal class EditorContextMenuProbe {
             }
             case 11 -> {
                 assertEquals("one two", state.text)
-                assertEquals(Some("one"), window.clipboard.readText())
+                assertClipboardText(window, "one")
                 probe.readonly = false
                 options = options.copy { mode = TextContextMenuMode.Disabled }
                 changed(probe)
             }
             case 12 -> {
                 assertFalse(field.showContextMenu())
-                editorKey(window, 109, "", 1)
+                editorShiftF10(window)
                 editorContextClick(window, probe.point(0L, 1L))
                 probe.later {
                     @Unsafe
@@ -189,7 +193,7 @@ internal class EditorContextMenuProbe {
                 assertEquals("one two", oldDocument!!.text)
                 assertEquals("replacement", state.text)
                 probe.preventKeys = true
-                editorKey(window, 109, "", 1)
+                editorShiftF10(window)
                 probe.later {
                     @Unsafe
                     {
@@ -239,7 +243,7 @@ internal class EditorContextMenuProbe {
                 probe.change()
             }
             case 22 -> {
-                assertEquals(Some("permitted"), window.clipboard.readText())
+                assertClipboardText(window, "permitted")
                 assertEquals("replacement", state.text)
                 assertTrue(field.execute(TextEditCommand.DeleteSelection))
                 assertEquals("", state.text)
@@ -272,6 +276,7 @@ internal class EditorContextMenuProbe {
     }
 
     private fun open(probe: EditProbe, request: () -> Unit, during: () -> Unit) {
+        probe.popupPending = true
         request()
         probe.later {
             @Unsafe

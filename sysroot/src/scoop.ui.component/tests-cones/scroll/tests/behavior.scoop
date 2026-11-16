@@ -12,7 +12,7 @@ import scoop.window.*
 
 /** Continues the existing native scenario on its original mounted viewport. */
 internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplication): Boolean {
-    if (probe.behaviorPhase == 17)
+    if (probe.behaviorPhase == 23)
         return true
     when (probe.behaviorPhase) {
         case 0 -> {
@@ -46,6 +46,31 @@ internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplicatio
         case 4 -> probe.barInput(active) { probe.click(215.0, 90.0) }
         case 5 -> {
             assertTrue(probe.outer.offset.y > 60.0)
+            probe.outer.scrollTo(Point(0.0, 60.0))
+            assertTrue(moveSurfacePointer(probe.window!!, 250.0, 150.0))
+            probe.barWait(140L)
+        }
+        case 6 -> probe.barInput(active) {
+            assertTrue(moveSurfacePointer(probe.window!!, 215.0, 90.0))
+        }
+        case 7 -> probe.barInput(active) { probe.click(215.0, 90.0) }
+        case 8 -> {
+            assertTrue(probe.outer.offset.y > 60.0)
+            probe.behavior.value = testedScrollbarBehavior()
+            probe.outer.scrollTo(Point(0.0, 60.0))
+            assertTrue(moveSurfacePointer(probe.window!!, 100.0, 100.0))
+            probe.barWait(140L)
+        }
+        case 9 -> {
+            probe.behavior.value = probe.behavior.value.copy { revealOnViewportHover = true }
+            probe.behaviorPhase += 1
+        }
+        case 10 -> probe.barInput(active) { probe.click(215.0, 90.0) }
+        case 11 -> {
+            assertTrue(
+                probe.outer.offset.y > 60.0,
+                Some(f"viewport hover click kept offset=${probe.outer.offset.y}")
+            )
             probe.outer.scrollTo(Point(0.0, 0.0))
             probe.behavior.value =
                 testedScrollbarBehavior().copy {
@@ -57,30 +82,30 @@ internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplicatio
                 }
             probe.behaviorPhase += 1
         }
-        case 6 -> probe.barInput(active) {
+        case 12 -> probe.barInput(active) {
             assertTrue(moveSurfacePointer(probe.window!!, 215.0, 100.0))
             assertTrue(probe.view!!.button(215.0, 100.0, true))
         }
-        case 7 -> probe.barWait(160L)
-        case 8 -> {
+        case 13 -> probe.barWait(160L)
+        case 14 -> {
             assertTrue(probe.outer.offset.y > probe.outer.viewport.height)
             assertTrue(probe.outer.offset.y <= probe.outer.maximum.y)
             probe.preventRelease = true
             probe.barInput(active) { assertTrue(probe.view!!.button(215.0, 100.0, false)) }
         }
-        case 9 -> {
+        case 15 -> {
             probe.preventRelease = false
             probe.previousOffset = probe.outer.offset
             probe.barWait(100L)
         }
-        case 10 -> {
+        case 16 -> {
             assertEquals(probe.previousOffset, probe.outer.offset)
             probe.outer.scrollTo(Point(0.0, 0.0))
             probe.behavior.value =
                 probe.behavior.value.copy { trackPress = ScrollbarTrackPress.Jump }
             probe.behaviorPhase += 1
         }
-        case 11 -> {
+        case 17 -> {
             val shape = probe.bar()
             probe.expectedJump =
                 (50.0 - shape.travelStart.y - shape.thumbLength / 2.0) /
@@ -91,7 +116,7 @@ internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplicatio
                 assertTrue(probe.view!!.button(215.0, 70.0, true))
             }
         }
-        case 12 -> {
+        case 18 -> {
             assertTrue(
                 probe.outer.offset.y >
                     probe.expectedJump -
@@ -105,21 +130,21 @@ internal fun advanceScrollbarBehavior(probe: AreaProbe, active: ActiveApplicatio
                 assertTrue(probe.view!!.button(215.0, 90.0, false))
             }
         }
-        case 13 -> {
+        case 19 -> {
             assertTrue(probe.outer.offset.y > probe.expectedJump)
             assertTrue(probe.outerFocus.hasFocus)
             probe.behavior.value = testedScrollbarBehavior()
             assertTrue(moveSurfacePointer(probe.window!!, 250.0, 150.0))
             probe.barWait(140L)
         }
-        case 14 -> {
+        case 20 -> {
             probe.ui!!.preferences =
                 probe.ui!!.preferences.copy { autoHideScrollbars = Some(false) }
             probe.outer.scrollTo(Point(0.0, 0.0))
             probe.behaviorPhase += 1
         }
-        case 15 -> probe.barInput(active) { probe.click(215.0, 90.0) }
-        case 16 -> {
+        case 21 -> probe.barInput(active) { probe.click(215.0, 90.0) }
+        case 22 -> {
             assertTrue(probe.outer.offset.y > 0.0)
             probe.behavior.value = scrollbarBehavior { preset = ScrollbarPreset.Static }
             probe.behaviorPhase += 1
