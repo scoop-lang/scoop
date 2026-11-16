@@ -324,6 +324,7 @@ internal class ControlsProbe: Closeable {
                 assertEquals(1, typographyChanges)
                 fields.run({ identifier -> find(identifier) }, { action -> afterUpdate(action) }) {
                     ui!!.close()
+                    fields.checkRetired()
                     assertFalse(input!!.flag(0))
                     assertFalse(checkbox!!.flag(0))
                     calls!!.post(outer!!, 18)

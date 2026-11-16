@@ -109,6 +109,7 @@ internal fun semanticProperties(value: SemanticProperties, merged: Boolean): Sem
         hidden = value.hidden,
         error = value.error,
         ignored = true,
-        selection = value.selection
+        selection = value.selection,
+        required = value.required
     )
 }

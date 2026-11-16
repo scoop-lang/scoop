@@ -79,7 +79,7 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 `handle.mergeLabels = true` 按语义阅读顺序合并容器内的纯 Text 叶子，默认 false。只有无动作、无焦点绑定、无公开选区、无语义子项且非受保护的文本参与合并；普通分组、链接、可聚焦或可选择文本与嵌套合并容器保持独立。显式 ignored 包装允许继续合并后代，hidden 子树不参与。名称按显式 name、labelledBy、内容文字依次回退；显式空串也保留优先级，合并引用不混入 handle.relations。动态增添动作、焦点或选区后，同一次逻辑发布恢复文本自身的导航和操作，重排／合并／恢复不更换身份，也不要求 drawable。
 
-自定义编辑 Element 可在正常 update 中调用 `semantic.updateTextEditor(host, properties, relations)`，扩展函数从 `scoop.ui.text` 导入。semantic 必须是同一挂载的 TextField；host 仍由原作用域管理。名称、说明、错误和关系来自参数，正文、方向选区与实际焦点来自现有 TextEditHost。禁用、只读和 protectedText 使用两者共同施加的限制；受保护用途即使明文显示或显式允许复制，也不向原生查询发布正文／长度／选区。调用方沿原 State 依赖更新控件；仅修改选区不要求新的几何。
+自定义编辑 Element 可在正常 update 中调用 `semantic.updateTextEditor(host, properties, relations)`，扩展函数从 `scoop.ui.text` 导入。semantic 必须是同一挂载的 TextField；host 仍由原作用域管理。名称、说明、错误、required 和关系来自参数，正文、方向选区与实际焦点来自现有 TextEditHost。required 描述实际表单要求，不通过祖先自动继承，也不执行校验；两个文本投影与静态标签合并均保留它。禁用、只读和 protectedText 使用两者共同施加的限制；受保护用途即使明文显示或显式允许复制，也不向原生查询发布正文／长度／选区。调用方沿原 State 依赖更新控件；仅修改选区不要求新的几何。
 
 原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。正文范围几何、按点／词行查询和 retained range 继续随 S5 接入。
 

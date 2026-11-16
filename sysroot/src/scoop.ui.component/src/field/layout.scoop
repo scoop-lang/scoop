@@ -25,6 +25,13 @@ internal class FieldLayout(
     private val props: Props<FieldLayoutProps>,
     scope: ComponentScope
 ): Element<Boolean>(scope) {
+    private val requirement = scope.resource { FieldRequirement(scope) }
+
+    public override fun update(): UiInvalidation {
+        val input = props.value.input
+        requirement.update(fieldSemanticTarget(input), input.required)
+        return UiInvalidation.Layout
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Boolean
     > {

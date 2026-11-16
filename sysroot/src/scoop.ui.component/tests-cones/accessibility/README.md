@@ -11,3 +11,5 @@ scoop test sysroot/src/scoop.ui.component/tests-cones/accessibility --release
 该用例不依赖实际鼠标事件、焦点或窗口呈现，也不代替外部 AX 客户端、VoiceOver 和实窗几何验证。后者继续使用 UI 的 accessibility-scene 及组件交互用例；构建成功不记为相应交互通过。
 
 Field 场景复用同一 Application，检查自动标签、说明和去重错误、静态标题的显式目标、独立 FieldLabel／FieldText／FieldError、自定义标签里的按钮、显式名称／空串／关系优先级、控件与注释分别换绑，以及兄弟注释关闭／重建后控件仍及时更新、目标禁用时自定义标签的子按钮同步不可用。整个过程保留原输入节点和文本模型，不为测试另建应用循环。
+
+必填场景覆盖 Input、Checkbox 与 Button 的真实 Field 配置，动态启停、控件与注释换绑、独立来源关闭／重建、多来源中仍有一个必填时保持状态、禁用时保留必填、只读属性能力和旧对象退休；范围与文本模型保持原有事实。

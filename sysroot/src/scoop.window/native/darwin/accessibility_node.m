@@ -96,6 +96,9 @@
 - (BOOL)isAccessibilityProtectedContent {
   return (self.state.data.flags & SWAXProtected) != 0;
 }
+- (BOOL)isAccessibilityRequired {
+  return (self.state.data.flags & SWAXRequired) != 0;
+}
 - (id)accessibilityValue {
   SWAccessibilityState *state = self.state;
   if (!state || (state.data.flags & SWAXProtected))
@@ -284,6 +287,8 @@
   SWAccessibilityState *state = self.state;
   if (!state)
     return NO;
+  if (selector == @selector(isAccessibilityRequired))
+    return self.isAccessibilityElement;
   if (selector == @selector(accessibilityPerformPress))
     return self.isAccessibilityEnabled &&
            (state.data.actions & (state.data.role == 3 ? 3 : 1)) != 0;

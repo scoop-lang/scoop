@@ -17,7 +17,7 @@
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、只读文本及 Field 注释关系的原生回归通过，场景构建通过但实窗待验；滚动及其余控件、复杂关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
-| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、表单状态、复杂焦点与模态待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -215,3 +215,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - 既有 Field 交互程序完成 release 可执行文件构建；桌面锁定下没有运行呈现、指针或焦点验证，也未把进程内查询记为外部 AX／VoiceOver 通过。正式规范、两份设计、计划、README 和编程导航已同步；API 查询核对 Props、builder 及继承字段，README 示例实际检查通过，102 个本地 Markdown 目标检查通过。临时站点和示例已清理。
 
 required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 S5／S11 推进，本批只交付上述真实注释关系及验证。
+
+### Field 必填属性
+
+- SemanticProperties.required 默认 false，AppKit 使用公开的 isAccessibilityRequired 只读属性。状态变化发送适用的属性布局通知，不当作正文值变化；UI 的标签合并与两个文本宿主保留该事实，不触发编辑或焦点动作。
+- Field.required 沿现有 FieldTarget／FieldLink 进入 Button、Checkbox、Input／Textarea。每个 Field 拥有自己的必填声明，同窗口任一活跃来源为 true 时目标为必填；来源关闭、换绑和全部恢复 false 直接刷新现有节点。没有新增验证器或命名覆盖状态。只有同窗口目标已提供语义时才把重复的 requiredText 当作装饰，其余情形继续保留提示阅读。
+- 18 个 Scoop 文件与 4 个 native 文件的格式检查、Objective-C 严格编译检查通过。Window／UI 含测试的源码检查、Window／Surface／UI／style／shadcn／Component 的 release 产物构建通过；只更新实际依赖这些接口的产物，没有每次执行全库测试。
+- Window 原生回归验证必填变化保留正文版本、几何和精确命中。Component 原生 Cone 检查及实际运行通过，覆盖动态启停、独立来源关闭／恢复且父级不重新渲染、多来源保留、控件／声明分别换绑、禁用时仍必填、只读属性能力及旧对象退休；原有文本、选择、关系和动作回归一并通过。
+
+正式规范、两份设计、计划、README 与编程导航已同步，Window API 查询核对 required 的公开属性、默认值和导入路径；临时 API 站点已清理，本批文档的 149 个本地链接目标检查通过。实窗呈现、外部 AX／VoiceOver 和其他平台未据进程内方法结果记为通过；invalid／busy、复杂焦点、滚动语义及其余完整计划继续推进。

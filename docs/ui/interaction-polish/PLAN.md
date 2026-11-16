@@ -144,7 +144,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S5 accessibility 文本、表单、焦点与模态
 
-当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区、实际写入和 ShowContextMenu。UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史，updateSelectableText 接入只读正文与行内替代文字选区；两个宿主共用原菜单会话。Input／Textarea、SelectableStyledText 及 Typography 的内置宿主和包装已自动接入，选择通知保留最新业务回调，切换只读选择分支退休旧对象。FieldTarget 已复用原连接发布标签／说明／错误关系，注释更新和换绑不需要重新创建控件。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、表单状态、复杂焦点与模态仍待继续。
+当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区、实际写入和 ShowContextMenu。UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史，updateSelectableText 接入只读正文与行内替代文字选区；两个宿主共用原菜单会话。Input／Textarea、SelectableStyledText 及 Typography 的内置宿主和包装已自动接入，选择通知保留最新业务回调，切换只读选择分支退休旧对象。FieldTarget 已复用原连接发布标签／说明／错误关系与只读 required 属性，注释／必填来源更新和换绑不需要重新创建控件。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态仍待继续。
 
 **主要范围：** 共享语义模型、TextEditorState／TextEditHost／TextLayout、focus／overlay、Field 与选择类控件、已接通的 provider。先改 UI／Component／Window 与实际受影响的文本 spec。
 

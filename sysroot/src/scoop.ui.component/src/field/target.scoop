@@ -8,9 +8,12 @@ import scoop.window.accessibility.*
 public class FieldTarget public constructor() {
     private val current = state<FieldLink?>(None)
     private val annotations = ArrayList<FieldAnnotation>()
+    private val requirements = ArrayList<FieldRequirement>()
     internal val connection: FieldLink? get() = current.value
     public val isAttached: Boolean get() = current.value?.isAttached ?: false
     public val isEnabled: Boolean get() = current.value?.isEnabled ?: false
+    internal fun hasSemantics(source: ComponentScope): Boolean =
+        current.value?.hasSemantics(source) ?: false
 
     internal fun checkBinding(link: FieldLink) {
         when (current.value) {
@@ -43,8 +46,26 @@ public class FieldTarget public constructor() {
                 return
             }
     }
-    internal fun annotationChanged() {
+    internal fun semanticsChanged() {
         current.value?.semanticsChanged()
+    }
+    internal fun addRequirement(requirement: FieldRequirement) {
+        requirements.add(requirement)
+        semanticsChanged()
+    }
+    internal fun removeRequirement(requirement: FieldRequirement) {
+        for (index in 0L ..< requirements.size)
+            if (requirements[index] === requirement) {
+                requirements.removeAt(index)
+                semanticsChanged()
+                return
+            }
+    }
+    internal fun isRequired(source: SemanticsHandle): Boolean {
+        for (requirement in requirements)
+            if (requirement.appliesTo(source))
+                return true
+        return false
     }
     internal fun relations(
         source: SemanticsHandle,
@@ -83,6 +104,7 @@ internal class FieldLink(
     private val scope: ComponentScope,
     private val area: InputArea,
     private val focus: FocusTarget,
+    private val semantics: SemanticsHandle? = None,
     private val refreshSemantics: () -> Unit = {}
 ): Closeable {
     private val enabled = state(false)
@@ -91,6 +113,9 @@ internal class FieldLink(
     private var closed = false
     val isAttached: Boolean get() = !closed && scope.isMounted
     val isEnabled: Boolean get() = isAttached && enabled.value
+    fun hasSemantics(source: ComponentScope): Boolean =
+        isAttached && source.nativeWindow === scope.nativeWindow && !(semantics?.isClosed ?: true)
+    fun isRequired(source: SemanticsHandle): Boolean = target?.isRequired(source) ?: false
 
     fun semanticsChanged() {
         if (isAttached)

@@ -15,6 +15,7 @@ internal class FieldSemanticsProbe {
     val editor = TextEditorState("Value")
     val checked = state(false)
     val checkEnabled = state(true)
+    val required = state(true)
     val caption = state("Account")
     val description = state<String?>(Some("Shown to team"))
     val errors = state<Array<String>>(["Required", "", "Required", "Too short"])
@@ -30,6 +31,13 @@ internal class FieldSemanticsProbe {
     private var oldLabel: NativeNode? = None
     var rootRenders = 0
     private var initialRootRenders = 0
+
+    fun checkRetired() {
+        assertFalse(input!!.flag(9))
+        assertFalse(input!!.flag(10))
+        assertFalse(checkbox!!.flag(9))
+        assertFalse(button!!.flag(9))
+    }
 
     fun run(find: (String) -> NativeNode, schedule: (() -> Unit) -> Unit, completed: () -> Unit) {
         val expected = first
@@ -55,6 +63,11 @@ internal class FieldSemanticsProbe {
     ) {
         when (step) {
             case 0 -> {
+                assertTrue(input!!.flag(9))
+                assertTrue(input!!.flag(10))
+                assertFalse(input!!.flag(11))
+                assertTrue(checkbox!!.flag(9))
+                assertTrue(button!!.flag(9))
                 assertTrue(input!!.text(0, Some("Account")))
                 assertTrue(input!!.text(5, Some("Shown to team\nRequired Too short")))
                 assertTrue(checkbox!!.text(0, Some("Accept More")))
@@ -68,6 +81,8 @@ internal class FieldSemanticsProbe {
             }
             case 1 -> {
                 assertEquals(initialRootRenders, rootRenders)
+                assertFalse(button!!.flag(9))
+                assertTrue(checkbox!!.flag(9))
                 assertTrue(input!!.text(0, Some("Account")))
                 assertTrue(input!!.text(5, Some("Shown to team\nRequired Too short")))
                 assertTrue(checkbox!!.text(0, None))
@@ -78,15 +93,19 @@ internal class FieldSemanticsProbe {
             }
             case 2 -> {
                 assertEquals(initialRootRenders, rootRenders)
+                assertTrue(button!!.flag(9))
+                assertTrue(checkbox!!.flag(9))
                 assertTrue(checkbox!!.text(0, Some("Accept More")))
                 assertTrue(button!!.text(0, Some("Run")))
                 assertTrue(find("field-label").flag(0))
                 assertFalse(oldLabel!!.flag(0))
                 caption.value = "Display name"
+                required.value = false
                 description.value = Some("Updated hint")
                 errors.value = []
             }
             case 3 -> {
+                assertFalse(input!!.flag(9))
                 assertTrue(input!!.text(0, Some("Display name")))
                 assertTrue(input!!.text(5, Some("Updated hint")))
                 overrides.value = 1
@@ -109,9 +128,11 @@ internal class FieldSemanticsProbe {
                 assertTrue(input!!.text(0, Some("Explicit relationship")))
                 assertTrue(input!!.text(5, Some("Updated hint")))
                 overrides.value = 0
+                required.value = true
                 controlRebound.value = true
             }
             case 7 -> {
+                assertFalse(input!!.flag(9))
                 assertTrue(input!!.text(0, None))
                 assertTrue(input!!.text(5, None))
                 assertFalse(first.isAttached)
@@ -119,6 +140,7 @@ internal class FieldSemanticsProbe {
                 notesRebound.value = true
             }
             case 8 -> {
+                assertTrue(input!!.flag(9))
                 assertTrue(input!!.text(0, Some("Display name")))
                 assertTrue(input!!.text(5, Some("Updated hint")))
                 heading.value = 1
@@ -143,12 +165,14 @@ internal class FieldSemanticsProbe {
             }
             case 11 -> {
                 assertFalse(checkbox!!.flag(1))
+                assertTrue(checkbox!!.flag(9))
                 assertTrue(find("field-label").flag(0))
                 assertFalse(find("field-label").flag(1))
                 assertFalse(find("field-details").flag(1))
                 checkEnabled.value = true
             }
             case 12 -> {
+                assertTrue(input!!.flag(9))
                 assertTrue(checkbox!!.flag(1))
                 assertTrue(find("field-label").flag(1))
                 assertTrue(find("field-details").flag(1))
@@ -219,9 +243,21 @@ private class FieldsRoot(
                 contextMenu { this.mode = TextContextMenuMode.Disabled }
                 semantics = options
             }
+        val checkControl =
+            checkbox(probe.checked.binding()) {
+                enabled = probe.checkEnabled.value
+                labelTarget = Some(probe.checkTarget)
+                semantics = ComponentSemantics(automationId = Some("field-checkbox"))
+            }
+        val buttonControl =
+            button("Fallback", {}) {
+                labelTarget = Some(probe.buttonTarget)
+                semantics = ComponentSemantics(automationId = Some("field-button"))
+            }
         return fieldGroup {
             this.field(input) {
                 target = Some(noteTarget)
+                required = probe.required.value
                 when (probe.heading.value) {
                     case 0 -> label(probe.caption.value, noteTarget)
                     case 1 -> title(probe.caption.value)
@@ -233,15 +269,11 @@ private class FieldsRoot(
                 }
                 errors = probe.errors.value
             }
-            this.checkbox(probe.checked.binding()) {
-                enabled = probe.checkEnabled.value
-                labelTarget = Some(probe.checkTarget)
-                semantics = ComponentSemantics(automationId = Some("field-checkbox"))
+            this.field(checkControl) {
+                target = Some(probe.checkTarget)
+                required = true
             }
-            this.button("Fallback", {}) {
-                labelTarget = Some(probe.buttonTarget)
-                semantics = ComponentSemantics(automationId = Some("field-button"))
-            }
+            this.field(buttonControl) { target = Some(probe.buttonTarget) }
             this.add(component(probe, { current, mount -> FieldNotes(current, scope = mount) }))
         }
     }
@@ -263,14 +295,26 @@ private class FieldNotes(
                     semantics = ComponentSemantics(automationId = Some("field-details"))
                 }
             }
-        return fieldGroup {
-            this.fieldLabel(caption, probe.checkTarget) {
-                semantics = ComponentSemantics(automationId = Some("field-label"))
+        val notes =
+            fieldGroup {
+                this.fieldLabel(caption, probe.checkTarget) {
+                    semantics = ComponentSemantics(automationId = Some("field-label"))
+                }
+                this.fieldTitle("More") { target = Some(probe.checkTarget) }
+                this.fieldTitle("Run") { target = Some(probe.buttonTarget) }
+                this.fieldDescription(probe.noteDescription.value) {
+                    target = Some(probe.buttonTarget)
+                }
+                this.fieldError(["Standalone error"]) { target = Some(probe.buttonTarget) }
             }
-            this.fieldTitle("More") { target = Some(probe.checkTarget) }
-            this.fieldTitle("Run") { target = Some(probe.buttonTarget) }
-            this.fieldDescription(probe.noteDescription.value) { target = Some(probe.buttonTarget) }
-            this.fieldError(["Standalone error"]) { target = Some(probe.buttonTarget) }
+        val checkNotes =
+            field(notes) {
+                target = Some(probe.checkTarget)
+                required = true
+            }
+        return field(checkNotes) {
+            target = Some(probe.buttonTarget)
+            required = true
         }
     }
 }

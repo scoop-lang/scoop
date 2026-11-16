@@ -114,6 +114,14 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
   case 8:
     return [node
         isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)];
+  case 9:
+    return [node isAccessibilityRequired];
+  case 10:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(isAccessibilityRequired)];
+  case 11:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(setAccessibilityRequired:)];
   default:
     return 0;
   }

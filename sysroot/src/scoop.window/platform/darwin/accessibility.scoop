@@ -235,7 +235,9 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             16 *
             flag(value.name != None) +
             32 *
-            flag(value.ignored),
+            flag(value.ignored) +
+            64 *
+            flag(value.required),
         node.actions.capabilities,
         when (value.checked) {
             case None -> -1;

@@ -42,7 +42,7 @@ internal class FieldAnnotation(private val scope: ComponentScope): Closeable {
             target?.addAnnotation(this)
         else
             if (kindChanged)
-                target?.annotationChanged()
+                target?.semanticsChanged()
     }
 
     fun nodeFor(source: SemanticsHandle): SemanticsHandle? {

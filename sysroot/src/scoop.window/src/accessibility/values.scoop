@@ -40,7 +40,8 @@ public struct SemanticProperties(
     val hidden: Boolean = false,
     val error: String? = None,
     val ignored: Boolean = false,
-    val selection: Utf8Selection? = None
+    val selection: Utf8Selection? = None,
+    val required: Boolean = false
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")

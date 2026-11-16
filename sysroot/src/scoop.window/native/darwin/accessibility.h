@@ -34,7 +34,8 @@ enum {
   SWAXProtected = 4,
   SWAXHidden = 8,
   SWAXNamed = 16,
-  SWAXIgnored = 32
+  SWAXIgnored = 32,
+  SWAXRequired = 64
 };
 
 @class SWAccessibilityTree;

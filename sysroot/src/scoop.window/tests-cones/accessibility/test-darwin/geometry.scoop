@@ -53,6 +53,13 @@ internal fun checkHitGeometry(tree: AccessibilityProvider, view: Ptr<Unit>) {
             assertEquals(0, nativeGeometryHit(probe, 3, 50.0, 50.0, -1))
             assertEquals(0, nativeGeometryHit(probe, 2, 30.0, 30.0, 2))
             assertEquals(0, nativeGeometryHit(probe, 4, 95.0, 95.0, 3))
+            val previousRevision = back.contentRevision
+            val previousGeometry = back.geometry
+            back.update(hitProperties("hit-back", required = true))
+            assertEquals(previousRevision, back.contentRevision)
+            assertEquals(previousGeometry, back.geometry)
+            tree.publish()
+            expectHit(probe, 15.0, 15.0, 2)
             back.reparent(Some(group), -1L)
             tree.publish()
             expectHit(probe, 30.0, 30.0, 3)
@@ -119,14 +126,16 @@ private fun hitProperties(
     id: String,
     ignored: Boolean = false,
     hidden: Boolean = false,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    required: Boolean = false
 ): SemanticProperties =
     SemanticProperties(
         name = Some(id),
         automationId = Some(id),
         ignored = ignored,
         hidden = hidden,
-        enabled = enabled
+        enabled = enabled,
+        required = required
     )
 
 private fun installRectangle(node: AccessibilityNode, rectangle: Rect, order: Long) {

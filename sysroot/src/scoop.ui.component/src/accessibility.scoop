@@ -19,7 +19,8 @@ internal fun ComponentSemantics.properties(
     readOnly: Boolean = false,
     checked: SemanticChecked? = None,
     description: String? = None,
-    error: String? = None
+    error: String? = None,
+    required: Boolean = false
 ): SemanticProperties =
     SemanticProperties(
         name = this.name,
@@ -39,5 +40,6 @@ internal fun ComponentSemantics.properties(
                 case Some(_) -> overrideValue
                 case None -> error
             },
-        ignored = this.ignored
+        ignored = this.ignored,
+        required = required
     )

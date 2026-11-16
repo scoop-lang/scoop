@@ -100,7 +100,8 @@ public fun SemanticsHandle.updateSelectableText(
             protectedText = properties.protectedText,
             hidden = properties.hidden,
             error = properties.error,
-            ignored = properties.ignored
+            ignored = properties.ignored,
+            required = properties.required
         ),
         SemanticActions(setSelection = select, showContextMenu = showContextMenu),
         relations

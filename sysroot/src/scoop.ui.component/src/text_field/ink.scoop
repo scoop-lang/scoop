@@ -29,7 +29,7 @@ internal class TextFieldInk(
     private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
     private val padding = scope.createArea()
     private val field =
-        scope.resource { FieldLink(scope, host.area, host.focus) { updateSemantics() } }
+        scope.resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
     internal val scrollbarFeedback =
         scope.resource {
             ScrollbarFeedback(scope, { scrollbarProps() }, host.area) { feedbackChanged() }
@@ -135,6 +135,7 @@ internal class TextFieldInk(
             host,
             input.semantics.properties(
                 description = description,
+                required = field.isRequired(handle),
                 error =
                     if (input.invalid)
                         description

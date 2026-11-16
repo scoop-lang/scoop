@@ -31,7 +31,12 @@ public class Field public constructor(
         children.add(panelSlot(input.control, 0L))
         parts.add(FieldPart.Control)
         if (panelPresent(input.heading) || input.required) {
-            children.add(panelSlot(fieldHeading(input, theme, target), 1L))
+            children.add(
+                panelSlot(
+                    fieldHeading(input, theme, target, target?.hasSemantics(scope) ?: false),
+                    1L
+                )
+            )
             parts.add(FieldPart.Heading)
         }
         when (input.description) {
@@ -89,7 +94,7 @@ public class Field public constructor(
     }
 }
 
-private fun fieldSemanticTarget(input: FieldProps): FieldTarget? =
+internal fun fieldSemanticTarget(input: FieldProps): FieldTarget? =
     when (val target = input.target) {
         case Some(_) -> target
         case None -> when (input.heading) {
@@ -98,7 +103,12 @@ private fun fieldSemanticTarget(input: FieldProps): FieldTarget? =
         }
     }
 
-private fun fieldHeading(input: FieldProps, theme: Theme, target: FieldTarget?): View {
+private fun fieldHeading(
+    input: FieldProps,
+    theme: Theme,
+    target: FieldTarget?,
+    requiredSemantics: Boolean
+): View {
     val base =
         fieldTextStyle(FieldTextRole.Title, theme).copy {
             if (input.invalid)
@@ -138,7 +148,10 @@ private fun fieldHeading(input: FieldProps, theme: Theme, target: FieldTarget?):
             this.add(
                 panelSlot(
                     panelCaption(
-                        fieldPlain(input.requiredText),
+                        fieldPlain(
+                            input.requiredText,
+                            ComponentSemantics(ignored = requiredSemantics)
+                        ),
                         fieldTextStyle(FieldTextRole.Description, theme).copy {
                             if (input.invalid)
                                 this.color = theme.tokens.palette.destructive.background

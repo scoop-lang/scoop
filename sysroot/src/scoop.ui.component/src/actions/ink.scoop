@@ -55,7 +55,9 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                     field =
                         Some(
                             scope.resource {
-                                FieldLink(scope, control.area, control.focus) { updateSemantics() }
+                                FieldLink(scope, control.area, control.focus, value.semantics) {
+                                    updateSemantics()
+                                }
                             }
                         )
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
@@ -94,7 +96,8 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
         when (value.behavior) {
             case Press(_, val action, _) -> handle.update(
                 value.semanticOptions.properties(
-                    enabled = value.visual.interaction.enabled && value.actionable
+                    enabled = value.visual.interaction.enabled && value.actionable,
+                    required = field?.isRequired(handle) ?: false
                 ),
                 SemanticActions(
                     invoke =

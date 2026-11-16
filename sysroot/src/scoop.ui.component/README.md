@@ -83,11 +83,12 @@ fun accountField(editor: TextEditorState, accountTarget: FieldTarget): View =
     field(input(editor) { labelTarget = Some(accountTarget) }) {
         label("账户", accountTarget)
         description("显示给团队成员的名称")
+        required = true
         errors = ["请填写账户名称"]
     }
 ```
 
-目标由拥有表单的组件保持稳定；Field 不查找或修改不透明 control。多个独立标签按关联登记顺序组成名称，自定义标签内的按钮继续独立可访问；标签因目标未绑定或禁用而停止输入时，子按钮也报告不可用。显式非空关系覆盖对应自动关系，显式 name／description／error（包括空串）优先。正文更新、注释关闭或目标换绑会刷新现有语义节点，空错误不会留下旧消息；关联变化不需要绘制或移动焦点。required／invalid 的专门状态及其余控件按统一计划继续接入。
+目标由拥有表单的组件保持稳定；Field 不查找或修改不透明 control。多个独立标签按关联登记顺序组成名称，自定义标签内的按钮继续独立可访问；标签因目标未绑定或禁用而停止输入时，子按钮也报告不可用。显式非空关系覆盖对应自动关系，显式 name／description／error（包括空串）优先。正文更新、注释关闭或目标换绑会刷新现有语义节点，空错误不会留下旧消息；关联变化不需要绘制或移动焦点。Field.required 也通过该目标发布实际必填属性，更新与换绑不改正文或焦点；已由控件报告必填时，requiredText 保留显示并退出重复朗读。invalid 等其余状态与其他控件按统一计划继续接入。
 
 `typography("标题", TypographyRole.H1)` 提供 H1–H4、P、Blockquote、InlineCode、Lead／Large／Small／Muted 角色，默认可选择和复制。`typography { text("运行 "); code("scoop build") }` 使用真实行内代码 View，复制结果保留代码文字；span、inline、actions 和 decorations 继续使用公共富文本 API。`typographyList { item("第一项") }` 和 `typographyTable { header { cell("名称") }; row { cell("Scoop") } }` 提供项目符号与共享列宽的静态文字排版，段落间距由父布局控制。
 
@@ -111,7 +112,7 @@ SelectableStyledText 默认发布共享宿主的正文、选区和只读菜单�
 
 Input Group 内置输入使用 `chrome = TextFieldChrome.Bare`，移除内层外框、边框占位和禁用透明度，保留原文本宿主、padding、滚动条和编辑策略。外部组合也可显式使用 Bare；切换 chrome 保留选区、组合输入与撤销历史。自定义 `control(view, focus)` 必须让实际控件绑定该 FocusHandle，并自行选择 Bare；外层不遍历 View 或查找编辑器。`tests-cones/input-group` 覆盖真实窗口中的四向 addon、keyed 重排、IME、焦点换绑和资源收尾。
 
-`field(control) { label("名称", target); description("帮助"); errors = messages }` 组合标签、控件、说明与业务错误。Vertical／Horizontal／Responsive 按实际内容宽度布局，默认响应阈值为 448（随字号缩放）；切换布局和可选内容不会重建控件或断开输入法。required／requiredText 只显示必填说明；控件的 enabled／invalid 与 Field 的 invalid 由业务明确配置。error 自定义内容优先，errors 忽略空字符串并按首次出现去重，多条显示项目符号。
+`field(control) { label("名称", target); description("帮助"); errors = messages }` 组合标签、控件、说明与业务错误。Vertical／Horizontal／Responsive 按实际内容宽度布局，默认响应阈值为 448（随字号缩放）；切换布局和可选内容不会重建控件或断开输入法。required／requiredText 提供必填说明，并通过同一目标发布必填语义；控件的 enabled／invalid 与 Field 的 invalid 由业务明确配置。error 自定义内容优先，errors 忽略空字符串并按首次出现去重，多条显示项目符号。
 
 fieldGroup／fieldContent 收集子项，fieldSet(content) 提供 legend／description；fieldTitle、fieldDescription、fieldLegend、fieldError 和 fieldSeparator 也可单独组合。FieldLabel 现可接受任意 View，用来将整个 choice card 关联到 Checkbox／Switch；点击卡片和直接点击控件均只激活一次。`tests-cones/field` 覆盖真实输入、可选槽和 keyed 重排、窄宽／零尺寸、标签与 choice card、焦点保留及卸载收尾。
 

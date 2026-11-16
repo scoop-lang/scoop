@@ -103,8 +103,10 @@ public class FieldLegendBuilder internal constructor(): FieldTextBuilder() {
     public var variant: FieldLegendVariant = FieldLegendVariant.Legend
 }
 
-internal fun fieldPlain(text: String): PanelContent =
-    PanelContent.Label(LabelProps(LabelText.Plain(text, None)))
+internal fun fieldPlain(
+    text: String,
+    semantics: ComponentSemantics = ComponentSemantics()
+): PanelContent = PanelContent.Label(LabelProps(LabelText.Plain(text, None), semantics = semantics))
 
 internal fun fieldStyled(text: StyledText): PanelContent =
     PanelContent.Label(LabelProps(LabelText.Styled(text)))

@@ -257,7 +257,8 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
   if (!same(old.name, next.name))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityTitleChangedNotification);
-  if (old.data.actions != next.data.actions || !same(old.help, next.help) ||
+  if (((old.data.flags ^ next.data.flags) & SWAXRequired) ||
+      old.data.actions != next.data.actions || !same(old.help, next.help) ||
       !same(old.error, next.error) ||
       ![old.labels isEqualToArray:next.labels] ||
       ![old.controls isEqualToArray:next.controls] ||
@@ -265,7 +266,7 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityLayoutChangedNotification);
   if (!same(old.value, next.value) || old.data.checked != next.data.checked ||
-      old.data.flags != next.data.flags)
+      (old.data.flags & ~SWAXRequired) != (next.data.flags & ~SWAXRequired))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityValueChangedNotification);
   if ((next.data.role == 1 || next.data.role == 4) &&
