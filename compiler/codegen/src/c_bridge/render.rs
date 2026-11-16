@@ -185,7 +185,7 @@ fn exact_data_pointee<'a>(
         scoop_lir::CDataPointerStorage::Nullable(reference) => (pointee == reference.pointee())
             .then_some(reference.pointee())
             .ok_or_else(|| {
-                CodegenError(
+                CodegenError::internal(
                     "nullable C data-pointer renderer received mismatched exact pointee"
                         .to_string(),
                 )
@@ -202,7 +202,7 @@ fn exact_code_signature<'a>(
         scoop_lir::CCodePointerStorage::Nullable(reference) => (signature == reference.signature())
             .then_some(reference.signature())
             .ok_or_else(|| {
-                CodegenError(
+                CodegenError::internal(
                     "nullable C code-pointer renderer received mismatched exact signature"
                         .to_string(),
                 )
@@ -259,7 +259,7 @@ impl<'a> CTypeRenderer<'a> {
                     .iter()
                     .position(|candidate| candidate == signature)
                     .ok_or_else(|| {
-                        CodegenError(
+                        CodegenError::internal(
                             "C function-pointer signature was not collected before rendering"
                                 .to_string(),
                         )

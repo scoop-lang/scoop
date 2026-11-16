@@ -23,7 +23,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             | CallProtocol::ReleaseNativeLeaf
             | CallProtocol::NativeSafe { .. }
             | CallProtocol::NativeBorrowed { .. } => {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "non-invoke protocol reached invoke emission in @{}",
                     self.function.symbol()
                 )));
@@ -79,7 +79,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             self.llvm_blocks[arena_index(unwind)],
                             "typed_invoke",
                         )
-                        .map_err(|error| CodegenError(format!("typed dispatch invoke: {error}")))?,
+                        .map_err(|error| {
+                            CodegenError::backend(format!("typed dispatch invoke: {error}"), error)
+                        })?,
                     PreparedCallee::Direct(function) => self
                         .builder
                         .build_invoke(
@@ -89,7 +91,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             self.llvm_blocks[arena_index(unwind)],
                             "typed_invoke",
                         )
-                        .map_err(|error| CodegenError(format!("typed direct invoke: {error}")))?,
+                        .map_err(|error| {
+                            CodegenError::backend(format!("typed direct invoke: {error}"), error)
+                        })?,
                 };
                 // Preserve each protected call through machine tail merging.
                 call.add_attribute(
@@ -140,7 +144,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             TypedCallResult::Direct { out, value: plan } => {
                 let value = direct_value.ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "typed invoke @{} produced no direct result",
                         self.function.symbol()
                     ))
@@ -153,7 +157,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         }
         self.builder
             .build_unconditional_branch(self.llvm_blocks[arena_index(normal)])
-            .map_err(|error| CodegenError(format!("leave invoke cleanup: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("leave invoke cleanup: {error}"), error)
+            })?;
         Ok(())
     }
 }

@@ -440,7 +440,7 @@ impl PersistentImmortalObjectId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeIdentityError {
     ExpectedDelegatedApplication,
     Hash(HashError),

@@ -28,7 +28,7 @@ pub(super) fn render_c_layout_assertions(
             return Ok(());
         }
         if !visiting.insert(raw) {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "recursive by-value C layout `{}`",
                 module.structs[id].name
             )));
@@ -70,7 +70,7 @@ pub(super) fn render_c_layout_assertions(
         let mut padding_index = 0usize;
         for (field_index, field) in fields.iter().enumerate() {
             let padding = field.layout.offset.checked_sub(cursor).ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "overlapping fields in C layout `{}`",
                     definition.name
                 ))
@@ -88,10 +88,9 @@ pub(super) fn render_c_layout_assertions(
             cursor = field.layout.offset
                 + c_field_size(&module.structs, &module.enums, &field.ty.storage_type())?;
         }
-        let tail = definition
-            .size
-            .checked_sub(cursor)
-            .ok_or_else(|| CodegenError(format!("fields exceed C layout `{}`", definition.name)))?;
+        let tail = definition.size.checked_sub(cursor).ok_or_else(|| {
+            CodegenError::internal(format!("fields exceed C layout `{}`", definition.name))
+        })?;
         if tail != 0 {
             out.push_str(&format!(
                 "  unsigned char _pad_{}[{}];\n",
@@ -126,7 +125,7 @@ fn target_profile_assertions(profile: scoop_lir::LirTargetProfile) -> Result<Str
         || data_pointer.carrier() != scoop_lir::InternalPointerCarrier::BitPreservingU64
         || code_pointer.carrier() != scoop_lir::InternalPointerCarrier::BitPreservingU64
     {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "target profile `{}` has no qualified C pointer representation",
             profile.id().canonical_name(),
         )));

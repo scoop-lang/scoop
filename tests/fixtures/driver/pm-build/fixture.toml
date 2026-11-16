@@ -7,7 +7,7 @@ when = { os = ["darwin", "linux"] }
 tags = ["driver", "pm", "workspace", "cache"]
 
 [vars]
-options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--package-cache", "${work}/packages", "--cache-dir", "${cache}", "--message-format", "json"]
+options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--package-cache", "${work}/packages", "--cache-dir", "${work}/cache", "--message-format", "json"]
 
 [[steps]]
 name = "copy"
@@ -32,7 +32,7 @@ diagnostics = []
 checks = [
   {actual = "${build.records.length}", equals = 3},
   {file = "${work}/pm-calls", equals = "prepare\n"},
-  {glob = "${cache}/pm-requests", equals = []},
+  {glob = "${work}/cache/pm-requests", equals = []},
   {file = "${work}/project/target/${target}/release/dev.pm/app/app.slib", exists = true},
   {file = "${work}/project/target/${target}/release/dev.other/app/app.slib", exists = true},
   {file = "${work}/project/target/${target}/release/dev.pm/shared/shared.slib", exists = true},
@@ -53,7 +53,7 @@ checks = [
   {actual = "${frozen.records.1.observations.child_invocations}", equals = []},
   {actual = "${frozen.records.2.observations.child_invocations}", equals = []},
   {file = "${work}/pm-calls", equals = "prepare\nprepare\n"},
-  {glob = "${cache}/pm-requests", equals = []},
+  {glob = "${work}/cache/pm-requests", equals = []},
 ]
 
 [[steps]]

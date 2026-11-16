@@ -106,12 +106,9 @@ impl SmartFlow<'_> {
             "smart cast of mutable local `{name}` to {} is not valid on every incoming path",
             self.state.type_name(value.ty)
         );
-        if !self
-            .state
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.span == Some(value.span) && diagnostic.message == message)
-        {
+        if !self.state.diagnostics.iter().any(|diagnostic| {
+            diagnostic.span() == Some(value.span) && diagnostic.message == message
+        }) {
             self.state.error(value.span, message);
         }
     }

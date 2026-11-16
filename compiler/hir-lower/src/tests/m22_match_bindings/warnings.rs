@@ -8,7 +8,7 @@ fn warning_names(source: &str) -> Vec<String> {
         .map(|warning| {
             assert_eq!(warning.severity, ast::DiagnosticSeverity::Warning);
             assert!(warning.message.contains("shadows an enum variant"));
-            let span = warning.span.unwrap();
+            let span = warning.span().unwrap();
             source[span.start as usize..span.end as usize].to_owned()
         })
         .collect()

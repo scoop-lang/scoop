@@ -52,7 +52,7 @@ impl Lowerer {
         &self,
         candidate: &crate::CallableCandidate,
         context: ReferenceResolutionContext<'_>,
-    ) -> Result<Option<ApplicableReference>, ReferenceFailure> {
+    ) -> Result<Option<ApplicableReference>, super::ReferenceProbeError> {
         let mut state = self.clone();
         let function = candidate.function;
         let owner_type_args = state.callable_candidate_owner_arguments(candidate);
@@ -82,22 +82,27 @@ impl Lowerer {
                 signature: callable_source_signature(&state, context.name, &view),
                 layer: callable_layer_name(&state, std::slice::from_ref(&view)),
                 reason,
-            });
+            }
+            .into());
         }
         let before = state.diagnostics.len();
-        view.signature.return_type =
-            state
-                .infer_function_result(function)
-                .ok_or_else(|| ReferenceFailure {
-                    signature: callable_source_signature(&state, context.name, &view),
-                    layer: callable_layer_name(&state, std::slice::from_ref(&view)),
-                    reason: state.diagnostics[before..]
-                        .iter()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                        .into(),
-                })?;
+        let result = state.infer_function_result(function);
+        if let Some(diagnostic) = state.diagnostics[before..]
+            .iter()
+            .find(|diagnostic| diagnostic.kind == scoop_ast::DiagnosticKind::Internal)
+        {
+            return Err(super::ReferenceProbeError::Internal(diagnostic.clone()));
+        }
+        view.signature.return_type = result.ok_or_else(|| ReferenceFailure {
+            signature: callable_source_signature(&state, context.name, &view),
+            layer: callable_layer_name(&state, std::slice::from_ref(&view)),
+            reason: state.diagnostics[before..]
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+                .into(),
+        })?;
         let fail = |state: &Lowerer, reason: String| ReferenceFailure {
             signature: callable_source_signature(state, context.name, &view),
             layer: callable_layer_name(state, std::slice::from_ref(&view)),
@@ -106,10 +111,7 @@ impl Lowerer {
         if let hir::FunctionKind::Intrinsic(intrinsic) = state.functions[function].kind
             && matches!(intrinsic.kind, hir::IntrinsicFunctionKind::Atomic(_))
         {
-            return Err(fail(
-                &state,
-                crate::expr::atomics::ATOMIC_REFERENCE_ERROR.into(),
-            ));
+            return Err(fail(&state, crate::expr::atomics::ATOMIC_REFERENCE_ERROR.into()).into());
         }
         if matches!(state.functions[function].kind, hir::FunctionKind::Intrinsic(intrinsic)
             if intrinsic.kind == hir::IntrinsicFunctionKind::AnnotationKey)
@@ -118,7 +120,8 @@ impl Lowerer {
                 &state,
                 "annotationKey is a declaration query and cannot be used as a callable reference"
                     .into(),
-            ));
+            )
+            .into());
         }
         let own_type_param_count = view.signature.callable_parameters.len();
         let forwarding_parameter_types = extension_receiver
@@ -149,12 +152,15 @@ impl Lowerer {
                 expected_type: context.expected.map(|(ty, _)| *ty),
             })
             .map_err(|failure| {
-                fail(
+                if let crate::call_resolution::applicability::ReferenceApplicabilityFailure::Internal(error) = failure {
+                    return super::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(error));
+                }
+                super::ReferenceProbeError::Rejected(fail(
                     &state,
                     failure.describe(|constraint| {
                         render_callable_constraint_failure(&state, &view, None, &[], constraint)
                     }),
-                )
+                ))
             })?;
         Ok(Some(ApplicableReference {
             state: Box::new(state),

@@ -199,14 +199,9 @@ fn initialization_display_name_survives_lir_lowering() {
         gateway.signature.result(),
         lir::AbiReturn::Direct(_)
     ));
-    let site = gateway.blocks[gateway.entry]
-        .instructions
-        .iter()
-        .find_map(|instruction| match instruction {
-            lir::Instruction::Invoke { site } => Some(site),
-            _ => None,
-        })
-        .expect("the no-throw startup gateway invokes the unit ensure function");
+    let lir::Terminator::Invoke { site } = &gateway.blocks[gateway.entry].terminator else {
+        panic!("the no-throw startup gateway invokes the unit ensure function");
+    };
     assert_eq!(
         site.destination(&gateway.call_targets),
         lir::CallDestination::Local(lowered_unit.ensure.declaration())

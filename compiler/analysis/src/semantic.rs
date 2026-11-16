@@ -24,9 +24,10 @@ pub enum ProjectAnalysisError {
     Cancelled,
     MissingSource(SourceId),
     ConfigurationUnavailable,
+    Internal(String),
     SourceDependencyUnavailable {
         cone: ConeIdentity,
-        diagnostics: Vec<scoop_source::Diagnostic>,
+        diagnostics: Vec<scoop_source::SourceDiagnostic>,
     },
     Artifact(String),
     Dependency(String),

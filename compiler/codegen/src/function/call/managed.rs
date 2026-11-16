@@ -138,19 +138,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             ))
         {
             let TypedCallResult::Direct { out, .. } = result else {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "typed allocation @{} must have a direct result",
                     self.function.symbol()
                 )));
             };
             let CallProtocol::Managed { safepoint, live } = &protocol else {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "typed allocation @{} is not a managed call",
                     self.function.symbol()
                 )));
             };
             if invoke.is_some() {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "typed allocation @{} cannot carry unwind edges",
                     self.function.symbol()
                 )));
@@ -222,7 +222,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let call = self
                 .builder
                 .build_indirect_call(fn_ty, actual_callee, &arguments, "native_call")
-                .map_err(|error| CodegenError(format!("typed native call: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("typed native call: {error}"), error)
+                })?;
             if apply_scoop_abi_attributes {
                 abi::apply_call_attributes(
                     self.context,
@@ -245,7 +247,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 TypedCallResult::Direct { .. } => match call.try_as_basic_value() {
                     ValueKind::Basic(value) => Some(value),
                     ValueKind::Instruction(_) => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "typed native call @{} produced no direct value",
                             self.function.symbol()
                         )));
@@ -266,7 +268,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         .collect::<Vec<_>>();
                     self.builder
                         .build_indirect_call(fn_ty, pointer, &arguments, "typed_call")
-                        .map_err(|error| CodegenError(format!("typed dispatch call: {error}")))?
+                        .map_err(|error| {
+                            CodegenError::backend(format!("typed dispatch call: {error}"), error)
+                        })?
                 }
                 PreparedCallee::Direct(function) => {
                     let arguments = call_args
@@ -276,7 +280,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         .collect::<Vec<_>>();
                     self.builder
                         .build_call(function, &arguments, "typed_call")
-                        .map_err(|error| CodegenError(format!("typed direct call: {error}")))?
+                        .map_err(|error| {
+                            CodegenError::backend(format!("typed direct call: {error}"), error)
+                        })?
                 }
             };
             if apply_scoop_abi_attributes {
@@ -297,7 +303,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 TypedCallResult::Direct { .. } => match call.try_as_basic_value() {
                     ValueKind::Basic(value) => Some(value),
                     ValueKind::Instruction(_) => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "typed call @{} produced no direct value",
                             self.function.symbol()
                         )));
@@ -340,7 +346,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             TypedCallResult::Direct { out, .. } => {
                 let value = rooted_native_result.or(direct_value).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "typed call @{} produced no direct value",
                         self.function.symbol()
                     ))
@@ -352,7 +358,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.builder
                         .build_store(self.local_pointer(storage)?, value)
                         .map_err(|error| {
-                            CodegenError(format!("preserve reloaded native result: {error}"))
+                            CodegenError::backend(
+                                format!("preserve reloaded native result: {error}"),
+                                error,
+                            )
                         })?;
                 }
             }

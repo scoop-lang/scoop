@@ -18,13 +18,16 @@ pub(super) fn validate_target_machine(
     let target_data = machine.get_target_data();
     let data_layout = target_data.get_data_layout();
     let actual_data_layout = data_layout.as_str().to_str().map_err(|error| {
-        CodegenError(format!(
-            "LLVM data layout for {} is not UTF-8: {error}",
-            profile.canonical_triple
-        ))
+        CodegenError::backend(
+            format!(
+                "LLVM data layout for {} is not UTF-8: {error}",
+                profile.canonical_triple
+            ),
+            error,
+        )
     })?;
     if actual_data_layout != contract.canonical_llvm_data_layout() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "LLVM data layout for {} is {actual_data_layout:?}, expected {:?}",
             profile.canonical_triple,
             contract.canonical_llvm_data_layout(),
@@ -106,7 +109,7 @@ fn validate_llvm_type_layout(
     if actual_size == expected.size_bytes() && actual_alignment == expected.alignment_bytes() {
         return Ok(());
     }
-    Err(CodegenError(format!(
+    Err(CodegenError::internal(format!(
         "LLVM {name} layout is {actual_size}-byte size/{actual_alignment}-byte alignment, expected {}-byte size/{}-byte alignment",
         expected.size_bytes(),
         expected.alignment_bytes(),
@@ -126,7 +129,7 @@ fn validate_llvm_pointer_layout(
     if actual_size == expected.size_bytes() && actual_alignment == expected.alignment_bytes() {
         return Ok(());
     }
-    Err(CodegenError(format!(
+    Err(CodegenError::internal(format!(
         "LLVM {name} pointer layout is {actual_size}-byte size/{actual_alignment}-byte alignment, expected {}-byte size/{}-byte alignment",
         expected.size_bytes(),
         expected.alignment_bytes(),

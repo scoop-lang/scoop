@@ -23,7 +23,9 @@ impl SymbolPlanIndex {
         // absent from this Cone's definition plans. Metadata partitions already
         // perform this cleanup when projecting their definitions.
         llvm.run_passes("globaldce", machine, PassBuilderOptions::create())
-            .map_err(|error| CodegenError(format!("ELF declaration cleanup failed: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("ELF declaration cleanup failed: {error}"), error)
+            })?;
         self.prepare(llvm)
     }
 
@@ -61,7 +63,7 @@ impl SymbolPlanIndex {
             if let Some(previous) = owners.insert(owner.as_value_ref() as usize, group_index)
                 && previous != group_index
             {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "ELF global belongs to two definition groups: {} and {group}",
                     self.groups[previous]
                 )));

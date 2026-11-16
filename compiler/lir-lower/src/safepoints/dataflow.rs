@@ -122,9 +122,6 @@ pub(super) fn instruction_uses(
         lir::Instruction::Call { site } => {
             call_uses(site.args(), site.destination(&function.call_targets))
         }
-        lir::Instruction::Invoke { site } => {
-            call_uses(site.args(), site.destination(&function.call_targets))
-        }
         lir::Instruction::HeapStore { object, value, .. }
         | lir::Instruction::MachineHeapStore { object, value, .. }
         | lir::Instruction::MachineAtomicStore { object, value, .. } => vec![*object, *value],
@@ -244,7 +241,6 @@ pub(super) fn instruction_defs(instruction: &lir::Instruction) -> Vec<LiveValue>
         | lir::Instruction::VariantPayloadProject { out, .. }
         | lir::Instruction::ForeignCallbackRegister { out, .. } => Some(*out),
         lir::Instruction::Call { site } => return call_defs(site.result()),
-        lir::Instruction::Invoke { site } => return call_defs(site.result()),
         lir::Instruction::ForeignCallbackOperation(operation) => operation.out(),
         lir::Instruction::Store { local, .. } => return vec![LiveValue::Local(*local)],
         lir::Instruction::MaybeUninit { out, .. } => return vec![LiveValue::Local(*out)],
@@ -282,8 +278,17 @@ pub(super) fn call_defs(result: lir::TypedCallResult) -> Vec<LiveValue> {
     }
 }
 
-pub(super) fn terminator_uses(terminator: &lir::Terminator, mut use_value: impl FnMut(lir::Value)) {
+pub(super) fn terminator_uses(
+    terminator: &lir::Terminator,
+    function: &lir::Function,
+    mut use_value: impl FnMut(lir::Value),
+) {
     match terminator {
+        lir::Terminator::Invoke { site } => {
+            for value in call_uses(site.args(), site.destination(&function.call_targets)) {
+                use_value(value);
+            }
+        }
         lir::Terminator::CondBr { cond, .. } => use_value(*cond),
         lir::Terminator::Return { value: Some(value) } => use_value(*value),
         lir::Terminator::Resume { exception } => use_value(*exception),
@@ -294,26 +299,14 @@ pub(super) fn terminator_uses(terminator: &lir::Terminator, mut use_value: impl 
 }
 
 pub(super) fn block_successors(block: &lir::BasicBlock) -> Vec<lir::BlockId> {
-    let mut successors = match block.terminator {
-        lir::Terminator::Br(target) => vec![target],
-        lir::Terminator::CondBr {
-            then_block,
-            else_block,
-            ..
-        } => vec![then_block, else_block],
-        lir::Terminator::Return { .. }
-        | lir::Terminator::Resume { .. }
-        | lir::Terminator::Unreachable => Vec::new(),
-    };
-    if let Some(lir::Instruction::Invoke { site }) = block.instructions.last() {
-        if !successors.contains(&site.normal()) {
-            successors.push(site.normal());
-        }
-        if !successors.contains(&site.unwind()) {
-            successors.push(site.unwind());
-        }
+    block.terminator.successors().collect()
+}
+
+pub(super) fn terminator_defs(terminator: &lir::Terminator) -> Vec<LiveValue> {
+    match terminator {
+        lir::Terminator::Invoke { site } => call_defs(site.result()),
+        _ => Vec::new(),
     }
-    successors
 }
 
 #[cfg(test)]

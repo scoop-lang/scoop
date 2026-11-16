@@ -99,7 +99,10 @@ pub(super) fn mark_base_merge(value: PointerValue<'_>) -> Result<bool, CodegenEr
                 context.get_kind_id("is_base_value"),
             )
             .map_err(|error| {
-                CodegenError(format!("cannot preserve managed merge base: {error}"))
+                CodegenError::backend(
+                    format!("cannot preserve managed merge base: {error}"),
+                    error,
+                )
             })?;
     }
     Ok(true)

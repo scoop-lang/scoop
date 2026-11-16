@@ -34,7 +34,7 @@ pub(super) fn emit<'ctx>(
                 let scoop_lir::ShapeLinkContractV1::StaticStorage { storage_projection } =
                     definition.contract()
                 else {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "imported storage `{}` has a non-storage contract",
                         definition.symbol()
                     )));
@@ -51,7 +51,7 @@ pub(super) fn emit<'ctx>(
                 if logical_size != storage_projection.byte_size()
                     || u64::from(logical_alignment) != storage_projection.required_alignment()
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "imported storage `{}` disagrees with its value layout",
                         definition.symbol()
                     )));

@@ -119,8 +119,13 @@ fn collect_function_sites(
     let mut references = BTreeSet::new();
     let mut function_sites = BTreeSet::new();
     for (_, block) in function.blocks.iter() {
-        for instruction in &block.instructions {
-            let Some((role, reference, root_pair_count)) = stackmap_semantics(instruction)? else {
+        let instructions = block.instructions.iter().map(stackmap_semantics);
+        let terminator = block
+            .terminator
+            .safepoint()
+            .map(|(role, reference)| Ok(Some((role, reference, 0))));
+        for semantics in instructions.chain(terminator) {
+            let Some((role, reference, root_pair_count)) = semantics? else {
                 continue;
             };
             if function.gc_effect == GcEffect::NoGc {
@@ -208,10 +213,7 @@ fn stackmap_semantics(
         | Instruction::StringConcat { live, .. }
         | Instruction::StringCopy { live, .. }
         | Instruction::ArrayClone { live, .. } => Some(live),
-        Instruction::Invoke {
-            site: crate::InvokeSite::Managed(_),
-        }
-        | Instruction::Call {
+        Instruction::Call {
             site: crate::CallSite::NativeSafe(_) | crate::CallSite::NativeBorrowed(_),
         }
         | Instruction::NativeGlobalLoad { .. }

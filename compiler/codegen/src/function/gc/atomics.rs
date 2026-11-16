@@ -15,13 +15,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let instruction = self
             .builder
             .build_store(address, value)
-            .map_err(|error| CodegenError(format!("atomic store: {error}")))?;
-        instruction
-            .set_atomic_ordering(order)
-            .map_err(|error| CodegenError(format!("atomic store ordering: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("atomic store: {error}"), error))?;
+        instruction.set_atomic_ordering(order).map_err(|error| {
+            CodegenError::backend(format!("atomic store ordering: {error}"), error)
+        })?;
         instruction
             .set_alignment(location.kind.bytes())
-            .map_err(|error| CodegenError(format!("atomic store alignment: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("atomic store alignment: {error}"), error)
+            })?;
         self.heap_value_barrier(address, &location.value_type())?;
         Ok(())
     }
@@ -51,7 +53,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         } else {
             self.builder
                 .build_atomicrmw(operation, address, value.into_int_value(), order)
-                .map_err(|error| CodegenError(format!("atomic RMW: {error}")))?
+                .map_err(|error| CodegenError::backend(format!("atomic RMW: {error}"), error))?
                 .into()
         };
         self.heap_value_barrier(address, &location.value_type())?;
@@ -71,11 +73,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let pair = self
             .builder
             .build_cmpxchg(address, expected, replacement, success_order, failure_order)
-            .map_err(|error| CodegenError(format!("atomic compare exchange: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("atomic compare exchange: {error}"), error)
+            })?;
         let success = self
             .builder
             .build_extract_value(pair, 1, "atomic_success")
-            .map_err(|error| CodegenError(format!("atomic compare result: {error}")))?
+            .map_err(|error| {
+                CodegenError::backend(format!("atomic compare result: {error}"), error)
+            })?
             .into_int_value();
         if location.kind == AtomicValueKind::Reference {
             self.atomic_success_barrier(address, success)?;
@@ -97,12 +103,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .append_basic_block(self.llvm_function, "atomic_done");
         self.builder
             .build_conditional_branch(success, write, done)
-            .map_err(|error| CodegenError(format!("atomic write branch: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("atomic write branch: {error}"), error)
+            })?;
         self.builder.position_at_end(write);
         self.heap_value_barrier(address, &scoop_lir::MANAGED_PTR)?;
         self.builder
             .build_unconditional_branch(done)
-            .map_err(|error| CodegenError(format!("atomic write completion: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("atomic write completion: {error}"), error)
+            })?;
         self.builder.position_at_end(done);
         Ok(())
     }

@@ -190,12 +190,11 @@ fn invoke_caller() -> Function {
                 local: argument,
                 value: Value::Temp(value),
             },
-            Instruction::Invoke {
-                site: managed_invoke(site, normal, unwind),
-            },
         ]
         .into(),
-        terminator: Terminator::Br(normal),
+        terminator: Terminator::Invoke {
+            site: managed_invoke(site, normal, unwind),
+        },
     };
     Function {
         debug_name: Default::default(),

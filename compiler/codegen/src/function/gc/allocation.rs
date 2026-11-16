@@ -23,7 +23,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         live: MaterializedStatepointLive<'ctx>,
     ) -> Result<(), CodegenError> {
         let [descriptor, requested_size] = args else {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "scoop_rt_alloc @{}: expected descriptor and size",
                 self.function.symbol()
             )));
@@ -67,17 +67,23 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 i64_ty.const_int(1, false),
                 "allocation_alignment_mask",
             )
-            .map_err(|error| CodegenError(format!("allocation alignment mask: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("allocation alignment mask: {error}"), error)
+            })?;
         let inverse_mask = builder
             .build_not(alignment_mask, "allocation_alignment_inverse")
-            .map_err(|error| CodegenError(format!("allocation alignment mask: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("allocation alignment mask: {error}"), error)
+            })?;
         let maximum_size = builder
             .build_int_sub(
                 i64_ty.const_int(i64::MAX as u64, false),
                 alignment_mask,
                 "allocation_maximum_size",
             )
-            .map_err(|error| CodegenError(format!("allocation maximum size: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("allocation maximum size: {error}"), error)
+            })?;
         let size_valid = builder
             .build_int_compare(
                 IntPredicate::ULE,
@@ -85,11 +91,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 maximum_size,
                 "allocation_size_valid",
             )
-            .map_err(|error| CodegenError(format!("allocation size overflow: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("allocation size overflow: {error}"), error)
+            })?;
         let aligned_size = builder
             .build_int_add(requested_size, alignment_mask, "alloc_size_plus_align")
             .and_then(|size| builder.build_and(size, inverse_mask, "alloc_size"))
-            .map_err(|error| CodegenError(format!("allocation size alignment: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("allocation size alignment: {error}"), error)
+            })?;
         if self.reuse_thread_addresses
             && ([nursery_eligible, size_valid]
                 .into_iter()
@@ -108,24 +118,32 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let allocation_ty = super::allocation_metadata::allocation_context_type(context);
         let cursor_slot = builder
             .build_struct_gep(allocation_ty, allocation_context, 0, "tlab_cursor_slot")
-            .map_err(|error| CodegenError(format!("address TLAB cursor: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("address TLAB cursor: {error}"), error)
+            })?;
         let limit_slot = builder
             .build_struct_gep(allocation_ty, allocation_context, 1, "tlab_limit_slot")
-            .map_err(|error| CodegenError(format!("address TLAB limit: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("address TLAB limit: {error}"), error)
+            })?;
         let cursor = builder
             .build_load(ptr, cursor_slot, "tlab_cursor")
-            .map_err(|error| CodegenError(format!("load TLAB cursor: {error}")))?
+            .map_err(|error| CodegenError::backend(format!("load TLAB cursor: {error}"), error))?
             .into_pointer_value();
         let limit = builder
             .build_load(ptr, limit_slot, "tlab_limit")
-            .map_err(|error| CodegenError(format!("load TLAB limit: {error}")))?
+            .map_err(|error| CodegenError::backend(format!("load TLAB limit: {error}"), error))?
             .into_pointer_value();
         let cursor_int = builder
             .build_ptr_to_int(cursor, i64_ty, "tlab_cursor_int")
-            .map_err(|error| CodegenError(format!("convert TLAB cursor: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("convert TLAB cursor: {error}"), error)
+            })?;
         let limit_int = builder
             .build_ptr_to_int(limit, i64_ty, "tlab_limit_int")
-            .map_err(|error| CodegenError(format!("convert TLAB limit: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("convert TLAB limit: {error}"), error)
+            })?;
         let direct_bump = self.optimize_allocations
             && self.optimize_tlab_range
             && alignment.get_zero_extended_constant() == Some(8)
@@ -139,16 +157,22 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             builder
                 .build_int_add(cursor_int, alignment_mask, "tlab_cursor_plus_align")
                 .and_then(|cursor| builder.build_and(cursor, inverse_mask, "tlab_aligned_cursor"))
-                .map_err(|error| CodegenError(format!("align TLAB object start: {error}")))?
+                .map_err(|error| {
+                    CodegenError::backend(format!("align TLAB object start: {error}"), error)
+                })?
         };
         let next_int = builder
             .build_int_add(object_int, aligned_size, "tlab_next_int")
-            .map_err(|error| CodegenError(format!("advance TLAB object: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("advance TLAB object: {error}"), error)
+            })?;
         let fast = if direct_bump {
             // A retired view has both pointers null and therefore no capacity.
             let remaining = builder
                 .build_int_sub(limit_int, cursor_int, "tlab_remaining")
-                .map_err(|error| CodegenError(format!("remaining TLAB bytes: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("remaining TLAB bytes: {error}"), error)
+                })?;
             let fits = builder
                 .build_int_compare(
                     IntPredicate::ULE,
@@ -156,7 +180,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     remaining,
                     "alloc_within_tlab",
                 )
-                .map_err(|error| CodegenError(format!("check TLAB capacity: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("check TLAB capacity: {error}"), error)
+                })?;
             let is_regular = builder
                 .build_int_compare(
                     IntPredicate::ULE,
@@ -164,7 +190,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     i64_ty.const_int(REGULAR_MANAGED_OBJECT_MAX_SIZE, false),
                     "alloc_is_regular",
                 )
-                .map_err(|error| CodegenError(format!("check regular allocation: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("check regular allocation: {error}"), error)
+                })?;
             builder
                 .build_and(fits, is_regular, "alloc_has_regular_tlab")
                 .and_then(|condition| {
@@ -179,7 +207,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     i64_ty.const_zero(),
                     "tlab_present",
                 )
-                .map_err(|error| CodegenError(format!("check TLAB presence: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("check TLAB presence: {error}"), error)
+                })?;
             let is_regular = builder
                 .build_int_compare(
                     IntPredicate::ULE,
@@ -187,10 +217,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     i64_ty.const_int(REGULAR_MANAGED_OBJECT_MAX_SIZE, false),
                     "alloc_is_regular",
                 )
-                .map_err(|error| CodegenError(format!("check regular allocation: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("check regular allocation: {error}"), error)
+                })?;
             let within_limit = builder
                 .build_int_compare(IntPredicate::ULE, next_int, limit_int, "alloc_within_tlab")
-                .map_err(|error| CodegenError(format!("check TLAB limit: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("check TLAB limit: {error}"), error)
+                })?;
             builder
                 .build_and(present, is_regular, "alloc_has_regular_tlab")
                 .and_then(|condition| {
@@ -201,7 +235,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 })
                 .and_then(|condition| builder.build_and(condition, size_valid, "alloc_fast_path"))
         }
-        .map_err(|error| CodegenError(format!("combine TLAB checks: {error}")))?;
+        .map_err(|error| CodegenError::backend(format!("combine TLAB checks: {error}"), error))?;
 
         let index = self.allocation_index;
         self.allocation_index += 1;
@@ -213,18 +247,24 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             context.append_basic_block(self.llvm_function, &format!("alloc.continue.{index}"));
         builder
             .build_conditional_branch(fast, fast_block, slow_block)
-            .map_err(|error| CodegenError(format!("branch on TLAB fast path: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("branch on TLAB fast path: {error}"), error)
+            })?;
 
         builder.position_at_end(fast_block);
         let object = builder
             .build_int_to_ptr(object_int, managed_ptr, "tlab_object")
-            .map_err(|error| CodegenError(format!("materialize TLAB object: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("materialize TLAB object: {error}"), error)
+            })?;
         let next = builder
             .build_int_to_ptr(next_int, ptr, "tlab_next")
-            .map_err(|error| CodegenError(format!("materialize TLAB cursor: {error}")))?;
-        builder
-            .build_store(cursor_slot, next)
-            .map_err(|error| CodegenError(format!("publish TLAB cursor: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("materialize TLAB cursor: {error}"), error)
+            })?;
+        builder.build_store(cursor_slot, next).map_err(|error| {
+            CodegenError::backend(format!("publish TLAB cursor: {error}"), error)
+        })?;
         if layout.is_some_and(|layout| layout.nursery_eligible) {
             let clear_size = if let (Some(out), Some(size)) = (
                 initialization_result,
@@ -249,18 +289,24 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .expect("allocation completion has an active block");
         builder
             .build_unconditional_branch(continue_block)
-            .map_err(|error| CodegenError(format!("leave TLAB fast path: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("leave TLAB fast path: {error}"), error)
+            })?;
 
         builder.position_at_end(slow_block);
         let slow_object = self.slow_allocation(descriptor, requested_size, safepoint, live)?;
         builder
             .build_unconditional_branch(continue_block)
-            .map_err(|error| CodegenError(format!("leave allocation slow path: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("leave allocation slow path: {error}"), error)
+            })?;
 
         builder.position_at_end(continue_block);
         let phi = builder
             .build_phi(managed_ptr, "managed_object")
-            .map_err(|error| CodegenError(format!("merge allocation result: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("merge allocation result: {error}"), error)
+            })?;
         phi.add_incoming(&[(&object, fast_end), (&slow_object, slow_block)]);
         Ok(AllocationResult {
             object: phi.as_basic_value().into_pointer_value(),
@@ -292,7 +338,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 &[descriptor.into(), requested_size.into()],
                 "slow_object",
             )
-            .map_err(|error| CodegenError(format!("slow allocation: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("slow allocation: {error}"), error))?;
         self.apply_safepoint_id(slow_call, safepoint);
         let slow_object = slow_call
             .try_as_basic_value()
@@ -335,7 +381,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 &[object.into(), descriptor.into(), aligned_size.into()],
                 "",
             )
-            .map_err(|error| CodegenError(format!("finish TLAB allocation: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("finish TLAB allocation: {error}"), error)
+            })?;
         Ok(())
     }
 }

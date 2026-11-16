@@ -22,16 +22,22 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let value = self
                     .builder
                     .build_load(self.atomic_storage_type(*location)?, address, "atomic_load")
-                    .map_err(|error| CodegenError(format!("atomic load: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("atomic load: {error}"), error)
+                    })?;
                 let instruction = value
                     .as_instruction_value()
                     .expect("load is an instruction");
                 instruction
                     .set_atomic_ordering(llvm_order(order.memory_order()))
-                    .map_err(|error| CodegenError(format!("atomic load ordering: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("atomic load ordering: {error}"), error)
+                    })?;
                 instruction
                     .set_alignment(location.kind.bytes())
-                    .map_err(|error| CodegenError(format!("atomic load alignment: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("atomic load alignment: {error}"), error)
+                    })?;
                 let value = self.atomic_result(*location, value)?;
                 self.temps.insert(*out, value);
             }
@@ -57,7 +63,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 order,
             } => {
                 if !operation.accepts(location.kind) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "atomic {operation:?} cannot operate on {:?}",
                         location.kind
                     )));
@@ -106,7 +112,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             .builder
                             .build_extract_value(pair, 0, "atomic_observed")
                             .map_err(|error| {
-                                CodegenError(format!("atomic compare value: {error}"))
+                                CodegenError::backend(
+                                    format!("atomic compare value: {error}"),
+                                    error,
+                                )
                             })?;
                         self.atomic_result(*location, old)?
                     }

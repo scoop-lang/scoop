@@ -24,8 +24,9 @@ pub(super) fn collect(
         let mut declarations = BTreeMap::new();
         let mut aliases = Vec::new();
         let primary = plan.primary_symbol().symbol();
-        let primary_name = CString::new(primary.as_str())
-            .map_err(|_| CodegenError("metadata symbol contains NUL".into()))?;
+        let primary_name = CString::new(primary.as_str()).map_err(|cause| {
+            CodegenError::internal_cause("metadata symbol contains NUL".into(), cause)
+        })?;
         let primary_is_view = !unsafe {
             LLVMGetNamedGlobalAlias(
                 llvm.as_mut_ptr(),
@@ -46,8 +47,9 @@ pub(super) fn collect(
             let start = boundary.start().symbol();
             for request in [boundary.start(), boundary.end()] {
                 let name = request.symbol();
-                let c_name = CString::new(name.as_str())
-                    .map_err(|_| CodegenError("metadata symbol contains NUL".into()))?;
+                let c_name = CString::new(name.as_str()).map_err(|cause| {
+                    CodegenError::internal_cause("metadata symbol contains NUL".into(), cause)
+                })?;
                 // SAFETY: these names and aliases belong to the prepared source module.
                 let raw = unsafe {
                     LLVMGetNamedGlobalAlias(
@@ -110,14 +112,14 @@ fn global_owner<'ctx>(
                     raw = LLVMGetOperand(raw, 0);
                 }
                 _ => {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "metadata boundary is not an owner/extent".into(),
                     ));
                 }
             }
         }
         if LLVMIsAGlobalVariable(raw).is_null() {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "metadata boundary does not resolve to a global".into(),
             ));
         }

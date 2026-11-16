@@ -40,7 +40,10 @@ fn data_borrow_intrinsics_reject_incorrect_source_signatures() {
             .iter()
             .find(|error| error.message == message)
             .unwrap_or_else(|| panic!("missing {message}: {errors:?}"));
-        assert_eq!(error.file, 0);
-        assert_eq!(error.span, Some(span));
+        assert_eq!(
+            diagnostic_source(error),
+            &core_source_identity("src/core.scoop")
+        );
+        assert_eq!(error.span(), Some(span));
     }
 }

@@ -62,7 +62,7 @@ impl<'ctx> EmittedStrongShapeDefinitionsV1<'ctx> {
         id: PersistentScanId,
     ) -> Result<EmittedScanDefinitionV1<'ctx>, CodegenError> {
         self.scans.get(&id).copied().ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "strong scan definition {id} is absent from the emitted shape set"
             ))
         })
@@ -227,7 +227,7 @@ fn require_definition(
     role: StrongDefinitionRole,
 ) -> Result<&scoop_lir::DefinitionSymbolPlanV1, CodegenError> {
     surface.definition(owner, role).ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "canonical strong definition is missing owner {owner:?} role {role:?}"
         ))
     })
@@ -244,12 +244,12 @@ pub(super) fn descriptor_diagnostic_atom(
         .filter(|atom| atom.atom_role() == DefinitionAtomRole::AddressTakenConstant)
         .map(|atom| atom.atom());
     let atom = atoms.next().ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "TypeDescriptor {exact} has no diagnostic associated atom"
         ))
     })?;
     if atoms.next().is_some() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "TypeDescriptor {exact} has multiple diagnostic associated atoms"
         )));
     }
@@ -267,12 +267,12 @@ pub(super) fn descriptor_itable_directory_atom(
         .filter(|atom| atom.atom_role() == DefinitionAtomRole::RuntimeRecord)
         .map(|atom| atom.atom());
     let atom = atoms.next().ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "TypeDescriptor {exact} has no itable-directory associated atom"
         ))
     })?;
     if atoms.next().is_some() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "TypeDescriptor {exact} has multiple itable-directory associated atoms"
         )));
     }

@@ -44,7 +44,12 @@ impl Lowerer {
             },
         ) {
             Ok(type_args) => type_args,
-            Err(failure) => {
+            Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
+                self.diagnostics
+                    .push(scoop_ast::Diagnostic::internal(error));
+                return None;
+            }
+            Err(crate::call_resolution::constraints::InferenceFailure::Constraint(failure)) => {
                 self.diagnose_nominal_failure(&view, &argument_map, &[], &[], failure, name.span);
                 return None;
             }

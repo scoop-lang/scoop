@@ -110,5 +110,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn context_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("reuse thread address: {error}"))
+    CodegenError::internal(format!("reuse thread address: {error}"))
 }

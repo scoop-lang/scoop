@@ -37,7 +37,7 @@ impl Lowerer {
                     detail,
                 };
                 let mut diagnostic = scoop_ast::Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 self.diagnostics.push(diagnostic);
                 None
             }

@@ -147,7 +147,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${check_warm.result.observations.child_invocations.length}", equals = 0}]
+checks = [{actual = "${check_warm.result.observations.child_invocations.length}", equals = 1}]
 
 [[steps]]
 name = "change_check_changed"

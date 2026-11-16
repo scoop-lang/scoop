@@ -88,11 +88,17 @@ fn exact_private_failure_has_a_declaration_note_and_commits_nothing() {
     assert_eq!(lowerer.diagnostics.len(), 1);
     let error = &lowerer.diagnostics[0];
     assert_eq!(
-        error.span,
+        error.span(),
         Some(path(&["api", "secret"]).segments().last().unwrap().span)
     );
     assert_eq!(error.notes.len(), 1);
-    assert_eq!(error.notes[0].file, 1);
+    assert_eq!(
+        (match &error.notes[0].source {
+            scoop_ast::LocalDiagnosticSource::Index(index) => *index,
+            source => panic!("expected local source, got {source:?}"),
+        }),
+        1
+    );
     assert_eq!(error.notes[0].span, ast::Span::new(70, 73));
     lowerer.current_file = 1;
     lowerer.diagnostics.clear();
@@ -152,7 +158,7 @@ fn public_gate_precedes_visibility_and_never_publishes_local_bindings() {
             lowerer.diagnostics[0].message,
             "public import requires a direct dependency target"
         );
-        assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+        assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
         assert!(lowerer.diagnostics[0].notes.is_empty());
     }
 }
@@ -179,7 +185,7 @@ fn unknown_and_external_public_selectors_keep_unavailable_diagnostics() {
                 lowerer.diagnostics[0].message,
                 "import target is not available in the current compilation unit"
             );
-            assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+            assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
         }
     }
 }
@@ -330,5 +336,5 @@ fn ambiguous_star_namespace_diagnostic_covers_the_complete_selector() {
         lowerer.diagnostics[0].message,
         "import namespace is ambiguous in the current compilation unit"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }

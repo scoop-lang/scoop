@@ -55,7 +55,9 @@ impl DependencyPropertyFixture {
     fn inspect<R>(
         &self,
         consumer: scoop_ast::SourceFile,
-        inspect: impl FnOnce(Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::Diagnostic>>) -> R,
+        inspect: impl FnOnce(
+            Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>>,
+        ) -> R,
     ) -> R {
         let ordinary = parsed_ordinary(consumer);
         self.inspect_parsed(&ordinary, inspect)
@@ -64,7 +66,9 @@ impl DependencyPropertyFixture {
     fn inspect_parsed<R>(
         &self,
         ordinary: &scoop_ast::CurrentConeParsedSources,
-        inspect: impl FnOnce(Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::Diagnostic>>) -> R,
+        inspect: impl FnOnce(
+            Result<scoop_hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>>,
+        ) -> R,
     ) -> R {
         let world = scoop_hir::ImportedSemanticWorld::from_dependencies(
             ordinary.cone(),

@@ -115,7 +115,7 @@ pub(super) fn emit_callables<D: Sync, C: Sync, I: Sync>(
                 Ok(handle) => handles.push(handle),
                 Err(error) => {
                     stopped.store(true, Ordering::Relaxed);
-                    spawn_error = Some(CodegenError(format!(
+                    spawn_error = Some(CodegenError::internal(format!(
                         "cannot start LLVM object emission worker: {error}"
                     )));
                     break;
@@ -127,7 +127,9 @@ pub(super) fn emit_callables<D: Sync, C: Sync, I: Sync>(
         let mut batches = vec![emit_worker()];
         for handle in handles {
             batches.push(handle.join().unwrap_or_else(|_| {
-                Err(CodegenError("LLVM object emission worker panicked".into()))
+                Err(CodegenError::internal(
+                    "LLVM object emission worker panicked".into(),
+                ))
             }));
         }
         if let Some(error) = spawn_error {

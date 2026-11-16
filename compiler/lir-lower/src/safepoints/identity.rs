@@ -13,10 +13,7 @@ pub(super) fn assign_safepoint_identities(
     let mut identities = Vec::new();
 
     for block_id in block_order {
-        for instruction in &function.blocks[block_id].instructions {
-            let Some((expected_role, site)) = instruction.safepoint() else {
-                continue;
-            };
+        for (expected_role, site) in function.blocks[block_id].safepoints() {
             let provisional = site;
             assert_eq!(
                 pending.role(provisional),
@@ -75,32 +72,7 @@ fn canonical_reverse_postorder(function: &lir::Function) -> Vec<lir::BlockId> {
 }
 
 fn semantic_successors(block: &lir::BasicBlock) -> Vec<lir::BlockId> {
-    assert!(
-        !block
-            .instructions
-            .iter()
-            .take(block.instructions.len().saturating_sub(1))
-            .any(|instruction| matches!(instruction, lir::Instruction::Invoke { .. })),
-        "an LIR invoke must be the final instruction of its block"
-    );
-    if let Some(lir::Instruction::Invoke { site }) = block.instructions.last() {
-        assert!(
-            matches!(block.terminator, lir::Terminator::Br(target) if target == site.normal()),
-            "an LIR invoke block must end in the redundant branch to its normal successor"
-        );
-        return vec![site.normal(), site.unwind()];
-    }
-    match block.terminator {
-        lir::Terminator::Br(target) => vec![target],
-        lir::Terminator::CondBr {
-            then_block,
-            else_block,
-            ..
-        } => vec![then_block, else_block],
-        lir::Terminator::Return { .. }
-        | lir::Terminator::Resume { .. }
-        | lir::Terminator::Unreachable => Vec::new(),
-    }
+    block.terminator.successors().collect()
 }
 
 #[cfg(test)]

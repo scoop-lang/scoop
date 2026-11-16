@@ -1,8 +1,9 @@
 //! Current-Cone source lowering against the shared dependency semantic world.
 
 use crate::pipeline::cancellation::{self, FrontendCancellation, PhaseFailure};
-use scoop_ast::{Diagnostic, Span};
+use scoop_ast::{Diagnostic, SourceDiagnostic, Span};
 use scoop_hir as hir;
+use scoop_source::bind_diagnostics;
 
 use crate::{
     CoreProtocolInput, CurrentConeSources, IntrinsicDeclarationPolicy, Lowerer, finish_output,
@@ -13,7 +14,7 @@ use crate::{
 pub fn lower_current_cone(
     requested: scoop_identity::RequestedConeKind,
     input: &CurrentConeSources<'_, '_>,
-) -> Result<hir::DependencyHirOutput, Vec<Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<SourceDiagnostic>> {
     lower_current_mode(requested, input, false, None)
 }
 
@@ -21,7 +22,7 @@ pub fn lower_current_cone(
 pub fn lower_current_export(
     requested: scoop_identity::RequestedConeKind,
     input: &CurrentConeSources<'_, '_>,
-) -> Result<hir::DependencyExportHirOutput, Vec<Diagnostic>> {
+) -> Result<hir::DependencyExportHirOutput, Vec<SourceDiagnostic>> {
     with_current_source_diagnostics(input, || {
         lower_current_export_inner(
             requested,
@@ -66,14 +67,14 @@ pub fn lower_current_cone_with_generator(
     requested: scoop_identity::RequestedConeKind,
     input: &CurrentConeSources<'_, '_>,
     generator: &mut dyn hir::MethodBodyGenerator,
-) -> Result<hir::DependencyHirOutput, Vec<Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<SourceDiagnostic>> {
     lower_current_mode(requested, input, false, Some(generator))
 }
 
 /// Builds the current Cone's tests with a generated executable entry.
 pub fn lower_current_tests(
     input: &CurrentConeSources<'_, '_>,
-) -> Result<hir::DependencyHirOutput, Vec<Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<SourceDiagnostic>> {
     lower_current_mode(
         scoop_identity::RequestedConeKind::Executable,
         input,
@@ -86,7 +87,7 @@ pub fn lower_current_tests(
 pub fn lower_current_tests_with_generator(
     input: &CurrentConeSources<'_, '_>,
     generator: &mut dyn hir::MethodBodyGenerator,
-) -> Result<hir::DependencyHirOutput, Vec<Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<SourceDiagnostic>> {
     lower_current_mode(
         scoop_identity::RequestedConeKind::Executable,
         input,
@@ -100,7 +101,7 @@ fn lower_current_mode(
     input: &CurrentConeSources<'_, '_>,
     tests: bool,
     generator: Option<&mut dyn hir::MethodBodyGenerator>,
-) -> Result<hir::DependencyHirOutput, Vec<Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<SourceDiagnostic>> {
     with_current_source_diagnostics(input, || {
         let source = lower_current_export_inner(
             requested,
@@ -147,23 +148,20 @@ fn lower_current_mode(
 fn with_current_source_diagnostics<T>(
     input: &CurrentConeSources<'_, '_>,
     run: impl FnOnce() -> Result<T, Vec<Diagnostic>>,
-) -> Result<T, Vec<Diagnostic>> {
+) -> Result<T, Vec<SourceDiagnostic>> {
     run().map_err(|diagnostics| resolve_current_source_diagnostics(input, diagnostics))
 }
 
 fn resolve_current_source_diagnostics(
     input: &CurrentConeSources<'_, '_>,
-    mut diagnostics: Vec<Diagnostic>,
-) -> Vec<Diagnostic> {
-    let current_sources = input
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<SourceDiagnostic> {
+    let sources = input
         .sources()
         .iter()
         .map(|source| source.text().identity().clone())
         .collect::<Vec<_>>();
-    for diagnostic in &mut diagnostics {
-        diagnostic.resolve_sources(&current_sources);
-    }
-    diagnostics
+    bind_diagnostics(diagnostics, &sources)
 }
 
 fn lower_current_export_inner<C>(
@@ -197,7 +195,7 @@ fn lower_current_export_inner<C>(
         CoreProtocolInput::CurrentDeclarations => lowerer,
         CoreProtocolInput::Imported(core) => lowerer.with_imported_core(core),
     };
-    let (mut module, mut warnings, completion) =
+    let (mut module, warnings, completion) =
         lowerer.run_with_dependencies(&files, world, generator, check)?;
     for file in &mut module.source_files {
         if let Some(path) = input
@@ -220,9 +218,11 @@ fn lower_current_export_inner<C>(
         .iter()
         .map(|source| source.identity.clone())
         .collect::<Vec<_>>();
-    for warning in &mut warnings {
-        warning.resolve_sources(&sources);
-    }
+    let warnings = warnings
+        .into_iter()
+        .map(|warning| warning.bind(&sources))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![Diagnostic::internal(error)])?;
     let export =
         seal_export_output(module, output_kind, Some(&selected)).map_err(|mut diagnostics| {
             for diagnostic in &mut diagnostics {

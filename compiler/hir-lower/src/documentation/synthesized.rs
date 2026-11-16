@@ -39,7 +39,7 @@ impl Lowerer {
                 let name = if matches!(function.kind, hir::FunctionKind::DerivedEquality) {
                     "equals"
                 } else {
-                    &self.source_function_declarations.get(&id)?.name
+                    &self.functions.source(id)?.name
                 };
                 Some((id, owner, name.to_owned()))
             })

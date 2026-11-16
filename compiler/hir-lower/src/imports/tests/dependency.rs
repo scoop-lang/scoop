@@ -246,7 +246,7 @@ fn exact_import_rejects_conflicting_non_overloadable_dependency_targets() {
         lowerer.diagnostics[0].message,
         "import target is ambiguous in the current compilation unit"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn exact_import_rejects_same_signature_dependency_overloads() {
         lowerer.diagnostics[0].message,
         "import target is ambiguous in the current compilation unit"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }
 
 #[test]
@@ -331,7 +331,7 @@ fn exact_import_rejects_function_mixed_with_non_overloadable_value() {
         lowerer.diagnostics[0].message,
         "import target is ambiguous in the current compilation unit"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }
 
 #[test]
@@ -357,7 +357,7 @@ fn repeated_exact_aliases_reject_incompatible_dependency_targets_atomically() {
         lowerer.diagnostics[0].message,
         "import target is ambiguous in the current compilation unit"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }
 
 #[test]
@@ -388,7 +388,7 @@ fn repeated_exact_aliases_reject_mixed_value_kinds_atomically() {
         lowerer.diagnostics[0].message,
         "import target is ambiguous in the current compilation unit"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }
 
 #[test]
@@ -468,5 +468,5 @@ fn public_split_star_rejects_the_whole_file_when_any_target_is_current() {
         lowerer.diagnostics[0].message,
         "public import requires a direct dependency target"
     );
-    assert_eq!(lowerer.diagnostics[0].span, Some(expected_span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(expected_span));
 }

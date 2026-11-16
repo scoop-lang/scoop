@@ -16,8 +16,8 @@ impl Lowerer {
             .iter()
             .copied()
             .filter(|function| {
-                self.source_function_declarations
-                    .get(function)
+                self.functions
+                    .source(*function)
                     .is_some_and(|declaration| declaration.name == NAME)
             })
             .collect::<Vec<_>>();

@@ -95,7 +95,7 @@ fn unattached_comments_report_the_original_fragment() {
         .iter()
         .zip(["/// file header", "/// end of file"])
     {
-        assert_eq!(original(source, warning.span.unwrap()), expected);
+        assert_eq!(original(source, warning.span().unwrap()), expected);
         assert_eq!(
             warning.message,
             "documentation comment is not attached to a declaration"

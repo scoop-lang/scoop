@@ -14,7 +14,7 @@ for pattern in (
     "final-products-v2/*.json",
     "final-products-v2/program-*/program*",
 ):
-    paths.extend(root.glob(pattern))
+    paths.extend(root.glob(f"toolchains/*/{pattern}"))
 assert any(p.name == "artifact.slib" for p in paths), "compiled output was not observed"
 state = {str(p): [p.stat().st_size, p.stat().st_mtime_ns] for p in sorted(paths)}
 if mode == "save":

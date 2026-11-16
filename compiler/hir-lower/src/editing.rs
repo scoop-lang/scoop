@@ -63,11 +63,11 @@ pub struct EditingCancelled;
 #[derive(Clone, Debug)]
 pub enum EditingAnalysisError {
     Cancelled,
-    Input(Vec<ast::Diagnostic>),
+    Input(Vec<ast::SourceDiagnostic>),
 }
 
-impl From<Vec<ast::Diagnostic>> for EditingAnalysisError {
-    fn from(diagnostics: Vec<ast::Diagnostic>) -> Self {
+impl From<Vec<ast::SourceDiagnostic>> for EditingAnalysisError {
+    fn from(diagnostics: Vec<ast::SourceDiagnostic>) -> Self {
         Self::Input(diagnostics)
     }
 }
@@ -92,6 +92,13 @@ pub fn analyze_declarations_with_inputs(
     inputs: Option<std::sync::Arc<dyn hir::CompileTimeInputHost>>,
     is_cancelled: impl Fn() -> bool,
 ) -> Result<DeclarationAnalysis, EditingAnalysisError> {
+    let identities = sources
+        .iter()
+        .map(|source| source.identity.clone())
+        .collect::<Vec<_>>();
+    let input_failure = |diagnostics| {
+        EditingAnalysisError::Input(scoop_source::bind_diagnostics(diagnostics, &identities))
+    };
     let check = || {
         if is_cancelled() {
             Err(EditingCancelled)
@@ -101,20 +108,21 @@ pub fn analyze_declarations_with_inputs(
     };
     check().map_err(|_| EditingAnalysisError::Cancelled)?;
     let Some(first) = sources.first() else {
-        return Err(vec![input_error(0, "no source files to analyze")].into());
+        return Err(EditingAnalysisError::Input(vec![
+            ast::SourceDiagnostic::internal("no source files to analyze"),
+        ]));
     };
     let current = first.identity.cone();
     crate::current_input::validate_protocol_context(current, core, world)
-        .map_err(|error| vec![input_error(0, error.to_string())])?;
+        .map_err(|error| input_failure(vec![input_error(0, error.to_string())]))?;
     let mut headers = Vec::with_capacity(sources.len());
     for (file, source) in sources.iter().enumerate() {
         check().map_err(|_| EditingAnalysisError::Cancelled)?;
         if source.identity.cone() != current {
-            return Err(vec![input_error(
+            return Err(input_failure(vec![input_error(
                 file,
                 "declaration inputs belong to different Cones",
-            )]
-            .into());
+            )]));
         }
         headers.push(source.header);
     }
@@ -134,7 +142,8 @@ pub fn analyze_declarations_with_inputs(
             source: source.text.to_owned(),
         })
         .collect();
-    let mut lowerer = crate::current_lowering::prepare_current_lowerer(providers, world)?;
+    let mut lowerer = crate::current_lowering::prepare_current_lowerer(providers, world)
+        .map_err(input_failure)?;
     lowerer.compile_time_inputs = inputs;
     if sources.iter().any(|source| source.documentation.is_some()) {
         lowerer.documentation = Some(
@@ -153,7 +162,7 @@ pub fn analyze_declarations_with_inputs(
         &mut lowerer.test_dependencies,
         test_dependencies.iter().copied(),
     )
-    .map_err(|error| vec![input_error(0, error.to_string())])?;
+    .map_err(|error| input_failure(vec![input_error(0, error.to_string())]))?;
     let lowerer = match core {
         CoreProtocolInput::CurrentDeclarations => lowerer,
         CoreProtocolInput::Imported(core) => lowerer.with_imported_core(core),
@@ -183,18 +192,16 @@ impl DeclarationAnalysis {
         &self.functions
     }
 
-    pub fn diagnostics(&self) -> Vec<ast::Diagnostic> {
+    pub fn diagnostics(&self) -> Vec<ast::SourceDiagnostic> {
         let identities = self.lowerer.diagnostic_source_identities();
-        self.lowerer
-            .diagnostics
-            .iter()
-            .chain(&self.lowerer.warnings)
-            .cloned()
-            .map(|mut diagnostic| {
-                diagnostic.resolve_sources(&identities);
-                diagnostic
-            })
-            .collect()
+        scoop_source::bind_diagnostics(
+            self.lowerer
+                .diagnostics
+                .iter()
+                .chain(&self.lowerer.warnings)
+                .cloned(),
+            &identities,
+        )
     }
 
     pub fn signature(&self, function: hir::FunctionId) -> hir::EditingValue<EditingSignature> {

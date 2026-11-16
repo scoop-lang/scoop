@@ -31,7 +31,8 @@ fun worker(seed: Int, count: Long, captured: Value): Int {
 }
 
 @Unsafe fun main() {
-    val count = if (stressMode()) { 32L } else { 16384L }
+    // Keep stress arrays above the marker's inline scan threshold.
+    val count = if (stressMode()) { 128L } else { 16384L }
     val captured: Value = Node(71L, None)
     val sentinels = MutableArray<Value>(count) { index -> captured }
     val pinned = pin(captured)

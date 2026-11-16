@@ -6,7 +6,10 @@ use super::support::{MARKERS, marker_core};
 use crate::tests::m23_ordinary_dependencies::support::{alias_expansions, project_dependency_text};
 use crate::{CurrentConeSources, lower_current_cone};
 
-fn lower(text: &str, role: SourceRole) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+fn lower(
+    text: &str,
+    role: SourceRole,
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let mut core = marker_core();
     let coordinate = ConeCoordinate::new("scoop", "scoop.test", "0.1.0").unwrap();
     let (foundation, interface) = project_dependency_text(&core, &coordinate, MARKERS, &[]);

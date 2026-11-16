@@ -52,7 +52,7 @@ fn recovered_file_context_uses_normal_packages_imports_and_diagnostic_spans() {
         panic!("the source has an exact import");
     };
     assert_eq!(lowerer.diagnostics.len(), 1);
-    assert_eq!(lowerer.diagnostics[0].span, Some(selector.span));
+    assert_eq!(lowerer.diagnostics[0].span(), Some(selector.span));
 }
 
 #[test]

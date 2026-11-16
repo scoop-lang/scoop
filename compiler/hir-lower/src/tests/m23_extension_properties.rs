@@ -284,8 +284,15 @@ fn assert_candidate_notes(diagnostic: &ast::Diagnostic, count: usize) {
     );
     assert!(
         diagnostic.notes.windows(2).all(|notes| {
-            (notes[0].file, notes[0].span.start, notes[0].span.end)
-                <= (notes[1].file, notes[1].span.start, notes[1].span.end)
+            (
+                bound_source(&notes[0].source),
+                notes[0].span.start,
+                notes[0].span.end,
+            ) <= (
+                bound_source(&notes[1].source),
+                notes[1].span.start,
+                notes[1].span.end,
+            )
         }),
         "candidate notes must have stable source order: {diagnostic:?}"
     );

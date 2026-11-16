@@ -161,7 +161,7 @@ impl WireEncode for EnumVariantFieldKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EnumVariantIdentityError {
     ExpectedSourceEnum,
     GeneratedRoleMismatch,

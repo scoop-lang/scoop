@@ -18,7 +18,7 @@ pub(super) fn repairs(
             .cancellation
             .check()
             .map_err(|_| super::super::semantic::cancelled())?;
-        let Some(span) = diagnostic.span else {
+        let Some(span) = diagnostic.span() else {
             continue;
         };
         if range.start > span.end || range.end < span.start {

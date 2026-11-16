@@ -19,7 +19,7 @@ pub(super) fn emit(machine: &TargetMachine, module: &Module<'_>) -> Result<Vec<u
     // non-callable partition enters here; machine functions use the full pipeline.
     let buffer = unsafe { scoop_emit_metadata_object(machine.as_mut_ptr(), module.as_mut_ptr()) };
     if buffer.is_null() {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "LLVM cannot emit a metadata object for {}",
             machine.get_triple().as_str().to_string_lossy()
         )));

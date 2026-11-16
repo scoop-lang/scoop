@@ -2,7 +2,22 @@
   {
     "code": "SCOOPC_HIR_ERROR",
     "message": "unknown type `Int`",
-    "notes": [],
+    "notes": [
+      {
+        "importPath": [
+          "hidden",
+          "Int"
+        ],
+        "message": "available with import `hidden`.`Int`",
+        "origin": {
+          "cone": "5ea5f5e8ff248182c8f8c7e1043caae20f163bcefd34cca4e97d8c6a03bf620d",
+          "end": 8961,
+          "kind": "source",
+          "path": "src/integer_int.scoop",
+          "start": 838
+        }
+      }
+    ],
     "origin": {
       "cone": "911bf5d4a57e1d435ae437b404196810e79aff938d88a37fd3f9a609f1d8a006",
       "end": 35,

@@ -7,6 +7,24 @@ import scoop.url.Url
 
 internal class TimeoutResult {
     var failure: HttpTimeoutException? = None
+    private var headersSent: Boolean = false
+    private var waiter: Continuation<Unit>? = None
+
+    fun sent() {
+        headersSent = true
+        val saved = waiter
+        waiter = None
+        saved?.resume(Unit)
+    }
+
+    suspend fun awaitHeaders() {
+        suspendCoroutine<Unit> {
+            continuation -> if (headersSent)
+                continuation.resume(Unit)
+            else
+                waiter = Some(continuation)
+        }
+    }
 }
 
 internal suspend fun timeoutHttp2(client: HttpClient, url: Url, scope: CoroutineScope) {
@@ -21,6 +39,18 @@ internal suspend fun timeoutHttp2(client: HttpClient, url: Url, scope: Coroutine
                             httpRequest(url.resolve("/stalled")) {
                                 this.options =
                                     httpCallOptions {
+                                        this.observer =
+                                            Some(
+                                                HttpObserver(
+                                                    suspend {
+                                                        event -> if (
+                                                            event.kind ==
+                                                                HttpCallEventKind.RequestHeaders
+                                                        )
+                                                            result.sent()
+                                                    }
+                                                )
+                                            )
                                         this.timeouts =
                                             Some(
                                                 httpTimeoutOptions {
@@ -34,6 +64,7 @@ internal suspend fun timeoutHttp2(client: HttpClient, url: Url, scope: Coroutine
                     }
                 )
         }
+    result.awaitHeaders()
     val second = client.execute(httpRequest(url.resolve("/concurrent")))
     executing.join()
     timeoutPhase(result.failure!!, HttpTimeoutPhase.ResponseHeaders, limit)

@@ -87,7 +87,7 @@ where
         target_profile: compatibility.target_fingerprint(),
     }
     .records()
-    .map_err(|_| RuntimeImageFingerprintError::Hash(HashError::RuntimeEncoding))?;
+    .map_err(|error| RuntimeImageFingerprintError::Hash(HashError::RuntimeEncoding(error)))?;
     let fingerprint = records
         .fingerprint()
         .map_err(RuntimeImageFingerprintError::Hash)?;

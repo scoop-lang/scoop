@@ -67,26 +67,29 @@ impl Lowerer {
         let span = ast::Span::new(0, 0);
         let int = self.integer_type(hir::IntegerKind::SIGNED_32);
         let arguments_ty = self.array_type(crate::types::ArrayKind::Immutable, self.string);
-        let entry = self.functions.alloc(hir::Function {
-            signature: hir::CallableSignature {
-                context_parameters: Vec::new(),
-                release_callability: Default::default(),
-                name: "$test_entry".into(),
-                is_suspend: false,
-                modifiers: Default::default(),
-                params: Vec::new(),
-                return_ty: int,
-                attributes: Default::default(),
-                span,
+        let entry = self.functions.alloc(
+            hir::Function {
+                signature: hir::CallableSignature {
+                    context_parameters: Vec::new(),
+                    release_callability: Default::default(),
+                    name: "$test_entry".into(),
+                    is_suspend: false,
+                    modifiers: Default::default(),
+                    params: Vec::new(),
+                    return_ty: int,
+                    attributes: Default::default(),
+                    span,
+                },
+                access: self.local_declaration_access(),
+                genericity: hir::FunctionGenericity::Plain,
+                kind: hir::FunctionKind::User(hir::Body {
+                    locals: la_arena::Arena::new(),
+                    statements: Vec::new(),
+                }),
+                method: None,
             },
-            access: self.local_declaration_access(),
-            genericity: hir::FunctionGenericity::Plain,
-            kind: hir::FunctionKind::User(hir::Body {
-                locals: la_arena::Arena::new(),
-                statements: Vec::new(),
-            }),
-            method: None,
-        });
+            crate::FunctionOrigin::TestEntry,
+        );
         self.test_compilation.as_mut().unwrap().entry = Some(entry);
         self.record_function_file(entry, file);
         self.signatures.insert(

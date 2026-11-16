@@ -78,6 +78,8 @@ Microsoft 发现同时支持普通 shell 与已初始化的 Visual Studio 开发
 
 仓库的 `scripts/release.toml` 记录发行所用 LLVM 精确版本、系统与 CPU 基线。构建宿主命令时将各已登记 Darwin target 的默认部署版本编入工具；普通命令不读取打包配置或发行清单。`MACOSX_DEPLOYMENT_TARGET` 可为一次编译／链接选择明确的 `major.minor[.patch]`，非法值必须诊断。未覆盖时使用所选 target 的编入基线，不查询运行机器的系统版本。所选最低版本贯通 LLVM 对象、generated-C、用户 native、runtime 和最终链接，进入原有生产配置与更新键；SDK 版本继续只记录实际 SDK。Linux 使用既有 x86-64 CPU 基线和所选 libc 工具链，发行最低 libc 版本由对应构建／验证环境确定，不能仅靠一个版本参数降低实际动态依赖。
 
+显式从源码构建 runtime 时，所选 Darwin 最低部署版本是 runtime 更新键的输入，改变它必须重新生产对应对象。消费现有 runtime 索引仍按最低版本兼容性判断；不能用消费时允许较低版本的规则代替源码构建的输入更新判断。
+
 工具角色、命令行方言与目标 native 环境分别选择。Darwin 的 `--cc` 可选择 Apple Clang，`--native-sysroot` 可选择 macOS SDK；省略项由本机 Xcode 工具发现补足。SDK 版本从实际 SDK 设置读取，真实对象 probe 验证所选 machine 与部署信息。C、C++、startup 与 final-link 共用已选目标、SDK 和部署版本，Apple linker 的 `-arch` 从目标架构取得；不通过宿主架构或 Mach-O 格式隐含 arm64。普通工具发现记录保存路径和输入更新事实，目标产物中的 compiler contract 不包含宿主路径。
 
 宿主 Rust 命令使用 rustc 对应目标的默认 CPU 基线，不使用构建机器的 native CPU，也不以 Scoop backend 的 `generic` 配置覆盖平台必需特性；Darwin/AArch64 因而保留 Apple Silicon 的 AES／SHA2 等平台特性，Linux/amd64 仍使用 x86-64 基线。
@@ -201,6 +203,8 @@ smart cast 分析使用已有 BindingId、类型约束及带实际 LoopId 的控
 函数 smart cast 的读取视图与 binding 的声明存储类型分别处理。显式类型检查、转换及引用相等读取原存储值；不需要函数适配的期望类型继续使用声明视图。产生适配闭包的读取不建立来源与新值的快照等价关系。MIR 为动态函数适配器保存来源时，先使用既有引用转换将来源适配到捕获字段的 Any 类型；typed function 来源也必须满足同一物理字段契约。
 
 重载探测共享已经检查的声明、签名和正文，包括依赖模板、constructor、lambda 与局部函数；候选新增或修改的函数、局部值与词法绑定各自隔离，只有选中候选的结果进入当前状态。一次探测不复制此前所有函数正文或当前函数的全部局部值。嵌套调用的候选状态在堆上保存，失败诊断只借用该状态，不为传递诊断把整份 lowering 状态移回线程栈。参数形状不匹配的候选在建立可变试算状态前退出，普通函数名不经过 nominal constructor 的准备。内部共享不改变实体分配顺序、诊断与重载规则，输出仍为原有完整 HIR 数据。
+
+结构化 member requirement 调用的挂起与 unsafe 上下文检查在提交选中候选时完成一次；失败候选不留下效果诊断，提交过程也不重报试算中已经保留的同一错误。
 
 依赖声明 catalog 在构建时按 typed nominal owner 与成员名、operator role、constructor、dispatch slot 和 context parameter 需求建立查询索引；property accessor 和 intrinsic 使用各自 typed key 索引。重复成员查询只访问匹配候选，不重扫全依赖声明集合。索引保留原实体顺序、可见性与 intrinsic 唯一性语义，候选共享不可变的接口、源码与默认参数模板，不改变持久身份或产物格式。
 
@@ -470,6 +474,8 @@ driver 按“lir-lower 准备布局与逻辑签名 → codegen 规划目标 ABI 
 具体 Scoop/C ABI 分类器属于 codegen，按完整参数序列、结果和逻辑类别生成计划；覆盖本地／外部函数、虚／接口槽、closure／bridge、suspend 执行入口、callback、gateway、release 与 runtime helper。计划通过原有 typed callable/type/slot/runtime entry 身份或专用批次局部 ID 关联；定义、调用、adapter 与导出复用相同计划，不按 symbol 或参数数量猜测。通用 lir-lower 只消费布局事实和物理计划，不登记架构、不执行目标 ABI 算法；LIR/identity 仅保留完整数据、编码和必要的局部结构检查。
 
 LIR 保存目标上完整的类型布局、值表示、字段 offset、alignment、scan、调用 ABI、控制流与实际定义／引用。codegen 不按名称、实参、result storage 或上下文补类型、签名、poll 或逻辑 live set。
+
+可能异常退出的调用使用 `Invoke` 终结符，直接携带完整调用、结果、normal／unwind 后继和根计划。普通指令序列不能包含 Invoke，基本块不再额外保存与它重复的 `Br(normal)`。CFG、活跃性、safepoint 身份、调试位置和后端发射统一消费该终结符；dump 从真实后继生成显示内容，不为可读性保存第二份控制流事实。这是进程内 LIR 表示调整，不改变调用、异常或 GC ABI。
 
 固定的 LIR foundation 为实际定义建立一次 plan 与 plan/role 查询索引，后续解析和 registration 检查复用这些索引，不为每次查询扫描全部 atom。索引保留同一 plan/role 下的所有定义，唯一目标查询仍区分缺失和歧义；它不进入产物格式或实体身份，返回的定义集合保持原有 canonical 顺序。
 
@@ -946,6 +952,8 @@ MIR `identity-foundation/6` 与 LIR foundation 保存实际实现的实体目录
 ### 2.7 `scoop` 与 single-Cone `scoopc`
 
 `scoop` 负责精确依赖图的构建顺序、全局构建缓存、runtime 构建和程序链接；`scoopc` 一次只编译指定的一个 Cone，不跟随上游 manifest locator 或读取上游源码。
+
+准备完成的源码节点直接保存该节点必需的 direct／support 依赖投影；manifest source 和 single-file 分支均完整，预编译节点不携带源码投影。缓存键与 child request 复用节点内的同一投影，不从独立旁表恢复。依赖完成顺序和实际产物查找仍由普通调度处理，不新增缓存内容复核或状态证明。
 
 常规 human 输出在每次实际调用 `scoopc` 前向 stderr 写一行进度：机器产物为 `Compiling <coordinate>`，根前端检查为 `Checking <coordinate>`，仅文档请求为 `Documenting <coordinate>`。本次调用结束后写 `Finished <coordinate> in <seconds>s` 或 `Failed <coordinate> in <seconds>s`，使用单调时钟测量该编译器调用的墙钟耗时，秒数保留两位小数。状态右对齐，每条信息完整成行；独立 Cone 并发时不要求固定完成顺序。预编译库和缓存命中没有实际编译调用，不输出编译起止信息。状态不替代原始诊断和最终 build/check/doc 摘要，单 Cone 的 `Finished` 不表示后续最终链接已完成。JSON 模式继续输出既有结构化诊断与结果，不混入 human 进度文本；进度和耗时不进入编译请求、产物或缓存键。
 
@@ -1489,7 +1497,7 @@ const property 的本地值与静态初值共用 HirConstantImage，完整 prope
 
 `env` 的 `compile_env` intrinsic 使用 callable intrinsic sum 的 tag 34，无额外 payload；完整签名仍由普通 callable declaration 保存。此编码对应 `cross-cone-interface/87`，不改变固定 core bootstrap protocol 或 runtime ABI。
 
-`includeStr` 的 `include_str` intrinsic 使用 callable intrinsic sum 的 tag 31，无额外 payload；完整签名为 String → String，对应 `cross-cone-interface/84`。环境与文件输入的成功记录使用闭合种类（tag 1／2）；文件记录保存原 Cone 根、实际根、原 locator、解析后目标、长度与修改时间。machine protocol 20 的成功 field 6、编译缓存 field 4 及 check／doc 的第三项统一保存该输入序列；缓存域同步升级。展开的 Cone 配置保留原输入根，供 include 的词法范围检查使用，实际源码发现仍使用原有 real root。
+`includeStr` 的 `include_str` intrinsic 使用 callable intrinsic sum 的 tag 31，无额外 payload；完整签名为 String → String，对应 `cross-cone-interface/84`。环境与文件输入的成功记录使用闭合种类（tag 1／2）；文件记录保存原 Cone 根、实际根、原 locator、解析后目标、长度与修改时间。machine protocol 20 的成功 field 6、编译缓存 field 4 及 doc 缓存的第三项统一保存该输入序列；缓存域同步升级。展开的 Cone 配置保留原输入根，供 include 的词法范围检查使用，实际源码发现仍使用原有 real root。
 
 `includeBytes` 复用同一文件宿主，HIR 保存带完整 `Array<Byte>` 类型的静态字节数组表达式，数据使用原始 byte string；普通数组字面量仍沿原有分配语义执行，不因元素恰为常量而改为共享对象。默认／泛型模板保存这份数据，消费时不再读取文件。MIR 的既有 immortal 对象表扩展为 String 或字节数组的闭合数据种类；字节数组项同时保存实际 class application、原始字节、对象身份和定义来源。String 优化只消费 String 项。LIR 的字节数组 global 关联既有 ArrayType 布局与 TD，直接发射 header、logical count 和字节内容，并沿共有 immortal 登记与链接引用链消费，不经过运行期数组分配或拷贝。本轮只接通 intrinsic 的静态结果，不扩展 9.1.2 已推迟的静态对象 const 组合。
 
@@ -1497,7 +1505,7 @@ const property 的本地值与静态初值共用 HirConstantImage，完整 prope
 
 `includeDir` 在普通参数绑定后消费 path、include 和 exclude，包括命名实参与默认数组；这些参数不留下运行期数组构造或求值临时变量。HIR 用普通 StructConstruct 表示 EmbeddedDir，其 files 字段为带完整 Array<EmbeddedFile> 类型的静态文件表表达式，逐项保存逻辑路径 String 与原始字节。默认／泛型模板沿同一表示传递。MIR 将每项路径、字节数组和文件表登记为已有 immortal 对象，文件表保留对子对象的 typed 引用。LIR 使用实际 Array<EmbeddedFile> 的布局与 TD，按普通 EmbeddedFile 字段布局发射引用；链接从文件表的实际引用闭包选择子对象。此扩展为 callable intrinsic 增加 tag 33、默认表达式增加 tag 78（路径文本与 byte string 的条目数组），对应 `cross-cone-interface/86` 与 LIR `identity-foundation/11`；不新增 intrinsic type、runtime ABI 或通用常量求值规则。
 
-includeDir 的目录输入记录使用 CompilerInputV1 的 tag 3，保存定义 Cone 根、实际根、原目录 locator、实际目录、include／exclude 与按逻辑相对路径排序的条目。每项保留实际目标；目录与未选中条目只记录其种类，选中文件另保存长度和修改时间。更新检查重新枚举目录和解析链接，比较这份记录，不读取文件内容，也不将未选中文件的修改时间作为输入。递归循环按当前祖先目录的实际路径检测；同一目标经不同非循环逻辑路径出现时保持独立条目。glob 使用 glob 0.3.4 的 Pattern 匹配器，配合 11.19 的路径语法检查，不使用该库的文件系统遍历。此输入扩展将 machine protocol 升至 21，compile cache key 域升至 v10，check／doc 缓存目录升至 v4。
+includeDir 的目录输入记录使用 CompilerInputV1 的 tag 3，保存定义 Cone 根、实际根、原目录 locator、实际目录、include／exclude 与按逻辑相对路径排序的条目。每项保留实际目标；目录与未选中条目只记录其种类，选中文件另保存长度和修改时间。更新检查重新枚举目录和解析链接，比较这份记录，不读取文件内容，也不将未选中文件的修改时间作为输入。递归循环按当前祖先目录的实际路径检测；同一目标经不同非循环逻辑路径出现时保持独立条目。glob 使用 glob 0.3.4 的 Pattern 匹配器，配合 11.19 的路径语法检查，不使用该库的文件系统遍历。此输入扩展将 machine protocol 升至 21，compile cache key 域升至 v10，doc 缓存目录升至 v4；check 按 2.7 每次执行，不保存整次检查缓存。
 
 文件定位／读取、目录筛选和环境查询由输入宿主提供给 HIR 的窄输入接口完成，driver 与分析宿主供给实际实现。HIR 负责语言语义并保存结果，IR/meta crate 只保存 typed 数据，不自行读取文件或环境，也不依赖 driver／上游 stage 的实现。每次编译中同一实际请求的结果及已记录输入直接复用，不因常量试探、模板发布或下游 stage 重读。失败的试探不发布常量与绑定事实；输入读取的缓存不赋予失败表达式成功语义。
 
@@ -1519,9 +1527,9 @@ MIR 保存完整常量值／对象引用，LIR 沿已有布局生成静态数组
 
 父 driver 向实际编译子进程原样传递可查询的 `SCOOP_` 环境变量，包括空值和非 Unicode 值；不以内部 sysroot／缓存配置覆盖这些名字。child 的临时目录和本机工具配置通过执行配置传递，源码查询仍读取原继承值。记录以完成求值的实际输入为准；target 与 runtime 环境不参与查询。文件／环境变化只使重新编译源码的 provider 失效，纯预编译依赖消费保留其中的旧常量。正常失败不发布结果，同键并发沿现有锁协调；不为构建中外部替换输入增加快照复制、稳定性重试或来源审计。
 
-env 的实际更新记录使用名称与 `Option<String>`，空数组表示变量缺失，单元素数组保存存在的值。这些值作为环境种类进入上述 machine protocol 21 的输入序列，以及编译／check／doc 缓存记录。记录随 build、check 和 doc 的实际 HIR 结果返回，不写入供纯预编译消费的环境查询要求。重新构建时，非法 Unicode 的当前值使旧记录失效，再由源码求值给出诊断。
+env 的实际更新记录使用名称与 `Option<String>`，空数组表示变量缺失，单元素数组保存存在的值。这些值作为环境种类进入上述 machine protocol 21 的输入序列，以及编译／doc 缓存记录。记录随 build、check 和 doc 的实际 HIR 结果返回，不写入供纯预编译消费的环境查询要求。重新构建时，非法 Unicode 的当前值使旧记录失效，再由源码求值给出诊断。
 
-build、check、doc 和 LSP 的共享 HIR 路径使用同一求值规则。check／doc 的缓存同样记录相关文件、目录和 env 输入；LSP 在分析到相应区域时求值，输入更新使依赖该输入的语义结果失效，未完成结果不发布。语言服务不为这些值进入机器生成或启动外部生成器；其环境来自语言服务进程，外部父 shell 改值不会自动改变已启动进程的环境。
+build、check、doc 和 LSP 的共享 HIR 路径使用同一求值规则。doc 的缓存同样记录相关文件、目录和 env 输入；check 每次重新执行前端并返回本次输入记录；LSP 在分析到相应区域时求值，输入更新使依赖该输入的语义结果失效，未完成结果不发布。语言服务不为这些值进入机器生成或启动外部生成器；其环境来自语言服务进程，外部父 shell 改值不会自动改变已启动进程的环境。
 
 新增常量种类、独立对象身份、模板引用及构建输入按实际编码改变升级相应 IR section／成功响应／缓存 schema，并一并重建开发 core；不在设计阶段占用未实现的 wire tag 或版本号。无变化的格式保持原版本，旧缓存按现有机制失效，不提供迁移或兼容 reader。实现范围、glob 选择与分层验收见[设计](../compile-time-intrinsics/DESIGN.md)。
 
@@ -1538,6 +1546,12 @@ M57 将 `cross-cone-interface` 升至 81。nominal declaration details 的可缺
 target/backend/C toolchain 的 typed identity 保留既有 canonical 编码及实体派生关系，支持集合在实际消费者处判断；仅移动实现和改变进程内表示不提升 wire/schema/runtime ABI，只有实际编码或可消费合同变化才升级相关格式。artifact-only 消费使用已保存的布局与 ABI，不加载 codegen、创建 TargetMachine 或重新分类。具体 target/backend 布局与合同常量可由 codegen 所属的静态数据模块供 artifact-only 消费者共享；该模块不含 LLVM、ABI 分类器或工具执行，公共 identity/LIR 只定义数据类型和规范化编码。
 
 所有下游转换必需的数据都必须在上游成功输出中完整且类型化。合法的缺省、空集合或无实例分支使用明确 sum；缺失的类型、签名、root、结果存储、构造目标、字段或 layout 不能由 Option、默认数值或名称回退掩盖。
+
+HIR lowering 创建函数时明确记录其唯一身份来源：源码声明、property accessor、词法生成 callable、初始化 callable、测试入口或派生 equality。每个分支保存产生持久身份所需的来源关系；解析期间允许待完成的签名，但最终身份投影不能扫描多张来源表再推断互斥类别。签名完成后沿已记录来源生成既有 typed persistent ID，不改变声明 key 或产物身份算法。
+
+错误结果区分普通源码不适用、输入／资源／工具失败和编译器内部合同失败。求解器的跨 session 变量、外来声明参数等内部失败不能作为普通候选不适用继续重载选择，也不能被另一候选成功掩盖；未推断完成、非法类型应用和 bound 不满足仍按实际语言规则诊断。后端、编码与 hash 包装保留实际错误种类和原因，不靠文案关键词判断归属。查询在完整语义结果上发现内部关系不一致时，与正常编辑态不可用分开报告。本次只完善数据与传播，不引入新的诊断编号或兼容编号层。
+
+运行时初始化的 lowering 结果区分完成和失败。委托初始化失败后，依赖该结果的合成 accessor 不继续解析委托协议，不把待完成的存储类型当作真实 `Unit` 产生附加类型错误；独立声明仍按正常错误恢复规则处理。
 
 type、function type、generic declaration、完整 application、concrete function、runtime/extern target、dispatch slot、layout、TD、property/accessor/storage、initialization、callback 与 safepoint 使用不同 ID 类型。stage-local ID 不持久化，跨 stage 关系显式映射；同形结构与相同整数值不建立身份。
 
@@ -1580,6 +1594,8 @@ persistent mangling schema 为 `persistent-v1`，语义 symbol 为 `scoop$1$<kin
 symbol 只表示已存在的 typed entity，不能反向补声明或决定 ABI。完整 identity 的短 runtime type/site ID 必须验证全程序无碰撞。
 
 诊断来源使用实际 Cone、logical source、definition/evaluation context 与 byte span。synthetic entity 使用其真实 generated role，不伪造源码位置；显示名称和 mangled symbol 不代替实体身份。
+
+parser／lowering 内部的请求局部位置与离开该上下文的诊断来源使用不同的完整表示。产生阶段在上下文仍有效时一次绑定主位置和 notes 的稳定 SourceIdentity；绑定失败明确报告内部错误，不能以可选来源继续输出。无源码位置的操作错误保留明确的无位置分支。driver／LSP 只消费已绑定来源并投影显示信息，不再以另一份文件索引补猜来源。
 
 正确性由产生结果的相应 stage 完成：源码语义、当前转换的完整 IR、ABI/GC 数据和实际链接绑定分别承担其职责。消费已有结果按需解码并安全索引，不完整重放名称、类型、引用、布局或生产语义，不用 Verified 包装和深比较建立证明链。加载后的 GC、地址与内存边界契约保持。
 

@@ -375,6 +375,12 @@ pub fn dump(module: &Module) -> String {
                 dump_instruction(module, function, instruction, &mut out);
             }
             match &block.terminator {
+                Terminator::Invoke { site } => {
+                    out.push_str(&format!(
+                        "    invoke {}\n",
+                        invoke_site_name(function, site)
+                    ));
+                }
                 Terminator::Br(target) => {
                     out.push_str(&format!("    br @{}\n", block_name(function, *target)))
                 }

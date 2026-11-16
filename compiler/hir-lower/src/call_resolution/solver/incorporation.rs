@@ -1,10 +1,12 @@
 //! Reduce existing lower/upper relations before choosing inference solutions.
 
+use crate::call_resolution::constraints::InferenceFailure;
+
 use super::super::relations::{
     AtomicConstraint, AtomicConstraintKind, reduce_relation, type_contains_session_parameter,
 };
 use super::TypeTerm;
-use super::{ConstraintFailure, ConstraintOrigin, InferenceSession, InferenceVariableId};
+use super::{ConstraintOrigin, InferenceSession, InferenceVariableId};
 use crate::call_resolution::constraints::RelationKind;
 use crate::{Lowerer, Type};
 
@@ -29,7 +31,7 @@ pub(super) fn incorporate_bounds(
     lowerer: &mut Lowerer,
     session: &InferenceSession,
     mut constraints: Vec<AtomicConstraint>,
-) -> Result<Vec<AtomicConstraint>, ConstraintFailure> {
+) -> Result<Vec<AtomicConstraint>, InferenceFailure> {
     let mut bounds = Vec::new();
     let mut cursor = 0;
     while cursor < constraints.len() {
@@ -105,7 +107,7 @@ fn incorporate_pair(
     session: &InferenceSession,
     left: VariableBound,
     right: VariableBound,
-) -> Result<Vec<AtomicConstraint>, ConstraintFailure> {
+) -> Result<Vec<AtomicConstraint>, InferenceFailure> {
     use Direction::{Class, Exact, Interface, Lower, Upper};
 
     if left.variable != right.variable {

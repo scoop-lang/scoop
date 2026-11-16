@@ -91,7 +91,10 @@ fn shared_call_targets_preserve_managed_and_generic_gc_diagnostics() {
         assert!(
             errors
                 .iter()
-                .all(|error| error.file == 0 && error.span.is_some())
+                .all(
+                    |error| error.source().unwrap().logical_path().as_str() == "src/main.scoop"
+                        && error.span().is_some()
+                )
         );
     }
 }

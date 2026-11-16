@@ -20,7 +20,7 @@ fn generated_c_batch_preserves_units_and_exact_unwind_boundaries() {
             compilations += 1;
             invocation
                 .compile_object(source, object)
-                .map_err(|error| CodegenError(error.to_string()))?;
+                .map_err(|error| CodegenError::internal_cause(error.to_string(), error))?;
             assert_eq!(
                 std::fs::read_dir(source.parent().unwrap()).unwrap().count(),
                 2
@@ -99,11 +99,14 @@ fn failed_bridge_batch_discards_partial_compiler_output() {
         &generated_c_profile(),
         |_source, object| {
             std::fs::write(object, b"partial compiler output").unwrap();
-            Err(CodegenError("test compiler failure".into()))
+            Err(CodegenError::internal("test compiler failure".into()))
         },
     )
     .unwrap_err();
-    assert!(error.0.contains("test compiler failure"), "{error}");
+    assert!(
+        error.to_string().contains("test compiler failure"),
+        "{error}"
+    );
     assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 0);
 }
 

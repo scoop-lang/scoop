@@ -356,6 +356,6 @@ fn public_import_pipeline_does_not_downgrade_to_an_ordinary_import() {
             errors[0].message, "public import requires a direct dependency target",
             "{case}: the public form must neither bind locally nor degrade to ordinary lookup"
         );
-        assert_eq!(errors[0].span, Some(expected_span), "{case}");
+        assert_eq!(errors[0].span(), Some(expected_span), "{case}");
     }
 }

@@ -25,7 +25,7 @@ fn only_error(source: &str) -> (Span, String) {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     let diagnostic = &diagnostics[0];
     (
-        diagnostic.span.expect("parser error has a span"),
+        diagnostic.span().expect("parser error has a span"),
         diagnostic.message.clone(),
     )
 }
@@ -274,7 +274,7 @@ fn duplicate_and_misplaced_headers_have_stable_priority() {
         "a source file may contain only one `package` header"
     );
     assert_eq!(
-        duplicate[0].span,
+        duplicate[0].span(),
         Some(occurrence_span("package one\npackage two", "package", 1))
     );
     assert_eq!(
@@ -308,11 +308,11 @@ fn duplicate_and_misplaced_headers_have_stable_priority() {
     let after_declaration = parse(source).expect_err("late imports must fail");
     assert_eq!(after_declaration.len(), 2, "{after_declaration:?}");
     assert_eq!(
-        after_declaration[0].span,
+        after_declaration[0].span(),
         Some(occurrence_span(source, "import", 0))
     );
     assert_eq!(
-        after_declaration[1].span,
+        after_declaration[1].span(),
         Some(Span::new(
             occurrence_span(source, "public", 0).start,
             occurrence_span(source, "import", 1).end,
@@ -347,7 +347,7 @@ fn malformed_headers_recover_at_balanced_top_level_boundaries() {
         ]
     );
     assert!(diagnostics.windows(2).all(|pair| {
-        pair[0].span.expect("spanned").start < pair[1].span.expect("spanned").start
+        pair[0].span().expect("spanned").start < pair[1].span().expect("spanned").start
     }));
 }
 
@@ -374,7 +374,7 @@ fn top_level_recovery_recognizes_val_and_var_starters() {
     let diagnostics = parse(source).expect_err("all three declarations are malformed");
     assert_eq!(diagnostics.len(), 3, "{diagnostics:?}");
     assert!(diagnostics.windows(2).all(|pair| {
-        pair[0].span.expect("spanned").start < pair[1].span.expect("spanned").start
+        pair[0].span().expect("spanned").start < pair[1].span().expect("spanned").start
     }));
 }
 
@@ -396,7 +396,7 @@ fn lexical_and_syntax_diagnostics_are_merged_in_source_order() {
         ]
     );
     assert!(diagnostics.windows(2).all(|pair| {
-        pair[0].span.expect("spanned").start < pair[1].span.expect("spanned").start
+        pair[0].span().expect("spanned").start < pair[1].span().expect("spanned").start
     }));
 }
 
@@ -457,9 +457,15 @@ fn parse_all_rejects_duplicate_identities_but_parses_every_source() {
     assert_eq!(
         errors
             .iter()
-            .map(|error| error.diagnostic().file)
+            .map(|error| error.diagnostic().source())
             .collect::<Vec<_>>(),
-        [0, 1, 1, 2, 2]
+        [
+            Some(&first_identity),
+            Some(&first_identity),
+            Some(&first_identity),
+            Some(&other_identity),
+            Some(&other_identity)
+        ]
     );
     let context = ParserDiagnosticContext::new([
         (first_identity, "duplicate.scoop".to_string()),

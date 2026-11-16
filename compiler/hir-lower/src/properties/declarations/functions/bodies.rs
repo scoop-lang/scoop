@@ -18,6 +18,18 @@ impl Lowerer {
                 continue;
             }
             if source.body_kind == PropertyAccessorBodyKind::Delegate
+                && self
+                    .runtime_accessor_units
+                    .get(&source.function)
+                    .is_some_and(|unit| {
+                        self.declaration_inference.lowered_initializers.get(unit)
+                            == Some(&crate::declaration_inference::InitializerOutcome::Failed)
+                    })
+            {
+                // The storage's type was never completed by its initializer.
+                continue;
+            }
+            if source.body_kind == PropertyAccessorBodyKind::Delegate
                 && !matches!(
                     self.properties[source.property].representation,
                     hir::PropertyRepresentation::Delegated { .. }

@@ -121,7 +121,7 @@ fn malformed_headers_and_declarations_keep_independent_diagnostics() {
     assert_eq!(errors.len(), expected.len(), "{errors:?}");
     for (error, (start, message)) in errors.iter().zip(expected) {
         assert_eq!(error.message, message);
-        assert_eq!(error.span.expect("spanned error").start, start);
+        assert_eq!(error.span().expect("spanned error").start, start);
     }
 }
 
@@ -170,17 +170,18 @@ fn duplicate_package_note_tracks_the_first_valid_header_and_multi_source_index()
     );
     assert!(errors[0].diagnostic().notes.is_empty());
     let duplicate = errors[1].diagnostic();
-    assert_eq!(duplicate.file, 1);
+    assert_eq!(duplicate.source(), Some(&second));
     let primary = span_of(text, "package duplicate").start;
-    assert_eq!(duplicate.span, Some(Span::new(primary, primary + 7)));
+    assert_eq!(duplicate.span(), Some(Span::new(primary, primary + 7)));
     let first_valid = span_of(text, "package valid").start;
     assert_eq!(
         duplicate.notes,
-        [scoop_ast::DiagnosticNote::at(
-            1,
-            Span::new(first_valid, first_valid + 7),
-            "first `package` header is here",
-        )]
+        [scoop_source::SourceDiagnosticNote {
+            source: second.clone(),
+            span: Span::new(first_valid, first_valid + 7),
+            message: "first `package` header is here".into(),
+            import_path: Vec::new(),
+        }]
     );
     assert_eq!(errors[1].identity(), &second);
     let context = ParserDiagnosticContext::new([
@@ -201,12 +202,12 @@ fn unsupported_import_modifiers_remain_header_errors_after_declarations() {
         );
         let errors = parse(&source).expect_err("late imports and unsupported modifier fail");
         assert_eq!(errors.len(), 3, "{errors:?}");
-        assert_eq!(errors[0].span, Some(span_of(&source, modifier)));
+        assert_eq!(errors[0].span(), Some(span_of(&source, modifier)));
         assert_eq!(
             errors[0].message,
             "`import` headers must appear before declarations"
         );
-        assert_eq!(errors[1].span, Some(span_of(&source, modifier)));
+        assert_eq!(errors[1].span(), Some(span_of(&source, modifier)));
         assert_eq!(
             errors[1].message,
             format!("`{modifier} import` is not supported; imports may be ordinary or `public`")
@@ -239,11 +240,11 @@ fn parse_all_is_atomic_with_valid_sources_on_both_sides_of_errors() {
         .expect_err("valid subsets must not escape when another source fails");
     assert_eq!(errors.len(), 2);
     assert_eq!(errors[0].identity(), &identities[1]);
-    assert_eq!(errors[0].diagnostic().file, 1);
-    assert_eq!(errors[0].diagnostic().span, Some(Span::new(7, 8)));
+    assert_eq!(errors[0].diagnostic().source(), Some(errors[0].identity()));
+    assert_eq!(errors[0].diagnostic().span(), Some(Span::new(7, 8)));
     assert_eq!(errors[1].identity(), &identities[3]);
-    assert_eq!(errors[1].diagnostic().file, 3);
-    assert_eq!(errors[1].diagnostic().span, Some(Span::new(11, 13)));
+    assert_eq!(errors[1].diagnostic().source(), Some(errors[1].identity()));
+    assert_eq!(errors[1].diagnostic().span(), Some(Span::new(11, 13)));
 }
 
 #[test]
@@ -255,7 +256,7 @@ fn duplicate_identity_diagnostic_uses_original_input_index_after_earlier_duplica
     let errors = parse_all(NonEmptyVec::new(first, vec![first, second, second]))
         .expect_err("each duplicate is rejected");
     assert_eq!(errors.len(), 2);
-    assert_eq!(errors[0].diagnostic().file, 1);
+    assert_eq!(errors[0].diagnostic().source(), Some(errors[0].identity()));
     assert_eq!(
         errors[0].diagnostic().message,
         format!(
@@ -263,7 +264,7 @@ fn duplicate_identity_diagnostic_uses_original_input_index_after_earlier_duplica
             first_identity.cone()
         )
     );
-    assert_eq!(errors[1].diagnostic().file, 3);
+    assert_eq!(errors[1].diagnostic().source(), Some(errors[1].identity()));
     assert_eq!(
         errors[1].diagnostic().message,
         format!(

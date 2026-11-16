@@ -63,7 +63,7 @@ impl DeclarationIdentities {
                     if let Some(local) = lowerer.local_function_by_function.get(&function) {
                         return Some(Callable::Local(*local));
                     }
-                    if !lowerer.source_function_declarations.contains_key(&function) {
+                    if !lowerer.functions.source(function).is_some() {
                         return None;
                     }
                     let declaration = match lowerer.query_function_identity(function).ok()? {

@@ -252,7 +252,14 @@ impl Lowerer {
                 },
             )
             .collect::<Vec<_>>();
-        let mut pool = comparison.most_specific_declarations(&candidates);
+        let mut pool = match comparison.most_specific_declarations(&candidates) {
+            Ok(pool) => pool,
+            Err(error) => {
+                self.diagnostics
+                    .push(scoop_ast::Diagnostic::internal(error));
+                return None;
+            }
+        };
         if let Some(arguments) = arguments {
             pool = super::specificity::prefer_literal_defaults(
                 &pool,

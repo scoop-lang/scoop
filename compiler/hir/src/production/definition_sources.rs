@@ -310,7 +310,7 @@ fn raw_index<T>(id: la_arena::Idx<T>) -> u32 {
     id.into_raw().into_u32()
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HirDefinitionSourceProjectionError {
     UnknownFile(u32),
     ProviderMismatch {

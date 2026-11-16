@@ -114,6 +114,7 @@ pub(crate) enum ArgumentInferenceFailureKind {
         reason: String,
     },
     Constraint(ConstraintFailure),
+    Internal(super::constraints::InferenceInvariantError),
     Expression(ArgumentExpressionFailure),
 }
 
@@ -136,7 +137,7 @@ impl Lowerer {
             .map_err(|failure| {
                 Box::new(ArgumentInferenceFailure {
                     arguments: values.clone(),
-                    kind: ArgumentInferenceFailureKind::Constraint(failure),
+                    kind: failure.into(),
                 })
             })?
             .arguments_for(input.session, input.environment);
@@ -171,4 +172,13 @@ fn hint_bindings(
         bindings[parameter.into_raw() as usize] = *value;
     }
     bindings
+}
+
+impl From<super::constraints::InferenceFailure> for ArgumentInferenceFailureKind {
+    fn from(failure: super::constraints::InferenceFailure) -> Self {
+        match failure {
+            super::constraints::InferenceFailure::Constraint(failure) => Self::Constraint(failure),
+            super::constraints::InferenceFailure::Internal(failure) => Self::Internal(failure),
+        }
+    }
 }

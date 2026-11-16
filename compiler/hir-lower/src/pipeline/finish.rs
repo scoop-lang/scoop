@@ -39,7 +39,7 @@ impl Lowerer {
                 Ok(identities) => identities,
                 Err(error) => {
                     let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                    diagnostic.file = error.file();
+                    diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
             };
@@ -51,7 +51,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -60,7 +60,7 @@ impl Lowerer {
                 Ok(identities) => identities,
                 Err(error) => {
                     let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                    diagnostic.file = error.file();
+                    diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
             };
@@ -69,7 +69,7 @@ impl Lowerer {
                 Ok(identities) => identities,
                 Err(error) => {
                     let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                    diagnostic.file = error.file();
+                    diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
             };
@@ -77,7 +77,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -94,7 +94,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -103,7 +103,7 @@ impl Lowerer {
                 Ok(identities) => identities,
                 Err(error) => {
                     let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                    diagnostic.file = error.file();
+                    diagnostic.set_file(error.file());
                     return Err(vec![diagnostic]);
                 }
             };
@@ -115,7 +115,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -133,7 +133,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -176,7 +176,7 @@ impl Lowerer {
                             (file, registration.span)
                         });
                 let mut diagnostic = Diagnostic::at(span, error.to_string());
-                diagnostic.file = file;
+                diagnostic.set_file(file);
                 return Err(vec![diagnostic]);
             }
         };
@@ -193,7 +193,7 @@ impl Lowerer {
             Ok(bindings) => bindings,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -207,7 +207,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -232,7 +232,7 @@ impl Lowerer {
                     None => (0, Span { start: 0, end: 0 }),
                 };
                 let mut diagnostic = Diagnostic::at(span, error.to_string());
-                diagnostic.file = file;
+                diagnostic.set_file(file);
                 return Err(vec![diagnostic]);
             }
         };
@@ -268,7 +268,7 @@ impl Lowerer {
             Ok(identities) => identities,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };
@@ -291,7 +291,7 @@ impl Lowerer {
             Ok(origins) => origins,
             Err(error) => {
                 let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-                diagnostic.file = error.file();
+                diagnostic.set_file(error.file());
                 return Err(vec![diagnostic]);
             }
         };

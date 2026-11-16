@@ -19,7 +19,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if pointer_ty != scoop_lir::RAW_PTR
                     || machine_types::contains_machine_scalar(self.structs, self.enums, out_ty)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "raw_load @{} requires a raw pointer and cannot produce {}, got pointer {}",
                         function.symbol(),
                         out_ty.dump(),
@@ -34,15 +34,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.managed_address_space,
                     &function.temps[*out].ty,
                 )?;
-                let value = builder
-                    .build_load(ty, pointer, "raw_load")
-                    .map_err(|e| CodegenError(format!("raw load @{}: {e}", function.symbol())))?;
+                let value = builder.build_load(ty, pointer, "raw_load").map_err(|e| {
+                    CodegenError::backend(format!("raw load @{}: {e}", function.symbol()), e)
+                })?;
                 value
                     .as_instruction_value()
                     .expect("a non-constant load is an instruction")
                     .set_alignment(pointee.layout().alignment().get() as u32)
                     .map_err(|e| {
-                        CodegenError(format!("raw load alignment @{}: {e}", function.symbol()))
+                        CodegenError::backend(
+                            format!("raw load alignment @{}: {e}", function.symbol()),
+                            e,
+                        )
                     })?;
                 self.temps.insert(*out, value);
             }
@@ -56,7 +59,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if pointer_ty != scoop_lir::RAW_PTR
                     || machine_types::contains_machine_scalar(self.structs, self.enums, &value_ty)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "raw_store @{} requires a raw pointer and cannot consume {}, got pointer {}",
                         function.symbol(),
                         value_ty.dump(),
@@ -66,11 +69,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let pointer = self.value(*pointer)?.into_pointer_value();
                 let store = builder
                     .build_store(pointer, self.value(*value)?)
-                    .map_err(|e| CodegenError(format!("raw store @{}: {e}", function.symbol())))?;
+                    .map_err(|e| {
+                        CodegenError::backend(format!("raw store @{}: {e}", function.symbol()), e)
+                    })?;
                 store
                     .set_alignment(pointee.layout().alignment().get() as u32)
                     .map_err(|e| {
-                        CodegenError(format!("raw store alignment @{}: {e}", function.symbol()))
+                        CodegenError::backend(
+                            format!("raw store alignment @{}: {e}", function.symbol()),
+                            e,
+                        )
                     })?;
             }
             Instruction::PtrOffset {
@@ -85,7 +93,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if !matches!(pointer_ty, scoop_lir::RAW_PTR | scoop_lir::METADATA_PTR)
                     || *out_ty != pointer_ty
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "ptr_offset @{} requires matching raw or metadata pointers, got {} -> {}",
                         function.symbol(),
                         pointer_ty.dump(),
@@ -100,7 +108,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     _ => false,
                 };
                 if !valid_offset {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "ptr_offset @{} has invalid element offset type {}",
                         function.symbol(),
                         offset_ty.dump()
@@ -115,20 +123,20 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             "raw_offset_bytes",
                         )
                         .map_err(|e| {
-                            CodegenError(format!(
-                                "raw pointer offset scale @{}: {e}",
-                                function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!("raw pointer offset scale @{}: {e}", function.symbol()),
+                                e,
+                            )
                         })?;
                 }
                 if *subtract {
                     bytes = builder
                         .build_int_neg(bytes, "raw_offset_subtract")
                         .map_err(|e| {
-                            CodegenError(format!(
-                                "raw pointer offset negate @{}: {e}",
-                                function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!("raw pointer offset negate @{}: {e}", function.symbol()),
+                                e,
+                            )
                         })?;
                 }
                 // SAFETY: source semantics make raw pointer arithmetic unsafe;
@@ -136,7 +144,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let result = unsafe {
                     builder.build_gep(context.i8_type(), pointer, &[bytes], "raw_offset")
                 }
-                .map_err(|e| CodegenError(format!("raw gep @{}: {e}", function.symbol())))?;
+                .map_err(|e| {
+                    CodegenError::backend(format!("raw gep @{}: {e}", function.symbol()), e)
+                })?;
                 self.temps.insert(*out, result.into());
             }
             _ => unreachable!("raw pointer dispatch is exhaustive"),

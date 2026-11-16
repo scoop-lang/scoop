@@ -297,7 +297,7 @@ impl Lowerer {
 
     pub(crate) fn error(&mut self, span: Span, message: String) {
         let mut diagnostic = Diagnostic::at(span, message);
-        diagnostic.file = self.current_text_file();
+        diagnostic.set_file(self.current_text_file());
         self.diagnostics.push(diagnostic);
     }
 }

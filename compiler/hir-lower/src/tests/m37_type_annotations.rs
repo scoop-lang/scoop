@@ -283,7 +283,7 @@ fn type_annotation_alias_merge_errors_point_to_the_actual_use() {
         .iter()
         .find(|error| error.message.contains("must not be repeated"))
         .unwrap();
-    let span = error.span.unwrap();
+    let span = error.span().unwrap();
     assert_eq!(&source[span.start as usize..span.end as usize], "@A");
     assert_eq!(span.start as usize, source.rfind("@A").unwrap());
 }

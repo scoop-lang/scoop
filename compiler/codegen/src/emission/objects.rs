@@ -75,7 +75,10 @@ pub fn emit_object_set(
     let production = input
         .build_production_section(coordinate.clone(), direct_dependencies, entry_source)
         .map_err(|error| {
-            CodegenError(format!("cannot build strong production section: {error}"))
+            CodegenError::backend(
+                format!("cannot build strong production section: {error}"),
+                error,
+            )
         })?;
     emit_object_set_with_production(input, production, profile, jobs)
 }

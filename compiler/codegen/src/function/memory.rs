@@ -63,13 +63,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if self.native_globals[global].thread_local
                     || self.function.gc_effect != scoop_lir::GcEffect::NoGc
                 {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "a native storage leaf requires a non-TLS global in a NoGc body".into(),
                     ));
                 }
                 self.builder
                     .build_call(callee, &[storage.into()], "native_global_call")
-                    .map_err(|error| CodegenError(format!("native global call: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("native global call: {error}"), error)
+                    })?;
             }
             scoop_lir::NativeStorageProtocol::NativeSafe { safepoint, roots } => {
                 let transition = self.publish_native_roots(
@@ -80,7 +82,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 )?;
                 self.builder
                     .build_call(callee, &[storage.into()], "native_global_call")
-                    .map_err(|error| CodegenError(format!("native global call: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("native global call: {error}"), error)
+                    })?;
                 self.finish_native_transition(
                     transition,
                     NativeTransitionKind::Safe,
@@ -109,10 +113,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             )
         }
         .map_err(|e| {
-            CodegenError(format!(
-                "gep {name} @{symbol}: {e}",
-                symbol = self.function.symbol()
-            ))
+            CodegenError::backend(
+                format!("gep {name} @{symbol}: {e}", symbol = self.function.symbol()),
+                e,
+            )
         })
     }
 
@@ -136,10 +140,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             )
         }
         .map_err(|e| {
-            CodegenError(format!(
-                "tag gep @{symbol}: {e}",
-                symbol = self.function.symbol()
-            ))
+            CodegenError::backend(
+                format!("tag gep @{symbol}: {e}", symbol = self.function.symbol()),
+                e,
+            )
         })
     }
 
@@ -162,10 +166,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             )
         }
         .map_err(|e| {
-            CodegenError(format!(
-                "enum field gep @{symbol}: {e}",
-                symbol = self.function.symbol()
-            ))
+            CodegenError::backend(
+                format!(
+                    "enum field gep @{symbol}: {e}",
+                    symbol = self.function.symbol()
+                ),
+                e,
+            )
         })
     }
 }

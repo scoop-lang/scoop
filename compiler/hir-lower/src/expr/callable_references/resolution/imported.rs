@@ -304,7 +304,7 @@ impl Lowerer {
         candidate: &ReferenceCandidate,
         receiver: Option<TypeId>,
         context: ReferenceResolutionContext<'_>,
-    ) -> Result<Option<ApplicableReference>, ReferenceFailure> {
+    ) -> Result<Option<ApplicableReference>, super::ReferenceProbeError> {
         let mut state = self.clone();
         let invalid = |reason| ReferenceFailure {
             signature: format!("dependency function `{}`", context.name),
@@ -333,7 +333,7 @@ impl Lowerer {
             }
         };
         if let Some(reason) = state.imported_intrinsic_reference_failure(&candidate) {
-            return Err(invalid(reason));
+            return Err(invalid(reason).into());
         }
         let declaration = ImportedReferenceDeclaration::resolve(&mut state, candidate)
             .map_err(|reason| invalid(reason.into()))?;
@@ -404,7 +404,10 @@ impl Lowerer {
                 expected_type: context.expected.map(|(ty, _)| *ty),
             })
             .map_err(|failure| {
-                fail(
+                if let crate::call_resolution::applicability::ReferenceApplicabilityFailure::Internal(error) = failure {
+                    return super::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(error));
+                }
+                super::ReferenceProbeError::Rejected(fail(
                     &state,
                     failure.describe(|constraint| {
                         state.render_imported_constraint_failure(
@@ -413,7 +416,7 @@ impl Lowerer {
                             constraint,
                         )
                     }),
-                )
+                ))
             })?;
         Ok(Some(ApplicableReference {
             state: Box::new(state),

@@ -1,4 +1,5 @@
 use super::*;
+use crate::pipeline::cancellation::PhaseFailure;
 use hir::DocumentationLink as Link;
 
 mod editing;
@@ -18,11 +19,11 @@ impl Lowerer {
         &mut self,
         world: Option<&hir::ImportedSemanticWorld<'_>>,
         check: &impl Fn() -> Result<(), C>,
-    ) -> Result<Option<hir::ConeDocumentation>, C> {
+    ) -> Result<Option<hir::ConeDocumentation>, PhaseFailure<C>> {
         if self.documentation.is_none() {
             return Ok(None);
         }
-        check()?;
+        PhaseFailure::check(check)?;
         self.document_synthesized_members();
         let mut context = self
             .documentation
@@ -42,7 +43,7 @@ impl Lowerer {
             })
             .collect::<HashSet<_>>();
         loop {
-            check()?;
+            PhaseFailure::check(check)?;
             let count = local.len();
             for entry in &context.declarations {
                 if entry
@@ -70,7 +71,7 @@ impl Lowerer {
         let mut seen = HashSet::new();
         let mut declarations = Vec::with_capacity(context.declarations.len());
         for captured in context.declarations {
-            check()?;
+            PhaseFailure::check(check)?;
             let mut declaration = captured.declaration;
             resolver.current_file = captured.scope.file;
             resolver.current_owner = captured.scope.owner;
@@ -91,15 +92,17 @@ impl Lowerer {
             declarations.push(declaration);
         }
         let sources = self.diagnostic_source_identities();
-        for warning in &mut warnings {
-            warning.resolve_sources(&sources);
-        }
+        let warnings = warnings
+            .into_iter()
+            .map(|warning| warning.bind(&sources))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| vec![ast::Diagnostic::internal(error)])?;
         let source_locations = self.documentation_source_locations(
             declarations
                 .iter()
                 .map(|entry| (entry.target, entry.origin)),
         );
-        check()?;
+        PhaseFailure::check(check)?;
         Ok(Some(hir::ConeDocumentation {
             declarations,
             source_locations,

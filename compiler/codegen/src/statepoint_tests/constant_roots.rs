@@ -81,5 +81,5 @@ attributes #1 = { "statepoint-id"="7" }
     let error =
         crate::statepoint::rewrite(&llvm, &machine, &manifest(Some((7, one_root()))), profile)
             .unwrap_err();
-    assert!(error.0.contains("derived address"), "{error:?}");
+    assert!(error.to_string().contains("derived address"), "{error:?}");
 }

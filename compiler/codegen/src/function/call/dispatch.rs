@@ -115,7 +115,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .dispatch_slots
             .get(slot)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "typed dispatch @{} refers to an invalid slot declaration",
                     self.function.symbol()
                 ))
@@ -127,7 +127,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             scoop_lir::METADATA_PTR
         };
         if table_ty != expected_table_ty {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "typed {:?} dispatch @{} requires table {}, got {}",
                 slot.kind,
                 self.function.symbol(),
@@ -146,10 +146,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 "dispatch_slot",
             )
         }
-        .map_err(|error| CodegenError(format!("typed dispatch slot: {error}")))?;
+        .map_err(|error| CodegenError::backend(format!("typed dispatch slot: {error}"), error))?;
         self.builder
             .build_load(ptr_ty(self.context), slot_pointer, "dispatch_function")
             .map(BasicValueEnum::into_pointer_value)
-            .map_err(|error| CodegenError(format!("typed dispatch load: {error}")))
+            .map_err(|error| CodegenError::backend(format!("typed dispatch load: {error}"), error))
     }
 }

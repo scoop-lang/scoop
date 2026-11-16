@@ -16,8 +16,9 @@ pub(super) fn emit_or_reuse_scan_definition<'ctx>(
     }
     let mut words = Vec::new();
     append_scan(scan, &mut words);
-    let count = u32::try_from(words.len())
-        .map_err(|_| CodegenError("scan object exceeds LLVM array length".into()))?;
+    let count = u32::try_from(words.len()).map_err(|cause| {
+        CodegenError::internal_cause("scan object exceeds LLVM array length".into(), cause)
+    })?;
     let i64 = context.i64_type();
     let global = llvm.add_global(i64.array_type(count), None, symbol);
     let base = global.as_pointer_value();

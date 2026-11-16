@@ -14,9 +14,12 @@ fn throw_non_throwable_is_an_error() {
         errors[0].message,
         "cannot throw value of type Int: not a subtype of Throwable"
     );
-    assert_eq!(errors[0].span, Some(value_span));
+    assert_eq!(errors[0].span(), Some(value_span));
     // The user file follows the single complete core file.
-    assert_eq!(errors[0].file, 1);
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
 }
 
 /// A non-Unit function may end with `throw` instead of `return`: the

@@ -127,17 +127,19 @@ impl Lowerer {
             hir::MethodModifier::Open
         };
         let visibility = self.interface_forwarder_visibility(owner, class, &member.signature);
-        let function =
-            self.allocate_synthesized_method(owner, name, signature, modifier, visibility, span);
-        if matches!(role, ForwardingRole::Method) {
-            self.source_function_declarations.insert(
-                function,
-                crate::SourceFunctionDeclaration {
+        let origin = match role {
+            ForwardingRole::Method => {
+                crate::FunctionOrigin::Source(crate::SourceFunctionDeclaration {
                     name: name.clone(),
                     name_span: None,
-                },
-            );
-        }
+                })
+            }
+            ForwardingRole::Getter(property) => crate::FunctionOrigin::Getter(property),
+            ForwardingRole::Setter(property) => crate::FunctionOrigin::Setter(property),
+        };
+        let function = self.allocate_synthesized_method(
+            owner, name, signature, modifier, visibility, span, origin,
+        );
         self.interface_forwarders.insert(
             function,
             InterfaceForwarder {

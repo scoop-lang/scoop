@@ -22,7 +22,7 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
-  {actual = "${debug.result.root.path}", contains = "${work}/cone/target/${target}/build/debug/compile-v3/"},
+  {actual = "${debug.result.root.path}", contains = "${work}/cone/target/${target}/build/debug/toolchains/"},
   {actual = "${debug.result.output}", equals = "${work}/cone/target/${target}/debug/test.cache/local-cache/local-cache.slib"},
   {actual = "${debug.result.observations.child_invocations.length}", equals = 1},
   {file = "${work}/target", exists = false},
@@ -37,7 +37,7 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
-  {actual = "${release.result.root.path}", contains = "${work}/cone/target/${target}/build/release/compile-v3/"},
+  {actual = "${release.result.root.path}", contains = "${work}/cone/target/${target}/build/release/toolchains/"},
   {actual = "${release.result.observations.child_invocations.length}", equals = 1},
   {file = "${debug.result.output}", exists = true},
 ]
@@ -61,7 +61,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${check.result.observations.child_invocations.0.operation}", equals = "check"}, {file = "${work}/cone/target/${target}/build/release/checks-v4", exists = false}]
+checks = [{actual = "${check.result.observations.child_invocations.0.operation}", equals = "check"}, {glob = "${work}/cone/target/${target}/build/release/toolchains/*/checks-v4", equals = []}]
 
 [[steps]]
 name = "doc"
@@ -71,7 +71,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{file = "${work}/cone/target/${target}/build/debug/documentation-v4", type = "directory"}]
+checks = [{glob = "${work}/cone/target/${target}/build/debug/toolchains/*/documentation-v4", not_equals = []}]
 
 [[steps]]
 name = "relocated"
@@ -81,7 +81,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${relocated.result.root.path}", contains = "${work}/out/${target}/build/release/compile-v3/"}, {file = "${work}/published.slib", exists = true}]
+checks = [{actual = "${relocated.result.root.path}", contains = "${work}/out/${target}/build/release/toolchains/"}, {file = "${work}/published.slib", exists = true}]
 
 [[steps]]
 name = "env_cache"
@@ -92,7 +92,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${env_cache.result.root.path}", contains = "${work}/explicit-cache/compile-v3/"}]
+checks = [{actual = "${env_cache.result.root.path}", contains = "${work}/explicit-cache/toolchains/"}]
 
 [[steps]]
 name = "explicit_cache_wins"
@@ -157,11 +157,11 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
-  {actual = "${single_file.result.root.path}", contains = "${work}/target/${target}/build/release/compile-v3/"},
+  {actual = "${single_file.result.root.path}", contains = "${work}/target/${target}/build/release/toolchains/"},
   {file = "${single_file.result.output}.dSYM", exists = false},
   {file = "${single_file.result.output}.debug", exists = false},
-  {glob = "${work}/target/${target}/build/release/executables-v4/program-*/program.dSYM", equals = []},
-  {glob = "${work}/target/${target}/build/release/executables-v4/program-*/program.debug", equals = []},
+  {glob = "${work}/target/${target}/build/release/toolchains/*/executables-v4/program-*/program.dSYM", equals = []},
+  {glob = "${work}/target/${target}/build/release/toolchains/*/executables-v4/program-*/program.debug", equals = []},
   {file = "${work}/source/target", exists = false},
 ]
 

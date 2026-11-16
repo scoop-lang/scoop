@@ -11,7 +11,7 @@ impl Lowerer {
             let span = self
                 .diagnostics
                 .get(before)
-                .and_then(|diagnostic| diagnostic.span)
+                .and_then(|diagnostic| diagnostic.span())
                 .unwrap_or_else(|| match result {
                     DeclarationResult::Function(function) => self.functions[function].span,
                     DeclarationResult::Known(_) => unreachable!("a known result always resolves"),

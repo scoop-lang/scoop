@@ -43,7 +43,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 inkwell::values::BasicMetadataValueEnum::IntValue(value) => {
                     Ok(value.get_type().into())
                 }
-                _ => Err(CodegenError(
+                _ => Err(CodegenError::internal(
                     "boxing leaf ABI accepts only pointers and its internal root count".into(),
                 )),
             })
@@ -62,5 +62,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn box_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("box/unbox emission: {error}"))
+    CodegenError::internal(format!("box/unbox emission: {error}"))
 }

@@ -26,7 +26,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &element_lir_ty,
                     )
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "array_alloc @{} has an invalid result or internal machine-scalar element type",
                         function.symbol()
                     )));
@@ -34,7 +34,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 for (index, element_value) in elements.iter().enumerate() {
                     let actual = function.value_ty(self.globals_arena, *element_value);
                     if actual != element_lir_ty {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "array_alloc @{} element {} has type {}, expected {}",
                             function.symbol(),
                             index,
@@ -47,14 +47,17 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let live = self.materialize_statepoint_live(live, safepoint)?;
                 // LIR provides the complete variable instance extent and storage branch.
                 let td = td.as_pointer_value();
-                let element_count = u64::try_from(elements.len()).map_err(|_| {
-                    CodegenError(format!(
-                        "array_alloc @{} element count does not fit the runtime size word",
-                        function.symbol()
-                    ))
+                let element_count = u64::try_from(elements.len()).map_err(|cause| {
+                    CodegenError::internal_cause(
+                        format!(
+                            "array_alloc @{} element count does not fit the runtime size word",
+                            function.symbol()
+                        ),
+                        cause,
+                    )
                 })?;
                 let total = layout.allocation_size(element_count).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "array allocation @{} exceeds count or target storage limits",
                         function.symbol()
                     ))
@@ -73,10 +76,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 builder
                     .build_store(size_ptr, context.i64_type().const_int(element_count, false))
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "array size @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("array size @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 for (index, element_value) in elements.iter().enumerate() {
                     if matches!(
@@ -94,10 +97,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     builder
                         .build_store(element_ptr, self.value(*element_value)?)
                         .map_err(|e| {
-                            CodegenError(format!(
-                                "array element @{symbol}: {e}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!("array element @{symbol}: {e}", symbol = function.symbol()),
+                                e,
+                            )
                         })?;
                 }
                 self.allocated_array_barrier(

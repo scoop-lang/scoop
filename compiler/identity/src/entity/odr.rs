@@ -246,7 +246,7 @@ impl WireEncode for CallableOdrMemberId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OdrMemberIdentityError {
     RoleDiscriminatorMismatch,
     ExpectedCallableMember,

@@ -52,15 +52,21 @@ pub(in crate::statepoint) fn normalize_loads(
                         "gc.field.address",
                     )
                 }
-                .map_err(|error| CodegenError(format!("aggregate field address: {error}")))?
+                .map_err(|error| {
+                    CodegenError::backend(format!("aggregate field address: {error}"), error)
+                })?
             };
             let part = builder
                 .build_load(field, address, "gc.field")
-                .map_err(|error| CodegenError(format!("aggregate field load: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("aggregate field load: {error}"), error)
+                })?;
             part.as_instruction_value()
                 .unwrap()
                 .set_alignment((1_u64 << (alignment | offset).trailing_zeros()) as u32)
-                .map_err(|error| CodegenError(format!("aggregate field alignment: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("aggregate field alignment: {error}"), error)
+                })?;
             rebuilt = insert(&builder, rebuilt, &path, part)?;
         }
         // SAFETY: rebuilding preserves the original aggregate type and all fields.

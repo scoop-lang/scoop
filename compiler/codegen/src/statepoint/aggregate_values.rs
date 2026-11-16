@@ -183,10 +183,9 @@ impl<'ctx> Splitter<'ctx> {
                 let mut phis = Vec::new();
                 let mut parts = Vec::new();
                 for (path, ty) in shape(value.get_type(), self.space) {
-                    let phi = self
-                        .builder
-                        .build_phi(ty, "gc.part")
-                        .map_err(|error| CodegenError(format!("split aggregate phi: {error}")))?;
+                    let phi = self.builder.build_phi(ty, "gc.part").map_err(|error| {
+                        CodegenError::backend(format!("split aggregate phi: {error}"), error)
+                    })?;
                     parts.push(Part {
                         path,
                         value: phi.as_basic_value(),
@@ -215,7 +214,10 @@ impl<'ctx> Splitter<'ctx> {
                             .builder
                             .build_select(condition, left.value, right.value, "gc.part")
                             .map_err(|error| {
-                                CodegenError(format!("split aggregate select: {error}"))
+                                CodegenError::backend(
+                                    format!("split aggregate select: {error}"),
+                                    error,
+                                )
                             })?;
                         Ok(Part {
                             path: left.path,
@@ -297,7 +299,7 @@ impl<'ctx> Splitter<'ctx> {
                 return extract(&self.builder, part.value, &path[part.path.len()..]);
             }
         }
-        Err(CodegenError(
+        Err(CodegenError::internal(
             "aggregate projection does not select a component".into(),
         ))
     }

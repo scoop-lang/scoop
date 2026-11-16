@@ -67,8 +67,12 @@ pub fn render_c_bridge_source_set(
 pub(crate) fn render_c_bridge_source_set_for_module(
     module: &Module,
 ) -> Result<GeneratedCBridgeSourceSetV1, CodegenError> {
-    let foundation = scoop_lir::ConeLirFoundation::from_module(module)
-        .map_err(|error| CodegenError(format!("cannot seal generated C bridge input: {error}")))?;
+    let foundation = scoop_lir::ConeLirFoundation::from_module(module).map_err(|error| {
+        CodegenError::internal_cause(
+            format!("cannot seal generated C bridge input: {error}"),
+            error,
+        )
+    })?;
     render_source_set(module, &foundation)
 }
 
@@ -78,7 +82,10 @@ fn render_source_set(
 ) -> Result<GeneratedCBridgeSourceSetV1, CodegenError> {
     let plan =
         scoop_lir::GeneratedBridgePlanSetV1::from_foundation(foundation).map_err(|error| {
-            CodegenError(format!("cannot plan generated C bridge sources: {error}"))
+            CodegenError::internal_cause(
+                format!("cannot plan generated C bridge sources: {error}"),
+                error,
+            )
         })?;
     if plan.units().is_empty() {
         return Ok(GeneratedCBridgeSourceSetV1 {
@@ -206,7 +213,7 @@ fn render_unit(
 }
 
 fn missing_unit_source(unit: scoop_lir::GeneratedBridgeUnitId) -> CodegenError {
-    CodegenError(format!(
+    CodegenError::internal(format!(
         "generated bridge unit {unit} has no matching LIR source entity"
     ))
 }

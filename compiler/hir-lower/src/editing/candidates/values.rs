@@ -71,7 +71,7 @@ impl Lowerer {
     }
 
     fn editing_function_value_candidate(
-        &self,
+        &mut self,
         call: &ast::RecoveredCall,
         function: hir::FunctionTypeId,
         receiver: Option<hir::TypeId>,

@@ -17,23 +17,23 @@ pub(super) fn materialize(
         .transpose()?;
     for definition in atoms {
         let name = definition.primary_symbol().symbol();
-        let primary = output
-            .original_symbol(name.as_str())
-            .ok_or_else(|| CodegenError(format!("missing ELF bridge definition `{name}`")))?;
+        let primary = output.original_symbol(name.as_str()).ok_or_else(|| {
+            CodegenError::internal(format!("missing ELF bridge definition `{name}`"))
+        })?;
         let section_index = primary
             .section_index()
-            .ok_or_else(|| CodegenError(format!("ELF bridge `{name}` is undefined")))?;
+            .ok_or_else(|| CodegenError::internal(format!("ELF bridge `{name}` is undefined")))?;
         let start = primary.address();
         let end = start
             .checked_add(primary.size())
-            .ok_or_else(|| CodegenError("ELF bridge extent overflows".into()))?;
+            .ok_or_else(|| CodegenError::internal("ELF bridge extent overflows".into()))?;
         output.existing_boundary(name.as_str(), LinkageClass::ConeStrong, false)?;
         for boundary in definition.atom_boundaries() {
             let (section, start, end) = match boundary.atom_role() {
                 scoop_lir::DefinitionAtomRole::Primary => (section_index, start, end),
                 scoop_lir::DefinitionAtomRole::EhFrame => {
                     let section = output.file.section_by_name(".eh_frame").ok_or_else(|| {
-                        CodegenError("ELF generated-C bridge has no unwind table".into())
+                        CodegenError::internal("ELF generated-C bridge has no unwind table".into())
                     })?;
                     let (start, end) = super::unwind::require(
                         unwind_ranges.as_ref().expect("EH section was parsed"),
@@ -43,7 +43,7 @@ pub(super) fn materialize(
                     (section.index(), start, end)
                 }
                 role => {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "unexpected generated-C ELF atom {role:?}"
                     )));
                 }

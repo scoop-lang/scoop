@@ -1,6 +1,6 @@
 use crate::{MethodId, Reference};
 use scoop_identity::{ConeIdentity, SourceIdentity};
-use scoop_source::{Diagnostic, DiagnosticSeverity, Span};
+use scoop_source::{DiagnosticSeverity, Span};
 use serde::{Deserialize, Serialize};
 
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -80,31 +80,23 @@ pub struct GeneratorNote {
 }
 
 impl GeneratorDiagnostic {
-    pub fn from_diagnostic(
-        diagnostic: &Diagnostic,
-        fallback: &scoop_hir::SemanticSourceLocation,
-    ) -> Self {
+    pub fn from_diagnostic(diagnostic: &scoop_source::SourceDiagnostic) -> Self {
         Self {
             severity: match diagnostic.severity {
                 DiagnosticSeverity::Error => GeneratorSeverity::Error,
                 DiagnosticSeverity::Warning => GeneratorSeverity::Warning,
             },
             message: diagnostic.message.clone(),
-            location: diagnostic.span.map(|span| {
-                SourceLocation::new(
-                    diagnostic.source.as_deref().unwrap_or(&fallback.source),
-                    span,
-                )
-            }),
+            location: diagnostic
+                .source()
+                .zip(diagnostic.span())
+                .map(|(source, span)| SourceLocation::new(source, span)),
             notes: diagnostic
                 .notes
                 .iter()
                 .map(|note| GeneratorNote {
                     message: note.message.clone(),
-                    location: SourceLocation::new(
-                        note.source.as_deref().unwrap_or(&fallback.source),
-                        note.span,
-                    ),
+                    location: SourceLocation::new(&note.source, note.span),
                 })
                 .collect(),
         }

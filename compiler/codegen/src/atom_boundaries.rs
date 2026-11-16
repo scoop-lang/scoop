@@ -43,7 +43,7 @@ pub(crate) fn emit_global_atom_boundaries_v1<'ctx>(
             std::collections::btree_map::Entry::Occupied(entry)
                 if *entry.get() == materialization.owner => {}
             std::collections::btree_map::Entry::Occupied(_) => {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "strong atom {} has multiple LLVM global owners",
                     materialization.atom
                 )));
@@ -53,7 +53,7 @@ pub(crate) fn emit_global_atom_boundaries_v1<'ctx>(
 
     for (atom, owner) in atoms {
         let boundary = surface.atom_boundary(atom).ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "LLVM global materializes unplanned strong atom {atom}"
             ))
         })?;
@@ -93,8 +93,9 @@ fn add_external_alias(
 ) -> Result<(), CodegenError> {
     let symbol = request.symbol();
     let name = symbol.as_str();
-    let c_name = CString::new(name)
-        .map_err(|_| CodegenError("strong atom boundary contains NUL".to_string()))?;
+    let c_name = CString::new(name).map_err(|cause| {
+        CodegenError::internal_cause("strong atom boundary contains NUL".to_string(), cause)
+    })?;
     let alias = unsafe {
         LLVMAddAlias2(
             llvm.as_mut_ptr(),
@@ -127,9 +128,9 @@ pub(crate) fn materialize_global_linkages_v1(
     let normalization = target.contract().native_symbol_normalization();
     let mut names = Vec::new();
     for definition in definitions {
-        let plan = surface
-            .plan(*definition)
-            .ok_or_else(|| CodegenError(format!("missing atom definition {definition}")))?;
+        let plan = surface.plan(*definition).ok_or_else(|| {
+            CodegenError::internal(format!("missing atom definition {definition}"))
+        })?;
         if plan.primary_symbol().linkage() != scoop_lir::LinkageClass::OdrWeak {
             continue;
         }

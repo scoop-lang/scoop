@@ -59,7 +59,7 @@ impl MetadataModule<'_> {
                 {
                     Ok(handle) => handles.push(handle),
                     Err(error) => {
-                        spawn_error = Some(CodegenError(format!(
+                        spawn_error = Some(CodegenError::internal(format!(
                             "cannot start LLVM metadata worker: {error}"
                         )));
                         break;
@@ -68,11 +68,11 @@ impl MetadataModule<'_> {
             }
             let mut batches = vec![emit_group(first, profile, emit)];
             for handle in handles {
-                batches.push(
-                    handle.join().unwrap_or_else(|_| {
-                        Err(CodegenError("LLVM metadata worker panicked".into()))
-                    }),
-                );
+                batches.push(handle.join().unwrap_or_else(|_| {
+                    Err(CodegenError::internal(
+                        "LLVM metadata worker panicked".into(),
+                    ))
+                }));
             }
             if let Some(error) = spawn_error {
                 return Err(error);
@@ -143,8 +143,9 @@ fn emit_group<T>(
     let context = Context::create();
     let machine = profile.create_target_machine()?;
     let buffer = MemoryBuffer::create_from_memory_range(&group.bitcode, &group.module_name);
-    let llvm = Module::parse_bitcode_from_buffer(&buffer, &context)
-        .map_err(|error| CodegenError(format!("cannot load metadata subtree: {error}")))?;
+    let llvm = Module::parse_bitcode_from_buffer(&buffer, &context).map_err(|error| {
+        CodegenError::backend(format!("cannot load metadata subtree: {error}"), error)
+    })?;
     llvm.set_name(&group.module_name);
     let metadata = MetadataModule {
         llvm,

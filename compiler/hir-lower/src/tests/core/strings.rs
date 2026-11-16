@@ -262,7 +262,10 @@ fn string_intrinsics_reject_wrong_signature_at_the_declaration() {
             .iter()
             .find(|e| e.message == message)
             .unwrap_or_else(|| panic!("{errors:?}"));
-        assert_eq!(error.file, 0);
-        assert_eq!(error.span, Some(span));
+        assert_eq!(
+            diagnostic_source(error),
+            &core_source_identity("src/core.scoop")
+        );
+        assert_eq!(error.span(), Some(span));
     }
 }

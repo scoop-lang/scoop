@@ -6,24 +6,34 @@ pub(super) fn actual(
     input: LayoutAbiExportInputV1<'_>,
     result: &lir::LayoutAbiExportConstituentsV1,
 ) {
-    assert_eq!(
-        result.descriptors().records().len(),
-        input.lir.module().meta.type_descriptors.len(),
-        "descriptors without MIR exports: {:?}",
-        input
-            .lir
+    let mut exported = 0;
+    for (_, descriptor) in input.lir.module().meta.type_descriptors.iter() {
+        let exact = descriptor.identity.exact_type();
+        let private_start_work = input
+            .mir
             .module()
             .meta
-            .type_descriptors
-            .iter()
-            .filter(|(_, descriptor)| input
-                .bridge
-                .types()
-                .get(descriptor.identity.exact_type())
-                .is_none())
-            .map(|(_, descriptor)| &descriptor.diagnostic_name)
-            .collect::<Vec<_>>()
-    );
+            .generated_exact_types
+            .get_by_identity(exact)
+            .is_some_and(|identity| {
+                matches!(
+                    identity.nominal_record().key(),
+                    scoop_identity::GeneratedNominalKey::CoroutineStartWork { .. }
+                )
+            });
+        if private_start_work {
+            assert!(input.bridge.types().get(exact).is_none());
+            assert!(result.descriptors().get(exact).is_none());
+        } else {
+            assert!(
+                result.descriptors().get(exact).is_some(),
+                "missing descriptor export: {}",
+                descriptor.diagnostic_name
+            );
+            exported += 1;
+        }
+    }
+    assert_eq!(result.descriptors().records().len(), exported);
     contents(input, result);
     zero_sized_abi(result);
 }

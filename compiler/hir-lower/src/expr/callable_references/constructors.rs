@@ -107,7 +107,7 @@ impl Lowerer {
         &self,
         candidate: &ConstructorReferenceCandidate,
         context: ReferenceResolutionContext<'_>,
-    ) -> Result<Option<ApplicableReference>, ReferenceFailure> {
+    ) -> Result<Option<ApplicableReference>, super::resolution::ReferenceProbeError> {
         let mut state = self.clone();
         let fail = |reason: String| ReferenceFailure {
             signature: format!("constructor `{}`", context.name),
@@ -136,13 +136,16 @@ impl Lowerer {
                 expected_type: context.expected.map(|(ty, _)| *ty),
             })
             .map_err(|failure| {
-                fail(failure.describe(|constraint| {
+                if let crate::call_resolution::applicability::ReferenceApplicabilityFailure::Internal(error) = failure {
+                    return super::resolution::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(error));
+                }
+                super::resolution::ReferenceProbeError::Rejected(fail(failure.describe(|constraint| {
                     state.render_imported_constraint_failure(
                         &declaration.signature.owner_parameters,
                         &declaration.signature.callable_parameters,
                         constraint,
                     )
-                }))
+                })))
             })?;
         Ok(Some(ApplicableReference {
             state: Box::new(state),

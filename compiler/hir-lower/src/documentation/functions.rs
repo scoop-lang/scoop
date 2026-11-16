@@ -6,7 +6,7 @@ impl Lowerer {
         id: hir::FunctionId,
         source: ast::FunctionHeaderRef<'_>,
     ) {
-        if self.documentation.is_none() || !self.source_function_declarations.contains_key(&id) {
+        if self.documentation.is_none() || !self.functions.source(id).is_some() {
             return;
         }
         let callable = Callable::Function(id);

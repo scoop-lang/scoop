@@ -72,5 +72,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn string_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("bounded String read: {error}"))
+    CodegenError::internal(format!("bounded String read: {error}"))
 }

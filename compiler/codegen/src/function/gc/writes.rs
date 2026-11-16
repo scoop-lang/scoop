@@ -24,7 +24,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         }
         self.builder
             .build_store(address, value)
-            .map_err(|error| CodegenError(format!("heap value store: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("heap value store: {error}"), error))?;
         if let [offset] = references.as_slice() {
             // An array, including all of its elements, occupies one mapping.
             let region = self.array_card_region(array)?;
@@ -98,11 +98,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 context.i64_type().const_int(4, false),
                 AtomicOrdering::Release,
             )
-            .map_err(|error| CodegenError(format!("publish release ready: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("publish release ready: {error}"), error)
+            })?;
         Ok(())
     }
 }
 
 fn write_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("guarded reference write: {error}"))
+    CodegenError::internal(format!("guarded reference write: {error}"))
 }

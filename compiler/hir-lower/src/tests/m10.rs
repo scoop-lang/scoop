@@ -102,7 +102,10 @@ fn rejects_malformed_continuation_core_contract() {
                 .starts_with("interface `Continuation<T>` in scoop.core must declare exactly")
         })
         .expect("Continuation contract diagnostic");
-    assert_eq!(contract.file, 0);
+    assert_eq!(
+        diagnostic_source(contract),
+        &core_source_identity("src/core.scoop")
+    );
 }
 
 #[test]
@@ -130,7 +133,10 @@ fn rejects_malformed_coroutine_start_intrinsic() {
                 .starts_with("intrinsic `coroutine_start` must have signature")
         })
         .expect("coroutine_start contract diagnostic");
-    assert_eq!(contract.file, 0);
+    assert_eq!(
+        diagnostic_source(contract),
+        &core_source_identity("src/core.scoop")
+    );
 }
 
 #[test]
@@ -156,7 +162,10 @@ fn rejects_non_suspend_coroutine_suspend_intrinsic() {
                 .starts_with("intrinsic `coroutine_suspend` must have signature")
         })
         .expect("coroutine_suspend contract diagnostic");
-    assert_eq!(contract.file, 0);
+    assert_eq!(
+        diagnostic_source(contract),
+        &core_source_identity("src/core.scoop")
+    );
 }
 
 #[test]

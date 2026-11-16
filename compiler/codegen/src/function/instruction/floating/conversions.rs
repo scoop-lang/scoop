@@ -35,14 +35,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     .and_then(|intrinsic| {
                         intrinsic.get_declaration(self.llvm, &[target.into(), source.into()])
                     })
-                    .ok_or_else(|| CodegenError(format!("LLVM lacks required intrinsic {name}")))?;
+                    .ok_or_else(|| {
+                        CodegenError::internal(format!("LLVM lacks required intrinsic {name}"))
+                    })?;
                 // Saturate at the requested width; narrowing an i64 result is incorrect.
                 self.builder
                     .build_call(declaration, &[operand.into()], "float.to_int")
                     .map_err(float_error)?
                     .try_as_basic_value()
                     .basic()
-                    .ok_or_else(|| CodegenError(format!("{name} must return its target integer")))
+                    .ok_or_else(|| {
+                        CodegenError::internal(format!("{name} must return its target integer"))
+                    })
             }
             FloatConversion::BetweenFloats { source, target } => {
                 if source == target {

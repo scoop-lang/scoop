@@ -80,9 +80,11 @@ pub(super) fn parse(
                 origin: method.origin,
             }),
             Err(diagnostics) => errors.extend(diagnostics.into_iter().map(|mut error| {
-                error.source = Some(Box::new(source.identity.clone()));
+                error.set_source(source.identity.clone());
                 for note in &mut error.notes {
-                    note.source = Some(Box::new(source.identity.clone()));
+                    note.source = scoop_source::LocalDiagnosticSource::Bound(Box::new(
+                        source.identity.clone(),
+                    ));
                 }
                 error
                     .notes

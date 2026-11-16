@@ -11,7 +11,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         match instruction {
             Instruction::FunctionAddress { out, target } => {
                 if function.temps[*out].ty != scoop_lir::CODE_PTR {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "function_address @{} must produce ptr<code>",
                         function.symbol()
                     )));
@@ -25,7 +25,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     }
                 };
                 let function_value = self.llvm.get_function(symbol).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "function_address @{}: unknown function @{}",
                         function.symbol(),
                         symbol
@@ -48,7 +48,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if closure_ty != scoop_lir::MANAGED_PTR
                     || out_ty != &LirType::Struct(family.callback)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "foreign callback registration @{} requires a managed closure and its exact nominal callback result, got closure {} and result {}",
                         function.symbol(),
                         closure_ty.dump(),
@@ -62,7 +62,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         self.functions[bridge.adapter.declaration().into_u32() as usize].symbol(),
                     )
                     .ok_or_else(|| {
-                        CodegenError(format!(
+                        CodegenError::internal(format!(
                             "foreign callback adapter @{} was not emitted",
                             self.functions[bridge.adapter.declaration().into_u32() as usize]
                                 .symbol()
@@ -103,7 +103,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         "foreign_callback_context",
                     )
                     .map_err(|error| {
-                        CodegenError(format!("foreign callback registration: {error}"))
+                        CodegenError::backend(
+                            format!("foreign callback registration: {error}"),
+                            error,
+                        )
                     })?
                     .try_as_basic_value()
                     .basic()
@@ -134,7 +137,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         )
                     })
                     .map_err(|error| {
-                        CodegenError(format!("construct foreign callback value: {error}"))
+                        CodegenError::backend(
+                            format!("construct foreign callback value: {error}"),
+                            error,
+                        )
                     })?;
                 self.temps.insert(*out, value.into_struct_value().into());
             }
@@ -143,11 +149,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let callback = self.value(operation.callback())?.into_struct_value();
                 let function_pointer = builder
                     .build_extract_value(callback, 0, "callback_function")
-                    .map_err(|error| CodegenError(format!("extract callback function: {error}")))?
+                    .map_err(|error| {
+                        CodegenError::backend(format!("extract callback function: {error}"), error)
+                    })?
                     .into_pointer_value();
                 let callback_context = builder
                     .build_extract_value(callback, 1, "callback_context")
-                    .map_err(|error| CodegenError(format!("extract callback context: {error}")))?
+                    .map_err(|error| {
+                        CodegenError::backend(format!("extract callback context: {error}"), error)
+                    })?
                     .into_pointer_value();
                 match *operation {
                     scoop_lir::ForeignCallbackOperation::Retain { out, .. } => {
@@ -158,7 +168,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let retained = builder
                             .build_call(retain, &[callback_context.into()], "retained_context")
                             .map_err(|error| {
-                                CodegenError(format!("retain foreign callback: {error}"))
+                                CodegenError::backend(
+                                    format!("retain foreign callback: {error}"),
+                                    error,
+                                )
                             })?
                             .try_as_basic_value()
                             .basic()
@@ -188,7 +201,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 )
                             })
                             .map_err(|error| {
-                                CodegenError(format!("construct retained callback: {error}"))
+                                CodegenError::backend(
+                                    format!("construct retained callback: {error}"),
+                                    error,
+                                )
                             })?;
                         self.temps.insert(out, value.into_struct_value().into());
                     }
@@ -202,7 +218,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         builder
                             .build_call(release, &[callback_context.into()], "")
                             .map_err(|error| {
-                                CodegenError(format!("release foreign callback: {error}"))
+                                CodegenError::backend(
+                                    format!("release foreign callback: {error}"),
+                                    error,
+                                )
                             })?;
                     }
                     scoop_lir::ForeignCallbackOperation::Failure { out, .. } => {
@@ -214,7 +233,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let value = builder
                             .build_call(failure, &[callback_context.into()], "callback_failure")
                             .map_err(|error| {
-                                CodegenError(format!("query callback failure: {error}"))
+                                CodegenError::backend(
+                                    format!("query callback failure: {error}"),
+                                    error,
+                                )
                             })?
                             .try_as_basic_value()
                             .basic()
@@ -233,7 +255,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let state = builder
                             .build_call(state, &[callback_context.into()], "callback_state")
                             .map_err(|error| {
-                                CodegenError(format!("query callback state: {error}"))
+                                CodegenError::backend(
+                                    format!("query callback state: {error}"),
+                                    error,
+                                )
                             })?
                             .try_as_basic_value()
                             .basic()
@@ -247,7 +272,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 "callback_state_valid",
                             )
                             .map_err(|error| {
-                                CodegenError(format!("validate callback state: {error}"))
+                                CodegenError::backend(
+                                    format!("validate callback state: {error}"),
+                                    error,
+                                )
                             })?;
                         let valid_block =
                             context.append_basic_block(self.llvm_function, "callback_state_valid");
@@ -256,7 +284,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         builder
                             .build_conditional_branch(valid, valid_block, invalid_block)
                             .map_err(|error| {
-                                CodegenError(format!("branch on callback state: {error}"))
+                                CodegenError::backend(
+                                    format!("branch on callback state: {error}"),
+                                    error,
+                                )
                             })?;
                         builder.position_at_end(invalid_block);
                         let trap = self.gc_leaf_fn(
@@ -275,11 +306,17 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             builder
                                 .build_call(trap, &[reason.into()], "")
                                 .map_err(|error| {
-                                    CodegenError(format!("trap invalid callback state: {error}"))
+                                    CodegenError::backend(
+                                        format!("trap invalid callback state: {error}"),
+                                        error,
+                                    )
                                 })?;
                         self.mark_stack_trace_site(call);
                         builder.build_unreachable().map_err(|error| {
-                            CodegenError(format!("trap invalid callback state: {error}"))
+                            CodegenError::backend(
+                                format!("trap invalid callback state: {error}"),
+                                error,
+                            )
                         })?;
                         builder.position_at_end(valid_block);
                         let state_tag = |wire_code: u64,
@@ -294,7 +331,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     "callback_state_case",
                                 )
                                 .map_err(|error| {
-                                    CodegenError(format!("decode callback state: {error}"))
+                                    CodegenError::backend(
+                                        format!("decode callback state: {error}"),
+                                        error,
+                                    )
                                 })?;
                             builder
                                 .build_select(
@@ -307,7 +347,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 )
                                 .map(|value| value.into_int_value())
                                 .map_err(|error| {
-                                    CodegenError(format!("decode callback state: {error}"))
+                                    CodegenError::backend(
+                                        format!("decode callback state: {error}"),
+                                        error,
+                                    )
                                 })
                         };
                         let states = family.states;
@@ -335,16 +378,25 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         builder
                             .build_store(slot, ty.const_zero())
                             .map_err(|error| {
-                                CodegenError(format!("zero callback state: {error}"))
+                                CodegenError::backend(
+                                    format!("zero callback state: {error}"),
+                                    error,
+                                )
                             })?;
                         let tag = self.tag_ptr(slot, ty)?;
                         builder.build_store(tag, state).map_err(|error| {
-                            CodegenError(format!("construct callback state: {error}"))
+                            CodegenError::backend(
+                                format!("construct callback state: {error}"),
+                                error,
+                            )
                         })?;
                         let value = builder
                             .build_load(ty, slot, "callback_state_value")
                             .map_err(|error| {
-                                CodegenError(format!("load callback state: {error}"))
+                                CodegenError::backend(
+                                    format!("load callback state: {error}"),
+                                    error,
+                                )
                             })?;
                         self.temps.insert(out, value);
                     }

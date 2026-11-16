@@ -26,26 +26,26 @@ pub(super) fn marker_core() -> TrustedCoreFixture {
 pub(super) fn lower(
     text: &str,
     role: SourceRole,
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     lower_files(&[("tests/check.scoop", text, role)])
 }
 
 pub(super) fn lower_files(
     files: &[(&str, &str, SourceRole)],
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     lower_mode(files, false)
 }
 
 pub(super) fn lower_tests(
     files: &[(&str, &str, SourceRole)],
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     lower_mode(files, true)
 }
 
 fn lower_mode(
     files: &[(&str, &str, SourceRole)],
     tests: bool,
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let sources = parsed_sources(files, tests);
     let cone = sources.cone();
     let core = marker_core();

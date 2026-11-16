@@ -36,12 +36,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             let descriptor = self
                 .runtime_scans
                 .emit(root.scan.as_ref_scan())?
-                .ok_or_else(|| CodegenError("caller root has an empty runtime scan".to_string()))?;
+                .ok_or_else(|| {
+                    CodegenError::internal("caller root has an empty runtime scan".to_string())
+                })?;
             entries.push((storage.pointer, descriptor));
         }
         if let Some((storage, scan)) = result_root {
             let descriptor = self.runtime_scans.emit(scan)?.ok_or_else(|| {
-                CodegenError("native result root has an empty runtime scan".to_string())
+                CodegenError::internal("native result root has an empty runtime scan".to_string())
             })?;
             entries.push((storage, descriptor));
         }
@@ -50,14 +52,20 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let entries_pointer = if entries.is_empty() {
             ptr.const_null()
         } else {
-            let entry_count = u32::try_from(entries.len()).map_err(|_| {
-                CodegenError("caller-root entry count exceeds u32::MAX".to_string())
+            let entry_count = u32::try_from(entries.len()).map_err(|cause| {
+                CodegenError::internal_cause(
+                    "caller-root entry count exceeds u32::MAX".to_string(),
+                    cause,
+                )
             })?;
             let array_ty = entry_ty.array_type(entry_count);
             let array = self.entry_alloca(array_ty.into(), "caller_root_entries")?;
             for (index, (base, scan)) in entries.into_iter().enumerate() {
-                let index = u64::try_from(index).map_err(|_| {
-                    CodegenError("caller-root entry index exceeds u64::MAX".to_string())
+                let index = u64::try_from(index).map_err(|cause| {
+                    CodegenError::internal_cause(
+                        "caller-root entry index exceeds u64::MAX".to_string(),
+                        cause,
+                    )
                 })?;
                 // SAFETY: `index` is within the statically-sized entries array.
                 let entry = unsafe {
@@ -71,19 +79,25 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         "caller_root_entry",
                     )
                 }
-                .map_err(|error| CodegenError(format!("caller-root entry GEP: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("caller-root entry GEP: {error}"), error)
+                })?;
                 let base_field = builder
                     .build_struct_gep(entry_ty, entry, 0, "caller_root_base")
-                    .map_err(|error| CodegenError(format!("caller-root base GEP: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("caller-root base GEP: {error}"), error)
+                    })?;
                 let scan_field = builder
                     .build_struct_gep(entry_ty, entry, 1, "caller_root_scan")
-                    .map_err(|error| CodegenError(format!("caller-root scan GEP: {error}")))?;
-                builder
-                    .build_store(base_field, base)
-                    .map_err(|error| CodegenError(format!("publish caller-root base: {error}")))?;
-                builder
-                    .build_store(scan_field, scan)
-                    .map_err(|error| CodegenError(format!("publish caller-root scan: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("caller-root scan GEP: {error}"), error)
+                    })?;
+                builder.build_store(base_field, base).map_err(|error| {
+                    CodegenError::backend(format!("publish caller-root base: {error}"), error)
+                })?;
+                builder.build_store(scan_field, scan).map_err(|error| {
+                    CodegenError::backend(format!("publish caller-root scan: {error}"), error)
+                })?;
             }
             array
         };
@@ -92,7 +106,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let frame = self.entry_alloca(frame_ty.into(), "caller_root_frame")?;
         builder
             .build_store(frame, frame_ty.const_zero())
-            .map_err(|error| CodegenError(format!("zero caller-root frame: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("zero caller-root frame: {error}"), error)
+            })?;
         let push = self.native_boundary_fn(
             scoop_lir::RuntimeAbiSymbolV1::PushCallerRoots.logical_symbol(),
             context
@@ -103,7 +119,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .len()
             .checked_add(usize::from(result_root.is_some()))
             .and_then(|count| u64::try_from(count).ok())
-            .ok_or_else(|| CodegenError("caller-root count exceeds u64::MAX".to_string()))?;
+            .ok_or_else(|| {
+                CodegenError::internal("caller-root count exceeds u64::MAX".to_string())
+            })?;
         builder
             .build_call(
                 push,
@@ -114,7 +132,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 ],
                 "push_caller_roots",
             )
-            .map_err(|error| CodegenError(format!("push caller roots: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("push caller roots: {error}"), error))?;
 
         let transition_ty = context.struct_type(
             &[
@@ -133,10 +151,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let transition = self.entry_alloca(transition_ty.into(), "native_transition")?;
         builder
             .build_store(transition, transition_ty.const_zero())
-            .map_err(|error| CodegenError(format!("zero native transition: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("zero native transition: {error}"), error)
+            })?;
         let stack_pointer = builder
             .build_ptr_to_int(transition, i64_ty, "managed_stack_pointer")
-            .map_err(|error| CodegenError(format!("managed stack pointer: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("managed stack pointer: {error}"), error)
+            })?;
         let enter_symbol = match kind {
             NativeTransitionKind::Safe => {
                 scoop_lir::RuntimeAbiSymbolV1::EnterNativeSafe.logical_symbol()
@@ -189,7 +211,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         );
         self.builder
             .build_call(leave, &[native.transition.into()], "leave_native")
-            .map_err(|error| CodegenError(format!("leave native transition: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("leave native transition: {error}"), error)
+            })?;
 
         Ok(())
     }
@@ -206,7 +230,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         );
         self.builder
             .build_call(pop, &[native.frame.into()], "pop_caller_roots")
-            .map_err(|error| CodegenError(format!("pop caller roots: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("pop caller roots: {error}"), error))?;
         Ok(())
     }
 

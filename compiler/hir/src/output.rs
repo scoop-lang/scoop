@@ -300,7 +300,7 @@ impl crate::Output {
         export: ExportHirOutput,
         local: LocalConcreteHirOutput,
         native_boundary_types: HirNativeBoundaryTypeDefinitions,
-        warnings: Vec<scoop_ast::Diagnostic>,
+        warnings: Vec<scoop_source::SourceDiagnostic>,
     ) -> Result<Self, HirOutputError> {
         if !matches!(
             (

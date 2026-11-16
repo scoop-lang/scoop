@@ -245,7 +245,7 @@ fn malformed_for_recovery_reaches_later_statements_and_declarations() {
         ]
     );
     assert!(diagnostics.windows(2).all(|pair| {
-        pair[0].span.expect("spanned").start < pair[1].span.expect("spanned").start
+        pair[0].span().expect("spanned").start < pair[1].span().expect("spanned").start
     }));
 }
 

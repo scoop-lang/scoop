@@ -68,7 +68,7 @@ impl<'a, 'ctx> CallableRuntimeScanEmitter<'a, 'ctx> {
                 element,
             } => {
                 let child = self.emit(element.as_ref_scan())?.ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "callable {} has an empty array-element runtime scan",
                         self.plan.body()
                     ))
@@ -96,19 +96,20 @@ impl<'a, 'ctx> CallableRuntimeScanEmitter<'a, 'ctx> {
             .iter()
             .find(|cell| cell.key == key)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "callable {} has no Context key {key:?}",
                     self.plan.body()
                 ))
             })?;
-        let boundary = self
-            .surface
-            .atom_boundary(cell.atom)
-            .ok_or_else(|| CodegenError(format!("Context cell {} has no boundary", cell.atom)))?;
+        let boundary = self.surface.atom_boundary(cell.atom).ok_or_else(|| {
+            CodegenError::internal(format!("Context cell {} has no boundary", cell.atom))
+        })?;
         self.llvm
             .get_global(boundary.start().symbol().as_str())
             .map(|global| global.as_pointer_value())
-            .ok_or_else(|| CodegenError(format!("Context cell {} was not emitted", cell.atom)))
+            .ok_or_else(|| {
+                CodegenError::internal(format!("Context cell {} was not emitted", cell.atom))
+            })
     }
 
     fn emit_planned_atom(
@@ -116,13 +117,13 @@ impl<'a, 'ctx> CallableRuntimeScanEmitter<'a, 'ctx> {
         value: BasicValueEnum<'ctx>,
     ) -> Result<PointerValue<'ctx>, CodegenError> {
         let planned = self.plan.atoms().get(self.next).ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "callable {} emitted more runtime scan atoms than planned",
                 self.plan.body()
             ))
         })?;
         let boundary = self.surface.atom_boundary(planned.atom()).ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "callable runtime scan atom {} has no strong boundary plan",
                 planned.atom()
             ))

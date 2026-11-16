@@ -13,7 +13,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if function.temps[*out].ty != LirType::I64
                     || function.value_ty(self.globals_arena, *operand) != scoop_lir::MANAGED_PTR
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "array_len @{} requires ptr<managed> -> i64",
                         function.symbol()
                     )));
@@ -24,10 +24,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let size = builder
                     .build_load(context.i64_type(), size_ptr, &name)
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "array_len @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("array_len @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 self.temps.insert(*out, size);
             }
@@ -46,7 +46,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     || array_ty != scoop_lir::MANAGED_PTR
                     || index_ty != LirType::I64
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "array_get @{} requires ptr<managed>[i64] -> {}, got {}[{}] -> {}",
                         function.symbol(),
                         array_metadata.element.dump(),
@@ -76,10 +76,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let value = builder
                     .build_load(element_ty, element_ptr, &name)
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "array_get @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("array_get @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 self.temps.insert(*out, value);
             }
@@ -98,7 +98,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     || index_ty != LirType::I64
                     || value_ty != array_metadata.element
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "array_set @{} requires ptr<managed>[i64] = {}, got {}[{}] = {}",
                         function.symbol(),
                         array_metadata.element.dump(),

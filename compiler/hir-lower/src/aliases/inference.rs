@@ -73,7 +73,11 @@ impl Lowerer {
                     arguments,
                 ))
             }
-            Err(failure) => {
+            Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
+                self.diagnostics.push(ast::Diagnostic::internal(error));
+                None
+            }
+            Err(crate::call_resolution::constraints::InferenceFailure::Constraint(failure)) => {
                 let reason = self.render_imported_constraint_failure(
                     &[],
                     &mapped.signature.callable_parameters,

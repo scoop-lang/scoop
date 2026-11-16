@@ -61,7 +61,7 @@ fn documentation_pipeline_checks_bodies_and_shares_hir_with_artifact_production(
     assert!(!artifact_path.exists());
     let warnings = documentation.warnings().diagnostics();
     assert_eq!(warnings.len(), 1);
-    let span = warnings[0].span.unwrap();
+    let span = warnings[0].span().unwrap();
     assert_eq!(&SOURCE[span.start as usize..span.end as usize], "Missing");
     assert!(
         documentation.warnings().structured().unwrap()[0]

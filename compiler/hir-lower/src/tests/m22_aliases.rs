@@ -474,10 +474,11 @@ fn direct_and_indirect_alias_cycles_report_the_closing_reference() {
     .expect_err("recursive aliases must be rejected");
 
     assert_eq!(errors.len(), 2);
-    assert!(errors.iter().all(|diagnostic| diagnostic.file == 1));
-    assert_eq!(errors[0].span, Some(direct_reference));
+    assert!(errors.iter().all(|diagnostic| diagnostic_source(diagnostic)
+        == &scoop_identity::SourceIdentity::single_file()));
+    assert_eq!(errors[0].span(), Some(direct_reference));
     assert_eq!(errors[0].message, "typealias cycle: Direct -> Direct");
-    assert_eq!(errors[1].span, Some(right_to_left_reference));
+    assert_eq!(errors[1].span(), Some(right_to_left_reference));
     assert_eq!(errors[1].message, "typealias cycle: Left -> Right -> Left");
 }
 
@@ -575,7 +576,10 @@ fn private_alias_is_only_visible_in_its_declaration_file() {
     let errors = lower(&[core_file(), source, consumer])
         .expect_err("a private alias must not be visible in another file");
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].file, 2);
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
     assert_eq!(
         errors[0].message,
         "typealias `Secret` is not accessible from this source location"
@@ -600,7 +604,10 @@ fn private_alias_is_rejected_in_cross_file_expression_position() {
     let errors = lower(&[core_file(), source, consumer])
         .expect_err("a private alias cannot qualify an expression from another file");
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].file, 2);
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
     assert_eq!(
         errors[0].message,
         "typealias `Secret` is not accessible from this source location"
@@ -633,7 +640,10 @@ fn alias_qualified_const_reads_preserve_access_diagnostics() {
     let errors = lower(&[core_file(), source, consumer])
         .expect_err("an inaccessible alias must not qualify a const initializer");
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].file, 2);
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
     assert_eq!(
         errors[0].message,
         "typealias `SecretConstants` is not accessible from this source location"

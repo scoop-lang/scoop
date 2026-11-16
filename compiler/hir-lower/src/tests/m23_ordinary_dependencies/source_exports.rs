@@ -62,7 +62,7 @@ fn source_export_failure_keeps_real_source_diagnostics() {
     assert!(errors.iter().any(|error| error.message.contains("missing")));
     assert!(errors.iter().all(|error| {
         error
-            .source
+            .source()
             .as_ref()
             .is_some_and(|identity| identity.cone() == source.cone())
     }));

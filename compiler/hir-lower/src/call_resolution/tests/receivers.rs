@@ -59,7 +59,7 @@ fn mixed_receiver_shapes_need_an_explicit_inference_choice() {
     let failure = lowerer.solve_constraints(&session).unwrap_err();
     let ConstraintFailureKind::NoUniqueSolution {
         solution_frontier, ..
-    } = failure.kind
+    } = super::constraint_failure(failure).kind
     else {
         panic!("ambiguous function shape");
     };

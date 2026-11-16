@@ -68,6 +68,16 @@ pub(super) struct ReferenceFailure {
     pub(super) reason: ReferenceFailureReason,
 }
 
+pub(super) enum ReferenceProbeError {
+    Rejected(ReferenceFailure),
+    Internal(scoop_ast::Diagnostic),
+}
+impl From<ReferenceFailure> for ReferenceProbeError {
+    fn from(failure: ReferenceFailure) -> Self {
+        Self::Rejected(failure)
+    }
+}
+
 impl ReferenceDeclaration {
     fn semantic_target(&self) -> Option<hir::EditingCallee> {
         match self {
@@ -236,7 +246,11 @@ impl Lowerer {
                         break;
                     }
                     Ok(None) => continue,
-                    Err(failure) => failures.push(failure),
+                    Err(ReferenceProbeError::Rejected(failure)) => failures.push(failure),
+                    Err(ReferenceProbeError::Internal(error)) => {
+                        self.diagnostics.push(error);
+                        return ReferenceResolutionOutcome::Failed;
+                    }
                 }
             }
         }
@@ -275,7 +289,14 @@ impl Lowerer {
                         vararg: false,
                     })
                     .collect::<Vec<_>>();
-                let pool = comparison.most_specific_declarations(&declarations);
+                let pool = match comparison.most_specific_declarations(&declarations) {
+                    Ok(pool) => pool,
+                    Err(error) => {
+                        self.diagnostics
+                            .push(scoop_ast::Diagnostic::internal(error));
+                        return ReferenceResolutionOutcome::Failed;
+                    }
+                };
                 if let [winner] = pool.as_slice() {
                     *winner
                 } else {

@@ -258,7 +258,7 @@ impl fmt::Display for StaticNoGcCallbackStorageBridgeId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StaticNoGcCallbackStorageBridgeIdentityError {
     WrongGeneratedRole,
     Identity(GeneratedCallableIdentityError),
@@ -432,7 +432,7 @@ impl WireEncode for GeneratedCallableKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GeneratedCallableIdentityError {
     Hash(HashError),
 }
@@ -453,7 +453,7 @@ impl From<HashError> for GeneratedCallableIdentityError {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LexicalParentError {
     GeneratedRoleNotLexical,
     Identity(GeneratedCallableIdentityError),

@@ -187,7 +187,7 @@ fn member(
     CborIdentityRecord::from_key(key).map_err(ExactOwnerRootError::OdrMemberRecord)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExactOwnerRootError {
     ExpectedSourceNominal,
     ExpectedNominalApplication,

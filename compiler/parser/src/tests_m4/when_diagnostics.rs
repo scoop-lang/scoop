@@ -59,7 +59,7 @@ fn malformed_recursive_field_rhs_recovers_to_later_declarations() {
         .collect::<Vec<_>>();
     let actual_starts = diagnostics
         .iter()
-        .map(|diagnostic| diagnostic.span.expect("parser diagnostic span").start)
+        .map(|diagnostic| diagnostic.span().expect("parser diagnostic span").start)
         .collect::<Vec<_>>();
     assert_eq!(actual_starts, expected_starts);
 }

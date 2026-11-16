@@ -21,7 +21,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
     ) -> Result<PointerValue<'ctx>, CodegenError> {
         let scoop_lir::ArrayElementStorageKindV1::Inline { stride, .. } = layout.storage().kind()
         else {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "zero-sized array elements have no payload address".to_string(),
             ));
         };
@@ -33,7 +33,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.context.i64_type().const_int(stride.get(), false),
                 "element_offset",
             )
-            .map_err(|error| CodegenError(format!("array element offset: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("array element offset: {error}"), error)
+            })?;
         let base = self.byte_gep(array, data_offset, "elements")?;
         // SAFETY: `base` addresses the element area of an array whose
         // elements have the checked LIR storage; `index` was bounds-checked
@@ -43,10 +45,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 .build_gep(self.context.i8_type(), base, &[offset], name)
         }
         .map_err(|e| {
-            CodegenError(format!(
-                "element gep @{symbol}: {e}",
-                symbol = self.function.symbol()
-            ))
+            CodegenError::backend(
+                format!(
+                    "element gep @{symbol}: {e}",
+                    symbol = self.function.symbol()
+                ),
+                e,
+            )
         })
     }
 
@@ -65,7 +70,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 i64_ty.const_int(layout.maximum_count(), false),
                 "assembly_bytes_overflow",
             )
-            .map_err(|error| CodegenError(format!("array allocation size check: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("array allocation size check: {error}"), error)
+            })?;
         self.array_size_check(exceeds_layout, overflow_message, "assembly.size.bytes.ok")?;
         self.array_allocation_size(layout, total)
     }
@@ -96,7 +103,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             "assembly_total_bytes",
                         )
                     })
-                    .map_err(|error| CodegenError(format!("array allocation bytes: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("array allocation bytes: {error}"), error)
+                    })?;
                 let mask = layout.instance().instance_alignment() - 1;
                 builder
                     .build_int_add(bytes, i64_ty.const_int(mask, false), "assembly_size_round")
@@ -107,7 +116,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             "assembly_aligned_size",
                         )
                     })
-                    .map_err(|error| CodegenError(format!("array allocation alignment: {error}")))?
+                    .map_err(|error| {
+                        CodegenError::backend(format!("array allocation alignment: {error}"), error)
+                    })?
             }
         };
         Ok(total_bytes)
@@ -126,10 +137,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         self.builder
             .build_conditional_branch(overflow, trap, continuation)
             .map_err(|error| {
-                CodegenError(format!(
-                    "array size check @{symbol}: {error}",
-                    symbol = self.function.symbol()
-                ))
+                CodegenError::backend(
+                    format!(
+                        "array size check @{symbol}: {error}",
+                        symbol = self.function.symbol()
+                    ),
+                    error,
+                )
             })?;
         self.builder.position_at_end(continuation);
         Ok(())
@@ -142,7 +156,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let builder = self.builder;
         let current = builder
             .get_insert_block()
-            .ok_or_else(|| CodegenError("builder has no insertion block".to_string()))?;
+            .ok_or_else(|| CodegenError::internal("builder has no insertion block".to_string()))?;
         let message_pointer = self.value(Value::Global(message))?.into_pointer_value();
         let trap = self.gc_leaf_fn(
             scoop_lir::RuntimeAbiSymbolV1::LirCall(scoop_lir::RuntimeFunction::NoGc(
@@ -160,17 +174,23 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let call = builder
             .build_call(trap, &[message_pointer.into()], "trap")
             .map_err(|error| {
-                CodegenError(format!(
-                    "array size trap @{symbol}: {error}",
-                    symbol = self.function.symbol()
-                ))
+                CodegenError::backend(
+                    format!(
+                        "array size trap @{symbol}: {error}",
+                        symbol = self.function.symbol()
+                    ),
+                    error,
+                )
             })?;
         self.mark_stack_trace_site(call);
         builder.build_unreachable().map_err(|error| {
-            CodegenError(format!(
-                "array size trap @{symbol}: {error}",
-                symbol = self.function.symbol()
-            ))
+            CodegenError::backend(
+                format!(
+                    "array size trap @{symbol}: {error}",
+                    symbol = self.function.symbol()
+                ),
+                error,
+            )
         })?;
         builder.position_at_end(current);
         Ok(block)

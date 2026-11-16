@@ -560,7 +560,7 @@ impl fmt::Display for ObjectUnitKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ObjectUnitSetError {
     Empty(ObjectUnitKind),
     Duplicate(ObjectUnitKind),

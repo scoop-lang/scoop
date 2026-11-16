@@ -113,7 +113,7 @@ fn annotation_array_errors_identify_the_element_instead_of_the_application() {
             .unwrap_or_else(|| panic!("missing {expected}: {errors:?}"));
         let start = source.find(&format!(", {element},")).unwrap() + 2;
         assert_eq!(
-            error.span,
+            error.span(),
             Some(ast::Span {
                 start: start as u32,
                 end: (start + element.len()) as u32

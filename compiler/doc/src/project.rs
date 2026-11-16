@@ -23,12 +23,14 @@ type Result<T> = std::result::Result<T, ProjectionError>;
 pub enum ProjectionError {
     Identity(scoop_wire::HashError),
     Annotation(hir::AnnotationProductionError),
+    MissingSource(scoop_identity::SourceIdentity),
 }
 
 impl std::fmt::Display for ProjectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Identity(error) => write!(f, "documentation address: {error}"),
+            Self::MissingSource(source) => write!(f, "documentation source is absent: {source:?}"),
             Self::Annotation(error) => write!(f, "documentation declaration: {error}"),
         }
     }
@@ -147,6 +149,20 @@ impl Projection<'_> {
             property: self.property(item.target)?,
             relations: self.relations(item)?,
         })
+    }
+
+    fn diagnostic_location(
+        &self,
+        identity: &scoop_identity::SourceIdentity,
+        span: scoop_ast::Span,
+    ) -> Result<SourceLocation> {
+        let file = self
+            .export
+            .source_files
+            .iter()
+            .position(|source| &source.identity == identity)
+            .ok_or_else(|| ProjectionError::MissingSource(identity.clone()))?;
+        self.location(file, span)
     }
 
     fn location(&self, file: usize, span: scoop_ast::Span) -> Result<SourceLocation> {

@@ -48,7 +48,7 @@ impl<'ctx> ImmortalEmitter<'_, 'ctx> {
             } => {
                 let array = &self.module.meta.arrays[*array_type];
                 let LirType::Struct(struct_id) = array.element else {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "embedded file arrays require ordinary struct elements".into(),
                     ));
                 };
@@ -133,6 +133,10 @@ impl<'ctx> ImmortalEmitter<'_, 'ctx> {
 }
 
 fn llvm_length(length: usize) -> Result<u32, CodegenError> {
-    u32::try_from(length)
-        .map_err(|_| CodegenError("static payload exceeds LLVM constant array length".into()))
+    u32::try_from(length).map_err(|cause| {
+        CodegenError::internal_cause(
+            "static payload exceeds LLVM constant array length".into(),
+            cause,
+        )
+    })
 }

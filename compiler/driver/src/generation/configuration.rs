@@ -96,9 +96,10 @@ pub(super) fn interface(
     };
     let locate = |mut diagnostics: Vec<Diagnostic>| {
         for diagnostic in &mut diagnostics {
-            diagnostic.file = 0;
-            diagnostic.source = Some(Box::new(origin.source.clone()));
-            diagnostic.span = Some(origin.span);
+            diagnostic.location = scoop_source::DiagnosticLocation::Source {
+                source: scoop_source::LocalDiagnosticSource::Bound(Box::new(origin.source.clone())),
+                span: Some(origin.span),
+            };
         }
         diagnostics
     };

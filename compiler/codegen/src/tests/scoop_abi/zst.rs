@@ -53,13 +53,14 @@ fn mixed_abi_module() -> Module {
                     } => {
                         prefix_zst_arguments(&mut site.call, Value::Local(local));
                     }
-                    Instruction::Invoke {
-                        site: scoop_lir::InvokeSite::Managed(site),
-                    } => {
-                        prefix_zst_arguments(&mut site.call, Value::Local(local));
-                    }
                     _ => {}
                 }
+            }
+            if let Terminator::Invoke {
+                site: scoop_lir::InvokeSite::Managed(site),
+            } = &mut block.terminator
+            {
+                prefix_zst_arguments(&mut site.call, Value::Local(local));
             }
         }
     }

@@ -21,6 +21,7 @@ fn parameter(identity: u32, slot: u32) -> hir::TypeParamDecl {
 }
 
 mod contextual;
+mod invariants;
 mod nominals;
 mod receivers;
 use nominals::{add_generic_struct, add_interface};
@@ -143,7 +144,7 @@ fn incomparable_minimal_upper_bounds_are_not_collapsed_to_any() {
         .expect_err("two incomparable interface minima are ambiguous");
     let ConstraintFailureKind::NoUniqueSolution {
         solution_frontier, ..
-    } = failure.kind
+    } = constraint_failure(failure).kind
     else {
         panic!("expected a no-unique-solution failure")
     };
@@ -277,7 +278,7 @@ fn lower_bound_solution_is_not_widened_to_satisfy_a_kind() {
         .solve_constraints(&session)
         .expect_err("a value argument cannot infer boxed Any for a ref parameter");
     assert!(matches!(
-        failure.kind,
+        constraint_failure(failure).kind,
         ConstraintFailureKind::Kind { solution, .. }
             if solution == lowerer.integer_type(hir::IntegerKind::SIGNED_32)
     ));
@@ -302,7 +303,10 @@ fn exact_solution_still_has_to_satisfy_kind_bounds() {
     let failure = lowerer
         .solve_constraints(&session)
         .expect_err("String does not satisfy a value bound");
-    assert!(matches!(failure.kind, ConstraintFailureKind::Kind { .. }));
+    assert!(matches!(
+        constraint_failure(failure).kind,
+        ConstraintFailureKind::Kind { .. }
+    ));
 }
 
 #[test]
@@ -326,7 +330,7 @@ fn exact_solution_still_has_to_satisfy_interface_bounds() {
         .solve_constraints(&session)
         .expect_err("String does not implement the test interface");
     assert!(matches!(
-        failure.kind,
+        constraint_failure(failure).kind,
         ConstraintFailureKind::InterfaceBound { .. }
     ));
 }
@@ -487,7 +491,7 @@ fn function_pointer_concrete_application_requires_a_function_type() {
         .solve_constraints(&invalid)
         .expect_err("FunPtr<Int> has no function signature");
     assert!(matches!(
-        failure.kind,
+        constraint_failure(failure).kind,
         ConstraintFailureKind::NonConcreteApplication(_)
     ));
 }
@@ -516,7 +520,7 @@ fn callable_shape_keeps_managed_and_native_categories_separate() {
         .solve_constraints(&session)
         .expect_err("managed callable shape cannot target FunPtr");
     assert_eq!(
-        failure.kind,
+        constraint_failure(failure).kind,
         ConstraintFailureKind::CallableShape(CallableShapeMismatch::ExpectedCallable)
     );
 }
@@ -571,7 +575,23 @@ fn a_variable_from_another_session_is_rejected() {
         .solve_constraints(&first)
         .expect_err("sessions do not share inference variables");
     assert!(matches!(
-        failure.kind,
-        ConstraintFailureKind::ForeignVariable(_)
+        failure,
+        super::constraints::InferenceFailure::Internal(
+            super::constraints::InferenceInvariantError {
+                kind: super::constraints::InferenceInvariantErrorKind::ForeignVariable(_),
+                ..
+            }
+        )
     ));
+}
+
+fn constraint_failure(
+    failure: super::constraints::InferenceFailure,
+) -> super::constraints::ConstraintFailure {
+    match failure {
+        super::constraints::InferenceFailure::Constraint(failure) => failure,
+        super::constraints::InferenceFailure::Internal(error) => {
+            panic!("unexpected inference invariant failure: {error}")
+        }
+    }
 }

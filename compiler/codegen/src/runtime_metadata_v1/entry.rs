@@ -203,5 +203,5 @@ fn digest_value<'ctx>(
 mod tests;
 
 fn symbol_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("derive root entry symbol: {error}"))
+    CodegenError::internal(format!("derive root entry symbol: {error}"))
 }

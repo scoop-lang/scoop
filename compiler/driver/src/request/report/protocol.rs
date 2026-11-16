@@ -1,6 +1,6 @@
 use std::fmt;
 
-use scoop_ast::{Diagnostic, DiagnosticSeverity, Span};
+use scoop_ast::{DiagnosticSeverity, SourceDiagnostic as Diagnostic, Span};
 use scoop_identity::SourceIdentity;
 use scoop_protocol::{
     DiagnosticNoteV1, DiagnosticOriginV1, DiagnosticSeverityV1, ProtocolByteSpan,
@@ -28,12 +28,10 @@ fn mapping(error: impl fmt::Display) -> DiagnosticMappingError {
 }
 
 fn source_origin(
-    source: Option<&SourceIdentity>,
+    source: &SourceIdentity,
     span: Span,
     source_text: impl FnOnce(&SourceIdentity) -> Option<String>,
 ) -> Result<DiagnosticOriginV1, DiagnosticMappingError> {
-    let source =
-        source.ok_or_else(|| mapping("internal error: diagnostic source index is unresolved"))?;
     let cone = ProtocolConeIdentity::from_array(*source.cone().as_array());
     let logical_path = source.logical_path().clone();
     let span =
@@ -53,22 +51,18 @@ fn source_origin(
     })
 }
 
-fn convert<'a>(
-    diagnostic: &'a Diagnostic,
+fn convert(
+    diagnostic: &Diagnostic,
     code: &str,
-    source_at: impl Fn(usize) -> Option<&'a SourceIdentity>,
     source_text: impl Fn(&SourceIdentity) -> Option<String>,
 ) -> Result<StructuredDiagnosticV1, DiagnosticMappingError> {
-    let origin = match diagnostic.span {
-        Some(span) => source_origin(
-            diagnostic
-                .source
-                .as_deref()
-                .or_else(|| source_at(diagnostic.file)),
-            span,
-            &source_text,
-        )?,
-        None => DiagnosticOriginV1::None,
+    let origin = match &diagnostic.location {
+        scoop_source::DiagnosticLocation::Source {
+            source,
+            span: Some(span),
+        } => source_origin(source, *span, &source_text)?,
+        scoop_source::DiagnosticLocation::Source { span: None, .. }
+        | scoop_source::DiagnosticLocation::None => DiagnosticOriginV1::None,
     };
     let notes = diagnostic
         .notes
@@ -76,11 +70,7 @@ fn convert<'a>(
         .map(|note| {
             DiagnosticNoteV1::new(
                 note.message.clone(),
-                source_origin(
-                    note.source.as_deref().or_else(|| source_at(note.file)),
-                    note.span,
-                    &source_text,
-                )?,
+                source_origin(&note.source, note.span, &source_text)?,
             )
             .and_then(|result| result.with_import_path(note.import_path.clone()))
             .map_err(mapping)
@@ -117,18 +107,13 @@ impl CurrentConeDiagnosticSet {
         self.diagnostics
             .iter()
             .map(|diagnostic| {
-                convert(
-                    diagnostic,
-                    code,
-                    |index| self.sources.get(index).map(|source| &source.identity),
-                    |identity| {
-                        self.sources
-                            .iter()
-                            .find(|source| source.in_memory && &source.identity == identity)
-                            .and_then(|source| source.source_text.as_ref())
-                            .map(|text| text.as_str().to_owned())
-                    },
-                )
+                convert(diagnostic, code, |identity| {
+                    self.sources
+                        .iter()
+                        .find(|source| source.in_memory && &source.identity == identity)
+                        .and_then(|source| source.source_text.as_ref())
+                        .map(|text| text.as_str().to_owned())
+                })
             })
             .collect()
     }
@@ -146,14 +131,7 @@ impl SingleConeProductionError {
             Self::Sources(CurrentConeSourceStageError::Parser(error)) => match error.as_ref() {
                 scoop_parser::ParseCurrentConeError::Diagnostics(diagnostics) => diagnostics
                     .iter()
-                    .map(|parsed| {
-                        convert(
-                            parsed.diagnostic(),
-                            "SCOOPC_PARSE_ERROR",
-                            |_| Some(parsed.identity()),
-                            |_| None,
-                        )
-                    })
+                    .map(|parsed| convert(parsed.diagnostic(), "SCOOPC_PARSE_ERROR", |_| None))
                     .collect::<Result<Vec<_>, _>>()?,
                 _ => vec![tool_error(self)?],
             },

@@ -101,17 +101,18 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
         })?;
         let used_generators = std::mem::take(&mut hir.used_generators);
         let compiler_inputs = std::mem::take(&mut hir.compiler_inputs);
-        let mut source_warnings = packages::single_file_warnings(&self.sources);
+        let local_warnings = packages::single_file_warnings(&self.sources);
+        let mut source_warnings =
+            CurrentConeDiagnosticSet::bind_local(local_warnings, &self.sources).map_err(|e| {
+                CurrentConeProductionError::before_hir(CurrentConeProductionFailure::Warnings(e))
+            })?;
         source_warnings.extend(hir.hir.output().warnings.clone());
         source_warnings.extend(hir.generator_warnings.clone());
-        let warnings = CurrentConeDiagnosticSet::try_new_with_generated(
+        let warnings = CurrentConeDiagnosticSet::from_bound(
             source_warnings,
             &self.sources,
             &hir.generated_sources,
-        )
-        .map_err(|e| {
-            CurrentConeProductionError::before_hir(CurrentConeProductionFailure::Warnings(e))
-        })?;
+        );
         if matches!(self.request.output(), crate::SingleConeOutput::Check) {
             return Ok(SingleConeCompilation::Checked(
                 crate::SingleConeCheckSuccess {

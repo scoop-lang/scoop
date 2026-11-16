@@ -65,34 +65,34 @@ impl Lowerer {
             .next(scoop_identity::StructuralDefinitionSiteRole::LocalDeclaration);
         let local_number = self.local_function_by_function.len();
         let access = self.local_declaration_access();
-        let function = self.functions.alloc(hir::Function {
-            signature: hir::CallableSignature {
-                context_parameters,
-                release_callability: Default::default(),
-                name: format!("$local.{local_number}.{}", decl.name.text),
-                is_suspend: decl.is_suspend,
-                modifiers: hir::CallableModifiers::default(),
-                params: Vec::new(),
-                return_ty,
-                attributes,
-                span: decl.span,
-            },
+        let function = self.functions.alloc(
+            hir::Function {
+                signature: hir::CallableSignature {
+                    context_parameters,
+                    release_callability: Default::default(),
+                    name: format!("$local.{local_number}.{}", decl.name.text),
+                    is_suspend: decl.is_suspend,
+                    modifiers: hir::CallableModifiers::default(),
+                    params: Vec::new(),
+                    return_ty,
+                    attributes,
+                    span: decl.span,
+                },
 
-            access,
-            genericity: hir::FunctionGenericity::Plain,
-            kind: hir::FunctionKind::User(hir::Body {
-                locals: la_arena::Arena::new(),
-                statements: Vec::new(),
-            }),
-            method: None,
-        });
-        self.source_function_declarations.insert(
-            function,
-            crate::SourceFunctionDeclaration {
+                access,
+                genericity: hir::FunctionGenericity::Plain,
+                kind: hir::FunctionKind::User(hir::Body {
+                    locals: la_arena::Arena::new(),
+                    statements: Vec::new(),
+                }),
+                method: None,
+            },
+            crate::FunctionOrigin::Source(crate::SourceFunctionDeclaration {
                 name: decl.name.text.clone(),
                 name_span: Some(decl.name.span),
-            },
+            }),
         );
+
         self.record_function_file(function, self.current_file);
         self.signatures.insert(
             function,

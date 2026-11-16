@@ -3,7 +3,7 @@ use scoop_hir as hir;
 use super::m23_ordinary_core_only::support::{parsed_ordinary_text, trusted_core};
 use crate::{CurrentConeSources, lower_current_cone};
 
-fn lower(source: &str) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::Diagnostic>> {
+fn lower(source: &str) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let core = trusted_core();
     let parsed = parsed_ordinary_text(source);
     let world = core.world(parsed.cone());

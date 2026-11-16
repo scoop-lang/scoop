@@ -84,7 +84,10 @@ fn decoded_callable_effects_reject_invalid_calling_contexts() {
         assert!(
             errors
                 .iter()
-                .all(|error| error.file == 0 && error.span.is_some())
+                .all(
+                    |error| error.source().unwrap().logical_path().as_str() == "src/main.scoop"
+                        && error.span().is_some()
+                )
         );
         assert!(
             errors.iter().any(|error| error.message.contains(message)),

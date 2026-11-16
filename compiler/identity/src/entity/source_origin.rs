@@ -458,7 +458,7 @@ impl WireEncode for DefinitionOriginRecord {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SourceOriginError {
     ContextSourceMismatch,
     Hash(HashError),

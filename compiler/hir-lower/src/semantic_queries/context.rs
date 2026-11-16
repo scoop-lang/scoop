@@ -9,7 +9,7 @@ pub(crate) fn imported_location(
             Span::new(0, 0),
             "queried dependency source range exceeds the supported byte range",
         );
-        diagnostic.source = Some(Box::new(origin.source().clone()));
+        diagnostic.set_source(origin.source().clone());
         diagnostic
     };
     Ok(hir::SemanticSourceLocation {

@@ -33,10 +33,18 @@ diagnostics = []
 checks = []
 
 [[steps]]
+name = "read_provider_source"
+await_file = "${fixture}/../../../language/materialized-type-uses/standalone.scoop"
+
+[[steps]]
+name = "read_factory"
+await_file = "${fixture}/factory/factory.scoop"
+
+[[steps]]
 name = "prepare_exposed"
 files = [
   {"copy" = {"from" = "${provider.result.root.path}", "to" = "${work}/artifacts/original-provider.slib"}},
-  {"copy" = {"from" = "${fixture}/factory/factory.scoop", "to" = "${work}/sources/provider/src/factory.scoop"}},
+  {"write" = {"path" = "${work}/sources/provider/src/main.scoop", "data" = "${read_provider_source.bytes}\n${read_factory.bytes}"}},
 ]
 checks = []
 

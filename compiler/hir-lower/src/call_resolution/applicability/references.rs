@@ -47,6 +47,7 @@ pub(crate) enum ReferenceApplicabilityFailure {
     RequiresExpected,
     Unsafe,
     Constraint(ConstraintFailure),
+    Internal(crate::call_resolution::constraints::InferenceInvariantError),
 }
 
 impl ReferenceApplicabilityFailure {
@@ -56,6 +57,7 @@ impl ReferenceApplicabilityFailure {
             Self::RequiresExpected => "generic callable references require an expected function type".into(),
             Self::Unsafe => "unsafe functions cannot be stored in a managed function type because safety is not part of function-type identity".into(),
             Self::Constraint(failure) => constraint(&failure),
+            Self::Internal(error) => format!("internal compiler error: {error}"),
         }
     }
 }
@@ -68,7 +70,7 @@ impl Lowerer {
         parameter_types: &[hir::TypeId],
         return_type: hir::TypeId,
         expected_type: hir::TypeId,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), crate::call_resolution::constraints::InferenceFailure> {
         let mut session = InferenceSession::new();
         let shape = CallableShape {
             category,
@@ -250,7 +252,14 @@ impl Lowerer {
 
         let solution = self
             .solve_constraints(&session)
-            .map_err(ReferenceApplicabilityFailure::Constraint)?;
+            .map_err(|failure| match failure {
+                crate::call_resolution::constraints::InferenceFailure::Constraint(failure) => {
+                    ReferenceApplicabilityFailure::Constraint(failure)
+                }
+                crate::call_resolution::constraints::InferenceFailure::Internal(failure) => {
+                    ReferenceApplicabilityFailure::Internal(failure)
+                }
+            })?;
         let arguments = solution.arguments_for(&session, environment);
         let type_args: Vec<_> = arguments
             .owner

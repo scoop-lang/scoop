@@ -36,9 +36,9 @@ fn multiple_core_files_share_scope() {
     );
 }
 
-/// A diagnostic in a core file carries that file's index.
+/// A diagnostic in a core file carries that file's stable identity.
 #[test]
-fn core_file_diagnostic_carries_file_index() {
+fn core_file_diagnostic_carries_source_identity() {
     let bad_core = file(vec![
         enum_decl(
             "Option",
@@ -54,12 +54,15 @@ fn core_file_diagnostic_carries_file_index() {
     let errors = lower(&[bad_core, file(vec![fun("main", vec![])])])
         .expect_err("duplicate struct in core must fail");
     // The same run also reports the missing core `Throwable` (M8);
-    // this test is about the core file index of the duplicate.
+    // this test is about the canonical source of the duplicate.
     let duplicate = errors
         .iter()
         .find(|e| e.message == "duplicate struct `Point`")
         .expect("the duplicate struct must be diagnosed");
-    assert_eq!(duplicate.file, 0);
+    assert_eq!(
+        diagnostic_source(duplicate),
+        &core_source_identity("src/core.scoop")
+    );
 }
 
 // --- negative: intrinsics ---
@@ -73,7 +76,10 @@ fn unknown_intrinsic_is_an_error() {
         lower(&[core, file(vec![fun("main", vec![])])]).expect_err("unknown intrinsic must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].message, "unknown intrinsic `rt_reset`");
-    assert_eq!(errors[0].file, 0);
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &core_source_identity("src/core.scoop")
+    );
 }
 
 #[test]
@@ -89,7 +95,10 @@ fn intrinsic_in_user_file_is_an_error() {
         errors[0].message,
         "`@Intrinsic` is only allowed in the core library"
     );
-    assert_eq!(errors[0].file, 1);
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
 }
 
 #[test]
@@ -180,7 +189,7 @@ fn a_typed_intrinsic_kind_has_one_defining_provider() {
     )
     .expect_err("one typed intrinsic kind cannot have two declarations");
     assert!(errors.iter().any(|error| {
-        error.file == 1
+        diagnostic_source(error) == &test_source_identity("src/user.scoop")
             && error.message
                 == "intrinsic `coroutine_start` is already defined by provider 3 as `startCoroutineExecution`; provider 7 cannot define it again"
     }));

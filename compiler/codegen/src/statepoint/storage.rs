@@ -16,7 +16,9 @@ pub(crate) fn mark_access(
 ) -> Result<(), CodegenError> {
     instruction
         .set_metadata(context.metadata_node(&[]), context.get_kind_id(ACCESS))
-        .map_err(|error| CodegenError(format!("mark compiler GC storage access: {error}")))
+        .map_err(|error| {
+            CodegenError::backend(format!("mark compiler GC storage access: {error}"), error)
+        })
 }
 
 pub(super) fn promote(function: FunctionValue<'_>) -> Result<(), CodegenError> {
@@ -41,7 +43,7 @@ pub(super) fn promote(function: FunctionValue<'_>) -> Result<(), CodegenError> {
             };
             if *eligible.entry(slot).or_insert_with(|| unexposed(slot)) {
                 instruction.set_volatile(false).map_err(|error| {
-                    CodegenError(format!("promote compiler root storage: {error}"))
+                    CodegenError::backend(format!("promote compiler root storage: {error}"), error)
                 })?;
             }
         }

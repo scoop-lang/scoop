@@ -190,6 +190,11 @@ impl Lowerer {
                 &mut failures,
             );
         }
+        for failure in &failures {
+            if self.retain_internal_diagnostics(failure) {
+                return Err(());
+            }
+        }
         if applicable.is_empty() {
             if let Some(blocked) = failures
                 .iter()

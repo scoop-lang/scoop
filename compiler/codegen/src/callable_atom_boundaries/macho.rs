@@ -65,14 +65,14 @@ impl MachOSection {
 
     pub(crate) fn checked_end(self) -> Result<u64, CodegenError> {
         let end = self.address.checked_add(self.size).ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "callable section {},{} range overflows",
                 String::from_utf8_lossy(fixed_name(&self.segment)),
                 String::from_utf8_lossy(fixed_name(&self.section))
             ))
         })?;
         if end == self.address {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "callable section {},{} has zero physical extent",
                 String::from_utf8_lossy(fixed_name(&self.segment)),
                 String::from_utf8_lossy(fixed_name(&self.section))
@@ -145,7 +145,7 @@ impl MachOLayout {
                 (macho::CPU_TYPE_X86_64, macho::CPU_SUBTYPE_X86_64_ALL)
             }
             object_target => {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "callable atom boundaries have no Mach-O implementation for {object_target:?}"
                 )));
             }
@@ -155,7 +155,7 @@ impl MachOLayout {
             || read_u32(bytes, 8)? != subtype
             || read_u32(bytes, 12)? != macho::MH_OBJECT
         {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "callable atom boundaries require Mach-O64 MH_OBJECT bytes for the selected target"
                     .to_string(),
             ));
@@ -236,7 +236,7 @@ impl MachOLayout {
             .filter(|symbol| symbol.name == name)
             .collect::<Vec<_>>();
         let [symbol] = matches.as_slice() else {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "callable object requires exactly one symbol `{}`",
                 String::from_utf8_lossy(name)
             )));
@@ -245,7 +245,7 @@ impl MachOLayout {
             || symbol.section_ordinal == 0
             || usize::from(symbol.section_ordinal) > self.sections.len()
         {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "callable object symbol `{}` is not an external section definition (type={:#x}, section={}, description={:#x}, value={})",
                 String::from_utf8_lossy(name),
                 symbol.symbol_type,
@@ -274,7 +274,7 @@ impl MachOLayout {
         match matches.as_slice() {
             [] => Ok(None),
             [found] => Ok(Some(*found)),
-            _ => Err(CodegenError(format!(
+            _ => Err(CodegenError::internal(format!(
                 "callable object repeats section {},{}",
                 String::from_utf8_lossy(segment),
                 String::from_utf8_lossy(section)
@@ -288,7 +288,7 @@ impl MachOLayout {
         section: &[u8],
     ) -> Result<MachOSection, CodegenError> {
         self.find_section(segment, section)?.ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "callable object is missing planned section {},{}",
                 String::from_utf8_lossy(segment),
                 String::from_utf8_lossy(section)
@@ -301,7 +301,7 @@ impl MachOLayout {
         ordinal: u8,
     ) -> Result<MachOSection, CodegenError> {
         if ordinal == 0 {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "Mach-O boundary symbol has no section".to_string(),
             ));
         }
@@ -350,7 +350,7 @@ fn parse_dynamic_symbol_table(
 ) -> Result<DynamicSymbolTableLayout, CodegenError> {
     for offset in (32..DYSYMTAB_COMMAND_SIZE).step_by(4) {
         if read_u32(bytes, command_offset + offset)? != 0 {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "callable object uses unsupported dynamic symbol side tables".to_string(),
             ));
         }
@@ -359,7 +359,7 @@ fn parse_dynamic_symbol_table(
     let local_count = read_u32(bytes, command_offset + 12)?;
     let external_index = read_u32(bytes, command_offset + 16)?;
     if local_index != 0 || external_index != local_count {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "callable object has a noncanonical dynamic symbol partition".to_string(),
         ));
     }
@@ -385,7 +385,7 @@ fn validate_symbol_partition(
             .checked_add(dysymtab.undefined_count)
             != Some(symtab.symbol_count)
     {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "callable object has a noncanonical dynamic symbol partition".to_string(),
         ));
     }
@@ -409,7 +409,7 @@ fn parse_symbols(
         .checked_add(usize::try_from(symtab.string_size).map_err(|_| malformed())?)
         .ok_or_else(malformed)?;
     if symbol_end != string_start || string_end != bytes.len() || symbol_start > bytes.len() {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "callable object symbol and string tables are not the canonical contiguous tail"
                 .to_string(),
         ));
@@ -494,5 +494,5 @@ fn write_u32(bytes: &mut [u8], offset: usize, value: u32) -> Result<(), CodegenE
 }
 
 fn malformed() -> CodegenError {
-    CodegenError("malformed callable Mach-O object".to_string())
+    CodegenError::internal("malformed callable Mach-O object".to_string())
 }

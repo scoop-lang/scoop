@@ -19,8 +19,12 @@ fn nominal_constructor_arguments_retain_the_complete_expected_application() {
             .iter()
             .find(|error| error.message.contains("String is not a subtype of Int"))
             .unwrap_or_else(|| panic!("{case}: {errors:?}"));
-        let span = error.span.unwrap();
-        assert_eq!(error.file, 0, "{case}");
+        let span = error.span().unwrap();
+        assert_eq!(
+            error.source().unwrap().logical_path().as_str(),
+            "src/main.scoop",
+            "{case}"
+        );
         assert_eq!(
             &source[span.start as usize..span.end as usize],
             expression,

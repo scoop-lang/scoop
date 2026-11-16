@@ -403,7 +403,7 @@ impl WireEncode for SourceNativeExternalContractRecord {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SourceNativeContractError {
     ExpectedTopLevelFunction,
     ExpectedTopLevelProperty,

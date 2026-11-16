@@ -40,7 +40,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             CallProtocol::NativeSafe { safepoint, roots } => {
                 if result_scan(result) != &RefScan::None {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "native-safe call @{} has a managed result",
                         self.function.symbol()
                     )));
@@ -74,7 +74,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         self.builder
                             .build_store(pointer, ty.const_zero())
                             .map_err(|error| {
-                                CodegenError(format!("zero native result: {error}"))
+                                CodegenError::backend(format!("zero native result: {error}"), error)
                             })?;
                         Some((RootStorage { pointer, ty }, scan.as_ref_scan()))
                     }
@@ -122,7 +122,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         {
             self.builder
                 .build_store(storage.pointer, value)
-                .map_err(|error| CodegenError(format!("store native result: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("store native result: {error}"), error)
+                })?;
         }
         self.leave_native_transition(&native.transition, native.kind)?;
         let reloaded_roots =
@@ -132,7 +134,12 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .map(|storage| {
                 self.builder
                     .build_load(storage.ty, storage.pointer, "native_result_reload")
-                    .map_err(|error| CodegenError(format!("reload rooted native result: {error}")))
+                    .map_err(|error| {
+                        CodegenError::backend(
+                            format!("reload rooted native result: {error}"),
+                            error,
+                        )
+                    })
             })
             .transpose()?;
         self.pop_native_roots(native.transition)?;

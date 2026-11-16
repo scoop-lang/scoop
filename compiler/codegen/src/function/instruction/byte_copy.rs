@@ -66,5 +66,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn byte_copy_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("byte copy emission: {error}"))
+    CodegenError::internal(format!("byte copy emission: {error}"))
 }

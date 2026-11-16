@@ -26,7 +26,7 @@ fn body_requires_braces_and_consumes_all_input() {
         assert!(parse_function_body(source).is_err(), "{source:?}");
     }
     let errors = parse_function_body("{}\nfun extra() {}").unwrap_err();
-    assert_eq!(errors[0].span, Some(Span::new(3, 6)));
+    assert_eq!(errors[0].span(), Some(Span::new(3, 6)));
     assert!(errors[0].message.contains("end of function body"));
     assert!(parse_function_body("/* start */ {} // end").is_ok());
 }
@@ -38,7 +38,7 @@ fn body_retains_independent_errors_after_recovery() {
     assert_eq!(errors.len(), 2);
     for (diagnostic, (offset, _)) in errors.iter().zip(source.match_indices('=')) {
         assert_eq!(
-            diagnostic.span,
+            diagnostic.span(),
             Some(Span::new(offset as u32, offset as u32 + 1))
         );
         assert!(diagnostic.message.contains("pattern"));
@@ -103,7 +103,7 @@ fn type_requires_a_single_complete_type() {
         assert!(parse_type(source).is_err(), "{source:?}");
     }
     let errors = parse_type("Int\nclass Extra {}").unwrap_err();
-    assert_eq!(errors[0].span, Some(Span::new(4, 9)));
+    assert_eq!(errors[0].span(), Some(Span::new(4, 9)));
     assert!(errors[0].message.contains("end of type"));
 }
 
@@ -114,5 +114,5 @@ fn body_uses_normal_lambda_interpolation_and_control_grammar() {
     assert_eq!(body.statements.len(), 3);
     let errors = parse_function_body("{ return 1").unwrap_err();
     let eof = "{ return 1".len() as u32;
-    assert_eq!(errors[0].span, Some(Span::new(eof, eof)));
+    assert_eq!(errors[0].span(), Some(Span::new(eof, eof)));
 }

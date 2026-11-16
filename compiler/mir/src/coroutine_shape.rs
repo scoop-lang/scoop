@@ -215,7 +215,7 @@ fn root(
     .map_err(CoroutineShapeIdentityError::Root)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoroutineShapeIdentityError {
     GeneratedType(GeneratedNominalIdentityError),
     Variant(EnumVariantIdentityError),
