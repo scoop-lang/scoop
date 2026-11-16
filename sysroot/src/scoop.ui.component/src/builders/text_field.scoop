@@ -28,6 +28,7 @@ public open class InputBuilder internal constructor() {
     public var copy: TextCopyPolicy = TextCopyPolicy.Default
     public var protectedText: Boolean = false
     public var acceptDrops: Boolean = true
+    public var drag: TextDragOptions = TextDragOptions()
     public var contextMenu: TextContextMenuOptions = TextContextMenuOptions()
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
@@ -70,7 +71,8 @@ public open class InputBuilder internal constructor() {
             contextMenu,
             protectedText,
             semantics,
-            acceptDrops
+            acceptDrops,
+            drag
         )
 }
 
@@ -120,7 +122,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             scrollbarBehavior,
             protectedText,
             semantics,
-            acceptDrops
+            acceptDrops,
+            drag
         )
 }
 

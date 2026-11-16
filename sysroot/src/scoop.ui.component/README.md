@@ -102,7 +102,7 @@ Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate�
 
 Input／Textarea／InputOtp 默认提供原生文本菜单。使用 `contextMenu { mode = TextContextMenuMode.StandardNative; selection = TextContextMenuSelection.Preserve }` 可选择标准菜单并保留选区外点击的选择；Disabled 关闭内建入口，PreferSystem 尽量复用可执行的系统模板。相关类型位于 `scoop.ui.text`，可选标签覆盖使用 `scoop.window.TextContextMenuLabels`。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传当前配置；需要应用自定义菜单时先关闭内建入口，再使用现有菜单包装。编辑动作始终进入同一个 TextEditorState，OTP 的长度与模式限制仍然有效。
 
-macOS 输入控件默认接收文本／URL 的 Copy 拖入。使用 `input(editor) { acceptDrops = false }` 单独关闭；Textarea、InputOtp 与 Props 同名属性采用同样默认值，InputGroup、Command、Combobox、SidebarInput 等包装保留配置。落点、临时 caret、边缘滚动、composition 与 undo 由原 TextEditHost 处理；拖入沿现有 paste 和通用 policy，OTP 继续执行模式与长度限制。只读／禁用时不接受，受保护输入允许导入但不开放导出。文本拖出、Move 和其他平台的接收仍按[统一计划](../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)推进。
+macOS 输入控件默认支持文本选区拖出及文本／URL 拖入。使用 `input(editor) { acceptDrops = false }` 关闭接收，使用 `drag = TextDragOptions(enabled = false)` 关闭导出；Textarea、InputOtp 与 Props 同名属性采用同样默认值，InputGroup、Command、Combobox、SidebarInput 等包装透传配置。drag 配置阈值、导出策略、Copy／Move 和完成通知，只读只能 Copy；SelectableStyledText.options.drag 与 Typography.selection.drag 使用同一只读来源。落点、临时 caret、边缘滚动、composition 与 undo 由原 TextEditHost 处理。拖入复用 paste 和通用 policy，OTP 的清洗／裁剪不能伪装成完整 Move；同文档移动一次撤销，SourceRetained 表示目标已接收但源未删除。受保护输入可以导入，默认不拖出原文。具体合同及平台范围见[统一计划](../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)。
 
 SelectableStyledText 的 `options = SelectableTextOptions(contextMenu = textContextMenu { selection = TextContextMenuSelection.Preserve })` 配置只读 Copy／SelectAll 菜单，默认也使用 PreferSystem。Typography 的 selection 接收同一 SelectableTextOptions。正文与行内替代文字来自共享只读宿主，辅助点击不触发行内主按钮，键盘菜单沿现有焦点与 Accepted 选区定位。
 

@@ -68,7 +68,8 @@ internal fun <T: Equals<T>> comboEditor(
                 field.contextMenu,
                 field.protectedText,
                 field.semantics,
-                field.acceptDrops
+                field.acceptDrops,
+                field.drag
             ),
             { current, mount -> Input(current, scope = mount) }
         )

@@ -32,7 +32,8 @@ public class InputProps public constructor(
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
     public val protectedText: Boolean = false,
     public val semantics: ComponentSemantics = ComponentSemantics(),
-    public val acceptDrops: Boolean = true
+    public val acceptDrops: Boolean = true,
+    public val drag: TextDragOptions = TextDragOptions()
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -66,7 +67,8 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             copy = input.copy,
             contextMenu = input.contextMenu,
             protectedText = input.protectedText,
-            acceptDrops = input.acceptDrops
+            acceptDrops = input.acceptDrops,
+            drag = input.drag
         ),
         1L,
         ScrollbarVisibility.Hidden,

@@ -83,7 +83,7 @@ public class DragSource internal constructor(
         }
     }
 
-    private fun handle(context: RoutedEventContext, event: InputEvent) {
+    internal fun handle(context: RoutedEventContext, event: InputEvent) {
         if (!available || visual.value || press == None)
             return
         when (event) {
@@ -167,6 +167,16 @@ public class DragSource internal constructor(
         if (!available) {
             press = None
             releaseSession()
+        }
+    }
+
+    internal fun updateEffects(effects: DragEffects) {
+        val current = session ?: return
+        if (current.isClosed)
+            return
+        when (current.result) {
+            case Some(_) -> {}
+            case None -> current.effects = effects
         }
     }
 

@@ -7,11 +7,14 @@ public enum DragResult {
 
 internal interface NativeDragSource: Closeable {
     fun start()
+    fun setEffects(value: DragEffects)
 }
 
 /** Closing disconnects callbacks; it does not claim to cancel an active system drag. */
 public class DragSession internal constructor(
     private val owner: WindowOwner,
+    private val initialEffects: DragEffects,
+    localData: Any?,
     onCompleted: (DragResult) -> Unit
 ): Closeable {
     private var native: NativeDragSource? = None
@@ -21,6 +24,30 @@ public class DragSession internal constructor(
     private var queued = false
     private var closed = false
     private var outcome: DragResult? = None
+    internal var localData = localData
+    private var allowedEffects = initialEffects
+
+    /** Changes future negotiation without rewriting a destination result already completed. */
+    public var effects: DragEffects
+    get() {
+        owner.application.checkThread()
+        return allowedEffects
+    }
+    set(value) {
+        owner.application.checkThread()
+        if (closed || queued)
+            throw IllegalStateException(Some("drag session no longer accepts effect updates"))
+        requireWindow(
+            (!value.copy || initialEffects.copy) &&
+                (!value.move || initialEffects.move) &&
+                (!value.link || initialEffects.link),
+            "drag effects must have been offered at creation"
+        )
+        if (value != allowedEffects) {
+            native!!.setEffects(value)
+            allowedEffects = value
+        }
+    }
 
     public val isStarted: Boolean get() {
         owner.application.checkThread();
@@ -141,6 +168,7 @@ public class DragSession internal constructor(
         closed = true
         pending = false
         completion = None
+        localData = None
         when (val current = owner.dragSource) {
             case Some(val value) -> if (value === this)
                 owner.dragSource = None

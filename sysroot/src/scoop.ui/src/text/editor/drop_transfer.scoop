@@ -1,0 +1,93 @@
+package scoop.ui.text
+
+import scoop.surface.FocusOrigin
+import scoop.window.*
+
+internal fun editorDropSource(data: Any?): EditorTextTransfer? =
+    when (data) {
+        case Some(val value) -> value as? EditorTextTransfer
+        case None -> None
+    }
+
+internal fun sameEditorDropSource(a: EditorTextTransfer?, b: EditorTextTransfer?): Boolean =
+    when ((a, b)) {
+        case(Some(val first), Some(val second)) -> first === second
+        case(None, None) -> true
+        else -> false
+    }
+
+internal fun editorDropEffect(offer: DropOffer, source: EditorTextTransfer?): DragEffect? {
+    val moving =
+        offer.effects.move &&
+            when (source) {
+                case Some(val value) -> value.canMove
+                case None -> true
+            }
+    if (moving && !(offer.modifiers.alt && offer.effects.copy))
+        return Some(DragEffect.Move)
+    return if (offer.effects.copy)
+        Some(DragEffect.Copy)
+    else
+        None
+}
+
+internal fun receiveEditorDrop(
+    host: TextEditHost,
+    request: DropRequest,
+    position: Long,
+    source: EditorTextTransfer?
+): Boolean {
+    val text =
+        when (request.content) {
+            case Text(val value) -> value
+            case Url(val value) -> value
+            case Files(_) -> return false
+        }
+    val editor = host.current
+    var sameDocument = false
+    if (request.effect == DragEffect.Move) {
+        when (source) {
+            case Some(val value) -> {
+                if (!value.canMove || value.text != text)
+                    return false
+                sameDocument = value.editor === editor
+            }
+            case None -> {}
+        }
+    }
+    val prepared =
+        if (sameDocument)
+            prepareEditorMove(source!!, position, host.options.policy, !host.options.multiline)
+        else
+            prepareEditorDrop(
+                editor,
+                position,
+                text,
+                host.options.policy,
+                !host.options.multiline,
+                request.effect == DragEffect.Move
+            )
+    val edit = prepared ?: return false
+    val movedHere = sameDocument
+    host.perform(
+        {
+            val changed = edit.publish(editor, false)
+            if (movedHere)
+                source!!.moved = true
+            changed
+        },
+        endComposition = true
+    )
+    if (
+        !host.closed &&
+            host.scope.isMounted &&
+            host.current ===
+            editor &&
+            host.options.enabled &&
+            host.options.acceptDrops &&
+            !host.options.readOnly &&
+            host.area.scope.isInputAllowed
+    )
+        host.area.requestFocus(FocusOrigin.Pointer)
+    return true
+}

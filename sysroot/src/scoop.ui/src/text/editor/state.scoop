@@ -12,12 +12,16 @@ public class TextEditorState public constructor(
     internal val storage = state(editorInitial(text, selection))
     internal val history = EditorHistory()
     internal var composition: EditorComposition? = None
+    internal var contentRevision = 0L
     private var activeHost: TextEditHost? = None
 
     internal fun checkHost(host: TextEditHost) {
         storage.checkMutation()
         when (activeHost) {
-            case Some(val value) -> requireUi(value === host, "text state already has an active editor")
+            case Some(val value) -> requireUi(
+                value === host,
+                "text state already has an active editor"
+            )
             case None -> {}
         }
     }
@@ -214,6 +218,8 @@ public class TextEditorState public constructor(
         val changed = value != previous || compositionChanged
         val changedHistory = history.apply(change)
         composition = baseline
+        if (a.surroundingText != b.surroundingText)
+            contentRevision = value.input.revision
         if (changed || changedHistory)
             storage.publish(value)
         if (changed)

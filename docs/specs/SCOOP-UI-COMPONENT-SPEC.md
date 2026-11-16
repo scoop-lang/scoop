@@ -177,6 +177,8 @@ SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content)
 
 options.contextMenu 直接配置只读文本的原生 Copy／SelectAll 菜单，默认 PreferSystem；使用 SelectableTextOptions(contextMenu = textContextMenu { ... }) 选择模式、选区策略和标签。Typography 的 selection 选项沿用同一入口，不另建菜单状态或编辑宿主。
 
+options.drag 与 Typography.selection.drag 原样传给 SelectableTextHost，默认允许按普通复制表示拖出选区。它们只提供 Copy，正文和行内对象替代文字仍来自同一个 StyledText，不创建可写编辑器。
+
 未指定 fonts 时使用 scope.defaultFonts，并在 update 中读取当前集合；显式字体只借用。Element 的 update／measure／scene 委托同一宿主，焦点与范围动作遵守 UI 规范第 7.5.4 节。Label 继续保留原来的纯显示行为。
 
 ## 4. Button
@@ -482,7 +484,9 @@ InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy
 
 InputProps／TextareaProps／InputOtpProps 及其 builder 提供 `contextMenu: TextContextMenuOptions = TextContextMenuOptions()`，默认优先使用平台可接入的系统文本菜单模板。builder 的 `contextMenu { ... }` 更新当前配置，可分别设置 Disabled／StandardNative／PreferSystem、选区外辅助点击的选择策略和标准命令标签。右键与平台辅助点击、菜单键／Shift+F10、只读和禁用状态、菜单目标与生命周期遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 直接透传同一输入配置，不创建第二个菜单或编辑模型；OTP 的整组输入共用一个菜单目标，编辑仍经过长度和模式策略。
 
-三类输入 Props／builder 也提供 acceptDrops=true，并由上述包装原样传给 TextEditOptions。macOS 的 TextEditHost 当前接收 Copy 文本／URL，在共享排版中显示临时落点并沿普通编辑策略提交；readOnly、enabled 与该开关共同决定资格，OTP 继续通过同一字符／长度策略。来源 DragDrop 与 Paste 共用导入清洗，原生系统会话、编辑事务与其他平台范围见[UI 数据拖放规范 §4](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。
+三类输入 Props／builder 也提供 acceptDrops=true，并由上述包装原样传给 TextEditOptions。macOS 的 TextEditHost 当前接收 Copy 或完整 Move 的文本／URL，在共享排版中显示临时落点并沿普通编辑策略提交；readOnly、enabled 与该开关共同决定资格，OTP 继续通过同一字符／长度策略。来源 DragDrop 与 Paste 共用导入清洗，原生系统会话、编辑事务与其他平台范围见[UI 数据拖放规范 §4、5](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。
+
+三类输入 Props／builder 提供 drag=TextDragOptions()，上述包装透传同一不可变配置。共享宿主实现选区拖出、只读 Copy、受保护用途的默认导出限制、完整 Move 与 SourceRetained 通知；OTP 的清洗／裁剪仍属于同一策略，有损接收不能被报告为完整 Move。drag 与 acceptDrops 独立。
 
 两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
 

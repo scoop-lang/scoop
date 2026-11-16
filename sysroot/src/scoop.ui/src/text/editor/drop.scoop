@@ -15,7 +15,7 @@ private class EditorDropPosition(
     val position: TextPosition
 )
 
-/** Metadata feedback and final Copy insertion share the editor's accepted model and layout. */
+/** Metadata feedback and final text transfer share the editor's accepted model and layout. */
 internal class EditorDropTarget(
     private val host: TextEditHost,
     create: (DropAreaHandlers, Boolean) -> DropArea
@@ -23,6 +23,8 @@ internal class EditorDropTarget(
     private var closed = false
     private var location: EditorDropPosition? = None
     private var waiting = false
+    private var source: EditorTextTransfer? = None
+    private var effect = DragEffect.Copy
     private val timer = host.scope.createDeadline { tick() }
     private val handlers =
         DropAreaHandlers(
@@ -85,7 +87,9 @@ internal class EditorDropTarget(
     }
 
     private fun offer(value: DropOffer, point: Point): DropDecision {
-        if (!value.effects.copy) {
+        val origin = editorDropSource(value.localData)
+        val operation = editorDropEffect(value, origin)
+        if (operation == None) {
             clear()
             return DropDecision.Reject
         }
@@ -110,35 +114,25 @@ internal class EditorDropTarget(
                 }
             }
         location = Some(next)
+        source = origin
+        effect = operation!!
         schedule()
-        return DropDecision.Accept(format!!, DragEffect.Copy)
+        return DropDecision.Accept(format!!, effect)
     }
 
     private fun receive(request: DropRequest, point: Point): Boolean {
         val value = validLocation() ?: return false
-        if (request.effect != DragEffect.Copy || value.local != point)
+        if (
+            request.effect !=
+                effect ||
+                value.local !=
+                point ||
+                !sameEditorDropSource(source, editorDropSource(request.offer.localData))
+        )
             return false
-        val text =
-            when (request.content) {
-                case Text(val text) -> text
-                case Url(val text) -> text
-                case Files(_) -> return false
-            }
+        val origin = source
         clear()
-        val editor = host.current
-        val prepared =
-            prepareEditorDrop(
-                editor,
-                value.position.byteOffset,
-                text,
-                host.options.policy,
-                !host.options.multiline
-            ) ?:
-                return false
-        host.perform({ prepared.publish(editor, false) }, endComposition = true)
-        if (!host.closed && host.scope.isMounted && host.current === editor && enabled)
-            host.area.requestFocus(FocusOrigin.Pointer)
-        return true
+        return receiveEditorDrop(host, request, value.position.byteOffset, origin)
     }
 
     fun caret(frame: EditorFrame): Rect? {
@@ -216,6 +210,8 @@ internal class EditorDropTarget(
 
     private fun clear() {
         location = None
+        source = None
+        effect = DragEffect.Copy
         waiting = false
         timer.cancel()
     }

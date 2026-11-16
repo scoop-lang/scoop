@@ -138,5 +138,6 @@ internal fun otpOptions(input: InputOtpProps): TextEditOptions =
         policy = otpPolicy(input.pattern, input.length),
         contextMenu = input.contextMenu,
         protectedText = input.protectedText,
-        acceptDrops = input.acceptDrops
+        acceptDrops = input.acceptDrops,
+        drag = input.drag
     )

@@ -91,6 +91,7 @@ private class ComponentReceiverDslTests {
             copy = TextCopyPolicy.Allow
             protectedText = true
             acceptDrops = false
+            drag = TextDragOptions(enabled = false)
             contextMenu {
                 mode = TextContextMenuMode.StandardNative
                 selection = TextContextMenuSelection.Preserve
@@ -119,9 +120,16 @@ private class ComponentReceiverDslTests {
         assertFalse(props.acceptDrops)
         assertTrue(captured[0L].textareaProps(model).acceptDrops)
         assertTrue(InputProps(model).acceptDrops)
+        assertTrue(InputProps(model).drag.enabled)
+        assertFalse(props.drag.enabled)
+        captured[0L].drag = TextDragOptions()
+        assertFalse(props.drag.enabled)
+        assertTrue(captured[0L].textareaProps(model).drag.enabled)
         val input = InputBuilder()
         input.acceptDrops = false
+        input.drag = props.drag
         assertFalse(input.inputProps(model).acceptDrops)
+        assertSame(props.drag, input.inputProps(model).drag)
         assertEquals(TextContextMenuMode.StandardNative, props.contextMenu.mode)
         assertEquals(TextContextMenuSelection.Preserve, props.contextMenu.selection)
         assertEquals(Some("Copy field"), props.contextMenu.labels!!.copy)
@@ -134,6 +142,7 @@ private class ComponentReceiverDslTests {
         val otp = InputOtpBuilder()
         assertTrue(otp.snapshot(model, 6L).acceptDrops)
         otp.acceptDrops = false
+        otp.drag = props.drag
         otp.protectedText = true
         otp.contextMenu { mode = TextContextMenuMode.Disabled }
         val code = otp.snapshot(model, 6L)
@@ -142,6 +151,11 @@ private class ComponentReceiverDslTests {
         otp.acceptDrops = true
         assertFalse(code.acceptDrops)
         assertFalse(otpOptions(code).acceptDrops)
+        assertSame(props.drag, code.drag)
+        assertSame(code.drag, otpOptions(code).drag)
+        otp.drag = TextDragOptions()
+        assertFalse(code.drag.enabled)
+        assertTrue(otp.snapshot(model, 6L).drag.enabled)
         assertTrue(otp.snapshot(model, 6L).acceptDrops)
         assertFalse(otp.snapshot(model, 6L).protectedText)
         otp.contextMenu { mode = TextContextMenuMode.StandardNative }

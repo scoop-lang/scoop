@@ -37,7 +37,14 @@ public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
                                     DragEffects(bit(effects, 1), bit(effects, 2), bit(effects, 4)),
                                     LogicalPosition(x, y),
                                     platformModifiers(modifiers),
-                                    local != 0
+                                    local != 0,
+                                    if (bit(local, 2))
+                                        when (val source = owner.application.dragSource) {
+                                            case Some(val session) -> session.localData
+                                            case None -> None
+                                        }
+                                    else
+                                        None
                                 )
                             if (phase == 0)
                                 return@perform target.offer(offer)

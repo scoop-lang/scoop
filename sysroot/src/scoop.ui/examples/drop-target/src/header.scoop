@@ -1,0 +1,30 @@
+package scoop.examples.ui.drop
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.text.*
+
+internal class DropHeader(private val props: Props<String>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private val paragraph = scope.resource { ParagraphHost() }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val message = props.value
+        val content =
+            styledText {
+                text(
+                    "Left: drag text; click to paste. Right: drag URL; click to copy.\nCommand C copies the focused region. Select text in the editor to move it; hold Option to copy.\n\n" +
+                        message
+                )
+                style { fontSize = 18.0 }
+            }
+        val measured = paragraph.measure(context, constraints, scope.defaultFonts, content)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        paragraph.scene(context, measured)
+    }
+}

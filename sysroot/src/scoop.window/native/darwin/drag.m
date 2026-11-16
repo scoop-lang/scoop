@@ -11,7 +11,7 @@ typedef int32_t (*SWDragCallback)(void *, int32_t, int32_t);
 @property(nonatomic, strong) SWDragSource *activeOwner;
 @property(nonatomic) SWDragCallback callback;
 @property(nonatomic) void *context;
-@property(nonatomic) int32_t effects, format;
+@property(nonatomic) int32_t effects, initialEffects, format;
 @property(nonatomic) BOOL ready, active, started, closed;
 - (void)releaseData;
 - (void)reportStarted:(NSDraggingSession *)session;
@@ -59,7 +59,7 @@ static BOOL available(SWDragSource *source) {
                    : operation == NSDragOperationMove ? 2
                    : operation == NSDragOperationLink ? 4
                                                       : 0;
-  if (!(self.effects & effect))
+  if (!(self.initialEffects & effect))
     effect = 0;
   [self releaseData];
   if (self.callback)
@@ -98,6 +98,7 @@ SWResult scoop_window_drag_create(void *pointer, void *input, int32_t effects,
     return (SWResult){NULL, -4};
   source.event = event;
   source.effects = effects;
+  source.initialEffects = effects;
   source.items = [NSMutableArray new];
   source.callback = callback;
   source.context = context;
@@ -135,6 +136,16 @@ int64_t scoop_window_drag_ready(void *pointer) {
   source.ready = YES;
   source.owner.application.dragSource = source;
   [source.owner.view.pressedButtons removeAllObjects];
+  return 0;
+}
+
+int64_t scoop_window_drag_effects(void *pointer, int32_t effects) {
+  SWDragSource *source = (__bridge SWDragSource *)pointer;
+  if (source.closed || (!source.ready && !source.active))
+    return -4;
+  if (effects < 0 || (effects & ~source.initialEffects))
+    return -8;
+  source.effects = effects;
   return 0;
 }
 

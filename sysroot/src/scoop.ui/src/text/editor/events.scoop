@@ -37,7 +37,10 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                 host.area.isFocusActive,
                 false
             )
-            case Pointer(InputPointerEvent.Cancelled(_, _)) -> editorStopDrag(host, false)
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.dataSource?.cancelCandidate()
+                editorStopDrag(host, false)
+            }
             else -> {}
         }
         return
@@ -61,6 +64,10 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
             }
         }
         else -> {}
+    }
+    if (host.dataSource?.handle(context, event) ?: false) {
+        context.consume()
+        return
     }
     when (event) {
         case TextCommand(val command) -> if (host.execute(command))
@@ -132,6 +139,7 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
         host.invalidate()
         host.publishNative()
     } else {
+        host.dataSource?.cancelCandidate()
         host.contextMenu.cancel()
         host.retireConnection()
         editorStopDrag(host, false)

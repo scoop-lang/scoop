@@ -131,7 +131,12 @@ static SWDropPayload *read_payload(NSPasteboard *board, int32_t format) {
   @try {
     return self.callback(
         self.context, phase, formats(info.draggingPasteboard),
-        effects(info.draggingSourceOperationMask), info.draggingSource != nil,
+        effects(info.draggingSourceOperationMask),
+        (info.draggingSource != nil ? 1 : 0) |
+            (info.draggingSource && info.draggingSource ==
+                                        self.view.owner.application.dragSource
+                 ? 2
+                 : 0),
         point.x, point.y,
         (int64_t)sw_input_modifiers(self.view, NSEvent.modifierFlags), choice,
         (__bridge void *)payload);

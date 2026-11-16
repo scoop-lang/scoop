@@ -19,17 +19,31 @@ private class TextDropHostTest {
             fonts ->
             fonts.register(testSansBytes, "Drop Test")
             val probe = TextDropProbe(fonts)
+            val source = TextSourceProbe(fonts)
             try {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application().run(host)
-                }
+                UiHost {
+                    host,
+                    active,
+                    event -> if (probe.finished) {
+                        if (!source.started)
+                            source.event(host, active, ApplicationEvent.Resumed)
+                        source.event(host, active, event)
+                    } else {
+                        probe.event(host, active, event)
+                    }
+                }.use { host -> Application().run(host) }
                 assertTrue(probe.finished)
                 assertEquals(5, probe.edits)
                 assertEquals(1, probe.preedits)
                 assertTrue(probe.field!!.isClosed)
                 assertEquals("done", probe.model.text)
+                assertTrue(source.finished)
+                assertEquals(4, source.prepared)
+                assertEquals(0, source.callbacks)
+                assertEquals("a😀b", source.model.text)
             } finally {
                 probe.native?.close()
+                source.native?.close()
                 @Unsafe
                 {
                     when (probe.callback) {
@@ -195,7 +209,7 @@ internal class TextDropProbe(fonts: FontCollection) {
             case 0 -> {
                 val before = model.inputState
                 probe.text("Q\r\nR")
-                assertEquals(0, probe.offer(point(2L), 2))
+                assertEquals(16, probe.offer(point(2L), 2))
                 assertEquals(1, probe.offer(point(2L)))
                 assertEquals(before, model.inputState)
                 nextFrame()
@@ -339,7 +353,6 @@ internal class TextDropProbe(fonts: FontCollection) {
                 probe.close()
                 probe.close()
                 finished = true
-                active.requestExit()
             }
         }
         phase += 1

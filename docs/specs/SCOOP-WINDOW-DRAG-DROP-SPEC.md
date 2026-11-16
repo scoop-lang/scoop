@@ -8,6 +8,8 @@ DragFormat 为 Text／Url／Files，DragEffect 为 Copy／Move／Link。DragForm
 
 DropOffer 保存 formats、effects、position: LogicalPosition、modifiers: Modifiers 和 local: Boolean。位置来自接收窗口自己的内容坐标；local 只表示原生来源在本进程，不代表某个 UI 节点、同一文档或授权。Enter／Over 只取得声明的格式和元数据，不读取正文或文件列表。AppKit 首批 Text／Url 接收单个 pasteboard item；Files 要求所有项目均声明 file URL，Drop 时取得完整列表，不把多个文本项目或混合项目静默合并、截取为一个表示。
 
+DropOffer.localData: Any? 默认为 None。只有 native 的真实 draggingSource 与本 Application 当前尚未关闭的 DragSession 对应时，才携带 beginDrag 提供的同一个进程内值；同程序的其他原生控件、外部来源及已经退休的源均为 None。它不写入 pasteboard、不序列化，也不读取外部正文。UI 用该值关联本次来源文档与范围，不能凭 local 或相同文本猜测来源。该值依普通引用规则存活，接收者保留 offer 不会延长源的原生登记。
+
 DropDecision 为 Reject 或 Accept(DragFormat, DragEffect)。目标只能选择 offer 中实际可用的格式和操作；不满足时按拒绝处理。Copy／Move／Link 的含义由实际业务实现，不能仅因枚举存在就接受某个操作。
 
 DropRequest 保存 offer、effect 和 content。选定表示只在 Drop 时读取；读取失败或内容无法完整转换则拒绝，不调用接收业务。Drop 时重新核对当前协商与目标状态。AppKit 一旦已协商某个操作，不在返回 BOOL 的接收阶段偷偷把 Move 改成 Copy；内容检查或策略无法完整接受时拒绝，由用户按实际允许的操作重新拖放。
@@ -36,13 +38,15 @@ prepareForDragOperation 只复核元数据和已协商选择；performDragOperat
 
 ## 4. Window 拖出源
 
-Darwin 提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键按下或左键拖动事件的 owner 派发中调用；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
+Darwin 提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键按下或左键拖动事件的 owner 派发中调用；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
 
 数据在返回前复制给 native。Text 发布一个原值文本项；Url 要求绝对 URL，在同一项发布 URL 与其文本表示；Files 要求非空绝对本地路径列表，每个路径发布一个 FileURL 项，不读取文件内容、检查来源或创建文件承诺。格式无法表示、空操作集及无效数据为参数错误，失败不接管普通按下序列，也不留下半份来源。源不改系统普通剪贴板，拖放 pasteboard 归系统会话。
 
 准备成功后沿已有 SystemOperation 取消通知结束普通鼠标序列，再在 owner 的延迟原生操作边界调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。原生预览使用系统图标及实际项目数，光标和修饰键操作选择交给 AppKit。
 
 DragSession 的 isStarted 表示原生已确认开始，result: DragResult? 保存终态，isClosed 可查询；所有访问要求 owner。DragResult 为 Dropped(DragEffect)、NotDropped 或 Failed(WindowException)。Dropped 仅表示系统报告目标接受了允许的操作，绝不隐含删除来源；NotDropped 合并系统未接受、拒收及用户取消，因为 AppKit 不区分其原因。Failed 表示实际启动失败。完成结果通过普通 owner 队列交付 onCompleted 一次，交付前释放源登记；处理器仍沿正常应用错误边界执行。Copy 不删源，Move 的文档版本确认与一次删除由实际 UI／业务实现；Window 不擅自删除文字或文件。
+
+DragSession.effects 可在正常 owner 更新中改变后续协商允许的操作，只能使用创建时提供过的操作；更新可暂时为空，表示不再允许任何目标接收。已关闭或已有终态时拒绝更新。native 查询只读取已复制的当前值；不因此重入 Scoop 或重新读取正文。原生结束回报仍按创建时的操作集合解释：如果目标已经实际完成 Move，随后收窄 effects 不能把它伪装成 NotDropped；来源最终仍须核对实际文档。
 
 `cancelPending(): Boolean` 只取消尚未启动的请求，成功后产生 NotDropped；已启动、已有终态或已关闭返回 false。`close()` 幂等，撤销后续业务回调，关窗自动执行；尚未启动时撤销请求。AppKit 的公开 NSDraggingSession 没有强制取消方法，因此关闭已启动资源不宣称系统会话已取消，也不合成 Escape 或调用私有接口：native 保留系统仍在使用的数据与源对象直到真实 ended 回调，只清除 Scoop context。此时尚无实际终态的 result 保持 None；后续没有来源删除回调。已经保存的终态在关闭后保留。
 

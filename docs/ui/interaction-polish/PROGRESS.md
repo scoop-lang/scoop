@@ -18,7 +18,7 @@
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及四个原生场景的源码检查／构建通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；Reveal、滚动实窗及平台验收待继续 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
-| S6 | 进行中 | Window／AppKit source／target、UI Accepted 接收路由、来源阈值与文本 Copy 接收已接入；格式协商、生命周期、真实帧下来源准备／取消和文本目标协议测试通过；文本拖出／Move、三个范围的完整系统会话、活动来源生命周期与其他平台继续推进 |
+| S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -299,3 +299,15 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI／Component 含测试检查通过，更新 UI、Style 和四套主题的开发产物；双窗口示例增加实际多行编辑器与同一宿主的文本语义，区域快捷键限制到自己的来源区域，release 检查与链接通过。UI／Component 的 10 项 API 查询核对类型、DragDrop 分支、默认值、访问器、Textarea 继承与导入。29 个 Scoop 文件的格式检查及 native 严格编译通过，179 个本地 Markdown 目标检查通过；两个临时 API 站点已清理。
 
 本批测试使用独立 pasteboard，未改系统剪贴板；原生协议方法在 AppKit 主队列的普通 owner 派发栈外执行，未放宽库的重入限制。曾因系统未授予窗口键盘焦点停在预编辑前置条件，用户准备手动操作后，原命令复用最终产物重跑完整通过；保持真实焦点与原生选区检查，临时 app bundle 已清理。没有启动 NSDraggingSession，尚不能据此确认实际光标观感、完整系统拖动、跨程序结果或 VoiceOver 操作。文本拖出与 Move 仍保持 S6 原范围，其他平台没有据 macOS 结果记为完成。
+
+### 文本选区拖出、完整 Move 与实际窗口验证
+
+- TextDragOptions 为编辑与只读宿主提供独立开关、阈值、Copy／Move、导出策略与完成回调，Input／Textarea／OTP 和组合输入透传；SelectableStyledText／Typography 使用同一只读来源。选区内普通点击延迟到释放定位，阈值后复用 DragSource；Shift、多击和选区外拖选沿原路径。只读仅 Copy，受保护或遮罩文本默认不拖出，独立显式导出配置不改变保护用途。
+- Window／DragSourceData 的 localData 仅关联当前 Application 的真实原生来源，不编码到 pasteboard。来源捕获正文修订与选区，单纯选择变化不撤销移动资格，正文变化即使随后 Undo 也不能恢复旧范围的删除资格；DragSession.effects 可在初始操作集合内调整后续协商，实际结果不被后续收窄改写。
+- 文本目标接受完整 Move；有损清洗／裁剪拒绝，同文档删除、落点校正、插入和最终选择一次发布、一个 undo，落回原范围无操作。跨文档按各自历史提交，源再次核对内容与策略后删除一次；SourceRetained 明确报告目标已接收但源未删除。正文、选择、语义通知仍使用同一模型，完成处理器属于开始时的配置。
+- TextDragEditTest 九项和既有 TextDropEditTest 五项通过，覆盖 Unicode 前后移动、范围边界、撤销、正文修订、策略／长度／单行有损拒绝和删除条件。DragSourceTest 两项通过，覆盖动态操作集合、禁止扩展、关闭后的 localData 清理及真实 Move 结果保留。TextDropHostTest 最终产物完整通过原接收／IME／滚动场景及九组来源接入，其中四次准备检查原生数据／操作后在系统启动前关闭，不误报业务完成。
+- 控制台运行曾在预编辑阶段失去键盘焦点；将相同测试二进制放进普通 macOS 应用包后，保留全部断言执行完成。标准 SCOOP_TEST_RUN_DIR 事件记录包含该测试的 begin、无失败的 end 和 complete，耗时约 0.89 秒。没有伪造焦点或绕过原生选区检查，也没有把准备探针当作完整 OS 会话。
+- 双窗口示例修正 ParagraphHost 与普通编辑器子项混用的测量错误：说明文本独立成元素，编辑器保留自己的布局与语义。示例显示实际 Copied／Moved／SourceRetained 结果。用户手动确认同框移动、拖到彩色区域复制、同程序跨窗口及外部程序双向文本拖放均正常；CUA 读回复制结果、源保留及跨窗口编辑内容。实际外部程序的具体名称未记录，不据此扩展为所有程序或文件格式通过。
+- Window／UI／Component 含测试检查及示例 release 检查／链接通过；ComponentReceiverDslTests 六项和 InputOtpTest 五项通过，复用同一测试产物。更新 Window、Surface、UI、Style 与四套主题的开发产物；43 个 Scoop 文件、3 个 native 文件格式检查和 native 严格编译通过。15 项 API 查询核对默认值、类型、导入、Props／builder 访问器及 Textarea 的继承声明；规范、设计、计划、库／示例 README 和编程导航同步，本地 Markdown 链接检查通过。三个临时 API 站点和两个临时应用包在验证后清理，保留后续需要的开发产物与共享缓存。
+
+本批已完成本地文本来源与 Move 的交付，S6 的文件、取消／活动源关闭、模态和其他平台仍按原计划继续；VoiceOver 操作、真实设备与完整 accessibility provider 没有据文本拖放结果记为完成。

@@ -157,7 +157,7 @@ S0.3 本地原型已确认 AppKit 公开的 `NSTextView.defaultMenu` 可以在�
 
 原生后端分别使用 AppKit dragging session／destination、Windows OLE `IDataObject／IDropSource／IDropTarget`、GTK／GDK drag source／drop target。低层值描述来源、可用格式、允许的 Copy／Move／Link、建议动作、预览与实际结果；Link 只有业务实现其含义时才公布，普通文本不虚构 Link 行为。
 
-首批标准内容为纯文本、URL 和真实文件列表；格式协商允许一个来源提供多个表示。Window 做实际 UTType／clipboard format／MIME 转换，不将进程内对象地址编码成跨进程数据。当前本地重排需要的条目 key 可以由 source 的正常会话上下文持有，不建立通用对象序列化或跨进程对象桥。
+首批标准内容为纯文本、URL 和真实文件列表；格式协商允许一个来源提供多个表示。Window 做实际 UTType／clipboard format／MIME 转换，不将进程内对象地址编码成跨进程数据。beginDrag／DragSourceData 的 localData 保留本次来源的普通引用；只有原生来源匹配本 Application 当前 DragSession 时，接收 offer 才取得同一个值，不能用 local 标记或相同文本猜测文档身份。当前文本移动和本地重排使用此关联，不建立通用对象序列化或跨进程对象桥。
 
 AppKit 接收边界的正式类型、owner 与收尾见[Window 数据拖放规范](../../specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)。registerDropTarget 提供 metadata offer 与 Drop 时自有内容的同步接收；替换、禁用、关闭及重入使旧协商失效。单项可协商文本／URL 多表示，文件列表完整接收，已协商 Move 不在 BOOL 接收阶段偷换 Copy。[UI DropArea](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md) 借用当前挂载的 InputArea，通过 SurfaceWindow.hitInput 使用同一 Accepted 路径与局部坐标；业务拒绝只沿逻辑父链回退。UI 请求活动拖放更新，普通反馈不在 offer 栈中重建控件；Drop 确认最新接收资格且仅提交一次。source、文本事务和三个范围的系统会话验收仍保持本节完整范围。
 
@@ -180,7 +180,7 @@ AppKit 的公开 NSDraggingSession 不提供强制取消。Window 因而分开 c
 
 ### 6.3 文本拖放
 
-当前 Copy 接收合同见[UI 拖放规范第 4 节](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)：macOS 的 TextEditHost／Input／Textarea／OTP 使用 acceptDrops 开关，按模型身份、修订、投影和 Accepted 帧定位；临时 caret 与边缘滚动不改正文选区。TextEditSource.DragDrop 复用 Paste 导入策略，拒绝保持 composition，接受只发布一次并形成独立撤销项。本节其余拖出、Move 与完整系统会话仍属于本轮范围。
+当前接收及选区来源合同见[UI 拖放规范第 4、5 节](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)：macOS 的 TextEditHost／Input／Textarea／OTP 使用 acceptDrops 及 drag: TextDragOptions 分别配置接收与拖出；SelectableTextHost 透传相同拖出选项。按模型身份、修订、投影和 Accepted 帧定位；临时 caret 与边缘滚动不改正文选区。TextEditSource.DragDrop 复用 Paste 导入策略，拒绝保持 composition，接受只发布一次并形成独立撤销项。来源记录独立的正文修订，选区变化不撤销 Move，正文变化即使随后 Undo 也不能恢复旧范围的删除资格。DragSession.effects 只在初始操作集合内调整后续协商，真实完成结果保持平台已报告的值。TextDragResult.SourceRetained 明确区分目标已接收而源未删除。实现与实际设备／平台的验收结果分开见实施记录。
 
 文本宿主提供独立的拖出、接收开关和允许的 effect。普通可编辑 Input／Textarea 缺省启用拖出与接收；只读文本和 SelectableText 只允许按复制策略拖出 Copy，受保护文本缺省关闭拖出。应用可以分别关闭两端，不能为了禁用拖放而禁用普通拖选或文本编辑。启用状态更新立即作用于当前候选和落放资格。
 

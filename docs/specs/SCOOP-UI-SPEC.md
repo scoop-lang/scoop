@@ -552,7 +552,9 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 TextEditOptions.contextMenu 及 TextEditHost.showContextMenu 接入原生文本菜单，模式、选区、已接受锚点、目标绑定与收尾遵守[原生菜单规范第 6 节](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。默认 PreferSystem，无可复用系统项目时使用标准原生模板；Disabled 允许调用方完全接管上下文菜单。
 
-TextEditOptions.acceptDrops 默认 true；当前 macOS 宿主可接收 Copy 文本／URL，临时落点 caret、边缘滚动、Accepted 模型与修订匹配及编辑事务见[文本拖入合同](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。DragDrop 是独立的 TextEditSource，导入清洗复用 Paste 阶段；拒绝 Drop 保留尚未发布的 composition 候选，不采用原生输入必须确认批次时的拒绝发布路径。
+TextEditOptions.acceptDrops 默认 true；当前 macOS 宿主可接收 Copy 或完整 Move 的文本／URL，临时落点 caret、边缘滚动、Accepted 模型与修订匹配及编辑事务见[文本拖入合同](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)，Move 的额外条件见该规范第 5 节。DragDrop 是独立的 TextEditSource，导入清洗复用 Paste 阶段；拒绝 Drop 保留尚未发布的 composition 候选，不采用原生输入必须确认批次时的拒绝发布路径。
+
+TextEditOptions.drag 默认为 TextDragOptions()，配置独立的选区拖出开关、阈值、导出策略、Copy／Move 与完成通知。选区内单击延迟定位，阈值后复用真实来源会话；同文档 Move 一次发布和一个 undo，来源改变后不按旧范围删除。正文修订与包含选区的输入 revision 区分；单纯选区变化不使已开始的来源正文失效。正式配置、来源关联、过滤与 SourceRetained 结果见[文本选区拖出与移动](SCOOP-UI-DRAG-DROP-SPEC.md#5-文本选区拖出与移动)。
 
 `TextEditHost(scope, state, appearance, options = TextEditOptions(), onInteractionChanged = { _ -> Unit })` 是普通 Closeable，由呈现它的 Element 在构造中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints, cells=None, scrollPadding={ _, _ -> ScrollPadding() })` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
@@ -613,6 +615,8 @@ count 是配置的可见槽数，不是模型修改入口。原始 preedit 或�
 同一挂载的 Text 语义节点可调用 updateSelectableText，发布含 alternateText 的正文和映射后的选区；正常 update 及选择通知刷新同一 handle，不增加可写模型或替换业务回调。只读选择和 ShowContextMenu 复用宿主实际能力，规则见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
 
 SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活动／非活动选择颜色，默认启用选择、复制和裁剪。字符／词／逻辑行选择、Shift 扩展及方向移动复用公共文本导航；键盘只消费 Move、SelectAll、Copy，其他编辑命令留给外层。Copy 使用 Accepted StyledText.toPlainText(range)，包括行内对象 alternateText，不丢失原始逻辑范围。选择活动状态包括自身范围动作的焦点。
+
+SelectableTextOptions.drag 同样默认为 TextDragOptions()，只允许导出 Copy，不获得接收或删除文档的能力。实际选区内按下保留原选区，数据拖出与普通拖选共用输入区域及 Accepted 段落；未启动的点击在释放时定位，范围动作继续通过原 claim 处理。
 
 SelectableTextOptions.contextMenu 默认为 TextContextMenuOptions()，与编辑宿主共用 Disabled／StandardNative／PreferSystem、选区策略及标准标签。showContextMenu()、右键／平台辅助点击和菜单键／Shift+F10 进入同一原生菜单，提供 Copy／SelectAll；要求匹配正文的 Accepted 几何和合法焦点／输入边界。选区内点击保留方向，选区外按配置保留、放置插入点或选词。打开停止拖选，不触发行内主按钮；会话、正文更新、关闭及迟到动作遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。
 

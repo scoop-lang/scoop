@@ -10,6 +10,10 @@ private class DragNativeProbe(
     var session: DragSession? = None
     var starts = 0
     var closes = 0
+    var effects = DragEffects(true, true, true)
+    public override fun setEffects(value: DragEffects) {
+        effects = value
+    }
     public override fun start() {
         starts += 1
         if (mode == 5)
@@ -17,6 +21,10 @@ private class DragNativeProbe(
         session!!.nativeEvent(0, 0)
         assertTrue(session!!.isStarted)
         assertFalse(session!!.cancelPending())
+        if (mode == 2) {
+            session!!.effects = DragEffects(true, false, false)
+            assertEquals(DragEffects(true, false, false), effects)
+        }
         if (mode == 6) {
             session!!.close()
             assertEquals(1, closes)
@@ -52,11 +60,22 @@ internal class DragLogicProbe(
         step += 1
         val mode = step - 1
         val native = DragNativeProbe(mode, { assertTrue(application.proxy().post { _ -> next() }) })
+        val original =
+            if (mode == 0)
+                DragEffects(true, false, false)
+            else
+                DragEffects(true, true, true)
+        val marker = DragLocalMarker()
         val session =
-            DragSession(window.owner) {
+            DragSession(window.owner, original, Some(marker)) {
                 result ->
                 completions += 1
                 assertTrue(last!!.isClosed)
+                when (last!!.localData) {
+                    case Some(_) -> fail(Some("closed source retained local data"))
+                    case None -> {}
+                }
+                assertFailsWith<IllegalStateException> { last!!.effects = original }
                 assertEquals(1, native.closes)
                 assertEquals(
                     if (mode == -1)
@@ -93,6 +112,18 @@ internal class DragLogicProbe(
         native.session = Some(session)
         last = Some(session)
         session.bind(native)
+        when (val data = session.localData) {
+            case Some(val value) -> assertTrue(value === marker)
+            case None -> fail(Some("source lost its local data"))
+        }
+        session.effects = DragEffects(false, false, false)
+        assertEquals(DragEffects(false, false, false), native.effects)
+        session.effects = original
+        assertEquals(original, native.effects)
+        if (mode == 0)
+            assertFailsWith<IllegalArgumentException> {
+                session.effects = DragEffects(true, true, false)
+            }
         session.schedule(time)
         assertNoResult(session)
         if (mode == -1) {
@@ -101,3 +132,5 @@ internal class DragLogicProbe(
         }
     }
 }
+
+private class DragLocalMarker

@@ -7,6 +7,30 @@ import scoop.window.native.*
 
 internal class NativeTextDrop(private val pointer: Ptr<Unit>): Closeable {
     private var closed = false
+    fun input(kind: Int, point: Point, count: Int = 1, shift: Boolean = false) {
+        @Unsafe
+        {
+            sourceInput(pointer, kind, point.x, point.y, count, shift)
+        }
+    }
+    fun sourceMask(): Int {
+        @Unsafe
+        {
+            return sourceMaskProbe(pointer)
+        }
+    }
+    fun assertSource(text: String) {
+        @Unsafe
+        {
+            text.withUtf8Bytes {
+                bytes,
+                count -> @Unsafe
+                {
+                    assertTrue(sourceReadyProbe(pointer, bytes, count))
+                }
+            }
+        }
+    }
     fun post(callback: ForeignCallback<(Ptr<Unit>) -> Int>) {
         @Unsafe
         {
@@ -116,3 +140,19 @@ private fun leaveProbe(probe: Ptr<Unit>)
 
 @Extern(name = "scoop_ui_text_drop_close")
 private fun closeProbe(probe: Ptr<Unit>)
+
+@Extern(name = "scoop_ui_text_source_input")
+private fun sourceInput(
+    probe: Ptr<Unit>,
+    kind: Int,
+    x: Double,
+    y: Double,
+    count: Int,
+    shift: Boolean
+)
+
+@Extern(name = "scoop_ui_text_source_mask")
+private fun sourceMaskProbe(probe: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ui_text_source_ready")
+private fun sourceReadyProbe(probe: Ptr<Unit>, bytes: Ptr<UInt8>, length: Long): Boolean

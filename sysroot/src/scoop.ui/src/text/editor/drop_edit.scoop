@@ -8,7 +8,8 @@ internal fun prepareEditorDrop(
     position: Long,
     text: String,
     policy: TextEditPolicy,
-    singleLine: Boolean = false
+    singleLine: Boolean = false,
+    complete: Boolean = false
 ): EditorPreparedEdit? {
     val operations = ArrayList<TextInputOperation>()
     if (editor.isComposing)
@@ -20,6 +21,8 @@ internal fun prepareEditorDrop(
         prepareEditorInput(editor, TextInputBatch(Some(editor.revision), operations.toArray()))!!
     val result =
         finishEditorInput(raw, policy, TextEditSource.DragDrop, singleLine, EditorEditKind.Separate)
+    if (complete)
+        return completeEditorTransfer(raw, result)
     return if (result.accepted)
         Some(result)
     else

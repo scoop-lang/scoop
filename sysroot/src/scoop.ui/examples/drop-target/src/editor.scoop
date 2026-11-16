@@ -7,24 +7,37 @@ import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.accessibility.*
 
+internal struct DropEditorInput(
+    val state: TextEditorState,
+    val onCompleted: (TextDragResult) -> Unit
+)
+
 internal class DropEditor(
-    private val props: Props<TextEditorState>,
+    private val props: Props<DropEditorInput>,
     scope: ComponentScope
 ): Element<TextEditMeasurement>(scope) {
     private val appearance = TextEditAppearance(scope.defaultFonts, textStyle { fontSize = 18.0 })
-    private val options = TextEditOptions(multiline = true, acceptDrops = true)
-    private val host = scope.resource { TextEditHost(scope, props.value, appearance, options) }
+    private val projection = textProjection()
+    private val host =
+        scope.resource { TextEditHost(scope, props.value.state, appearance, options(props.value)) }
     private val semantic = scope.semantics(SemanticRole.TextField)
 
+    private fun options(input: DropEditorInput): TextEditOptions =
+        TextEditOptions(
+            multiline = true,
+            projection = projection,
+            drag = TextDragOptions(onCompleted = input.onCompleted)
+        )
+
     public override fun update(): UiInvalidation {
-        host.update(props.value, appearance, options)
+        host.update(props.value.state, appearance, options(props.value))
         semantic.updateTextEditor(
             host,
             SemanticProperties(
                 name = Some("Text drop editor"),
                 description =
                     Some(
-                        "Drop or paste text and URLs. Use the usual selection, editing and undo commands."
+                        "Drag selected text to move it, or hold Option to copy. Drop or paste text and URLs. Use the usual editing and undo commands."
                     )
             )
         )

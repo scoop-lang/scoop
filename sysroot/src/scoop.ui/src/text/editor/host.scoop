@@ -69,6 +69,7 @@ public class TextEditHost public constructor(
     internal val blink = scope.createDeadline { editorBlink(this) }
     internal val dragTimer = scope.createDeadline { editorDragTick(this) }
     internal val dropTarget = createEditorDropTarget(this)
+    internal val dataSource = createEditorDragSource(this)
     internal var caretPreferences = scope.interactionPreferences
     private var caretScale = window.metrics?.scaleFactor
     private val preferenceObserver =
@@ -254,6 +255,7 @@ public class TextEditHost public constructor(
         area.scope.enabled = options.enabled
         area.textInput = options.enabled && !options.readOnly
         dropTarget?.update()
+        dataSource?.update()
         refreshMenuCommands()
         if (area.isFocusActive && options.enabled)
             current.attachHost(this)
@@ -305,6 +307,7 @@ public class TextEditHost public constructor(
         if (closed || performing)
             return
         dropTarget?.update()
+        dataSource?.update()
         refreshMenuCommands()
         invalidate()
         editorStopDrag(this, false)
@@ -365,11 +368,14 @@ public class TextEditHost public constructor(
         publishNative()
         if (notify)
             notifyEdited(before, beforeCommitted)
+        else
+            dataSource?.update()
         return changed
     }
     internal fun notifyEdited(before: String, beforeCommitted: String) {
         if (notifying || closed)
             return
+        dataSource?.update()
         val state = current
         val revision = state.revision
         val after = state.committedText
@@ -399,6 +405,7 @@ public class TextEditHost public constructor(
         failure = cleanupUi(failure) { blink.close() }
         failure = cleanupUi(failure) { dragTimer.close() }
         failure = cleanupUi(failure) { dropTarget?.close() }
+        failure = cleanupUi(failure) { dataSource?.close() }
         drag = None
         if (owned)
             failure = cleanupUi(failure) { current.cancelComposition() }

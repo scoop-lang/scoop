@@ -36,6 +36,7 @@ public class SelectableTextHost public constructor(
             event -> selectableHandle(this, context, event)
         }
     public val focus = scope.focusTarget(area)
+    internal val dataSource = createSelectableDragSource(this)
     internal val contextMenu =
         TextContextMenu(
             scope,
@@ -48,8 +49,10 @@ public class SelectableTextHost public constructor(
     private val activity =
         area.scope.observeActivity {
             if (!closed && scope.isMounted) {
-                if (!area.scope.activity.hasFocus)
+                if (!area.scope.activity.hasFocus) {
+                    dataSource?.cancelCandidate()
                     selectableStopDrag(this)
+                }
                 contextMenu.refresh()
                 scope.requestFrame()
             }
@@ -62,6 +65,7 @@ public class SelectableTextHost public constructor(
         area.scope.defaultAction = { context, event -> selectableHandle(this, context, event) }
         area.scope.onEventFinished = { event -> selectableFinished(this, event) }
         area.scope.enabled = options.enabled
+        dataSource?.update()
         scope.routeChildren(area)
         refreshMenuCommands()
     }
@@ -185,6 +189,7 @@ public class SelectableTextHost public constructor(
             }
         // Pending text blocks selection through inputFrame without retiring the existing focus.
         area.scope.enabled = options.enabled
+        dataSource?.update()
         refreshMenuCommands()
         for (action in actions)
             action.refresh(available, accepted)
@@ -251,6 +256,7 @@ public class SelectableTextHost public constructor(
         selectableStopDrag(this)
         var failure: Throwable? = None
         failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { dataSource?.close() }
         failure = cleanupUi(failure) { activity.close() }
         for (action in actions)
             failure = cleanupUi(failure) { action.close() }

@@ -9,3 +9,19 @@ internal fun createEditorDropTarget(host: TextEditHost): EditorDropTarget? =
             enabled -> host.scope.dropTarget(host.area, handlers, enabled)
         }
     )
+
+internal fun createEditorDragSource(host: TextEditHost): EditorDragSource? =
+    Some(
+        EditorDragSource(host) {
+            options,
+            prepare -> host.scope.dragSource(host.area, options, prepare)
+        }
+    )
+
+internal fun createSelectableDragSource(host: SelectableTextHost): SelectableDragSource? =
+    Some(
+        SelectableDragSource(host) {
+            options,
+            prepare -> host.scope.dragSource(host.area, options, prepare)
+        }
+    )

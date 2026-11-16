@@ -39,7 +39,8 @@ public class TextareaProps public constructor(
         scrollbarBehavior { placement = ScrollbarPlacement.Gutter },
     public val protectedText: Boolean = false,
     public val semantics: ComponentSemantics = ComponentSemantics(),
-    public val acceptDrops: Boolean = true
+    public val acceptDrops: Boolean = true,
+    public val drag: TextDragOptions = TextDragOptions()
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -81,7 +82,8 @@ private fun multilineInput(input: TextareaProps): TextFieldInput =
             copy = input.copy,
             contextMenu = input.contextMenu,
             protectedText = input.protectedText,
-            acceptDrops = input.acceptDrops
+            acceptDrops = input.acceptDrops,
+            drag = input.drag
         ),
         input.rows,
         input.scrollbars,

@@ -4,6 +4,7 @@ package scoop.window
 public fun Window.beginDrag(
     content: DragContent,
     effects: DragEffects = DragEffects(true, false, false),
+    localData: Any? = None,
     onCompleted: (DragResult) -> Unit = {}
 ): DragSession {
     owner.requireInteractive()
@@ -26,7 +27,7 @@ public fun Window.beginDrag(
         }
         else -> {}
     }
-    val session = DragSession(owner, onCompleted)
+    val session = DragSession(owner, effects, localData, onCompleted)
     session.bind(prepareDragSource(owner, pointer, content, effects, session))
     session.schedule(input.time)
     return session
@@ -134,6 +135,31 @@ private class DarwinDragSource(
     private val pointer: Ptr<Unit>,
     private val callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>
 ): NativeDragSource {
+    public override fun setEffects(value: DragEffects) {
+        val mask =
+            (
+                if (value.copy)
+                    1
+                else
+                    0
+            ) +
+                (
+                    if (value.move)
+                        2
+                    else
+                        0
+                ) +
+                (
+                    if (value.link)
+                        4
+                    else
+                        0
+                )
+        @Unsafe
+        {
+            checkNativeStatus(nativeDragEffects(pointer, mask), "update drag effects")
+        }
+    }
     public override fun start() {
         @Unsafe
         {
@@ -175,6 +201,9 @@ private fun nativeDragReady(source: Ptr<Unit>): Long
 
 @Extern(name = "scoop_window_drag_start")
 private fun nativeDragStart(source: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_drag_effects")
+private fun nativeDragEffects(source: Ptr<Unit>, effects: Int): Long
 
 @Extern(name = "scoop_window_drag_close")
 private fun nativeDragClose(source: Ptr<Unit>)

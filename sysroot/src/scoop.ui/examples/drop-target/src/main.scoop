@@ -16,6 +16,7 @@ private struct DropView(
 
 private class DropDemo(scope: ComponentScope): Component(scope) {
     private var received: DragContent? by state<DragContent?>(None)
+    private var transferMessage: String by state("")
     private val editor = TextEditorState("Drop text or a URL here, or type and paste normally.")
     public override fun render(): View {
         val message =
@@ -26,17 +27,39 @@ private class DropDemo(scope: ComponentScope): Component(scope) {
                 case None -> "Nothing received yet."
             }
         return element(
-            DropView(message, received, { value -> received = Some(value) }),
+            DropView(
+                message + "\n" + transferMessage,
+                received,
+                { value -> received = Some(value) }
+            ),
             { props, mount -> DropDrawing(props, mount) },
-            [element(editor, { props, mount -> DropEditor(props, mount) })]
+            [
+                element(
+                    message + "\n" + transferMessage,
+                    { props, mount -> DropHeader(props, mount) }
+                ),
+                element(
+                    DropEditorInput(editor, { result -> completed(result) }),
+                    { props, mount -> DropEditor(props, mount) }
+                )
+            ]
         )
+    }
+    private fun completed(result: TextDragResult) {
+        transferMessage =
+            when (result) {
+                case Copied -> "Selection copied."
+                case Moved -> "Selection moved."
+                case SourceRetained -> "The destination accepted the text; the source was kept."
+                case NotDropped -> "Drag not accepted."
+                case Failed(_) -> "The system could not start the drag."
+            }
     }
 }
 
-private class DropDrawing(private val props: Props<DropView>, scope: ComponentScope): Element<
-    ParagraphMeasurement
->(scope) {
-    private val paragraph = scope.resource { ParagraphHost() }
+private class DropDrawing(private val props: Props<DropView>, scope: ComponentScope): Element<Size>(
+    scope
+) {
     private val background = scope.createArea()
     private val textArea = scope.createArea(focusable = true, parent = Some(background))
     private val urlArea = scope.createArea(focusable = true, parent = Some(background))
@@ -172,7 +195,7 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
     }
 
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        ParagraphMeasurement
+        Size
     > {
         val size = constraints.constrain(Size(720.0, 560.0))
         val width =
@@ -180,9 +203,11 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                 size.width - 48.0
             else
                 0.0
-        context.measureChild(0L, Constraints.tight(Size(width, 80.0)))
+        val header = context.measureChild(0L, Constraints(maxWidth = Some(width)))
+        context.placeChild(0L, Point(24.0, 24.0))
+        context.measureChild(1L, Constraints.tight(Size(width, 80.0)))
         context.placeChild(
-            0L,
+            1L,
             Point(
                 24.0,
                 if (size.height > 104.0)
@@ -191,33 +216,17 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                     0.0
             )
         )
-        val message = props.value.message
-        val content =
-            styledText {
-                this.text(
-                    "Left: drag text; click to paste. Right: drag URL; click to copy.\nCommand C copies the focused region. Drop text into the editor below.\n\n" +
-                        message
-                )
-                style { fontSize = 18.0 }
-            }
-        val measured =
-            paragraph.measure(
-                context,
-                Constraints(maxWidth = Some(width)),
-                scope.defaultFonts,
-                content
-            )
-        return LayoutResult(LayoutMetrics(size), measured, { measured.close() })
+        return LayoutResult(LayoutMetrics(size), header.size)
     }
 
-    public override fun scene(context: SceneContext, layout: ParagraphMeasurement) {
+    public override fun scene(context: SceneContext, layout: Size) {
         val all = Rect(0.0, 0.0, context.size.width, context.size.height)
         val width =
             if (context.size.width > 72.0)
                 (context.size.width - 72.0) / 2.0
             else
                 0.0
-        val top = 48.0 + layout.metrics.size.height
+        val top = 48.0 + layout.height
         val height =
             if (context.size.height > top + 128.0)
                 context.size.height - top - 128.0
@@ -231,10 +240,7 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
         context.semantics(fileSemantic, all)
         context.semantics(textSemantic, left)
         context.semantics(urlSemantic, right)
-        context.semantics(
-            resultSemantic,
-            Rect(24.0, 24.0, layout.metrics.size.width, layout.metrics.size.height)
-        )
+        context.semantics(resultSemantic, Rect(24.0, 24.0, layout.width, layout.height))
         val fileHover = files.hover != None
         val textHover = text.hover != None || textSource.isDragging
         val urlHover = url.hover != None || urlSource.isDragging
@@ -286,8 +292,6 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                 )
         }
         context.children()
-        context.translate(24.0, 24.0)
-        paragraph.scene(context, layout)
     }
 }
 

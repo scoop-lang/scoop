@@ -120,7 +120,7 @@ macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏
 
 ## 接收原生拖放
 
-Darwin 的 Open 窗口通过 `window.registerDropTarget(DropHandlers(offer, drop, leave))` 注册一个接收资源；声明从 `scoop.window` 导入。`DropOffer` 只包含 `DragFormats`、`DragEffects`、接收窗口逻辑位置、修饰键和 local。local 仅表示来源在当前进程，不确定文档或业务节点。offer 返回 Reject 或 Accept(format, effect)，只能选择实际可用的 Text／Url／Files 和 Copy／Move／Link；接收方自行命中自己的场景。
+Darwin 的 Open 窗口通过 `window.registerDropTarget(DropHandlers(offer, drop, leave))` 注册一个接收资源；声明从 `scoop.window` 导入。DropOffer 提供格式、操作、接收窗口逻辑位置、修饰键和 local；local 仅表示来源在当前进程。localData 仅在原生来源确为本 Application 当前 DragSession 时保留 beginDrag 提供的同一个进程内值，默认 None，不写入 pasteboard。offer 返回 Reject 或 Accept(format, effect)，只能选择实际可用的 Text／Url／Files 和 Copy／Move／Link；接收方自行命中自己的场景。
 
 Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 `DragContent.Text(String)`、`Url(String)` 或 `Files(Array<Path>)`，并调用 `drop(DropRequest): Boolean`。true 表示已实际接受；尚在排队的业务不能返回 true。单项可同时提供文本和 URL；首批不合并多个文本项目。Files 要求完整的本地路径列表，拒绝混合或部分可读项目，不读取文件正文。文本保留原值，编辑目标自己的导入策略负责清洗。
 
@@ -134,7 +134,9 @@ Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 
 
 ## 发起原生数据拖放
 
-macOS 的 `window.beginDrag(content, effects = DragEffects(true, false, false), onCompleted = {})` 只能在该窗口当前左键 Down 或 Dragged 的 owner 派发中调用，上层负责阈值。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。
+macOS 的 `window.beginDrag(content, effects = DragEffects(true, false, false), localData = None, onCompleted = {})` 只能在该窗口当前左键 Down 或 Dragged 的 owner 派发中调用，上层负责阈值。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。localData 用于同程序实际来源关联，保留普通引用，不编码或传给外部程序。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。
+
+DragSession.effects 可以调整后续协商，只能使用创建时提供过的操作，允许暂时为空；已有结果或关闭后不能更新。正文变化后可撤销 Move 资格，native getter 不进入 Scoop。目标已经报告的 Move 不会被后来的 effects 更新改写成取消，来源仍须核对并报告删除结果。
 
 准备成功后取消普通鼠标序列，并在已有延迟原生操作边界启动系统会话。返回的 DragSession 提供 isStarted、result、isClosed；结果为 Dropped(effect)、NotDropped 或 Failed(error)。onCompleted 在普通 owner 队列交付一次，登记和原生回调先退休。Dropped(Move) 只表示目标接受 Move，Window 不删源；实际文档或文件业务必须独立确认自己的版本和完成条件。
 

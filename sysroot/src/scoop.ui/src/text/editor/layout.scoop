@@ -333,6 +333,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         host.accepted = Some(frame)
         previous?.close()
         host.dropTarget?.accepted()
+        host.dataSource?.update()
         if (host.current.revision == frame.revision) {
             if (
                 host.revealNeeded &&

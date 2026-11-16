@@ -166,7 +166,8 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 - [x] UI 接收资源与共享命中查询：DropArea 借用 InputArea，使用 Surface Accepted 路径与冻结坐标，支持逻辑父目标回退、局部反馈、读取期间重新确认及挂载收尾；定向几何和真实挂载逻辑测试通过。合同见[UI 数据拖放规范](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md)，独立消费者见[接收示例](../../../sysroot/src/scoop.ui/examples/drop-target/README.md)；实际窗口命中、source／文本与系统会话仍按下面条目验收。
 - [x] Window／AppKit 拖出接口与准备／收尾：beginDrag 使用当前左键输入、复制标准表示并延后启动；cancelPending 与 close 分开，结果不隐含来源删除。原生 item writer、启动前取消／关窗和显式替身完成测试通过；两窗口消费者见 [drag-drop](../../../sysroot/src/scoop.window/examples/drag-drop/README.md)。这不关闭下面的实际系统会话、UI source 与文本移动验收。
 - [x] UI 来源阈值与准备收尾：scope.dragSource 接入普通 InputArea／claim、延后数据准备、单次来源完成回调与挂载收尾；基础测试和真实 Accepted 输入准备测试通过，双窗口消费者检查／链接通过。后者在 OS 会话启动前取消请求，完整系统会话、活动来源与文本 Move 仍属于下面的验收范围。
-- [x] 文本 Copy 接收的共享宿主接入：TextEditHost／Input／Textarea／OTP 的 acceptDrops 开关、匹配当前模型／修订／投影的 Accepted 落点、临时 caret、内侧边缘滚动及 Paste 策略复用已实现；纯编辑和实际窗口目标协议测试通过，拒绝保持 composition，接受一次发布与独立 undo。协议测试未启动 NSDraggingSession；文本拖出、Move、其他平台与三个范围的完整 OS 会话继续按下面条目验收。
+- [x] 文本 Copy 接收的共享宿主接入：TextEditHost／Input／Textarea／OTP 的 acceptDrops 开关、匹配当前模型／修订／投影的 Accepted 落点、临时 caret、内侧边缘滚动及 Paste 策略复用已实现；纯编辑和实际窗口目标协议测试通过，拒绝保持 composition，接受一次发布与独立 undo。该协议探针不启动 NSDraggingSession，完整系统会话与其他平台继续按下面条目验收。
+- [x] macOS 文本选区来源与完整 Move：TextDragOptions、可编辑／只读／Selectable 宿主、Input／Textarea／OTP 及包装透传已实现；同文档移动、正文修订、有损拒绝、一次删除和 SourceRetained 走共享编辑事务。模型与真实帧的来源准备测试通过；用户手动确认同框移动、彩色区域复制、跨窗口及跨程序双向文本拖放正常。文件、活动源关闭／取消、模态及其他平台的完整矩阵仍待验收。
 - [ ] 定义一份公共 offer／effect／结果合同，支持纯文本、URL、真实文件列表及多表示；按实际需要延迟读取，native 格式转换归 Window，Link 只在有业务含义时提供。
 - [ ] 分别完成窗口内、同程序跨窗口、跨程序 source／target；允许离窗的 source 从起始使用原生会话，各接收根只命中自己的 Accepted 场景。
 - [ ] 完成阈值接管、Enter／Over／Leave／Drop、拒绝后的父目标规则、预览／高亮／光标及修饰键协商；接管后不额外点击，不对每次 move 读取全文／文件。

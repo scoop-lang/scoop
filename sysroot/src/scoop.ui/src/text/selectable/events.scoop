@@ -24,9 +24,14 @@ internal fun selectableHandle(
         return
     if (context.phase == RoutedPhase.Notification) {
         when (event) {
-            case FocusChanged(false) -> if (!host.area.scope.activity.hasFocus)
+            case FocusChanged(false) -> if (!host.area.scope.activity.hasFocus) {
+                host.dataSource?.cancelCandidate()
                 selectableStopDrag(host)
-            case Pointer(InputPointerEvent.Cancelled(_, _)) -> selectableStopDrag(host)
+            }
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.dataSource?.cancelCandidate()
+                selectableStopDrag(host)
+            }
             else -> {}
         }
         return
@@ -59,6 +64,11 @@ internal fun selectableHandle(
             }
         }
         else -> {}
+    }
+    if (host.dataSource?.handle(context, event) ?: false) {
+        if (context.phase == RoutedPhase.Default)
+            context.consume()
+        return
     }
     when (event) {
         case TextCommand(val command) -> if (
@@ -227,9 +237,10 @@ internal fun selectableFinished(host: SelectableTextHost, event: InputEvent) {
     if (host.closed)
         return
     when (event) {
-        case Pointer(
-            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
-        ) -> selectableStopDrag(host)
+        case Pointer(InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)) -> {
+            host.dataSource?.cancelCandidate()
+            selectableStopDrag(host)
+        }
         else -> {}
     }
 }

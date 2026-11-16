@@ -1,3 +1,4 @@
+#import "../../../../scoop.window/native/darwin/window.h"
 #import <AppKit/AppKit.h>
 #include <stdint.h>
 
@@ -16,6 +17,15 @@
 @property NSDraggingFormation draggingFormation;
 @property BOOL animatesToDestination;
 @property(nonatomic) NSSpringLoadingHighlight springLoadingHighlight;
+@end
+
+// Test-only declarations for the library's prepared source; no OS session is
+// started.
+@interface SWDragSource : NSObject <NSDraggingSource>
+@property(nonatomic, readonly) NSArray<NSDraggingItem *> *items;
+@property(nonatomic, readonly) BOOL active;
+- (NSDragOperation)draggingSession:(NSDraggingSession *_Nullable)session
+    sourceOperationMaskForDraggingContext:(NSDraggingContext)context;
 @end
 
 @implementation SUTextDrop
@@ -139,4 +149,55 @@ void scoop_ui_text_drop_close(void *pointer) {
   probe.closed = YES;
   [probe.view draggingExited:probe];
   [probe.draggingPasteboard releaseGlobally];
+}
+
+void scoop_ui_text_source_input(void *pointer, int32_t kind, double x, double y,
+                                int32_t count, bool shift) {
+  SUTextDrop *probe = (__bridge SUTextDrop *)pointer;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (probe.closed || !probe.view.window)
+      return;
+    NSEventType type = kind == 0   ? NSEventTypeLeftMouseDown
+                       : kind == 1 ? NSEventTypeLeftMouseDragged
+                                   : NSEventTypeLeftMouseUp;
+    NSEvent *event =
+        [NSEvent mouseEventWithType:type
+                           location:[probe.view convertPoint:NSMakePoint(x, y)
+                                                      toView:nil]
+                      modifierFlags:shift ? NSEventModifierFlagShift : 0
+                          timestamp:NSProcessInfo.processInfo.systemUptime
+                       windowNumber:probe.view.window.windowNumber
+                            context:nil
+                        eventNumber:200 + kind
+                         clickCount:count
+                           pressure:kind == 2 ? 0 : 1];
+    if (kind == 0)
+      [probe.view mouseDown:event];
+    else if (kind == 1)
+      [probe.view mouseDragged:event];
+    else
+      [probe.view mouseUp:event];
+  });
+}
+
+int32_t scoop_ui_text_source_mask(void *pointer) {
+  SUTextDrop *probe = (__bridge SUTextDrop *)pointer;
+  SWView *view = (SWView *)probe.view;
+  SWDragSource *source = view.owner.application.dragSource;
+  return (int32_t)[source draggingSession:nil
+      sourceOperationMaskForDraggingContext:NSDraggingContextWithinApplication];
+}
+
+bool scoop_ui_text_source_ready(void *pointer, const uint8_t *bytes,
+                                int64_t length) {
+  SUTextDrop *probe = (__bridge SUTextDrop *)pointer;
+  SWView *view = (SWView *)probe.view;
+  SWDragSource *source = view.owner.application.dragSource;
+  if (!source || source.active || source.items.count != 1)
+    return false;
+  NSPasteboardItem *item = (id)source.items.firstObject.item;
+  NSString *expected = [[NSString alloc] initWithBytes:bytes
+                                                length:(NSUInteger)length
+                                              encoding:NSUTF8StringEncoding];
+  return [[item stringForType:NSPasteboardTypeString] isEqualToString:expected];
 }

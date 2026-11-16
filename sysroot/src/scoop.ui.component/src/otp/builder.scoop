@@ -21,6 +21,7 @@ public class InputOtpBuilder internal constructor() {
     public var readOnly: Boolean = false
     public var protectedText: Boolean = false
     public var acceptDrops: Boolean = true
+    public var drag: TextDragOptions = TextDragOptions()
     public var invalid: Boolean = false
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
@@ -77,7 +78,8 @@ public class InputOtpBuilder internal constructor() {
             onComplete,
             contextMenu,
             protectedText,
-            acceptDrops
+            acceptDrops,
+            drag
         )
 }
 

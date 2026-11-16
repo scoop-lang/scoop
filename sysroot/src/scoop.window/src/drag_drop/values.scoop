@@ -34,7 +34,9 @@ public struct DropOffer(
     val effects: DragEffects,
     val position: LogicalPosition,
     val modifiers: Modifiers,
-    val local: Boolean
+    val local: Boolean,
+    /** The source's in-process value, present only for the matching live native session. */
+    val localData: Any? = None
 )
 
 public enum DropDecision {

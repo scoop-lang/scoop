@@ -1,6 +1,6 @@
 # Scoop UI 数据拖放
 
-本文为交互打磨 S6 的 UI 数据拖放合同，复用 [Window 数据拖放](SCOOP-WINDOW-DRAG-DROP-SPEC.md)与 [Surface 命中](SCOOP-SURFACE-SPEC.md#6-区域输入与焦点)。文本拖出与 Move、触摸来源和三平台系统会话继续按[统一计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)实现。
+本文为交互打磨 S6 的 UI 数据拖放合同，复用 [Window 数据拖放](SCOOP-WINDOW-DRAG-DROP-SPEC.md)与 [Surface 命中](SCOOP-SURFACE-SPEC.md#6-区域输入与焦点)。触摸来源和三平台系统会话继续按[统一计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)实现。
 
 ## 1. 接收区域
 
@@ -28,7 +28,7 @@ Darwin 的 ComponentScope.dragSource(area, options = DragSourceOptions(), prepar
 
 prepare: (DragSourceStart) -> DragSourceData? 只在达到阈值且默认动作仍有资格时调用一次。DragSourceStart 保存当前 Accepted 几何下的区域局部 start／position，以及原始 press 和当前 pointer 两个 InputPointer；正文准备可据此核对原按下位置、修饰键和当前业务状态。按下时只记录候选，不读取数据或消费点击。prepare 返回 None 时放弃该候选，不接管普通点击，祖先默认动作仍可继续；下一次按下可重新尝试。准备回调中更新、禁用或关闭该行为，会撤销本次准备。
 
-DragSourceData(content: DragContent, effects = DragEffects(true, false, false), onCompleted: (DragResult) -> Unit = {}) 描述本次具体数据和结果处理。普通属性更新为下一次准备替换闭包；已准备数据的 onCompleted 始终与该次来源配对，不被下一行、下一文档或下一次 render 的处理器替换。需要 Move 的消费者在准备时捕获来源及修订，并在 Dropped(Move) 后核对来源仍可删除，再提交一次删除；库不自动删除业务数据。
+DragSourceData(content: DragContent, effects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}) 描述本次具体数据和结果处理。localData 沿 Window 的真实来源关联传给同程序接收端，不写入原生数据表示。普通属性更新为下一次准备替换闭包；已准备数据的 onCompleted 始终与该次来源配对，不被下一行、下一文档或下一次 render 的处理器替换。需要 Move 的消费者在准备时捕获来源及修订，并在 Dropped(Move) 后核对来源仍可删除，再提交一次删除；库不自动删除业务数据。
 
 有数据后沿 Surface.claimPointer 接管原按下路径，再由当前 Window.beginDrag 复制表示并延后启动系统会话。子项先获得默认动作；事件被阻止或已被其他作用域接管时，来源不另建竞争会话。准备异常或 Window 启动入口异常沿正常 UI 错误边界处理，已经取得的普通 claim 会收尾。窗口系统操作发出的 Pointer.Cancelled 只结束普通点击／拖动候选，不撤销已准备的数据会话；窗口失焦、capture 结束也不能被解释成系统 Drop 失败。
 
@@ -42,7 +42,7 @@ isDragging 是可追踪的 UI 状态，表示该行为当前持有准备中或�
 
 ## 4. 文本 Copy 接收
 
-TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 builder 提供同名开关并透传到宿主。macOS 的 TextEditHost 在自己的区域接入 DropArea；只接受 Copy 的 Text／Url，文件列表和仅提供 Move／Link 的来源拒绝。其他平台在 Window 接收后端具备后接入同一文本实现；当前没有原生接收后端的平台不分配接收资源，不影响已有键盘、粘贴或鼠标拖选。文本拖出与 Move 保持 S6 的后续交付，不用 Copy 接收替代其验收。
+TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 builder 提供同名开关并透传到宿主。macOS 的 TextEditHost 在自己的区域接入 DropArea，接收 Text／Url；文件列表和只有 Link 的来源拒绝。Copy 的基础接收遵守本节，完整 Move 扩展见第 5 节。其他平台在 Window 接收后端具备后接入同一文本实现；当前没有原生接收后端的平台不分配接收资源，不影响已有键盘、粘贴或鼠标拖选。完整系统拖放仍按 S6 单独验收。
 
 接收资格同时要求宿主、挂载、区域有效，acceptDrops／enabled 为 true 且不是 readOnly。protectedText 和遮罩不禁止导入，但不因此开放任何导出能力。offer 只选择格式和当前落点；不读取正文、不改变文档选区、composition、焦点或历史。仅使用属于当前 TextEditorState、修订和投影的最近 Accepted 排版；重绑定、正文变化或投影变化后等待匹配的新帧，不能把旧视图的落点套在新文档上。空文本仍使用真实空段落的 caret。
 
@@ -52,6 +52,22 @@ TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 build
 
 接受时按现有输入批次在同一编辑事务中结束 marked 状态并在落点插入；旧坐标在准备阶段使用，不在 composition 结束后重新解释。只发布一次结果，实际编辑形成独立撤销项，空结果不制造冗余历史；正文及已提交回调、原生文本快照和 accessibility 通知沿既有模型路径。实际编辑生效后才请求该区域的普通焦点；业务回调关闭宿主或重绑定时，不把焦点交给新内容，已经接受的结果仍返回 true。
 
-## 5. 验证范围
+## 5. 文本选区拖出与移动
+
+TextEditOptions 与 SelectableTextOptions 增加 drag: TextDragOptions。TextDragOptions 默认 enabled=true、threshold=4.0、effects=DragEffects(true, true, false)、copyPolicy=TextCopyPolicy.Default、onCompleted={}；阈值使用窗口逻辑距离。Link 不是文本移动，配置不允许它，也不允许初始空操作集。只读宿主与 SelectableTextHost 仅使用其中的 Copy，未允许 Copy 则不拖出。Input／Textarea／OTP、可选择 StyledText／Typography 及其 builder 和包装透传同一选项。
+
+默认导出策略同时遵守宿主复制策略与 protectedText／遮罩限制；显式 Allow／Deny 单独控制拖出原文。导出开关与 acceptDrops 独立，关闭任何一端不关闭普通点击、拖选、多击、键盘编辑或复制／粘贴。正在预编辑的宿主先沿普通点击／编辑路径结束 composition，该次按下不启动数据来源。
+
+左键单击真实选区绘制范围时先保存当前模型、正文修订与范围，保留选区；只有达到阈值后才准备文本并让原 DragSource 接管。按下位置必须来自匹配当前模型／投影的 Accepted 帧，不能把行外留白的最近字符当成命中选区。未成为拖放的点击在释放时完成普通定位，取消则保持选区；选区外、Shift 和多击继续原拖选规则。候选期间换绑、正文或选区变化使候选失效，拖动开始后单纯选区变化不改变已捕获来源范围。SelectableTextHost 导出 StyledText 的普通复制表示，保留行内对象替代文字。
+
+每次编辑来源保存独立的进程内上下文，包含具体 TextEditorState、正文修订、范围与原文。正文修订只在实际正文变化时推进，Undo 恢复旧文字也不会恢复旧来源资格。来源正文变化、改为只读或关闭导出时收窄后续 Move 资格；已复制的文本仍可用于允许的 Copy。只读、禁用、卸载和关闭遵守原 DragSource 的业务回调退休边界。
+
+目标通常优先 Move，平台复制修饰键或只有 Copy 可用时选择 Copy。同文档身份来自本次真实 localData 的模型引用；外部或其他来源不按文本内容推断。已知本地来源失去 Move 资格时改为可用的 Copy，否则拒绝。实际 Drop 重新确认来源、目标、策略与落点；Move 经 Paste 清洗／一般策略后必须完整保留预期移动正文，有截断或正文变换则拒绝，不能在 BOOL 接收阶段偷换 Copy。
+
+同一文档 Move 以一次候选编辑完成源删除、落点校正、插入和最终选区，发布一次、一个独立 undo 项；落点位于原范围内（含两端）保持正文与历史。目标记录已经完成该来源移动，原生结束回调不再删除。同程序不同文档及外部目标由源在 Dropped(Move) 后检查当前宿主、模型、正文修订、范围和删除策略，成功后独立删除一次；目标已经接受而来源不能删除时保留来源。来源删除沿普通编辑命令策略执行，不把删除当成第二次 Paste；拒绝或变换不能误删其他文字。
+
+TextDragResult 为 Copied、Moved、SourceRetained、NotDropped、Failed(WindowException)。SourceRetained 表示目标报告 Move 成功但源未完成删除，不能解释成完整移动。完成回调属于开始时的 TextDragOptions，只在来源仍有合法业务回调时调用；该回调不对已经关闭的控件复活。复制、菜单、键盘与语义编辑仍操作同一模型，移动结果沿现有正文／选区通知发布。
+
+## 6. 验证范围
 
 Surface 以真实离屏几何覆盖路径、变换、裁剪、边界和无副作用查询。UI 逻辑测试使用真实挂载、InputArea 和资源，分别验证候选路径、最新处理器、实际接受与生命周期。完整 GUI 场景单独构建和运行；这些分层结果不能代替真实 Accepted 命中与独立进程拖放会话。

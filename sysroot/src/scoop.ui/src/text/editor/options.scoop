@@ -31,9 +31,11 @@ public class TextEditOptions public constructor(
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
     /** A protected purpose remains set when its display projection becomes plain text. */
     public val protectedText: Boolean = false,
-    public val acceptDrops: Boolean = true
+    public val acceptDrops: Boolean = true,
+    public val drag: TextDragOptions = TextDragOptions()
 ) {
     internal fun check() {
+        drag.check()
         when (caretBlink) {
             case Some(val value) -> requireUi(
                 value.floorSeconds >= 0L,

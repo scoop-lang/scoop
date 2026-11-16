@@ -29,6 +29,7 @@ public struct DragSourceStart(
 public struct DragSourceData(
     val content: DragContent,
     val effects: DragEffects = DragEffects(true, false, false),
+    val localData: Any? = None,
     val onCompleted: (DragResult) -> Unit = {}
 )
 
