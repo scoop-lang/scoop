@@ -1,33 +1,14 @@
+#include "input/delivery.h"
 #include "window.h"
 
 typedef struct {
-  int64_t window;
-  int32_t kind, button;
-  POINT position;
-} SWFrameInput;
-typedef struct {
   SWWindow *window;
-  SWFrameInput input;
+  SWNativeInput input;
   int32_t kind, edge;
 } SWFrameOperation;
 
-SWResult scoop_window_input_copy(SWEvent *event) {
-  if (!event->native_input)
-    return (SWResult){NULL, 0};
-  SWFrameInput *input = malloc(sizeof(*input));
-  if (!input)
-    return (SWResult){NULL, ERROR_NOT_ENOUGH_MEMORY};
-  int32_t code = event->header.kind == SWKeyboard
-                     ? (int32_t)event->keyboard.physical_code
-                     : event->pointer.button;
-  *input = (SWFrameInput){event->header.window, event->header.kind, code,
-                          event->input_position};
-  return (SWResult){input, 0};
-}
-void scoop_window_input_release(void *input) { free(input); }
-
 SWResult scoop_window_system_operation_prepare(SWWindow *window,
-                                               SWFrameInput *input,
+                                               SWNativeInput *input,
                                                int32_t kind, int32_t edge) {
   if (input->window != window->identity ||
       (kind != 2 && (input->kind != SWPointer || input->button != 0)) ||
@@ -38,7 +19,7 @@ SWResult scoop_window_system_operation_prepare(SWWindow *window,
   if (!operation)
     return (SWResult){NULL, ERROR_NOT_ENOUGH_MEMORY};
   *operation = (SWFrameOperation){window, *input, kind, edge};
-  window->pressed_buttons = 0;
+  window->input.pressed_buttons = 0;
   if (GetCapture() == window->hwnd)
     ReleaseCapture();
   return (SWResult){operation, 0};

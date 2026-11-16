@@ -167,22 +167,11 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
   [self emit:3];
 }
 - (void)windowDidBecomeKey:(NSNotification *)notification {
-  self.view.functionHeld =
-      (NSEvent.modifierFlags & NSEventModifierFlagFunction) != 0;
-  if (self.view.imeAllowed)
-    [self.view.inputContext activate];
-  NSPoint point =
-      [self.view convertPoint:self.window.mouseLocationOutsideOfEventStream
-                     fromView:nil];
-  self.view.pointerInside =
-      NSMouseInRect(point, self.view.bounds, self.view.flipped);
-  [self.view updateCursor];
+  [self.view activateInput];
   [self emit:4];
 }
 - (void)windowDidResignKey:(NSNotification *)notification {
-  [self.view resetInput];
-  if (self.view.imeAllowed)
-    [self.view.inputContext deactivate];
+  [self.view deactivateInput];
   [self emit:4];
 }
 - (void)windowDidChangeOcclusionState:(NSNotification *)notification {
@@ -225,10 +214,7 @@ SWResult scoop_window_create(void *application, int64_t identity,
       return (SWResult){NULL, 0};
     owner.view = [[SWView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
     owner.view.owner = owner;
-    owner.view.pressedKeys = [NSMutableDictionary new];
-    owner.view.pressedButtons = [NSMutableSet new];
-    owner.view.cursor = NSCursor.arrowCursor;
-    owner.view.cursorVisible = YES;
+    [owner.view installInput];
     owner.window.acceptsMouseMovedEvents = YES;
     owner.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     NSView *content = [[NSView alloc] initWithFrame:owner.view.frame];

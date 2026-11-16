@@ -173,7 +173,6 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
       true;
-  window->cursor_visible = true;
   window->snapshot.scale = 1;
   window->snapshot.x = window->snapshot.y = NAN;
   window->snapshot.outer_width = window->snapshot.outer_height = NAN;
@@ -207,7 +206,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   adw_window_set_content(ADW_WINDOW(window->window), window->toolbar);
   sw_transparency(window, window->transparent);
   sw_ime_install(window);
-  sw_input_install(window);
+  sw_input_init(window);
   g_signal_connect(window->window, "close-request", G_CALLBACK(close_requested),
                    window);
   g_signal_connect(window->window, "realize", G_CALLBACK(realized), window);
@@ -242,24 +241,15 @@ void scoop_window_destroy(SWWindow *window) {
   if (surface)
     g_signal_handlers_disconnect_by_data(surface, window);
   g_signal_handlers_disconnect_by_data(window->window, window);
-  GListModel *controllers = gtk_widget_observe_controllers(window->view);
-  for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
-    GObject *controller = G_OBJECT(g_list_model_get_item(controllers, i));
-    g_signal_handlers_disconnect_by_data(controller, window);
-    g_object_unref(controller);
-  }
-  g_object_unref(controllers);
+  sw_input_destroy(window);
   g_signal_handlers_disconnect_by_data(window->ime, window);
   g_signal_handlers_disconnect_by_data(window->simple_ime, window);
   gtk_im_context_set_client_widget(window->ime, NULL);
   gtk_im_context_set_client_widget(window->simple_ime, NULL);
   g_clear_object(&window->ime);
   g_clear_object(&window->simple_ime);
-  g_clear_object(&window->click_controller);
   gtk_window_destroy(GTK_WINDOW(window->window));
   g_clear_object(&window->group);
-  for (size_t i = 0; i < G_N_ELEMENTS(window->pressed); ++i)
-    free((void *)window->pressed[i].text);
   free((void *)window->document.text);
   free(window->preedit);
   free(window);

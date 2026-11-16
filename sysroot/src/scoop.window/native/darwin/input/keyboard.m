@@ -1,4 +1,4 @@
-#import "window.h"
+#import "../window.h"
 
 int32_t scoop_window_shortcut_equal(const uint8_t *left, int64_t left_size,
                                     const uint8_t *right, int64_t right_size) {
@@ -87,7 +87,7 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   [view.owner.application enqueue:event];
 }
 
-@implementation SWView (Input)
+@implementation SWView (Keyboard)
 - (void)keyDown:(NSEvent *)event {
   sw_modifiers(self, event.modifierFlags);
   BOOL shortcut = (event.modifierFlags & (NSEventModifierFlagControl |
@@ -182,28 +182,5 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
                                         : !held;
   if (down != held)
     key(self, event, down);
-}
-- (void)resetInput {
-  [self cancelPointer:SWPointerFocusLost];
-  [self cancelComposition];
-  self.functionHeld = NO;
-  NSEventModifierFlags locks = self.modifiers & NSEventModifierFlagCapsLock;
-  for (NSNumber *code in [[self.pressedKeys allKeys]
-           sortedArrayUsingSelector:@selector(compare:)]) {
-    SWEvent *original = self.pressedKeys[code];
-    SWEvent *event = sw_event(self.owner, SWKeyboard);
-    SWKeyboardData data = original.keyboard;
-    data.pressed = 0;
-    data.repeat = 0;
-    data.synthetic = 1;
-    data.modifiers = (int64_t)locks;
-    event.keyboard = data;
-    event.text = original.text;
-    [self.owner.application enqueue:event];
-  }
-  [self.pressedKeys removeAllObjects];
-  sw_modifiers(self, locks);
-  self.pointerInside = NO;
-  [self updateCursor];
 }
 @end

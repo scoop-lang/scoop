@@ -181,6 +181,8 @@ Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像
 
 平台输入沿原 Application 队列与 owner 交付。native 事件头保存窗口、种类和观察时间；载荷按窗口事件、键盘、修饰键与鼠标种类分别保存，不把键盘和鼠标字段叠加到一份无名参数表。三平台共用 native 输入结构和对应的 Scoop CLayout 声明；公共解码只处理 Scoop 的输入种类与相位，平台键码和修饰位通过各自的既有适配函数解释。原生输入附件由输入模块管理，复制、交付及释放仍遵守原系统窗口操作／拖放的时序。
 
+平台 input 模块负责键盘／鼠标采集、输入状态初始化与释放、焦点切换的输入收尾以及原生输入附件。Windows 和 GTK 的窗口输入状态随原窗口保存；GTK 的布局与修饰键来源状态仍随 Application 保存。AppKit 沿 SWView 的原生 responder 与对象寿命维护状态，不增加平行宿主。销毁时先停止相应回调，再释放输入资源；窗口事件循环、模态过滤和原生默认处理顺序保持，文本模块继续拥有 IME 文档事务。后续 contact 与原生 gesture 在同一平台输入边界扩展，识别和控件间归属由 Surface／UI 承担。
+
 滚动相位使用 Window 自己的 None／MayBegin／Began／Stationary／Changed／Ended／Cancelled 编码。AppKit 在平台入口显式转换 NSEventPhase；GTK 的连续滚动开始、更新和结束分别转换为 Began／Changed／Ended，传统 wheel 或没有原生阶段的事件保持 None。PixelDelta 使用当前事件 scale 对应的物理像素；AppKit／GTK 的逻辑表面像素只在平台入口乘一次 scale，Surface 转为局部逻辑像素时再除一次，LineDelta 不随 DPI 缩放。contact 与 momentum 相位独立，不把 begin／end 合并成一个普通滚动更新。
 
 PointerEvent.Button 的 clicks 是本次按下的连续点击次数，至少为 1；与该按下配对的释放沿用同一次数，不因其间的移动、其他按钮或下一次计数变化而改写。不同窗口各自记录；按钮变化、失焦、系统操作／捕获取消、超时、超出点击距离或实际拖动结束旧多击序列。四次及更多点击保留实际次数，上层编辑器可统一按三击选择单位处理。

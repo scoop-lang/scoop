@@ -62,7 +62,7 @@ Surface 所需的两项 window 前置能力已先行补齐，详见[规范第 11
 
 native frame source、Skia context、dirty 管理、Area 命中、逻辑 focus、文本测量均属于 Surface／graphics，不应塞进 window。ApplicationHost 的 watch 接口目前服务 asyncio；macOS 的帧通知可以用现有主循环和 proxy 接通，不先增加通用外部调度器或多 attachment 框架。以后某个平台确实需要新的宿主等待能力时，再按真实句柄语义补窄接口。
 
-代码依据：[指针模型](../../sysroot/src/scoop.window/src/input/pointer.scoop)、[窗口重绘](../../sysroot/src/scoop.window/src/window.scoop)、[native lease](../../sysroot/src/scoop.window/src/native/lifetime.scoop)、[AppKit 指针](../../sysroot/src/scoop.window/native/darwin/pointer.m)、[Win32 指针／捕获](../../sysroot/src/scoop.window/native/windows/input.c)、[asyncio 接入](../../sysroot/src/scoop.window.asyncio/src/application.scoop)。
+代码依据：[指针模型](../../sysroot/src/scoop.window/src/input/pointer.scoop)、[窗口重绘](../../sysroot/src/scoop.window/src/window.scoop)、[native lease](../../sysroot/src/scoop.window/src/native/lifetime.scoop)、[AppKit 指针](../../sysroot/src/scoop.window/native/darwin/input/pointer.m)、[Win32 指针／捕获](../../sysroot/src/scoop.window/native/windows/input/pointer.c)、[asyncio 接入](../../sysroot/src/scoop.window.asyncio/src/application.scoop)。
 
 ## 4. 共享层与平台层
 

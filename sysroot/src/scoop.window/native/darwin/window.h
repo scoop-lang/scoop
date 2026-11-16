@@ -95,6 +95,9 @@ typedef struct {
 @end
 
 @interface SWView (Input)
+- (void)installInput;
+- (void)activateInput;
+- (void)deactivateInput;
 - (void)resetInput;
 @end
 NSEventModifierFlags sw_input_modifiers(SWView *view,

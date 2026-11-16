@@ -7,7 +7,7 @@
 #include <windows.h>
 
 #include "../frame.h"
-#include "clicks.h"
+#include "input/state.h"
 #include <dwmapi.h>
 #include <imm.h>
 #include <limits.h>
@@ -84,20 +84,14 @@ typedef struct SWWindow {
   int frame_hover, frame_pressed, frame_button_down;
   bool window_region;
   bool resizable, close_button, minimize_button, maximize_button;
-  bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
+  bool transparent, bottom, ime_allowed;
   int32_t menu_text_commands;
   bool destroying, caret_set;
   bool input_blocked, saved_enabled;
   int theme;
-  HCURSOR cursor;
   double caret_x, caret_y, caret_width, caret_height;
   WCHAR surrogate;
-  uint64_t modifiers;
-  SWKeyboardData pressed[512];
-  bool key_down[512];
-  uint32_t pressed_buttons;
-  int pressed_clicks[32];
-  SWClicks clicks;
+  SWInputState input;
   int64_t text_connection;
   void *text;
   SWMenu *menu_bar, *popup_menu;
@@ -159,6 +153,12 @@ void sw_text_focus(SWWindow *window, bool focused);
 void sw_text_geometry_changed(SWWindow *window);
 void sw_text_window_destroy(SWWindow *window);
 void sw_text_application_destroy(SWApplication *application);
+void sw_input_init(SWWindow *window);
+void sw_input_destroy(SWWindow *window);
+void sw_key(SWWindow *window, UINT message, WPARAM vk, LPARAM lp);
+void sw_update_modifiers(SWWindow *window, uint64_t value);
+bool sw_pointer_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
+                        LRESULT *result);
 void sw_reset_input(SWWindow *window);
 void sw_cancel_pointer(SWWindow *window, int reason);
 bool sw_modal_input_message(UINT message);

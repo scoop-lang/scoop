@@ -1,4 +1,4 @@
-#include "../../../native/windows/clicks.h"
+#include "../../../native/windows/input/clicks.h"
 
 #define CHECK(value)                                                           \
   do {                                                                         \

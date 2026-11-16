@@ -108,9 +108,10 @@ void scoop_window_text_commands(SWWindow *window, int32_t flags) {
 
 bool sw_menu_key_equivalent(SWWindow *window, guint symbol) {
   SWMenu *menu = window->menu_bar;
-  if (!menu || window->preedit_active || (window->modifiers & SW_ALT_GRAPH))
+  if (!menu || window->preedit_active ||
+      (window->input.modifiers & SW_ALT_GRAPH))
     return false;
-  uint64_t state = window->modifiers;
+  uint64_t state = window->input.modifiers;
   int mods = ((state & SW_CONTROL) ? 1 : 0) | ((state & SW_ALT) ? 2 : 0) |
              ((state & SW_SHIFT) ? 4 : 0) | ((state & SW_SUPER) ? 8 : 0);
   symbol = gdk_keyval_to_lower(symbol);

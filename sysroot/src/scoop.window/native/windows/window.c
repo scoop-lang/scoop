@@ -188,8 +188,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
       true;
-  window->cursor_visible = true;
-  window->cursor = LoadCursorW(NULL, IDC_ARROW);
+  sw_input_init(window);
   window->max_width = window->max_height = -1;
   window->theme = -1;
   window->increment_width = window->increment_height = 1;
@@ -223,6 +222,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->destroying = true;
   if (window->hwnd)
     DestroyWindow(window->hwnd);
+  sw_input_destroy(window);
   free(window);
   return (SWResult){NULL, error};
 }
@@ -234,8 +234,7 @@ void scoop_window_destroy(SWWindow *window) {
   window->destroying = true;
   sw_text_window_destroy(window);
   DestroyWindow(window->hwnd);
-  for (int n = 0; n < 512; ++n)
-    free((void *)window->pressed[n].text);
+  sw_input_destroy(window);
   free(window->hit_rects);
   free(window);
 }

@@ -20,7 +20,7 @@ SWKeyLabel scoop_window_key_label(uint32_t scan) {
   GdkModifierType consumed;
   if (!gdk_display_translate_key(app->display, scan + 8, 0,
                                  active_layout >= 0 ? active_layout
-                                                    : app->layout,
+                                                    : app->input.layout,
                                  &symbol, &group, &level, &consumed))
     return (SWKeyLabel){0};
   SWKeyLabel result = {.symbol = symbol};

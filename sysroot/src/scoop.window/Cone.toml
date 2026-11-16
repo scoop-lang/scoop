@@ -107,7 +107,7 @@ path = "native/darwin/monitors.m"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/keyboard.m"
+path = "native/darwin/input/keyboard.m"
 when = { os = "darwin" }
 
 [[native.sources]]
@@ -131,7 +131,7 @@ path = "native/darwin/menu_presentation.m"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/pointer.m"
+path = "native/darwin/input/pointer.m"
 when = { os = "darwin" }
 
 [[native.sources]]
@@ -248,7 +248,15 @@ path = "native/windows/monitors.c"
 when = { os = "windows" }
 
 [[native.sources]]
-path = "native/windows/input.c"
+path = "native/windows/input/keyboard.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/input/pointer.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/input/lifecycle.c"
 when = { os = "windows" }
 
 [[native.sources]]
@@ -357,7 +365,15 @@ path = "native/linux/events.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
-path = "native/linux/input.c"
+path = "native/linux/input/keyboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input/pointer.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input/lifecycle.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
@@ -510,4 +526,20 @@ path = "tests/dialog_paths.scoop"
 when = { os = "windows" }
 [[test.sources]]
 path = "tests/dialog_paths.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/input/lifecycle.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/input/delivery.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/input/delivery.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/input/delivery.c"
 when = { os = "linux", env = "gnu" }

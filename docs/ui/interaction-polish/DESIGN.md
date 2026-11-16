@@ -22,7 +22,7 @@
 源码核查的几个具体结论：
 
 - [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)现已接入独立宽度／透明度过渡、闲置隐藏和按住重复，共享行为由 ScrollbarFeedback 管理；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。三个消费者已共享 Overlay／Gutter 配置和布局计算，Textarea 默认 Gutter；浮层遮挡通过 ScrollPadding 接入同一 ScrollViewport 与焦点显露。原生场景验证边界见实施记录。
-- [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。S1 已在 [Windows 输入](../../../sysroot/src/scoop.window/native/windows/input.c)补齐三击及更多次数，并将 [Linux 输入](../../../sysroot/src/scoop.window/native/linux/input.c)改为消费 GTK 自身 count，移除固定 0.5 秒和 5 个物理像素的重复判断。Windows 生产计数算法的本地定向测试已通过；两个平台的原生输入用例仍待目标环境运行，不能据共享编辑行为或算法测试声明整条输入链通过。
+- [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。S1 已在 [Windows 输入](../../../sysroot/src/scoop.window/native/windows/input/pointer.c)补齐三击及更多次数，并将 [Linux 输入](../../../sysroot/src/scoop.window/native/linux/input/pointer.c)改为消费 GTK 自身 count，移除固定 0.5 秒和 5 个物理像素的重复判断。Windows 生产计数算法的本地定向测试已通过；两个平台的原生输入用例仍待目标环境运行，不能据共享编辑行为或算法测试声明整条输入链通过。
 - [公共 Drag](../../../sysroot/src/scoop.ui/src/interaction/drag.scoop)只负责一段鼠标轴向交互，没有跨应用传输和落放目标。[PointerEvent](../../../sysroot/src/scoop.window/src/input/pointer.scoop)也尚无 touch contact 或数据拖放事件。
 - S1 已将 Window 系统偏好经 UI 根传给 [ThemeSource.read(scope)](../../../sysroot/src/scoop.ui.style/src/theme/source.scoop)和[文本选项](../../../sysroot/src/scoop.ui/src/text/editor/options.scoop)。caret 默认继承；四套主题消费减少动画、高对比度、减少透明度和文字缩放。已通过的离屏／实窗范围与剩余系统热切换验证分别记录，不以公共接口接入代替全部控件及设备验收。
 

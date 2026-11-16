@@ -1,6 +1,6 @@
 # Window 输入事件边界调研与重构方案
 
-日期：2026-11-17。状态：首批事件头、输入载荷与公共解码已实施，平台模块和状态寿命继续整理。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
+日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，contact／原生 gesture 按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
 
 ## 1. 结论
 
@@ -18,22 +18,22 @@ flowchart LR
     Route --> UI[UI 手势与控件行为]
 ```
 
-## 2. 现状与具体问题
+## 2. 当前组织与调研结论
 
 | 位置 | 当前职责 | 对重构的影响 |
 | --- | --- | --- |
-| [window-clicks](../../../sysroot/src/scoop.window/tests-cones/clicks/Cone.toml)、[clicks.h](../../../sysroot/src/scoop.window/native/windows/clicks.h) | 六组纯计数测试；Windows 鼠标的时间、屏幕位置、按钮及取消历史 | 算法保持平台局部，AppKit／GTK 继续采用原生 count |
-| [Darwin pointer.m](../../../sysroot/src/scoop.window/native/darwin/pointer.m)、[keyboard.m](../../../sysroot/src/scoop.window/native/darwin/keyboard.m) | NSResponder 回调、坐标、按钮状态、滚动相位、键盘／IME 配合 | 入口已自然分开；需要一致的内部载荷与状态归属 |
-| [Windows input.c](../../../sysroot/src/scoop.window/native/windows/input.c) | 一个 switch 内处理键盘、鼠标、滚轮、捕获、光标及点击计数 | 接入 WM_POINTER 前按实际输入种类拆分；保留 DefWindowProc 的必要处理 |
-| [Linux input.c](../../../sysroot/src/scoop.window/native/linux/input.c) | controller 安装、GTK 回调、按键、点击、滚动、失焦清理和载荷构造 | 分开 controller 生命周期、输入转换和状态；原生 sequence 与 Surface 归属各守一层 |
-| 三平台 `window.h` 与 [native/abi.scoop](../../../sysroot/src/scoop.window/src/native/abi.scoop) | 重复定义 SWEventData；输入用 a／b／c／flags 表达多种含义 | 输入种类、相位和有名字段应在明确的公共 native 边界定义 |
-| [native/events.scoop](../../../sysroot/src/scoop.window/src/native/events.scoop) | 把 native 载荷转换为公共事件；滚动相位按 AppKit 位值解码 | 公共解码不应依赖某一平台的原生枚举 |
-| [frame/operations.scoop](../../../sysroot/src/scoop.window/src/frame/operations.scoop) | 同时保存系统窗口操作和 NativeInputDelivery 的寿命 | 原生输入附件移入 input 内部；窗口移动、resize 和数据拖放继续消费同一附件 |
+| [window-clicks](../../../sysroot/src/scoop.window/tests-cones/clicks/Cone.toml)、[clicks.h](../../../sysroot/src/scoop.window/native/windows/input/clicks.h) | 六组纯计数测试；Windows 鼠标的时间、屏幕位置、按钮及取消历史 | 算法保持平台局部，AppKit／GTK 继续采用原生 count |
+| [Darwin pointer.m](../../../sysroot/src/scoop.window/native/darwin/input/pointer.m)、[keyboard.m](../../../sysroot/src/scoop.window/native/darwin/input/keyboard.m)、[lifecycle.m](../../../sysroot/src/scoop.window/native/darwin/input/lifecycle.m) | NSResponder 回调、坐标、按钮、滚动相位、键盘／IME 配合与焦点切换 | 保留原 SWView 状态和寿命，在 input 内初始化与清理 |
+| [Windows input](../../../sysroot/src/scoop.window/native/windows/input/lifecycle.c) | 消息分派、键盘／鼠标采集和窗口输入状态 | 键盘与 pointer 分开；SWInputState 随窗口保存，保留 DefWindowProc 的必要处理 |
+| [Linux input](../../../sysroot/src/scoop.window/native/linux/input/lifecycle.c) | controller 安装／断连、键盘／鼠标回调与状态释放 | 原生 sequence 与 Surface 归属各守一层；按下事件直接携带借用的 GdkEvent，并在入队前保留 |
+| [native/input.h](../../../sysroot/src/scoop.window/native/input.h) 与 [input/abi.scoop](../../../sysroot/src/scoop.window/src/native/input/abi.scoop) | 共享输入种类、相位、有名载荷和对应 CLayout | 窗口／时间放在事件头，避免输入继续复用无名参数槽 |
+| [input/events.scoop](../../../sysroot/src/scoop.window/src/native/input/events.scoop) | 把 typed native 载荷转换为公共事件 | 公共解码只解释 Window 相位；AppKit 位值在平台入口转换 |
+| [input/delivery.scoop](../../../sysroot/src/scoop.window/src/native/input/delivery.scoop) 与各平台 `input/delivery` | 复制、保留和释放原生输入附件 | 窗口移动、resize 和数据拖放继续消费同一附件，不新增交付队列 |
 | [Surface InputRouter](../../../sysroot/src/scoop.surface/src/shared/input/router.scoop) | 当前只有一份 pointer／pressed／pointerClaim | 鼠标聚合模型之外，需要按触点分别保存接触路径和归属 |
 
 调研时相位转换存在一个可从源码确认的不一致。GTK 回调把 begin／scroll／end 分别写成 detail 0／1／2，`sw_pointer` 原样写入 `data.a`；公共 `scrollPhase` 却把它当 NSEventPhase 位值：
 
-| GTK 路径 | 当前写入 | 公共层读出的结果 | 应表达 |
+| GTK 路径 | 旧写入 | 旧公共层读出的结果 | 应表达 |
 | --- | --- | --- | --- |
 | scroll-begin | 0 | None | Began |
 | 连续 scroll | 1 | Began | Changed |
@@ -56,7 +56,7 @@ flowchart LR
 
 ### Window 平台输入适配
 
-将同一平台的鼠标、键盘、触摸、原生手势及输入状态放在 `native/<platform>/input/` 附近的明确模块中。按当前实际职责拆文件，不为了目录对称新增空实现。平台类型、系统枚举和消息处理返回值留在这一层。
+同一平台的鼠标、键盘和输入状态放在 `native/<platform>/input/`，触摸与原生手势后续沿此边界接入。按当前实际职责拆文件，不为了目录对称新增空实现。平台类型、系统枚举和消息处理返回值留在这一层。
 
 - 鼠标负责位置、进入／离开、按钮、连续次数、滚轮和平台捕获；Windows 的 clicks 算法由其调用。
 - 键盘与现有文本服务协作，保留菜单快捷键、IME 消费与普通 Keyboard／TextInput 的顺序。输入子系统统一协调，IME 文档事务仍由专门模块维护。

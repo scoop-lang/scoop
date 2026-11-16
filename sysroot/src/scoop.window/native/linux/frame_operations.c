@@ -1,32 +1,14 @@
+#include "input/delivery.h"
 #include "window.h"
 
-typedef struct {
-  int64_t window;
-  GdkEvent *event;
-} SWFrameInput;
 typedef struct {
   SWWindow *window;
   GdkEvent *event;
   int32_t kind, edge;
 } SWFrameOperation;
 
-SWResult scoop_window_input_copy(SWEvent *event) {
-  if (!event->native_input)
-    return (SWResult){NULL, 0};
-  SWFrameInput *input = malloc(sizeof(*input));
-  if (!input)
-    return (SWResult){NULL, ENOMEM};
-  *input =
-      (SWFrameInput){event->header.window, gdk_event_ref(event->native_input)};
-  return (SWResult){input, 0};
-}
-void scoop_window_input_release(SWFrameInput *input) {
-  gdk_event_unref(input->event);
-  free(input);
-}
-
 SWResult scoop_window_system_operation_prepare(SWWindow *window,
-                                               SWFrameInput *input,
+                                               SWNativeInput *input,
                                                int32_t kind, int32_t edge) {
   GdkEvent *event = input->event;
   if (input->window != window->identity ||
@@ -40,7 +22,7 @@ SWResult scoop_window_system_operation_prepare(SWWindow *window,
   if (!operation)
     return (SWResult){NULL, ENOMEM};
   *operation = (SWFrameOperation){window, gdk_event_ref(event), kind, edge};
-  window->pressed_buttons = 0;
+  window->input.pressed_buttons = 0;
   return (SWResult){operation, 0};
 }
 

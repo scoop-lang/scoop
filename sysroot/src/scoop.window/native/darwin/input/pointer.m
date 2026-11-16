@@ -1,4 +1,4 @@
-#import "window.h"
+#import "../window.h"
 #include <limits.h>
 
 static SWScrollPhase scrollPhase(NSEventPhase phase) {

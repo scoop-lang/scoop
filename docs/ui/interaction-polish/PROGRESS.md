@@ -13,7 +13,7 @@
 | 批次 | 状态 | 已完成与剩余 |
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，独立 AX 客户端的基础查询／动作／焦点／退休已通过；系统文本服务、完整外部客户端与读屏器、拖放及其他平台验证待继续 |
-| S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题离屏测试、实窗双根偏好热切换及帧复用回归通过；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
+| S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题离屏测试、实窗双根偏好热切换及帧复用回归通过；输入载荷与平台 input 模块已重构，macOS 输入／消费者回归通过；Windows／GTK 点击计数已修正，真实平台输入及其余细节待验 |
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；基础跨进程 AX 回归已通过；其余控件、复杂关系、激活点及完整外部／读屏器验收仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，两类宿主的真实文本菜单与 IME 组合实窗回归通过；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
@@ -27,9 +27,10 @@
 
 - 依用户建议完成 `window-clicks` 与三平台输入路径、公共解码、NativeInputDelivery、Surface claim 的源码核对，并查阅 Apple／Microsoft／GTK 官方输入资料。选用 Window 内部的平台输入子系统，统一载荷与寿命，保留平台原生入口；Surface 负责接触路由，UI 负责原始触摸手势识别。
 - 调研确认 `window-clicks` 当前是计数测试 Cone；另发现 GTK begin／scroll／end 的 0／1／2 与公共 AppKit 位值解码不一致。三平台现在共用事件头与有名的键盘／鼠标载荷，公共解码不再解释 AppKit 位值；GTK 连续滚动显式转换为 Began／Changed／Ended，取消终止活动阶段，普通 wheel 保持 None。行单位不缩放，表面像素按事件 scale 转为物理像素。
-- NativeInputDelivery 的 Scoop 实现迁到 input 内部，原生附件与窗口操作／拖放时序保持。后续自定义手势的接入边界已加入设计和 S8：保留原始 contact 路由，内建与未来识别逻辑共享归属／取消规则，最终操作沿命令与 accessibility 入口执行；本轮未增加自定义识别器 API。
-- aarch64-apple-darwin release 的 6 项生产点击计数测试、4 项输入值／native 载荷测试通过；后者覆盖七种独立相位及分数 DPI 的像素／行单位。4 个使用 Application 的回归分别在独立进程通过：AppKit 原生输入与 IME／取消、文本命令顺序、真实输入附件与拖放来源退休、文档快照与范围事务。原生输入回归新增 5 种 contact 阶段及 3 种 momentum 阶段。Scoop 检查、Objective-C／C 严格语法和警告检查通过。
-- 平台采集模块和状态寿命继续整理；Window 的依赖产物待本次输入重构稳定后统一重建，再补窗口操作／模态与上层消费者回归。Windows／GTK 真实输入结果未新增，具体范围见[输入边界方案](INPUT-BOUNDARY.md)。
+- 三平台现在分别由 `input` 模块维护 keyboard、pointer、lifecycle 与原生 delivery。Windows／GTK 的窗口状态集中到 SWInputState，GTK 的布局和设备修饰状态仍属于 Application；AppKit 沿 SWView 初始化、激活／失活和重置输入。GTK controller 在释放窗口输入状态前断连；按下的 GdkEvent 直接传给入队转换并保留，不再临时存入窗口字段。
+- NativeInputDelivery 的 Scoop 实现及三平台原生附件复制／释放迁到 input 内部，窗口操作／拖放时序保持。后续自定义手势的接入边界已加入设计和 S8：保留原始 contact 路由，内建与未来识别逻辑共享归属／取消规则，最终操作沿命令与 accessibility 入口执行。原 accessibility 设计同步约束等价操作和结果通知；本轮未增加自定义识别器 API。
+- aarch64-apple-darwin release 共 25 项定向测试通过：6 项生产点击计数、4 项输入值／native 载荷、4 项 AppKit 输入／IME／文本命令／拖放来源／文档事务、6 项窗口操作与模态、5 项 UI 编辑／滚动／拖出／文本接收／Press 与轴向接管。每个 Application 场景在独立进程执行。新增载荷用例覆盖七种独立相位及分数 DPI 的像素／行单位，AppKit 原生入口另覆盖 5 种 contact 阶段及 3 种 momentum 阶段。Scoop 检查、32 个 Objective-C 文件与必要 C helper 的严格语法和警告检查通过。
+- Window、Window.asyncio、Surface、UI、Style、四套主题与 Component 共 10 个开发产物已按依赖顺序更新。Windows／GTK 真实输入结果未新增，具体范围见[输入边界方案](INPUT-BOUNDARY.md)。
 
 ### 文本范围查询所需的底层接入
 

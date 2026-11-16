@@ -27,6 +27,7 @@
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
 #include "../events.h"
+#include "input/state.h"
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
@@ -81,16 +82,15 @@ typedef struct {
   GListModel *monitors;
   gulong display_closed, monitors_changed, theme_changed;
   gulong preferences_changed, contrast_changed;
-  int kind, wake_fd, error, layout;
-  guint gdk_modifiers;
+  int kind, wake_fd, error;
   int64_t next_monitor;
-  bool stopped, error_reported, alt_graph;
+  bool stopped, error_reported;
   double deadline;
   SWEvent *head, *tail;
   SWWindow *windows;
   SWMenu *menus;
   SWWatch *watches;
-  bool physical_keys[768], physical_keys_known;
+  SWApplicationInputState input;
 } SWApplication;
 struct SWWindow {
   SWApplication *application;
@@ -100,7 +100,6 @@ struct SWWindow {
   GtkWidget *window, *view, *toolbar, *header;
   SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
-  GdkEvent *current_event;
   bool destroying;
   bool input_blocked, saved_sensitive, tool;
   int64_t identity;
@@ -114,22 +113,14 @@ struct SWWindow {
   cairo_region_t *input_region;
   double frame_width, frame_height, frame_scale, frame_x, frame_y;
   uint64_t frame_revision;
-  bool close_button, minimize_button, maximize_button, cursor_visible;
-  bool pointer_inside, ime_allowed, preedit_active, caret_known;
+  bool close_button, minimize_button, maximize_button;
+  bool ime_allowed, preedit_active, caret_known;
   int32_t menu_text_commands;
-  int cursor_icon;
   double requested_width, requested_height;
   double min_width, min_height, max_width, max_height;
   double increment_width, increment_height;
   double caret_x, caret_y, caret_width, caret_height;
-  double pointer_x, pointer_y;
-  GtkEventController *click_controller;
-  bool resetting_click, scroll_active;
-  int pressed_clicks[32];
-  uint64_t modifiers;
-  uint32_t pressed_buttons;
-  SWKeyboardData pressed[768];
-  bool key_down[768];
+  SWInputState input;
   char *preedit;
   SWTextSnapshotData document;
   int64_t connection, sequence, applied_sequence;
@@ -168,7 +159,10 @@ void sw_set_geometry(SWWindow *window, double width, double height,
 int64_t sw_transparency(SWWindow *window, bool transparent);
 uint64_t sw_modifiers(SWApplication *app);
 void sw_update_modifiers(SWWindow *window);
-void sw_input_install(SWWindow *window);
+void sw_input_init(SWWindow *window);
+void sw_input_destroy(SWWindow *window);
+void sw_keyboard_install(SWWindow *window);
+void sw_pointer_install(SWWindow *window);
 bool sw_menu_key_equivalent(SWWindow *window, guint symbol);
 void sw_ime_install(SWWindow *window);
 void sw_ime_update(SWWindow *window);
@@ -185,7 +179,6 @@ int64_t sw_request_size(SWWindow *window, double width, double height);
 GdkSurface *sw_surface(SWWindow *window);
 void sw_reset_input(SWWindow *window);
 void sw_focus(SWWindow *window, bool focused);
-void sw_pointer(SWWindow *window, SWPointerData data);
 void sw_cancel_pointer(SWWindow *window, int reason);
 void sw_cancel_composition(SWWindow *window);
 SWEvent *sw_text_batch(SWWindow *window);
