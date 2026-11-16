@@ -1,5 +1,6 @@
 package scoop.window.accessibility
 
+import scoop.collections.HashMap
 import scoop.window.*
 
 /** A semantic resource whose role and identity last until it is explicitly retired. */
@@ -13,12 +14,32 @@ public class AccessibilityNode internal constructor(
     internal var active = true
     internal var properties = SemanticProperties()
     internal var actions = SemanticActions()
+    internal var relationValues = SemanticRelations()
+    internal val referrers = HashMap<Long, AccessibilityNode>()
+    internal var nameDirty = true
+    internal var textDirty = true
+    internal var resolvedName: String? = None
+    internal var resolvedDescription: String? = None
+    internal var resolvedError: String? = None
+    private var revision = 0UL
     internal var placement: SemanticGeometry? = None
     internal var order = 0L
 
     public val isClosed: Boolean get() {
         provider.checkThread()
         return !active
+    }
+
+    /** Changes when content or a label dependency invalidates captured layout geometry. */
+    public val contentRevision: ULong get() {
+        checkOpen()
+        return revision
+    }
+
+    /** Current references, with retired targets removed by the provider. */
+    public val relations: SemanticRelations get() {
+        checkOpen()
+        return relationValues
     }
 
     /** Stages matching, already accepted layout geometry; None invalidates an old layout. */
@@ -39,7 +60,8 @@ public class AccessibilityNode internal constructor(
     /** Replaces current facts and callbacks without changing the native role or identity. */
     public fun update(
         properties: SemanticProperties,
-        actions: SemanticActions = SemanticActions()
+        actions: SemanticActions = SemanticActions(),
+        relations: SemanticRelations = SemanticRelations()
     ) {
         checkOpen()
         properties.check()
@@ -47,15 +69,60 @@ public class AccessibilityNode internal constructor(
             properties.checked == None || role == SemanticRole.Checkbox,
             "checked state requires the checkbox role"
         )
-        if (this.properties == properties && this.actions.capabilities == actions.capabilities) {
+        if (
+            this.properties ==
+                properties &&
+                this.actions.capabilities ==
+                actions.capabilities &&
+                this.relationValues ==
+                relations
+        ) {
             this.actions = actions
             return
         }
-        if (this.properties.name != properties.name || this.properties.value != properties.value)
-            placement = None
+        if (this.relationValues != relations)
+            checkSemanticRelations(this, relations)
+        val nameChanged =
+            this.properties.name !=
+                properties.name ||
+                (
+                    properties.name ==
+                        None &&
+                        (
+                            !sameSemanticIds(
+                                this.relationValues.labelledBy,
+                                relations.labelledBy
+                            ) ||
+                                (
+                                    role ==
+                                        SemanticRole.Text &&
+                                        (
+                                            this.properties.value !=
+                                                properties.value ||
+                                                this.properties.protectedText !=
+                                                properties.protectedText
+                                        )
+                                )
+                        )
+                )
+        if (nameChanged || this.properties.value != properties.value)
+            invalidateContent()
+        if (this.relationValues != relations)
+            installSemanticRelations(this, relations)
+        if ((this.properties.name == None) != (properties.name == None))
+            for (id in relations.labelledBy) {
+                val target = provider.lookup(id) ?: continue
+                provider.changed(target)
+            }
         this.properties = properties
         this.actions = actions
+        semanticTextChanged(this, nameChanged)
         provider.changed(this)
+    }
+
+    internal fun invalidateContent() {
+        revision += 1UL
+        placement = None
     }
 
     /** Changes reading order; geometry and creation identity do not determine parenthood. */

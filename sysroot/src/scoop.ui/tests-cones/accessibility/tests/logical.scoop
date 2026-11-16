@@ -154,6 +154,7 @@ internal class LogicalProbe: Closeable {
         assertTrue(find("sibling").parent(tree!!))
         assertTrue(find("sibling").text(1, Some("")))
         assertTrue(heldButton!!.text(2, Some("AXButton")))
+        assertTrue(heldField!!.text(0, Some("")))
         assertFalse(heldButton!!.flag(2))
         assertFalse(find("sibling").flag(3))
         assertEquals(None, button!!.geometry)
@@ -165,6 +166,13 @@ internal class LogicalProbe: Closeable {
         assertFailsWith<IllegalArgumentException> {
             container!!.semantics(SemanticRole.Text, foreign)
         }
+        assertFailsWith<IllegalArgumentException> {
+            sibling!!.update(
+                SemanticProperties(name = Some("Invalid relation")),
+                relations = SemanticRelations(labelledBy = [foreign!!.id])
+            )
+        }
+        assertEquals(0L, sibling!!.relations.labelledBy.size)
         attached.close()
         assertTrue(foreign!!.isClosed)
         other.requestDestroy()
@@ -179,6 +187,8 @@ internal class LogicalProbe: Closeable {
             )
             afterUpdate {
                 assertTrue(heldSibling!!.text(1, Some("Direct")))
+                assertTrue(heldField!!.text(0, Some("Direct")))
+                assertEquals(sibling!!.id, field!!.relations.labelledBy[0L])
                 reverse.value = true
                 afterUpdate {
                     assertEquals(0, measures)

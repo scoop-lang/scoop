@@ -1,6 +1,6 @@
 # UI 无障碍接口规范
 
-状态：S2 实施中。本文规定公共语义资源、逻辑更新和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。关系、内容合并、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
+状态：S2 实施中。本文规定公共语义资源、逻辑更新和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。内容合并、复杂控件关系、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
 
 ## 1. 资源与父子关系
 
@@ -16,7 +16,9 @@
 
 ## 2. 属性、动作与逻辑发布
 
-`handle.update(properties, actions = SemanticActions())` 替换 Window SemanticProperties 及最新动作；不改变角色、身份或业务状态。检查、只读／禁用／受保护文本规则沿底层公共合同。名称或值改变立即使旧几何失效；只替换同能力处理器不要求绘制，也不重复原生属性通知。render／measure／scene／draw 不能创建、更新或关闭语义资源；Scene 只登记几何，挂载构造与正常 update 可修改资源。
+`handle.update(properties, actions = SemanticActions(), relations = SemanticRelations())` 替换 Window SemanticProperties、最新动作与关系；关系使用同一活动根的 handle.id，不改变角色、身份、父子归属或业务状态。检查、名称／说明／错误解析、只读／禁用／受保护文本规则沿底层公共合同。名称或值改变立即使旧几何失效；只替换同能力处理器不要求绘制，也不重复原生属性通知。render／measure／scene／draw 不能创建、更新或关闭语义资源；Scene 只登记几何，挂载构造与正常 update 可修改资源。
+
+标签文字变化经底层关系依赖更新引用者，无需重建消费它的 Element 或请求 drawable；显式空名称优先于标签。单独关闭 UI handle 后指向它的 labelledBy／describedBy／errorMessages／controls 自动清除，handle.relations 只读返回当前关系，不按相同位置或新角色转接到替代节点。bindFocus 保留当前关系，不重新提交已清理的旧引用。Scene 捕获并核对底层 contentRevision，标签依赖变化后的迟到 Accepted 场景不能恢复旧几何。内容合并／忽略策略继续独立实现，关系不自动吞掉标签的交互子项。
 
 属性、父子关系与实际焦点在根的一次正常逻辑更新结束后一起发布。独立 handle 更新也通过现有 UiHost 队列唤醒该根，不请求 drawable，不增加另一套调度器。结构未变时不重新遍历挂载树；同一轮重复修改按最终值合并。失活／关闭立即拒绝旧动作，不等待下一帧。
 

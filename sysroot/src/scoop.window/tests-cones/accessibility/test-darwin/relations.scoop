@@ -1,0 +1,191 @@
+package scoop.tests.window.accessibility
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal fun checkRelations(tree: AccessibilityProvider, view: Ptr<Unit>) {
+    val group = tree.createNode(SemanticRole.Group)
+    val label = tree.createNode(SemanticRole.Text, Some(group))
+    val alias = tree.createNode(SemanticRole.Text, Some(group))
+    val suffix = tree.createNode(SemanticRole.Text, Some(group))
+    val empty = tree.createNode(SemanticRole.Text, Some(group))
+    val unknown = tree.createNode(SemanticRole.Text, Some(group))
+    val protected = tree.createNode(SemanticRole.TextField, Some(group))
+    val description = tree.createNode(SemanticRole.Text, Some(group))
+    val error = tree.createNode(SemanticRole.Text, Some(group))
+    val button = tree.createNode(SemanticRole.Button, Some(group))
+    val field = tree.createNode(SemanticRole.TextField, Some(group))
+    label.update(SemanticProperties(name = Some("User"), automationId = Some("relation-label")))
+    alias.update(
+        SemanticProperties(automationId = Some("relation-alias")),
+        relations = SemanticRelations(labelledBy = [label.id])
+    )
+    suffix.update(SemanticProperties(value = Some("name"), automationId = Some("relation-suffix")))
+    empty.update(SemanticProperties(name = Some("")))
+    protected.update(SemanticProperties(protectedText = true))
+    description.update(SemanticProperties(name = Some("Use full name")))
+    error.update(SemanticProperties(name = Some("Required")))
+    button.update(SemanticProperties(name = Some("Clear"), automationId = Some("relation-button")))
+    val properties =
+        SemanticProperties(value = Some("input"), automationId = Some("relation-field"))
+    val multiple =
+        SemanticRelations(
+            labelledBy = [alias.id, suffix.id, empty.id, unknown.id, protected.id],
+            describedBy = [description.id],
+            errorMessages = [error.id],
+            controls = [button.id, suffix.id]
+        )
+    field.update(properties, relations = multiple)
+    tree.publish()
+    @Unsafe
+    {
+        val probe = nativeRelationsOpen(view)
+        try {
+            assertEquals(0, nativeRelationsCheck(probe, 0))
+            val geometry =
+                Some(
+                    SemanticGeometry(
+                        LogicalRect(LogicalPosition(10.0, 10.0), LogicalSize(30.0, 20.0))
+                    )
+                )
+            field.geometry = geometry
+            val revision = field.contentRevision
+            label.update(
+                SemanticProperties(name = Some("姓名"), automationId = Some("relation-label"))
+            )
+            assertTrue(field.contentRevision > revision)
+            assertEquals(None, field.geometry)
+            assertEquals(0, nativeRelationsCheck(probe, 0))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 1))
+
+            val single =
+                SemanticRelations(
+                    labelledBy = [label.id],
+                    describedBy = [description.id],
+                    errorMessages = [error.id],
+                    controls = [button.id]
+                )
+            field.update(properties, relations = single)
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 2))
+            field.geometry = geometry
+            val describedRevision = field.contentRevision
+            description.update(SemanticProperties(name = Some("Include your family name")))
+            error.update(SemanticProperties(name = Some("Name is required")))
+            tree.publish()
+            assertEquals(describedRevision, field.contentRevision)
+            assertEquals(geometry, field.geometry)
+            assertEquals(0, nativeRelationsCheck(probe, 11))
+            val explicit =
+                SemanticProperties(
+                    name = Some(""),
+                    description = Some(""),
+                    error = Some(""),
+                    value = Some("input"),
+                    automationId = Some("relation-field")
+                )
+            field.update(explicit, relations = single)
+            field.geometry = geometry
+            val explicitRevision = field.contentRevision
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 3))
+            label.update(
+                SemanticProperties(name = Some("Ignored"), automationId = Some("relation-label"))
+            )
+            tree.publish()
+            assertEquals(explicitRevision, field.contentRevision)
+            assertEquals(geometry, field.geometry)
+            assertEquals(0, nativeRelationsCheck(probe, 3))
+
+            field.update(properties, relations = single)
+            button.update(
+                SemanticProperties(name = Some("Clear"), automationId = Some("relation-button")),
+                relations = SemanticRelations(controls = [field.id])
+            )
+            description.update(
+                SemanticProperties(name = Some("Use full name")),
+                relations = SemanticRelations(describedBy = [field.id])
+            )
+            assertFailsWith<IllegalArgumentException> {
+                label.update(
+                    SemanticProperties(name = Some("Broken")),
+                    relations = SemanticRelations(labelledBy = [alias.id])
+                )
+            }
+            assertFailsWith<IllegalArgumentException> {
+                field.update(
+                    SemanticProperties(name = Some("Broken")),
+                    relations = SemanticRelations(labelledBy = [label.id, label.id])
+                )
+            }
+            assertFailsWith<IllegalArgumentException> {
+                field.update(properties, relations = SemanticRelations(controls = [field.id]))
+            }
+            assertEquals(single, field.relations)
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 4))
+            val controlledRevision = field.contentRevision
+            button.close()
+            assertEquals(0L, field.relations.controls.size)
+            assertEquals(controlledRevision, field.contentRevision)
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 12))
+
+            label.update(
+                SemanticProperties(
+                    name = Some("Hidden label"),
+                    hidden = true,
+                    automationId = Some("relation-label")
+                )
+            )
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 5))
+            label.close()
+            assertEquals(0L, field.relations.labelledBy.size)
+            assertEquals(0L, alias.relations.labelledBy.size)
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 6))
+            val replacement = tree.createNode(SemanticRole.Text, Some(group))
+            replacement.update(
+                SemanticProperties(
+                    name = Some("Replacement"),
+                    automationId = Some("relation-label")
+                )
+            )
+            assertTrue(replacement.id != label.id)
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 6))
+            assertFailsWith<IllegalArgumentException> {
+                field.update(properties, relations = SemanticRelations(labelledBy = [label.id]))
+            }
+            assertEquals(0L, field.relations.labelledBy.size)
+            field.update(properties, relations = SemanticRelations(labelledBy = [replacement.id]))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 7))
+            field.update(properties, relations = SemanticRelations(labelledBy = [unknown.id]))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 8))
+            field.update(properties, relations = SemanticRelations(labelledBy = [empty.id]))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 9))
+            group.close()
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 10))
+        } finally {
+            nativeRelationsClose(probe)
+            group.close()
+            tree.publish()
+        }
+    }
+}
+
+@Extern(name = "scoop_ax_relations_open")
+private fun nativeRelationsOpen(view: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_ax_relations_check")
+private fun nativeRelationsCheck(probe: Ptr<Unit>, phase: Int): Int
+
+@Extern(name = "scoop_ax_relations_close")
+private fun nativeRelationsClose(probe: Ptr<Unit>)

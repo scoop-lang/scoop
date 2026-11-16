@@ -43,7 +43,47 @@
   return self.state.name;
 }
 - (NSString *)accessibilityHelp {
-  return self.state.help;
+  SWAccessibilityState *state = self.state;
+  if (!state.help.length)
+    return state.error ?: state.help;
+  if (!state.error.length)
+    return state.help;
+  return [NSString stringWithFormat:@"%@\n%@", state.help, state.error];
+}
+- (id)accessibilityTitleUIElement {
+  SWAccessibilityState *state = self.state;
+  if (!self.isAccessibilityElement || (state.data.flags & SWAXNamed) ||
+      state.labels.count != 1)
+    return nil;
+  SWAccessibilityNode *label =
+      [self.tree element:state.labels[0].longLongValue];
+  return label.isAccessibilityElement ? label : nil;
+}
+- (NSArray *)relatedElements:(NSArray<NSNumber *> *)numbers {
+  if (!self.isAccessibilityElement)
+    return @[];
+  NSMutableArray *result = [NSMutableArray new];
+  for (NSNumber *number in numbers) {
+    SWAccessibilityNode *node = [self.tree element:number.longLongValue];
+    if (node.isAccessibilityElement)
+      [result addObject:node];
+  }
+  return result;
+}
+- (NSArray *)accessibilityServesAsTitleForUIElements {
+  return [[self relatedElements:self.state.titleFor]
+      sortedArrayUsingComparator:^NSComparisonResult(
+          SWAccessibilityNode *left, SWAccessibilityNode *right) {
+        int64_t a = left.state.data.order, b = right.state.data.order;
+        if (a != b)
+          return a < b ? NSOrderedAscending : NSOrderedDescending;
+        return left.number < right.number   ? NSOrderedAscending
+               : left.number > right.number ? NSOrderedDescending
+                                            : NSOrderedSame;
+      }];
+}
+- (NSArray *)accessibilityLinkedUIElements {
+  return [self relatedElements:self.state.controls];
 }
 - (NSString *)accessibilityIdentifier {
   return self.state.identifier;

@@ -70,13 +70,19 @@ private class SemanticLeaf(private val probe: SemanticSceneProbe, scope: Compone
     Unit
 >(scope) {
     private val semantic = scope.semantics(SemanticRole.Button)
+    private val label = scope.semantics(SemanticRole.Text)
     private val area = scope.createArea(focusable = true)
     private val target = scope.focusTarget(area)
     private val paintKey = PaintKey()
     init {
         semantic.bindFocus(Some(target))
-        semantic.update(SemanticProperties(name = Some("Leaf"), automationId = Some("leaf")))
+        label.update(SemanticProperties(name = Some("Leaf")))
+        semantic.update(
+            SemanticProperties(automationId = Some("leaf")),
+            relations = SemanticRelations(labelledBy = [label.id])
+        )
         probe.semantic = Some(semantic)
+        probe.label = Some(label)
         probe.focus = Some(target.handle)
         probe.target = Some(target)
         probe.leafMounts += 1

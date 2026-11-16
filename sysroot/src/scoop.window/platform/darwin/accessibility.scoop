@@ -93,10 +93,26 @@ private class DarwinAccessibilityProjection(
                         nativeAccessibilityPut(pointer, describe(node)),
                         "publish accessibility node"
                     )
-                    text(node.id.number, 0, node.properties.name)
-                    text(node.id.number, 1, node.properties.description)
+                    text(node.id.number, 0, node.resolvedName)
+                    text(node.id.number, 1, node.resolvedDescription)
                     text(node.id.number, 2, node.properties.automationId)
                     text(node.id.number, 3, node.properties.value)
+                    text(node.id.number, 4, node.resolvedError)
+                    for (id in node.relationValues.labelledBy)
+                        relation(node.id.number, 0, id.number)
+                    for (id in node.relationValues.controls)
+                        relation(node.id.number, 1, id.number)
+                    for (source in node.referrers.values)
+                        if (
+                            source.active &&
+                                source.properties.name ==
+                                None &&
+                                source.relationValues.labelledBy.size ==
+                                1L &&
+                                source.relationValues.labelledBy[0L] ==
+                                node.id
+                        )
+                            relation(node.id.number, 2, source.id.number)
                 }
                 checkNativeStatus(
                     nativeAccessibilityCommit(pointer, focused),
@@ -107,6 +123,16 @@ private class DarwinAccessibilityProjection(
                 if (!committed)
                     nativeAccessibilityAbort(pointer)
             }
+        }
+    }
+
+    private fun relation(number: Long, field: Int, target: Long) {
+        @Unsafe
+        {
+            checkNativeStatus(
+                nativeAccessibilityRelation(pointer, number, field, target),
+                "publish accessibility relation"
+            )
         }
     }
 
@@ -182,7 +208,9 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             4 *
             flag(value.protectedText) +
             8 *
-            flag(value.hidden),
+            flag(value.hidden) +
+            16 *
+            flag(value.name != None),
         node.actions.capabilities,
         when (value.checked) {
             case None -> -1;
@@ -244,6 +272,14 @@ private fun nativeAccessibilityText(
     field: Int,
     text: Ptr<UInt8>?,
     length: Long
+): Long
+
+@Extern(name = "scoop_window_accessibility_relation")
+private fun nativeAccessibilityRelation(
+    provider: Ptr<Unit>,
+    number: Long,
+    field: Int,
+    target: Long
 ): Long
 
 @Extern(name = "scoop_window_accessibility_remove")

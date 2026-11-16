@@ -83,6 +83,9 @@ int64_t scoop_window_accessibility_put(void *pointer,
         return -4;
       SWAccessibilityState *state = [SWAccessibilityState new];
       state.data = data;
+      state.labels = [NSMutableArray new];
+      state.controls = [NSMutableArray new];
+      state.titleFor = [NSMutableArray new];
       tree.pending[@(data.number)] = state;
       return 0;
     } @catch (NSException *exception) {
@@ -120,6 +123,37 @@ int64_t scoop_window_accessibility_text(void *pointer, int64_t number,
       case 3:
         state.value = value;
         break;
+      case 4:
+        state.error = value;
+        break;
+      default:
+        return 1;
+      }
+      return 0;
+    } @catch (NSException *exception) {
+      return 1;
+    }
+  }
+}
+
+int64_t scoop_window_accessibility_relation(void *pointer, int64_t number,
+                                            int32_t field, int64_t target) {
+  @autoreleasepool {
+    @try {
+      SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
+      SWAccessibilityState *state = tree.pending[@(number)];
+      if (!state || tree.closed)
+        return -4;
+      switch (field) {
+      case 0:
+        [state.labels addObject:@(target)];
+        break;
+      case 1:
+        [state.controls addObject:@(target)];
+        break;
+      case 2:
+        [state.titleFor addObject:@(target)];
+        break;
       default:
         return 1;
       }
@@ -153,6 +187,12 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
   if (!same(old.name, next.name))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityTitleChangedNotification);
+  if (!same(old.help, next.help) || !same(old.error, next.error) ||
+      ![old.labels isEqualToArray:next.labels] ||
+      ![old.controls isEqualToArray:next.controls] ||
+      ![old.titleFor isEqualToArray:next.titleFor])
+    NSAccessibilityPostNotification(node,
+                                    NSAccessibilityLayoutChangedNotification);
   if (!same(old.value, next.value) || old.data.checked != next.data.checked ||
       old.data.flags != next.data.flags)
     NSAccessibilityPostNotification(node,

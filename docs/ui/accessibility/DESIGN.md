@@ -1,6 +1,6 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景接入已实现，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、关系／内容合并、文本范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
+日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景接入已实现，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、内容合并及复杂控件关系、文本范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
 
 完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 
@@ -85,7 +85,7 @@ provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘�
 | 入口 | 用途 |
 | --- | --- |
 | `ComponentScope.semantics(role, parent)` → `SemanticsHandle` | 在构造／挂载资源阶段建立语义资源，随 scope 释放；parent 可缺省 |
-| `SemanticsHandle.update(properties, actions)` | 在正常更新阶段替换属性和最新动作处理器，标记语义变更 |
+| `SemanticsHandle.update(properties, actions, relations)` | 在正常更新阶段替换属性、最新动作处理器和同根关系，标记语义变更 |
 | `ComponentScope.routeSemanticsChildren(parent)` | 指定本挂载的普通子挂载归入哪个语义节点 |
 | `SceneContext.semantics(handle, bounds)` | 记录该节点的实际 transform、clip、层叠顺序与滚动路径 |
 | 语义文本／集合接入 | 分别接入现有文本宿主和第 7 节的条目数据源，不要求生成完整子树 |

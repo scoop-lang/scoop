@@ -37,11 +37,37 @@ public struct SemanticProperties(
     val readOnly: Boolean = false,
     val protectedText: Boolean = false,
     val checked: SemanticChecked? = None,
-    val hidden: Boolean = false
+    val hidden: Boolean = false,
+    val error: String? = None
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")
     }
+}
+
+/** Ordered references in one active provider; they do not change parenthood or focus. */
+public struct SemanticRelations(
+    val labelledBy: Array<SemanticNodeId> = [],
+    val describedBy: Array<SemanticNodeId> = [],
+    val errorMessages: Array<SemanticNodeId> = [],
+    val controls: Array<SemanticNodeId> = []
+): Equals<SemanticRelations> {
+    public override operator fun equals(other: SemanticRelations): Boolean =
+        sameSemanticIds(labelledBy, other.labelledBy) &&
+            sameSemanticIds(describedBy, other.describedBy) &&
+            sameSemanticIds(errorMessages, other.errorMessages) &&
+            sameSemanticIds(controls, other.controls)
+}
+
+internal fun sameSemanticIds(left: Array<SemanticNodeId>, right: Array<SemanticNodeId>): Boolean {
+    if (left === right)
+        return true
+    if (left.size != right.size)
+        return false
+    for (index in 0L ..< left.size)
+        if (left[index] != right[index])
+            return false
+    return true
 }
 
 /** Bounds are not a promise that their center is a valid clickable point. */

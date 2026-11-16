@@ -71,7 +71,9 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 动作使用 `SemanticActions` 的实际回调和结果，经过当前输入边界及 Surface 错误处理；状态更新先完成普通 UI 更新再返回。`bindFocus` 借用本挂载的 FocusTarget，发布实际焦点，并在没有自定义 focus handler 时提供现有 FocusHandle 的入口；尚待显露的焦点请求返回 Busy。关闭父语义 handle 保留独立拥有的子节点，作用域卸载或根关闭退休对应资源；角色替换与根重新附着使用新身份。
 
-当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、关系／内容合并、全文本、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
+`handle.update(properties, actions, relations = SemanticRelations(labelledBy = [label.id]))` 可引用同一活动根内的标签；同一值还提供 describedBy、errorMessages 和 controls。显式名称／说明／错误（包括空串）优先于关系，标签修改只更新实际依赖者，不必重新 render 控件。handle.relations 返回清理后的当前引用，目标关闭不会将关系转接到相同位置的新节点；bindFocus 保留该当前值。标签名称变化也使旧几何失效，Accepted 场景使用底层内容版本核对，避免迟到场景恢复不匹配的位置。
+
+当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、内容合并及复杂控件关系、全文本、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
 ## 自绘与资源
 

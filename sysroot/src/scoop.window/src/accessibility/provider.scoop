@@ -111,11 +111,21 @@ public class AccessibilityProvider internal constructor(
     }
 
     internal fun changed(node: AccessibilityNode) {
-        pending[node.id.number] = node
+        if (node.active)
+            pending[node.id.number] = node
+    }
+
+    internal fun lookup(id: SemanticNodeId): AccessibilityNode? {
+        val node = nodes[id.number] ?: return None
+        return if (node.id == id)
+            Some(node)
+        else
+            None
     }
 
     internal fun retire(node: AccessibilityNode) {
         node.active = false
+        retireSemanticRelations(node)
         node.actions = SemanticActions()
         node.placement = None
         projection!!.retire(node.id.number)
@@ -142,6 +152,8 @@ public class AccessibilityProvider internal constructor(
             return
         publishing = true
         try {
+            for (node in pending.values)
+                resolveSemanticText(node)
             projection!!.publish(pending.values, removed.toArray(), focus?.id?.number ?: 0L)
             pending.clear()
             removed.clear()
@@ -197,6 +209,11 @@ public class AccessibilityProvider internal constructor(
             node.placement = None
             node.children.clear()
             node.parentNode = None
+            node.relationValues = SemanticRelations()
+            node.referrers.clear()
+            node.resolvedName = None
+            node.resolvedDescription = None
+            node.resolvedError = None
         }
         nodes.clear()
         pending.clear()

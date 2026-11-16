@@ -32,6 +32,7 @@ private class UiSemanticSceneTest {
 internal class SemanticSceneProbe: Closeable {
     var root: ComponentScope? = None
     var semantic: SemanticsHandle? = None
+    var label: SemanticsHandle? = None
     var focus: FocusHandle? = None
     var target: FocusTarget? = None
     var window: Window? = None
@@ -161,9 +162,7 @@ internal class SemanticSceneProbe: Closeable {
                 checkBounds(50.0, 50.0)
                 scenesBefore = leafScenes
                 val before = frames
-                semantic!!.update(
-                    SemanticProperties(name = Some("Changed"), automationId = Some("leaf"))
-                )
+                label!!.update(SemanticProperties(name = Some("Changed")))
                 assertEquals(None, semantic!!.geometry)
                 window!!.setVisible(false)
                 phase = -2

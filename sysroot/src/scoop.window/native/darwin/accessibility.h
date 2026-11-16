@@ -13,13 +13,21 @@ typedef struct {
   double visible_x, visible_y, visible_width, visible_height;
 } SWAccessibilityData;
 
-enum { SWAXEnabled = 1, SWAXReadOnly = 2, SWAXProtected = 4, SWAXHidden = 8 };
+enum {
+  SWAXEnabled = 1,
+  SWAXReadOnly = 2,
+  SWAXProtected = 4,
+  SWAXHidden = 8,
+  SWAXNamed = 16
+};
 
 @class SWAccessibilityTree;
 
 @interface SWAccessibilityState : NSObject
 @property(nonatomic) SWAccessibilityData data;
-@property(nonatomic, copy) NSString *name, *help, *identifier, *value;
+@property(nonatomic, copy) NSString *name, *help, *error, *identifier, *value;
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *labels, *controls,
+    *titleFor;
 @end
 
 @interface SWAccessibilityNode : NSAccessibilityElement

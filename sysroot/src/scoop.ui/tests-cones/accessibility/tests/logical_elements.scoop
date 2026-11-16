@@ -203,7 +203,8 @@ private class SemanticField(
                             SemanticActionResult.Completed
                         }
                     }
-            )
+            ),
+            SemanticRelations(labelledBy = [probe.sibling!!.id])
         )
         return UiInvalidation.None
     }

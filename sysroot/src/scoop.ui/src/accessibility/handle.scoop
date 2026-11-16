@@ -14,10 +14,15 @@ public class SemanticsHandle internal constructor(
     internal var properties = SemanticProperties()
     internal var actions = SemanticActions()
     internal var focus: FocusTarget? = None
-    internal var generation = 0UL
+    internal val generation: ULong get() = resource.contentRevision
 
     public val id: SemanticNodeId get() = resource.id
     public val role: SemanticRole get() = resource.role
+    /** Current same-root references, with retired targets removed. */
+    public val relations: SemanticRelations get() {
+        checkOpen()
+        return resource.relations
+    }
     public val isClosed: Boolean get() {
         owner.root.checkThread()
         return !active
@@ -31,15 +36,15 @@ public class SemanticsHandle internal constructor(
         return resource.geometry
     }
 
+    /** Replaces facts, callbacks and relations without changing identity or requesting a frame. */
     public fun update(
         properties: SemanticProperties,
-        actions: SemanticActions = SemanticActions()
+        actions: SemanticActions = SemanticActions(),
+        relations: SemanticRelations = SemanticRelations()
     ) {
         checkOpen()
         checkSemanticsMutation()
-        resource.update(properties, semanticActions(this, actions))
-        if (this.properties.name != properties.name || this.properties.value != properties.value)
-            generation += 1UL
+        resource.update(properties, semanticActions(this, actions), relations)
         this.properties = properties
         this.actions = actions
         controller.changed()
@@ -60,7 +65,7 @@ public class SemanticsHandle internal constructor(
             case None -> {}
         }
         focus = target
-        resource.update(properties, semanticActions(this, actions))
+        resource.update(properties, semanticActions(this, actions), resource.relations)
         controller.changed()
     }
 

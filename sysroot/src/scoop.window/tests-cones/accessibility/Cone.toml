@@ -23,6 +23,10 @@ objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 path = "native/darwin.m"
 when = { os = "darwin" }
 
+[[native.sources]]
+path = "native/relations.m"
+when = { os = "darwin" }
+
 [[native.libraries]]
 name = "AppKit"
 kind = "framework"
