@@ -132,7 +132,6 @@ public class Press internal constructor(
                     contact = Some(value)
                     contactPosition = Some(value.pointer)
                     publish()
-                    context.consume()
                 }
             }
             case Moved(val value) -> {

@@ -552,6 +552,10 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 TextEditOptions.contextMenu 及 TextEditHost.showContextMenu 接入原生文本菜单，模式、选区、已接受锚点、目标绑定与收尾遵守[原生菜单规范第 6 节](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。默认 PreferSystem，无可复用系统项目时使用标准原生模板；Disabled 允许调用方完全接管上下文菜单。
 
+TextEditOptions.touch 为 TextTouchOptions(enabled=true, threshold=8, longPressDelay=Some(500 ms))，配置直接触摸／笔尖的点击和长按；threshold 是有限非负的窗口逻辑距离，长按时长非负，None 只关闭长按。普通 tap 在合法结束时按匹配当前文档／投影的 Accepted 布局放置 caret；长按取得原接触归属后选词并进入同一上下文菜单，具体选区策略见原生菜单规范第 6 节。移动超阈值后不恢复候选；第二触点、滚动接管、被阻止的输入、正文或绑定变化、禁用、失焦、隐藏／遮挡和卸载取消候选及 deadline。长按只执行一次，之后不补 tap；零时长仍通过 owner 的一次性 deadline，在接触尚有效时交付，不在按下回调中内联执行。
+
+TextEditOptions.touchScroll 为 TouchScrollOptions()，独立配置同一编辑视口的直接滚动；多行使用 Both，单行只使用 Horizontal，Chain 允许父视口消费余量。文本按压与滚动共用原始接触，ScrollPan 开始时取消尚未识别的文本按压，长按接管后阻止该序列继续变成滚动。接触按下的自动聚焦保留正在登记的触摸候选，不为旧 caret 发起显露；tap 结束后再显露实际落点。位置、caret、选区、IME 和语义几何仍来自同一 ScrollViewport 与 Accepted 布局，不复制编辑模型。触摸选区端点和软件惯性按各自后续能力接入。
+
 TextEditOptions.acceptDrops 默认 true；当前 macOS 宿主可接收 Copy 或完整 Move 的文本／URL，临时落点 caret、边缘滚动、Accepted 模型与修订匹配及编辑事务见[文本拖入合同](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)，Move 的额外条件见该规范第 5 节。DragDrop 是独立的 TextEditSource，导入清洗复用 Paste 阶段；拒绝 Drop 保留尚未发布的 composition 候选，不采用原生输入必须确认批次时的拒绝发布路径。
 
 TextEditOptions.drag 默认为 TextDragOptions()，配置独立的选区拖出开关、阈值、导出策略、Copy／Move 与完成通知。选区内单击延迟定位，阈值后复用真实来源会话；同文档 Move 一次发布和一个 undo，来源改变后不按旧范围删除。正文修订与包含选区的输入 revision 区分；单纯选区变化不使已开始的来源正文失效。正式配置、来源关联、过滤与 SourceRetained 结果见[文本选区拖出与移动](SCOOP-UI-DRAG-DROP-SPEC.md#5-文本选区拖出与移动)。
@@ -619,6 +623,8 @@ SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活
 SelectableTextOptions.drag 同样默认为 TextDragOptions()，只允许导出 Copy，不获得接收或删除文档的能力。实际选区内按下保留原选区，数据拖出与普通拖选共用输入区域及 Accepted 段落；未启动的点击在释放时定位，范围动作继续通过原 claim 处理。
 
 SelectableTextOptions.contextMenu 默认为 TextContextMenuOptions()，与编辑宿主共用 Disabled／StandardNative／PreferSystem、选区策略及标准标签。showContextMenu()、右键／平台辅助点击和菜单键／Shift+F10 进入同一原生菜单，提供 Copy／SelectAll；要求匹配正文的 Accepted 几何和合法焦点／输入边界。选区内点击保留方向，选区外按配置保留、放置插入点或选词。打开停止拖选，不触发行内主按钮；会话、正文更新、关闭及迟到动作遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。
+
+SelectableTextOptions.touch 提供相同 TextTouchOptions；普通 tap 折叠到 Accepted 命中位置，长按选词或保留现有方向选区后使用原生 Copy／SelectAll 菜单。行内动作正常 tap 先由原子目标激活并消费结束，祖先不再折叠选区；长按取得文本祖先归属后取消原行内候选。只读宿主不创建自己的滚动状态，原始接触仍可由外层 ScrollPan 接管。两个文本宿主复用同一接触按压识别与取消规则。
 
 `TextRangeAction(key, range, onActivate, enabled, focus)` 按稳定 key 保留嵌套区域、FocusTarget 和 Press；缺省焦点顺序跟随动作数组，显式 FocusOptions 独立。范围可以跨行，由布局 selection 返回的矩形合成一个 Path 命中区域，支持显式激活且不自行调用 URL 或 OS 服务。`TextRangeDecoration(range, background, underline)` 只画范围装饰，不创建交互区域。范围均为原始 StyledText 的合法 UTF-8 标量区间，动作非空且 key 唯一。
 
@@ -773,6 +779,8 @@ Press 通过 Surface 的独立事件／默认动作／完成登记组合，不�
 键盘使用 window 的精确 ShortcutChord：普通 Space 在真实 key-up 激活，Enter 在真实 key-down 激活，acceptsEnter=false 时忽略 Enter；额外修饰键不匹配。重复按下不追加激活，synthetic 不激活，释放必须对应先前物理键。Enter 已触发的按键只等待释放收尾，Space 候选在释放前失焦／禁用即失效。指针与键盘候选互斥。
 
 直接触摸与笔尖从同一 Surface Contact 路由建立独立候选，不写入 hover 或鼠标按钮。首个接触在最近 Accepted 命中中开始，移动超过 touchThreshold、同一区域出现第二个接触、归属被接管或取消时放弃 tap；移回原位置不恢复已放弃的候选。正常结束且仍在区域的精确命中路径中才激活；被阻止的结束仍清理，不补动作。鼠标、接触与键盘候选互斥。接触开始使用现有 Pointer 焦点来源和输入域外部按下规则，保持键盘和语义入口。
+
+接触按下只登记 tap 候选，不消费 Began 的默认阶段，允许祖先登记长按等候选；真正激活时消费 Ended，因此嵌套按钮仍只执行最内层的有效动作。长按与滚动成功接管时沿原 contact 路由取消后代候选，不增加识别器优先级框架。
 
 触发动作前先收束本次激活资格并发布状态，再调用最新动作；动作可同步替换 Props、移除自身或关闭根，返回后不得继续假定原 area 存活。enabled=false 是行为输入，不替调用方决定整个 area 子树的可用性；控件自身仍显式设置 area.scope.enabled。
 

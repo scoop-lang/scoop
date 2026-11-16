@@ -48,6 +48,7 @@ public class SelectableTextHost public constructor(
             { command -> execute(command) },
             false
         )
+    internal val touchPress = createSelectableContactPress(this)
     private val activity =
         area.scope.observeActivity {
             if (!closed && scope.isMounted) {
@@ -149,6 +150,8 @@ public class SelectableTextHost public constructor(
         }
         this.focus.options = focus
         val textChanged = this.content.text != content.text
+        if (textChanged || this.fonts !== fonts || this.options.contextMenu != options.contextMenu)
+            touchPress.cancel()
         if (
             textChanged ||
                 (contextMenu.hasTarget && this.content.toPlainText() != content.toPlainText())
@@ -159,6 +162,11 @@ public class SelectableTextHost public constructor(
             semanticText = None
         this.content = content
         this.options = options
+        touchPress.update(
+            options.enabled && options.touch.enabled,
+            options.touch.threshold,
+            options.touch.longPressDelay
+        )
         this.decorations = decorations
         changed = onSelectionChanged
         selectableActions(this, actions)
@@ -210,6 +218,7 @@ public class SelectableTextHost public constructor(
     internal fun publishSelection(value: EditorSelection): Boolean {
         if (selected.value == value)
             return false
+        touchPress.cancel()
         selected.value = value
         refreshMenuCommands()
         scope.requestFrame()
@@ -260,6 +269,7 @@ public class SelectableTextHost public constructor(
         failure = cleanupUi(failure) { semantics.close() }
         semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { touchPress.close() }
         failure = cleanupUi(failure) { dataSource?.close() }
         failure = cleanupUi(failure) { activity.close() }
         for (action in actions)

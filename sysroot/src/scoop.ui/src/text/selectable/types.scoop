@@ -12,7 +12,8 @@ public class SelectableTextOptions public constructor(
     public val selectionColor: Color = Color(0.2, 0.45, 0.9, 0.3),
     public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
-    public val drag: TextDragOptions = TextDragOptions()
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions()
 ) {
     internal fun check() {
         drag.check()

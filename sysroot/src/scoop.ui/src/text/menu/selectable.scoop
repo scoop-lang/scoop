@@ -22,15 +22,15 @@ internal fun selectableMenuReady(host: SelectableTextHost): Boolean {
 
 internal fun selectableContextMenu(
     host: SelectableTextHost,
-    pointer: InputPointer?,
-    local: Point?
+    pointer: PointerState?,
+    local: Point?,
+    touch: Boolean = false
 ): Boolean {
     if (
         host.closed ||
             !host.scope.isMounted ||
             !host.options.enabled ||
-            host.options.contextMenu.mode ==
-            TextContextMenuMode.Disabled ||
+            (!touch && host.options.contextMenu.mode == TextContextMenuMode.Disabled) ||
             host.contextMenu.pending ||
             !host.area.scope.isInputAllowed ||
             host.scope.nativeWindow.state !=
@@ -48,14 +48,22 @@ internal fun selectableContextMenu(
             return false
         case None -> {}
     }
-    if (!host.contextMenu.eligible() || !sameMenuText(document, host.content))
+    if (!host.area.scope.activity.hasFocus || !sameMenuText(document, host.content))
         return false
     val options = host.options.contextMenu
+    val popup = options.mode != TextContextMenuMode.Disabled
+    if (popup && !host.contextMenu.eligible())
+        return false
     val template =
-        host.scope.application.textContextMenuTemplate(
-            options.mode == TextContextMenuMode.PreferSystem,
-            options.labels
-        )
+        if (popup)
+            Some(
+                host.scope.application.textContextMenuTemplate(
+                    options.mode == TextContextMenuMode.PreferSystem,
+                    options.labels
+                )
+            )
+        else
+            None
     selectableStopDrag(host)
     val placement =
         when (pointer) {
@@ -68,7 +76,7 @@ internal fun selectableContextMenu(
                         inside = true
                 if (!inside && options.selection != TextContextMenuSelection.Preserve) {
                     val position = frame.layout.hitTest(point)
-                    if (textMenuSelectsWord(options, template)) {
+                    if (textMenuSelectsWord(options, template, touch)) {
                         val word = frame.layout.wordRange(position)
                         host.setSelection(
                             TextPosition(word.start),
@@ -77,7 +85,7 @@ internal fun selectableContextMenu(
                     } else
                         host.setSelection(position, position)
                 }
-                PopupPlacement.Pointer(value.state.logicalPosition)
+                PopupPlacement.Pointer(value.logicalPosition)
             }
             case None -> {
                 val anchor = selectableMenuAnchor(host, frame, bounds) ?: return false
@@ -91,7 +99,10 @@ internal fun selectableContextMenu(
         }
     if (host.closed || !host.scope.isMounted || !sameMenuText(document, host.content))
         return false
-    return host.contextMenu.open(template, placement)
+    return if (popup)
+        host.contextMenu.open(template!!, placement)
+    else
+        true
 }
 
 private fun sameMenuText(before: StyledText, after: StyledText): Boolean =

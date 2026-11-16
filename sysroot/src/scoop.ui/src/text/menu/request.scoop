@@ -6,13 +6,17 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
 
-internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local: Point?): Boolean {
+internal fun editorContextMenu(
+    host: TextEditHost,
+    pointer: PointerState?,
+    local: Point?,
+    touch: Boolean = false
+): Boolean {
     if (
         host.closed ||
             !host.scope.isMounted ||
             !host.options.enabled ||
-            host.options.contextMenu.mode ==
-            TextContextMenuMode.Disabled ||
+            (!touch && host.options.contextMenu.mode == TextContextMenuMode.Disabled) ||
             host.contextMenu.pending ||
             !host.area.scope.isInputAllowed ||
             host.window.state !=
@@ -33,7 +37,7 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
         case None -> {}
     }
     if (
-        !host.contextMenu.eligible() ||
+        !host.area.isFocusActive ||
             host.current !==
             document ||
             frame.display.source.text !=
@@ -41,11 +45,19 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
     )
         return false
     val options = host.options.contextMenu
+    val popup = options.mode != TextContextMenuMode.Disabled
+    if (popup && !host.contextMenu.eligible())
+        return false
     val template =
-        host.scope.application.textContextMenuTemplate(
-            options.mode == TextContextMenuMode.PreferSystem,
-            options.labels
-        )
+        if (popup)
+            Some(
+                host.scope.application.textContextMenuTemplate(
+                    options.mode == TextContextMenuMode.PreferSystem,
+                    options.labels
+                )
+            )
+        else
+            None
     editorStopDrag(host, false)
     val placement =
         when (pointer) {
@@ -61,7 +73,7 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
                 if (!inside && options.selection != TextContextMenuSelection.Preserve) {
                     val displayed = frame.layout.hitTest(point)
                     val selection =
-                        if (textMenuSelectsWord(options, template)) {
+                        if (textMenuSelectsWord(options, template, touch)) {
                             val range =
                                 editorProjectedRange(input, frame.layout.wordRange(displayed))
                             EditorSelection(
@@ -77,7 +89,7 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
                         }
                     host.perform({ editorSetSelection(host, selection) }, endComposition = true)
                 }
-                PopupPlacement.Pointer(value.state.logicalPosition)
+                PopupPlacement.Pointer(value.logicalPosition)
             }
             case None -> {
                 val rect = editorMenuAnchor(host, frame, bounds) ?: return false
@@ -91,7 +103,10 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
         }
     if (host.closed || !host.scope.isMounted || host.current !== document)
         return false
-    return host.contextMenu.open(template, placement)
+    return if (popup)
+        host.contextMenu.open(template!!, placement)
+    else
+        true
 }
 
 private fun editorMenuAnchor(host: TextEditHost, frame: EditorFrame, bounds: Rect): Rect? {
@@ -142,14 +157,15 @@ internal fun textMenuKey(key: KeyEvent): Boolean =
 
 internal fun textMenuSelectsWord(
     options: TextContextMenuOptions,
-    template: TextContextMenuTemplate
+    template: TextContextMenuTemplate?,
+    touch: Boolean
 ): Boolean =
     options.selection ==
         TextContextMenuSelection.SelectWord ||
         (
             options.selection ==
                 TextContextMenuSelection.Platform &&
-                template.selectWordOutsideSelection
+                (touch || (template?.selectWordOutsideSelection ?: false))
         )
 
 internal fun textMenuAnchor(area: InputArea, local: Rect, bounds: Rect): Rect? {

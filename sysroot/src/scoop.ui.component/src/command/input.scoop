@@ -37,7 +37,9 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
             field.protectedText,
             field.semantics,
             field.acceptDrops,
-            field.drag
+            field.drag,
+            field.touch,
+            field.touchScroll
         )
     val addons = ArrayList<InputGroupAddon>()
     if (input.showSearchIcon)

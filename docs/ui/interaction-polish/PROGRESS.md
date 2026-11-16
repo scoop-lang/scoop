@@ -19,7 +19,7 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S8 | 进行中 | AppKit 原生 Magnify／Rotate／Swipe、Surface 起始路由与 UI transformGesture 已接入；本地事件／路由／组合回归通过；示例、Image 语义与按钮／键盘等价操作已验证，用户已确认真实触控板缩放／旋转正常；原始 contact、直接触摸识别、控件与文本触摸接入及其余设备矩阵仍待完成 |
+| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按已接入；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步和六类文本控件的 20 步本地窗口场景通过，菜单与 accessibility 共用动作；其余控件、多击／选区端点、软键盘和完整设备矩阵继续实施 |
 | S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -399,7 +399,7 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - Slider 的触点和鼠标两个窗口用例分别通过同一组 64 阶段场景，包括键盘、提交／回滚、业务拒绝与外部更新、配置／方向、焦点、被阻止的释放和卸载收尾。四个最终 UI 用例均在独立 Application 进程执行，正式测试事件包含无失败的 end 和 complete；本批共 40 项定向测试通过。
 - Window／Surface／UI／Component 规范、库 README、输入边界方案和编程导航同步；离线 API 文档生成，5 项查询核对 ContactState、claimContacts、InputPressSource、hasContact 和 DragSample 的签名与导入。源码与受影响测试 Cone 检查、release 构建通过；Window、Window.asyncio、Surface、UI、Style、四套主题及 Component 共 10 份开发产物按依赖更新。37 个 Scoop 文件与 26 个 native 文件的格式检查、本地可编译 native 代码的严格编译以及 225 个本地 Markdown 目标检查通过。临时应用包与逐次报告已清理，保留后续使用的启动脚本、API 文档、配套产物与共享缓存。
 
-本批触点窗口测试使用受控 native payload 经过实际队列、解码、Surface 和 UI，不能代表 macOS 直接触屏或 Windows／GTK 的设备输入。Windows／GTK 原生编译、兼容鼠标去重、OLE 触摸启动和真触屏仍按集中平台验收执行。直接触摸的长按、正文滚动、多指识别、文本端点／软键盘、其他控件组合及辅助技术设备行为继续属于 S8／S10／S11。
+本批触点窗口测试使用受控 native payload 经过实际队列、解码、Surface 和 UI，不能代表 macOS 直接触屏或 Windows／GTK 的设备输入。Windows／GTK 原生编译、兼容鼠标去重、OLE 触摸启动和真触屏仍按集中平台验收执行。直接触摸的多击、多指识别、文本端点／软键盘、其他控件组合及辅助技术设备行为继续属于 S8／S10／S11。
 
 ### 直接触摸滚动与嵌套余量
 
@@ -410,4 +410,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 像素测试显式给轨道设置可见颜色，避免默认透明轨道掩盖结果。十万项列表在滚动后的稳定帧最多保留 6 行，原触点行已经关闭；布局最终选择前新旧两个范围允许短暂共存，峰值最多 12 行。停留和抬起后的等待均保留滚动条与停帧断言。
 - Window 输入边界方案、Surface／UI／Component 规范、库 README、测试说明与编程导航同步；离线 API 文档生成，5 组查询核对入口、配置默认值、Props／builder、ScrollChain 归属及 contactRemaining。受影响源码与测试 Cone 检查通过，Surface、UI、Style、四套主题及 Component 共 8 份开发产物按依赖更新。25 个 Scoop 文件的格式检查通过；临时应用包与逐次报告已清理，保留后续使用的启动脚本、API 文档、开发产物与共享缓存。
 
-本批新增输入验证使用 macOS 实窗中的受控 native contact 载荷，不代替 Windows／GTK 编译、真触屏或笔设备验收。直接触摸的多击、长按、多指变换、文本端点／软键盘及其他控件组合继续属于 S8；软件惯性、越界回弹与减少动画的运动策略继续属于 S9。键盘和 accessibility 仍复用原 ScrollState 命令与 Accepted 几何。
+本批新增输入验证使用 macOS 实窗中的受控 native contact 载荷，不代替 Windows／GTK 编译、真触屏或笔设备验收。直接触摸的多击、多指变换、文本端点／软键盘及其他控件组合继续属于 S8；软件惯性、越界回弹与减少动画的运动策略继续属于 S9。键盘和 accessibility 仍复用原 ScrollState 命令与 Accepted 几何。
+
+### 文本短按、长按菜单与直接滚动
+
+- TextTouchOptions 配置启用、窗口逻辑距离阈值和一次性长按，None 仅关闭长按。编辑与只读宿主使用同一个内部 ContactPress；短按按 Accepted 布局定位 caret，长按选词或保留已有方向选区，再进入原生菜单。菜单关闭仍可选词，键盘与 accessibility 使用原命令入口；受保护用途、导出策略和文档投影保持一致。
+- 编辑视口独立配置 touchScroll，单行水平滚动、多行双轴滚动沿同一 ScrollViewport 和嵌套余量路径。Press 按下只登记候选，结束激活时消费事件；行内链接 tap、文本长按和外层滚动按原 contact 归属竞争，未新增公开识别器框架。被阻止的输入、第二触点、正文／绑定变化、焦点／配置变化和关闭均收束候选及 deadline。
+- Input／Textarea／InputOtp、InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传配置。首次接触聚焦保留新候选，不为旧 caret 发起显露；OTP 在挂载期间复用同一默认投影，避免焦点重绘取消长按。长按结束清除移动标记，下一次被拦截的移动不会补 tap。
+- 新的两类文本宿主 66 步和六类文本控件 20 步实窗测试通过，覆盖 Unicode、笔来源、原生菜单与剪贴板、投影／保护、行内动作、滚动竞争、取消、停帧和重入卸载。既有编辑／IME、Press／Drag、嵌套滚动、文本控件和 OTP 的 32 步分组／composition／策略／关闭回归通过；加上配置校验，共 8 项定向测试，其中 7 个窗口用例各自使用独立 Application 进程，均有无失败的 end 和 complete 事件。
+- UI、Style、四套主题及 Component 的开发产物已按依赖更新；源码及受影响测试 Cone 检查、release 构建和 30 个 Scoop 文件格式检查通过。两库离线 API 文档重新生成，9 组查询核对类型、默认值、Props／builder 及导入；规范、输入边界、计划、库／测试 README 与编程导航同步，本地 Markdown 目标与 diff 检查通过。
+
+本批触摸测试通过受控 native contact 队列验证 macOS 实窗行为，不能代替真实触屏或笔设备。用户已确认的触控板捏合／旋转结果单独保留；选区端点、多击、触摸拖放、多指变换、软键盘、其他控件和集中平台验收仍按原计划继续。临时应用包和逐次报告在验证后清理，保留后续需要的启动脚本、API 文档、开发产物与共享缓存。

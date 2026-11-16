@@ -80,7 +80,7 @@ Surface 延续最近 Accepted 几何、Capture／Target／Bubble、模态边界�
 
 UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等实际需要的识别。滚动、按压、文本选区和 Slider 对同一接触的竞争在这里协调；Window 不决定哪个控件赢得手势。原生 gesture 与从原始触摸识别的 gesture 进入相同的控件行为入口，并保留来源，防止重复消费。
 
-当前入口为 `InputEvent.Contact`、`InputScope.claimContacts(ids)` 和 `cancelContactClaim(id)`。组归属先整体发布，再取消原后代；失败仅回退本次新取得的触点。`beforePress` 将鼠标和触点的域外按下放入同一决策，source 保留真实来源。`InputActivity.hasContact` 跟踪当前归属；接触留在虚拟条目时保持该条目，父滚动接管并取消原后代后恢复正常回收。Press、Drag 和 ScrollPan 已作为实际消费者，后续识别器复用这些入口。
+当前入口为 `InputEvent.Contact`、`InputScope.claimContacts(ids)` 和 `cancelContactClaim(id)`。组归属先整体发布，再取消原后代；失败仅回退本次新取得的触点。`beforePress` 将鼠标和触点的域外按下放入同一决策，source 保留真实来源。`InputActivity.hasContact` 跟踪当前归属；接触留在虚拟条目时保持该条目，父滚动接管并取消原后代后恢复正常回收。Press、Drag、ScrollPan 与两个文本宿主共用的内部 ContactPress 已作为实际消费者，后续识别器复用这些入口。
 
 直接滚动由 UI 的 `scope.scrollPan(area, viewport)` 识别阈值和锁轴，ScrollArea／VirtualList 沿共享 ScrollControl 接入。Surface 的 `consumeContactMovement` 只处理本次已获归属的位移与祖先剩余量，首次消费计入起点以来的完整距离，随后按相邻样本计算；几何转换与残量校验复用原滚轮基础。每次事件仅归属者可以先开放共享，普通 Drag 仍独占。新的定位、第二触点、配置变化与失效按现有取消通路收尾；该层不增加惯性时钟。
 

@@ -482,6 +482,8 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
+InputProps／TextareaProps／InputOtpProps 及对应 builder 提供 touch: TextTouchOptions = TextTouchOptions() 和 touchScroll: TouchScrollOptions = TouchScrollOptions()，分别透传共享编辑宿主的 tap／长按与直接滚动配置。输入组、Combobox、Command、Sidebar 等借用 InputProps 的包装保留这些值；SelectableStyledText／Typography 通过原 SelectableTextOptions.touch 配置只读选择。长按与键盘／语义菜单共用同一选区、编辑模型和原生会话，行为及取消规则见 UI 规范的文本宿主部分，不在控件中重复识别触点。
+
 文本输入的 InputProps／TextareaProps／InputOtpProps 及各自 builder 的 `caretBlink: Duration? = None` 默认跟随根系统偏好；`Some(Duration.ZERO)` 保持光标可见。TextFieldStyle 与 InputOtpStyle 的 `caretWidth: Double? = None` 同样交给共享 TextEditHost 解析，显式值是有限正数，单位为逻辑像素。其优先级及 Accepted 几何合同见[UI 规范 §8.3](SCOOP-UI-SPEC.md#83-系统交互偏好)。
 
 InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 None，跟随根系统偏好；显式 Some(Duration.ZERO) 保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。

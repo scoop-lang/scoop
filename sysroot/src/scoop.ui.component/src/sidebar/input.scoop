@@ -67,7 +67,9 @@ public class SidebarInput public constructor(
                 input.protectedText,
                 input.semantics,
                 input.acceptDrops,
-                input.drag
+                input.drag,
+                input.touch,
+                input.touchScroll
             ),
             { current, mount -> Input(current, scope = mount) }
         )

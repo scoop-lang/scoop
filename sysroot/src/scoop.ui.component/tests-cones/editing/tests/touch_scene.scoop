@@ -1,0 +1,108 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.*
+
+internal class FieldTouchScene(private val p: FieldTouchProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val revision = p.generation.value
+        val probe = p
+        val children =
+            [
+                input(p.models[0L]) { configureTouchField(this, probe, 0L) },
+                textarea(p.models[1L]) {
+                    configureTouchField(this, probe, 1L);
+                    rows = 1L
+                },
+                inputOtp(p.models[2L], 4L) {
+                    fonts = Some(probe.fonts)
+                    theme = Some(probe.theme)
+                    focus = FocusOptions(Some(probe.focus[2L]))
+                    caretBlink = Some(Duration.ZERO)
+                    touch = probe.touch
+                    contextMenu = probe.menu
+                },
+                inputGroup {
+                    theme = Some(probe.theme)
+                    input(probe.models[3L]) { configureTouchField(this, probe, 3L) }
+                },
+                component(
+                    ButtonGroupProps(
+                        [
+                            ButtonGroupEntry(
+                                ButtonGroupContent.Input(
+                                    InputProps(
+                                        p.models[4L],
+                                        fonts = Some(p.fonts),
+                                        theme = Some(p.theme),
+                                        focus = FocusOptions(Some(p.focus[4L])),
+                                        caretBlink = Some(Duration.ZERO),
+                                        touch = p.touch,
+                                        contextMenu = p.menu,
+                                        projection = p.projection
+                                    )
+                                )
+                            )
+                        ],
+                        theme = Some(p.theme)
+                    ),
+                    { props, mount -> ButtonGroup(props, scope = mount) }
+                ),
+                inputGroup {
+                    theme = Some(probe.theme)
+                    textarea(probe.models[5L]) {
+                        configureTouchField(this, probe, 5L);
+                        rows = 1L
+                    }
+                }
+            ]
+        return element(
+            revision,
+            { props, mount -> FieldTouchPanel(probe, props, scope = mount) },
+            children
+        )
+    }
+}
+
+private fun configureTouchField(builder: InputBuilder, p: FieldTouchProbe, index: Long) {
+    builder.fonts = Some(p.fonts)
+    builder.theme = Some(p.theme)
+    builder.focus = FocusOptions(Some(p.focus[index]))
+    builder.caretBlink = Some(Duration.ZERO)
+    builder.touch = p.touch
+    builder.contextMenu = p.menu
+    builder.projection = p.projection
+}
+
+private class FieldTouchPanel(
+    private val p: FieldTouchProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            val metrics = context.measureChild(index, Constraints.tight(Size(320.0, 54.0)))
+            val y = 16.0 + index.toDouble() * 72.0
+            context.placeChild(index, Point(20.0, y))
+            p.points[index] = Point(200.0, y + metrics.size.height / 2.0)
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(400.0, 480.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val revision = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.accepted = revision
+        }
+    }
+}

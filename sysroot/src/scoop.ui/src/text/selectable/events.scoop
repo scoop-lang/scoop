@@ -49,7 +49,7 @@ internal fun selectableHandle(
                 if (
                     context.phase ==
                         RoutedPhase.Default &&
-                        selectableContextMenu(host, Some(pointer), context.localPosition)
+                        selectableContextMenu(host, Some(pointer.state), context.localPosition)
                 )
                     context.consume()
                 return

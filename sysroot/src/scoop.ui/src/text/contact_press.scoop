@@ -1,0 +1,106 @@
+package scoop.ui.text
+
+import scoop.surface.FocusOrigin
+import scoop.ui.*
+
+internal fun createEditorContactPress(host: TextEditHost): ContactPress =
+    ContactPress(
+        host.scope,
+        host.area,
+        host.options.enabled && host.options.touch.enabled,
+        host.options.touch.threshold,
+        host.options.touch.longPressDelay,
+        { editorTouchReady(host) },
+        { sample -> editorTouchTap(host, sample) },
+        { sample -> editorTouchHold(host, sample) }
+    )
+
+internal fun editorTouchReady(host: TextEditHost): Boolean {
+    if (host.closed || !host.scope.isMounted || host.contextMenu.pending)
+        return false
+    val frame = host.accepted ?: return false
+    return frame.editor ===
+        host.current &&
+        frame.revision ==
+        host.current.revision &&
+        frame.projection ===
+        host.options.projection &&
+        frame.display.source.text ==
+        host.current.text
+}
+
+private fun editorTouchTap(host: TextEditHost, sample: ContactPressSample) {
+    val document = host.current
+    if (!editorTouchReady(host) || !host.area.requestFocus(FocusOrigin.Pointer))
+        return
+    if (!editorTouchReady(host) || host.current !== document)
+        return
+    val frame = host.accepted!!
+    val displayed = frame.layout.hitTest(sample.position)
+    val position = frame.display.documentPosition(frame.display.mapping.reverse(displayed))
+    editorStopDrag(host, false)
+    host.perform(
+        { editorSetSelection(host, EditorSelection(position, position)) },
+        endComposition = true
+    )
+}
+
+private fun editorTouchHold(host: TextEditHost, sample: ContactPressSample) {
+    if (editorTouchReady(host))
+        editorContextMenu(host, Some(sample.contact.pointer), Some(sample.position), touch = true)
+}
+
+internal fun createSelectableContactPress(host: SelectableTextHost): ContactPress =
+    ContactPress(
+        host.scope,
+        host.area,
+        host.options.enabled && host.options.touch.enabled,
+        host.options.touch.threshold,
+        host.options.touch.longPressDelay,
+        { selectableTouchReady(host) },
+        { sample -> selectableTouchTap(host, sample) },
+        { sample -> selectableTouchHold(host, sample) }
+    )
+
+private fun selectableTouchReady(host: SelectableTextHost): Boolean {
+    if (host.closed || !host.scope.isMounted || host.contextMenu.pending)
+        return false
+    return when (host.inputFrame()) {
+        case Some(_) -> true
+        case None -> false
+    }
+}
+
+private fun selectableTouchTap(host: SelectableTextHost, sample: ContactPressSample) {
+    val document = host.content
+    if (!selectableTouchReady(host) || !host.area.requestFocus(FocusOrigin.Pointer))
+        return
+    if (!selectableTouchReady(host) || host.content !== document)
+        return
+    val frame = host.inputFrame() ?: return
+    val position = frame.layout.hitTest(sample.position)
+    selectableStopDrag(host)
+    host.setSelection(position, position)
+}
+
+private fun selectableTouchHold(host: SelectableTextHost, sample: ContactPressSample) {
+    if (selectableTouchReady(host))
+        selectableContextMenu(
+            host,
+            Some(sample.contact.pointer),
+            Some(sample.position),
+            touch = true
+        )
+}
+
+internal fun editorTouchAxes(options: TextEditOptions): ScrollAxes =
+    if (options.multiline)
+        ScrollAxes.Both
+    else
+        ScrollAxes.Horizontal
+
+internal fun editorTouchScroll(options: TextEditOptions): TouchScrollOptions =
+    if (options.enabled)
+        options.touchScroll
+    else
+        TouchScrollOptions(false, options.touchScroll.threshold, options.touchScroll.lockAxis)

@@ -40,7 +40,9 @@ public class TextareaProps public constructor(
     public val protectedText: Boolean = false,
     public val semantics: ComponentSemantics = ComponentSemantics(),
     public val acceptDrops: Boolean = true,
-    public val drag: TextDragOptions = TextDragOptions()
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions()
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -83,7 +85,9 @@ private fun multilineInput(input: TextareaProps): TextFieldInput =
             contextMenu = input.contextMenu,
             protectedText = input.protectedText,
             acceptDrops = input.acceptDrops,
-            drag = input.drag
+            drag = input.drag,
+            touch = input.touch,
+            touchScroll = input.touchScroll
         ),
         input.rows,
         input.scrollbars,

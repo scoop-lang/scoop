@@ -10,6 +10,7 @@ import scoop.ui.text.*
 internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentScope): Element<
     OtpDrawing
 >(scope) {
+    private val projection = textProjection()
     internal val host =
         scope.resource {
             val value = props.value
@@ -17,7 +18,7 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
                 scope,
                 value.input.state,
                 otpAppearance(value.input, value.theme, value.text, value.fonts),
-                otpOptions(value.input),
+                otpOptions(value.input, projection),
                 value.onInteractionChanged
             )
         }
@@ -33,7 +34,7 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
         host.update(
             input.state,
             otpAppearance(input, props.value.theme, props.value.text, props.value.fonts),
-            otpOptions(input),
+            otpOptions(input, projection),
             input.focus,
             onEdited = { state -> props.value.input.onEdited(state) },
             onCommitted =
@@ -129,15 +130,18 @@ internal fun otpAppearance(
     )
 }
 
-internal fun otpOptions(input: InputOtpProps): TextEditOptions =
+internal fun otpOptions(input: InputOtpProps, projection: TextProjection): TextEditOptions =
     TextEditOptions(
         readOnly = input.readOnly,
         enabled = input.enabled,
         submit = TextSubmitKeys.None,
         caretBlink = input.caretBlink,
         policy = otpPolicy(input.pattern, input.length),
+        projection = projection,
         contextMenu = input.contextMenu,
         protectedText = input.protectedText,
         acceptDrops = input.acceptDrops,
-        drag = input.drag
+        drag = input.drag,
+        touch = input.touch,
+        touchScroll = input.touchScroll
     )

@@ -48,11 +48,12 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
     if (context.phase != RoutedPhase.Default || !host.options.enabled)
         return
     when (event) {
+        case Contact(InputContactEvent.Began(_)) -> host.revealNeeded = false
         case Pointer(
             InputPointerEvent.Button(val pointer, val button, ElementState.Pressed, _)
         ) -> {
             if (isContextMenuClick(button, pointer.state.modifiers)) {
-                if (editorContextMenu(host, Some(pointer), context.localPosition))
+                if (editorContextMenu(host, Some(pointer.state), context.localPosition))
                     context.consume()
                 return
             }
@@ -136,7 +137,7 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
     if (active) {
         host.current.attachHost(host)
         host.current.breakUndoGroup()
-        host.invalidate()
+        host.invalidate(cancelContacts = false)
         host.publishNative()
     } else {
         host.dataSource?.cancelCandidate()

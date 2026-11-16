@@ -72,6 +72,25 @@ public class TextEditHost public constructor(
     internal val dragTimer = scope.createDeadline { editorDragTick(this) }
     internal val dropTarget = createEditorDropTarget(this)
     internal val dataSource = createEditorDragSource(this)
+    internal val touchPan =
+        scope.scrollPan(
+            area,
+            viewport,
+            editorTouchAxes(initialOptions),
+            options = editorTouchScroll(initialOptions)
+        )
+    internal val touchPress = createEditorContactPress(this)
+    private val touchScrollIntent =
+        scroll.observeIntent {
+            value -> when (value) {
+                case LayoutCorrection(_) -> {}
+                case User(_) -> {
+                    touchPress.cancel();
+                    revealNeeded = false
+                }
+                case Programmatic(_) -> touchPress.cancel()
+            }
+        }
     internal var caretPreferences = scope.interactionPreferences
     private var caretScale = window.metrics?.scaleFactor
     private val preferenceObserver =
@@ -232,6 +251,10 @@ public class TextEditHost public constructor(
                 options.enabled ||
                 this.options.multiline !=
                 options.multiline
+        if (layoutChanged || restart || this.options.contextMenu != options.contextMenu) {
+            touchPress.cancel()
+            touchPan.cancel()
+        }
         if (restart) {
             retireConnection()
             editorStopDrag(this, false)
@@ -245,6 +268,12 @@ public class TextEditHost public constructor(
         current = state
         this.appearance = appearance
         this.options = options
+        touchPress.update(
+            options.enabled && options.touch.enabled,
+            options.touch.threshold,
+            options.touch.longPressDelay
+        )
+        touchPan.update(editorTouchAxes(options), ScrollChain.Chain, editorTouchScroll(options))
         this.placeholder = placeholder
         edited = onEdited
         submitted = onSubmit
@@ -316,7 +345,11 @@ public class TextEditHost public constructor(
         current.breakUndoGroup()
         retireConnection()
     }
-    internal fun invalidate() {
+    internal fun invalidate(cancelContacts: Boolean = true) {
+        if (cancelContacts) {
+            touchPress.cancel()
+            touchPan.cancel()
+        }
         preferredX = None
         if (!area.isClosed)
             area.setCaret(None, Some(current.revision))
@@ -404,6 +437,9 @@ public class TextEditHost public constructor(
         failure = cleanupUi(failure) { semantics.close() }
         semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { touchPress.close() }
+        failure = cleanupUi(failure) { touchPan.close() }
+        failure = cleanupUi(failure) { touchScrollIntent.close() }
         failure = cleanupUi(failure) { preferenceObserver.close() }
         failure = cleanupUi(failure) { geometryObserver.close() }
         failure = cleanupUi(failure) { blink.close() }

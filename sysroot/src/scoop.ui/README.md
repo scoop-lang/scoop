@@ -235,6 +235,10 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 macOS 的 TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOptions(acceptDrops = false)` 单独关闭接收。`drag = TextDragOptions(enabled = false)` 单独关闭选区拖出；该选项也配置阈值、Copy／Move、copyPolicy 和 onCompleted。默认导出遵守复制及 protectedText／遮罩限制，只读和 SelectableTextHost 仅导出 Copy。选区内按下延迟定位，阈值后才准备数据；普通拖选、多击和键盘路径继续可用。
 
+`TextEditOptions.touch` 与 `SelectableTextOptions.touch` 接收 `scoop.ui.text.TextTouchOptions`，默认允许直接触摸／笔尖短按定位和 500 ms 长按选词。`threshold` 使用窗口逻辑距离，默认 8；`longPressDelay = None` 只关闭长按，`enabled = false` 关闭这两种文本触摸动作。长按进入同一个原生文本菜单，保留现有选区方向及复制／保护策略；菜单 mode=Disabled 时仍可选词。行内链接短按激活动作，长按选词，滚动接管后两者都不会补触发。两个宿主共享取消与一次性 deadline；移动超阈值、第二触点、文本或绑定变化、失焦和卸载结束旧候选。
+
+`TextEditOptions.touchScroll` 独立接收 `scoop.ui.TouchScrollOptions`，默认让多行视口沿两个轴、单行视口沿横轴接收直接拖动，并向父视口交接边界残量；SelectableTextHost 借用外层滚动容器。关闭触摸选择不关闭滚动，也不影响键盘和 accessibility 的文本菜单入口。手指停留不轮询或持续绘制，触摸开始时不为旧 caret 改变视口。选区把手和释放惯性继续按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)实现。
+
 临时落点 caret 与边缘滚动使用当前模型／修订／投影的 Accepted 几何，拖动反馈不改变原选区或 IME。DragDrop 复用 Paste 和通用策略；Copy 可清洗或裁剪，Move 有损则拒绝。同文档 Move 一次编辑、一个 undo，落在原选区内不改变历史；其他目标接受 Move 后，来源重新确认正文修订并删除一次。onCompleted 的 TextDragResult.SourceRetained 明确表示目标已接收但源未删除。真实进程内 localData 关联文档，不能用相同文本或 local 标记猜测。示例见 [drop-target](examples/drop-target/README.md)，平台与协议范围见[文本拖放合同](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md#5-文本选区拖出与移动)。
 
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。

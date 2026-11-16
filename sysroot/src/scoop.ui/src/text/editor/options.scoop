@@ -32,7 +32,9 @@ public class TextEditOptions public constructor(
     /** A protected purpose remains set when its display projection becomes plain text. */
     public val protectedText: Boolean = false,
     public val acceptDrops: Boolean = true,
-    public val drag: TextDragOptions = TextDragOptions()
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions()
 ) {
     internal fun check() {
         drag.check()

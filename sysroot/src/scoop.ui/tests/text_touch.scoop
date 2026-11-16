@@ -1,0 +1,27 @@
+package scoop.ui
+
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.text.TextTouchOptions
+
+@Test
+private class TextTouchOptionsTest {
+    @Test
+    fun `text touch settings validate before a host can register input`() {
+        val value = TextTouchOptions()
+        assertTrue(value.enabled)
+        assertEquals(8.0, value.threshold)
+        assertEquals(Some(Duration.milliseconds(500L)), value.longPressDelay)
+        assertEquals(None, TextTouchOptions(longPressDelay = None).longPressDelay)
+        assertEquals(
+            Some(Duration.ZERO),
+            TextTouchOptions(longPressDelay = Some(Duration.ZERO)).longPressDelay
+        )
+        assertEquals(0.0, TextTouchOptions(threshold = 0.0).threshold)
+        for (threshold in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> { TextTouchOptions(threshold = threshold) }
+        assertFailsWith<IllegalArgumentException> {
+            TextTouchOptions(longPressDelay = Some(Duration.milliseconds(-1L)))
+        }
+    }
+}

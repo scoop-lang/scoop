@@ -1,0 +1,19 @@
+package scoop.ui.text
+
+import scoop.time.Duration
+import scoop.ui.requireUi
+
+/** Direct text taps and holds are independent of native mouse and keyboard commands. */
+public class TextTouchOptions public constructor(
+    public val enabled: Boolean = true,
+    public val threshold: Double = 8.0,
+    public val longPressDelay: Duration? = Some(Duration.milliseconds(500L))
+) {
+    init {
+        requireUi(threshold.isFinite() && threshold >= 0.0, "invalid text touch threshold")
+        when (longPressDelay) {
+            case Some(val value) -> requireUi(value.floorSeconds >= 0L, "negative long press delay")
+            case None -> {}
+        }
+    }
+}

@@ -291,5 +291,9 @@ internal fun groupInputProps(
         input.chrome,
         input.contextMenu,
         input.protectedText,
-        input.semantics
+        input.semantics,
+        input.acceptDrops,
+        input.drag,
+        input.touch,
+        input.touchScroll
     )

@@ -1,0 +1,232 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun textTouchStep(p: TextTouchProbe) {
+    val model = p.model
+    when (p.phase) {
+        0 -> p.tap(1L, 5L)
+        1 -> {
+            assertEquals(Utf8Selection(5L, 5L), model.selection)
+            val point = p.point(11L)
+            p.contact(2L, 0, point, pen = true)
+            p.contact(2L, 2, point, pen = true)
+        }
+        2 -> {
+            assertEquals(Utf8Selection(11L, 11L), model.selection)
+            p.tap(3L, 15L)
+        }
+        3 -> {
+            assertEquals(Utf8Selection(15L, 15L), model.selection)
+            p.hold(4L, 5L) {
+                assertEquals(Utf8Range(4L, 7L), model.selection.range)
+                assertEquals(1, menuEnabled("Touch Copy"))
+                choose("Touch Copy")
+            }
+        }
+        4 -> {
+            assertClipboardText(p.window!!, "two")
+            assertEquals(p.text, model.text)
+            p.contact(4L, 2, p.savedPoint)
+            p.pause(80L)
+        }
+        5 -> {
+            assertEquals(Utf8Range(4L, 7L), model.selection.range)
+            model.setSelection(Utf8Selection(7L, 4L))
+        }
+        6 -> p.hold(5L, 5L) {
+            assertEquals(Utf8Selection(7L, 4L), model.selection)
+            @Unsafe
+            {
+                cancelMenu()
+            }
+        }
+        7 -> {
+            p.contact(5L, 2, p.savedPoint)
+            p.menu = p.menu.copy { mode = TextContextMenuMode.Disabled }
+            p.changed()
+        }
+        8 -> model.setSelection(Utf8Selection(0L, 0L))
+        9 -> {
+            p.savedPoint = p.point(5L)
+            p.contact(6L, 0, p.savedPoint)
+            p.pause(150L)
+        }
+        10 -> {
+            p.noMenu()
+            assertEquals(Utf8Range(4L, 7L), model.selection.range)
+            p.contact(6L, 2, p.savedPoint)
+        }
+        11 -> {
+            assertEquals(Utf8Range(4L, 7L), model.selection.range)
+            p.touch = TextTouchOptions(longPressDelay = None)
+            p.changed()
+        }
+        12 -> {
+            p.savedSelection = model.selection
+            p.savedPoint = p.point(11L)
+            p.contact(7L, 0, p.savedPoint)
+            p.pause(150L)
+        }
+        13 -> {
+            p.noMenu()
+            assertEquals(p.savedSelection, model.selection)
+            p.contact(7L, 2, p.savedPoint)
+        }
+        14 -> {
+            assertEquals(Utf8Selection(11L, 11L), model.selection)
+            p.touch =
+                TextTouchOptions(enabled = false, longPressDelay = Some(Duration.milliseconds(40L)))
+            p.menu = p.menu.copy { mode = TextContextMenuMode.StandardNative }
+            p.changed()
+        }
+        15 -> {
+            p.savedSelection = model.selection
+            p.savedPoint = p.point(5L)
+            p.contact(8L, 0, p.savedPoint)
+            p.pause(150L)
+        }
+        16 -> {
+            p.noMenu()
+            assertEquals(p.savedSelection, model.selection)
+            p.contact(8L, 2, p.savedPoint)
+            p.tap(9L, 15L)
+        }
+        17 -> {
+            assertEquals(p.savedSelection, model.selection)
+            p.popup = true
+            assertEquals(1, editorSemanticMenu(p.window!!, "touch-editor", false))
+            assertEquals(0, editorSemanticMenu(p.window!!, "touch-editor", true))
+            p.pause(150L) {
+                assertEquals(1, editorSemanticMenuResult())
+                @Unsafe
+                {
+                    assertEquals(1, trackingMenu())
+                }
+                choose("Touch Select All")
+            }
+        }
+        18 -> {
+            assertEquals(Utf8Range(0L, model.text.byteLength), model.selection.range)
+            model.setSelection(Utf8Selection(0L, 0L))
+            p.touch = TextTouchOptions(longPressDelay = Some(Duration.milliseconds(40L)))
+            p.pan = TouchScrollOptions(enabled = false)
+            p.changed()
+        }
+        19 -> {
+            p.savedPoint = p.point(5L)
+            p.contact(10L, 0, p.savedPoint)
+            p.contact(10L, 1, Point(p.savedPoint.x + 12.0, p.savedPoint.y))
+            p.contact(10L, 1, p.savedPoint)
+            p.pause(150L)
+        }
+        20 -> {
+            p.noMenu()
+            assertEquals(Utf8Selection(0L, 0L), model.selection)
+            p.contact(10L, 2, p.savedPoint)
+        }
+        21 -> {
+            p.contact(11L, 0, p.savedPoint)
+            p.contact(12L, 0, p.point(6L))
+            p.pause(150L)
+        }
+        22 -> {
+            p.noMenu()
+            assertEquals(Utf8Selection(0L, 0L), model.selection)
+            p.contact(11L, 2, p.savedPoint)
+            p.contact(12L, 2, p.point(6L))
+        }
+        23 -> {
+            p.preventBegin = true
+            p.contact(13L, 0, p.savedPoint)
+            p.pause(150L)
+        }
+        24 -> {
+            p.noMenu()
+            p.contact(13L, 2, p.savedPoint)
+            p.preventBegin = false
+            p.preventEnd = true
+            p.contact(14L, 0, p.savedPoint)
+            p.contact(14L, 2, p.savedPoint)
+            p.pause(150L)
+        }
+        25 -> {
+            p.noMenu()
+            assertEquals(Utf8Selection(0L, 0L), model.selection)
+            p.preventEnd = false
+            p.preventMove = true
+            p.contact(15L, 0, p.savedPoint)
+            p.contact(15L, 1, Point(p.savedPoint.x + 1.0, p.savedPoint.y))
+            p.pause(150L)
+        }
+        26 -> {
+            p.noMenu()
+            assertEquals(Utf8Selection(0L, 0L), model.selection)
+            p.preventMove = false
+            p.contact(15L, 2, p.savedPoint)
+        }
+        27 -> {
+            assertEquals(Utf8Selection(0L, 0L), model.selection)
+            p.pan = TouchScrollOptions()
+            assertTrue(p.selectable!!.area.requestFocus())
+            p.changed()
+        }
+        28 -> {
+            p.savedOffset = p.editor!!.scroll.offset
+            p.savedPoint = p.point(5L)
+            p.contact(16L, 0, p.savedPoint)
+            p.contact(16L, 1, Point(p.savedPoint.x, p.savedPoint.y - 40.0))
+        }
+        29 -> {
+            assertEquals(Point(p.savedOffset.x, p.savedOffset.y + 40.0), p.editor!!.scroll.offset)
+            assertEquals(Utf8Selection(0L, 0L), model.selection)
+            p.contact(16L, 2, Point(p.savedPoint.x, p.savedPoint.y - 50.0))
+        }
+        30 -> {
+            assertEquals(Point(p.savedOffset.x, p.savedOffset.y + 50.0), p.editor!!.scroll.offset)
+            p.noMenu()
+            p.editor!!.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        31 -> p.tap(17L, 2L, readonly = true)
+        32 -> {
+            assertEquals(1, p.links)
+            p.hold(18L, 2L, readonly = true) {
+                assertEquals(Utf8Range(0L, 4L), p.selectable!!.selection.range)
+                assertEquals(1, menuEnabled("Touch Copy"))
+                choose("Touch Copy")
+            }
+        }
+        33 -> {
+            assertClipboardText(p.window!!, "link")
+            p.contact(18L, 2, p.savedPoint)
+            p.pause(80L)
+        }
+        34 -> {
+            assertEquals(1, p.links)
+            assertEquals(Utf8Range(0L, 4L), p.selectable!!.selection.range)
+            p.savedOffset = p.outer.offset
+            p.savedPoint = p.point(6L, readonly = true)
+            p.contact(19L, 0, p.savedPoint)
+            p.contact(19L, 1, Point(p.savedPoint.x, p.savedPoint.y - 35.0))
+        }
+        35 -> {
+            assertEquals(Point(p.savedOffset.x, p.savedOffset.y + 35.0), p.outer.offset)
+            assertEquals(Utf8Range(0L, 4L), p.selectable!!.selection.range)
+            p.contact(19L, 2, Point(p.savedPoint.x, p.savedPoint.y - 45.0))
+        }
+        36 -> {
+            assertEquals(Point(p.savedOffset.x, p.savedOffset.y + 45.0), p.outer.offset)
+            p.noMenu()
+            p.outer.scrollTo(Point(0.0, 0.0))
+            p.touch = TextTouchOptions(longPressDelay = Some(Duration.milliseconds(400L)))
+            model.setSelection(Utf8Selection(0L, 0L))
+            p.changed()
+        }
+        else -> textTouchLifetime(p)
+    }
+}
