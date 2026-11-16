@@ -696,6 +696,16 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 上述位置写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用；present 仍只用于当前场景登记。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项与实例保留见第 7.8 节，虚拟导航见第 7.8.2 节，绘制缓存按后续批次扩展。
 
+### 7.7.1 直接接触滚动
+
+`ComponentScope.scrollPan(area, viewport, axes=Both, chain=Chain, options=TouchScrollOptions())` 登记随挂载关闭的 ScrollPan，借用同一 mount 的 InputArea 与 ScrollViewport，不关闭二者。ScrollChain 在 UI 层定义 Chain／Contain，供公共行为和控件共用。TouchScrollOptions 是不可变配置，包含 enabled=true、threshold=8（有限非负局部逻辑距离）和 lockAxis=true；构造非法阈值立即报错。ScrollPan.update(axes, chain, options) 更新配置，cancel 结束本次候选／滚动，isPanning 只表示已接管或正在接收嵌套残量的接触，isClosed 查询登记寿命。
+
+Touch／Pen 开始时保存原始位置并停止该视口的旧平滑运动，不制造 hover 或鼠标按钮。首个非零移动越过阈值后才在 Default 阶段尝试 claimContacts；没有移动的 tap 不接管，Ended 不能开始新滚动。lockAxis 开启时按最近 Accepted 几何中的累计位移选择主导轴，该轴不在 axes 内则放弃；双轴平局选择水平轴，选定后保持到结束。关闭 lockAxis 时消费全部已启用轴。初次消费包含开始到当前的完整位移，后续使用逐次原生位移，避免阈值跳变和重复累加。
+
+取得归属后通过 Surface.consumeContactMovement 共享本次位移，从内到外按各自 Accepted 变换转换和消费，offset 使用手指位移的反向。祖先仅在 owner 明确开放共享位移后参与，普通 Slider／Drag 的独占接管不能触发外层滚动。Chain 只交出实际余量，Contain 处理本层后阻止祖先默认行为；每层仍遵守自己的启用轴与锁轴配置。请求复用 ScrollState.scrollBy 的 User 意图与真实范围，保持已有键盘、焦点和语义滚动入口。活动触点保留与虚拟条目回收复用 Surface 的真实归属。
+
+第二触点、取消、被阻止的移动／结束、配置变化、视口换绑或失效、关闭均结束候选／滚动，不补点击，不将归属交回旧子项。已发布滚动位置保留，不进行拖动值回滚。新的外部 User／Programmatic 位置请求终止活动滚动；本行为自己的请求继续沿同一通知路径，回调中的再次定位不能被后续样本覆盖。LayoutCorrection 不终止接触。取消只撤销自己取得的 contact；接收残量的祖先关闭不取消内层的独立归属。行为不持有时钟，释放后的运动由滚动物理合同单独定义。
+
 ### 7.8 按需子项与 LazyElement
 
 `ItemSource` 提供一个数据快照的 `count: Long`、`keyAt(index): ViewKey`、`indexOfKey(key): Long?` 和 `build(index): View`。count 非负，key 不得为 Position，在同一 source 内唯一；查找函数只读取快照，访问时检查索引与双向映射，不扫描尚未请求的条目。改变数据、索引或条目输入时替换 source 对象；不把可变 source 的原地修改当成通知，也不读取全部内容作摘要。build 只在实际需要的条目节点中执行，遵循 Component.render 的纯度和 State 依赖规则。
@@ -833,6 +843,7 @@ TransformGestureSample 保存本次 localPosition、从会话开始累计的 sca
 - `createArea(...)`：创建并登记第 7 节的稳定 InputArea。
 - `animation(...)`：在所属 Surface 时间轴创建并登记第 7 节的 Animatable。
 - `scrollViewport(state)`：登记第 7.7 节的视口范围、位置提交与平滑滚动。
+- `scrollPan(area, viewport, axes, chain, options)`：登记第 7.7.1 节的直接触摸／笔尖滚动与嵌套余量消费。
 
 创建顺序是准备本次挂载的 root／parent／方向和 scope，运行接收 `(Props<P>, ComponentScope)` 或 `(ComponentScope)` 的工厂，验证实际实例归属并接入树，再执行首次 render／子项构造，最后按父先子顺序调用无参数 onMount。局部组装记录不对外发布；工厂取得的资源立即属于本次 scope。基类的只读 scope 在构造和后续回调中指向同一作用域，必需资源无需通过 State 在 onMount 后补发布。
 

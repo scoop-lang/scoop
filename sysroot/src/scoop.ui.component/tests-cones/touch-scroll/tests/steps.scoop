@@ -1,0 +1,125 @@
+package scoop.tests.ui.touchscroll
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.tests.surface.moveSurfacePointer
+import scoop.ui.*
+
+internal fun touchStep(p: TouchProbe) {
+    when (p.phase) {
+        0 -> {
+            assertTrue(moveSurfacePointer(p.window!!, 250.0, 150.0))
+            p.pause(100L)
+        }
+        1 -> {
+            p.hiddenPixel = p.pixel
+            p.contact(1L, 0, 58.0)
+            p.contact(1L, 2, 58.0)
+        }
+        2 -> {
+            assertEquals(1, p.clicks)
+            p.touch = TouchScrollOptions(enabled = false)
+            p.changed()
+        }
+        3 -> {
+            p.contact(2L, 0, 58.0)
+            p.contact(2L, 1, 8.0)
+            p.contact(2L, 2, 8.0)
+        }
+        4 -> {
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            assertEquals(1, p.clicks)
+            p.touch = TouchScrollOptions(threshold = 12.0)
+            p.changed()
+        }
+        5 -> {
+            p.original =
+                p.row(
+                    if (p.virtual)
+                        2L
+                    else
+                        0L
+                )
+            p.contact(3L, 0, 80.0)
+            p.contact(3L, 1, 74.0)
+        }
+        6 -> {
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            assertTrue(p.original!!.area!!.scope.activity.hasContact)
+            p.contact(3L, 1, 14.0)
+        }
+        7 -> {
+            assertEquals(Point(0.0, 66.0), p.scroll.offset)
+            assertTrue(p.pixel != p.hiddenPixel)
+            p.stillPasses = p.passes
+            p.pause(140L)
+        }
+        8 -> {
+            assertTrue(p.pixel != p.hiddenPixel)
+            assertEquals(p.stillPasses, p.passes)
+            p.contact(3L, 1, -320.0)
+        }
+        9 -> {
+            assertEquals(Point(0.0, 400.0), p.scroll.offset)
+            if (p.virtual) {
+                assertTrue(p.original!!.area!!.isClosed)
+                assertTrue(p.alive <= 6)
+            } else
+                assertFalse(p.original!!.area!!.isClosed)
+            p.contact(3L, 2, -330.0)
+        }
+        10 -> {
+            assertEquals(Point(0.0, 410.0), p.scroll.offset)
+            assertEquals(1, p.clicks)
+            p.pause(160L)
+        }
+        11 -> {
+            assertEquals(p.hiddenPixel, p.pixel)
+            p.contact(4L, 0, 80.0)
+            p.contact(4L, 1, 60.0)
+        }
+        12 -> {
+            assertEquals(Point(0.0, 430.0), p.scroll.offset)
+            p.enabled = false
+            p.changed()
+        }
+        13 -> {
+            p.contact(4L, 1, 20.0)
+            p.contact(4L, 2, 20.0)
+        }
+        14 -> {
+            assertEquals(Point(0.0, 430.0), p.scroll.offset)
+            p.enabled = true
+            p.scroll.scrollTo(Point(0.0, 0.0))
+            p.changed()
+        }
+        15 -> {
+            p.contact(5L, 0, 80.0, pen = true)
+            p.contact(5L, 1, 50.0, pen = true)
+            p.contact(5L, 2, 40.0, pen = true)
+        }
+        16 -> {
+            assertEquals(Point(0.0, 40.0), p.scroll.offset)
+            p.contact(6L, 0, 80.0)
+            p.contact(6L, 1, 60.0)
+        }
+        17 -> {
+            assertEquals(Point(0.0, 60.0), p.scroll.offset)
+            p.gone = true
+            p.changed()
+        }
+        18 -> {
+            assertFalse(p.scroll.isAttached)
+            assertEquals(0, p.alive)
+            p.contact(6L, 1, 20.0)
+            p.contact(6L, 2, 20.0)
+        }
+        19 -> {
+            assertEquals(Point(0.0, 60.0), p.scroll.offset)
+            assertEquals(1, p.clicks)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected touch scroll phase"))
+    }
+}

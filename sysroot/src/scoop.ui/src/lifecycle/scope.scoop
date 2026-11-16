@@ -394,6 +394,18 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
+    public fun scrollPan(
+        area: InputArea,
+        viewport: ScrollViewport,
+        axes: ScrollAxes = ScrollAxes.Both,
+        chain: ScrollChain = ScrollChain.Chain,
+        options: TouchScrollOptions = TouchScrollOptions()
+    ): ScrollPan {
+        checkMounted()
+        requireBehaviorArea(area)
+        requireUi(viewport.belongsTo(node), "scroll pan viewport must belong to this mount")
+        return resource { ScrollPan(area, viewport, axes, chain, options) }
+    }
     public fun lazyFocus(
         viewport: ScrollViewport,
         options: LazyFocusOptions = LazyFocusOptions()

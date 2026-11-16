@@ -1,0 +1,20 @@
+package scoop.ui
+
+/** Whether an enclosing viewport may consume the remaining movement. */
+public enum ScrollChain {
+    Chain, Contain
+}
+
+/** Direct-contact scrolling does not change native wheel or trackpad behavior. */
+public class TouchScrollOptions public constructor(
+    public val enabled: Boolean = true,
+    public val threshold: Double = 8.0,
+    public val lockAxis: Boolean = true
+) {
+    init {
+        requireUi(
+            threshold.isFinite() && threshold >= 0.0,
+            "touch scroll threshold must be finite and nonnegative"
+        )
+    }
+}

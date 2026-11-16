@@ -22,7 +22,8 @@ internal class ScrollControlProps(
     val style: StyleOverride = styleOverride(),
     val focusOutline: OutlineStyle? = None,
     val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
-    val semantics: ComponentSemantics = ComponentSemantics()
+    val semantics: ComponentSemantics = ComponentSemantics(),
+    val touchScroll: TouchScrollOptions = TouchScrollOptions()
 )
 
 /** Shared input, range publication and themed bars for eager and lazy viewports. */
@@ -37,6 +38,8 @@ internal class ScrollControl(
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }
     private val focus = scope.focusTarget(area, props().focus)
+    private val pan =
+        scope.scrollPan(area, viewport, props().axes, props().chain, props().touchScroll)
     private val feedback =
         scope.resource { ScrollbarFeedback(scope, props, area) { feedbackChanged() } }
     private val horizontal =
@@ -82,6 +85,14 @@ internal class ScrollControl(
         )
         viewport.state = value.state
         viewport.paintCache = value.paintCache
+        pan.update(
+            value.axes,
+            value.chain,
+            if (value.enabled)
+                value.touchScroll
+            else
+                TouchScrollOptions(false, value.touchScroll.threshold, value.touchScroll.lockAxis)
+        )
         focus.options = value.focus
         area.scope.enabled = value.enabled
         semantics?.update(

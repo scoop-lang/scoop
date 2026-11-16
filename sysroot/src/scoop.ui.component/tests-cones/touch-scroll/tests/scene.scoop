@@ -1,0 +1,168 @@
+package scoop.tests.ui.touchscroll
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.tests.graphics.readNativePixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class TouchScene(private val p: TouchProbe, scope: ComponentScope): Component(scope) {
+    private val source = TouchRows(p)
+    public override fun render(): View {
+        val probe = p
+        val generation = p.generation.value
+        val behavior =
+            scrollbarBehavior {
+                preset = ScrollbarPreset.Custom
+                autoHide = Some(true)
+                idleDelay = Duration.milliseconds(40L)
+                fadeIn = Duration.ZERO
+                fadeOut = Duration.ZERO
+                revealOnEdgeHover = false
+                revealOnViewportHover = false
+                revealOnKeyboard = false
+                idleOpacity = Some(1.0)
+                idleWidth = Some(10.0)
+                widenOnHover = Some(false)
+                shadeOnHover = Some(false)
+                showTrack = Some(true)
+                repeatDelay = None
+            }
+        val content: View =
+            if (p.gone) {
+                empty()
+            } else {
+                if (p.virtual) {
+                    virtualList(source, ItemExtent.Fixed(24.0)) {
+                        state = Some(probe.scroll)
+                        theme = Some(probe.theme)
+                        touchScroll = probe.touch
+                        enabled = probe.enabled
+                        scrollbar { thickness = Some(10.0) }
+                        scrollbarBehavior = behavior
+                    }
+                } else {
+                    scrollArea(
+                        element(0L, { props, mount -> TouchRow(probe, props, scope = mount) })
+                    ) {
+                        state = Some(probe.scroll)
+                        theme = Some(probe.theme)
+                        touchScroll = probe.touch
+                        enabled = probe.enabled
+                        scrollbar { thickness = Some(10.0) }
+                        scrollbarBehavior = behavior
+                    }
+                }
+            }
+        return element(
+            generation,
+            { props, mount -> TouchPanel(p, props, scope = mount) },
+            [content]
+        )
+    }
+}
+
+private class TouchPanel(
+    private val p: TouchProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(200.0, 120.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 180.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 260.0, 180.0), Paint(Color.White))
+        }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        p.pixel = readNativePixel(native, 215.0, 80.0)
+                    }
+                }
+            }
+        }
+        val revision = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.accepted = revision
+                p.passes += 1
+            }
+        }
+    }
+}
+
+private class TouchRows(private val p: TouchProbe): ItemSource {
+    public override val count: Long get() = 100000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val index) -> {
+                if (index >= 0L && index < count)
+                    Some(index)
+                else
+                    None
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View =
+        element(index, { props, mount -> TouchRow(p, props, scope = mount) })
+}
+
+internal class TouchRowRecord(val index: Long) {
+    var active = true
+    var area: InputArea? = None
+}
+
+private class TouchRow(
+    private val p: TouchProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val record = TouchRowRecord(props.value)
+    public override fun onMount() {
+        p.rows.add(record)
+        p.alive += 1
+        if (p.alive > p.peak)
+            p.peak = p.alive
+        val area = scope.createArea()
+        record.area = Some(area)
+        scope.press(area) { p.clicks += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    Size(
+                        200.0,
+                        if (p.virtual)
+                            24.0
+                        else
+                            720.0
+                    )
+                )
+            ),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(record.area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.5, 0.8))) }
+    }
+    public override fun onUnmount() {
+        record.active = false
+        p.alive -= 1
+    }
+}

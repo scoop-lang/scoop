@@ -1,0 +1,141 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.ActiveApplication
+
+internal fun panLifetimeStep(p: PanProbe, active: ActiveApplication) {
+    when (p.phase) {
+        24 -> {
+            assertEquals(Point(0.0, 75.0), p.inner.offset)
+            p.reset()
+        }
+        25 -> {
+            p.contact(10L, 0, 50.0, 55.0)
+            p.contact(10L, 1, 50.0, 15.0)
+        }
+        26 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            p.innerOptions = TouchScrollOptions(threshold = 16.0)
+            p.changed()
+        }
+        27 -> {
+            assertFalse(p.innerPan!!.isPanning)
+            p.contact(10L, 1, 50.0, -15.0)
+            p.contact(10L, 2, 50.0, -15.0)
+        }
+        28 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            p.reset()
+            p.scale = 2.0
+            p.innerOptions = TouchScrollOptions()
+            p.changed()
+        }
+        29 -> {
+            p.contact(11L, 0, 100.0, 110.0)
+            p.contact(11L, 1, 100.0, 70.0)
+        }
+        30 -> {
+            assertEquals(Point(0.0, 20.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.contact(11L, 2, 100.0, 50.0)
+        }
+        31 -> {
+            assertEquals(Point(0.0, 30.0), p.inner.offset)
+            p.reset()
+            p.scale = 1.0
+            p.changed()
+        }
+        32 -> {
+            p.contact(12L, 0, 210.0, 40.0)
+            p.contact(12L, 1, 240.0, 40.0)
+        }
+        33 -> {
+            assertTrue(p.drag!!.isDragging)
+            assertEquals(1, p.dragStarts)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.contact(12L, 2, 250.0, 40.0)
+        }
+        34 -> {
+            assertEquals(1, p.dragEnds)
+            p.contact(13L, 0, 50.0, 55.0)
+            p.contact(13L, 1, 50.0, 15.0)
+        }
+        35 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            p.replacement = true
+            p.changed()
+        }
+        36 -> {
+            assertFalse(p.inner.isAttached)
+            assertEquals(Point(0.0, 25.0), p.alternate.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            p.contact(13L, 1, 50.0, -25.0)
+            p.contact(13L, 2, 50.0, -25.0)
+        }
+        37 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            assertEquals(Point(0.0, 25.0), p.alternate.offset)
+            p.replacement = false
+            p.reset()
+            p.changed()
+        }
+        38 -> {
+            p.contact(14L, 0, 230.0, 150.0)
+            p.contact(14L, 1, 230.0, 120.0)
+        }
+        39 -> {
+            assertEquals(Point(0.0, 30.0), p.outer.offset)
+            p.enabled = false
+            p.changed()
+        }
+        40 -> {
+            assertFalse(p.outerPan!!.isPanning)
+            p.contact(14L, 1, 230.0, 90.0)
+            p.contact(14L, 2, 230.0, 90.0)
+        }
+        41 -> {
+            assertEquals(Point(0.0, 30.0), p.outer.offset)
+            p.enabled = true
+            p.reset()
+            p.changed()
+        }
+        42 -> {
+            p.preventEnd = true
+            p.contact(15L, 0, 50.0, 55.0)
+            p.contact(15L, 1, 50.0, 35.0)
+        }
+        43 -> {
+            assertEquals(Point(0.0, 20.0), p.inner.offset)
+            p.contact(15L, 2, 50.0, 25.0)
+        }
+        44 -> {
+            assertEquals(Point(0.0, 20.0), p.inner.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            p.preventEnd = false
+            p.reset()
+        }
+        45 -> {
+            p.closeOnScroll = true
+            p.contact(16L, 0, 50.0, 55.0)
+            p.contact(16L, 1, 50.0, 15.0)
+        }
+        46 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            assertTrue(p.innerPan!!.isClosed)
+            assertFalse(p.innerPan!!.isPanning)
+            assertFalse(p.innerArea!!.isClosed)
+            assertFalse(p.innerViewport!!.isClosed)
+            assertTrue(p.inner.isAttached)
+            p.contact(16L, 2, 50.0, 0.0)
+        }
+        47 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            assertEquals(1, p.clicks)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected scroll pan phase"))
+    }
+}

@@ -1,0 +1,174 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.sendNativeContact
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ScrollPanWindowTest {
+    @Test
+    fun `direct scroll composes nested movement claims lifetime and newer position requests`() {
+        val probe = PanProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(1, probe.clicks)
+            assertEquals(1, probe.dragStarts)
+            assertEquals(1, probe.dragEnds)
+            assertTrue(probe.innerPan!!.isClosed)
+            assertTrue(probe.outerPan!!.isClosed)
+            assertTrue(probe.innerArea!!.isClosed)
+            assertTrue(probe.innerViewport!!.isClosed)
+            assertFalse(probe.inner.isAttached)
+            assertFalse(probe.outer.isAttached)
+            assertFalse(probe.alternate.isAttached)
+            assertTrue(probe.view!!.restored())
+        } catch (error: Throwable) {
+            println(f"scroll pan phase=${probe.phase}, clicks=${probe.clicks}")
+            println(f"inner=${probe.current.offset.x}, ${probe.current.offset.y}")
+            println(f"outer=${probe.outer.offset.x}, ${probe.outer.offset.y}")
+            throw error
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class PanProbe {
+    val outer = ScrollState()
+    val inner = ScrollState()
+    val alternate = ScrollState(Point(0.0, 25.0))
+    val generation = state(0)
+    var replacement = false
+    val current: ScrollState get() =
+        if (replacement)
+            alternate
+        else
+            inner
+    var innerOptions = TouchScrollOptions()
+    var outerOptions = TouchScrollOptions()
+    var outerAxes = ScrollAxes.Both
+    var chain = ScrollChain.Chain
+    var scale = 1.0
+    var enabled = true
+    var preventMove = false
+    var preventEnd = false
+    var overridePosition = false
+    var closeOnScroll = false
+    var outerPan: ScrollPan? = None
+    var innerPan: ScrollPan? = None
+    var innerArea: InputArea? = None
+    var innerViewport: ScrollViewport? = None
+    var press: Press? = None
+    var drag: Drag? = None
+    var clicks = 0
+    var dragStarts = 0
+    var dragEnds = 0
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var view: ViewProbe? = None
+    var accepted = -1
+    var phase = 0
+    var queued = 0
+    var received = 0
+    var pending = false
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop direct scroll"
+                            size = LogicalSize(340.0, 240.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(native, { mount -> PanScene(this, scope = mount) })
+                native.requestFocus()
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case AboutToWait -> {
+                val native = window ?: return
+                if (
+                    !finished &&
+                        !pending &&
+                        native.isFocused &&
+                        accepted ==
+                        generation.value &&
+                        received ==
+                        queued &&
+                        !frames!!.snapshot().required
+                ) {
+                    pending = true
+                    active.proxy().post {
+                        application ->
+                        pending = false
+                        if (!finished) {
+                            panStep(this, application)
+                            phase += 1
+                        }
+                    }
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("scroll pan timeout"))
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun reset() {
+        outer.scrollTo(Point(0.0, 0.0))
+        current.scrollTo(Point(0.0, 0.0))
+    }
+    fun contact(id: Long, phase: Int, x: Double, y: Double) {
+        queued += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(view, id, 0, phase, x, y)
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun intent(state: ScrollState, value: ScrollIntent) {
+        when (value) {
+            case User(_) -> {
+                if (overridePosition) {
+                    overridePosition = false
+                    state.scrollTo(Point(0.0, 75.0))
+                }
+                if (closeOnScroll) {
+                    closeOnScroll = false
+                    innerPan!!.close()
+                }
+            }
+            else -> {}
+        }
+    }
+}

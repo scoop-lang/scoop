@@ -400,3 +400,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - Window／Surface／UI／Component 规范、库 README、输入边界方案和编程导航同步；离线 API 文档生成，5 项查询核对 ContactState、claimContacts、InputPressSource、hasContact 和 DragSample 的签名与导入。源码与受影响测试 Cone 检查、release 构建通过；Window、Window.asyncio、Surface、UI、Style、四套主题及 Component 共 10 份开发产物按依赖更新。37 个 Scoop 文件与 26 个 native 文件的格式检查、本地可编译 native 代码的严格编译以及 225 个本地 Markdown 目标检查通过。临时应用包与逐次报告已清理，保留后续使用的启动脚本、API 文档、配套产物与共享缓存。
 
 本批触点窗口测试使用受控 native payload 经过实际队列、解码、Surface 和 UI，不能代表 macOS 直接触屏或 Windows／GTK 的设备输入。Windows／GTK 原生编译、兼容鼠标去重、OLE 触摸启动和真触屏仍按集中平台验收执行。直接触摸的长按、正文滚动、多指识别、文本端点／软键盘、其他控件组合及辅助技术设备行为继续属于 S8／S10／S11。
+
+### 直接触摸滚动与嵌套余量
+
+- UI 增加随挂载关闭的 ScrollPan，借用同一 InputArea／ScrollViewport，TouchScrollOptions 配置启用、阈值和锁轴。ScrollChain 移到 UI 供公共行为与控件共用。首个过阈值的 Moved 才接管并计入完整位移，随后消费逐次增量；新的外部定位、第二触点、被阻止的移动／结束、配置变化、禁用、换绑及关闭取消旧行为。回调内新的请求优先，自己的 User 通知与 LayoutCorrection 不误取消当前滚动。
+- Surface 由接触归属者在每个 Moved／Ended 的 Default 阶段明确开放 consumeContactMovement，祖先按各自固定的 Accepted 几何消费剩余量，复用原滚轮的两端点转换与方向／有限值／不超量校验。普通 Slider／Drag 的 claim 不开放共享，自定义识别可使用同一入口，无需扩展 Window 手势枚举或新增注册框架。
+- ScrollArea／VirtualList 的 Props 和 builder 提供 touchScroll，沿共享 ScrollControl 接入 Touch／Pen。父滚动接管后取消旧行的输入保留，虚拟列表正常回收；活动接触阻止已显示滚动条的空闲隐藏，结束后沿原 deadline 收尾，不创建周期时钟。
+- 18 项 Surface contact 测试、4 项既有滚轮残量回归和 1 项配置测试通过。新增的 UI 48 步窗口场景，以及 ScrollArea／VirtualList 各 20 步场景通过；原有滚动区与虚拟列表两个窗口回归也通过，共 28 项定向测试。实际队列、Accepted 位置、像素读回、取消及资源关闭均有断言；各 Application 独立进程运行。
+- 像素测试显式给轨道设置可见颜色，避免默认透明轨道掩盖结果。十万项列表在滚动后的稳定帧最多保留 6 行，原触点行已经关闭；布局最终选择前新旧两个范围允许短暂共存，峰值最多 12 行。停留和抬起后的等待均保留滚动条与停帧断言。
+- Window 输入边界方案、Surface／UI／Component 规范、库 README、测试说明与编程导航同步；离线 API 文档生成，5 组查询核对入口、配置默认值、Props／builder、ScrollChain 归属及 contactRemaining。受影响源码与测试 Cone 检查通过，Surface、UI、Style、四套主题及 Component 共 8 份开发产物按依赖更新。25 个 Scoop 文件的格式检查通过；临时应用包与逐次报告已清理，保留后续使用的启动脚本、API 文档、开发产物与共享缓存。
+
+本批新增输入验证使用 macOS 实窗中的受控 native contact 载荷，不代替 Windows／GTK 编译、真触屏或笔设备验收。直接触摸的多击、长按、多指变换、文本端点／软键盘及其他控件组合继续属于 S8；软件惯性、越界回弹与减少动画的运动策略继续属于 S9。键盘和 accessibility 仍复用原 ScrollState 命令与 Accepted 几何。

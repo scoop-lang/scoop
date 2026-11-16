@@ -114,7 +114,14 @@ private fun InputRouter.routeStages(
     if (chain.size == 0L)
         return
     val target = chain[0L].scope
-    val flags = RouteFlags(true, scrollConsumption(event, scroll), gesture, contact)
+    val flags =
+        RouteFlags(
+            true,
+            scrollConsumption(event, scroll),
+            gesture,
+            contact,
+            contactConsumption(event, contact)
+        )
     var index = chain.size
     while (index > 1L && !flags.stopped) {
         index -= 1L

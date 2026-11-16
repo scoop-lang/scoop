@@ -229,6 +229,7 @@ internal class ScrollbarFeedback(
         return horizontalHover ||
             verticalHover ||
             activity.hasPress ||
+            activity.hasContact ||
             activity.hasScrollRoute ||
             state.isAnimating ||
             keys.size >

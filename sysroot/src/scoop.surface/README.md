@@ -129,4 +129,6 @@ macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快�
 
 `InputScope.claimContacts(ids)` 要求非空且无重复的身份数组；整组均为活动且原路径包含该 scope 才能取得归属。新归属先全部发布，再通知原后代取消。回调失败或收尾时归属失效会取消本次新取得的触点，保留调用前已经拥有的其他触点；正在 Ended 中的接触不可新接管。`cancelContactClaim(id)` 只撤销本 scope 拥有的一个触点。普通阶段仍允许多个候选观察同一序列，识别策略由 UI 决定。
 
+嵌套直接滚动在 Contact.Moved／Ended 的 Default 阶段调用 `context.consumeContactMovement { localDelta -> ... }`，返回本层实际消费的局部接触位移。每次事件须由当前接触归属者先开放共享，祖先再消费 `contactRemaining`；普通 claim 不自动开放共享，因此子级 Slider／Drag 不会同时带动父滚动。首次消费包含从 Began 累计的阈值内距离，随后使用相邻输入样本的增量；每层沿本次固定的 Accepted 几何转换起止点，使用与滚轮相同的方向、有限值和不超量检查。Contain 在处理本层后 preventDefault；取消立即停止后续消费。具体消费者见 [UI ScrollPan](../scoop.ui/README.md)。
+
 `InputActivity.hasContact` 及 observeActivity 跟踪触点身份和所属 scope，让虚拟子项在活动期间保持；移动不触发归属通知。取消、模态、失焦、路径失效和关闭均从原路径收尾，迟到更新不重新命中。实际使用与组合测试见 [UI Press／Drag](../scoop.ui/tests-cones/press-drag/tests/contact.scoop)。

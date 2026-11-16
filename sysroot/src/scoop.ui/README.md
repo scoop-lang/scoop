@@ -167,6 +167,10 @@ open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHa
 
 定位方法的 origin 默认为 `ScrollOrigin.Programmatic`，输入行为使用 User。`scope.resource { scroll.observeIntent { event -> ... } }` 观察带 requestRevision 的 User／Programmatic／LayoutCorrection：用户在边界滚动仍有意图通知，自动保持阅读位置只在 Accepted 后通知修正。订阅可独立关闭，回调内新请求优先；不用全局事件总线。
 
+自绘容器可在 onMount 调用 `scope.scrollPan(area, viewport, axes = ScrollAxes.Vertical)`，为同一挂载的 InputArea 和 ScrollViewport 接入直接触摸／笔尖滚动。`TouchScrollOptions(enabled = true, threshold = 8.0, lockAxis = true)` 控制开关、局部逻辑距离阈值和方向锁定；阈值必须有限且非负，关闭锁轴后使用所有启用轴。短距离 tap 保持点击，首个过阈值的 Moved 才接管，首次滚动计入完整距离。`ScrollChain.Chain` 让父容器消费边界残量，Contain 停止交接；ScrollChain 与上述类型均从 `scoop.ui` 导入。子级普通 Drag 仍保持独占。
+
+`ScrollPan.update(axes, chain, options)` 同步配置和视口换绑，`isPanning` 查询当前是否已经接管或参与嵌套滚动；cancel／close 结束本行为，close 不关闭借用的区域或视口。第二触点、新的外部定位、被阻止的移动／结束、禁用、换绑和卸载会终止旧候选，已经滚动的合法位置保留。滚动自己的 User 通知不取消自己，LayoutCorrection 继续保持阅读位置；回调内新的定位优先。该行为不运行惯性时钟，不改变原生 wheel／触控板 momentum。嵌套、变换、归属与收尾的窗口验证见 [scroll-pan](tests-cones/scroll-pan/README.md)。
+
 呈现滚动内容时使用 `viewport.present(context, Some { content -> content.children() })`。内容回调自动获得统一的视口 clip 和负 offset 平移，也登记实际滚动路径；滚动条或固定装饰在回调外绘制。省略回调只发布布局。焦点显露按同一成功帧的几何从内向外进行，每次只调整一层并等待提交；Portal 在层出口建立自己的场景路径。更新的焦点或已调整视口上的滚动请求会取消旧显露，隐藏时等待正常恢复。
 
 `state.animateTo(offset, spec)` 使用视口所属 Surface 的时间轴，要求已绑定，可在首布局前排队；`cancelAnimation()` 在最后发布的位置停止。直接定位和 reveal 同样停止旧动画。实际 ScrollArea 和滚动条属于独立控件库，自绘容器可通过这组公开接口实现自己的布局，不需观察 offset 来重建内容树。滚动纯状态测试在本 Cone，成功／丢弃帧、动画、绑定替换和停帧在 `tests-cones/scroll` 验证。

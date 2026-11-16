@@ -4,7 +4,7 @@ import scoop.graphics.Point
 import scoop.graphics.native.CanvasGeometry
 import scoop.math.*
 
-/** Shared by all synchronous deliveries of one wheel event. */
+/** Transforms one routed displacement while retaining its unconsumed source units. */
 internal class ScrollConsumption(
     var remaining: InputScrollDelta,
     val point: Point,

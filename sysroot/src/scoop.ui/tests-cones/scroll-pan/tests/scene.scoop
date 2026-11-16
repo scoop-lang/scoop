@@ -1,0 +1,220 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+
+internal class PanScene(private val probe: PanProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        scope.resource { probe.inner.observeIntent { value -> probe.intent(probe.inner, value) } }
+        scope.resource {
+            probe.alternate.observeIntent { value -> probe.intent(probe.alternate, value) }
+        }
+    }
+    public override fun render(): View {
+        val generation = probe.generation.value
+        val leaf = element({ mount -> PanLeaf(probe, false, scope = mount) })
+        val drag = element({ mount -> PanLeaf(probe, true, scope = mount) })
+        val inner =
+            element(
+                PanPanelProps(
+                    probe.current,
+                    ScrollAxes.Vertical,
+                    probe.chain,
+                    probe.innerOptions,
+                    true,
+                    true
+                ),
+                { props, mount -> PanPanel(probe, props, scope = mount) },
+                [leaf]
+            )
+        val outer =
+            element(
+                PanPanelProps(
+                    probe.outer,
+                    probe.outerAxes,
+                    ScrollChain.Chain,
+                    probe.outerOptions,
+                    false,
+                    probe.enabled
+                ),
+                { props, mount -> PanPanel(probe, props, scope = mount) },
+                [inner, drag]
+            )
+        return element(
+            PanStageProps(generation, probe.scale),
+            { props, mount -> PanStage(probe, props, scope = mount) },
+            [outer]
+        )
+    }
+}
+
+private struct PanStageProps(val generation: Int, val scale: Double)
+
+private class PanStage(
+    private val probe: PanProbe,
+    private val props: Props<PanStageProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Moved(_)) -> {
+                        if (probe.preventMove)
+                            context.preventDefault()
+                    }
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (probe.preventEnd)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(300.0, 200.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(340.0, 240.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 340.0, 240.0), Paint(Color.White))
+        }
+        context.scale(props.value.scale, props.value.scale)
+        context.children()
+        val revision = props.value.generation
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted = revision
+        }
+    }
+}
+
+private class PanPanelProps(
+    val state: ScrollState,
+    val axes: ScrollAxes,
+    val chain: ScrollChain,
+    val options: TouchScrollOptions,
+    val inner: Boolean,
+    val enabled: Boolean
+)
+
+private class PanPanel(
+    private val probe: PanProbe,
+    private val props: Props<PanPanelProps>,
+    scope: ComponentScope
+): Element<ScrollLayout>(scope) {
+    private var viewport: ScrollViewport? = None
+    private var area: InputArea? = None
+    private var pan: ScrollPan? = None
+    public override fun onMount() {
+        val value = props.value
+        val view = scope.scrollViewport(value.state)
+        val input = scope.createArea()
+        val behavior = scope.scrollPan(input, view, value.axes, value.chain, value.options)
+        viewport = Some(view)
+        area = Some(input)
+        pan = Some(behavior)
+        scope.routeChildren(input)
+        if (value.inner) {
+            probe.innerPan = Some(behavior)
+            probe.innerArea = Some(input)
+            probe.innerViewport = Some(view)
+        } else
+            probe.outerPan = Some(behavior)
+    }
+    public override fun update(): UiInvalidation {
+        val value = props.value
+        viewport!!.state = value.state
+        area!!.scope.enabled = value.enabled
+        pan!!.update(value.axes, value.chain, value.options)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        val inner = props.value.inner
+        context.measureChild(
+            0L,
+            Constraints.tight(
+                if (inner)
+                    Size(80.0, 40.0)
+                else
+                    Size(140.0, 100.0)
+            )
+        )
+        context.placeChild(
+            0L,
+            if (inner)
+                Point(10.0, 10.0)
+            else
+                Point(20.0, 20.0)
+        )
+        if (!inner) {
+            context.measureChild(1L, Constraints.tight(Size(80.0, 40.0)))
+            context.placeChild(1L, Point(190.0, 20.0))
+        }
+        val size =
+            constraints.constrain(
+                if (inner)
+                    Size(140.0, 100.0)
+                else
+                    Size(300.0, 200.0)
+            )
+        val content =
+            if (inner)
+                Size(140.0, 320.0)
+            else
+                Size(500.0, 500.0)
+        return LayoutResult(LayoutMetrics(size), viewport!!.layout(size, content))
+    }
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.9, 0.9, 0.9))) }
+        viewport!!.present(context, measured, Some { content -> content.children() })
+    }
+}
+
+private class PanLeaf(
+    private val probe: PanProbe,
+    private val dragging: Boolean,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    public override fun onMount() {
+        val input = scope.createArea(focusable = true)
+        area = Some(input)
+        scope.focusTarget(input)
+        if (dragging) {
+            probe.drag =
+                Some(
+                    scope.drag(
+                        input,
+                        DragOptions(DragAxis.Horizontal),
+                        handler =
+                            {
+                                event -> when (event) {
+                                    case Started(_) -> probe.dragStarts += 1
+                                    case Ended(_) -> probe.dragEnds += 1
+                                    else -> {}
+                                }
+                            }
+                    )
+                )
+        } else
+            probe.press = Some(scope.press(input) { probe.clicks += 1 })
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.5, 0.8))) }
+    }
+}

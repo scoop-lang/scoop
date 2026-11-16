@@ -312,6 +312,10 @@ cancelContactClaim(id) 仅取消调用 scope 已取得的该接触，不交还�
 
 InputArea.hitTest(windowPoint) 根据最近 Accepted 的精确几何、clip、逻辑有效性和前景遮挡判断该区域是否在本次命中路径上，供无 hover 的结束命中使用。输入域的 beforePress(InputPress) 在首个鼠标按钮和每个新接触开始传播前执行；InputPress.source 区分 Mouse(InputPointer, MouseButton, clickCount) 与 Contact(ContactState)，保留真实来源。消费开始使该序列后续不再转交目标；弹层关闭等仍沿原输入边界规则。
 
+`RoutedEventContext.consumeContactMovement(apply: (Point) -> Point)` 仅用于 Contact.Moved／Ended 的 Default 阶段。首次调用必须来自该触点已取得归属的 scope；它为本次交付开放共享位移，后续祖先可以继续消费。普通 claim 本身不开放这条通路，独占拖动不会被外层滚动重复消费。`contactRemaining: Point?` 在本次 owner 尚未开放、非移动／结束或路由失效时为 None，开放后为窗口逻辑坐标中的剩余位移；它不改变原 ContactState，也不伪造 Wheel。
+
+一次接管后的首个消费覆盖原始开始位置到当前位置的位移，使阈值以内的距离只计入一次；后续消费使用前一个原生样本到当前样本的差量，包括正常结束时最后的位移。每次交付单独开放与消费，已被阻止的后续更新不会在下一次重放。起止位置通过本次传播前固定的 Accepted 几何换算，返回的实际同向、未超量局部位移按第 6.4 节的算法换回窗口坐标再扣除，支持嵌套缩放／旋转。零余量不调用 apply；有限值、方向、同步借用和禁止递归规则与滚轮相同。preventDefault 阻止后续祖先消费，取消后不再调用 apply。Ended 仍不能取得新的归属。
+
 ## 7. 原生资源与错误
 
 GPU context、窗口 surface、字体／图像／Path／文本的原生持有对象使用显式 Closeable／use 生命周期。托管包装的 GC release 只允许既有 runtime 合同许可的叶子释放；不借它调用 UI、等待 GPU、注销宿主回调或投递托管闭包。

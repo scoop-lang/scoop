@@ -8,7 +8,10 @@ internal class InputContactRoute(
     var scopes: Array<InputScope>,
     val boundaryRevision: ULong
 ) {
+    val origin = latest
+    var previous = latest
     var claimant: InputScope? = None
+    var movementStarted = false
     var cancelled = false
     var ending = false
 }
@@ -104,6 +107,7 @@ internal fun InputRouter.contactEvent(event: ContactEvent) {
             route
         } else
             findContact(value.id) ?: return
+    current.previous = current.latest
     current.latest = value
     current.ending = ending
     if (!contactAllowed(current)) {

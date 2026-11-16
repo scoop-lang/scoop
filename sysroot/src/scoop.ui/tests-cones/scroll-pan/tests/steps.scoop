@@ -1,0 +1,149 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.tests.surface.moveSurfacePointer
+import scoop.ui.*
+import scoop.window.ActiveApplication
+
+internal fun panStep(p: PanProbe, active: ActiveApplication) {
+    when (p.phase) {
+        0 -> {
+            assertTrue(moveSurfacePointer(p.window!!, 330.0, 230.0))
+            p.contact(1L, 0, 50.0, 55.0)
+        }
+        1 -> {
+            assertTrue(p.press!!.interaction.pressed)
+            assertFalse(p.press!!.interaction.hovered)
+            p.contact(1L, 1, 50.0, 51.0)
+        }
+        2 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            p.contact(1L, 2, 50.0, 51.0)
+        }
+        3 -> {
+            assertEquals(1, p.clicks)
+            p.contact(2L, 0, 50.0, 55.0)
+            p.contact(2L, 1, 50.0, 15.0)
+        }
+        4 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            assertFalse(p.press!!.interaction.pressed)
+            p.contact(2L, 1, 50.0, -185.0)
+        }
+        5 -> {
+            assertEquals(Point(0.0, 220.0), p.inner.offset)
+            assertEquals(Point(0.0, 20.0), p.outer.offset)
+            p.contact(2L, 2, 50.0, -195.0)
+        }
+        6 -> {
+            assertEquals(Point(0.0, 30.0), p.outer.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            assertFalse(p.outerPan!!.isPanning)
+            p.contact(2L, 1, 50.0, -220.0)
+            p.reset()
+            p.chain = ScrollChain.Contain
+            p.changed()
+        }
+        7 -> {
+            p.contact(3L, 0, 50.0, 55.0)
+            p.contact(3L, 1, 50.0, -245.0)
+            p.contact(3L, 2, 50.0, -245.0)
+        }
+        8 -> {
+            assertEquals(Point(0.0, 220.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.chain = ScrollChain.Chain
+            p.innerOptions = TouchScrollOptions(enabled = false)
+            p.reset()
+            p.changed()
+        }
+        9 -> {
+            p.contact(4L, 0, 50.0, 55.0)
+            p.contact(4L, 1, 90.0, 65.0)
+        }
+        10 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            // Movement to the right reaches the initial left boundary.
+            p.contact(4L, 1, 10.0, 85.0)
+        }
+        11 -> {
+            assertEquals(Point(80.0, 0.0), p.outer.offset)
+            p.contact(4L, 2, 0.0, 105.0)
+        }
+        12 -> {
+            assertEquals(Point(90.0, 0.0), p.outer.offset)
+            p.outerOptions = TouchScrollOptions(lockAxis = false)
+            p.reset()
+            p.changed()
+        }
+        13 -> {
+            p.contact(5L, 0, 230.0, 150.0)
+            p.contact(5L, 1, 200.0, 130.0)
+        }
+        14 -> {
+            assertEquals(Point(30.0, 20.0), p.outer.offset)
+            p.outer.scrollTo(Point(70.0, 80.0))
+            assertFalse(p.outerPan!!.isPanning)
+            p.contact(5L, 1, 180.0, 100.0)
+            p.contact(5L, 2, 180.0, 100.0)
+        }
+        15 -> {
+            assertEquals(Point(70.0, 80.0), p.outer.offset)
+            p.reset()
+            p.innerOptions = TouchScrollOptions()
+            p.outerOptions = TouchScrollOptions()
+            p.outerAxes = ScrollAxes.Vertical
+            p.preventMove = true
+            p.changed()
+        }
+        16 -> {
+            p.contact(6L, 0, 50.0, 55.0)
+            p.contact(6L, 1, 50.0, 15.0)
+        }
+        17 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.preventMove = false
+            p.contact(6L, 1, 50.0, 0.0)
+            p.contact(6L, 2, 50.0, 0.0)
+        }
+        18 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(1, p.clicks)
+            p.contact(7L, 0, 50.0, 55.0)
+            p.contact(7L, 1, 50.0, 15.0)
+        }
+        19 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            p.contact(8L, 0, 60.0, 60.0)
+        }
+        20 -> {
+            assertFalse(p.innerPan!!.isPanning)
+            assertFalse(p.outerPan!!.isPanning)
+            p.contact(7L, 1, 50.0, -20.0)
+            p.contact(7L, 2, 50.0, -20.0)
+            p.contact(8L, 1, 60.0, 0.0)
+            p.contact(8L, 2, 60.0, 0.0)
+        }
+        21 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            p.reset()
+        }
+        22 -> {
+            p.overridePosition = true
+            p.contact(9L, 0, 50.0, 55.0)
+            p.contact(9L, 1, 50.0, 15.0)
+        }
+        23 -> {
+            assertEquals(Point(0.0, 75.0), p.inner.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            p.contact(9L, 1, 50.0, -25.0)
+            p.contact(9L, 2, 50.0, -25.0)
+        }
+        else -> panLifetimeStep(p, active)
+    }
+}

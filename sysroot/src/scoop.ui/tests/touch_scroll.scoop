@@ -1,0 +1,17 @@
+package scoop.ui
+
+import scoop.test.*
+
+@Test
+private class TouchScrollOptionsTest {
+    @Test
+    fun `direct touch scrolling validates thresholds before any behavior is registered`() {
+        val defaults = TouchScrollOptions()
+        assertTrue(defaults.enabled)
+        assertTrue(defaults.lockAxis)
+        assertEquals(8.0, defaults.threshold)
+        assertEquals(0.0, TouchScrollOptions(threshold = 0.0).threshold)
+        for (value in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> { TouchScrollOptions(threshold = value) }
+    }
+}
