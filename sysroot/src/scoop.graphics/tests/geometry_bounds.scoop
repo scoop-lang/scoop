@@ -6,6 +6,61 @@ import scoop.test.*
 @Test
 private class GeometryBoundsTest {
     @Test
+    fun `fractional clipped rectangles preserve native edges in double geometry`() {
+        for (horizontal in [true, false]) {
+            val rect =
+                if (horizontal)
+                    Rect(0.0, 0.0, 100.0, 32.0)
+                else
+                    Rect(0.0, 0.0, 32.0, 100.0)
+            val fractional = 30.0 - 2.0 / 17.0
+            val geometry =
+                RasterSurface(300, 300).use {
+                    surface -> surface.draw {
+                        canvas ->
+                        canvas.clipRect(Rect(30.0, 30.0, 240.0, 240.0))
+                        canvas.translate(
+                            if (horizontal)
+                                fractional
+                            else
+                                98.0,
+                            if (horizontal)
+                                98.0
+                            else
+                                fractional
+                        )
+                        @Unsafe
+                        {
+                            return@draw captureGeometry(canvas, rect)
+                        }
+                    }
+                }
+            geometry.use {
+                current ->
+                val bounds = current.bounds
+                val visible = current.visibleBounds!!
+                assertTrue(visible.x >= bounds.x && visible.y >= bounds.y)
+                assertEquals(bounds.x + bounds.width, visible.x + visible.width)
+                assertEquals(bounds.y + bounds.height, visible.y + visible.height)
+                @Unsafe
+                {
+                    current.withNativeGeometry {
+                        native -> @Unsafe
+                        {
+                            val full = native.mapRect(native.context, rect, 0)
+                            val clipped = native.mapRect(native.context, rect, 1)
+                            assertEquals(1, full.status)
+                            assertEquals(1, clipped.status)
+                            assertEquals(bounds, full.rect)
+                            assertEquals(visible, clipped.rect)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `deep saved clip prefixes remain independent after restore and target close`() {
         val snapshots = ArrayList<CanvasGeometry>()
         try {
