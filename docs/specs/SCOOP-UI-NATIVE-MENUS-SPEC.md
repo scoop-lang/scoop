@@ -60,6 +60,8 @@ DeleteSelection 仅删除当前非空选区，不等价于向前删除。TextEdi
 
 SelectableTextOptions 提供相同的 contextMenu 及默认值，SelectableTextHost.showContextMenu() 使用当前 Accepted 段落中的选区或插入位置作为键盘锚点；它不创建可写编辑宿主。菜单只保留 Copy／SelectAll 及二者之间的有效分隔线，复制使用 Accepted StyledText 的 alternateText；copy=false 禁用复制，disabled 不打开菜单。只读选择与可编辑宿主共用原生会话、最新可用性、标签和选区外点击策略。
 
+已通过 updateTextEditor／updateSelectableText 接入语义的宿主提供 ShowContextMenu，菜单模式为 Disabled 时不公布该动作。明确的语义菜单请求可先请求原目标焦点，再用上述 Accepted 锚点创建同一个菜单会话；等待实际焦点或已有会话时返回 Busy，缺少锚点或资格时拒绝。会话建立后返回 Completed，菜单后续运行沿现有延迟 native operation，不在同步 accessibility 回调中递归 tracking，也不复制系统菜单的语义树。完整规则见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
+
 TextEditHost 的 `showContextMenu(): Boolean` 从当前有效可见 caret／选区锚点请求键盘式菜单；没有可用 Accepted 几何、活动宿主未聚焦／禁用或已有 pending 菜单时返回 false。已经关闭或卸载时与其他宿主方法一样报告 IllegalStateException。右键和平台辅助点击在默认动作阶段进入同一路径，键盘入口为非重复的 ContextMenu 或 Shift+F10。已消费或 preventDefault 的请求不执行默认菜单。布局未提交时不以原点代替锚点；只读取匹配的已接受文本布局进行指针命中。
 
 点击当前选择绘制区域时保持方向选区；选区外按 selection 处理。Preserve 完全保留，PlaceCaret 定位，SelectWord 使用既有 graphics.text 分词，Platform 使用模板的提示。先按普通输入规则取得目标焦点；打开菜单结束当前拖选并取消越界自动滚动，定位与结束 composition 沿现有编辑合同执行。不创建另一份文本模型或历史；菜单展示保留当前文档的 native 文本连接与实际选择。

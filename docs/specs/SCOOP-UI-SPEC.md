@@ -606,6 +606,8 @@ count 是配置的可见槽数，不是模型修改入口。原始 preedit 或�
 
 `SelectableTextHost(scope, fonts, content, options)` 是独立的只读宿主，拥有 ParagraphHost、一个方向选区、输入区域和 FocusTarget，借用字体并沿 InlineView 协议保留行内对象。它不创建 TextEditorState、undo 历史或可写 IME 连接。update 接收字体、StyledText、SelectableTextOptions、FocusOptions、范围动作／装饰和 onSelectionChanged(anchor, cursor)；measure 接收段落设置及 inlines，scene 呈现同一测量结果。公开 anchor／cursor、selection、layout、selectionBounds、setSelection 和 execute 提供明确的观察及程序入口。
 
+同一挂载的 Text 语义节点可调用 updateSelectableText，发布含 alternateText 的正文和映射后的选区；正常 update 及选择通知刷新同一 handle，不增加可写模型或替换业务回调。只读选择和 ShowContextMenu 复用宿主实际能力，规则见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
+
 SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活动／非活动选择颜色，默认启用选择、复制和裁剪。字符／词／逻辑行选择、Shift 扩展及方向移动复用公共文本导航；键盘只消费 Move、SelectAll、Copy，其他编辑命令留给外层。Copy 使用 Accepted StyledText.toPlainText(range)，包括行内对象 alternateText，不丢失原始逻辑范围。选择活动状态包括自身范围动作的焦点。
 
 SelectableTextOptions.contextMenu 默认为 TextContextMenuOptions()，与编辑宿主共用 Disabled／StandardNative／PreferSystem、选区策略及标准标签。showContextMenu()、右键／平台辅助点击和菜单键／Shift+F10 进入同一原生菜单，提供 Copy／SelectAll；要求匹配正文的 Accepted 几何和合法焦点／输入边界。选区内点击保留方向，选区外按配置保留、放置插入点或选词。打开停止拖选，不触发行内主按钮；会话、正文更新、关闭及迟到动作遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。

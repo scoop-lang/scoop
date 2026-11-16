@@ -19,6 +19,7 @@ public class SelectableTextHost public constructor(
     internal val paragraph = ParagraphHost()
     internal var fonts = initialFonts
     internal var content = initialContent
+    internal var semanticText: SelectableSemanticText? = None
     internal var options = initialOptions
     internal var closed = false
     internal val selected = state(EditorSelection(TextPosition(0L), TextPosition(0L)))
@@ -148,6 +149,8 @@ public class SelectableTextHost public constructor(
         )
             contextMenu.cancel()
         this.fonts = fonts
+        if (this.content !== content)
+            semanticText = None
         this.content = content
         this.options = options
         this.decorations = decorations
@@ -244,6 +247,7 @@ public class SelectableTextHost public constructor(
         if (closed)
             return
         closed = true
+        semanticText = None
         selectableStopDrag(this)
         var failure: Throwable? = None
         failure = cleanupUi(failure) { contextMenu.close() }

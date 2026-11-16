@@ -129,7 +129,14 @@ internal class EditorContextMenuProbe {
                 state.setSelection(Utf8Selection(3L, 0L))
                 changed(probe)
             }
-            case 10 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+            case 10 -> open(
+                probe,
+                {
+                    assertEquals(1, editorSemanticMenu(window, "editor0", false))
+                    assertEquals(0, editorSemanticMenu(window, "editor0", true))
+                }
+            ) {
+                assertEquals(1, editorSemanticMenuResult())
                 for (title in ["Menu Cut", "Menu Paste", "Menu Delete", "Menu Undo", "Menu Redo"])
                     assertEquals(0, menuEnabled(title))
                 assertEquals(1, menuEnabled("Menu Copy"))

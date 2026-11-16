@@ -53,10 +53,11 @@ public class SemanticsHandle internal constructor(
                 actions.focus,
                 actions.setSelection,
                 actions.replaceText,
+                actions.showContextMenu,
                 focus
             )
         ) {
-            case(None, None, None, None, None, None, None) -> true
+            case(None, None, None, None, None, None, None, None) -> true
             else -> false
         }
     }

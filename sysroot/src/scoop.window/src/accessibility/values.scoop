@@ -134,7 +134,8 @@ public struct SemanticActions(
     val setValue: ((String) -> SemanticActionResult)? = None,
     val focus: ((Boolean) -> SemanticActionResult)? = None,
     val setSelection: ((Utf8Selection) -> SemanticActionResult)? = None,
-    val replaceText: ((Utf8Range, String) -> SemanticActionResult)? = None
+    val replaceText: ((Utf8Range, String) -> SemanticActionResult)? = None,
+    val showContextMenu: (() -> SemanticActionResult)? = None
 ) {
     internal val capabilities: Int get() {
         var result = 0
@@ -160,6 +161,10 @@ public struct SemanticActions(
         }
         when (replaceText) {
             case Some(_) -> result += 32;
+            case None -> {}
+        }
+        when (showContextMenu) {
+            case Some(_) -> result += 64;
             case None -> {}
         }
         return result

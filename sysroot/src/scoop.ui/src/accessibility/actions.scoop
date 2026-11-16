@@ -50,7 +50,20 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
             }
             case None -> None
         }
-    return SemanticActions(invoke, toggle, setValue, focus, setSelection, replaceText)
+    val showContextMenu: (() -> SemanticActionResult)? =
+        when (actions.showContextMenu) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    return SemanticActions(
+        invoke,
+        toggle,
+        setValue,
+        focus,
+        setSelection,
+        replaceText,
+        showContextMenu
+    )
 }
 
 private fun semanticFocus(handle: SemanticsHandle, focused: Boolean): SemanticActionResult {

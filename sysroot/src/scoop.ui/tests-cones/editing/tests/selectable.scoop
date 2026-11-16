@@ -8,6 +8,7 @@ import scoop.tests.surface.*
 import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal fun selectableContent(
     short: Boolean,
@@ -72,6 +73,7 @@ private class SelectableTestElement(
     private val props: Props<SelectionTestInput>,
     scope: ComponentScope
 ): Element<ParagraphMeasurement>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Text)
     private var host: SelectableTextHost? = None
     public override fun onMount() {
         val value = scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
@@ -106,9 +108,18 @@ private class SelectableTestElement(
             focus = FocusOptions(Some(test.focus)),
             actions = actions,
             decorations = [TextRangeDecoration(range, underline = Some(Color(0.1, 0.3, 0.8)))],
-            onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
+            onSelectionChanged =
+                {
+                    _, _ ->
+                    refreshSemantics()
+                    test.selectionChanges += 1
+                }
         )
+        refreshSemantics()
         return UiInvalidation.Layout
+    }
+    private fun refreshSemantics() {
+        semantic.updateSelectableText(host!!, SemanticProperties(automationId = Some("selectable")))
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement
@@ -129,6 +140,7 @@ private class SelectableTestElement(
         return LayoutResult(measured.metrics, measured, { measured.close() })
     }
     public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
         host!!.scene(context, measured)
     }
     public override fun onUnmount() {

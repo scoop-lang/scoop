@@ -76,6 +76,21 @@ public fun SemanticsHandle.updateTextEditor(
                     else
                         semanticEditorReplace(host, Utf8Range(0L, model.text.byteLength), text)
             }
+    val showContextMenu: (() -> SemanticActionResult)? =
+        if (host.options.contextMenu.mode == TextContextMenuMode.Disabled)
+            None
+        else
+            Some {
+                if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (host.options.contextMenu.mode == TextContextMenuMode.Disabled)
+                        SemanticActionResult.Unsupported
+                    else
+                        semanticTextMenu(host.focus, host.contextMenu) {
+                            available() && host.showContextMenu()
+                        }
+            }
     bindFocus(Some(host.focus))
     update(
         SemanticProperties(
@@ -99,7 +114,12 @@ public fun SemanticsHandle.updateTextEditor(
             error = properties.error,
             ignored = properties.ignored
         ),
-        SemanticActions(setValue = setValue, setSelection = select, replaceText = replace),
+        SemanticActions(
+            setValue = setValue,
+            setSelection = select,
+            replaceText = replace,
+            showContextMenu = showContextMenu
+        ),
         relations
     )
 }

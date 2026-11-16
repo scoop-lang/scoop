@@ -202,6 +202,14 @@ private class SemanticField(
                             probe.value.value = text
                             SemanticActionResult.Completed
                         }
+                    },
+                showContextMenu =
+                    Some {
+                        probe.menus += 1
+                        if (probe.menus == 1)
+                            SemanticActionResult.Rejected
+                        else
+                            SemanticActionResult.Completed
                     }
             ),
             SemanticRelations(labelledBy = [probe.sibling!!.id])

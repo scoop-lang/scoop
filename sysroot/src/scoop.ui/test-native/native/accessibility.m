@@ -103,6 +103,9 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
     return [node
         isAccessibilitySelectorAllowed:@selector(
                                            setAccessibilitySelectedText:)];
+  case 8:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)];
   default:
     return 0;
   }
@@ -215,6 +218,9 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
           [NSValue valueWithRange:NSMakeRange(1, 1)]
         ]];
         result = 1;
+        break;
+      case 8:
+        result = [node accessibilityPerformShowMenu] ? 1 : 0;
         break;
       default:
         result = -1;

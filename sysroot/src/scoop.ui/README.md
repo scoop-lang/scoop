@@ -81,6 +81,10 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。正文范围几何、按点／词行查询和 retained range 继续随 S5 接入。
 
+只读富文本 Element 使用 `semantic.updateSelectableText(host, properties, relations)`，semantic 为同一挂载的 Text 角色。正文包含 StyledText 的 alternateText，选区沿既有区间映射转换；选择替代文字的一部分时，宿主选择完整行内对象，caret 落到对象下游。它不改写宿主的选择通知；在正常 update 和 onSelectionChanged 中刷新语义，业务通知继续由调用方执行。同一不可变内容的正文／映射会复用，单纯拖选不重新复制全文；内容换绑、受保护发布与关闭清理该投影。标记为受保护时不公布正文或选区，也不提供写入动作。
+
+两个宿主都会在菜单模式未禁用时提供 ShowContextMenu。该明确动作可先请求真实焦点，再使用已经提交的 caret／选区锚点打开同一个菜单会话；等待焦点或已有会话结束返回 Busy，无有效锚点或当前资格时拒绝。读取或选择仍不抢焦点。菜单项目、复制策略、文档换绑和迟到动作沿原宿主规则；原生菜单继续提供自己的 accessibility 树。用例见[只读语义文本](tests-cones/accessibility-selectable/README.md)与[文本编辑实窗](tests-cones/editing/README.md)。
+
 当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、复杂控件关系、完整文本查询、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
 ## 自绘与资源

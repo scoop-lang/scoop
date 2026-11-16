@@ -77,7 +77,14 @@ internal class SelectableMenuProbe: Closeable {
             }
             case 5 -> {
                 assertEquals(Some("unchanged"), window.clipboard.readText())
-                open(probe, { assertTrue(host.showContextMenu()) }) {
+                open(
+                    probe,
+                    {
+                        assertEquals(1, editorSemanticMenu(window, "selectable", false))
+                        assertEquals(0, editorSemanticMenu(window, "selectable", true))
+                    }
+                ) {
+                    assertEquals(1, editorSemanticMenuResult())
                     assertEquals(0, menuEnabled("Menu Copy"))
                     choose("Menu Select All")
                 }

@@ -271,6 +271,11 @@
     return;
   [self perform:2 text:value];
 }
+- (BOOL)accessibilityPerformShowMenu {
+  if (!(self.state.data.actions & 64))
+    return NO;
+  return [self perform:7 text:nil] == 1;
+}
 - (void)setAccessibilityFocused:(BOOL)focused {
   if (self.state.data.actions & 8)
     [self perform:focused ? 3 : 4 text:nil];
@@ -287,6 +292,8 @@
            !(state.data.flags & SWAXReadOnly);
   if (selector == @selector(setAccessibilityFocused:))
     return self.isAccessibilityEnabled && (state.data.actions & 8);
+  if (selector == @selector(accessibilityPerformShowMenu))
+    return self.isAccessibilityEnabled && (state.data.actions & 64);
   if (selector == @selector(accessibilityFrame))
     return self.number == 0 || state.data.geometry;
   if (selector == @selector(accessibilityActivationPoint))

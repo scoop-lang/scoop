@@ -276,6 +276,8 @@ Realize 增加不抢焦点的按 key 准备入口，复用现有 LazyChildren �
 
 S5 已接入 `SemanticsHandle.updateTextEditor`：普通 update 从同一挂载的 TextEditHost 发布正文、选区和实际焦点，保留调用方的名称／说明／错误与关系。AppKit 提供纯文本范围读取和单选区，原生写入使用 Accessibility 来源及同一外来文本清洗、过滤和历史；单纯选择结束 composition 使用 EditCommand。正文或模型版本尚未重新发布时拒绝旧目标写入，受保护用途不发布正文／长度／选区，即使显式允许复制或显示明文也保持该边界。文本几何、单位导航、retained range 与其他 provider 仍按下述完整合同继续。
 
+只读宿主通过 updateSelectableText 发布含 alternateText 的正文，并复用区间映射处理占位符、替代文字与方向选区；普通 update 和选择通知刷新原 handle。两个宿主的 ShowContextMenu 复用同一菜单会话，可为明确菜单请求取得目标焦点；读取和选择仍不抢焦点。模式禁用不公布菜单动作，等待实际焦点／会话结束或缺少 Accepted 锚点时不假报菜单已经打开；实窗与原生方法的验证范围分别记录。
+
 内部位置沿现有 UTF-8 字节偏移与合法边界合同。AppKit 和 Windows 接口在需要时转换为 UTF-16；AT-SPI 按对应接口转换为 Unicode 字符偏移。转换与同一文本 revision 绑定，不用“一个字符等于一个字节／UTF-16 单元”近似。文字单位移动继续复用现有 grapheme、word、line 与布局能力。
 
 提供正文／范围读取、选区读取与设置、按点定位、范围矩形、适用的值替换和编辑动作。UIA TextPattern 表示文本访问及选择等能力，不应当成任意文本写入接口；写入只通过该控件实际提供的 Value／编辑能力完成。

@@ -220,6 +220,7 @@ public class AccessibilityProvider internal constructor(
                             SemanticActionResult.Unsupported
                         case None -> SemanticActionResult.InvalidArgument
                     }
+                case 7 -> actions.showContextMenu?.invoke() ?: SemanticActionResult.Unsupported
                 else -> SemanticActionResult.Unsupported
             }
         if (!closed && owner.phase == WindowState.Open)

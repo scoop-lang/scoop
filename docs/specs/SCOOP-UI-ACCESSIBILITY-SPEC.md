@@ -1,6 +1,6 @@
 # UI 无障碍接口规范
 
-状态：S2 实施中。本文规定公共语义资源、逻辑更新、内容合并和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。复杂控件关系、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
+状态：S2／S5 实施中。本文规定公共语义资源、逻辑更新、内容合并、文本宿主和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。复杂控件关系、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
 
 ## 1. 资源与父子关系
 
@@ -50,9 +50,15 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 `scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations())` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。
 
-动作捕获该次模型身份与 revision；模型替换、正文或选区发生尚未发布的修改时返回 Unavailable，不能修改新的焦点文档。同一模型实际获得新状态后沿正常更新发布，再返回结果。SetValue／ReplaceText 使用 TextEditSource.Accessibility，经过单行归一化、外来文本清洗、transform、accepts、长度与组合事务，并形成独立 undo 项；Reject 返回 Rejected，Transform 返回实际结果。选区修改通过同一 composition 结束与策略事务，普通只读选择允许，disabled 或输入边界不允许时拒绝。辅助技术动作不隐式抢焦点，Focus 仍走绑定的真实 FocusTarget。
+动作捕获该次模型身份与 revision；模型替换、正文或选区发生尚未发布的修改时返回 Unavailable，不能修改新的焦点文档。同一模型实际获得新状态后沿正常更新发布，再返回结果。SetValue／ReplaceText 使用 TextEditSource.Accessibility，经过单行归一化、外来文本清洗、transform、accepts、长度与组合事务，并形成独立 undo 项；Reject 返回 Rejected，Transform 返回实际结果。选区修改通过同一 composition 结束与策略事务，普通只读选择允许，disabled 或输入边界不允许时拒绝。读取、选择与编辑不隐式抢焦点，Focus 仍走绑定的真实 FocusTarget。
 
-正文与选区可在无 drawable 时发布；场景只负责当前节点的 Accepted 位置和命中。完整范围几何、文字单位、保留范围及只读富文本宿主后续接入，同步见 Window 文本合同。
+菜单模式未禁用时提供 ShowContextMenu。该明确请求可先通过宿主的 FocusHandle 聚焦原目标，再以同一 showContextMenu 入口使用 Accepted caret／选区锚点；等待显露或实际焦点时返回 Busy，缺少有效锚点或当前资格时拒绝。已有菜单未结束返回 Busy，禁用模式不公布该动作；选区、复制策略、composition、模型换绑和关闭仍由原菜单会话管理。受保护编辑器可打开其实际允许的菜单，复制等项目遵守现有独立策略。
+
+`SemanticsHandle.updateSelectableText(host, properties = SemanticProperties(), relations = SemanticRelations())` 将同一挂载的 SelectableTextHost 接到 Text 角色，始终只读；名称／关系、enabled／protectedText 与真实 focus 的处理沿同一原则，不提供写入动作。正文使用 StyledText.toPlainText，包括行内对象的 alternateText；选区通过现有区间替换映射在原始占位符与替代文字间转换。请求端点在替代文字内部时，非空范围向外覆盖整个对象；caret 使用下游端点。空替代文字没有文本长度，仍保留原对象边界的 affinity。范围与选区发布后反映实际映射结果，不伪造可选择半个行内对象的能力。
+
+updateSelectableText 借用 host，不改写它的 onSelectionChanged。调用方在正常 update 以及选择通知后刷新语义；可先更新已持有的 handle，再执行业务通知。宿主按不可变 StyledText 身份复用正文与区间映射，单纯拖选不反复生成整份替代文字；内容替换、受保护发布与关闭释放不再需要的投影。正文或样式对象换绑后的旧动作返回 Unavailable，新 update 发布当前对象及动作。辅助技术选择走宿主同一 setSelection，停止拖选并保留正常选择通知；菜单复用 Copy／SelectAll 会话。
+
+正文与选区可在无 drawable 时发布；场景只负责当前节点的 Accepted 位置和命中。完整范围几何、文字单位、保留范围及行内子控件语义后续接入，同步见 Window 文本合同。
 
 ## 6. 验证边界
 

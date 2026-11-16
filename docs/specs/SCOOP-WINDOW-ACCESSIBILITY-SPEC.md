@@ -1,6 +1,6 @@
 # Window 无障碍接口规范
 
-状态：S0／S2 实施中。本文规定已有窗口内容的低层语义节点、AppKit 投影与同步动作边界；UI 资源、内容合并与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。内置控件、复杂控件关系、文本范围、虚拟集合和 Windows／Linux provider 继续按[完整实施计划](../ui/interaction-polish/PLAN.md)推进，不能以本批接口代替这些完成条件。实际构建／运行结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
+状态：S0／S2／S5 实施中。本文规定已有窗口内容的低层语义节点、AppKit 投影、纯文本范围与同步动作边界；UI 资源、内容合并与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。内置控件、复杂控件关系、完整文本几何、虚拟集合和 Windows／Linux provider 继续按[完整实施计划](../ui/interaction-polish/PLAN.md)推进，不能以本批接口代替这些完成条件。实际构建／运行结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
 
 ## 1. 包、身份与寿命
 
@@ -34,13 +34,15 @@ setGeometry 在验证几何后为节点持有一个引用；原生投影在发�
 
 ## 3. 动作与同步边界
 
-SemanticActions 按实际实现提供 invoke、toggle、setValue(String)、focus(Boolean)；focus 的 true 请求聚焦，false 请求解除该目标焦点。每个回调返回 SemanticActionResult：Completed、InvalidArgument、Unsupported、Unavailable、Rejected 或 Busy。缺少回调时不公布对应原生能力；enabled=false 拒绝交互，readOnly=true 拒绝值写入及切换。只有实际业务已执行才返回 Completed；Binding 拒绝不能提前改写投影，异步业务结束也不属于 Invoke 的完成条件。
+SemanticActions 按实际实现提供 invoke、toggle、setValue(String)、focus(Boolean)、showContextMenu() 及下节的文本动作；focus 的 true 请求聚焦，false 请求解除该目标焦点。每个回调返回 SemanticActionResult：Completed、InvalidArgument、Unsupported、Unavailable、Rejected 或 Busy。缺少回调时不公布对应原生能力；enabled=false 拒绝交互，readOnly=true 拒绝值写入及切换，但不禁止有实际内容的菜单。只有实际业务已执行才返回 Completed；Binding 拒绝不能提前改写投影，异步业务结束也不属于 Invoke 的完成条件。
 
 AppKit getter 不进入 managed 代码。同步动作使用创建 provider 时登记的 Reusable ForeignCallback，沿已有 Context 捕获规则恢复创建上下文，包括 asyncio 集成的 scope。它只在 owner、应用未退出、窗口 Open 且输入未被模态阻止、没有进行中的 Window 业务／watch 回调或另一动作时执行。重入时返回 Busy，不等待自己的队列、不 pump、不布局；UI 适配另检查宿主派发、scope 回调、render／布局和实际输入边界，见 UI 无障碍规范。普通 handler 仍沿既有异步派发路径。
 
 动作先保存回调与所需值，再执行；回调可以退休自身、关闭 provider 或 Window。执行后仅按资源仍存活的情况发布实际结果，不继续使用旧节点。异常在 managed 边界捕获，经正常应用错误与退出路径报告，不跨 C／Objective-C ABI；UI 后续将自身动作包在既有 Surface／根错误边界中。动作中可能打开的原生菜单／面板继续使用已有延迟 native operation 通路。
 
 NSAccessibility 的 performPress 等 BOOL 动作仅在 Completed 时返回 YES。setAccessibilityValue 与 setAccessibilityFocused 为无返回值 setter：只在实际回调中改变业务状态，失败时保持旧值；调用方必须读取结果，不能把 setter 返回解释为写入成功。原生注册在释放 callback 前撤销；动作中关闭时，callback ownership 经现有 owner control 队列在调用退栈后释放。客户端晚到查询／动作不会访问已释放 context。
+
+showContextMenu 映射 AppKit accessibilityPerformShowMenu，经相同 owner／生命周期／输入边界执行真实菜单请求，不合成右键或建立第二份菜单模型。Completed 表示调用方已经创建绑定该目标的菜单会话；选中菜单项及后续业务操作属于该会话，不能在动作中递归 pump 菜单 tracking。原生菜单提供自己的语义，不把其项目复制为 UI 子节点。实际动作能力增删后发送适用的 LayoutChanged 通知，单纯替换能力相同的 handler 不通知，也不重建子项索引。
 
 ### 3.1 纯文本正文与选区
 

@@ -144,7 +144,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S5 accessibility 文本、表单、焦点与模态
 
-当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区与实际写入，UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、内置表单、复杂焦点与模态仍待继续。
+当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区、实际写入和 ShowContextMenu。UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史，updateSelectableText 接入只读正文与行内替代文字选区；两个宿主共用原菜单会话。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、内置表单、复杂焦点与模态仍待继续。
 
 **主要范围：** 共享语义模型、TextEditorState／TextEditHost／TextLayout、focus／overlay、Field 与选择类控件、已接通的 provider。先改 UI／Component／Window 与实际受影响的文本 spec。
 

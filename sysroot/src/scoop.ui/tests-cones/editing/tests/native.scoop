@@ -22,6 +22,38 @@ private fun <R> editorView(window: Window, action: (Ptr<Unit>) -> R): R {
     }
 }
 
+internal fun editorSemanticMenu(window: Window, identifier: String, request: Boolean): Int =
+    editorView(window) {
+        view -> @Unsafe
+        {
+            return@editorView identifier.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeSemanticMenu(view, bytes, length, request)
+                }
+            }
+        }
+    }
+
+internal fun editorSemanticMenuResult(): Int {
+    @Unsafe
+    {
+        return nativeSemanticMenuResult()
+    }
+}
+
+@Extern(name = "scoop_test_editor_semantic_menu")
+private fun nativeSemanticMenu(
+    view: Ptr<Unit>,
+    identifier: Ptr<UInt8>,
+    length: Long,
+    request: Boolean
+): Int
+
+@Extern(name = "scoop_test_editor_semantic_menu_result")
+private fun nativeSemanticMenuResult(): Int
+
 internal fun editorText(
     window: Window,
     text: String = "",

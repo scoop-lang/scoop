@@ -257,7 +257,8 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
   if (!same(old.name, next.name))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityTitleChangedNotification);
-  if (!same(old.help, next.help) || !same(old.error, next.error) ||
+  if (old.data.actions != next.data.actions || !same(old.help, next.help) ||
+      !same(old.error, next.error) ||
       ![old.labels isEqualToArray:next.labels] ||
       ![old.controls isEqualToArray:next.controls] ||
       ![old.titleFor isEqualToArray:next.titleFor])

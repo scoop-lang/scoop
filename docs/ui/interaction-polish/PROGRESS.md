@@ -17,7 +17,7 @@
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、名称／说明／错误／controls 关系、内容合并／忽略、Accepted 场景与精确命中已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、复杂控件关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
-| S5 | 进行中 | 纯文本正文、选区与编辑宿主已接入，macOS 原生方法与编辑策略定向测试通过；范围几何／单位导航／保留范围、内置表单、复杂焦点与模态待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，macOS 原生方法与编辑策略定向测试通过；实际菜单呈现、范围几何／单位导航／保留范围、内置表单、复杂焦点与模态待继续 |
 | S6～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -178,3 +178,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - 受共用 native 测试接口变化影响的 UI 场景程序已重新构建成功；需要真实呈现／焦点的场景及既有 IME 快照实窗回归仍待桌面恢复后验收，未把进程内方法结果记为外部 AX／VoiceOver 通过。本批复用的 UTF-8→UTF-16 转换算法没有改变；范围几何、单位导航、retained range、内置表单和其他平台继续按 S5／S10 推进。
 
 已同步正式规范、设计、计划、库与测试 README、编程导航及原文本策略设计。Window／UI API 通过 search／show 核对 selection、setSelection、replaceText、updateTextEditor 的签名／默认值／import 与 Accessibility 来源；临时站点在核对后清理，保留开发产物、共享缓存与待实窗运行的程序。
+
+### 只读富文本选区与语义菜单动作
+
+- updateSelectableText 将同一挂载的 SelectableTextHost 接入 Text 节点，正文保留行内 alternateText，选区复用已有区间替换映射；选择部分替代文字覆盖整个对象，caret 使用下游端点，空替代文字按端点 affinity 处理。普通 update 和选择通知刷新原 handle，不替换业务回调，不创建可写文档。宿主按不可变内容身份复用正文与映射，拖选不反复复制全文；内容替换、受保护发布和关闭清理缓存，旧内容动作不能转向新内容。
+- SemanticActions.showContextMenu 接到 AppKit ShowMenu 与同一 owner／输入边界，两个文本宿主使用原生菜单会话和 Accepted 锚点。明确菜单请求可先取得实际焦点；未就绪、已有会话或模式禁用不假报成功，只读仍可打开真实可用菜单。原生动作能力增删发送 LayoutChanged，能力相同的 handler 替换不重复通知，也不重建阅读索引。原生菜单继续提供自己的语义。
+- 18 个 Scoop 文件与 4 个 native 文件格式、生产／测试 Objective-C 严格编译检查、Window／UI 和三组相关 Cone 源码检查通过。Window→Surface→UI 的 release 开发产物已更新；新增只读富文本、扩展的原生语义动作以及原有编辑语义三个 Cone 实际通过，覆盖 Unicode 与替代文字偏移、方向选区、拒绝／只读／隐藏、内容与样式替换、菜单能力开关、无 drawable 更新和旧对象退休。正文投影复用调整后，只读用例再次通过。
+- 实窗编辑程序通过 release 可执行文件构建，两个菜单场景改为从原生主队列调用公开 ShowMenu，并检查返回值、tracking、项目可用性及模型／剪贴板结果。桌面仍为 ScreenIsLocked=true，实际菜单呈现与焦点场景未运行；动作通知的外部客户端观察、AX／VoiceOver 和其他平台也未据进程内方法结果记为通过。
+
+正式规范、设计、计划、使用说明和编程导航已同步；新建只读语义与既有编辑实窗的 README 说明入口和验证边界。Window／UI API 通过 search／show 核对 showContextMenu 与 updateSelectableText 的默认值、签名和 import；临时站点在核对后清理，保留后续需要的开发产物、缓存及实窗程序。

@@ -76,6 +76,8 @@ Text／TextField 的已知非保护 value 同时提供纯文本正文；`selecti
 
 这些资源要求 owner 线程。原生动作在普通 owner 回调之间同步执行，重入返回 Busy，不递归 pump 或布局；异常沿应用现有退出路径报告。节点 close 退休子树，provider close 退休全部节点；窗口进入 Closing 自动关闭 provider。客户端持有的旧原生对象不再执行动作；重新附着产生新身份。
 
+`SemanticActions.showContextMenu` 映射 AppKit 的 accessibilityPerformShowMenu，只有存在回调且当前输入允许时才公布能力；只读不禁止实际可用的菜单。回调建立绑定目标的真实菜单会话后返回 Completed，后续菜单项执行沿该会话，不合成右键，也不在回调中 pump tracking。原生菜单的项目由系统自行提供语义。
+
 当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、文本范围几何／单位导航／保留范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 
 ## 多窗口、模态与窗框
