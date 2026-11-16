@@ -72,6 +72,15 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
             case Some(val action) -> Some { handle.controller.perform(handle, action) }
             case None -> None
         }
+    val reveal: (() -> SemanticActionResult)? =
+        Some {
+            handle.controller.perform(handle) {
+                when (actions.reveal) {
+                    case Some(val action) -> action()
+                    case None -> handle.controller.reveal(handle)
+                }
+            }
+        }
     return SemanticActions(
         invoke,
         toggle,
@@ -82,7 +91,8 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
         showContextMenu,
         position,
         backward,
-        forward
+        forward,
+        reveal
     )
 }
 

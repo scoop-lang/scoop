@@ -1,0 +1,174 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+import scoop.window.WindowState
+import scoop.window.accessibility.SemanticActionResult
+
+/** The scroll path borrows the same accepted boundaries owned by FocusController. */
+internal class SemanticRevealPlacement(
+    val generation: ULong,
+    val path: Array<ScrollReveal>,
+    val bounds: Rect,
+    val visible: Boolean
+)
+
+private class PendingSemanticReveal(
+    val handle: SemanticsHandle,
+    private val initial: SemanticRevealPlacement
+) {
+    val attempt = RevealAttempt()
+    init {
+        attempt.watch(initial.path)
+    }
+    fun matches(placement: SemanticRevealPlacement): Boolean {
+        if (
+            placement.generation !=
+                initial.generation ||
+                placement.path.size !=
+                initial.path.size ||
+                !attempt.isCurrent
+        )
+            return false
+        for (index in 0L ..< initial.path.size) {
+            val before = initial.path[index]
+            val after = placement.path[index]
+            if (
+                before.viewport !==
+                    after.viewport ||
+                    before.state !==
+                    after.state ||
+                    before.layout.binding !=
+                    after.layout.binding
+            )
+                return false
+        }
+        return true
+    }
+}
+
+/** Advances semantic scrolling on the root's existing accepted-frame path. */
+internal class SemanticRevealController(private val root: UiRoot) {
+    private var pending: PendingSemanticReveal? = None
+
+    fun request(handle: SemanticsHandle): SemanticActionResult {
+        when (val result = eligibility(handle)) {
+            case Some(val value) -> return value
+            case None -> {}
+        }
+        val placement = placement(handle) ?: return SemanticActionResult.Unavailable
+        val value =
+            when (val previous = pending) {
+                case Some(val current) -> if (
+                    current.handle === handle && current.matches(placement)
+                )
+                    current
+                else
+                    PendingSemanticReveal(handle, placement)
+                case None -> PendingSemanticReveal(handle, placement)
+            }
+        pending = None
+        return advance(value, placement)
+    }
+
+    fun complete() {
+        val value = pending ?: return
+        val placement = current(value)
+        pending = None
+        when (placement) {
+            case Some(val scene) -> advance(value, scene)
+            case None -> {}
+        }
+    }
+
+    fun check() {
+        val value = pending ?: return
+        when (current(value)) {
+            case Some(_) -> {}
+            case None -> pending = None
+        }
+    }
+
+    fun discarded() {
+        check()
+        when (pending) {
+            case Some(_) -> root.requestFrame()
+            case None -> {}
+        }
+    }
+
+    fun retire(handle: SemanticsHandle) {
+        when (pending) {
+            case Some(val value) -> if (value.handle === handle)
+                pending = None
+            case None -> {}
+        }
+    }
+
+    fun close() {
+        pending = None
+    }
+
+    private fun advance(
+        value: PendingSemanticReveal,
+        scene: SemanticRevealPlacement
+    ): SemanticActionResult {
+        val progress = value.attempt.advance(scene.path, scene.bounds, scene.visible)
+        // Scroll intent observers may retire the target or replace the request synchronously.
+        when (current(value)) {
+            case None -> return SemanticActionResult.Unavailable
+            case Some(_) -> {}
+        }
+        return when (progress) {
+            case Ready -> SemanticActionResult.Completed
+            case Moved -> {
+                pending = Some(value)
+                SemanticActionResult.Busy
+            }
+            case Waiting -> {
+                pending = Some(value)
+                SemanticActionResult.Busy
+            }
+            case Unavailable -> SemanticActionResult.Unavailable
+            case Cancelled -> SemanticActionResult.Unavailable
+        }
+    }
+
+    private fun current(value: PendingSemanticReveal): SemanticRevealPlacement? {
+        when (eligibility(value.handle)) {
+            case Some(_) -> return None
+            case None -> {}
+        }
+        when (value.handle.actions.reveal) {
+            case Some(_) -> return None
+            case None -> {}
+        }
+        val scene = placement(value.handle) ?: return None
+        return if (value.matches(scene))
+            Some(scene)
+        else
+            None
+    }
+
+    private fun placement(handle: SemanticsHandle): SemanticRevealPlacement? {
+        val scene = handle.revealPlacement ?: return None
+        if (scene.generation != handle.generation || handle.resource.geometry == None)
+            return None
+        return Some(scene)
+    }
+
+    private fun eligibility(handle: SemanticsHandle): SemanticActionResult? {
+        if (!root.isOpen || !handle.active || root.window.state != WindowState.Open)
+            return Some(SemanticActionResult.Unavailable)
+        if (!root.window.isVisible || root.window.isOccluded)
+            return Some(SemanticActionResult.Unavailable)
+        if (handle.merged || handle.properties.ignored || !handle.owner.scope.input.isInputAllowed)
+            return Some(SemanticActionResult.Rejected)
+        var cursor: SemanticsHandle? = Some(handle)
+        while (true) {
+            val node = cursor ?: return None
+            if (!node.active || node.properties.hidden || !node.properties.enabled)
+                return Some(SemanticActionResult.Rejected)
+            cursor = node.parent
+        }
+    }
+}

@@ -142,6 +142,8 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
     return [node accessibilityHorizontalScrollBar] != nil;
   case 13:
     return [node accessibilityVerticalScrollBar] != nil;
+  case 14:
+    return [node accessibilityCustomActions].count == 1;
   default:
     return 0;
   }
@@ -201,6 +203,20 @@ void *scoop_ui_ax_calls(void) {
   return (__bridge_retained void *)[SWUiAccessibilityCalls new];
 }
 
+static BOOL performCustomAction(NSAccessibilityCustomAction *action) {
+  if (!action)
+    return NO;
+  if (action.handler)
+    return action.handler();
+  id target = action.target;
+  SEL selector = action.selector;
+  if (!target || !selector || ![target respondsToSelector:selector])
+    return NO;
+  BOOL (*perform)(id, SEL) =
+      (BOOL (*)(id, SEL))[target methodForSelector:selector];
+  return perform(target, selector);
+}
+
 void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
                       const uint8_t *bytes, int64_t length,
                       int64_t selectionStart, int64_t selectionLength,
@@ -208,6 +224,8 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
                       void *context) {
   SWUiAccessibilityCalls *calls = (__bridge SWUiAccessibilityCalls *)pointer;
   id node = (__bridge id)element;
+  NSAccessibilityCustomAction *retainedAction =
+      action == 13 ? [node accessibilityCustomActions].firstObject : nil;
   NSString *value = text(bytes, length);
   dispatch_async(dispatch_get_main_queue(), ^{
     if (calls.closed)
@@ -267,6 +285,13 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
         break;
       case 11:
         result = [node accessibilityPerformDecrement];
+        break;
+      case 12:
+        result =
+            performCustomAction([node accessibilityCustomActions].firstObject);
+        break;
+      case 13:
+        result = performCustomAction(retainedAction);
         break;
       default:
         result = -1;

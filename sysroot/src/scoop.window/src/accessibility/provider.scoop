@@ -234,6 +234,7 @@ public class AccessibilityProvider internal constructor(
                     SemanticActionResult.Unsupported
                 case 9 -> actions.scrollBackward?.invoke() ?: SemanticActionResult.Unsupported
                 case 10 -> actions.scrollForward?.invoke() ?: SemanticActionResult.Unsupported
+                case 11 -> actions.reveal?.invoke() ?: SemanticActionResult.Unsupported
                 else -> SemanticActionResult.Unsupported
             }
         if (!closed && owner.phase == WindowState.Open)

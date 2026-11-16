@@ -357,6 +357,26 @@
     return NO;
   return [self perform:7 text:nil] == 1;
 }
+- (BOOL)revealAccessibilityNode {
+  if (!(self.state.data.actions & 1024))
+    return NO;
+  return [self perform:11 text:nil] == 1;
+}
+- (NSArray<NSAccessibilityCustomAction *> *)accessibilityCustomActions {
+  if (!self.isAccessibilityEnabled || !(self.state.data.actions & 1024))
+    return @[];
+  NSString *name = @"Scroll to Visible";
+  if (@available(macOS 26.0, *)) {
+    NSString *localized =
+        NSAccessibilityActionDescription(NSAccessibilityScrollToVisibleAction);
+    if (localized.length)
+      name = localized;
+  }
+  return @[ [[NSAccessibilityCustomAction alloc]
+      initWithName:name
+            target:self
+          selector:@selector(revealAccessibilityNode)] ];
+}
 - (void)setAccessibilityFocused:(BOOL)focused {
   if (self.state.data.actions & 8)
     [self perform:focused ? 3 : 4 text:nil];
@@ -392,6 +412,8 @@
     return self.isAccessibilityEnabled && (state.data.actions & 8);
   if (selector == @selector(accessibilityPerformShowMenu))
     return self.isAccessibilityEnabled && (state.data.actions & 64);
+  if (selector == @selector(accessibilityCustomActions))
+    return self.isAccessibilityEnabled && (state.data.actions & 1024);
   if (selector == @selector(accessibilityFrame))
     return self.number == 0 || state.data.geometry;
   if (selector == @selector(accessibilityActivationPoint))

@@ -82,6 +82,8 @@ Switch／ToggleButton 在 AppKit 使用 Button 加 Switch／Toggle 子角色，P
 
 `SemanticActions.showContextMenu` 映射 AppKit 的 accessibilityPerformShowMenu，只有存在回调且当前输入允许时才公布能力；只读不禁止实际可用的菜单。回调建立绑定目标的真实菜单会话后返回 Completed，后续菜单项执行沿该会话，不合成右键，也不在回调中 pump tracking。原生菜单的项目由系统自行提供语义。
 
+`SemanticActions.reveal` 请求滚动显露目标，保持键盘焦点和文本选区。只有匹配当前内容的 Accepted 几何已经可见才返回 Completed，需要后续帧时返回 Busy；不能把登记定位请求当成显露完成。AppKit 通过公开的 NSAccessibilityCustomAction 提供“Scroll to Visible”，动作列表查询只读，保留旧动作不保活窗口；BOOL 回调仅在 Completed 时成功。该入口适用于普通文本和控件，不要求可写或 ScrollBar 角色。
+
 `SemanticRole.ScrollBar` 使用 `SemanticProperties.scroll = Some(SemanticScrollRange(orientation, offset, viewport, content))` 描述一个真实轴；方向为 SemanticOrientation.Horizontal／Vertical，尺寸与位置使用逻辑单位。AppKit 读取 Orientation 和 0～1 的 Value／MinValue／MaxValue，父节点的横／纵滚动条属性连接对应子项。setScrollPosition 接收有限的 0～1 比例，scrollBackward／scrollForward 使用实际控件步长；调用方登记请求后，仍从已接受的布局发布新位置。没有范围时不提供能力，视觉隐藏不必退休逻辑轴，缺少场景登记时不提供条的点击几何。
 
 当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、文本范围几何／单位导航／保留范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。

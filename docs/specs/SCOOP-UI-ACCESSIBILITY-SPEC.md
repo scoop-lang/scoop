@@ -48,6 +48,16 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 候选场景持有自己的 native 引用，Accepted 时仅把内容版本仍匹配的几何与命中一起发布；Discarded、版本不匹配、场景失败及根关闭均释放候选引用。已发布 Window 节点和原生投影各自保留所需快照，候选释放不使当前命中悬空；纯属性发布不重新捕获几何。未放置与名称／值失效同时撤下位置和命中，旧 native 对象不能继续按过期形状命中。
 
+### 4.1 不改变焦点的显露
+
+UI 节点默认提供 reveal 动作，包括没有 InputArea 或 FocusTarget 的 Text。显式 `SemanticActions.reveal` 可替换默认实现，继续经过相同的根与动作边界。默认能力不使普通静态标签失去合并资格；显式业务 reveal 与其他显式动作一样保留独立语义。ignored／已合并节点及 hidden／disabled 祖先的后代不能执行显露。
+
+Scene 登记同时保存当次 ScrollViewport 路径，Rect 缓存重放重新取得当前路径。默认显露使用匹配内容版本的 Accepted bounds、精确裁剪得到的 visibleBounds 和原 ScrollReveal 算法，从最内层向外逐个提出 Nearest 定位，继续扣除 ScrollPadding；不为语义内容创建输入区域，也不计算另一份未呈现位置。每次实际移动等待下一次 Accepted 场景后再处理外层，最终必须有非空可见区域；目标大于视口时允许显示其可达部分。不可滚出的自有裁剪、空形状、未放置或内容版本失配返回 Unavailable，既不抢焦点，也不修改文本选区。
+
+需要后续帧的请求返回 Busy，根借用现有 requestFrame／Accepted 完成回调继续推进；重复请求同一节点沿用在途定位，另一节点的新请求取代旧请求。后续滚动意图、视口换绑、内容失效、节点退休、输入或语义资格丢失使旧请求结束，根关闭释放请求。Discarded 不推动外层或宣告成功，保留仍有效的待处理请求；停在等待状态时只等待已有的实际帧，不增加定时轮询。原生再次调用时，只有当前已接受场景确已显露才返回 Completed。查询属性或动作列表不启动显露，窗口无法呈现时不报成功。
+
+本接口处理已经挂载、已登记几何的节点；未实例化条目的按 key 查询、Realize 与保留仍由 S7 的集合合同接入。
+
 ## 5. 文本编辑宿主
 
 `scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations())` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。

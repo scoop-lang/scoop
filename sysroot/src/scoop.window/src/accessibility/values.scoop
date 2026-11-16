@@ -142,7 +142,9 @@ public struct SemanticActions(
     val showContextMenu: (() -> SemanticActionResult)? = None,
     val setScrollPosition: ((Double) -> SemanticActionResult)? = None,
     val scrollBackward: (() -> SemanticActionResult)? = None,
-    val scrollForward: (() -> SemanticActionResult)? = None
+    val scrollForward: (() -> SemanticActionResult)? = None,
+    /** Completes only when matching accepted geometry is visible, without changing focus. */
+    val reveal: (() -> SemanticActionResult)? = None
 ) {
     internal val capabilities: Int get() {
         var result = 0
@@ -184,6 +186,10 @@ public struct SemanticActions(
         }
         when (scrollForward) {
             case Some(_) -> result += 512;
+            case None -> {}
+        }
+        when (reveal) {
+            case Some(_) -> result += 1024;
             case None -> {}
         }
         return result

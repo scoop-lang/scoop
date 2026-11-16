@@ -129,7 +129,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S4 可配置滚动条与滚动语义
 
-当前进展：共享行为、Overlay／Gutter 和边缘显露已接入。Window／AppKit 提供真实轴范围与位置／增减动作，UI 的 updateScrollBar 复用原 ScrollViewport 或 TextEditHost；共享 ScrollControl 与文本滚动条已接入，视觉隐藏保留逻辑轴，范围来自 Accepted 快照。ScrollViewport、ScrollArea、VirtualList 和 TextControls 的 macOS 实窗回归已通过，修复了 Home／End 误移动未启用轴和开启悬停触发时漏唤醒的问题；具体范围见[实施记录](PROGRESS.md)。语义 Reveal 与平台验收仍待完成，不以 API 或构建通过替代本批通过条件。
+当前进展：共享行为、Overlay／Gutter 和边缘显露已接入。Window／AppKit 提供真实轴范围与位置／增减动作，UI 的 updateScrollBar 复用原 ScrollViewport 或 TextEditHost；共享 ScrollControl 与文本滚动条已接入，视觉隐藏保留逻辑轴，范围来自 Accepted 快照。ScrollViewport、ScrollArea、VirtualList 和 TextControls 的 macOS 实窗回归已通过，修复了 Home／End 误移动未启用轴和开启悬停触发时漏唤醒的问题。已挂载语义节点的默认 Reveal 已接入原 ScrollReveal 路径，macOS 实窗验证了嵌套显露、Discarded、焦点／选区保持和请求失效；具体范围见[实施记录](PROGRESS.md)。外部辅助技术、完整虚拟集合及其他平台验收仍按对应批次继续，不以 API 或构建通过替代本批通过条件。
 
 **主要范围：** UI scroll、Component 共享 ScrollControl／ScrollBarControl、Textarea、VirtualList、主题 metrics／geometry／painter。先改 UI、Component、Theme spec。
 

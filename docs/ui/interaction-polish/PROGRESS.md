@@ -16,7 +16,7 @@
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题离屏测试、实窗双根偏好热切换及帧复用回归通过；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；其余控件、复杂关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，两类宿主的真实文本菜单与 IME 组合实窗回归通过；多击组合、文本 provider／系统服务和其他平台仍待继续 |
-| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；语义 Reveal 与平台验收待继续 |
+| S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
@@ -326,3 +326,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 上述原生方法和实际窗口结果不代替语义 Reveal、外部 AX 客户端、VoiceOver、完整硬件输入或其他平台的验收。
 
 临时应用包、原生对照探针和逐次运行报告已清理；保留后续使用的 GUI 启动脚本、配套开发产物与共享缓存。
+
+
+### 已挂载语义节点的滚动显露
+
+- SemanticActions.reveal 增加不改变键盘焦点或选区的显露动作；AppKit 使用公开 NSAccessibilityCustomAction，已发布动作列表只读，weak target 不保活窗口。当前 SDK 的 ScrollToVisible 常量没有对应的公开 BOOL protocol 方法，因此没有调用私有 selector；只有 Completed 映射为原生成功。
+- UI 在 Scene 登记点保存同一 ScrollReveal 路径，普通 Text 不需要 InputArea／FocusTarget，默认显露不阻止纯标签合并。显露复用 ScrollPadding、实际变换与 Nearest 定位，从最内层逐帧推进；Busy 保留有效请求，匹配的 Accepted 几何确已可见后才可完成。查询、未放置和过期几何不触发布局；后续滚动、内容变化、视口换绑、禁用／退休与关根结束旧请求。
+- 新的 accessibility-reveal 实窗测试完整通过，包含两层带留白的视口、真实 Discarded、原生未完成／完成返回、编辑焦点及反向选区保持、禁用／隐藏／忽略／InputScope 边界、自有裁剪、未放置、无帧名称失效、新滚动意图、换绑、内容修订、显式 handler 和关根后保留动作拒绝。测试显式设置初始位置，避免把普通留白阅读锚点修正混入请求断言。
+- 现有 accessibility-content、accessibility-scene 和 focus 三个实窗回归通过，覆盖默认动作与标签合并、缓存重放／精确命中／内容失效，以及原键盘焦点显露路径。每个 Application 独立进程执行，四个最终结果均有无失败的 end 和 complete 事件；没有扩大到无关全仓测试。
+- 生产与新用例的源码检查、release 构建、native 严格编译、12 个 Scoop 文件格式和 diff 检查通过。Window、Window.asyncio、Surface、UI、Style、四套主题与 Component 的开发产物已按依赖更新，复用共享缓存。Window API 文档生成与查询确认 reveal 的可选回调、None 默认值及导入路径；两份规范、设计、计划、库／测试 README 和编程导航同步，96 个本地 Markdown 目标检查通过。临时 API 站点、应用包及逐次报告已清理，保留后续需要的启动脚本与缓存。
+
+本批只关闭已挂载节点的本地显露能力与原生协议回归。外部 AX／VoiceOver、未实例化条目的 Realize／Reveal 和其他平台继续按 S7／S10／S11 验收。

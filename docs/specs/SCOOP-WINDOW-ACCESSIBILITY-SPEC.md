@@ -38,7 +38,7 @@ setGeometry 在验证几何后为节点持有一个引用；原生投影在发�
 
 ## 3. 动作与同步边界
 
-SemanticActions 按实际实现提供 invoke、toggle、setValue(String)、focus(Boolean)、showContextMenu() 及 §3.1／§3.2 的文本与滚动动作；focus 的 true 请求聚焦，false 请求解除该目标焦点。每个回调返回 SemanticActionResult：Completed、InvalidArgument、Unsupported、Unavailable、Rejected 或 Busy。缺少回调时不公布对应原生能力；enabled=false 拒绝交互，readOnly=true 拒绝值写入及切换，但不禁止有实际内容的菜单。只有实际业务已执行才返回 Completed；Binding 拒绝不能提前改写投影，异步业务结束也不属于 Invoke 的完成条件。
+SemanticActions 按实际实现提供 invoke、toggle、setValue(String)、focus(Boolean)、showContextMenu() 及 §3.1～§3.3 的文本、滚动与显露动作；focus 的 true 请求聚焦，false 请求解除该目标焦点。每个回调返回 SemanticActionResult：Completed、InvalidArgument、Unsupported、Unavailable、Rejected 或 Busy。缺少回调时不公布对应原生能力；enabled=false 拒绝交互，readOnly=true 拒绝值写入及切换，但不禁止有实际内容的菜单。只有实际业务已执行才返回 Completed；Binding 拒绝不能提前改写投影，异步业务结束也不属于 Invoke 的完成条件。
 
 AppKit getter 不进入 managed 代码。同步动作使用创建 provider 时登记的 Reusable ForeignCallback，沿已有 Context 捕获规则恢复创建上下文，包括 asyncio 集成的 scope。它只在 owner、应用未退出、窗口 Open 且输入未被模态阻止、没有进行中的 Window 业务／watch 回调或另一动作时执行。重入时返回 Busy，不等待自己的队列、不 pump、不布局；UI 适配另检查宿主派发、scope 回调、render／布局和实际输入边界，见 UI 无障碍规范。普通 handler 仍沿既有异步派发路径。
 
@@ -67,6 +67,12 @@ SemanticActions 提供 `setScrollPosition((Double) -> SemanticActionResult)`、`
 AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinValue／MaxValue 及 Increment／Decrement；零范围的值及上限为 0。NSNumber 写入沿真实 setScrollPosition，不能借字符串编辑接口改变滚动。容器的 HorizontalScrollBar／VerticalScrollBar 按阅读顺序引用其直接语义子项中对应轴的首个可访问节点；内置滚动容器每轴提供一个节点。自绘滚动条可在视觉隐藏时继续保留逻辑轴和动作，缺少当前场景登记时没有可点击几何；不得用容器矩形代替滚动条的位置。
 
 滚动位置／范围变化发送对应值通知，方向或能力变化发送布局通知；原生 getter 仅读取投影，不推动布局、焦点、滚动或条的显示动画。零范围、不适用轴、disabled／hidden、重新绑定、关闭和客户端保留旧引用均沿实际状态处理。
+
+### 3.3 显露动作
+
+`SemanticActions.reveal: (() -> SemanticActionResult)? = None` 请求通过实际滚动路径显露本节点，不改变键盘焦点或文本选区。它不要求 ScrollBar 角色或可写文本；enabled、hidden、ignored、模态、owner 与退休检查仍适用。Completed 表示匹配当前内容的 Accepted 场景中目标已有非空可见区域，且所需的逐层滚动已呈现；只登记滚动请求或仍在等待后续 Accepted 帧时返回 Busy。没有布局、无法通过实际滚动路径显露或窗口不能呈现时，不返回 Completed。
+
+AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible”动作，BOOL handler 仍只把 Completed 映射为 YES；读取动作列表不调用业务代码。当前 SDK 虽从 macOS 26 提供 NSAccessibilityScrollToVisibleAction 常量，但未提供对应的公开 BOOL protocol 方法，因此不声明同名的私有 selector。动作对象使用 weak target，保留旧动作不能保活 Window；实际调用重新检查当前能力和节点寿命。滚动与最终几何继续发送原有发布通知，不增加轮询或嵌套事件循环。其他 provider 按其实际公开合同映射同一 reveal 回调。
 
 ## 4. AppKit 投影与验证
 

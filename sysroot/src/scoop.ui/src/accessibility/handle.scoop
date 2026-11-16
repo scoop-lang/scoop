@@ -16,6 +16,7 @@ public class SemanticsHandle internal constructor(
     private var declaredRelations = SemanticRelations()
     internal var focus: FocusTarget? = None
     internal var merged = false
+    internal var revealPlacement: SemanticRevealPlacement? = None
     private var merging = false
     internal val generation: ULong get() = resource.contentRevision
 
@@ -58,10 +59,11 @@ public class SemanticsHandle internal constructor(
                 actions.setScrollPosition,
                 actions.scrollBackward,
                 actions.scrollForward,
+                actions.reveal,
                 focus
             )
         ) {
-            case(None, None, None, None, None, None, None, None, None, None, None) -> true
+            case(None, None, None, None, None, None, None, None, None, None, None, None) -> true
             else -> false
         }
     }
@@ -152,6 +154,7 @@ public class SemanticsHandle internal constructor(
             return
         closed = true
         actions = SemanticActions()
+        revealPlacement = None
         declaredRelations = SemanticRelations()
         focus = None
         explicitParent = None

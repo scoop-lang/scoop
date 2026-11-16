@@ -26,6 +26,7 @@ internal class RootSemantics(
     private var drawing: SemanticScene? = None
     private var focusedArea: InputArea? = None
     private var focusActive = false
+    private val reveals = SemanticRevealController(root)
     private val observer = root.surface.input.observeActivity { focusChanged() }
 
     fun create(owner: MountedNode, role: SemanticRole, parent: SemanticsHandle?): SemanticsHandle {
@@ -38,6 +39,7 @@ internal class RootSemantics(
                 parent,
                 inherited
             )
+        handle.resource.update(handle.properties, semanticActions(handle, handle.actions))
         handles.add(handle)
         owner.semanticHandles.add(handle)
         structureChanged()
@@ -76,6 +78,7 @@ internal class RootSemantics(
             SemanticContent(ordered).apply()
             content = false
         }
+        reveals.check()
         var focused: AccessibilityNode? = None
         for (handle in handles) {
             if (handle.active && (handle.focus?.handle?.isFocusActive ?: false)) {
@@ -91,6 +94,7 @@ internal class RootSemantics(
     private fun focusChanged() {
         if (closed || !root.isOpen)
             return
+        reveals.check()
         val current = root.surface.focusedArea
         val active = current?.isFocusActive ?: false
         val same =
@@ -148,24 +152,34 @@ internal class RootSemantics(
         }
         return drawing!!
     }
-    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect) {
-        frame().capture(handle, canvas, rect)
+    fun reveal(handle: SemanticsHandle): SemanticActionResult = reveals.request(handle)
+
+    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect, path: Array<ScrollReveal>) {
+        frame().capture(handle, canvas, rect, path)
     }
-    fun capture(handle: SemanticsHandle, canvas: Canvas, path: Path) {
-        frame().capture(handle, canvas, path)
+    fun capture(handle: SemanticsHandle, canvas: Canvas, shape: Path, path: Array<ScrollReveal>) {
+        frame().capture(handle, canvas, shape, path)
     }
     fun complete(frame: FrameCompletion) {
         val scene = drawing
         drawing = None
         try {
-            if (closed || provider.isClosed || frame.submission != FrameSubmission.Accepted)
+            if (closed || provider.isClosed)
                 return
+            if (frame.submission != FrameSubmission.Accepted) {
+                reveals.discarded()
+                return
+            }
             for (handle in handles)
                 if (handle.active)
                     when (scene) {
                         case Some(val value) -> value.apply(handle)
-                        case None -> handle.resource.geometry = None
+                        case None -> {
+                            handle.resource.geometry = None
+                            handle.revealPlacement = None
+                        }
                     }
+            reveals.complete()
             dirty = true
             publish()
         } finally {
@@ -174,6 +188,7 @@ internal class RootSemantics(
     }
 
     fun retire(handle: SemanticsHandle) {
+        reveals.retire(handle)
         if (!closed && !provider.isClosed) {
             val parent = handle.parent
             for (child in handles) {
@@ -204,6 +219,7 @@ internal class RootSemantics(
         if (closed)
             return
         closed = true
+        reveals.close()
         val scene = drawing
         drawing = None
         focusedArea = None

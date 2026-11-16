@@ -74,9 +74,13 @@ private class RevealMove(
     var revision: ULong
 )
 
-/** Tracks only the actual position intents issued by this focus request. */
+/** Tracks the scroll bindings and position intents used by one reveal request. */
 internal class RevealAttempt {
     private val moves = ArrayList<RevealMove>()
+    fun watch(path: Array<ScrollReveal>) {
+        for (boundary in path)
+            remember(boundary, boundary.state.requestRevision)
+    }
     fun retainFor(node: MountedNode) {
         var index = 0L
         while (index < moves.size) {
@@ -109,15 +113,20 @@ internal class RevealAttempt {
     fun advance(scene: FocusScene, area: InputArea, region: Rect? = None): RevealProgress {
         if (!isCurrent)
             return RevealProgress.Cancelled
-        var rect =
+        val rect =
             when (region) {
                 case Some(val value) -> area.toWindow(value)
                 case None -> area.windowBounds
             } ?:
                 return RevealProgress.Unavailable
+        return advance(scene.path(area), rect, area.canFocus)
+    }
+    fun advance(route: Array<ScrollReveal>, bounds: Rect, visible: Boolean): RevealProgress {
+        if (!isCurrent)
+            return RevealProgress.Cancelled
+        var rect = bounds
         if (rect.width <= 0.0 || rect.height <= 0.0)
             return RevealProgress.Unavailable
-        val route = scene.path(area)
         var index = route.size
         while (index > 0L) {
             index -= 1L
@@ -136,7 +145,7 @@ internal class RevealAttempt {
             rect =
                 intersectReveal(rect, boundary.geometry.bounds) ?: return RevealProgress.Unavailable
         }
-        return if (area.canFocus)
+        return if (visible)
             RevealProgress.Ready
         else
             RevealProgress.Unavailable

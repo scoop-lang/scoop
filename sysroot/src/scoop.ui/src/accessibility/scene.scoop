@@ -13,7 +13,8 @@ private class SemanticPlacement(
     val generation: ULong,
     private val geometry: SemanticGeometry,
     private val order: Long,
-    private val hit: NativeGeometryHitTest
+    private val hit: NativeGeometryHitTest,
+    val reveal: SemanticRevealPlacement
 ): Closeable {
     private var closed = false
     init {
@@ -47,19 +48,19 @@ private class SemanticPlacement(
 internal class SemanticScene: Closeable {
     private val placements = HashMap<SemanticNodeId, SemanticPlacement>()
 
-    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect) {
+    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect, path: Array<ScrollReveal>) {
         check(handle)
         @Unsafe
         {
-            captureGeometry(canvas, rect).use { shape -> append(handle, shape) }
+            captureGeometry(canvas, rect).use { shape -> append(handle, shape, path) }
         }
     }
 
-    fun capture(handle: SemanticsHandle, canvas: Canvas, path: Path) {
+    fun capture(handle: SemanticsHandle, canvas: Canvas, shape: Path, path: Array<ScrollReveal>) {
         check(handle)
         @Unsafe
         {
-            captureGeometry(canvas, path).use { shape -> append(handle, shape) }
+            captureGeometry(canvas, shape).use { value -> append(handle, value, path) }
         }
     }
 
@@ -67,18 +68,31 @@ internal class SemanticScene: Closeable {
         requireUi(!placements.containsKey(handle.id), "semantic node was already placed this frame")
     }
 
-    private fun append(handle: SemanticsHandle, shape: CanvasGeometry) {
+    private fun append(handle: SemanticsHandle, shape: CanvasGeometry, path: Array<ScrollReveal>) {
         val visible =
             when (val value = shape.visibleBounds) {
                 case Some(val bounds) -> Some(semanticRect(bounds))
                 case None -> None
             }
-        val bounds = SemanticGeometry(semanticRect(shape.bounds), visible)
+        val rect = shape.bounds
+        val bounds = SemanticGeometry(semanticRect(rect), visible)
+        val revealed =
+            when (visible) {
+                case Some(val value) -> value.size.width > 0.0 && value.size.height > 0.0
+                case None -> false
+            }
         @Unsafe
         {
             shape.withNativeHitTest {
                 hit ->
-                val placement = SemanticPlacement(handle.generation, bounds, placements.size, hit)
+                val placement =
+                    SemanticPlacement(
+                        handle.generation,
+                        bounds,
+                        placements.size,
+                        hit,
+                        SemanticRevealPlacement(handle.generation, path, rect, revealed)
+                    )
                 try {
                     placements[handle.id] = placement
                 } catch (error: Throwable) {
@@ -93,11 +107,13 @@ internal class SemanticScene: Closeable {
         when (val placement = placements[handle.id]) {
             case Some(val value) -> if (value.generation == handle.generation) {
                 value.apply(handle.resource)
+                handle.revealPlacement = Some(value.reveal)
                 return
             }
             case None -> {}
         }
         handle.resource.geometry = None
+        handle.revealPlacement = None
     }
 
     public override fun close() {
