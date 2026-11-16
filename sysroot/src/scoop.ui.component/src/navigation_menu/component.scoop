@@ -87,7 +87,8 @@ public class NavigationMenu public constructor(
                                     button.variant,
                                     button.size,
                                     button.group,
-                                    button.labelTarget
+                                    button.labelTarget,
+                                    button.semantics
                                 ),
                                 link.active,
                                 false

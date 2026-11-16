@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.text.*
 import scoop.ui.style.ThemeSource
+import scoop.window.accessibility.*
 
 public enum LabelText {
     Plain(String, SpanStyle?), Styled(StyledText)
@@ -17,7 +18,8 @@ public class LabelProps public constructor(
     public val inlines: Array<InlineView> = [],
     public val theme: ThemeSource? = None,
     public val baseStyle: TextStyle? = None,
-    public val underline: Color? = None
+    public val underline: Color? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 /** A normal component; text measurement and ownership belong to the public ParagraphHost. */
@@ -107,11 +109,32 @@ private class LabelInk(private val props: Props<LabelInkProps>, scope: Component
 >(scope) {
     private var previous: LabelInkProps? = None
     private val paragraph = scope.resource { ParagraphHost() }
+    private val semantics = createComponentSemantics(scope, SemanticRole.Text)
+    private var plainText = ""
     private var fonts = props.value.input.fonts ?: scope.defaultFonts
+    init {
+        scope.routeSemanticsChildren(semantics)
+    }
     public override fun update(): UiInvalidation {
         val previousFonts = fonts
         fonts = props.value.input.fonts ?: scope.defaultFonts
         val value = props.value
+        when (semantics) {
+            case Some(val handle) -> {
+                val contentChanged =
+                    when (previous) {
+                        case Some(val old) -> old.content !== value.content
+                        case None -> true
+                    }
+                if (contentChanged)
+                    plainText = value.content.toPlainText()
+                handle.update(
+                    value.input.semantics.properties(value = Some(plainText), readOnly = true),
+                    relations = value.input.semantics.relations
+                )
+            }
+            case None -> {}
+        }
         val fontChanged = previousFonts !== fonts
         val changed =
             fontChanged ||
@@ -126,11 +149,19 @@ private class LabelInk(private val props: Props<LabelInkProps>, scope: Component
                         )
                     case None -> true
                 }
+        val paintChanged =
+            when (previous) {
+                case Some(val old) -> old.input.underline != value.input.underline
+                case None -> true
+            }
         previous = Some(value)
         return if (changed)
             UiInvalidation.Layout
         else
-            UiInvalidation.Scene
+            if (paintChanged)
+                UiInvalidation.Scene
+            else
+                UiInvalidation.None
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement
@@ -148,6 +179,13 @@ private class LabelInk(private val props: Props<LabelInkProps>, scope: Component
         return LayoutResult(measured.metrics, measured, { measured.close() })
     }
     public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         paragraph.scene(context, measured)
         when (props.value.input.underline) {
             case Some(val color) -> {

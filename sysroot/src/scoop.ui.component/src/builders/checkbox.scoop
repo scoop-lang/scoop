@@ -12,6 +12,7 @@ public class CheckboxBuilder internal constructor() {
     public var key: ViewKey = ViewKey.Position
     public var focus: FocusOptions = FocusOptions()
     public var labelTarget: FieldTarget? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
 
     public fun style(configure: CheckboxStyleBuilder.() -> Unit): Unit {
         style = style.copy(configure)
@@ -21,5 +22,5 @@ public class CheckboxBuilder internal constructor() {
         focus = focus.copy(configure)
     }
     internal fun snapshot(checked: Binding<CheckState>): CheckboxProps =
-        CheckboxProps(checked, enabled, style, theme, focus, invalid, labelTarget)
+        CheckboxProps(checked, enabled, style, theme, focus, invalid, labelTarget, semantics)
 }

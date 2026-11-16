@@ -14,8 +14,8 @@ internal class SemanticSceneRoot(probe: SemanticSceneProbe, scope: ComponentScop
         element(
             { mount -> SemanticCanvas(probe, mount) },
             [
-                cachedScene(element({ mount -> SemanticLeaf(probe, mount) })),
-                cachedScene(element({ mount -> SemanticPath(probe, mount) }))
+                cachedScene(component({ mount -> SemanticLeaf(probe, mount) })),
+                cachedScene(component({ mount -> SemanticPath(probe, mount) }))
             ]
         )
     public override fun render(): View = content
@@ -78,15 +78,25 @@ private class SemanticCanvas(private val probe: SemanticSceneProbe, scope: Compo
     }
 }
 
-private class SemanticPath(private val probe: SemanticSceneProbe, scope: ComponentScope): Element<
-    Unit
->(scope) {
+private class SemanticPath(private val probe: SemanticSceneProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val semantic = scope.semantics(SemanticRole.Button)
     private val paintKey = PaintKey()
     init {
         semantic.update(SemanticProperties(name = Some("Path"), automationId = Some("path")))
         probe.pathSemantic = Some(semantic)
     }
+    private val content = element({ mount -> SemanticPathInk(probe, semantic, paintKey, mount) })
+    public override fun render(): View = content
+}
+
+private class SemanticPathInk(
+    private val probe: SemanticSceneProbe,
+    private val semantic: SemanticsHandle,
+    private val paintKey: PaintKey,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation = UiInvalidation.None
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -107,9 +117,9 @@ private class SemanticPath(private val probe: SemanticSceneProbe, scope: Compone
     }
 }
 
-private class SemanticLeaf(private val probe: SemanticSceneProbe, scope: ComponentScope): Element<
-    Unit
->(scope) {
+private class SemanticLeaf(private val probe: SemanticSceneProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val semantic = scope.semantics(SemanticRole.Button)
     private val label = scope.semantics(SemanticRole.Text)
     private val area = scope.createArea(focusable = true)
@@ -131,6 +141,18 @@ private class SemanticLeaf(private val probe: SemanticSceneProbe, scope: Compone
         assertFailsWith<IllegalArgumentException> { other.bindFocus(Some(target)) }
         other.close()
     }
+    private val content =
+        element({ mount -> SemanticLeafInk(probe, semantic, area, paintKey, mount) })
+    public override fun render(): View = content
+}
+
+private class SemanticLeafInk(
+    private val probe: SemanticSceneProbe,
+    private val semantic: SemanticsHandle,
+    private val area: InputArea,
+    private val paintKey: PaintKey,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation = UiInvalidation.None
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -140,6 +162,9 @@ private class SemanticLeaf(private val probe: SemanticSceneProbe, scope: Compone
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area, bounds)
         context.semantics(semantic, bounds)
+        assertFailsWith<IllegalArgumentException> {
+            context.semantics(probe.pathSemantic!!, bounds)
+        }
         assertFailsWith<IllegalArgumentException> { context.semantics(semantic, bounds) }
         assertFailsWith<IllegalStateException> { semantic.update(SemanticProperties()) }
         assertFailsWith<IllegalStateException> { scope.semantics(SemanticRole.Text) }

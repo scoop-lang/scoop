@@ -57,6 +57,12 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeFlag(pointer, field) != 0
         }
     }
+    public val numericValue: Long get() {
+        @Unsafe
+        {
+            return nativeNumber(pointer)
+        }
+    }
     public fun press(): Boolean {
         @Unsafe
         {
@@ -227,6 +233,9 @@ private fun nativeText(node: Ptr<Unit>, field: Int, text: Ptr<UInt8>?, length: L
 
 @Extern(name = "scoop_ui_ax_flag")
 private fun nativeFlag(node: Ptr<Unit>, field: Int): Int
+
+@Extern(name = "scoop_ui_ax_number")
+private fun nativeNumber(node: Ptr<Unit>): Long
 
 @Extern(name = "scoop_ui_ax_press")
 private fun nativePress(node: Ptr<Unit>): Int

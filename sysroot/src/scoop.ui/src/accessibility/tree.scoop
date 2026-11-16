@@ -48,19 +48,21 @@ internal fun inheritedSemantics(node: MountedNode): SemanticsHandle? {
 
 internal fun checkSemanticParent(node: MountedNode, parent: SemanticsHandle?) {
     when (parent) {
-        case Some(val handle) -> {
-            handle.checkOpen()
-            var ancestor: MountedNode? = Some(node)
-            while (true) {
-                val current = ancestor ?: break
-                if (current === handle.owner)
-                    return
-                ancestor = current.parent
-            }
-            throw IllegalArgumentException(
-                Some("semantic parent must belong to this mount or an ancestor")
-            )
-        }
+        case Some(val handle) -> checkSemanticOwner(node, handle)
         case None -> {}
     }
+}
+
+internal fun checkSemanticOwner(node: MountedNode, handle: SemanticsHandle) {
+    handle.checkOpen()
+    var ancestor: MountedNode? = Some(node)
+    while (true) {
+        val current = ancestor ?: break
+        if (current === handle.owner)
+            return
+        ancestor = current.parent
+    }
+    throw IllegalArgumentException(
+        Some("semantic resource must belong to this mount or an ancestor")
+    )
 }

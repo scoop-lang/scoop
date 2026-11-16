@@ -13,6 +13,7 @@ public class SemanticsHandle internal constructor(
     private var closed = false
     internal var properties = SemanticProperties()
     internal var actions = SemanticActions()
+    private var declaredRelations = SemanticRelations()
     internal var focus: FocusTarget? = None
     internal var merged = false
     private var merging = false
@@ -96,10 +97,14 @@ public class SemanticsHandle internal constructor(
         resource.update(
             semanticProperties(properties, merged),
             semanticActions(this, actions),
-            relations
+            if (declaredRelations == relations)
+                resource.relations
+            else
+                relations
         )
         this.properties = properties
         this.actions = actions
+        declaredRelations = relations
         if (exposure || candidate != mergeCandidate)
             controller.contentChanged()
         else
@@ -144,6 +149,7 @@ public class SemanticsHandle internal constructor(
             return
         closed = true
         actions = SemanticActions()
+        declaredRelations = SemanticRelations()
         focus = None
         explicitParent = None
         parent = None

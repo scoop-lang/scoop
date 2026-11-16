@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal enum ActionBehavior {
     Passive, Press(PressControl, () -> Unit, FocusOptions)
@@ -17,7 +18,9 @@ internal class ActionInkProps(
     val behavior: ActionBehavior,
     val group: GroupPosition? = None,
     val labelTarget: FieldTarget? = None,
-    val actionable: Boolean = true
+    val actionable: Boolean = true,
+    val semantics: SemanticsHandle? = None,
+    val semanticOptions: ComponentSemantics = ComponentSemantics()
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
@@ -51,6 +54,21 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                 if (panelPresent(value.labelTarget) && !panelPresent(field))
                     field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
+                value.semantics?.update(
+                    value.semanticOptions.properties(
+                        enabled = value.visual.interaction.enabled && value.actionable
+                    ),
+                    SemanticActions(
+                        invoke =
+                            Some(
+                                {
+                                    action();
+                                    SemanticActionResult.Completed
+                                }
+                            )
+                    ),
+                    value.semanticOptions.relations
+                )
             }
             case Passive -> {}
         }
@@ -157,6 +175,10 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                 context.layoutDirection
             )
         val painter = painters!!.get(value.theme)
+        when (val handle = value.semantics) {
+            case Some(val semantic) -> context.semantics(semantic, geometry.bounds)
+            case None -> {}
+        }
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)
         context.draw {

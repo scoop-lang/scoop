@@ -66,7 +66,8 @@ internal fun actionContent(content: ButtonContent, appearance: ActionContentStyl
                     if (label.underline == None && appearance.underline)
                         Some(appearance.text.color)
                     else
-                        label.underline
+                        label.underline,
+                    label.semantics
                 ),
                 { current, mount -> Label(current, scope = mount) }
             )

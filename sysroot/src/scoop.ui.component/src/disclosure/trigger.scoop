@@ -44,7 +44,8 @@ internal fun disclosureTrigger(
                                 label.inlines,
                                 label.theme,
                                 label.baseStyle,
-                                label.underline
+                                label.underline,
+                                label.semantics
                             )
                         )
                         else -> input.content

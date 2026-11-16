@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.InlineView
+import scoop.window.accessibility.SemanticRole
 
 public enum ButtonContent {
     Label(LabelProps), Custom(View), Resolved((ActionContentStyle) -> View)
@@ -21,7 +22,8 @@ public class ButtonProps public constructor(
     public val variant: ButtonVariant = ButtonVariant.Default,
     public val size: ButtonSize = ButtonSize.Default,
     public val group: GroupPosition? = None,
-    public val labelTarget: FieldTarget? = None
+    public val labelTarget: FieldTarget? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Button public constructor(
@@ -33,6 +35,17 @@ public class Button public constructor(
     private val click: () -> Unit = { props.value.onClick() }
     private val control =
         PressControl(scope, PressOptions(props.value.enabled), props.value.focus, click)
+    private val semantics = createComponentSemantics(scope, SemanticRole.Button)
+    init {
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.bindFocus(Some(control.focus))
+                handle.mergeLabels = true
+                scope.routeSemanticsChildren(Some(handle))
+            }
+            case None -> {}
+        }
+    }
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -60,7 +73,9 @@ public class Button public constructor(
                 visual,
                 ActionBehavior.Press(control, click, input.focus),
                 input.group,
-                input.labelTarget
+                input.labelTarget,
+                semantics = semantics,
+                semanticOptions = input.semantics
             ),
             { current, mount -> ActionInk(current, scope = mount) },
             [

@@ -19,7 +19,7 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 ## 1. 定位与依赖
 
-生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。Darwin、Windows、Linux GNU 使用同一份上层源码，具体批次的构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
+控件行为、布局与绘制使用共享 Scoop 源码，不包含 OS native 代码或运行时平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。accessibility 资源的内部工厂按下层实际提供的目标能力选择源文件：Darwin 创建真实 UI 语义资源，尚无 provider 的目标不创建原生资源、不声明动作成功。Windows／Linux provider 仍为本轮待交付范围。Darwin、Windows、Linux GNU 的具体构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
 
 `scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／math／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
 
@@ -30,6 +30,19 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 公共控件实现覆盖 macOS 与 Linux GNU。Linux 的 Wayland／X11 共用相同的布局、交互、主题和文本编辑组件，由 window／surface 提供平台输入与 GLES 呈现；编辑快捷键遵守 UI 规范中的 Linux Ctrl 约定。Windows 接入后续单独推进。普通控件测试使用本 Cone 的 scoop.test，原有 macOS 范围见 [UI 实施记录](../ui/PROGRESS.md)，Linux 范围见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。
 
 Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 所需能力的扩充设计见[基础交互能力设计](../ui/foundations/DESIGN.md)。各项按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收，当前公开合同以本文件及 UI 规范为准；Code Block 不在本次扩充设计范围内。
+
+### 1.1 默认无障碍语义
+
+Label、Button、Checkbox、Input／Textarea 的 Props 与 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
+
+- Label 使用 Text，正文取 StyledText.toPlainText，包括行内 alternateText；行内交互子控件保留独立语义。名称覆盖不修改正文。正文投影按不可变内容身份复用，纯语义覆盖变化不重新测量段落。
+- Button 使用 Button，并合并自己声明的纯静态 Label 后代；名称优先显式覆盖、labelledBy，最后内容标签。Custom／Resolved 中的独立交互内容不被合并。Invoke 调用现有最新 onClick，不模拟指针或隐式获得焦点；仅换 handler 仍可复用渲染。
+- Checkbox 使用 Checkbox，checked 映射 Off／On／Mixed，Toggle 使用原有 nextCheckState 与 Binding；写入被拒绝时返回 Rejected，并继续报告实际值，不预先翻转语义状态。Boolean、自有状态及组合入口传递同一覆盖值。
+- Input／Textarea 在拥有 TextEditHost 的绘制 Element 内持有 TextField 节点，正常 update 调用 updateTextEditor；正文、选区、焦点、只读、受保护用途、策略、undo 与菜单沿宿主合同。placeholder 不作为名称。既有 description 在没有显式 description 时作为说明，invalid 时同时作为缺省错误文字；显式空说明／错误可覆盖。装饰性的重复说明不再额外进入阅读树，行内／子控件仍独立。
+
+语义资源在构造时创建并由 scope 自动释放，属性由正常 update 发布；场景只登记真实表面／文本区域，使用 UI 的 Accepted 几何合同。Button／Checkbox 的后代绘制 Element 可登记由祖先 Component 拥有的 handle，真实 FocusTarget 仍由原挂载拥有。不为语义另建 Press、输入区域、焦点目标或文本模型。复用 LabelProps／ButtonProps／InputProps／TextareaProps 的包装和显示比较必须传递并比较覆盖值，不能把纯名称或关系更新吞掉。
+
+其他控件、表单关系、滚动语义与完整平台验收继续按[交互与无障碍计划](../ui/interaction-polish/PLAN.md)推进；本节不把基础控件接入等同于全控件或外部辅助技术验收。
 
 ## 2. 控件与使用入口
 

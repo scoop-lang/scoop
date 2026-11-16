@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.surface.Animatable
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum CheckState {
     Unchecked, Checked, Indeterminate
@@ -34,24 +35,47 @@ public class CheckboxProps public constructor(
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions(),
     public val invalid: Boolean = false,
-    public val labelTarget: FieldTarget? = None
+    public val labelTarget: FieldTarget? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Checkbox public constructor(
     private val props: Props<CheckboxProps>,
     scope: ComponentScope
 ): Component(scope) {
+    private val activate: () -> Unit =
+        {
+            val binding = props.value.checked
+            binding.value = nextCheckState(binding.value)
+        }
     private val control =
-        PressControl(
-            scope,
-            PressOptions(props.value.enabled, false),
-            props.value.focus,
-            {
-                val binding = props.value.checked;
-                binding.value = nextCheckState(binding.value)
+        PressControl(scope, PressOptions(props.value.enabled, false), props.value.focus, activate)
+    private val semantics = createComponentSemantics(scope, SemanticRole.Checkbox)
+    private val toggle: () -> SemanticActionResult =
+        {
+            val input = props.value
+            if (!input.enabled)
+                SemanticActionResult.Unavailable
+            else {
+                val binding = input.checked
+                val expected = nextCheckState(binding.value)
+                activate()
+                if (binding.value == expected)
+                    SemanticActionResult.Completed
+                else
+                    SemanticActionResult.Rejected
             }
-        )
+        }
     private val themes = ThemeAccess(scope)
+    init {
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.bindFocus(Some(control.focus))
+                scope.routeSemanticsChildren(Some(handle))
+            }
+            case None -> {}
+        }
+    }
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -70,10 +94,9 @@ public class Checkbox public constructor(
                 visual,
                 input.style.options(theme, visual, checked != CheckState.Unchecked),
                 input.style.padding ?: Insets.all(theme.tokens.spacing.small),
-                {
-                    val binding = props.value.checked
-                    binding.value = nextCheckState(binding.value)
-                }
+                activate,
+                semantics,
+                toggle
             ),
             { current, mount -> CheckboxInk(current, scope = mount) }
         )
@@ -123,7 +146,8 @@ internal fun makeOwnedCheckbox(
             builder.theme,
             builder.focus,
             builder.invalid,
-            builder.labelTarget
+            builder.labelTarget,
+            builder.semantics
         ),
         { props, mount -> OwnedCheckbox(props, scope = mount) },
         builder.key
@@ -137,7 +161,8 @@ private class OwnedCheckboxProps(
     val theme: ThemeSource?,
     val focus: FocusOptions,
     val invalid: Boolean,
-    val labelTarget: FieldTarget?
+    val labelTarget: FieldTarget?,
+    val semantics: ComponentSemantics
 )
 
 private class OwnedCheckbox(
@@ -153,6 +178,7 @@ private class OwnedCheckbox(
             this.focus = this @OwnedCheckbox.props.value.focus
             this.invalid = this @OwnedCheckbox.props.value.invalid
             this.labelTarget = this @OwnedCheckbox.props.value.labelTarget
+            this.semantics = this @OwnedCheckbox.props.value.semantics
         }
 }
 
@@ -164,7 +190,9 @@ private class CheckboxInkProps(
     val visual: InteractionVisual,
     val options: CheckboxOptions,
     val padding: Insets,
-    val activate: () -> Unit
+    val activate: () -> Unit,
+    val semantics: SemanticsHandle?,
+    val toggle: () -> SemanticActionResult
 )
 
 private class CheckboxInk(
@@ -200,6 +228,21 @@ private class CheckboxInk(
         control.area.scope.enabled = value.input.enabled
         control.focus.options = value.input.focus
         field!!.update(value.input.labelTarget, value.input.enabled, value.activate)
+        value.semantics?.update(
+            value.input.semantics.properties(
+                enabled = value.input.enabled,
+                checked =
+                    Some(
+                        when (value.checked) {
+                            case Unchecked -> SemanticChecked.Off
+                            case Checked -> SemanticChecked.On
+                            case Indeterminate -> SemanticChecked.Mixed
+                        }
+                    )
+            ),
+            SemanticActions(toggle = Some(value.toggle)),
+            value.input.semantics.relations
+        )
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,
@@ -263,6 +306,13 @@ private class CheckboxInk(
     }
     public override fun scene(context: SceneContext, bounds: Rect) {
         val value = props.value
+        when (val handle = value.semantics) {
+            case Some(val semantic) -> context.semantics(
+                semantic,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         val visual =
             CheckboxVisual(
                 when (value.checked) {

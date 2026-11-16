@@ -61,15 +61,15 @@ public class SceneContext internal constructor(
     }
     /** Captures semantic geometry in the same transformed and clipped scene. */
     public fun semantics(handle: SemanticsHandle, bounds: Rect) {
-        checkOwner(handle.owner)
-        handle.checkOpen()
+        checkActive()
+        checkSemanticOwner(node, handle)
         handle.controller.capture(handle, frame.canvas, bounds)
         recorder?.add(SceneCommand.Semantics(handle, bounds))
     }
     /** Captures a precise path; like path input placement, this scene is not cached. */
     public fun semantics(handle: SemanticsHandle, shape: Path) {
-        checkOwner(handle.owner)
-        handle.checkOpen()
+        checkActive()
+        checkSemanticOwner(node, handle)
         pass.cacheable = false
         handle.controller.capture(handle, frame.canvas, shape)
     }

@@ -10,4 +10,6 @@ scoop test sysroot/src/scoop.ui/tests-cones/accessibility-scene --release
 
 重叠的矩形与带孔 Path 使用真实屏幕坐标调用 accessibilityHitTest，验证路径孔洞、裁剪边界、Rect 缓存重放、Path 每帧捕获、未放置及名称失效后的撤下，以及场景层叠重排后仍保留原生节点身份。候选位置在 Accepted 前不可见，Discarded 同时保留矩形与路径的旧快照。
 
+两种几何由持有语义资源的 Component 的后代 Element 登记，焦点继续绑定原 Component 的 InputArea；同时验证其他分支／后代资源和重复登记拒绝。缓存重放不改变这套归属规则。
+
 `--no-run` 只构建可执行文件，不能据此记录实窗通过。该用例不代替外部 AX 客户端和 VoiceOver 验收。

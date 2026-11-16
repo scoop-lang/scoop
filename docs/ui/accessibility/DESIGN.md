@@ -96,7 +96,7 @@ provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘�
 
 单独关闭 UI handle 时保留仍由其他 scope／handle 拥有的子节点，先将其连接到原父级再退休该身份；角色替换不会误退休仍存活的子控件。真正卸载沿挂载树关闭相应资源。`bindFocus` 借用同一挂载的实际 FocusTarget，查询不获得焦点，目标退休时撤下对应的焦点事实；同步焦点动作的完成仍以实际状态为准。
 
-几何登记作为可记录、可重放的 SceneCommand 参与现有场景缓存。它不创建输入目标，也不让每个控件安装 `onFrameComplete` 回调而使整个场景失去缓存能力。
+几何登记作为可记录、可重放的 SceneCommand 参与现有场景缓存。负责绘制的后代 Element 可登记逻辑祖先持有的 handle，使组合控件沿用原 Component 的实际焦点与资源归属；兄弟、后代或跨根资源拒绝，单节点每帧仍只登记一次。它不创建输入目标，也不让每个控件安装 `onFrameComplete` 回调而使整个场景失去缓存能力。
 
 ### 4.2 内容合并与隐藏
 
@@ -109,6 +109,8 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 ### 4.3 内置控件
 
 控件 Props 增加统一的小型语义覆盖值，允许名称、说明、automationId 和必要关系覆盖；角色、动作和核心状态由实际控件行为提供。覆盖值不允许把不可编辑文本宣称为可编辑，或绕过 disabled 状态执行动作。
+
+当前 Label、Button、Checkbox、Input／Textarea 使用 `ComponentSemantics`，Props 与 builder 均提供 semantics；实际接入及包装透传合同见 [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。Button 的纯标签合并、Checkbox 的真实 Binding 结果、输入框的模型／选区／保护用途沿前述公共语义路径。Field 关系及其余控件仍按统一计划继续，原生方法、实窗和外部辅助技术分别记录验证状态。
 
 | 控件组 | 默认语义与接入 |
 | --- | --- |

@@ -68,7 +68,8 @@ internal class ConversationSurface(
                         value.inlines,
                         value.theme,
                         value.baseStyle,
-                        value.underline
+                        value.underline,
+                        value.semantics
                     )
                 )
                 else -> input.content
@@ -152,7 +153,8 @@ internal fun conversationCaption(
                     value.inlines,
                     value.theme,
                     value.baseStyle,
-                    value.underline
+                    value.underline,
+                    value.semantics
                 )
             )
             else -> content

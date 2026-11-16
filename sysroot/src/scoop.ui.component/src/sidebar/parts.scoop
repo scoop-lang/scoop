@@ -119,7 +119,8 @@ private fun sidebarGroupDirection(content: PanelContent, direction: TextDirectio
                 value.inlines,
                 value.theme,
                 value.baseStyle,
-                value.underline
+                value.underline,
+                value.semantics
             )
         )
         case Custom(_) -> content

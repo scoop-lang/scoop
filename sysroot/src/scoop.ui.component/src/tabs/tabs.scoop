@@ -65,7 +65,8 @@ public class Tabs<T: Equals<T>> public constructor(
                                 label.inlines,
                                 label.theme,
                                 label.baseStyle,
-                                label.underline
+                                label.underline,
+                                label.semantics
                             )
                         )
                         else -> configured

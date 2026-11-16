@@ -175,7 +175,8 @@ internal fun navigationLabel(
                 label.inlines,
                 label.theme,
                 label.baseStyle,
-                label.underline
+                label.underline,
+                label.semantics
             )
         )
         else -> content

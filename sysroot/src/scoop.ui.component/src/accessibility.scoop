@@ -1,0 +1,43 @@
+package scoop.ui.component
+
+import scoop.window.accessibility.*
+
+/** Naming and relationships never override the control's actual behavior or state. */
+public struct ComponentSemantics(
+    val name: String? = None,
+    val description: String? = None,
+    val automationId: String? = None,
+    val error: String? = None,
+    val relations: SemanticRelations = SemanticRelations(),
+    val hidden: Boolean = false,
+    val ignored: Boolean = false
+)
+
+internal fun ComponentSemantics.properties(
+    value: String? = None,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    checked: SemanticChecked? = None,
+    description: String? = None,
+    error: String? = None
+): SemanticProperties =
+    SemanticProperties(
+        name = this.name,
+        description =
+            when (val overrideValue = this.description) {
+                case Some(_) -> overrideValue
+                case None -> description
+            },
+        automationId = this.automationId,
+        value = value,
+        enabled = enabled,
+        readOnly = readOnly,
+        checked = checked,
+        hidden = this.hidden,
+        error =
+            when (val overrideValue = this.error) {
+                case Some(_) -> overrideValue
+                case None -> error
+            },
+        ignored = this.ignored
+    )

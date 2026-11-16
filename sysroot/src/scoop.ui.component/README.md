@@ -1,5 +1,24 @@
 # 自绘基础控件
 
+Label、Button、Checkbox、Input／Textarea 已接入默认语义。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored；角色、checked、禁用、只读、文本和动作仍取实际控件。当前原生资源使用 macOS provider，其他平台及其余控件按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续接入。
+
+```kotlin
+import scoop.ui.View
+import scoop.ui.component.*
+
+fun saveButton(onSave: () -> Unit): View =
+    button("保存", onSave) {
+        semantics = ComponentSemantics(
+            description = Some("保存当前文档"),
+            automationId = Some("save")
+        )
+    }
+```
+
+Button 默认从自己可合并的静态 Label 取得名称，独立交互后代继续可访问；显式 name（包括空串）优先于 labelledBy 和内容标签。Label 正文保留 StyledText 的行内 alternateText，覆盖名称不替换正文。Checkbox 的原生切换使用真实 Binding，拒绝写入不会先翻转语义状态。ButtonGroup、InputGroup、Command、Combobox、Sidebar 和原生文件按钮的相关包装继续传递覆盖值。
+
+输入控件直接复用 TextEditHost 的正文、选区、策略、撤销、焦点与菜单，placeholder 不作为 label；既有 description 提供默认说明，invalid 时也提供默认错误文字，显式覆盖可替换或清空它们。受保护输入不公布正文／长度／选区。用例和当前验证边界见[内置控件语义测试](tests-cones/accessibility/README.md)；字段关系和其他控件继续按计划推进。
+
 原生桌面包装提供 `nativeApplicationMenuBar`、`nativeWindowMenuBar`、`nativeMenuButton` 和 `nativeContextMenu`，使用独立的 `NativeMenuContent`、稳定 key 与 Binding。应用菜单在 `ApplicationComponent.render` 中声明；窗口菜单包装正文。菜单值和回调更新不依赖绘制，popup 使用一次性 session；`NativePopupHandle.requestOpen()` 发起新请求，取消不会自动重开。标准编辑角色沿当前输入范围进入现有文本编辑器。详见[原生菜单规范](../../../docs/specs/SCOOP-UI-NATIVE-MENUS-SPEC.md)。
 
 `windowChrome` 区分视觉 clip、原生 windowShape 与 inputShape，按实际窗框和系统按钮几何布局。`windowDragRegion`、`windowResizeRegion`、`windowControls` 复用原生移动／缩放和系统按钮能力；关闭保留 `CloseRequested` 退出确认。`scope.nativeToolWindowController()`、`nativeDialogController<T>(target)`、`fileDialogController()` 管理明确拥有的窗口／session，普通 `UiHost.attach` 继续借用 Window；`nativeOpenFileButton`／`nativeSaveFileButton` 复用 Button 并返回类型化 Path。模态窗口与文件面板的原生创建失败通过现有结果回调返回 Failed，清除 pending 后仍可继续操作；open 返回 true 只表示请求已处理，应检查实际结果。参数、UI 工厂及业务回调异常沿所属 UI 错误边界报告。能力差异和资源顺序见[窗框规范](../../../docs/specs/SCOOP-UI-WINDOW-CHROME-SPEC.md)与[窗口控制器规范](../../../docs/specs/SCOOP-UI-NATIVE-WINDOWS-SPEC.md)。

@@ -70,11 +70,19 @@ int32_t scoop_ui_ax_text(void *pointer, int32_t field, const uint8_t *bytes,
   case 4:
     value = [node accessibilitySelectedText];
     break;
+  case 5:
+    value = [node accessibilityHelp];
+    break;
   default:
     return 0;
   }
   NSString *expected = text(bytes, length);
   return value == expected || [value isEqual:expected];
+}
+
+int64_t scoop_ui_ax_number(void *pointer) {
+  id value = [(__bridge id)pointer accessibilityValue];
+  return [value isKindOfClass:[NSNumber class]] ? [value longLongValue] : -1;
 }
 
 int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {

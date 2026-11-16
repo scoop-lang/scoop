@@ -69,11 +69,13 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 属性与结构在普通逻辑更新结束后发布，直接更新 handle 也沿现有宿主队列生效，不要求 drawable。场景登记参与缓存重放，仅在 Accepted 后发布当前 transform／clip 的几何；Discarded 保留仍匹配的旧几何。名字或值改变会使旧几何不可用，后续匹配场景恢复它。`geometry=None` 与已布局但被裁剪的 `visibleBounds=None` 分开。
 
+负责绘制的后代 Element 也可登记逻辑祖先持有的 handle，供组合控件沿用原 Component 的资源与实际 FocusTarget。兄弟、后代或跨根资源不允许登记；同一节点每帧仍只登记一次，几何登记不会移动它的语义父节点或资源归属。
+
 `context.semantics(handle, shape: Path)` 可登记非矩形语义区域；它和 Path 输入登记一样使当前场景不缓存，调用后可以关闭 Path。Rect 登记保持可缓存。两者都捕获原生只读命中快照，Accepted 后按实际场景层叠顺序查询，路径孔洞、祖先裁剪和窗口视口共同生效；阅读顺序不随层叠变化。位置失效时同时撤下命中，丢弃帧与关闭释放候选引用。按点定位不提供未经实际输入验证的激活点。
 
 动作使用 `SemanticActions` 的实际回调和结果，经过当前输入边界及 Surface 错误处理；状态更新先完成普通 UI 更新再返回。`bindFocus` 借用本挂载的 FocusTarget，发布实际焦点，并在没有自定义 focus handler 时提供现有 FocusHandle 的入口；尚待显露的焦点请求返回 Busy。关闭父语义 handle 保留独立拥有的子节点，作用域卸载或根关闭退休对应资源；角色替换与根重新附着使用新身份。
 
-`handle.update(properties, actions, relations = SemanticRelations(labelledBy = [label.id]))` 可引用同一活动根内的标签；同一值还提供 describedBy、errorMessages 和 controls。显式名称／说明／错误（包括空串）优先于关系，标签修改只更新实际依赖者，不必重新 render 控件。handle.relations 返回清理后的当前引用，目标关闭不会将关系转接到相同位置的新节点；bindFocus 保留该当前值。标签名称变化也使旧几何失效，Accepted 场景使用底层内容版本核对，避免迟到场景恢复不匹配的位置。
+`handle.update(properties, actions, relations = SemanticRelations(labelledBy = [label.id]))` 可引用同一活动根内的标签；同一值还提供 describedBy、errorMessages 和 controls。显式名称／说明／错误（包括空串）优先于关系，标签修改只更新实际依赖者，不必重新 render 控件。handle.relations 返回清理后的当前引用，目标关闭不会将关系转接到相同位置的新节点；update 的关系声明未变化时沿用已清理的当前值，bindFocus 也不重新提交旧引用。更换关系声明仍要求目标活动且属于同根。标签名称变化也使旧几何失效，Accepted 场景使用底层内容版本核对，避免迟到场景恢复不匹配的位置。
 
 `handle.mergeLabels = true` 按语义阅读顺序合并容器内的纯 Text 叶子，默认 false。只有无动作、无焦点绑定、无公开选区、无语义子项且非受保护的文本参与合并；普通分组、链接、可聚焦或可选择文本与嵌套合并容器保持独立。显式 ignored 包装允许继续合并后代，hidden 子树不参与。名称按显式 name、labelledBy、内容文字依次回退；显式空串也保留优先级，合并引用不混入 handle.relations。动态增添动作、焦点或选区后，同一次逻辑发布恢复文本自身的导航和操作，重排／合并／恢复不更换身份，也不要求 drawable。
 

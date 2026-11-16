@@ -37,7 +37,8 @@ public class TextareaProps public constructor(
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
     public val scrollbarBehavior: ScrollbarBehavior =
         scrollbarBehavior { placement = ScrollbarPlacement.Gutter },
-    public val protectedText: Boolean = false
+    public val protectedText: Boolean = false,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -87,7 +88,8 @@ private fun multilineInput(input: TextareaProps): TextFieldInput =
         input.labelTarget,
         input.group,
         input.chrome,
-        input.scrollbarBehavior
+        input.scrollbarBehavior,
+        input.semantics
     )
 
 public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View =

@@ -22,7 +22,8 @@ internal class TextFieldInput(
     val labelTarget: FieldTarget?,
     val group: GroupPosition?,
     val chrome: TextFieldChrome,
-    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 /** Shares composition while keeping the two public component identities distinct. */
@@ -83,7 +84,8 @@ internal class TextFieldRenderer(private val scope: ComponentScope) {
                                                 palette.muted.foreground,
                                         input.style.description
                                     )
-                                )
+                                ),
+                            semantics = ComponentSemantics(ignored = true)
                         ),
                         { props, mount -> Label(props, scope = mount) }
                     )

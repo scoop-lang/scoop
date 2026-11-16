@@ -229,7 +229,8 @@ internal fun groupButtonProps(
                     value.inlines,
                     value.theme,
                     value.baseStyle,
-                    value.underline
+                    value.underline,
+                    value.semantics
                 )
             )
             else -> input.content
@@ -248,7 +249,8 @@ internal fun groupButtonProps(
         input.variant,
         input.size,
         group,
-        input.labelTarget
+        input.labelTarget,
+        input.semantics
     )
 }
 
@@ -288,5 +290,6 @@ internal fun groupInputProps(
         group,
         input.chrome,
         input.contextMenu,
-        input.protectedText
+        input.protectedText,
+        input.semantics
     )

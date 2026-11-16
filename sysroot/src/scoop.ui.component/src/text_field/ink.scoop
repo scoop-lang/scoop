@@ -7,6 +7,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 import scoop.window.*
+import scoop.window.accessibility.SemanticRole
 
 internal class TextFieldInk(
     internal val props: Props<TextFieldInkProps>,
@@ -25,6 +26,7 @@ internal class TextFieldInk(
             )
         }
     internal val lineHeight = TextFieldLineHeight()
+    private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
     private val padding = scope.createArea()
     private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
     internal val scrollbarFeedback =
@@ -52,6 +54,7 @@ internal class TextFieldInk(
 
     init {
         scope.routeChildren(host.area)
+        scope.routeSemanticsChildren(semantics)
         padding.scope.parent = Some(host.area.scope)
         padding.scope.defaultAction =
             {
@@ -109,6 +112,23 @@ internal class TextFieldInk(
             input.onSubmit
         )
         field.update(input.labelTarget, input.options.enabled)
+        val description =
+            if (input.description.byteLength == 0L)
+                None
+            else
+                Some(input.description)
+        semantics?.updateTextEditor(
+            host,
+            input.semantics.properties(
+                description = description,
+                error =
+                    if (input.invalid)
+                        description
+                    else
+                        None
+            ),
+            input.semantics.relations
+        )
         padding.scope.enabled = input.options.enabled
         scrollbarFeedback.update()
         horizontal.update()
@@ -122,6 +142,10 @@ internal class TextFieldInk(
     public override fun scene(context: SceneContext, current: TextFieldDrawing) {
         val value = props.value
         val geometry = current.geometry
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, geometry.bounds)
+            case None -> {}
+        }
         val painter = painters.get(value.theme)
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)

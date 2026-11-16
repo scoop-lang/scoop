@@ -1,0 +1,300 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.CheckState
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ComponentSemanticsTest {
+    @Test
+    fun `built-in controls expose actual actions and preserve semantics through composition`() {
+        val probe = ControlsProbe()
+        val theme = ThemeSource(shadcnTheme())
+        try {
+            context(theme) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertEquals(7, probe.clicked)
+            assertEquals(1, probe.innerClicks)
+            assertEquals(1, probe.outerClicks)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class ControlsProbe: Closeable {
+    val caption = state("Save")
+    val name = state<String?>(None)
+    val labelName = state<String?>(None)
+    val related = state(false)
+    val version = state(0)
+    val checked = state(CheckState.Indeterminate)
+    val enabled = state(true)
+    val reject = state(false)
+    val readOnly = state(false)
+    val protectedText = state(false)
+    val hidden = state(false)
+    val editor = TextEditorState("A😀é")
+    val multiline = TextEditorState("One\nTwo")
+    val labelText =
+        styledText {
+            text("A")
+            inlineObject(InlineKey.Text("badge"), "😀图")
+            text("Z")
+        }
+    var measures = 0
+    var scenes = 0
+    var clicked = -1
+    var innerClicks = 0
+    var outerClicks = 0
+    var finished = false
+    var relatedHandle: SemanticsHandle? = None
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var button: NativeNode? = None
+    private var checkbox: NativeNode? = None
+    private var label: NativeNode? = None
+    private var rich: NativeNode? = None
+    private var input: NativeNode? = None
+    private var textarea: NativeNode? = None
+    private var outer: NativeNode? = None
+    private var inner: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val retained = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop built-in semantic controls"
+                            requestActivation = false
+                            size = LogicalSize(340.0, 500.0)
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { scope -> ControlsRoot(this, scope) })
+                @Unsafe
+                {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        tree = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                button = Some(find("button"))
+                checkbox = Some(find("checkbox"))
+                label = Some(find("label"))
+                rich = Some(find("rich"))
+                input = Some(find("input"))
+                textarea = Some(find("textarea"))
+                outer = Some(find("outer"))
+                inner = Some(find("inner"))
+                calls =
+                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                native.setVisible(false)
+                initial()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("component semantics timed out"))
+            else -> {}
+        }
+    }
+
+    private fun initial() {
+        assertTrue(button!!.text(0, Some("Save")))
+        assertTrue(button!!.text(2, Some("AXButton")))
+        assertTrue(label!!.text(1, Some("Plain label")))
+        assertTrue(rich!!.text(1, Some("A😀图Z")))
+        assertTrue(label!!.text(2, Some("AXStaticText")))
+        assertEquals(2L, checkbox!!.numericValue)
+        assertTrue(checkbox!!.text(2, Some("AXCheckBox")))
+        assertTrue(outer!!.text(0, Some("Outer")))
+        assertTrue(inner!!.parent(outer!!))
+        assertTrue(input!!.text(0, Some("Document")))
+        assertTrue(input!!.text(1, Some("A😀é")))
+        assertTrue(input!!.text(5, Some("Hint")))
+        assertTrue(textarea!!.text(0, None))
+        assertTrue(textarea!!.text(1, Some("One\nTwo")))
+        version.value = 7
+        afterUpdate {
+            assertEquals(0, measures)
+            assertEquals(0, scenes)
+            window!!.setVisible(true)
+            assertEquals(0L, button!!.count)
+            assertEquals(1L, outer!!.count)
+            assertEquals(0L, input!!.count)
+            assertFalse(input!!.flag(8))
+            calls!!.post(button!!, 0)
+        }
+    }
+
+    private fun completed(tag: Int, result: Int) {
+        when (tag) {
+            case 0 -> {
+                assertEquals(1, result)
+                assertEquals(7, clicked)
+                calls!!.post(checkbox!!, 1)
+            }
+            case 1 -> {
+                assertEquals(1, result)
+                assertEquals(CheckState.Checked, checked.value)
+                assertEquals(1L, checkbox!!.numericValue)
+                enabled.value = false
+                afterUpdate {
+                    assertFalse(checkbox!!.flag(1))
+                    calls!!.post(checkbox!!, 2)
+                }
+            }
+            case 2 -> {
+                assertEquals(0, result)
+                assertEquals(CheckState.Checked, checked.value)
+                enabled.value = true
+                reject.value = true
+                afterUpdate { calls!!.post(checkbox!!, 3) }
+            }
+            case 3 -> {
+                assertEquals(0, result)
+                assertEquals(1L, checkbox!!.numericValue)
+                calls!!.post(inner!!, 4)
+            }
+            case 4 -> {
+                assertEquals(1, result)
+                assertEquals(1, innerClicks)
+                assertEquals(0, outerClicks)
+                calls!!.post(outer!!, 5)
+            }
+            case 5 -> {
+                assertEquals(1, result)
+                name.value = Some("")
+                labelName.value = Some("Caption")
+                afterUpdate {
+                    assertTrue(button!!.text(0, Some("")))
+                    assertTrue(label!!.text(0, Some("Caption")))
+                    assertTrue(label!!.text(1, Some("Plain label")))
+                    assertEquals(0L, button!!.count)
+                    name.value = None
+                    related.value = true
+                    caption.value = "Changed"
+                    afterUpdate {
+                        assertTrue(button!!.text(0, Some("Related name")))
+                        relatedHandle!!.close()
+                        caption.value = "Retired label"
+                        afterUpdate {
+                            assertTrue(button!!.text(0, Some("Retired label")))
+                            calls!!.post(input!!, 6, 1, "D😀")
+                        }
+                    }
+                }
+            }
+            case 6 -> {
+                assertEquals(1, result)
+                assertEquals("D😀", editor.text)
+                assertTrue(input!!.text(1, Some("D😀")))
+                assertFalse(input!!.flag(4))
+                assertTrue(editor.undo())
+                afterUpdate {
+                    assertTrue(input!!.text(1, Some("A😀é")))
+                    calls!!.post(input!!, 7, 4, selectionStart = 1L, selectionLength = 2L)
+                }
+            }
+            case 7 -> {
+                assertEquals(Utf8Selection(1L, 5L), editor.selection)
+                assertTrue(input!!.selection(1L, 2L))
+                calls!!.post(input!!, 8, 5, "Q")
+            }
+            case 8 -> {
+                assertEquals("AQé", editor.text)
+                assertTrue(input!!.text(1, Some("AQé")))
+                readOnly.value = true
+                afterUpdate {
+                    assertTrue(input!!.flag(6))
+                    assertFalse(input!!.flag(7))
+                    calls!!.post(input!!, 9, 1, "Rejected")
+                }
+            }
+            case 9 -> {
+                assertEquals("AQé", editor.text)
+                readOnly.value = false
+                protectedText.value = true
+                afterUpdate {
+                    assertTrue(input!!.text(1, None))
+                    assertFalse(input!!.flag(5))
+                    assertFalse(input!!.flag(6))
+                    calls!!.post(input!!, 10, 1, "Secret")
+                }
+            }
+            case 10 -> {
+                assertEquals("Secret", editor.text)
+                assertTrue(input!!.text(1, None))
+                calls!!.post(textarea!!, 11, 1, "New\nLines")
+            }
+            case 11 -> {
+                assertEquals("New\nLines", multiline.text)
+                assertTrue(textarea!!.text(1, Some("New\nLines")))
+                hidden.value = true
+                afterUpdate {
+                    assertFalse(button!!.flag(0))
+                    calls!!.post(button!!, 12)
+                }
+            }
+            case 12 -> {
+                assertEquals(0, result)
+                assertEquals(7, clicked)
+                ui!!.close()
+                assertFalse(input!!.flag(0))
+                assertFalse(checkbox!!.flag(0))
+                calls!!.post(outer!!, 13)
+            }
+            case 13 -> {
+                assertEquals(0, result)
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected component semantic action"))
+        }
+    }
+
+    private fun find(identifier: String): NativeNode {
+        val node = tree!!.find(identifier)!!
+        retained.add(node)
+        return node
+    }
+    private fun afterUpdate(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    public override fun close() {
+        calls?.close()
+        calls = None
+        for (node in retained)
+            node.close()
+        retained.clear()
+        tree?.close()
+        tree = None
+    }
+}

@@ -98,7 +98,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S2 公共语义模型与 macOS 基础闭环
 
-当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。具体运行与构建范围见[实施记录](PROGRESS.md)；内置控件、复杂控件关系、激活点、实窗与外部客户端仍待继续，不据基础资源交付标记本批完成。
+当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。Label、Button、Checkbox、Input／Textarea 已提供默认语义及统一覆盖值，组合控件可由后代 Element 登记祖先资源的几何。具体运行与构建范围见[实施记录](PROGRESS.md)；滚动及其余控件、复杂控件关系、激活点、实窗与外部客户端仍待继续，不据基础资源交付标记本批完成。
 
 **主要范围：** UI scope／挂载／host／scene，Window 的 `accessibility` 包与 AppKit 后端，基础控件。先改 UI、Window、Component 及必要的 Surface spec。
 
@@ -144,7 +144,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S5 accessibility 文本、表单、焦点与模态
 
-当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区、实际写入和 ShowContextMenu。UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史，updateSelectableText 接入只读正文与行内替代文字选区；两个宿主共用原菜单会话。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、内置表单、复杂焦点与模态仍待继续。
+当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区、实际写入和 ShowContextMenu。UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史，updateSelectableText 接入只读正文与行内替代文字选区；两个宿主共用原菜单会话。Input／Textarea 的内置宿主及包装已自动接入。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、Field 关系、复杂焦点与模态仍待继续。
 
 **主要范围：** 共享语义模型、TextEditorState／TextEditHost／TextLayout、focus／overlay、Field 与选择类控件、已接通的 provider。先改 UI／Component／Window 与实际受影响的文本 spec。
 

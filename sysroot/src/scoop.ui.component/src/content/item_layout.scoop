@@ -169,7 +169,8 @@ private fun itemCaption(
                     input.inlines,
                     input.theme,
                     input.baseStyle,
-                    input.underline
+                    input.underline,
+                    input.semantics
                 )
             ),
             base,

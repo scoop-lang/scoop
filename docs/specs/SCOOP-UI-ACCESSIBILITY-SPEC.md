@@ -1,6 +1,6 @@
 # UI 无障碍接口规范
 
-状态：S2／S5 实施中。本文规定公共语义资源、逻辑更新、内容合并、文本宿主和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。复杂控件关系、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
+状态：S2／S5 实施中。本文规定公共语义资源、逻辑更新、内容合并、文本宿主和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。基础控件的默认接入见 [Component spec](SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)，复杂控件关系、完整文本与集合、其余控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
 
 ## 1. 资源与父子关系
 
@@ -18,7 +18,7 @@
 
 `handle.update(properties, actions = SemanticActions(), relations = SemanticRelations())` 替换 Window SemanticProperties、最新动作与关系；关系使用同一活动根的 handle.id，不改变角色、身份、父子归属或业务状态。检查、名称／说明／错误解析、只读／禁用／受保护文本规则沿底层公共合同。名称或值改变立即使旧几何失效；只替换同能力处理器不要求绘制，也不重复原生属性通知。render／measure／scene／draw 不能创建、更新或关闭语义资源；Scene 只登记几何，挂载构造与正常 update 可修改资源。
 
-标签文字变化经底层关系依赖更新引用者，无需重建消费它的 Element 或请求 drawable；显式空名称优先于标签。单独关闭 UI handle 后指向它的 labelledBy／describedBy／errorMessages／controls 自动清除，handle.relations 只读返回当前关系，不按相同位置或新角色转接到替代节点。bindFocus 保留当前关系，不重新提交已清理的旧引用。Scene 捕获并核对底层 contentRevision，标签依赖变化后的迟到 Accepted 场景不能恢复旧几何。内容合并／忽略策略见下节，关系本身不自动吞掉标签的交互子项。
+标签文字变化经底层关系依赖更新引用者，无需重建消费它的 Element 或请求 drawable；显式空名称优先于标签。单独关闭 UI handle 后指向它的 labelledBy／describedBy／errorMessages／controls 自动清除，handle.relations 只读返回当前关系，不按相同位置或新角色转接到替代节点。update 中关系声明与上次成功声明相同时，使用底层已清理的当前关系，避免普通 Props／模型更新重新提交退休引用；显式更换关系仍按新声明验证。bindFocus 同样保留当前关系。Scene 捕获并核对底层 contentRevision，标签依赖变化后的迟到 Accepted 场景不能恢复旧几何。内容合并／忽略策略见下节，关系本身不自动吞掉标签的交互子项。
 
 属性、父子关系与实际焦点在根的一次正常逻辑更新结束后一起发布。独立 handle 更新也通过现有 UiHost 队列唤醒该根，不请求 drawable，不增加另一套调度器。结构未变时不重新遍历挂载树；同一轮重复修改按最终值合并。失活／关闭立即拒绝旧动作，不等待下一帧。
 
@@ -38,7 +38,7 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 ## 4. 场景与几何
 
-`SceneContext.semantics(handle, bounds: Rect)` 与 Path 重载只接受本挂载的活动 handle，在当前 Canvas 坐标与裁剪中捕获独立几何和 native 命中快照。每个节点每帧只能登记一次；不创建 InputArea。Rect 登记作为 SceneCommand 参与缓存记录和重放，重放时重新应用当前祖先变换与 clip，不保存上一帧的输入位置；Path 与现有 Path 输入放置一样使该场景不缓存，捕获后不借用调用方的 Path。opacity 为零或没有绘图不自动隐藏语义节点。
+`SceneContext.semantics(handle, bounds: Rect)` 与 Path 重载接受本挂载或其逻辑祖先的活动 handle，在当前 Canvas 坐标与裁剪中捕获独立几何和 native 命中快照。组合控件可在拥有实际 FocusTarget 的 Component 中持有语义资源，由负责绘制的后代 Element 登记位置；资源归属、焦点绑定与语义父子关系不因此改变。其他根、兄弟或后代挂载的资源均拒绝。每个节点每帧只能登记一次；不创建 InputArea。Rect 登记作为 SceneCommand 参与缓存记录和重放，重放时重新应用当前祖先变换与 clip，不保存上一帧的输入位置；Path 与现有 Path 输入放置一样使该场景不缓存，捕获后不借用调用方的 Path。opacity 为零或没有绘图不自动隐藏语义节点。
 
 根统一在 FrameCompletion.Accepted 发布候选几何；Discarded 释放候选，保留仍匹配当前语义属性的上次几何。尚未呈现、当前 Accepted 场景未登记或名称／值已变化的节点报告 None；被自身 clip 完全裁掉时，保留完整 bounds，并以 visibleBounds=None 表示裁剪。后续匹配场景恢复几何，节点身份不变。帧生成后发生名称／值变化或节点退休，旧候选不能重新使其几何有效。
 

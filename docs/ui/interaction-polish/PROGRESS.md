@@ -14,10 +14,10 @@
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、名称／说明／错误／controls 关系、内容合并／忽略、Accepted 场景与精确命中已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、复杂控件关系、激活点和外部客户端仍待完成 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；Label／Button／Checkbox／Input／Textarea 默认语义的原生回归通过，场景构建通过但实窗待验；滚动及其余控件、复杂关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
-| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，macOS 原生方法与编辑策略定向测试通过；实际菜单呈现、范围几何／单位导航／保留范围、内置表单、复杂焦点与模态待继续 |
+| S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；实际菜单呈现、范围几何／单位导航／保留范围、Field 关系、复杂焦点与模态待继续 |
 | S6～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -187,3 +187,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - 实窗编辑程序通过 release 可执行文件构建，两个菜单场景改为从原生主队列调用公开 ShowMenu，并检查返回值、tracking、项目可用性及模型／剪贴板结果。桌面仍为 ScreenIsLocked=true，实际菜单呈现与焦点场景未运行；动作通知的外部客户端观察、AX／VoiceOver 和其他平台也未据进程内方法结果记为通过。
 
 正式规范、设计、计划、使用说明和编程导航已同步；新建只读语义与既有编辑实窗的 README 说明入口和验证边界。Window／UI API 通过 search／show 核对 showContextMenu 与 updateSelectableText 的默认值、签名和 import；临时站点在核对后清理，保留后续需要的开发产物、缓存及实窗程序。
+
+### 基础控件默认语义与组合资源归属
+
+- Label、Button、Checkbox、Input／Textarea 的 Props 和 builder 提供 ComponentSemantics。静态正文保留 alternateText，按钮合并纯标签并保留独立操作子项；最新 onClick 沿原稳定入口，Checkbox 用原 Binding 确认真实结果。输入框使用原 TextEditHost 发布正文、选区、只读、受保护用途和菜单；placeholder 不充当名称，既有 description 作为默认说明／错误，重复装饰文字不另占阅读节点。ButtonGroup、InputGroup、Command、Combobox、Sidebar、原生文件按钮及文字包装同步传递覆盖值。
+- 语义几何允许绘制 Element 登记本挂载或逻辑祖先的资源，保留真实 FocusTarget、原有输入与资源归属；兄弟、后代、跨根和重复登记仍拒绝。Rect／Path 的组合场景用例已覆盖此路径并重新构建。UI handle 记住上次成功的关系声明，未变化时复用 provider 已清理的当前关系；关闭标签后继续更新控件不会重提退休引用，显式更换关系仍须验证。
+- Scoop 格式检查、native 辅助代码严格编译、UI 与组件（含测试）源码检查通过；必要的 UI、SVG、图标、style／主题和 component release 开发产物已更新。UI 原有语义动作回归与新的基础控件原生回归实际通过，覆盖无 drawable 的逻辑更新、最新回调、纯文字比较、名称／关系覆盖、关系退休、独立子按钮、三态／拒绝／禁用、Unicode 文本选区与 undo、只读、保护用途和旧对象退休。
+- 场景程序完成 release 构建；真实呈现、焦点、外部 AX／VoiceOver 和其他平台仍未据进程内结果记为通过。组件只在下层已有 provider 的 Darwin 目标创建真实资源，Windows／Linux 的 provider 及其余控件继续按 S2／S5／S10／S11 推进，不以透明的未接入目标关闭计划。
+
+正式 UI／Component spec、设计、计划、README 与编程导航已同步。Component API 经 search／show 核对覆盖值、Props／builder、默认值和 import，README 示例实际检查通过；临时站点与示例在核对后清理，保留后续所需开发产物、缓存和实窗程序。

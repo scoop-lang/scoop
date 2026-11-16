@@ -30,7 +30,8 @@ public class InputProps public constructor(
     public val group: GroupPosition? = None,
     public val chrome: TextFieldChrome = TextFieldChrome.Framed,
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
-    public val protectedText: Boolean = false
+    public val protectedText: Boolean = false,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -71,7 +72,8 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
         input.onSubmit,
         input.labelTarget,
         input.group,
-        input.chrome
+        input.chrome,
+        semantics = input.semantics
     )
 
 public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View =
