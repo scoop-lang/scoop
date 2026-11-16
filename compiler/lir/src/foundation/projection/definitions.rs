@@ -357,12 +357,11 @@ pub(super) fn callable_body_associated_atoms(
     if !function.safepoints.is_empty() {
         associated.push((DefinitionAtomRole::Stackmap, subkey()));
     }
-    if function.blocks.iter().any(|(_, block)| {
-        block
-            .instructions
-            .iter()
-            .any(|instruction| matches!(instruction, crate::Instruction::Invoke { .. }))
-    }) {
+    if function
+        .blocks
+        .iter()
+        .any(|(_, block)| matches!(block.terminator, crate::Terminator::Invoke { .. }))
+    {
         associated.push((DefinitionAtomRole::Lsda, subkey()));
         match target.object_target().unwind_image() {
             crate::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame

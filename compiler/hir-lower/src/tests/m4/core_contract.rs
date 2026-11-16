@@ -31,9 +31,10 @@ fn missing_core_option_is_an_error() {
         lower(&[file(vec![fun("main", vec![])])]).expect_err("missing core Option must fail");
     // The same run also reports the missing core `Throwable` (M8).
     assert!(
-        errors
-            .iter()
-            .any(|e| e.message == "scoop.core must define an enum `Option<T>`" && e.file == 0),
+        errors.iter().any(
+            |e| e.message == "scoop.core must define an enum `Option<T>`"
+                && diagnostic_source(e) == &scoop_identity::SourceIdentity::single_file()
+        ),
         "{errors:?}"
     );
 }
@@ -78,13 +79,16 @@ fn duplicate_option_in_core_is_an_error() {
     ])
     .expect_err("a second core Option must fail");
     // The same run also reports the missing core `Throwable` (M8);
-    // this test is about the duplicate's file index.
+    // this test is about the duplicate's source identity.
     let duplicate = errors
         .iter()
         .find(|e| e.message == "duplicate enum `Option`")
         .expect("the second core Option must be diagnosed");
     // The second core file is the error's file.
-    assert_eq!(duplicate.file, 1);
+    assert_eq!(
+        diagnostic_source(duplicate),
+        &core_source_identity("src/core-extra.scoop")
+    );
 }
 
 #[test]

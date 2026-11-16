@@ -350,6 +350,9 @@ Module
     local %156 $sc.1: exception_record
     local %157 $sc.2: ptr<raw>
     local %158 $sc.3: ptr<managed>
+    local %159 $sc.4: exception_record
+    local %160 $sc.5: ptr<raw>
+    local %161 $sc.6: ptr<managed>
   block entry
     poll managed-void-target9 sp<managed-poll:0> live=[]
     store integer<UInt>(0xff800123) -> local0
@@ -582,12 +585,12 @@ Module
     br @try.body.24
   block try.unwind.19
     (t52, t53) = landingpad : (exception_record, ptr<raw>)
-    store t52 -> local156
-    store t53 -> local157
+    store t52 -> local159
+    store t53 -> local160
     br @try.dispatch.20
   block try.dispatch.20
-    t54 = begin_catch local157 : ptr<managed>
-    store t54 -> local158
+    t54 = begin_catch local160 : ptr<managed>
+    store t54 -> local161
     br @scope.29
   block try.exit_pad.21
     (t55, t56) = cleanup_pad : (exception_record, ptr<raw>)
@@ -633,7 +636,6 @@ Module
     store local137 -> local138
     store local138 -> local139
     invoke managed-void-target6 sp<managed-invoke:0> roots=[local124:normal] sig=void6 (i1) local-fn13(local139) normal @invoke.normal.1 unwind @try.unwind.19
-    br @invoke.normal.1
   block scope.28
     store local125 -> local140
     store local140 -> local141
@@ -650,7 +652,6 @@ Module
     t67 = integer_Add<Int> local141, local143 : i32
     store t67 -> local125
     invoke no-gc-void-target0 sig=void7 () runtime @scoop_rt_rethrow() normal @rethrow.normal.2 unwind @try.exit_pad.21
-    br @rethrow.normal.2
   block if.then.30
     store local125 -> local147
     store integer<Int>(0x00000001) -> local148
@@ -863,7 +864,6 @@ Module
     poll gateway managed-void-target1 sp<managed-poll:0> live=[]
     call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(external-td3)
     invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn14() normal @success unwind @failure
-    br @success
   block success
     raw_store param2 integer<Int>(0x00000000) align 4
     ret integer<UInt>(0x00000000)

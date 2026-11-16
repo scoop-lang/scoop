@@ -97,6 +97,9 @@ impl Lowerer {
             }) {
                 Ok(layer) => return Some(self.commit_expr_layer(layer, sink)),
                 Err(failure) => {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return None;
+                    }
                     if failure.diagnostics.len() > self.diagnostics.len() {
                         first_failure.get_or_insert(failure);
                     }
@@ -155,6 +158,10 @@ impl Lowerer {
                         return Some(expression);
                     }
                     implicit_properties.push(property);
+                }
+                Err(failure) if failure.has_internal_diagnostics() => {
+                    self.retain_internal_diagnostics(&failure);
+                    return None;
                 }
                 Err(failure) if failure.diagnostics.len() > self.diagnostics.len() => {
                     first_failure.get_or_insert(failure);
@@ -273,6 +280,9 @@ impl Lowerer {
                 }) {
                     Ok(read) => current_values.push(NamedValueLayer { read, rank, origin }),
                     Err(failure) => {
+                        if self.retain_internal_diagnostics(&failure) {
+                            return None;
+                        }
                         first_failure.get_or_insert(failure);
                     }
                 }

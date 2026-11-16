@@ -8,8 +8,8 @@ pub(super) fn materialize(
     atoms: &[&DefinitionSymbolPlanV1],
 ) -> Result<Vec<u8>, CodegenError> {
     let layout = MachOLayout::parse(&bytes, target)?;
-    let file =
-        object::File::parse(bytes.as_slice()).map_err(|error| CodegenError(error.to_string()))?;
+    let file = object::File::parse(bytes.as_slice())
+        .map_err(|error| CodegenError::tool(error.to_string(), error))?;
     let eh = file.section_by_name("__eh_frame");
     let eh_ranges = eh
         .as_ref()
@@ -30,7 +30,7 @@ pub(super) fn materialize(
         let primary = layout.require_external_definition(&primary_name)?;
         let primary_section = file
             .section_by_index(object::SectionIndex(primary.section_ordinal() as usize))
-            .map_err(|error| CodegenError(error.to_string()))?;
+            .map_err(|error| CodegenError::tool(error.to_string(), error))?;
         let primary_end = primary_ends[&(primary_section.index().0, primary.value())];
         for boundary in definition.atom_boundaries() {
             let (section, start, end) = match boundary.atom_role() {
@@ -42,9 +42,9 @@ pub(super) fn materialize(
                 scoop_lir::DefinitionAtomRole::CompactUnwind => {
                     let section = layout.require_section(b"__LD", b"__compact_unwind")?;
                     {
-                        let ranges = compact_ranges
-                            .as_ref()
-                            .ok_or_else(|| CodegenError("missing compact unwind records".into()))?;
+                        let ranges = compact_ranges.as_ref().ok_or_else(|| {
+                            CodegenError::internal("missing compact unwind records".into())
+                        })?;
                         let (start, end) = super::unwind::require(
                             ranges,
                             primary_section.index(),
@@ -58,7 +58,7 @@ pub(super) fn materialize(
                     {
                         let ranges = eh_ranges
                             .as_ref()
-                            .ok_or_else(|| CodegenError("missing EH records".into()))?;
+                            .ok_or_else(|| CodegenError::internal("missing EH records".into()))?;
                         let (start, end) = super::unwind::require(
                             ranges,
                             primary_section.index(),
@@ -68,7 +68,7 @@ pub(super) fn materialize(
                     }
                 }
                 role => {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "unexpected generated-C Mach-O atom {role:?}"
                     )));
                 }

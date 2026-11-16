@@ -19,75 +19,112 @@ impl DiagnosticSeverity {
     }
 }
 
-/// A single compiler diagnostic. `span` is genuinely optional: only
-/// driver-level failures (unreadable file, linker failure) lack one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Diagnostic {
-    pub severity: DiagnosticSeverity,
-    /// Index into the driver's input file list; 0-based. Single-file
-    /// compiles (and the parser, which sees one file) always use 0.
-    pub file: usize,
-    /// Canonical source, bound before the producing HIR context is discarded.
-    pub source: Option<Box<SourceIdentity>>,
-    pub span: Option<Span>,
-    pub message: String,
-    /// Call inference established an argument error independent of candidate
-    /// context. Frontend candidate aggregation may forward identical roots;
-    /// presentation and compiler protocol do not serialize this classification.
-    pub is_argument_root: bool,
-    /// Related source locations which explain the primary diagnostic.
-    /// Notes never replace the primary location and therefore always have
-    /// a concrete span.
-    pub notes: Vec<DiagnosticNote>,
+/// A source index is meaningful only inside its producing compilation context.
+/// Imported and generated diagnostics already carry their canonical source.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LocalDiagnosticSource {
+    Index(usize),
+    Bound(Box<SourceIdentity>),
 }
 
-/// One structured related location attached to a [`Diagnostic`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiagnosticNote {
-    /// Index into the same driver input file list as [`Diagnostic::file`].
-    pub file: usize,
-    /// Canonical source, bound before the producing HIR context is discarded.
-    pub source: Option<Box<SourceIdentity>>,
+pub enum DiagnosticLocation<S> {
+    Source { source: S, span: Option<Span> },
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticKind {
+    Source,
+    Internal,
+}
+
+/// Local diagnostics never carry an independent index and canonical identity.
+/// Published diagnostics use `SourceIdentity` and cannot contain local indices.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Diagnostic<S = LocalDiagnosticSource> {
+    pub severity: DiagnosticSeverity,
+    pub kind: DiagnosticKind,
+    pub location: DiagnosticLocation<S>,
+    pub message: String,
+    pub is_argument_root: bool,
+    pub notes: Vec<DiagnosticNote<S>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticNote<S = LocalDiagnosticSource> {
+    pub source: S,
     pub span: Span,
     pub message: String,
-    /// An actual import path suggested by semantic lookup. Empty for other notes.
     pub import_path: Vec<String>,
+}
+
+pub type SourceDiagnostic = Diagnostic<SourceIdentity>;
+pub type SourceDiagnosticNote = DiagnosticNote<SourceIdentity>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiagnosticBindingError {
+    pub index: usize,
+    pub source_count: usize,
+}
+
+impl std::fmt::Display for DiagnosticBindingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "diagnostic source index {} is outside its producing context ({} sources)",
+            self.index, self.source_count
+        )
+    }
+}
+impl std::error::Error for DiagnosticBindingError {}
+
+pub fn bind_diagnostics(
+    diagnostics: impl IntoIterator<Item = Diagnostic>,
+    sources: &[SourceIdentity],
+) -> Vec<SourceDiagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| {
+            diagnostic
+                .bind(sources)
+                .unwrap_or_else(SourceDiagnostic::internal)
+        })
+        .collect()
+}
+
+impl LocalDiagnosticSource {
+    fn bind(self, sources: &[SourceIdentity]) -> Result<SourceIdentity, DiagnosticBindingError> {
+        match self {
+            Self::Bound(source) => Ok(*source),
+            Self::Index(index) => sources.get(index).cloned().ok_or(DiagnosticBindingError {
+                index,
+                source_count: sources.len(),
+            }),
+        }
+    }
 }
 
 impl Diagnostic {
     pub fn at(span: Span, message: impl Into<String>) -> Self {
         Self::at_file(0, span, message)
     }
-
     pub fn at_file(file: usize, span: Span, message: impl Into<String>) -> Self {
-        Diagnostic {
-            severity: DiagnosticSeverity::Error,
-            file,
-            source: None,
+        let mut result = Self::without_span(DiagnosticSeverity::Error, file, message);
+        result.location = DiagnosticLocation::Source {
+            source: LocalDiagnosticSource::Index(file),
             span: Some(span),
-            message: message.into(),
-            is_argument_root: false,
-            notes: Vec::new(),
-        }
+        };
+        result
     }
-
     pub fn warning_at(span: Span, message: impl Into<String>) -> Self {
         Self::warning_at_file(0, span, message)
     }
-
     pub fn warning_at_file(file: usize, span: Span, message: impl Into<String>) -> Self {
-        Diagnostic {
-            severity: DiagnosticSeverity::Warning,
-            file,
-            source: None,
-            span: Some(span),
-            message: message.into(),
-            is_argument_root: false,
-            notes: Vec::new(),
-        }
+        let mut result = Self::at_file(file, span, message);
+        result.severity = DiagnosticSeverity::Warning;
+        result
     }
-
-    /// Construct a diagnostic which is not tied to a source span.
     pub fn without_span(
         severity: DiagnosticSeverity,
         file: usize,
@@ -95,57 +132,151 @@ impl Diagnostic {
     ) -> Self {
         Self {
             severity,
-            file,
-            source: None,
-            span: None,
+            kind: DiagnosticKind::Source,
+            location: DiagnosticLocation::Source {
+                source: LocalDiagnosticSource::Index(file),
+                span: None,
+            },
+            message: message.into(),
+            is_argument_root: false,
+            notes: Vec::new(),
+        }
+    }
+    pub fn local_file(&self) -> Option<usize> {
+        match self.source() {
+            Some(LocalDiagnosticSource::Index(file)) => Some(*file),
+            _ => None,
+        }
+    }
+    pub fn set_file(&mut self, file: usize) {
+        self.location = DiagnosticLocation::Source {
+            source: LocalDiagnosticSource::Index(file),
+            span: self.span(),
+        };
+    }
+    pub fn set_source(&mut self, source: SourceIdentity) {
+        self.location = DiagnosticLocation::Source {
+            source: LocalDiagnosticSource::Bound(Box::new(source)),
+            span: self.span(),
+        };
+    }
+    pub fn reattribute_single_source(&mut self, file: usize) {
+        self.set_file(file);
+        for note in &mut self.notes {
+            note.source = LocalDiagnosticSource::Index(file);
+        }
+    }
+    pub fn bind(
+        self,
+        sources: &[SourceIdentity],
+    ) -> Result<SourceDiagnostic, DiagnosticBindingError> {
+        let location = match self.location {
+            DiagnosticLocation::None => DiagnosticLocation::None,
+            DiagnosticLocation::Source { source, span } => DiagnosticLocation::Source {
+                source: source.bind(sources)?,
+                span,
+            },
+        };
+        let notes = self
+            .notes
+            .into_iter()
+            .map(|note| {
+                Ok(DiagnosticNote {
+                    source: note.source.bind(sources)?,
+                    span: note.span,
+                    message: note.message,
+                    import_path: note.import_path,
+                })
+            })
+            .collect::<Result<_, DiagnosticBindingError>>()?;
+        Ok(Diagnostic {
+            severity: self.severity,
+            kind: self.kind,
+            location,
+            message: self.message,
+            is_argument_root: self.is_argument_root,
+            notes,
+        })
+    }
+    /// Preserve a source before an inner lowering context is dropped. A broken
+    /// local index becomes an explicit internal failure, never another file.
+    pub fn resolve_sources(&mut self, sources: &[SourceIdentity]) {
+        *self = match self.clone().bind(sources) {
+            Ok(bound) => bound.map_sources(|source| LocalDiagnosticSource::Bound(Box::new(source))),
+            Err(error) => Self::internal(error),
+        };
+    }
+}
+
+impl<S> Diagnostic<S> {
+    pub fn without_location(severity: DiagnosticSeverity, message: impl Into<String>) -> Self {
+        Self {
+            severity,
+            kind: DiagnosticKind::Source,
+            location: DiagnosticLocation::None,
             message: message.into(),
             is_argument_root: false,
             notes: Vec::new(),
         }
     }
 
-    /// Attach one related source location while retaining builder-style use.
-    pub fn with_note(mut self, note: DiagnosticNote) -> Self {
+    pub fn internal(error: impl std::fmt::Display) -> Self {
+        Self {
+            severity: DiagnosticSeverity::Error,
+            kind: DiagnosticKind::Internal,
+            location: DiagnosticLocation::None,
+            message: format!("internal compiler error: {error}"),
+            is_argument_root: false,
+            notes: Vec::new(),
+        }
+    }
+    pub fn span(&self) -> Option<Span> {
+        match &self.location {
+            DiagnosticLocation::Source { span, .. } => *span,
+            DiagnosticLocation::None => None,
+        }
+    }
+    pub fn source(&self) -> Option<&S> {
+        match &self.location {
+            DiagnosticLocation::Source { source, .. } => Some(source),
+            DiagnosticLocation::None => None,
+        }
+    }
+    pub fn with_note(mut self, note: DiagnosticNote<S>) -> Self {
         self.notes.push(note);
         self
     }
-
-    /// Reattribute a diagnostic produced from a single-source view to its
-    /// index in a larger compilation request. Every note from that view is
-    /// reattributed together with the primary location.
-    pub fn reattribute_single_source(&mut self, file: usize) {
-        self.file = file;
-        self.source = None;
-        for note in &mut self.notes {
-            note.file = file;
-            note.source = None;
+    fn map_sources<T>(self, mut map: impl FnMut(S) -> T) -> Diagnostic<T> {
+        Diagnostic {
+            severity: self.severity,
+            kind: self.kind,
+            location: match self.location {
+                DiagnosticLocation::None => DiagnosticLocation::None,
+                DiagnosticLocation::Source { source, span } => DiagnosticLocation::Source {
+                    source: map(source),
+                    span,
+                },
+            },
+            message: self.message,
+            is_argument_root: self.is_argument_root,
+            notes: self
+                .notes
+                .into_iter()
+                .map(|note| DiagnosticNote {
+                    source: map(note.source),
+                    span: note.span,
+                    message: note.message,
+                    import_path: note.import_path,
+                })
+                .collect(),
         }
     }
-
-    /// Resolve only still-local indices; imported origins already bound by an
-    /// earlier stage retain their own source identity.
-    pub fn resolve_sources(&mut self, sources: &[SourceIdentity]) {
-        if self.source.is_none() {
-            self.source = sources.get(self.file).cloned().map(Box::new);
-        }
-        for note in &mut self.notes {
-            if note.source.is_none() {
-                note.source = sources.get(note.file).cloned().map(Box::new);
-            }
-        }
-    }
-
-    /// Render a plain diagnostic with its source range underlined.
     pub fn render(&self, file_name: &str, source: &str) -> String {
         self.render_with_code(file_name, source, None, false)
     }
-
-    /// Render from the immutable source shared by this diagnostic batch.
     pub fn render_with_source(&self, file_name: &str, source: &SourceText) -> String {
         self.render(file_name, source.as_str())
     }
-
-    /// Attach the CLI's diagnostic code and optionally style terminal output.
     pub fn render_with_code(
         &self,
         file_name: &str,
@@ -159,7 +290,7 @@ impl Diagnostic {
             &self.message,
             file_name,
             source,
-            self.span,
+            self.span(),
             color,
         )
     }
@@ -168,23 +299,34 @@ impl Diagnostic {
 impl DiagnosticNote {
     pub fn at(file: usize, span: Span, message: impl Into<String>) -> Self {
         Self {
-            file,
-            source: None,
+            source: LocalDiagnosticSource::Index(file),
             span,
             message: message.into(),
             import_path: Vec::new(),
         }
     }
-
-    /// Render a related diagnostic with its own source range.
+    pub fn at_source(source: SourceIdentity, span: Span, message: impl Into<String>) -> Self {
+        Self {
+            source: LocalDiagnosticSource::Bound(Box::new(source)),
+            span,
+            message: message.into(),
+            import_path: Vec::new(),
+        }
+    }
+    pub fn local_file(&self) -> Option<usize> {
+        match self.source {
+            LocalDiagnosticSource::Index(file) => Some(file),
+            _ => None,
+        }
+    }
+}
+impl<S> DiagnosticNote<S> {
     pub fn render(&self, file_name: &str, source: &str) -> String {
         self.render_with_color(file_name, source, false)
     }
-
     pub fn render_with_source(&self, file_name: &str, source: &SourceText) -> String {
         self.render(file_name, source.as_str())
     }
-
     pub fn render_with_color(&self, file_name: &str, source: &str, color: bool) -> String {
         render::render(
             annotate_snippets::Level::NOTE,
@@ -219,15 +361,7 @@ mod tests {
         assert!(rendered.contains("--> main.scoop:2:1"), "{rendered}");
         assert!(rendered.contains("2 | value\n  | ^^^^"), "{rendered}");
 
-        let no_span = Diagnostic {
-            severity: DiagnosticSeverity::Warning,
-            file: 0,
-            source: None,
-            span: None,
-            message: "link warning".to_string(),
-            is_argument_root: false,
-            notes: Vec::new(),
-        };
+        let no_span = Diagnostic::without_span(DiagnosticSeverity::Warning, 0, "link warning");
         assert_eq!(
             no_span.render("main.scoop", ""),
             "warning: link warning\n --> main.scoop"
@@ -254,7 +388,81 @@ mod tests {
 
         diagnostic.reattribute_single_source(4);
 
-        assert_eq!(diagnostic.file, 4);
-        assert_eq!(diagnostic.notes[0].file, 4);
+        assert_eq!(diagnostic.local_file(), Some(4));
+        assert_eq!(diagnostic.notes[0].local_file(), Some(4));
+    }
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+    use scoop_identity::{ConeIdentity, NormalizedSourcePath};
+
+    fn source(path: &str) -> SourceIdentity {
+        SourceIdentity::new(
+            ConeIdentity::SINGLE_FILE,
+            NormalizedSourcePath::new(path).unwrap(),
+        )
+    }
+
+    #[test]
+    fn binding_preserves_distinct_primary_and_related_source_contexts() {
+        let primary = source("main.scoop");
+        let imported = source("dependency.scoop");
+        let other = source("other.scoop");
+        let diagnostic = Diagnostic::at(Span::new(0, 1), "use failed")
+            .with_note(DiagnosticNote::at_source(
+                imported.clone(),
+                Span::new(4, 8),
+                "declared here",
+            ))
+            .with_note(DiagnosticNote::at(1, Span::new(2, 3), "local reason"))
+            .bind(&[primary.clone(), other.clone()])
+            .unwrap();
+        assert_eq!(diagnostic.source(), Some(&primary));
+        assert_eq!(diagnostic.notes[0].source, imported);
+        assert_eq!(diagnostic.notes[1].source, other);
+    }
+
+    #[test]
+    fn invalid_primary_or_note_indices_fail_at_the_producing_boundary() {
+        let sources = [source("main.scoop")];
+        assert_eq!(
+            Diagnostic::at_file(1, Span::new(0, 1), "bad index")
+                .bind(&sources)
+                .unwrap_err(),
+            DiagnosticBindingError {
+                index: 1,
+                source_count: 1
+            }
+        );
+        let diagnostic = Diagnostic::at(Span::new(0, 1), "bad note").with_note(DiagnosticNote::at(
+            2,
+            Span::new(2, 3),
+            "bad index",
+        ));
+        assert_eq!(
+            diagnostic.bind(&sources).unwrap_err(),
+            DiagnosticBindingError {
+                index: 2,
+                source_count: 1
+            }
+        );
+    }
+
+    #[test]
+    fn a_bound_inner_context_cannot_be_reinterpreted_by_an_outer_file_table() {
+        let original = source("original.scoop");
+        let unrelated = source("unrelated.scoop");
+        let mut diagnostic = Diagnostic::at(Span::new(0, 1), "failure");
+        diagnostic.resolve_sources(std::slice::from_ref(&original));
+        let published = diagnostic.bind(&[unrelated]).unwrap();
+        assert_eq!(published.source(), Some(&original));
+        let internal = SourceDiagnostic::internal(DiagnosticBindingError {
+            index: 2,
+            source_count: 1,
+        });
+        assert_eq!(internal.kind, DiagnosticKind::Internal);
+        assert_eq!(internal.location, DiagnosticLocation::None);
     }
 }

@@ -14,7 +14,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 scoop_lir::ManagedRuntimeFunction::Safepoint,
             )
         {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "managed poll @{} has a non-safepoint target",
                 self.function.symbol()
             )));
@@ -197,5 +197,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn poll_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("emit conditional managed poll: {error}"))
+    CodegenError::internal(format!("emit conditional managed poll: {error}"))
 }

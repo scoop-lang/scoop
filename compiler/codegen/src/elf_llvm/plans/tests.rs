@@ -86,7 +86,7 @@ fn repeated_symbol_requests_still_reject_conflicting_definition_groups() {
         )]),
     };
     assert_eq!(
-        index.prepare(&llvm).unwrap_err().0,
+        index.prepare(&llvm).unwrap_err().to_string(),
         "ELF global belongs to two definition groups: first and second"
     );
 }

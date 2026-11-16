@@ -14,8 +14,11 @@ fn pin_rejects_an_int_argument() {
         errors[0].message,
         "no applicable candidate for `pin` in implicit-import candidate layer:\n  - fun pin<T : ref>(v: T): PinnedPtr<T> — type argument `Int` for `T` must satisfy `ref`"
     );
-    // The user file is index 2 (core files are 0 and 1).
-    assert_eq!(errors[0].file, 2);
+    // The diagnostic retains the user source despite two preceding core sources.
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
 }
 
 #[test]

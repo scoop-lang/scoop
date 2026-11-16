@@ -132,10 +132,7 @@ fn gateway(
         &mut pending_safepoints,
         (success, unwind),
     );
-    blocks[call_main]
-        .instructions
-        .push(scoop_lir::Instruction::Invoke { site: invoke });
-    blocks[call_main].terminator = scoop_lir::Terminator::Br(success);
+    blocks[call_main].terminator = scoop_lir::Terminator::Invoke { site: invoke };
 
     let exception_record = temps.alloc(scoop_lir::Temp {
         ty: scoop_lir::LirType::ExceptionRecord,

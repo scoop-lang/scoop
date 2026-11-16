@@ -305,7 +305,7 @@ impl WireDecode for DecodedDigestFinalizationPlanV1 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DigestNodeBuildError {
     Identity(HashError),
     DuplicateInput {

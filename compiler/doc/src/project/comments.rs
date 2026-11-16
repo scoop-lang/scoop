@@ -1,12 +1,14 @@
 use super::*;
 
 impl Projection<'_> {
-    pub(super) fn warning(&self, warning: &scoop_ast::Diagnostic) -> Result<DocWarning> {
+    pub(super) fn warning(&self, warning: &scoop_ast::SourceDiagnostic) -> Result<DocWarning> {
         Ok(DocWarning {
-            location: self.location(
-                warning.file,
+            location: self.diagnostic_location(
                 warning
-                    .span
+                    .source()
+                    .expect("documentation warnings identify a source"),
+                warning
+                    .span()
                     .expect("documentation warnings identify an input span"),
             )?,
             message: warning.message.clone(),
@@ -15,7 +17,7 @@ impl Projection<'_> {
                 .iter()
                 .map(|note| {
                     Ok(DocWarningNote {
-                        location: self.location(note.file, note.span)?,
+                        location: self.diagnostic_location(&note.source, note.span)?,
                         message: note.message.clone(),
                     })
                 })

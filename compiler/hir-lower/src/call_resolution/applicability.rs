@@ -12,7 +12,9 @@ use crate::expr::ResolvedCallTypeArgument;
 
 mod conditions;
 mod references;
-pub(crate) use references::{CallableReferenceApplicabilityInput, ReferenceReceiver};
+pub(crate) use references::{
+    CallableReferenceApplicabilityInput, ReferenceApplicabilityFailure, ReferenceReceiver,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct DeclarationApplicabilityInput<'a> {
@@ -142,7 +144,7 @@ impl Lowerer {
     pub(crate) fn solve_nominal_applicability(
         &mut self,
         input: NominalApplicabilityInput<'_>,
-    ) -> Result<Vec<hir::TypeId>, ConstraintFailure> {
+    ) -> Result<Vec<hir::TypeId>, crate::call_resolution::constraints::InferenceFailure> {
         let (session, environment) = self.nominal_applicability_session(input);
         let solution = self.solve_constraints(&session)?;
         Ok(solution.arguments_for(&session, environment).owner)

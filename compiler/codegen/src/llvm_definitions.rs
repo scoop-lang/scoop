@@ -22,7 +22,7 @@ pub(crate) fn definition_owner(value: GlobalValue<'_>) -> Result<GlobalValue<'_>
                         raw = LLVMGetOperand(raw, 0)
                     }
                     _ => {
-                        return Err(CodegenError(
+                        return Err(CodegenError::internal(
                             "atom alias is not a direct owner/extent".into(),
                         ));
                     }
@@ -32,7 +32,7 @@ pub(crate) fn definition_owner(value: GlobalValue<'_>) -> Result<GlobalValue<'_>
             }
         }
         if LLVMIsAGlobalObject(raw).is_null() {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "atom alias does not resolve to an LLVM global object".into(),
             ));
         }

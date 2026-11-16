@@ -188,7 +188,7 @@ impl WireDecode for DecodedExecutableEntryIdentity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExecutableEntryIdentityError {
     NotFunction,
     NotTestEntry,

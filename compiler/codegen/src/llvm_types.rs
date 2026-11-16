@@ -18,7 +18,7 @@ pub(crate) fn basic_ty<'ctx>(
 ) -> Result<BasicTypeEnum<'ctx>, CodegenError> {
     Ok(match ty {
         LirType::Void => {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "void is not a value type (locals, temps, call args)".to_string(),
             ));
         }
@@ -110,12 +110,12 @@ pub(crate) fn llvm_constant<'ctx>(
     Ok(match value {
         LirConstantImage::Aggregate(elements) => {
             let LirType::Aggregate(types) = expected_lir_ty else {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "tuple constant does not match its storage type".into(),
                 ));
             };
             if elements.len() != types.len() {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "tuple constant has the wrong element count".into(),
                 ));
             }
@@ -139,7 +139,7 @@ pub(crate) fn llvm_constant<'ctx>(
         }
         LirConstantImage::Integer(value) => {
             if expected_lir_ty != &value.scalar_type() {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "{} constant does not match storage type {}",
                     value.kind().canonical_name(),
                     expected_lir_ty.dump(),
@@ -152,7 +152,7 @@ pub(crate) fn llvm_constant<'ctx>(
         LirConstantImage::Float(value) => float_constant(context, *value).into(),
         LirConstantImage::Bool(value) => {
             if expected_lir_ty != &LirType::I1 {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "Boolean constant does not match storage type {}",
                     expected_lir_ty.dump(),
                 )));
@@ -164,7 +164,7 @@ pub(crate) fn llvm_constant<'ctx>(
         }
         LirConstantImage::NullPointer(kind) => {
             if expected_lir_ty != &LirType::Ptr(*kind) {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "{} null constant does not match storage type {}",
                     kind.dump(),
                     expected_lir_ty.dump(),
@@ -174,7 +174,7 @@ pub(crate) fn llvm_constant<'ctx>(
         }
         LirConstantImage::GlobalPointer { global, kind } => {
             if expected_lir_ty != &LirType::Ptr(*kind) {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "{} global pointer constant does not match storage type {}",
                     kind.dump(),
                     expected_lir_ty.dump(),
@@ -182,21 +182,21 @@ pub(crate) fn llvm_constant<'ctx>(
             }
             let expected = pointer_ty(context, managed_address_space, *kind);
             if ty.into_pointer_type() != expected {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "global pointer constant does not match its storage type".to_string(),
                 ));
             }
             let pointer = globals
                 .get(global)
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "global constant references unavailable global {}",
                         global.into_raw().into_u32()
                     ))
                 })?
                 .as_pointer_value();
             if pointer.get_type() != expected {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "referenced global does not have the declared pointer provenance".to_string(),
                 ));
             }
@@ -215,7 +215,7 @@ pub(crate) fn llvm_constant<'ctx>(
         )?,
         LirConstantImage::Struct { struct_id, fields } => {
             if expected_lir_ty != &LirType::Struct(*struct_id) {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "struct constant for s{} does not match storage type {}",
                     struct_id.into_raw(),
                     expected_lir_ty.dump(),
@@ -223,7 +223,7 @@ pub(crate) fn llvm_constant<'ctx>(
             }
             let definition = &structs[*struct_id];
             if fields.len() != definition.field_count() {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "global constant for `{}` has the wrong field count",
                     definition.name
                 )));
@@ -298,7 +298,7 @@ pub(crate) fn llvm_constant<'ctx>(
                         .into()
                 }
                 StructRepresentation::Intrinsic(representation) => {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "compiler intrinsic declaration shell `{}` ({representation:?}) cannot be emitted as an aggregate constant",
                         definition.name
                     )));
@@ -319,7 +319,7 @@ pub(crate) fn alignment_anchor<'ctx>(
         8 => context.i64_type().into(),
         16 => context.i64_type().vec_type(2).into(),
         _ => {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "unsupported aggregate alignment {align}"
             )));
         }
@@ -362,7 +362,7 @@ pub(crate) fn struct_ty<'ctx>(
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(context.struct_type(&fields, false))
         }
-        StructRepresentation::Intrinsic(representation) => Err(CodegenError(format!(
+        StructRepresentation::Intrinsic(representation) => Err(CodegenError::internal(format!(
             "compiler intrinsic declaration shell `{}` ({representation:?}) cannot be emitted as an aggregate struct",
             definition.name
         ))),
@@ -393,14 +393,14 @@ pub(crate) fn tagged_ty<'ctx>(
     scan: &RefScan,
 ) -> Result<inkwell::types::StructType<'ctx>, CodegenError> {
     if size < 8 || align < 8 || !align.is_power_of_two() || size % align != 0 {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "invalid tagged enum size/alignment {size}/{align}"
         )));
     }
     let mut references = Vec::new();
     flatten_ref_scan(scan, &mut references);
     if references.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(CodegenError(
+        return Err(CodegenError::internal(
             "tagged enum reference offsets are not strictly ordered".to_string(),
         ));
     }
@@ -409,10 +409,10 @@ pub(crate) fn tagged_ty<'ctx>(
     let mut cursor = 8u64;
     for offset in references {
         let end = offset.checked_add(8).ok_or_else(|| {
-            CodegenError("tagged enum reference offset overflows u64".to_string())
+            CodegenError::internal("tagged enum reference offset overflows u64".to_string())
         })?;
         if offset < cursor || offset % 8 != 0 || end > size {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "invalid tagged enum reference slot [{offset}, {end}) for size {size}"
             )));
         }
@@ -450,8 +450,9 @@ pub(crate) fn push_byte_padding<'ctx>(
     if bytes == 0 {
         return Ok(());
     }
-    let bytes = u32::try_from(bytes)
-        .map_err(|_| CodegenError("tagged enum padding exceeds u32::MAX".to_string()))?;
+    let bytes = u32::try_from(bytes).map_err(|cause| {
+        CodegenError::internal_cause("tagged enum padding exceeds u32::MAX".to_string(), cause)
+    })?;
     fields.push(context.i8_type().array_type(bytes).into());
     Ok(())
 }

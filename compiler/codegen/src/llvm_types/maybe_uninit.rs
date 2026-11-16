@@ -17,11 +17,11 @@ pub(super) fn storage_type<'ctx>(
     flatten_ref_scan(scan, &mut references);
     let mut cursor = 0;
     for offset in references {
-        let end = offset
-            .checked_add(8)
-            .ok_or_else(|| CodegenError("MaybeUninit reference offset overflow".into()))?;
+        let end = offset.checked_add(8).ok_or_else(|| {
+            CodegenError::internal("MaybeUninit reference offset overflow".into())
+        })?;
         if offset < cursor || offset % 8 != 0 || end > size {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "MaybeUninit reference lies outside its storage".into(),
             ));
         }
@@ -40,8 +40,9 @@ fn push_raw_storage<'ctx>(
     align: u64,
 ) -> Result<(), CodegenError> {
     let width = align.min(8);
-    let words = u32::try_from(bytes / width)
-        .map_err(|_| CodegenError("MaybeUninit storage exceeds u32::MAX cells".into()))?;
+    let words = u32::try_from(bytes / width).map_err(|cause| {
+        CodegenError::internal_cause("MaybeUninit storage exceeds u32::MAX cells".into(), cause)
+    })?;
     if words != 0 {
         // Integer cells preserve every bit without payload validity assumptions.
         // Byte arrays otherwise make SROA expose byte assembly to vectorization.

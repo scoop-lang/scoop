@@ -111,7 +111,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .build_store(slot, context.i8_type().const_int(1, false))
             .map_err(card_error)?
             .set_atomic_ordering(AtomicOrdering::Monotonic)
-            .map_err(|error| CodegenError(format!("card mark atomic store: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("card mark atomic store: {error}"), error)
+            })?;
         let record = self.gc_leaf_fn(
             scoop_lir::RuntimeAbiSymbolV1::RecordDirtyCardGroup.logical_symbol(),
             context
@@ -130,5 +132,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn card_error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("card mark: {error}"))
+    CodegenError::internal(format!("card mark: {error}"))
 }

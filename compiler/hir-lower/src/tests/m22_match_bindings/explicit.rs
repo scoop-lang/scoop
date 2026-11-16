@@ -10,7 +10,7 @@ fn bare_typo_is_an_error_at_the_name_even_with_an_else() {
         errors[0].message,
         "enum `E` has no variant `Bad`; use `val Bad` to bind the matched value"
     );
-    let span = errors[0].span.unwrap();
+    let span = errors[0].span().unwrap();
     assert_eq!(&source[span.start as usize..span.end as usize], "Bad");
 }
 
@@ -62,7 +62,7 @@ fn an_explicit_binding_can_share_the_subjects_variant_name() {
     let source = "enum E { N(Int), S(String) }\nfun identity(value: E): E = when(value) { case val N -> N }\nfun main() { identity(E.N(100)) }";
     let output = lower_user_output(scoop_parser::parse(source).unwrap()).unwrap();
     assert_eq!(output.warnings.len(), 1, "{:?}", output.warnings);
-    let span = output.warnings[0].span.unwrap();
+    let span = output.warnings[0].span().unwrap();
     assert_eq!(&source[span.start as usize..span.end as usize], "N");
 }
 

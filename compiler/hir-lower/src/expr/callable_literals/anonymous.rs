@@ -173,6 +173,10 @@ impl Lowerer {
                         statements,
                     }),
                     method: None,
+                }, crate::FunctionOrigin::Lexical {
+                    root: state.current_definition_root(),
+                    path: definition_path.clone(),
+                    role: scoop_identity::LexicalCallableRole::AnonymousFunctionBody,
                 });
                 if !type_params.is_empty() {
                     state.register_generic(function, type_params.clone());

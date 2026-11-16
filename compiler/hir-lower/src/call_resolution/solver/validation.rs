@@ -1,5 +1,7 @@
 //! Check completed assignments using the original constraint diagnostics.
 
+use crate::call_resolution::constraints::InferenceFailure;
+
 use super::{
     AtomicConstraint, AtomicConstraintKind, ConstraintFailure, ConstraintFailureKind,
     ConstraintOrigin, InferenceSession, NominalBoundKind, TypeTerm, VariableState, hir,
@@ -15,7 +17,7 @@ impl Lowerer {
         &mut self,
         session: &InferenceSession,
         state: &VariableState,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         let Some(fixed) = state
             .exact
             .iter()
@@ -48,18 +50,18 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         state: &VariableState,
         solution: hir::TypeId,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         for bound in &state.exact {
             let required = self.require_materialized(session, bindings, bound)?;
             if !self.types_equal(solution, required) {
-                return Err(ConstraintFailure {
+                return Err(InferenceFailure::Constraint(ConstraintFailure {
                     origin: bound.origin,
                     kind: ConstraintFailureKind::ConflictingExactBounds {
                         variable: state.variable,
                         first: solution,
                         second: required,
                     },
-                });
+                }));
             }
         }
         for bound in &state.lower {
@@ -86,14 +88,14 @@ impl Lowerer {
         }
         for &(kind, origin) in &state.kinds {
             if !self.type_satisfies_kind(solution, kind) {
-                return Err(ConstraintFailure {
+                return Err(InferenceFailure::Constraint(ConstraintFailure {
                     origin,
                     kind: ConstraintFailureKind::Kind {
                         variable: state.variable,
                         solution,
                         required: kind,
                     },
-                });
+                }));
             }
         }
         for nominal in &state.nominal {
@@ -111,10 +113,10 @@ impl Lowerer {
                         required,
                     },
                 };
-                return Err(ConstraintFailure {
+                return Err(InferenceFailure::Constraint(ConstraintFailure {
                     origin: nominal.bound.origin,
                     kind,
-                });
+                }));
             }
         }
         Ok(())
@@ -125,25 +127,27 @@ impl Lowerer {
         session: &InferenceSession,
         bindings: &[Option<hir::TypeId>],
         check: &AtomicConstraint,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         match &check.kind {
             AtomicConstraintKind::MemberRequirement(requirement) => {
                 let key = requirement.contract.key(|ty| {
                     let term = TypeTerm::Type(ty);
                     self.materialize_term(session, bindings, term, check.origin)?
-                        .ok_or(ConstraintFailure {
+                        .ok_or(InferenceFailure::Constraint(ConstraintFailure {
                             origin: check.origin,
                             kind: ConstraintFailureKind::UnresolvedTerm(term),
-                        })
+                        }))
                 })?;
                 self.check_member_requirement(
                     requirement.id,
                     &hir::MemberRequirementContract::from_key(key),
                 )
                 .map(|_| ())
-                .map_err(|message| ConstraintFailure {
-                    origin: check.origin,
-                    kind: ConstraintFailureKind::MemberRequirement(message),
+                .map_err(|message| {
+                    InferenceFailure::Constraint(ConstraintFailure {
+                        origin: check.origin,
+                        kind: ConstraintFailureKind::MemberRequirement(message),
+                    })
                 })
             }
             AtomicConstraintKind::Companion(variable, bounds) => self.validate_companion_condition(
@@ -184,21 +188,21 @@ impl Lowerer {
                 let subject = TypeTerm::Variable(*variable);
                 let solution = self
                     .materialize_term(session, bindings, subject, check.origin)?
-                    .ok_or(ConstraintFailure {
+                    .ok_or(InferenceFailure::Constraint(ConstraintFailure {
                         origin: check.origin,
                         kind: ConstraintFailureKind::UnresolvedTerm(subject),
-                    })?;
+                    }))?;
                 let required = self
                     .materialize_term(session, bindings, *interface, check.origin)?
-                    .ok_or(ConstraintFailure {
+                    .ok_or(InferenceFailure::Constraint(ConstraintFailure {
                         origin: check.origin,
                         kind: ConstraintFailureKind::UnresolvedTerm(*interface),
-                    })?;
+                    }))?;
                 let outcome = self.excludes_interface(solution, required);
                 if outcome == crate::types::InterfaceExclusion::Satisfied {
                     Ok(())
                 } else {
-                    Err(ConstraintFailure {
+                    Err(InferenceFailure::Constraint(ConstraintFailure {
                         origin: check.origin,
                         kind: ConstraintFailureKind::ExcludedInterface {
                             variable: *variable,
@@ -206,18 +210,18 @@ impl Lowerer {
                             required,
                             outcome,
                         },
-                    })
+                    }))
                 }
             }
             AtomicConstraintKind::CallableShape(shape, expected) => {
                 let expected = self
                     .materialize_term(session, bindings, *expected, check.origin)?
-                    .ok_or(ConstraintFailure {
+                    .ok_or(InferenceFailure::Constraint(ConstraintFailure {
                         origin: check.origin,
                         kind: ConstraintFailureKind::CallableShape(
                             CallableShapeMismatch::ExpectedCallable,
                         ),
-                    })?;
+                    }))?;
                 self.validate_callable_shape(session, bindings, shape, expected, check.origin)
             }
             AtomicConstraintKind::ConcreteApplication(application) => self
@@ -239,7 +243,7 @@ impl Lowerer {
         shape: &CallableShape,
         expected: hir::TypeId,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         let signature = match (shape.category, self.types[expected].clone()) {
             (CallableCategory::Managed, Type::Function(signature))
             | (CallableCategory::Native, Type::FunPtr(signature)) => {
@@ -317,23 +321,20 @@ fn relation_failure(
     relation: RelationKind,
     left: TypeTerm,
     right: TypeTerm,
-) -> ConstraintFailure {
-    ConstraintFailure {
+) -> InferenceFailure {
+    InferenceFailure::Constraint(ConstraintFailure {
         origin,
         kind: ConstraintFailureKind::Relation {
             relation,
             left,
             right,
         },
-    }
+    })
 }
 
-fn callable_failure(
-    origin: ConstraintOrigin,
-    mismatch: CallableShapeMismatch,
-) -> ConstraintFailure {
-    ConstraintFailure {
+fn callable_failure(origin: ConstraintOrigin, mismatch: CallableShapeMismatch) -> InferenceFailure {
+    InferenceFailure::Constraint(ConstraintFailure {
         origin,
         kind: ConstraintFailureKind::CallableShape(mismatch),
-    }
+    })
 }

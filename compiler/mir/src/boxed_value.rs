@@ -102,7 +102,7 @@ impl BoxedValueIdentity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BoxedValueIdentityError {
     ExpectedStructuralValue,
     GeneratedType(GeneratedNominalIdentityError),

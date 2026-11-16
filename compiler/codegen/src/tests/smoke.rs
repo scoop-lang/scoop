@@ -128,7 +128,8 @@ fn source_operators_reject_machine_scalar_operands() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("source equality must not consume internal machine scalars");
     assert!(
-        error.0.contains("generic equality Eq") && error.0.contains("machine<enum-tag>"),
+        error.to_string().contains("generic equality Eq")
+            && error.to_string().contains("machine<enum-tag>"),
         "unexpected error: {error}"
     );
 }
@@ -155,10 +156,12 @@ fn machine_equality_rejects_cross_domain_operands() {
         .expect_err("machine equality must keep both operands in one domain");
     assert!(
         error
-            .0
+            .to_string()
             .contains("non-source-integer binary MachineEq(EnumTag)")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("machine<initialization-outcome>"),
+            && error.to_string().contains("machine<enum-tag>")
+            && error
+                .to_string()
+                .contains("machine<initialization-outcome>"),
         "unexpected error: {error}"
     );
 }
@@ -177,9 +180,9 @@ fn conditional_branch_rejects_machine_scalar_constant() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("a conditional branch must reject a machine-scalar constant");
     assert!(
-        error.0.contains("cbr @entry")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("expected i1"),
+        error.to_string().contains("cbr @entry")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("expected i1"),
         "unexpected error: {error}"
     );
 }
@@ -201,9 +204,9 @@ fn conditional_branch_rejects_machine_scalar_temp_before_materialization() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("a conditional branch must reject a machine temp before materializing it");
     assert!(
-        error.0.contains("cbr @entry")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("expected i1"),
+        error.to_string().contains("cbr @entry")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("expected i1"),
         "unexpected error: {error}"
     );
 }
@@ -225,8 +228,10 @@ fn integer_to_pointer_rejects_machine_scalar_input() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("a machine scalar must not acquire source pointer-conversion semantics");
     assert!(
-        error.0.contains("requires ULong/i64 -> ptr<raw>")
-            && error.0.contains("machine<pointer-element-offset>"),
+        error.to_string().contains("requires ULong/i64 -> ptr<raw>")
+            && error
+                .to_string()
+                .contains("machine<pointer-element-offset>"),
         "unexpected error: {error}"
     );
 }
@@ -250,7 +255,8 @@ fn pointer_to_integer_rejects_machine_scalar_output() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("a pointer conversion must not produce a machine scalar");
     assert!(
-        error.0.contains("requires ptr<raw> -> ULong/i64") && error.0.contains("machine<enum-tag>"),
+        error.to_string().contains("requires ptr<raw> -> ULong/i64")
+            && error.to_string().contains("machine<enum-tag>"),
         "unexpected error: {error}"
     );
 }
@@ -271,9 +277,9 @@ fn aggregate_construction_rejects_machine_scalar_as_i64() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("aggregate fields must have their exact logical LIR type");
     assert!(
-        error.0.contains("aggregate construction")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("expected i64"),
+        error.to_string().contains("aggregate construction")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("expected i64"),
         "unexpected error: {error}"
     );
 }
@@ -293,9 +299,9 @@ fn aggregate_extraction_rejects_i64_as_machine_scalar() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("aggregate extraction must preserve its logical field type");
     assert!(
-        error.0.contains("aggregate extraction")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("expected i64"),
+        error.to_string().contains("aggregate extraction")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("expected i64"),
         "unexpected error: {error}"
     );
 }
@@ -331,7 +337,7 @@ fn raw_load_rejects_machine_scalar_result() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("raw memory must not manufacture an internal machine scalar");
     assert!(
-        error.0.contains("raw_load") && error.0.contains("machine<enum-tag>"),
+        error.to_string().contains("raw_load") && error.to_string().contains("machine<enum-tag>"),
         "unexpected error: {error}"
     );
 }
@@ -364,7 +370,7 @@ fn raw_store_rejects_machine_scalar_value() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("raw memory must not consume an internal machine scalar");
     assert!(
-        error.0.contains("raw_store") && error.0.contains("machine<enum-tag>"),
+        error.to_string().contains("raw_store") && error.to_string().contains("machine<enum-tag>"),
         "unexpected error: {error}"
     );
 }
@@ -387,7 +393,8 @@ fn local_address_rejects_machine_scalar_storage() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("a machine scalar local must not become an untyped raw payload");
     assert!(
-        error.0.contains("local_address") && error.0.contains("machine<coroutine-frame-state>"),
+        error.to_string().contains("local_address")
+            && error.to_string().contains("machine<coroutine-frame-state>"),
         "unexpected error: {error}"
     );
 }
@@ -454,7 +461,8 @@ fn runtime_call_signature_cannot_relabel_a_machine_result() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("runtime calls must use their closed logical signature");
     assert!(
-        error.0.contains("closed runtime ABI") && error.0.contains("scoop_rt_gc_stats"),
+        error.to_string().contains("closed runtime ABI")
+            && error.to_string().contains("scoop_rt_gc_stats"),
         "unexpected error: {error}"
     );
 }
@@ -523,7 +531,7 @@ fn statepoint_plan_cannot_publish_a_machine_scalar_as_a_managed_root() {
         .expect_err("machine scalars cannot be forged into address-space-1 roots");
     assert!(
         error
-            .0
+            .to_string()
             .contains("cannot treat an internal machine scalar as a managed root"),
         "unexpected error: {error}"
     );

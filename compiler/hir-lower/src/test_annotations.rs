@@ -123,7 +123,12 @@ impl Lowerer {
             for &(marker, origin) in roles {
                 let method = hir::TestMethod {
                     function,
-                    name: self.source_function_declarations[&function].name.clone(),
+                    name: self
+                        .functions
+                        .source(function)
+                        .expect("source function declaration")
+                        .name
+                        .clone(),
                     origin,
                 };
                 match marker {

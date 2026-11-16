@@ -143,7 +143,7 @@ impl Lowerer {
                     source.span(),
                     format!("cannot derive persistent nominal identity: {error}"),
                 );
-                diagnostic.file = file;
+                diagnostic.set_file(file);
                 self.diagnostics.push(diagnostic);
             })
             .ok()?;

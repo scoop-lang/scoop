@@ -3,6 +3,18 @@ use std::path::{Path, PathBuf};
 
 #[test]
 fn repository_sources_preserve_syntax_and_tokens() {
+    // The corpus includes deeply nested generated expressions. Debug AST
+    // formatting needs more stack than the test harness's default worker.
+    std::thread::Builder::new()
+        .name("formatter-corpus".into())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(check_repository_sources)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn check_repository_sources() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut files = Vec::new();
     for directory in ["sysroot/src", "tests/fixtures", "examples"] {

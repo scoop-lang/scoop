@@ -126,6 +126,7 @@ pub(super) enum PreparedGraphNode {
 pub(super) struct PreparedManifestSourceNode {
     pub(super) snapshot: ManifestSourceInput,
     pub(super) manifest: Box<scoop_manifest::LoadedConeManifest>,
+    pub(super) dependencies: ResolvedDependencyProjection,
 }
 
 #[derive(Debug)]
@@ -139,6 +140,7 @@ pub(super) struct PreparedPrebuiltArtifactNode {
 pub(super) struct PreparedSingleFileNode {
     pub(super) snapshot: SingleFileSourceInput,
     pub(super) input_path: PathBuf,
+    pub(super) dependencies: ResolvedDependencyProjection,
 }
 
 impl PreparedGraphNode {
@@ -157,7 +159,6 @@ pub struct PreparedBuildGraph {
     pub(super) nodes: BTreeMap<ConeIdentity, PreparedGraphNode>,
     pub(super) edges: BTreeMap<(ConeIdentity, ConeIdentity), ResolvedDependencyEdge>,
     pub(super) dependency_first: Vec<ConeIdentity>,
-    pub(super) source_inputs: BTreeMap<ConeIdentity, ResolvedDependencyProjection>,
     pub(super) root_kind: RequestedConeKind,
     pub(super) target_selection: ValidatedLirTargetSelection,
     pub(super) context: BuildContext,
@@ -226,7 +227,11 @@ impl PreparedBuildGraph {
         &self,
         identity: ConeIdentity,
     ) -> Option<&ResolvedDependencyProjection> {
-        self.source_inputs.get(&identity)
+        match self.nodes.get(&identity)? {
+            PreparedGraphNode::ManifestSource(node) => Some(&node.dependencies),
+            PreparedGraphNode::SingleFile(node) => Some(&node.dependencies),
+            PreparedGraphNode::PrebuiltArtifact(_) => None,
+        }
     }
 
     pub fn source_input_path(&self, identity: ConeIdentity) -> Option<&Path> {

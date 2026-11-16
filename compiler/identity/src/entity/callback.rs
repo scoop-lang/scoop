@@ -238,7 +238,7 @@ impl PersistentCallbackApplicationId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CallbackApplicationIdentityError {
     BinderRequiresSubstitution,
     Hash(HashError),

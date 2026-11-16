@@ -7,7 +7,7 @@ mod protocol;
 pub use documentation::{PublishedDocumentation, SingleConeDocumentationSuccess};
 pub use protocol::DiagnosticMappingError;
 
-use scoop_ast::{CurrentConeParsedSources, Diagnostic};
+use scoop_ast::{CurrentConeParsedSources, Diagnostic, SourceDiagnostic};
 use scoop_slib::PublishedCrossConeArtifact;
 
 use super::StageDumpKind;
@@ -40,11 +40,10 @@ struct CurrentConeDiagnosticSource {
     in_memory: bool,
 }
 
-/// Diagnostics inseparably paired with the exact current-Cone sources whose
-/// canonical indices they reference.
+/// Published diagnostics use stable source identities; display text is optional.
 #[derive(Debug)]
 pub struct CurrentConeDiagnosticSet {
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<SourceDiagnostic>,
     sources: Vec<CurrentConeDiagnosticSource>,
 }
 
@@ -57,10 +56,37 @@ impl CurrentConeDiagnosticSet {
     }
 
     pub(super) fn try_new_with_generated(
-        mut diagnostics: Vec<Diagnostic>,
+        diagnostics: Vec<Diagnostic>,
         sources: &CurrentConeParsedSources,
         generated: &[scoop_hir::GeneratedMethodSource],
     ) -> Result<Self, CurrentConeDiagnosticSetError> {
+        let diagnostics = Self::bind_local(diagnostics, sources)?;
+        Ok(Self::from_bound(diagnostics, sources, generated))
+    }
+
+    pub(super) fn bind_local(
+        diagnostics: Vec<Diagnostic>,
+        sources: &CurrentConeParsedSources,
+    ) -> Result<Vec<SourceDiagnostic>, CurrentConeDiagnosticSetError> {
+        let identities = sources
+            .iter()
+            .map(|source| source.text().identity().clone())
+            .collect::<Vec<_>>();
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| {
+                diagnostic
+                    .bind(&identities)
+                    .map_err(CurrentConeDiagnosticSetError)
+            })
+            .collect()
+    }
+
+    pub(super) fn from_bound(
+        diagnostics: Vec<SourceDiagnostic>,
+        sources: &CurrentConeParsedSources,
+        generated: &[scoop_hir::GeneratedMethodSource],
+    ) -> Self {
         let mut sources = sources
             .iter()
             .map(|source| CurrentConeDiagnosticSource {
@@ -76,43 +102,29 @@ impl CurrentConeDiagnosticSet {
             source_text: Some(source.text.clone()),
             in_memory: true,
         }));
-        for diagnostic in &mut diagnostics {
-            if let Some(identity) = &diagnostic.source {
-                diagnostic.file = source_index(&mut sources, identity);
+        for diagnostic in &diagnostics {
+            if let Some(identity) = diagnostic.source() {
+                source_index(&mut sources, identity);
             }
-            for note in &mut diagnostic.notes {
-                if let Some(identity) = &note.source {
-                    note.file = source_index(&mut sources, identity);
-                }
+            for note in &diagnostic.notes {
+                source_index(&mut sources, &note.source);
             }
         }
-        for (diagnostic_index, diagnostic) in diagnostics.iter().enumerate() {
-            if diagnostic.file >= sources.len() {
-                return Err(CurrentConeDiagnosticSetError::PrimarySourceIndex {
-                    diagnostic_index,
-                    source_index: diagnostic.file,
-                    source_count: sources.len(),
-                });
-            }
-            for (note_index, note) in diagnostic.notes.iter().enumerate() {
-                if note.file >= sources.len() {
-                    return Err(CurrentConeDiagnosticSetError::NoteSourceIndex {
-                        diagnostic_index,
-                        note_index,
-                        source_index: note.file,
-                        source_count: sources.len(),
-                    });
-                }
-            }
-        }
-        Ok(Self {
+        Self {
             diagnostics,
             sources,
-        })
+        }
     }
 
-    pub fn diagnostics(&self) -> &[Diagnostic] {
+    pub fn diagnostics(&self) -> &[SourceDiagnostic] {
         &self.diagnostics
+    }
+
+    fn source(&self, identity: &SourceIdentity) -> &CurrentConeDiagnosticSource {
+        self.sources
+            .iter()
+            .find(|source| &source.identity == identity)
+            .expect("diagnostic display source was registered")
     }
 
     pub fn is_empty(&self) -> bool {
@@ -123,26 +135,32 @@ impl CurrentConeDiagnosticSet {
         self.diagnostics
             .iter()
             .flat_map(|diagnostic| {
-                let primary_source = &self.sources[diagnostic.file];
-                let primary = match &primary_source.source_text {
-                    Some(text) => {
-                        diagnostic.render_with_source(&primary_source.display_locator, text)
+                let primary = if let Some(identity) = diagnostic.source() {
+                    let source = self.source(identity);
+                    match &source.source_text {
+                        Some(text) => diagnostic.render_with_source(&source.display_locator, text),
+                        None => render_without_text(
+                            source,
+                            diagnostic.span(),
+                            match diagnostic.severity {
+                                scoop_ast::DiagnosticSeverity::Error => "error",
+                                scoop_ast::DiagnosticSeverity::Warning => "warning",
+                            },
+                            &diagnostic.message,
+                        ),
                     }
-                    None => {
-                        let severity = match diagnostic.severity {
+                } else {
+                    format!(
+                        "{}: {}",
+                        match diagnostic.severity {
                             scoop_ast::DiagnosticSeverity::Error => "error",
                             scoop_ast::DiagnosticSeverity::Warning => "warning",
-                        };
-                        render_without_text(
-                            primary_source,
-                            diagnostic.span,
-                            severity,
-                            &diagnostic.message,
-                        )
-                    }
+                        },
+                        diagnostic.message
+                    )
                 };
                 std::iter::once(primary).chain(diagnostic.notes.iter().map(|note| {
-                    let note_source = &self.sources[note.file];
+                    let note_source = self.source(&note.source);
                     match &note_source.source_text {
                         Some(text) => note.render_with_source(&note_source.display_locator, text),
                         None => {
@@ -157,41 +175,10 @@ impl CurrentConeDiagnosticSet {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CurrentConeDiagnosticSetError {
-    PrimarySourceIndex {
-        diagnostic_index: usize,
-        source_index: usize,
-        source_count: usize,
-    },
-    NoteSourceIndex {
-        diagnostic_index: usize,
-        note_index: usize,
-        source_index: usize,
-        source_count: usize,
-    },
-}
-
+pub struct CurrentConeDiagnosticSetError(pub scoop_source::DiagnosticBindingError);
 impl fmt::Display for CurrentConeDiagnosticSetError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PrimarySourceIndex {
-                diagnostic_index,
-                source_index,
-                source_count,
-            } => write!(
-                formatter,
-                "diagnostic {diagnostic_index} references source {source_index}, but the current Cone has {source_count} sources"
-            ),
-            Self::NoteSourceIndex {
-                diagnostic_index,
-                note_index,
-                source_index,
-                source_count,
-            } => write!(
-                formatter,
-                "diagnostic {diagnostic_index} note {note_index} references source {source_index}, but the current Cone has {source_count} sources"
-            ),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

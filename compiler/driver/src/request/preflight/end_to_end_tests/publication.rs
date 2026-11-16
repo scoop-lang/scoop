@@ -84,8 +84,11 @@ fn publication_failures_preserve_destinations_and_current_warnings() {
     let warnings = failure.warnings().unwrap();
     assert_eq!(warnings.diagnostics().len(), 1);
     let warning = &warnings.diagnostics()[0];
-    assert_eq!(warning.file, 0);
-    assert_eq!(warning.span, Some(scoop_ast::Span::new(0, 12)));
+    assert_eq!(
+        warning.source(),
+        Some(&scoop_identity::SourceIdentity::single_file())
+    );
+    assert_eq!(warning.span(), Some(scoop_ast::Span::new(0, 12)));
     assert_eq!(warning.severity, scoop_ast::DiagnosticSeverity::Warning);
     assert_eq!(
         warning.message,

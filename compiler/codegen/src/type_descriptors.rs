@@ -16,16 +16,12 @@ pub(super) fn type_descriptor_global<'ctx>(
     globals: TypeDescriptorGlobals<'_, 'ctx>,
 ) -> Result<GlobalValue<'ctx>, CodegenError> {
     match reference {
-        TypeDescriptorRef::Local(id) => globals
-            .local
-            .get(&id)
-            .copied()
-            .ok_or_else(|| CodegenError(format!("invalid local TypeDescriptor id {id:?}"))),
-        TypeDescriptorRef::External(id) => globals
-            .external
-            .get(&id)
-            .copied()
-            .ok_or_else(|| CodegenError(format!("invalid external TypeDescriptor id {id:?}"))),
+        TypeDescriptorRef::Local(id) => globals.local.get(&id).copied().ok_or_else(|| {
+            CodegenError::internal(format!("invalid local TypeDescriptor id {id:?}"))
+        }),
+        TypeDescriptorRef::External(id) => globals.external.get(&id).copied().ok_or_else(|| {
+            CodegenError::internal(format!("invalid external TypeDescriptor id {id:?}"))
+        }),
     }
 }
 
@@ -92,7 +88,7 @@ fn emit_type_descriptor<'ctx>(
     let inline_scan: BasicValueEnum = match descriptor.inline_scan {
         scoop_lir::TypeDescriptorInlineScanV1::Null => {
             if descriptor.instance_shape.inline_scan().contains_reference() {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "TypeDescriptor {} has a nonempty inline scan without its typed definition",
                     descriptor.identity.exact_type()
                 )));
@@ -103,7 +99,7 @@ fn emit_type_descriptor<'ctx>(
             .scan(scan)?
             .runtime_pointer()
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "TypeDescriptor {} references empty typed inline scan {scan}",
                     descriptor.identity.exact_type()
                 ))
@@ -213,10 +209,14 @@ fn emit_type_descriptor<'ctx>(
             let symbol = module
                 .callable_bodies()
                 .find(|body| body.callable_body.id() == hook)
-                .ok_or_else(|| CodegenError(format!("TypeDescriptor has no release body {hook}")))?
+                .ok_or_else(|| {
+                    CodegenError::internal(format!("TypeDescriptor has no release body {hook}"))
+                })?
                 .symbol();
             llvm.get_function(symbol)
-                .ok_or_else(|| CodegenError(format!("release hook {hook} was not declared")))?
+                .ok_or_else(|| {
+                    CodegenError::internal(format!("release hook {hook} was not declared"))
+                })?
                 .as_global_value()
                 .as_pointer_value()
         }
@@ -285,7 +285,7 @@ fn slot_fn_ptr<'ctx>(
     let symbol = match callable {
         CallableRef::Local(id) => functions
             .get(id.into_u32() as usize)
-            .ok_or_else(|| CodegenError(format!("invalid local callable id {id:?}")))?
+            .ok_or_else(|| CodegenError::internal(format!("invalid local callable id {id:?}")))?
             .symbol(),
         CallableRef::Runtime(function) => function.symbol(),
         CallableRef::External(id) => {
@@ -294,7 +294,7 @@ fn slot_fn_ptr<'ctx>(
                 .get_function(symbol.as_str())
                 .map(|function| function.as_global_value().as_pointer_value())
                 .ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "typed dispatch callable {callable:?} (`@{symbol}`) is not declared"
                     ))
                 });
@@ -303,7 +303,7 @@ fn slot_fn_ptr<'ctx>(
     llvm.get_function(symbol)
         .map(|function| function.as_global_value().as_pointer_value())
         .ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "typed dispatch callable {callable:?} (`@{symbol}`) is not declared"
             ))
         })

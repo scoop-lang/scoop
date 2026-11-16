@@ -54,17 +54,8 @@ const SCAN_SEQUENCE: u64 = u64::MAX - 1;
 /// Card granularity of the write barrier: one card per 512 bytes.
 const CARD_SHIFT: u64 = 9;
 
-/// Error produced while translating LIR or emitting the object file.
-#[derive(Debug)]
-pub struct CodegenError(pub String);
-
-impl std::fmt::Display for CodegenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for CodegenError {}
+mod error;
+pub use error::{CodegenError, CodegenErrorKind};
 
 mod abi;
 mod atom_boundaries;

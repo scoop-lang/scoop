@@ -111,6 +111,7 @@ pub(super) fn check(
     for expected in [
         "(Long) -> String",
         "closure (Long) -> String",
+        "CoroutineStartWork",
         "StringIterator",
     ]
     .into_iter()

@@ -187,9 +187,12 @@ fn same_layer_cross_kind_ambiguity_reports_use_and_every_origin() {
                 .iter()
                 .find(|error| error.message.contains("value `Chosen` is ambiguous"))
                 .expect("value ambiguity");
-            assert_eq!(diagnostic.span, Some(ast::Span::new(100, 106)));
+            assert_eq!(diagnostic.span(), Some(ast::Span::new(100, 106)));
             assert_eq!(diagnostic.notes.len(), 2);
-            assert_ne!(diagnostic.notes[0].file, diagnostic.notes[1].file);
+            assert_ne!(
+                bound_source(&diagnostic.notes[0].source),
+                bound_source(&diagnostic.notes[1].source)
+            );
         }
     }
 }
@@ -588,9 +591,7 @@ fn core_value_body_cannot_read_current_unit_property() {
         core,
     )
     .expect_err("core has no current unit value layer");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.file == 0 && error.message.contains("unknown variable `UserValue`"))
-    );
+    assert!(errors.iter().any(|error| diagnostic_source(error)
+        == &core_source_identity("src/core.scoop")
+        && error.message.contains("unknown variable `UserValue`")));
 }

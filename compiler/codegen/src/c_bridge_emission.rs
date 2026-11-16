@@ -52,24 +52,36 @@ pub fn emit_c_bridge_object_set(
         return Ok(emitted);
     }
     std::fs::create_dir_all(temporary_parent).map_err(|error| {
-        CodegenError(format!(
-            "cannot create generated-C temporary parent {}: {error}",
-            temporary_parent.display()
-        ))
+        CodegenError::io(
+            format!(
+                "cannot create generated-C temporary parent {}: {error}",
+                temporary_parent.display()
+            ),
+            error,
+        )
     })?;
     let backing = tempfile::Builder::new()
         .prefix("scoop-generated-c-")
         .tempdir_in(temporary_parent)
-        .map_err(|error| CodegenError(format!("cannot create generated-C directory: {error}")))?;
+        .map_err(|error| {
+            CodegenError::io(
+                format!("cannot create generated-C directory: {error}"),
+                error,
+            )
+        })?;
     let source_path = backing.path().join("bridges.c");
     let object_path = backing.path().join("bridges.o");
-    std::fs::write(&source_path, sources.source())
-        .map_err(|error| CodegenError(format!("cannot write generated-C source: {error}")))?;
+    std::fs::write(&source_path, sources.source()).map_err(|error| {
+        CodegenError::io(format!("cannot write generated-C source: {error}"), error)
+    })?;
     compile(&source_path, &object_path)?;
-    let bytes = std::fs::read(&object_path)
-        .map_err(|error| CodegenError(format!("cannot read generated-C object: {error}")))?;
-    let symbols = scoop_lir::ObjectSymbolSurfaceV1::from_foundation(input.foundation())
-        .map_err(|error| CodegenError(format!("cannot plan generated-C symbols: {error}")))?;
+    let bytes = std::fs::read(&object_path).map_err(|error| {
+        CodegenError::io(format!("cannot read generated-C object: {error}"), error)
+    })?;
+    let symbols =
+        scoop_lir::ObjectSymbolSurfaceV1::from_foundation(input.foundation()).map_err(|error| {
+            CodegenError::internal_cause(format!("cannot plan generated-C symbols: {error}"), error)
+        })?;
     let bytes = crate::generated_c_atom_boundaries::materialize_v1(
         bytes,
         input.module().meta.target_profile,

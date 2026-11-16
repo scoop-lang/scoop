@@ -13,8 +13,11 @@ fn gc_control_intrinsics_remain_required_before_metadata_production() {
             .iter()
             .find(|error| error.message == message)
             .expect("missing GC control role must be diagnosed");
-        assert_eq!(error.file, 0);
-        assert_eq!(error.span, Some(expected_span));
+        assert_eq!(
+            error.source(),
+            Some(&core_source_identity("src/gc-contract.scoop"))
+        );
+        assert_eq!(error.span(), Some(expected_span));
     }
 }
 
@@ -59,8 +62,11 @@ fn gc_control_intrinsics_reject_signature_tampering_at_the_declaration() {
                 .iter()
                 .find(|error| error.message == message)
                 .unwrap_or_else(|| panic!("missing {message}: {errors:?}"));
-            assert_eq!(error.file, 0);
-            assert_eq!(error.span, Some(span));
+            assert_eq!(
+                error.source(),
+                Some(&core_source_identity("src/gc-contract.scoop"))
+            );
+            assert_eq!(error.span(), Some(span));
         }
     }
 }
@@ -74,7 +80,7 @@ enum InvalidShape {
     Receiver,
 }
 
-fn lower_core_source(source: SourceFile) -> Result<hir::Output, Vec<Diagnostic>> {
+fn lower_core_source(source: SourceFile) -> Result<hir::Output, Vec<scoop_ast::SourceDiagnostic>> {
     let identity = core_source_identity("src/gc-contract.scoop");
     let parsed = ast::CurrentConeParsedSources::try_new(
         ast::AllParsedSources::try_new(ast::NonEmptyVec::new(

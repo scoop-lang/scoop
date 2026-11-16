@@ -99,7 +99,7 @@ impl Lowerer {
             .and_then(|world| world.nominal_declaration(declaration.key.owner))
             .expect("an imported conditional declaration retains its nominal origin");
         let mut diagnostic = ast::Diagnostic::at_file(self.current_file, declaration.span, message);
-        diagnostic.source = Some(Box::new(origin.origin.origin().source().clone()));
+        diagnostic.set_source(origin.origin.origin().source().clone());
         diagnostic
     }
 
@@ -135,10 +135,7 @@ impl Lowerer {
 
     fn report_conditional_cycle(&mut self, diagnostic: ast::Diagnostic) {
         let repeated = self.diagnostics.iter().any(|previous| {
-            previous.source == diagnostic.source
-                && (diagnostic.source.is_some() || previous.file == diagnostic.file)
-                && previous.span == diagnostic.span
-                && previous.message == diagnostic.message
+            previous.location == diagnostic.location && previous.message == diagnostic.message
         });
         if !repeated {
             self.diagnostics.push(diagnostic);

@@ -28,6 +28,25 @@ impl CandidateProbeFailure {
     }
 }
 
+pub(super) enum CandidateProbeError {
+    Rejected(Box<CandidateProbeFailure>),
+    Internal(ast::Diagnostic),
+}
+
+impl CandidateProbeError {
+    fn rejected(failure: Box<CandidateProbeFailure>) -> Self {
+        if let Some(diagnostic) = failure.state.as_ref().and_then(|state| {
+            state
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+        }) {
+            return Self::Internal(diagnostic.clone());
+        }
+        Self::Rejected(failure)
+    }
+}
+
 pub(super) enum CandidateProbeFailureKind {
     Shape(CandidateShapeFailure),
     Declaration {
@@ -62,7 +81,7 @@ impl Lowerer {
         explicit_type_args: &[ResolvedCallTypeArgument],
         arguments: &OverloadArguments<'_>,
         expected_result: Option<TypeId>,
-    ) -> Result<ApplicableCandidate, Box<CandidateProbeFailure>> {
+    ) -> Result<ApplicableCandidate, CandidateProbeError> {
         let shape = if !candidate.explicit_arity_match {
             Some(CandidateShapeFailure::TypeArgumentArity {
                 expected: candidate.own_type_param_count,
@@ -77,12 +96,14 @@ impl Lowerer {
                 .map(CandidateShapeFailure::Argument)
         };
         if let Some(shape) = shape {
-            return Err(Box::new(CandidateProbeFailure {
-                candidate: candidate_index,
-                state: None,
-                arguments: Vec::new(),
-                kind: CandidateProbeFailureKind::Shape(shape),
-            }));
+            return Err(CandidateProbeError::rejected(Box::new(
+                CandidateProbeFailure {
+                    candidate: candidate_index,
+                    state: None,
+                    arguments: Vec::new(),
+                    kind: CandidateProbeFailureKind::Shape(shape),
+                },
+            )));
         }
         let argument_map = candidate
             .argument_map
@@ -97,15 +118,17 @@ impl Lowerer {
             );
             if state.diagnostics.len() != before {
                 let reason = diagnostic_reason(&state, before);
-                return Err(Box::new(CandidateProbeFailure {
-                    candidate: candidate_index,
-                    state: Some(state),
-                    arguments: Vec::new(),
-                    kind: CandidateProbeFailureKind::Context {
-                        span: candidate.call_span,
-                        reason,
+                return Err(CandidateProbeError::rejected(Box::new(
+                    CandidateProbeFailure {
+                        candidate: candidate_index,
+                        state: Some(state),
+                        arguments: Vec::new(),
+                        kind: CandidateProbeFailureKind::Context {
+                            span: candidate.call_span,
+                            reason,
+                        },
                     },
-                }));
+                )));
             }
         }
         let intrinsic_argument_expected = match arguments {
@@ -125,12 +148,14 @@ impl Lowerer {
                     Err(()) => {
                         let reason = diagnostic_reason(&state, diagnostics_before);
                         let span = diagnostic_span(&state, diagnostics_before, candidate.call_span);
-                        return Err(Box::new(CandidateProbeFailure {
-                            candidate: candidate_index,
-                            state: Some(state),
-                            arguments: receiver.cloned().map(Some).into_iter().collect(),
-                            kind: CandidateProbeFailureKind::Declaration { span, reason },
-                        }));
+                        return Err(CandidateProbeError::rejected(Box::new(
+                            CandidateProbeFailure {
+                                candidate: candidate_index,
+                                state: Some(state),
+                                arguments: receiver.cloned().map(Some).into_iter().collect(),
+                                kind: CandidateProbeFailureKind::Declaration { span, reason },
+                            },
+                        )));
                     }
                 }
             }
@@ -178,6 +203,11 @@ impl Lowerer {
             Ok(arguments) => arguments,
             Err(failure) => {
                 let kind = match failure.kind {
+                    ArgumentInferenceFailureKind::Internal(failure) => {
+                        return Err(CandidateProbeError::Internal(ast::Diagnostic::internal(
+                            failure,
+                        )));
+                    }
                     ArgumentInferenceFailureKind::Declaration { span, reason } => {
                         CandidateProbeFailureKind::Declaration { span, reason }
                     }
@@ -194,17 +224,19 @@ impl Lowerer {
                         }
                     }
                 };
-                return Err(Box::new(CandidateProbeFailure {
-                    candidate: candidate_index,
-                    state: Some(state),
-                    arguments: receiver
-                        .cloned()
-                        .map(Some)
-                        .into_iter()
-                        .chain(failure.arguments)
-                        .collect(),
-                    kind,
-                }));
+                return Err(CandidateProbeError::rejected(Box::new(
+                    CandidateProbeFailure {
+                        candidate: candidate_index,
+                        state: Some(state),
+                        arguments: receiver
+                            .cloned()
+                            .map(Some)
+                            .into_iter()
+                            .chain(failure.arguments)
+                            .collect(),
+                        kind,
+                    },
+                )));
             }
         };
         let type_args = types
@@ -220,6 +252,13 @@ impl Lowerer {
                 &bindings,
             );
             values.insert(0, state.adapt_to(receiver.clone(), expected));
+        }
+        if let Some(diagnostic) = state
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.kind == ast::DiagnosticKind::Internal)
+        {
+            return Err(CandidateProbeError::Internal(diagnostic.clone()));
         }
         Ok(ApplicableCandidate {
             candidate: candidate_index,
@@ -247,6 +286,6 @@ fn diagnostic_reason(lowerer: &Lowerer, diagnostics_before: usize) -> String {
 fn diagnostic_span(lowerer: &Lowerer, diagnostics_before: usize, fallback: Span) -> Span {
     lowerer.diagnostics[diagnostics_before..]
         .first()
-        .and_then(|diagnostic| diagnostic.span)
+        .and_then(|diagnostic| diagnostic.span())
         .unwrap_or(fallback)
 }

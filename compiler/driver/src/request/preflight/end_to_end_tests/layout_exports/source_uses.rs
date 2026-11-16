@@ -11,11 +11,16 @@ fn actual_hir_type_uses_drive_mir_dependency_projection() {
     let fixtures = crate::workspace_root().join("tests/fixtures/language/materialized-type-uses");
     for (name, expected) in [
         // Deferred has a finite coroutine start and an initializer returning Unit.
+        // The start captures execution state, including ExecutorTask and its
+        // ordinary Int-based implementation dependencies.
         // Ordinary values do not materialize any implicit encoding bodies.
         (
             "standalone",
             vec![
                 "Boolean",
+                "ExecutorTask",
+                "Int",
+                "IntRange",
                 "Long",
                 "LongRange",
                 "String",

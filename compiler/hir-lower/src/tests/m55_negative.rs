@@ -42,7 +42,10 @@ fn m55_extension_failure_prefers_the_explicit_type_arity() {
             |_, _, _, _, _| (),
         )
         .unwrap_err();
-        for errors in [local, imported] {
+        for errors in [
+            local.iter().map(|error| &error.message).collect::<Vec<_>>(),
+            imported.iter().map(|error| &error.message).collect(),
+        ] {
             assert_eq!(errors.len(), 1, "{errors:#?}");
             let diagnostic = format!("{errors:#?}");
             assert!(diagnostic.contains("upper bound `Bound`"), "{diagnostic}");

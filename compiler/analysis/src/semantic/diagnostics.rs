@@ -1,5 +1,5 @@
 use super::*;
-use scoop_source::Diagnostic;
+use scoop_source::SourceDiagnostic as Diagnostic;
 
 impl SemanticSession {
     /// Reuse declaration and body queries for the requested source revision.
@@ -61,14 +61,20 @@ impl SemanticSession {
             Err(error) => return Err(error.clone()),
         };
         snapshot.check_cancelled()?;
+        if let Some(internal) = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.kind == scoop_source::DiagnosticKind::Internal)
+        {
+            return Err(ProjectAnalysisError::Internal(internal.message.clone()));
+        }
         let mut diagnostics = diagnostics
             .into_iter()
-            .filter(|diagnostic| diagnostic.source.as_deref() == Some(identity))
+            .filter(|diagnostic| diagnostic.source() == Some(identity))
             .collect::<Vec<_>>();
         diagnostics.sort_by(|a, b| {
-            a.span
+            a.span()
                 .map(|span| (span.start, span.end))
-                .cmp(&b.span.map(|span| (span.start, span.end)))
+                .cmp(&b.span().map(|span| (span.start, span.end)))
                 .then(a.message.cmp(&b.message))
         });
         diagnostics.dedup();

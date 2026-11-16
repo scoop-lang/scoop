@@ -6,6 +6,6 @@ pub struct DependencyExportHirOutput {
     pub export: crate::ExportHirOutput,
     pub imported_dependencies: crate::SelectedImportedDependencySet,
     pub binding_witness_uses: Vec<crate::ExternalHirBindingWitnessUse>,
-    pub warnings: Vec<scoop_ast::Diagnostic>,
+    pub warnings: Vec<scoop_source::SourceDiagnostic>,
     pub documentation: Option<crate::ConeDocumentation>,
 }

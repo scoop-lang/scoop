@@ -62,7 +62,7 @@ public struct EmbeddedDir(val files: Array<EmbeddedFile>)
 fn lower(
     source: &str,
     inputs: Arc<Inputs>,
-) -> Result<hir::DependencyExportHirOutput, Vec<scoop_ast::Diagnostic>> {
+) -> Result<hir::DependencyExportHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let mut declarations = super::super::complete_core_file();
 
     declarations

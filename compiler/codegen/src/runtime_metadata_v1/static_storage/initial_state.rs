@@ -133,7 +133,7 @@ pub(super) fn emit_initial_state<'ctx>(
                     }
                 }
                 _ => {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "static storage `{}` initial-state artifact plan disagrees with its relocation set",
                         plan.semantic().symbol().symbol()
                     )));
@@ -145,7 +145,7 @@ pub(super) fn emit_initial_state<'ctx>(
                 relocations,
             })
         }
-        _ => Err(CodegenError(format!(
+        _ => Err(CodegenError::internal(format!(
             "static storage `{}` initial-state semantics disagree with its artifact plan",
             plan.semantic().symbol().symbol()
         ))),

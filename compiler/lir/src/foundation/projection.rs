@@ -522,8 +522,8 @@ mod tests {
     use super::*;
     use crate::{
         AbiReturn, BasicBlock, CallTarget, CallTargets, CallableBodyIdentity, CallingConvention,
-        GcEffect, Global, GlobalInit, ImmortalObjectIdentity, Instruction, InvokeSite,
-        ItableRecord, LayoutIdentity, LirStaticInitialState, MANAGED_PTR, MaterializationRoot,
+        GcEffect, Global, GlobalInit, ImmortalObjectIdentity, InvokeSite, ItableRecord,
+        LayoutIdentity, LirStaticInitialState, MANAGED_PTR, MaterializationRoot,
         NoGcCallDestination, NoGcInvokeSite, NoGcRuntimeFunction, NoGcTypedCall, PointerKind,
         RefScan, RuntimeTypeMappingRecord, SafepointIdentities, SafepointIdentity,
         SafepointSiteRef, ScoopAbiSignature, StaticStorageIdentity, Terminator, TypeDescriptor,
@@ -970,18 +970,16 @@ mod tests {
             instructions: Default::default(),
             terminator: Terminator::Return { value: None },
         });
-        function.blocks[function.entry]
-            .instructions
-            .push(Instruction::Invoke {
-                site: InvokeSite::NoGc(NoGcInvokeSite {
-                    call: NoGcTypedCall::Void {
-                        target,
-                        args: Vec::new(),
-                    },
-                    normal,
-                    unwind,
-                }),
-            });
+        function.blocks[function.entry].terminator = Terminator::Invoke {
+            site: InvokeSite::NoGc(NoGcInvokeSite {
+                call: NoGcTypedCall::Void {
+                    target,
+                    args: Vec::new(),
+                },
+                normal,
+                unwind,
+            }),
+        };
 
         assert_eq!(
             definitions::callable_body_associated_atoms(

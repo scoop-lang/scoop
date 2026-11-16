@@ -620,24 +620,7 @@ pub(super) fn test_safepoints_for_owner(
     entry: scoop_lir::BlockId,
 ) -> scoop_lir::SafepointIdentities {
     fn successors(block: &BasicBlock) -> Vec<scoop_lir::BlockId> {
-        if let Some(Instruction::Invoke { site }) = block.instructions.last() {
-            assert!(
-                matches!(block.terminator, Terminator::Br(target) if target == site.normal()),
-                "test invoke block must branch to its normal successor"
-            );
-            return vec![site.normal(), site.unwind()];
-        }
-        match block.terminator {
-            Terminator::Br(target) => vec![target],
-            Terminator::CondBr {
-                then_block,
-                else_block,
-                ..
-            } => vec![then_block, else_block],
-            Terminator::Return { .. } | Terminator::Resume { .. } | Terminator::Unreachable => {
-                Vec::new()
-            }
-        }
+        block.terminator.successors().collect()
     }
 
     let mut visited = HashSet::new();
@@ -670,10 +653,7 @@ pub(super) fn test_safepoints_for_owner(
     let mut references = HashSet::new();
     let mut identities = Vec::new();
     for block in postorder {
-        for instruction in &blocks[block].instructions {
-            let Some((role, reference)) = instruction.safepoint() else {
-                continue;
-            };
+        for (role, reference) in blocks[block].safepoints() {
             assert!(
                 references.insert(reference),
                 "test fixture reuses a safepoint reference"
@@ -1261,10 +1241,13 @@ pub(super) fn strong_shape_ir_of(module: &Module) -> String {
 }
 
 pub(super) fn try_strong_shape_ir_of(module: &Module) -> Result<String, CodegenError> {
-    let foundation = scoop_lir::ConeLirFoundation::from_module(module)
-        .map_err(|error| CodegenError(format!("strong LIR projection failed: {error}")))?;
-    let surface = scoop_lir::ObjectSymbolSurfaceV1::from_foundation(&foundation)
-        .map_err(|error| CodegenError(format!("strong symbol projection failed: {error}")))?;
+    let foundation = scoop_lir::ConeLirFoundation::from_module(module).map_err(|error| {
+        CodegenError::internal_cause(format!("strong LIR projection failed: {error}"), error)
+    })?;
+    let surface =
+        scoop_lir::ObjectSymbolSurfaceV1::from_foundation(&foundation).map_err(|error| {
+            CodegenError::internal_cause(format!("strong symbol projection failed: {error}"), error)
+        })?;
     let context = Context::create();
     let llvm = context.create_module("strong-shape-test");
     let descriptor_type =
@@ -1317,8 +1300,9 @@ pub(super) fn try_strong_shape_ir_of(module: &Module) -> Result<String, CodegenE
             external: &external_type_globals,
         },
     )?;
-    llvm.verify()
-        .map_err(|error| CodegenError(format!("invalid strong shape LLVM module: {error}")))?;
+    llvm.verify().map_err(|error| {
+        CodegenError::backend(format!("invalid strong shape LLVM module: {error}"), error)
+    })?;
     Ok(llvm.print_to_string().to_string())
 }
 

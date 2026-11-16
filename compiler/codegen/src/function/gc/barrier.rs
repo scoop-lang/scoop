@@ -52,7 +52,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     emitter.context.i64_type().const_int(offset, false),
                     "barrier_bytes",
                 )
-                .map_err(|error| CodegenError(format!("array barrier extent: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("array barrier extent: {error}"), error)
+                })?;
             emitter.heap_range_barrier(first, bytes)
         })
     }
@@ -82,7 +84,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         );
         self.builder
             .build_call(barrier, &[address.into(), bytes.into()], "")
-            .map_err(|error| CodegenError(format!("heap range barrier: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("heap range barrier: {error}"), error)
+            })?;
         Ok(())
     }
 

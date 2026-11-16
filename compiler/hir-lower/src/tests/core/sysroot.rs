@@ -28,7 +28,7 @@ pub(in crate::tests) fn lower_with_sysroot(
 // Compile this structural fixture as one real core Cone, including its coroutine helpers.
 pub(in crate::tests) fn bootstrap_sysroot(
     source: &str,
-) -> Result<hir::Output, Vec<ast::Diagnostic>> {
+) -> Result<hir::Output, Vec<ast::SourceDiagnostic>> {
     let mut text = sysroot_sources()
         .iter()
         .map(|path| std::fs::read_to_string(path).unwrap())

@@ -122,7 +122,7 @@ fn return_inside_try_runs_finally_before_returning() {
         unwind,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: false,
-            state: state,
+            state,
         }))],
         mir::Terminator::Goto(dispatch),
         None,
@@ -242,7 +242,6 @@ fn return_inside_try_runs_finally_before_returning() {
         poll gateway managed-void-target1 sp<managed-poll:0> live=[]
         call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(td10)
         invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn4() normal @success unwind @failure
-        br @success
       block success
         raw_store param2 integer<Int>(0x00000000) align 4
         ret integer<UInt>(0x00000000)

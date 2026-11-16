@@ -15,8 +15,11 @@ fn dependency_value_wrappers_reject_inline_cycles() {
         let errors = with_provider_consumer(&provider, &source, |_, _, _, _, _| ())
             .expect_err("an imported wrapper cannot hide a recursive inline layout");
         assert_eq!(errors.len(), 1, "{case}: {errors:?}");
-        assert_eq!(errors[0].file, 0);
-        assert!(errors[0].span.is_some());
+        assert_eq!(
+            errors[0].source().unwrap().logical_path().as_str(),
+            "src/main.scoop"
+        );
+        assert!(errors[0].span().is_some());
         assert_eq!(
             errors[0].message,
             format!("recursive value layout does not cross a reference boundary: {path}"),

@@ -13,7 +13,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if function.temps[*record].ty != LirType::ExceptionRecord
                     || function.temps[*raw].ty != scoop_lir::RAW_PTR
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "landingpad @{} must produce (exception_record, ptr<raw>)",
                         function.symbol()
                     )));
@@ -26,7 +26,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.llvm_function
                         .get_personality_function()
                         .ok_or_else(|| {
-                            CodegenError(format!(
+                            CodegenError::internal(format!(
                                 "landingpad @{symbol}: function has no personality function",
                                 symbol = function.symbol()
                             ))
@@ -43,18 +43,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &format!("t{}", record.into_raw().into_u32()),
                     )
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "landingpad @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("landingpad @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 let exception_ptr = builder
                     .build_extract_value(landing_pad.into_struct_value(), 0, "exception_ptr")
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "landingpad @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("landingpad @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 self.temps.insert(*record, landing_pad);
                 self.temps.insert(*raw, exception_ptr);
@@ -64,7 +64,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if function.temps[*record].ty != LirType::ExceptionRecord
                     || function.temps[*raw].ty != scoop_lir::RAW_PTR
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "cleanup pad @{} must produce (exception_record, ptr<raw>)",
                         function.symbol()
                     )));
@@ -78,7 +78,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.llvm_function
                         .get_personality_function()
                         .ok_or_else(|| {
-                            CodegenError(format!(
+                            CodegenError::internal(format!(
                                 "cleanup pad @{symbol}: function has no personality function",
                                 symbol = function.symbol()
                             ))
@@ -100,18 +100,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &format!("t{}", record.into_raw().into_u32()),
                     )
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "cleanup pad @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("cleanup pad @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 let exception_ptr = builder
                     .build_extract_value(landing_pad.into_struct_value(), 0, "exception_ptr")
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "cleanup pad @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("cleanup pad @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
                 self.temps.insert(*record, landing_pad);
                 self.temps.insert(*raw, exception_ptr);
@@ -121,7 +121,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let raw_ty = function.value_ty(self.globals_arena, *raw);
                 if function.temps[*out].ty != scoop_lir::MANAGED_PTR || raw_ty != scoop_lir::RAW_PTR
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "begin_catch @{} requires ptr<raw> -> ptr<managed>, got {} -> {}",
                         function.symbol(),
                         raw_ty.dump(),
@@ -137,15 +137,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let object = builder
                     .build_call(begin_catch, &[self.value(*raw)?.into()], &name)
                     .map_err(|e| {
-                        CodegenError(format!(
-                            "begin_catch @{symbol}: {e}",
-                            symbol = function.symbol()
-                        ))
+                        CodegenError::backend(
+                            format!("begin_catch @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?
                     .try_as_basic_value()
                     .basic()
                     .ok_or_else(|| {
-                        CodegenError("scoop_rt_begin_catch returned void".to_string())
+                        CodegenError::internal("scoop_rt_begin_catch returned void".to_string())
                     })?;
                 self.temps.insert(*out, object);
             }
@@ -154,14 +154,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     scoop_lir::RuntimeAbiSymbolV1::EndCatch.logical_symbol(),
                     context.void_type().fn_type(&[], false),
                 );
-                builder
-                    .build_call(end_catch, &[], "")
-                    .map_err(|e| CodegenError(format!("end_catch @{}: {e}", function.symbol())))?;
+                builder.build_call(end_catch, &[], "").map_err(|e| {
+                    CodegenError::backend(format!("end_catch @{}: {e}", function.symbol()), e)
+                })?;
             }
             Instruction::Throw { exception } => {
                 let exception_ty = function.value_ty(self.globals_arena, *exception);
                 if exception_ty != scoop_lir::MANAGED_PTR {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "throw @{} requires ptr<managed>, got {}",
                         function.symbol(),
                         exception_ty.dump()
@@ -187,7 +187,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 builder
                     .build_call(throw, &[self.value(*exception)?.into()], "")
                     .map_err(|e| {
-                        CodegenError(format!("throw @{symbol}: {e}", symbol = function.symbol()))
+                        CodegenError::backend(
+                            format!("throw @{symbol}: {e}", symbol = function.symbol()),
+                            e,
+                        )
                     })?;
             }
             _ => unreachable!("instruction dispatcher routes only exception instructions"),

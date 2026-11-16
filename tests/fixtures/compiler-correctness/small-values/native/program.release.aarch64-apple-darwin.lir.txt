@@ -372,6 +372,9 @@ Module
     local %174 $sc.1: exception_record
     local %175 $sc.2: ptr<raw>
     local %176 $sc.3: ptr<managed>
+    local %177 $sc.4: exception_record
+    local %178 $sc.5: ptr<raw>
+    local %179 $sc.6: ptr<managed>
   block entry
     poll managed-void-target7 sp<managed-poll:0> live=[]
     store integer<UInt>(0xff800123) -> local0
@@ -530,12 +533,12 @@ Module
     br @inline.33.entry
   block try.unwind.19
     (t29, t30) = landingpad : (exception_record, ptr<raw>)
-    store t29 -> local174
-    store t30 -> local175
+    store t29 -> local177
+    store t30 -> local178
     br @try.dispatch.20
   block try.dispatch.20
-    t31 = begin_catch local175 : ptr<managed>
-    store t31 -> local176
+    t31 = begin_catch local178 : ptr<managed>
+    store t31 -> local179
     br @scope.29
   block try.exit_pad.21
     (t32, t33) = cleanup_pad : (exception_record, ptr<raw>)
@@ -574,7 +577,6 @@ Module
     br @if.merge.27
   block if.merge.27
     invoke managed-void-target5 sp<managed-invoke:0> roots=[] sig=void5 (i1) local-fn13(local137) normal @invoke.normal.1 unwind @try.unwind.19
-    br @invoke.normal.1
   block scope.28
     store integer<Int>(0x00000000) -> local140
     store integer<Int>(0x00000000) -> local141
@@ -589,7 +591,6 @@ Module
     store integer<Int>(0x00000001) -> local143
     store integer<Int>(0x00000001) -> local125
     invoke no-gc-void-target0 sig=void6 () runtime @scoop_rt_rethrow() normal @rethrow.normal.2 unwind @try.exit_pad.21
-    br @rethrow.normal.2
   block if.then.30
     store integer<Int>(0x00000001) -> local147
     store integer<Int>(0x00000001) -> local148
@@ -852,7 +853,6 @@ Module
     poll gateway managed-void-target1 sp<managed-poll:0> live=[]
     call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(external-td3)
     invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn14() normal @success unwind @failure
-    br @success
   block success
     raw_store param2 integer<Int>(0x00000000) align 4
     ret integer<UInt>(0x00000000)

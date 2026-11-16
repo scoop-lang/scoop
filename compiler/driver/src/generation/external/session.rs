@@ -127,7 +127,14 @@ fn respond(
         execute_query(queries, method.pending.function, query.query).map_err(|diagnostics| {
             let data = diagnostics
                 .iter()
-                .map(|diagnostic| GeneratorDiagnostic::from_diagnostic(diagnostic, &method.origin))
+                .map(|diagnostic| {
+                    GeneratorDiagnostic::from_diagnostic(
+                        &diagnostic
+                            .clone()
+                            .bind(&[])
+                            .unwrap_or_else(scoop_source::SourceDiagnostic::internal),
+                    )
+                })
                 .collect::<Vec<_>>();
             ResponseError {
                 code: scoop_generator_protocol::QUERY_ERROR,

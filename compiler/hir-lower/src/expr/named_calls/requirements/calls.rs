@@ -27,13 +27,15 @@ impl Lowerer {
         }
         let mut candidates = Vec::new();
         for requirement in requirements {
-            if let Ok(layer) = self.probe_expr_layer(|state, sink| {
-                if requirement.contract.effects.is_suspend {
-                    state.check_suspend_context(name.unwrap_or("constructor"), call.span);
-                }
+            match self.probe_expr_layer(|state, sink| {
                 state.lower_requirement_invocation(&requirement, receiver.clone(), call, sink)
             }) {
-                candidates.push((requirement, layer));
+                Ok(layer) => candidates.push((requirement, layer)),
+                Err(failure) => {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return Some(None);
+                    }
+                }
             }
         }
         if candidates.is_empty() {
@@ -59,7 +61,14 @@ impl Lowerer {
                 vararg: false,
             })
             .collect::<Vec<_>>();
-        let winners = self.most_specific_declarations(&pool);
+        let winners = match self.most_specific_declarations(&pool) {
+            Ok(pool) => pool,
+            Err(error) => {
+                self.diagnostics
+                    .push(scoop_ast::Diagnostic::internal(error));
+                return Some(None);
+            }
+        };
         let effects = candidates
             .iter()
             .map(|(requirement, _)| {

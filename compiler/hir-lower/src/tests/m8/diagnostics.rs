@@ -19,7 +19,7 @@ fn catch_non_throwable_is_an_error() {
         errors[0].message,
         "catch parameter type Int is not a subtype of Throwable"
     );
-    assert_eq!(errors[0].span, Some(ty_span));
+    assert_eq!(errors[0].span(), Some(ty_span));
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn unreachable_catch_is_an_error() {
             errors[0].message,
             format!("unreachable catch block: {later} is already covered by an earlier catch")
         );
-        assert_eq!(errors[0].span, Some(clause_span));
+        assert_eq!(errors[0].span(), Some(clause_span));
     }
 }
 
@@ -85,9 +85,10 @@ fn missing_core_throwable_is_an_error() {
     let errors =
         lower(&[file(vec![fun("main", vec![])])]).expect_err("missing core Throwable must fail");
     assert!(
-        errors
-            .iter()
-            .any(|e| e.message == "scoop.core must define a class `Throwable`" && e.file == 0),
+        errors.iter().any(
+            |e| e.message == "scoop.core must define a class `Throwable`"
+                && diagnostic_source(e) == &scoop_identity::SourceIdentity::single_file()
+        ),
         "{errors:?}"
     );
 }

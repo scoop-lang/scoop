@@ -55,14 +55,13 @@ pub fn plan_generators(
 
 fn diagnostic(origin: &hir::SemanticSourceLocation, message: impl Into<String>) -> Diagnostic {
     let mut diagnostic = Diagnostic::at(origin.span, message);
-    diagnostic.source = Some(Box::new(origin.source.clone()));
+    diagnostic.set_source(origin.source.clone());
     diagnostic
 }
 
 fn related(origin: &hir::SemanticSourceLocation, message: impl Into<String>) -> DiagnosticNote {
     DiagnosticNote {
-        file: 0,
-        source: Some(Box::new(origin.source.clone())),
+        source: scoop_source::LocalDiagnosticSource::Bound(Box::new(origin.source.clone())),
         span: origin.span,
         message: message.into(),
         import_path: Vec::new(),

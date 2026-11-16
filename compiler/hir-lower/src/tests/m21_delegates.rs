@@ -1,5 +1,39 @@
 use super::*;
 
+#[test]
+fn failed_runtime_delegates_do_not_diagnose_placeholder_storage_types() {
+    for property in [
+        "val wrong: Int by make<Int>()",
+        "var Receiver<Int>.wrong: Int by make<Int>()",
+        "val <T> Receiver<T>.wrong: Int by make<T>()",
+    ] {
+        let source = format!(
+            "class Receiver<T> {{}}\n\
+             class Cell<T> {{\n\
+                 operator fun getValue(thisRef: Any): Int = 1\n\
+             }}\n\
+             suspend fun <T> make(): Cell<T> = Cell<T>()\n\
+             {property}\n\
+             fun independent(): Int = true\n\
+             fun main() {{}}"
+        );
+        let parsed = scoop_parser::parse(&source).unwrap();
+        let errors = lower_user(parsed).expect_err("the initializer and independent body fail");
+        assert_eq!(errors.len(), 2, "{property}: {errors:?}");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("suspend function `make`"))
+        );
+        assert!(errors.iter().any(|error| error.message.contains("Boolean")));
+        assert!(
+            errors
+                .iter()
+                .all(|error| !error.message.contains("property delegate operator"))
+        );
+    }
+}
+
 fn delegate_operator(mut function: FunctionDecl) -> FunctionDecl {
     function.operator = Some(ast::OperatorModifier { span: sp() });
     function

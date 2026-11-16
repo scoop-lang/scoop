@@ -21,7 +21,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         if self.function.temps[*out].ty != scoop_lir::MANAGED_PTR
             || self.function.value_ty(self.globals_arena, *count) != LirType::I64
         {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "dynamic array allocation requires a Long count and managed result".into(),
             ));
         }
@@ -43,9 +43,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         )?;
         let array = array.object;
         let size = self.byte_gep(array, 16, "array_size")?;
-        self.builder
-            .build_store(size, count)
-            .map_err(|error| CodegenError(format!("store initialized array count: {error}")))?;
+        self.builder.build_store(size, count).map_err(|error| {
+            CodegenError::backend(format!("store initialized array count: {error}"), error)
+        })?;
         self.temps.insert(*out, array.into());
         Ok(())
     }

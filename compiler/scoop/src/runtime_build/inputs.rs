@@ -78,6 +78,19 @@ impl Inputs {
             .map(str::to_owned)
             .collect();
         let path = |p: &Path| HostPathCarrier::from_path(p).map_err(error);
+        let minimum_os = match request
+            .target
+            .c_bridge_toolchain()
+            .profile()
+            .contract()
+            .platform()
+        {
+            scoop_lir::CBridgePlatformContractV1::Darwin { deployment, .. } => {
+                Some(deployment.minimum_os().packed())
+            }
+            scoop_lir::CBridgePlatformContractV1::Linux { .. }
+            | scoop_lir::CBridgePlatformContractV1::Windows { .. } => None,
+        };
         let key = serde_json::to_vec(&(
             path(&root)?,
             path(&vendor)?,
@@ -91,6 +104,7 @@ impl Inputs {
                 .map(|p| path(p))
                 .collect::<Result<Vec<_>, _>>()?,
             encode(&request.target.lir_target().wire_id()).map_err(error)?,
+            minimum_os,
             encode(&scoop_lir::RuntimeAbiContract).map_err(error)?,
         ))
         .map_err(error)?;

@@ -130,6 +130,6 @@ fn block_imports_reject_public_reexports_at_the_modifier() {
         .iter()
         .find(|error| error.message == "public import is only allowed in a file header")
         .expect("specific diagnostic");
-    let span = error.span.unwrap();
+    let span = error.span().unwrap();
     assert_eq!(&source[span.start as usize..span.end as usize], "public");
 }

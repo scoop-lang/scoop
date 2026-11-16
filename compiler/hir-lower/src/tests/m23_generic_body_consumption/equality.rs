@@ -63,8 +63,12 @@ fn imported_generic_equality_rejects_incomparable_fields_at_the_operator() {
             .iter()
             .find(|error| error.message.contains(expected))
             .unwrap_or_else(|| panic!("{case}: {errors:?}"));
-        let span = error.span.unwrap();
-        assert_eq!(error.file, 0, "{case}");
+        let span = error.span().unwrap();
+        assert_eq!(
+            error.source().unwrap().logical_path().as_str(),
+            "src/main.scoop",
+            "{case}"
+        );
         assert_eq!(
             &source[span.start as usize..span.end as usize],
             "left == right",

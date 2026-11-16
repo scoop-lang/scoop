@@ -5,6 +5,25 @@ fn check(source: &str) -> Result<hir::Output, Vec<ast::Diagnostic>> {
 }
 
 #[test]
+fn requirement_call_effects_are_reported_once_for_the_selected_candidate() {
+    let source = r#"
+        fun <T> read(value: T): Int where requires(x: T) {
+            suspend x.read(value: Int): Int
+            x.read(value: String): Int
+        } = value.read(1)
+        fun main() {}
+    "#;
+    let errors = check(source).unwrap_err();
+    assert_eq!(errors.len(), 1, "{errors:#?}");
+    assert_eq!(
+        errors[0].message,
+        "suspend function `read` cannot be called from non-suspend function `read`"
+    );
+    check(&source.replace("value.read(1)", "value.read(\"ordinary\")")).unwrap();
+    check(&source.replace("fun <T>", "suspend fun <T>")).unwrap();
+}
+
+#[test]
 fn m55_requirement_declarations_normalize_virtual_names_and_block_order() {
     let errors = check(r#"
         fun <T> use(x: T): Int where requires(a: T) { a.read(): Int; a.check(x: Int): Boolean } = 0

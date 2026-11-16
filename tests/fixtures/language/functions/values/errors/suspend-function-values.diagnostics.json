@@ -14,19 +14,6 @@
   },
   {
     "code": "SCOOPC_HIR_ERROR",
-    "message": "ordinary and suspend function types are incompatible",
-    "notes": [],
-    "origin": {
-      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 139,
-      "kind": "source",
-      "path": "main.scoop",
-      "start": 134
-    },
-    "severity": "error"
-  },
-  {
-    "code": "SCOOPC_HIR_ERROR",
     "message": "suspend function value cannot be called from non-suspend function `main`",
     "notes": [],
     "origin": {
@@ -40,7 +27,7 @@
   },
   {
     "code": "SCOOPC_HIR_ERROR",
-    "message": "suspend function `waitForValue` cannot be called from non-suspend function `$lambda.0`",
+    "message": "suspend function `waitForValue` cannot be called from non-suspend function `$lambda.1`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",

@@ -121,5 +121,5 @@ fn global_dce(llvm: &Module<'_>, machine: &TargetMachine) -> Result<(), CodegenE
         machine,
         PassBuilderOptions::create(),
     )
-    .map_err(|error| CodegenError(format!("cannot partition metadata: {error}")))
+    .map_err(|error| CodegenError::backend(format!("cannot partition metadata: {error}"), error))
 }

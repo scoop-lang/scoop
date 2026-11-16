@@ -153,6 +153,14 @@ fn callable_plan(
         for instruction in &block.instructions {
             append_instruction_scans(function, instruction, body, &mut scans)?;
         }
+        if let crate::Terminator::Invoke {
+            site: InvokeSite::Managed(site),
+        } = &block.terminator
+        {
+            for exceptional in site.roots.as_slice() {
+                append_scan_tree(exceptional.root.scan.as_ref_scan(), body, &mut scans)?;
+            }
+        }
     }
     let atoms = scans
         .into_iter()
@@ -217,16 +225,6 @@ fn append_instruction_scans(
             | CallSite::NativeGcLeaf(_)
             | CallSite::ReleaseNativeLeaf(_) => {}
         },
-        Instruction::Invoke {
-            site: InvokeSite::Managed(site),
-        } => {
-            for exceptional in site.roots.as_slice() {
-                append_scan_tree(exceptional.root.scan.as_ref_scan(), body, output)?;
-            }
-        }
-        Instruction::Invoke {
-            site: InvokeSite::NoGc(_),
-        } => {}
         _ => {}
     }
     Ok(())

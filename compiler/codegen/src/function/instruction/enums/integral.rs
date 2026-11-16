@@ -19,11 +19,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     value.get_type().const_int(*bits, false),
                     "enum_value",
                 )
-                .map_err(|error| CodegenError(format!("integral enum tag comparison: {error}")))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("integral enum tag comparison: {error}"), error)
+                })?;
             tag = self
                 .builder
                 .build_select(equal, tag_type.const_int(index as u64, false), tag, name)
-                .map_err(|error| CodegenError(format!("integral enum tag selection: {error}")))?
+                .map_err(|error| {
+                    CodegenError::backend(format!("integral enum tag selection: {error}"), error)
+                })?
                 .into_int_value();
         }
         Ok(tag)

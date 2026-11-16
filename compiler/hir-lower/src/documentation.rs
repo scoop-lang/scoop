@@ -67,7 +67,7 @@ impl DocumentationContext {
             result
                 .warnings
                 .extend(source.warnings.iter().cloned().map(|mut warning| {
-                    warning.file = file;
+                    warning.set_file(file);
                     warning
                 }));
         }

@@ -121,10 +121,7 @@ impl BlockConstants {
             _ => None,
         };
         let mut clobber_addresses = instruction.safepoint().is_some()
-            || matches!(
-                instruction,
-                lir::Instruction::Call { .. } | lir::Instruction::Invoke { .. }
-            );
+            || matches!(instruction, lir::Instruction::Call { .. });
         match instruction {
             lir::Instruction::RawStore {
                 pointer,

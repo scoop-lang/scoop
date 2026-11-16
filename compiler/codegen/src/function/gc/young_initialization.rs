@@ -19,24 +19,8 @@ pub(in crate::function) fn single_predecessor_blocks(
         }
     };
     for (_, block) in function.blocks.iter() {
-        if let Some(Instruction::Invoke { site }) = block.instructions.last() {
-            record(site.normal());
-            record(site.unwind());
-            continue;
-        }
-        match block.terminator {
-            Terminator::Br(target) => record(target),
-            Terminator::CondBr {
-                then_block,
-                else_block,
-                ..
-            } => {
-                record(then_block);
-                record(else_block);
-            }
-            Terminator::Return { .. } | Terminator::Resume { .. } | Terminator::Unreachable => {
-                continue;
-            }
+        for successor in block.terminator.successors() {
+            record(successor);
         }
     }
     seen.retain(|block| !shared.contains(block));
@@ -109,13 +93,17 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .append_basic_block(self.llvm_function, "init.continue");
         self.builder
             .build_conditional_branch(young, done, slow)
-            .map_err(|error| CodegenError(format!("branch on young initialization: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("branch on young initialization: {error}"), error)
+            })?;
         self.builder.position_at_end(slow);
         self.field_barrier = None;
         barrier(self)?;
         self.builder
             .build_unconditional_branch(done)
-            .map_err(|error| CodegenError(format!("leave initialization barrier: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("leave initialization barrier: {error}"), error)
+            })?;
         self.builder.position_at_end(done);
         self.field_barrier = None;
         Ok(())

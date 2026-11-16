@@ -27,16 +27,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     .functions
                     .get(id.into_u32() as usize)
                     .ok_or_else(|| {
-                        CodegenError(format!("invalid local function id {}", id.into_u32()))
+                        CodegenError::internal(format!(
+                            "invalid local function id {}",
+                            id.into_u32()
+                        ))
                     })?
                     .symbol();
                 let function = self.llvm.get_function(symbol).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "typed local target `{symbol}` was not declared in the module pass"
                     ))
                 })?;
                 if function.get_type() != fn_ty {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed target `{symbol}` disagrees with its existing declaration"
                     )));
                 }
@@ -47,12 +50,12 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let declaration = &self.external_callables[id];
                 let symbol = declaration.expected_symbol().symbol();
                 let function = self.llvm.get_function(symbol.as_str()).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "typed external target `{symbol}` was not declared in the module pass"
                     ))
                 })?;
                 if function.get_type() != fn_ty {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "typed target `{symbol}` disagrees with its existing declaration"
                     )));
                 }
@@ -87,7 +90,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         }
         let function = if let Some(function) = self.llvm.get_function(symbol) {
             if function.get_type() != fn_ty {
-                return Err(CodegenError(format!(
+                return Err(CodegenError::internal(format!(
                     "typed target `{symbol}` disagrees with its existing declaration"
                 )));
             }

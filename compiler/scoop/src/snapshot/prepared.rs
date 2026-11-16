@@ -89,7 +89,7 @@ impl Preparer {
         }
     }
 
-    fn run(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
+    fn run(mut self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
         let mut nodes = BTreeMap::new();
 
         for (identity, node) in self.parts.nodes {
@@ -109,6 +109,11 @@ impl Preparer {
                     PreparedGraphNode::ManifestSource(Box::new(PreparedManifestSourceNode {
                         snapshot,
                         manifest,
+                        dependencies: self
+                            .parts
+                            .source_inputs
+                            .remove(&identity)
+                            .expect("resolved source nodes retain their dependency projection"),
                     }))
                 }
                 GraphNode::Prebuilt(prebuilt) => {
@@ -126,6 +131,11 @@ impl Preparer {
                     PreparedGraphNode::SingleFile(Box::new(PreparedSingleFileNode {
                         snapshot,
                         input_path,
+                        dependencies: self
+                            .parts
+                            .source_inputs
+                            .remove(&identity)
+                            .expect("resolved source nodes retain their dependency projection"),
                     }))
                 }
             };
@@ -136,7 +146,6 @@ impl Preparer {
             nodes,
             edges: self.parts.edges,
             dependency_first: self.parts.dependency_first,
-            source_inputs: self.parts.source_inputs,
             root_kind: self.parts.root_kind,
             target_selection: self.parts.target_selection,
             context: self.parts.context,

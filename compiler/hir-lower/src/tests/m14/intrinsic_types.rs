@@ -229,7 +229,7 @@ fn intrinsic_type_shape_is_validated_at_its_source() {
     let errors = lower(&[core, file(vec![fun("main", vec![])])])
         .expect_err("an intrinsic type must omit its compiler representation");
     assert!(errors.iter().any(|error| {
-        error.file == 0
+        diagnostic_source(error) == &core_source_identity("src/core.scoop")
             && error.message
                 == "intrinsic type `core_int` must omit its fields or primary constructor"
     }));

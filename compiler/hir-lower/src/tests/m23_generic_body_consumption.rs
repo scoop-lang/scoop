@@ -60,7 +60,9 @@ const CONSUMER: &str = include_str!(concat!(
     "/../../tests/fixtures/language/generic-body-consumption/consumer.scoop"
 ));
 
-fn lower_consumer(source: &str) -> Result<hir::DependencyHirOutput, Vec<crate::Diagnostic>> {
+fn lower_consumer(
+    source: &str,
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     with_consumer(source, |output, _, _, _, _| output)
 }
 
@@ -73,7 +75,7 @@ fn with_consumer<T>(
         &hir::CrossConeHirInterfaceSectionV1,
         &super::m23_ordinary_core_only::support::TrustedCoreFixture,
     ) -> T,
-) -> Result<T, Vec<crate::Diagnostic>> {
+) -> Result<T, Vec<scoop_ast::SourceDiagnostic>> {
     with_provider_consumer(PROVIDER, source, verify)
 }
 
@@ -87,7 +89,7 @@ pub(in crate::tests) fn with_provider_consumer<T>(
         &hir::CrossConeHirInterfaceSectionV1,
         &super::m23_ordinary_core_only::support::TrustedCoreFixture,
     ) -> T,
-) -> Result<T, Vec<crate::Diagnostic>> {
+) -> Result<T, Vec<scoop_ast::SourceDiagnostic>> {
     let mut core = trusted_core();
     let coordinate = ConeCoordinate::new("test", "generic-provider", "1.0.0").unwrap();
     let (foundation, interface) =

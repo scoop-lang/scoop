@@ -129,7 +129,7 @@ impl PreparedBuildGraph {
         };
         let (current, direct, support, trusted_core) = match self.nodes.get(&identity) {
             Some(PreparedGraphNode::ManifestSource(node)) => {
-                let projection = self.source_projection(identity)?;
+                let projection = &node.dependencies;
                 let (direct, support) = dependency_paths(identity, projection, &completed)?;
                 let core = if identity == ConeIdentity::CORE {
                     TrustedCoreRequestV1::Bootstrap
@@ -156,7 +156,7 @@ impl PreparedBuildGraph {
                 )
             }
             Some(PreparedGraphNode::SingleFile(node)) => {
-                let projection = self.source_projection(identity)?;
+                let projection = &node.dependencies;
                 let core = completed_core_input(&completed)?;
                 let (direct, support) = dependency_paths(identity, projection, &completed)?;
                 (
@@ -260,15 +260,6 @@ impl PreparedBuildGraph {
             output_path,
             io,
         })
-    }
-
-    fn source_projection(
-        &self,
-        identity: ConeIdentity,
-    ) -> Result<&crate::ResolvedDependencyProjection, ChildRequestPlanError> {
-        self.source_inputs
-            .get(&identity)
-            .ok_or(ChildRequestPlanError::MissingSourceProjection(identity))
     }
 }
 

@@ -99,7 +99,7 @@ impl CoroutineDriverIdentity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoroutineDriverIdentityError {
     ExpectedSuspendSignature,
     MissingOdrGroup,
@@ -274,7 +274,7 @@ fn field(
         .map_err(CoroutineFrameIdentityError::Field)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoroutineFrameIdentityError {
     MissingOdrGroup,
     MaterializationContextMismatch,

@@ -110,7 +110,9 @@ pub(super) fn prepare_callable_strong_llvm_module<'ctx, D, C, I>(
             machine,
             inkwell::passes::PassBuilderOptions::create(),
         )
-        .map_err(|error| CodegenError(format!("COFF declaration cleanup: {error}")))?;
+        .map_err(|error| {
+            CodegenError::backend(format!("COFF declaration cleanup: {error}"), error)
+        })?;
         crate::coff_llvm::prepare(&llvm, symbol_plans)?;
     }
     if profile.lir_target_profile().native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
@@ -133,7 +135,12 @@ pub(super) fn emit_object(
     machine
         .write_to_memory_buffer(llvm, FileType::Object)
         .map(|buffer| buffer.as_slice().to_vec())
-        .map_err(|error| CodegenError(format!("LLVM cannot emit a callable object: {error}")))
+        .map_err(|error| {
+            CodegenError::backend(
+                format!("LLVM cannot emit a callable object: {error}"),
+                error,
+            )
+        })
 }
 
 fn optimize_and_lower_module(

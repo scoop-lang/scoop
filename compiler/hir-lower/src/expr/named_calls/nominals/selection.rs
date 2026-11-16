@@ -33,7 +33,10 @@ impl Lowerer {
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            if kind == ImportLookupLayer::CorePrelude && variants.len() == targets.len() {
+            if !self.has_internal_diagnostics()
+                && kind == ImportLookupLayer::CorePrelude
+                && variants.len() == targets.len()
+            {
                 self.diagnostics.truncate(diagnostics_before);
                 self.ambiguous_prelude_variant(&call.callee, &variants);
             }

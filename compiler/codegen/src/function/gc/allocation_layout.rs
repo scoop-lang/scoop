@@ -107,5 +107,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn layout_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("allocation layout: {error}"))
+    CodegenError::internal(format!("allocation layout: {error}"))
 }

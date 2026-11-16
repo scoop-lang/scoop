@@ -44,7 +44,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         .signature
                         .arguments()
                         .get(logical_index)
-                        .ok_or_else(|| CodegenError(format!("param {index} out of range")))?;
+                        .ok_or_else(|| {
+                            CodegenError::internal(format!("param {index} out of range"))
+                        })?;
                     let location = self
                         .function
                         .signature
@@ -72,15 +74,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::Direct(_),
                             scoop_lir::AbiArgumentLocation::Parameter(physical_index),
                         ) => {
-                            let physical_index = u32::try_from(physical_index).map_err(|_| {
-                                CodegenError(format!(
+                            let physical_index = u32::try_from(physical_index).map_err(|cause| {
+                                CodegenError::internal_cause(format!(
                                     "physical parameter for logical param {index} exceeds u32::MAX"
-                                ))
+                                ), cause)
                             })?;
                             self.llvm_function
                                 .get_nth_param(physical_index)
                                 .ok_or_else(|| {
-                                    CodegenError(format!(
+                                    CodegenError::internal(format!(
                                         "physical parameter for logical param {index} is out of range"
                                     ))
                                 })?
@@ -89,21 +91,21 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             scoop_lir::AbiArgument::Indirect(value),
                             scoop_lir::AbiArgumentLocation::Parameter(physical_index),
                         ) => {
-                            let physical_index = u32::try_from(physical_index).map_err(|_| {
-                                CodegenError(format!(
+                            let physical_index = u32::try_from(physical_index).map_err(|cause| {
+                                CodegenError::internal_cause(format!(
                                     "physical parameter for logical param {index} exceeds u32::MAX"
-                                ))
+                                ), cause)
                             })?;
                             let storage = self
                                 .llvm_function
                                 .get_nth_param(physical_index)
                                 .ok_or_else(|| {
-                                    CodegenError(format!(
+                                    CodegenError::internal(format!(
                                         "physical parameter for logical param {index} is out of range"
                                     ))
                                 })?;
                             let BasicValueEnum::PointerValue(storage) = storage else {
-                                return Err(CodegenError(format!(
+                                return Err(CodegenError::internal(format!(
                                     "indirect logical param {index} does not use pointer storage"
                                 )));
                             };
@@ -117,13 +119,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             self.builder
                                 .build_load(ty, storage, "indirect_param")
                                 .map_err(|error| {
-                                    CodegenError(format!(
-                                        "load indirect logical param {index}: {error}"
-                                    ))
+                                    CodegenError::backend(
+                                        format!("load indirect logical param {index}: {error}"),
+                                        error,
+                                    )
                                 })?
                         }
                         _ => {
-                            return Err(CodegenError(format!(
+                            return Err(CodegenError::internal(format!(
                                 "logical param {index} has an inconsistent Scoop ABI location"
                             )));
                         }
@@ -136,7 +139,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     self.load_stored_value(&function.temps[id].ty, storage.pointer, "root_temp")?
                 } else {
                     *self.temps.get(&id).ok_or_else(|| {
-                        CodegenError(format!(
+                        CodegenError::internal(format!(
                             "temp t{} used before definition",
                             id.into_raw().into_u32()
                         ))
@@ -170,7 +173,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.initialization_units[&id].as_pointer_value().into()
             }
             Value::CArgumentStorage(_) => {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "C argument storage address escaped its native-safe call operand".to_string(),
                 ));
             }
@@ -235,7 +238,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             return Ok(());
         };
         let value = *self.temps.get(&temp).ok_or_else(|| {
-            CodegenError(format!(
+            CodegenError::internal(format!(
                 "rooted temp t{} has no emitted definition",
                 temp.into_raw().into_u32()
             ))
@@ -243,10 +246,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         self.builder
             .build_store(storage.pointer, value)
             .map_err(|error| {
-                CodegenError(format!(
-                    "store rooted temp t{}: {error}",
-                    temp.into_raw().into_u32()
-                ))
+                CodegenError::backend(
+                    format!("store rooted temp t{}: {error}", temp.into_raw().into_u32()),
+                    error,
+                )
             })?;
         self.remember_interface_value(&self.function.temps[temp].ty, storage.pointer, value);
         Ok(())

@@ -22,7 +22,7 @@ pub(crate) fn err(source: &str) -> (Span, String) {
     );
     let diagnostic = diagnostics.into_iter().next().unwrap();
     (
-        diagnostic.span.expect("parser diagnostics carry a span"),
+        diagnostic.span().expect("parser diagnostics carry a span"),
         diagnostic.message,
     )
 }
@@ -85,7 +85,7 @@ fn parser_recovers_across_statements_and_top_level_declarations() {
         ]
     );
     assert!(diagnostics.windows(2).all(|pair| {
-        pair[0].span.expect("spanned").start < pair[1].span.expect("spanned").start
+        pair[0].span().expect("spanned").start < pair[1].span().expect("spanned").start
     }));
 }
 

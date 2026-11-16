@@ -140,7 +140,8 @@ fn core_cannot_access_current_unit_types_through_qualified_package_paths() {
         .expect_err("core qualification must not expose the current unit namespace");
     assert!(
         errors.iter().any(|error| {
-            error.file == 0 && error.message == "package `api` has no accessible type `PublicType`"
+            diagnostic_source(error) == &core_source_identity("src/core.scoop")
+                && error.message == "package `api` has no accessible type `PublicType`"
         }),
         "{errors:#?}"
     );
@@ -177,11 +178,18 @@ fn same_layer_type_ambiguity_lists_every_origin_at_the_use_site() {
             .iter()
             .find(|error| error.message.contains("type `Chosen` is ambiguous"))
             .expect("ambiguity diagnostic");
-        assert_eq!(error.span, Some(ast::Span::new(111, 117)));
+        assert_eq!(error.span(), Some(ast::Span::new(111, 117)));
         assert_eq!(error.notes.len(), 2);
         assert_eq!(
-            error.notes.iter().map(|note| note.file).collect::<Vec<_>>(),
-            [1, 2]
+            error
+                .notes
+                .iter()
+                .map(|note| bound_source(&note.source).clone())
+                .collect::<Vec<_>>(),
+            [
+                test_source_identity("src/first.scoop"),
+                test_source_identity("src/second.scoop")
+            ]
         );
         assert!(error.message.contains(if exact_layer {
             "exact import"

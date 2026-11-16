@@ -100,7 +100,9 @@ pub(crate) fn materialize_v1(
                 }
             }
             DefinitionAtomRole::WindowsUnwindTable | DefinitionAtomRole::WindowsUnwindInfo => {
-                return Err(CodegenError("Mach-O callable has COFF unwind atoms".into()));
+                return Err(CodegenError::internal(
+                    "Mach-O callable has COFF unwind atoms".into(),
+                ));
             }
         }
     }
@@ -129,7 +131,7 @@ fn backend_section(
         | DefinitionAtomRole::ContextKeyTable
         | DefinitionAtomRole::WindowsUnwindTable
         | DefinitionAtomRole::WindowsUnwindInfo => {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "atom role {role:?} has no callable backend section"
             )));
         }

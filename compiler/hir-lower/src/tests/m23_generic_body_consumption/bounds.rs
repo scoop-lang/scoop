@@ -127,8 +127,11 @@ fn imported_bound_default_effect_errors_point_to_the_consuming_call() {
         .expect_err("managed bound defaults cannot execute in @NoGC code");
     assert!(!errors.is_empty());
     for error in errors {
-        let span = error.span.unwrap();
-        assert_eq!(error.file, 0);
+        let span = error.span().unwrap();
+        assert_eq!(
+            error.source().unwrap().logical_path().as_str(),
+            "src/main.scoop"
+        );
         assert_eq!(
             source.get(span.start as usize..span.end as usize),
             Some("defaultRead(Value(42))"),

@@ -16,14 +16,16 @@ pub(super) fn materialize(
     let primary_name = plan.primary_symbol().symbol();
     let primary = output
         .original_symbol(primary_name.as_str())
-        .ok_or_else(|| CodegenError(format!("ELF callable `{primary_name}` is missing")))?;
+        .ok_or_else(|| {
+            CodegenError::internal(format!("ELF callable `{primary_name}` is missing"))
+        })?;
     let primary_section = primary
         .section_index()
-        .ok_or_else(|| CodegenError("ELF callable is undefined".into()))?;
+        .ok_or_else(|| CodegenError::internal("ELF callable is undefined".into()))?;
     let primary_start = primary.address();
     let primary_end = primary_start
         .checked_add(primary.size())
-        .ok_or_else(|| CodegenError("ELF callable extent overflows".into()))?;
+        .ok_or_else(|| CodegenError::internal("ELF callable extent overflows".into()))?;
     let mut associated = vec![primary_section];
     let personality_atom = personality::atom(plan)?;
     let constants_atom =
@@ -71,19 +73,19 @@ pub(super) fn materialize(
                         .filter(|section| section.name().ok().and_then(backend_role) == Some(role))
                         .collect::<Vec<_>>();
                     let [section] = sections.as_slice() else {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "ELF callable requires exactly one {role:?} contribution"
                         )));
                     };
                     if section.size() == 0 {
-                        return Err(CodegenError("ELF backend atom is empty".into()));
+                        return Err(CodegenError::internal("ELF backend atom is empty".into()));
                     }
                     Some((section.index(), 0, section.size()))
                 }
                 DefinitionAtomRole::CompactUnwind
                 | DefinitionAtomRole::WindowsUnwindTable
                 | DefinitionAtomRole::WindowsUnwindInfo => {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "ELF callable plan contains a Mach-O compact-unwind atom".into(),
                     ));
                 }

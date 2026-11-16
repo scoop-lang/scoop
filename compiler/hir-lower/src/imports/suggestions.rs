@@ -64,7 +64,9 @@ impl Lowerer {
                 ImportedTargetBinding::CurrentCone { binding, .. } => {
                     let binding = self.imports.binding(*binding);
                     let mut note = ast::DiagnosticNote::at(binding.file, binding.span, "");
-                    note.source = Some(Box::new(binding.source.clone()));
+                    note.source = scoop_source::LocalDiagnosticSource::Bound(Box::new(
+                        binding.source.clone(),
+                    ));
                     note
                 }
                 ImportedTargetBinding::DirectDependency(binding) => {

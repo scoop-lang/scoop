@@ -43,7 +43,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let address = self.byte_gep(pointer, offset, "field_ptr")?;
         self.builder
             .build_store(address, self.value(value)?)
-            .map_err(|error| CodegenError(format!("heap field store: {error}")))?;
+            .map_err(|error| CodegenError::backend(format!("heap field store: {error}"), error))?;
         let mut references = Vec::new();
         self.heap_reference_offsets(ty, 0, &mut references)?;
         if references.is_empty() {
@@ -69,7 +69,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         };
         let marked_offset = offset
             .checked_add(*reference)
-            .ok_or_else(|| CodegenError("field reference offset overflows".into()))?;
+            .ok_or_else(|| CodegenError::internal("field reference offset overflows".into()))?;
         let address = self.byte_gep(address, *reference, "barrier_start")?;
         let block = self.builder.get_insert_block().expect("field store block");
         let region = match &self.field_barrier {

@@ -500,7 +500,7 @@ impl ObjectDefinitionAtomId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ObjectDefinitionIdentityError {
     StrongRoleEntityMismatch,
     PlanOwnerRoleMismatch,

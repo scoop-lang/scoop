@@ -143,7 +143,9 @@ attributes #0 = { noduplicate "statepoint-id"="7" }
     )
     .unwrap_err();
     assert!(
-        error.0.contains("incomplete typed leaf restorations"),
+        error
+            .to_string()
+            .contains("incomplete typed leaf restorations"),
         "{error}"
     );
 }

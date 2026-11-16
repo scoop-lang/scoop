@@ -608,12 +608,6 @@ pub(super) fn dump_instruction(
             safepoint_name(function, site.safepoint),
             live_set_name(&site.live)
         )),
-        Instruction::Invoke { site } => {
-            buf.push_str(&format!(
-                "    invoke {}\n",
-                invoke_site_name(function, site)
-            ));
-        }
         Instruction::LandingPad { record, raw } => buf.push_str(&format!(
             "    (t{}, t{}) = landingpad : ({}, {})\n",
             record.into_raw(),

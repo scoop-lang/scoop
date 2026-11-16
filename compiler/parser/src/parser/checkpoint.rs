@@ -52,7 +52,7 @@ impl Parser {
     pub(crate) fn has_lexical_error_in(&self, span: Span) -> bool {
         self.lexical_diagnostics.iter().any(|diagnostic| {
             diagnostic
-                .span
+                .span()
                 .is_some_and(|error| error.start < span.end && error.end > span.start)
         })
     }

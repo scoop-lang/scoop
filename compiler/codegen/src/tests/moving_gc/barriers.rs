@@ -407,7 +407,7 @@ fn heap_store_inside_the_object_header_is_rejected() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("offset 8 is inside the object header, not a field");
     assert!(
-        error.0.contains("object header"),
+        error.to_string().contains("object header"),
         "unexpected error: {error}"
     );
 }

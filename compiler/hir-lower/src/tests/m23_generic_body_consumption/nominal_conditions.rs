@@ -32,7 +32,9 @@ fn dependency_nominal_conditions_reject_invalid_signature_applications() {
                 assert!(
                     errors
                         .iter()
-                        .all(|error| error.file == 0 && error.span.is_some())
+                        .all(|error| error.source().unwrap().logical_path().as_str()
+                            == "src/main.scoop"
+                            && error.span().is_some())
                 );
                 assert!(
                     errors.iter().all(|error| error.message.contains("GC-free")),

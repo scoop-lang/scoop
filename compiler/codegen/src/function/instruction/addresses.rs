@@ -13,7 +13,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let input_ty = function.value_ty(self.globals_arena, *value);
                 let output_ty = &function.temps[*out].ty;
                 if input_ty != LirType::I64 || *output_ty != scoop_lir::RAW_PTR {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "ulong_to_ptr @{} requires ULong/i64 -> ptr<raw>, got {} -> {}",
                         function.symbol(),
                         input_ty.dump(),
@@ -23,14 +23,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let value = self.value(*value)?.into_int_value();
                 let result = builder
                     .build_int_to_ptr(value, ptr_ty(context), "raw_ptr")
-                    .map_err(|e| CodegenError(format!("inttoptr @{}: {e}", function.symbol())))?;
+                    .map_err(|e| {
+                        CodegenError::backend(format!("inttoptr @{}: {e}", function.symbol()), e)
+                    })?;
                 self.temps.insert(*out, result.into());
             }
             Instruction::PtrToULong { out, value } => {
                 let input_ty = function.value_ty(self.globals_arena, *value);
                 let output_ty = &function.temps[*out].ty;
                 if input_ty != scoop_lir::RAW_PTR || *output_ty != LirType::I64 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "ptr_to_ulong @{} requires ptr<raw> -> ULong/i64, got {} -> {}",
                         function.symbol(),
                         input_ty.dump(),
@@ -39,14 +41,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 }
                 let value = self.value(*value)?.into_pointer_value();
                 if value.get_type().get_address_space() == self.managed_address_space.inkwell() {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "managed pointer cannot be lowered by PtrToULong in @{}",
                         function.symbol()
                     )));
                 }
                 let result = builder
                     .build_ptr_to_int(value, context.i64_type(), "raw_uint")
-                    .map_err(|e| CodegenError(format!("ptrtoint @{}: {e}", function.symbol())))?;
+                    .map_err(|e| {
+                        CodegenError::backend(format!("ptrtoint @{}: {e}", function.symbol()), e)
+                    })?;
                 self.temps.insert(*out, result.into());
             }
             Instruction::LocalAddress { out, local } => {
@@ -54,7 +58,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if function.temps[*out].ty != scoop_lir::RAW_PTR
                     || machine_types::contains_machine_scalar(self.structs, self.enums, local_ty)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "local_address @{} cannot expose {} as a raw pointer",
                         function.symbol(),
                         local_ty.dump()
@@ -68,7 +72,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 | GlobalInit::ImportedStorage { ty: storage_ty, .. }) =
                     &self.globals_arena[*global].init
                 else {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "global load @{} targets non-storage global `{}`",
                         function.symbol(),
                         self.globals_arena[*global].symbol()
@@ -76,7 +80,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 };
                 let out_ty = &function.temps[*out].ty;
                 if out_ty != storage_ty {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "global load @{} has result type {}, but `{}` stores {}",
                         function.symbol(),
                         out_ty.dump(),
@@ -94,7 +98,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 )?;
                 let value = builder
                     .build_load(ty, llvm_global.as_pointer_value(), "global_load")
-                    .map_err(|error| CodegenError(format!("global load: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("global load: {error}"), error)
+                    })?;
                 self.temps.insert(*out, value);
             }
             Instruction::GlobalStore { global, value } => {
@@ -102,7 +108,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 | GlobalInit::RawStorage { ty: storage_ty, .. }) =
                     &self.globals_arena[*global].init
                 else {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "global store @{} targets non-storage global `{}`",
                         function.symbol(),
                         self.globals_arena[*global].symbol()
@@ -110,7 +116,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 };
                 let value_ty = function.value_ty(self.globals_arena, *value);
                 if &value_ty != storage_ty {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "global store @{} has value type {}, but `{}` stores {}",
                         function.symbol(),
                         value_ty.dump(),
@@ -121,7 +127,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let llvm_global = self.globals[global];
                 builder
                     .build_store(llvm_global.as_pointer_value(), self.value(*value)?)
-                    .map_err(|error| CodegenError(format!("global store: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("global store: {error}"), error)
+                    })?;
             }
             Instruction::GlobalAddress { out, global } => {
                 let global_def = &self.globals_arena[*global];
@@ -129,7 +137,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 | GlobalInit::RawStorage { ty, .. }
                 | GlobalInit::ImportedStorage { ty, .. }) = &global_def.init
                 else {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "global_address @{} targets non-storage global `{}`",
                         function.symbol(),
                         global_def.symbol()
@@ -139,7 +147,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     || global_def.address_kind != PointerKind::Raw
                     || machine_types::contains_machine_scalar(self.structs, self.enums, ty)
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "global_address @{} cannot expose global `{}` of type {} as a raw pointer",
                         function.symbol(),
                         global_def.symbol(),
@@ -158,7 +166,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let native = &self.native_globals[*global];
                 let storage_type = native.storage_type();
                 if function.temps[*out].ty != storage_type {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "native global load @{} has result type {}, but `{}` stores {}",
                         function.symbol(),
                         function.temps[*out].ty.dump(),
@@ -181,7 +189,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.emit_native_global_call(callee, slot, *global, protocol)?;
                 let value = builder
                     .build_load(ty, slot, "native_global_value")
-                    .map_err(|error| CodegenError(format!("native global load: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("native global load: {error}"), error)
+                    })?;
                 self.temps.insert(*out, value);
             }
             Instruction::NativeGlobalStore {
@@ -193,7 +203,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let storage_type = native.storage_type();
                 let value_ty = function.value_ty(self.globals_arena, *value);
                 if value_ty != storage_type {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "native global store @{} has value type {}, but `{}` stores {}",
                         function.symbol(),
                         value_ty.dump(),
@@ -211,9 +221,11 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let slot = self.entry_alloca(ty, "native_global_argument")?;
                 builder
                     .build_store(slot, self.value(*value)?)
-                    .map_err(|error| CodegenError(format!("native global spill: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("native global spill: {error}"), error)
+                    })?;
                 let scoop_lir::NativeGlobalAccess::Mutable { set, .. } = native.access else {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "native global store targets readonly `{}`",
                         native.source_name
                     )));
@@ -236,7 +248,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         &storage_type,
                     )
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "native_global_address @{} cannot expose `{}` of type {}",
                         function.symbol(),
                         native.source_name,
@@ -252,13 +264,15 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.emit_native_global_call(callee, slot, *global, protocol)?;
                 let value = builder
                     .build_load(ty, slot, "native_global_pointer")
-                    .map_err(|error| CodegenError(format!("native global pointer: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("native global pointer: {error}"), error)
+                    })?;
                 self.temps.insert(*out, value);
             }
             Instruction::Store { local, value: v } => {
                 let value_ty = function.value_ty(self.globals_arena, *v);
                 if &value_ty != function.locals[*local].ty() {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "store @{} has value type {}, but %{} stores {}",
                         function.symbol(),
                         value_ty.dump(),
@@ -292,7 +306,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                     .i64_type()
                                     .const_int(value.layout().size().get(), false),
                             )
-                            .map_err(|e| CodegenError(format!("copy aggregate local: {e}")))?;
+                            .map_err(|e| {
+                                CodegenError::backend(format!("copy aggregate local: {e}"), e)
+                            })?;
                     }
                     self.observe_debug_copy(*local)?;
                     return Ok(());
@@ -300,7 +316,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let operand = self.value(*v)?;
                 let storage = self.local_pointer(*local)?;
                 builder.build_store(storage, operand).map_err(|e| {
-                    CodegenError(format!("store %{}: {e}", function.locals[*local].name))
+                    CodegenError::backend(
+                        format!("store %{}: {e}", function.locals[*local].name),
+                        e,
+                    )
                 })?;
                 self.remember_interface_value(&value_ty, storage, operand);
                 self.observe_debug_value(scoop_lir::DebugStorage::Local(*local), operand);

@@ -69,10 +69,15 @@ def main():
     expected = parts[0] << 16 | parts[1] << 8 | parts[2]
     check_archive(Path(sys.argv[2]), expected, sys.argv[5])
     assert check_object(Path(sys.argv[3]).read_bytes(), expected)
-    runtime = list((Path(sys.argv[4]).parent / "objects").glob("*.o"))
-    assert runtime
-    for path in runtime:
-        assert check_object(path.read_bytes(), expected), path
+    index_path = Path(sys.argv[4])
+    index = cbor2.loads(index_path.read_bytes())
+    archive = index_path.parent / index[11]
+    with tempfile.TemporaryDirectory() as temporary:
+        subprocess.run([sys.argv[6], "x", str(archive)], cwd=temporary, check=True)
+        runtime = list(Path(temporary).glob("*.o"))
+        assert len(runtime) == len(index[7]) > 0
+        for path in runtime:
+            assert check_object(path.read_bytes(), expected), path
     print("deployment matches")
 
 

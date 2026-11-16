@@ -66,10 +66,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         )?;
                         let slot = self.entry_alloca(ty.into(), "enum_wrap")?;
                         builder.build_store(slot, ty.const_zero()).map_err(|e| {
-                            CodegenError(format!(
-                                "enum_wrap zero @{symbol}: {e}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!(
+                                    "enum_wrap zero @{symbol}: {e}",
+                                    symbol = function.symbol()
+                                ),
+                                e,
+                            )
                         })?;
                         let tag_ptr = self.tag_ptr(slot, ty)?;
                         builder
@@ -78,10 +81,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 context.i64_type().const_int(variant_index as u64, false),
                             )
                             .map_err(|e| {
-                                CodegenError(format!(
-                                    "enum_wrap tag @{symbol}: {e}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "enum_wrap tag @{symbol}: {e}",
+                                        symbol = function.symbol()
+                                    ),
+                                    e,
+                                )
                             })?;
                         let variant_repr = &variants[variant_index as usize];
                         for (value, field) in fields.iter().zip(&variant_repr.fields) {
@@ -89,17 +95,20 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             builder
                                 .build_store(field_ptr, self.value(*value)?)
                                 .map_err(|e| {
-                                    CodegenError(format!(
-                                        "enum_wrap field @{symbol}: {e}",
-                                        symbol = function.symbol()
-                                    ))
+                                    CodegenError::backend(
+                                        format!(
+                                            "enum_wrap field @{symbol}: {e}",
+                                            symbol = function.symbol()
+                                        ),
+                                        e,
+                                    )
                                 })?;
                         }
                         builder.build_load(ty, slot, &name).map_err(|e| {
-                            CodegenError(format!(
-                                "enum_wrap @{symbol}: {e}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!("enum_wrap @{symbol}: {e}", symbol = function.symbol()),
+                                e,
+                            )
                         })?
                     }
                 };
@@ -111,14 +120,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 operand,
             } => {
                 if function.temps[*out].ty != LirType::MachineScalar(MachineScalarKind::EnumTag) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "enum_tag @{} must produce machine<enum-tag>",
                         function.symbol()
                     )));
                 }
                 let operand_ty = function.value_ty(self.globals_arena, *operand);
                 if operand_ty != LirType::Enum(*enum_id) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "enum_tag @{} expects e{}, got {}",
                         function.symbol(),
                         enum_id.into_raw(),
@@ -142,7 +151,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let operand = if *kind == scoop_lir::NullNicheKind::Interface {
                             builder
                                 .build_extract_value(operand.into_struct_value(), 0, "niche_object")
-                                .map_err(|e| CodegenError(format!("interface niche object: {e}")))?
+                                .map_err(|e| {
+                                    CodegenError::backend(format!("interface niche object: {e}"), e)
+                                })?
                         } else {
                             operand
                         };
@@ -155,10 +166,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 "non_null",
                             )
                             .map_err(|e| {
-                                CodegenError(format!(
-                                    "enum_tag @{symbol}: {e}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!("enum_tag @{symbol}: {e}", symbol = function.symbol()),
+                                    e,
+                                )
                             })?;
                         let i64_ty = context.i64_type();
                         builder
@@ -169,19 +180,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 &name,
                             )
                             .map_err(|e| {
-                                CodegenError(format!(
-                                    "enum_tag @{symbol}: {e}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!("enum_tag @{symbol}: {e}", symbol = function.symbol()),
+                                    e,
+                                )
                             })?
                     }
                     EnumRepr::Tagged { .. } => builder
                         .build_extract_value(operand.into_struct_value(), 0, &name)
                         .map_err(|e| {
-                            CodegenError(format!(
-                                "enum_tag @{symbol}: {e}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!("enum_tag @{symbol}: {e}", symbol = function.symbol()),
+                                e,
+                            )
                         })?,
                 };
                 self.temps.insert(*out, result);
@@ -196,7 +207,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let def = &self.enums[*enum_id];
                 let operand_ty = function.value_ty(self.globals_arena, *operand);
                 if operand_ty != LirType::Enum(*enum_id) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "enum_field @{} expects e{}, got {}",
                         function.symbol(),
                         enum_id.into_raw(),
@@ -211,7 +222,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let out_ty = &function.temps[*out].ty;
                         let expected = kind.storage_type();
                         if out_ty != &expected {
-                            return Err(CodegenError(format!(
+                            return Err(CodegenError::internal(format!(
                                 "enum_field @{} niche payload produces {}, expected {}",
                                 function.symbol(),
                                 out_ty.dump(),
@@ -221,7 +232,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         None
                     }
                     EnumRepr::Niche { .. } | EnumRepr::Integral { .. } => {
-                        return Err(CodegenError(format!(
+                        return Err(CodegenError::internal(format!(
                             "enum_field @{} has an invalid variant or field index",
                             function.symbol()
                         )));
@@ -231,7 +242,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                             .get(*variant as usize)
                             .and_then(|variant| variant.fields.get(*index as usize))
                             .ok_or_else(|| {
-                                CodegenError(format!(
+                                CodegenError::internal(format!(
                                     "enum_field @{} has an invalid variant or field index",
                                     function.symbol()
                                 ))
@@ -242,7 +253,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if let Some(expected_ty) = expected_ty
                     && &function.temps[*out].ty != expected_ty
                 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "enum_field @{} produces {}, expected {}",
                         function.symbol(),
                         function.temps[*out].ty.dump(),
@@ -256,7 +267,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     // only emits this on paths where the tag is known.
                     EnumRepr::Niche { .. } => operand,
                     EnumRepr::Integral { .. } => {
-                        return Err(CodegenError(
+                        return Err(CodegenError::internal(
                             "integral enum variants have no payload".into(),
                         ));
                     }
@@ -277,10 +288,10 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         )?;
                         let slot = self.entry_alloca(ty.into(), "enum_field")?;
                         builder.build_store(slot, operand).map_err(|e| {
-                            CodegenError(format!(
-                                "enum_field @{symbol}: {e}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!("enum_field @{symbol}: {e}", symbol = function.symbol()),
+                                e,
+                            )
                         })?;
                         let variant_repr = &variants[*variant as usize];
                         let field = &variant_repr.fields[*index as usize];
@@ -295,10 +306,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         builder
                             .build_load(field_ty, field_ptr, &name)
                             .map_err(|e| {
-                                CodegenError(format!(
-                                    "enum_field @{symbol}: {e}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "enum_field @{symbol}: {e}",
+                                        symbol = function.symbol()
+                                    ),
+                                    e,
+                                )
                             })?
                     }
                 };
@@ -310,13 +324,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 variant,
             } => {
                 if !self.enums.contains_variant(*variant) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "variant_test @{} carries a variant reference that is invalid for this module",
                         function.symbol()
                     )));
                 }
                 if function.temps[*out].ty != LirType::I1 {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "variant_test @{} must produce i1",
                         function.symbol()
                     )));
@@ -324,7 +338,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let enum_id = variant.definition();
                 let operand_ty = function.value_ty(self.globals_arena, *operand);
                 if operand_ty != LirType::Enum(enum_id) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "variant_test @{} expects e{}, got {}",
                         function.symbol(),
                         enum_id.into_raw(),
@@ -345,7 +359,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 .const_int(values[variant.index() as usize], false),
                             &name,
                         )
-                        .map_err(|error| CodegenError(format!("integral variant test: {error}")))?
+                        .map_err(|error| {
+                            CodegenError::backend(format!("integral variant test: {error}"), error)
+                        })?
                         .into(),
                     EnumRepr::Niche {
                         kind,
@@ -354,7 +370,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let operand = if *kind == scoop_lir::NullNicheKind::Interface {
                             builder
                                 .build_extract_value(operand.into_struct_value(), 0, "niche_object")
-                                .map_err(|e| CodegenError(format!("interface niche object: {e}")))?
+                                .map_err(|e| {
+                                    CodegenError::backend(format!("interface niche object: {e}"), e)
+                                })?
                         } else {
                             operand
                         };
@@ -372,10 +390,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 &name,
                             )
                             .map_err(|error| {
-                                CodegenError(format!(
-                                    "variant_test @{symbol}: {error}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "variant_test @{symbol}: {error}",
+                                        symbol = function.symbol()
+                                    ),
+                                    error,
+                                )
                             })?
                             .into()
                     }
@@ -383,10 +404,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         let tag = builder
                             .build_extract_value(operand.into_struct_value(), 0, "variant_tag")
                             .map_err(|error| {
-                                CodegenError(format!(
-                                    "variant_test tag @{symbol}: {error}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "variant_test tag @{symbol}: {error}",
+                                        symbol = function.symbol()
+                                    ),
+                                    error,
+                                )
                             })?
                             .into_int_value();
                         builder
@@ -397,10 +421,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                                 &name,
                             )
                             .map_err(|error| {
-                                CodegenError(format!(
-                                    "variant_test @{symbol}: {error}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "variant_test @{symbol}: {error}",
+                                        symbol = function.symbol()
+                                    ),
+                                    error,
+                                )
                             })?
                             .into()
                     }
@@ -413,7 +440,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 field,
             } => {
                 if !self.enums.contains_variant_field(*field) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "variant_payload_project @{} carries a variant field reference that is invalid for this module",
                         function.symbol()
                     )));
@@ -422,7 +449,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let enum_id = variant.definition();
                 let operand_ty = function.value_ty(self.globals_arena, *operand);
                 if operand_ty != LirType::Enum(enum_id) {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "variant_payload_project @{} expects e{}, got {}",
                         function.symbol(),
                         enum_id.into_raw(),
@@ -430,7 +457,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     )));
                 }
                 let expected_ty = self.enums.variant_field_type(*field).ok_or_else(|| {
-                    CodegenError(format!(
+                    CodegenError::internal(format!(
                         "variant_payload_project @{} has an invalid field {} for e{} v{}",
                         function.symbol(),
                         field.index(),
@@ -439,7 +466,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     ))
                 })?;
                 if function.temps[*out].ty != expected_ty {
-                    return Err(CodegenError(format!(
+                    return Err(CodegenError::internal(format!(
                         "variant_payload_project @{} produces {}, expected {}",
                         function.symbol(),
                         function.temps[*out].ty.dump(),
@@ -456,7 +483,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     // exactly field zero of the payload variant.
                     EnumRepr::Niche { .. } => operand,
                     EnumRepr::Integral { .. } => {
-                        return Err(CodegenError(
+                        return Err(CodegenError::internal(
                             "integral enum variants have no payload".into(),
                         ));
                     }
@@ -474,10 +501,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         )?;
                         let slot = self.entry_alloca(ty.into(), "variant_payload_project")?;
                         builder.build_store(slot, operand).map_err(|error| {
-                            CodegenError(format!(
-                                "variant_payload_project spill @{symbol}: {error}",
-                                symbol = function.symbol()
-                            ))
+                            CodegenError::backend(
+                                format!(
+                                    "variant_payload_project spill @{symbol}: {error}",
+                                    symbol = function.symbol()
+                                ),
+                                error,
+                            )
                         })?;
                         let field =
                             &variants[variant.index() as usize].fields[field.index() as usize];
@@ -493,10 +523,13 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         builder
                             .build_load(field_ty, field_ptr, &name)
                             .map_err(|error| {
-                                CodegenError(format!(
-                                    "variant_payload_project @{symbol}: {error}",
-                                    symbol = function.symbol()
-                                ))
+                                CodegenError::backend(
+                                    format!(
+                                        "variant_payload_project @{symbol}: {error}",
+                                        symbol = function.symbol()
+                                    ),
+                                    error,
+                                )
                             })?
                     }
                 };

@@ -28,8 +28,9 @@ pub(super) fn finalize_production<'a, D, C, I>(
             .get(&registration.owner())
             .expect("every callable was prepared before finalizing production");
         if let Some(count) = plan.safepoints.root_count(registration.safepoint().get()) {
-            let count = u32::try_from(count)
-                .map_err(|_| CodegenError("physical root count exceeds u32::MAX".into()))?;
+            let count = u32::try_from(count).map_err(|cause| {
+                CodegenError::internal_cause("physical root count exceeds u32::MAX".into(), cause)
+            })?;
             counts.insert(registration.safepoint(), count);
         }
     }
@@ -81,7 +82,9 @@ pub(super) fn finalize_production<'a, D, C, I>(
                 role,
                 DefinitionAtomSubkey::CallableBody(body),
             ))
-            .map_err(|error| CodegenError(format!("cannot derive backend atom: {error}")))?;
+            .map_err(|error| {
+                CodegenError::internal_cause(format!("cannot derive backend atom: {error}"), error)
+            })?;
             if definition
                 .atom_boundaries()
                 .iter()
@@ -93,5 +96,10 @@ pub(super) fn finalize_production<'a, D, C, I>(
     }
     production
         .finalize_codegen(input.foundation(), &counts, &removed_atoms)
-        .map_err(|error| CodegenError(format!("cannot finalize GC/EH production: {error}")))
+        .map_err(|error| {
+            CodegenError::internal_cause(
+                format!("cannot finalize GC/EH production: {error}"),
+                error,
+            )
+        })
 }

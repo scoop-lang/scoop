@@ -14,7 +14,7 @@ pub(super) fn emit<'ctx>(
             continue;
         }
         if table.layout().offset() != 0 {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "owning interface table has a nonzero offset".into(),
             ));
         }
@@ -45,15 +45,15 @@ pub(super) fn emit<'ctx>(
             .itables
             .iter()
             .find(|storage| storage.identity_record().id() == table.layout().storage())
-            .ok_or_else(|| CodegenError("missing interface table array".into()))?;
+            .ok_or_else(|| CodegenError::internal("missing interface table array".into()))?;
         let start = table.layout().offset() as usize;
         let end = start
             .checked_add(table.physical_slots().len())
-            .ok_or_else(|| CodegenError("interface table view size overflow".into()))?;
+            .ok_or_else(|| CodegenError::internal("interface table view size overflow".into()))?;
         if table.physical_slots().is_empty()
             || storage.physical_slots().get(start..end) != Some(table.physical_slots())
         {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "interface table view does not match its storage".into(),
             ));
         }

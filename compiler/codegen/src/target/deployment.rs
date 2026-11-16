@@ -30,7 +30,7 @@ impl ObjectDeployment {
         native: &CBridgeToolchainContractV1,
     ) -> Result<Self, CodegenError> {
         if native.target().id() != selection.target().id() {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "backend and native deployment targets differ".into(),
             ));
         }
@@ -47,7 +47,7 @@ impl ObjectDeployment {
                 scoop_target_data::CodegenDeploymentProfile::Windows,
                 CBridgePlatformContractV1::Windows { .. },
             ) => Ok(Self::Windows),
-            _ => Err(CodegenError(
+            _ => Err(CodegenError::internal(
                 "codegen deployment and native toolchain platform differ".into(),
             )),
         }

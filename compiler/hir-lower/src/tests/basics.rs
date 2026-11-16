@@ -54,8 +54,11 @@ fn duplicate_function_is_an_error() {
         errors[0].message,
         "function `main` is already declared with the same signature"
     );
-    // The duplicate is in the user file (index 1; core is index 0).
-    assert_eq!(errors[0].file, 1);
+    // The source identity survives the lowering context.
+    assert_eq!(
+        diagnostic_source(&errors[0]),
+        &scoop_identity::SourceIdentity::single_file()
+    );
 }
 
 #[test]
@@ -90,7 +93,7 @@ fn unknown_function_is_an_error_with_callee_span() {
         errors[0].message,
         "unknown function `hello`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
-    assert_eq!(errors[0].span, Some(callee_span));
+    assert_eq!(errors[0].span(), Some(callee_span));
 }
 
 #[test]
@@ -132,7 +135,7 @@ fn missing_main_is_an_error_with_current_source_anchor() {
         errors[0].message,
         "missing executable entry: declare exactly one ordinary `fun main(): Unit`, `fun main(): Int`, `fun main(args: Array<String>): Unit`, or `fun main(args: Array<String>): Int`"
     );
-    assert_eq!(errors[0].span, Some(Span::new(0, 0)));
+    assert_eq!(errors[0].span(), Some(Span::new(0, 0)));
 }
 
 #[test]

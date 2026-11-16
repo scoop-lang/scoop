@@ -49,6 +49,7 @@ pub(super) enum PersistentFunctionIdentityErrorDetail {
     CyclicLexicalParent,
     InvalidLexicalRoot,
     InvalidFunctionOrigin,
+    InvalidAccessorCapability,
 }
 
 impl fmt::Display for PersistentFunctionIdentityErrorDetail {
@@ -81,6 +82,9 @@ impl fmt::Display for PersistentFunctionIdentityErrorDetail {
             }
             Self::InvalidLexicalRoot => {
                 formatter.write_str("definition path has an invalid lexical root")
+            }
+            Self::InvalidAccessorCapability => {
+                formatter.write_str("setter function belongs to a read-only property")
             }
             Self::InvalidFunctionOrigin => {
                 formatter.write_str("function is not owned by exactly one identity source")

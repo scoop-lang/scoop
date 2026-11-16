@@ -34,17 +34,17 @@ fromFinally
 bb0 entry
   goto bb6
 bb1 try.unwind.1
-  landing_pad cleanup=false
+  landing_pad eh1 cleanup=false
   goto bb2
 bb2 try.dispatch.2
-  begin_catch
+  begin_catch eh1
   goto bb8
 bb3 try.exit_pad.3
-  landing_pad cleanup=true
+  landing_pad eh0 cleanup=true
   goto bb4
 bb4 try.exit_cleanup.4
   end_catch
-  resume
+  resume eh0
 bb5 try.end.5
   unreachable
 bb6 try.body.6 unwind bb1
@@ -63,17 +63,17 @@ exceptionReplacedByFinally
 bb0 entry
   goto bb6
 bb1 try.unwind.1
-  landing_pad cleanup=false
+  landing_pad eh1 cleanup=false
   goto bb2
 bb2 try.dispatch.2
-  begin_catch
+  begin_catch eh1
   goto bb7
 bb3 try.exit_pad.3
-  landing_pad cleanup=true
+  landing_pad eh0 cleanup=true
   goto bb4
 bb4 try.exit_cleanup.4
   end_catch
-  resume
+  resume eh0
 bb5 try.end.5
   unreachable
 bb6 try.body.6 unwind bb1
@@ -90,17 +90,17 @@ branchingFinally
 bb0 entry
   goto bb6
 bb1 try.unwind.1
-  landing_pad cleanup=false
+  landing_pad eh1 cleanup=false
   goto bb2
 bb2 try.dispatch.2
-  begin_catch
+  begin_catch eh1
   goto bb11
 bb3 try.exit_pad.3
-  landing_pad cleanup=true
+  landing_pad eh0 cleanup=true
   goto bb4
 bb4 try.exit_cleanup.4
   end_catch
-  resume
+  resume eh0
 bb5 try.end.5
   unreachable
 bb6 try.body.6 unwind bb1

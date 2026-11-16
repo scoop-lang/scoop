@@ -53,12 +53,12 @@ impl fmt::Display for Digest256 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HashError {
     LengthOverflow,
     InvalidDomain,
-    CborEncoding,
-    RuntimeEncoding,
+    CborEncoding(crate::cbor::EncodeError),
+    RuntimeEncoding(crate::RuntimeEncodeError),
 }
 
 impl fmt::Display for HashError {
@@ -66,13 +66,28 @@ impl fmt::Display for HashError {
         formatter.write_str(match self {
             Self::LengthOverflow => "byte span length does not fit u64",
             Self::InvalidDomain => "hash domain must be non-NUL ASCII",
-            Self::CborEncoding => "canonical CBOR encoding failed",
-            Self::RuntimeEncoding => "canonical runtime metadata encoding failed",
+            Self::CborEncoding(error) => {
+                return write!(formatter, "canonical CBOR encoding failed: {error}");
+            }
+            Self::RuntimeEncoding(error) => {
+                return write!(
+                    formatter,
+                    "canonical runtime metadata encoding failed: {error}"
+                );
+            }
         })
     }
 }
 
-impl std::error::Error for HashError {}
+impl std::error::Error for HashError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::CborEncoding(error) => Some(error),
+            Self::RuntimeEncoding(error) => Some(error),
+            Self::LengthOverflow | Self::InvalidDomain => None,
+        }
+    }
+}
 
 /// Incremental SHA-256 input for protocol formulas composed from byte spans,
 /// fixed raw fields, and canonical Wire CBOR values.
@@ -100,13 +115,13 @@ impl CanonicalHashStream {
 
     pub fn update_canonical_cbor(&mut self, value: &impl WireEncode) -> Result<(), HashError> {
         let updated =
-            encode_into_hasher(value, self.hasher.clone()).map_err(|_| HashError::CborEncoding)?;
+            encode_into_hasher(value, self.hasher.clone()).map_err(HashError::CborEncoding)?;
         self.hasher = updated;
         Ok(())
     }
 
     pub fn update_canonical_cbor_span(&mut self, value: &impl WireEncode) -> Result<(), HashError> {
-        let length = encoded_length(value).map_err(|_| HashError::CborEncoding)?;
+        let length = encoded_length(value).map_err(HashError::CborEncoding)?;
         self.hasher.update(length.to_le_bytes());
         self.update_canonical_cbor(value)
     }
@@ -151,7 +166,7 @@ pub fn domain_separated_cbor_hash(
     let mut hasher = Sha256::new();
     hasher.update(length.to_le_bytes());
     hasher.update(domain.as_bytes());
-    let hasher = encode_into_hasher(value, hasher).map_err(|_| HashError::CborEncoding)?;
+    let hasher = encode_into_hasher(value, hasher).map_err(HashError::CborEncoding)?;
     Ok(Digest256(hasher.finalize().into()))
 }
 
@@ -162,7 +177,7 @@ pub fn domain_separated_runtime_hash(
     if !domain.is_ascii() || domain.as_bytes().contains(&0) {
         return Err(HashError::InvalidDomain);
     }
-    let encoded = encode_runtime(value).map_err(|_| HashError::RuntimeEncoding)?;
+    let encoded = encode_runtime(value).map_err(HashError::RuntimeEncoding)?;
     let length = u64::try_from(domain.len()).map_err(|_| HashError::LengthOverflow)?;
     let mut hasher = Sha256::new();
     hasher.update(length.to_le_bytes());
@@ -255,5 +270,30 @@ mod tests {
                 expected: WireType::Bytes,
             }
         );
+    }
+}
+
+#[cfg(test)]
+mod cause_tests {
+    use super::*;
+    use crate::cbor::EncodeError;
+    use std::error::Error;
+
+    struct InvalidRecord;
+    impl WireEncode for InvalidRecord {
+        fn encode(&self, _: &mut Encoder) -> Result<(), EncodeError> {
+            Err(EncodeError::InvalidValue("missing identity field".into()))
+        }
+    }
+
+    #[test]
+    fn hashing_preserves_the_encoding_failure() {
+        let error = domain_separated_cbor_hash("diagnostic-test", &InvalidRecord).unwrap_err();
+        assert_eq!(
+            error,
+            HashError::CborEncoding(EncodeError::InvalidValue("missing identity field".into()))
+        );
+        assert!(error.source().unwrap().is::<EncodeError>());
+        assert!(error.to_string().contains("missing identity field"));
     }
 }

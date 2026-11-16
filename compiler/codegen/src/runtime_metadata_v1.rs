@@ -567,13 +567,13 @@ fn validate_struct_layout(
     let actual_size = target_data.get_abi_size(&actual);
     let actual_alignment = target_data.get_abi_alignment(&actual);
     if actual_size != expected.size || actual_alignment != expected.alignment {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "LLVM runtime metadata type `{}` has size/alignment {actual_size}/{actual_alignment}, expected {}/{}",
             expected.name, expected.size, expected.alignment,
         )));
     }
     if actual.count_fields() != expected.fields.len() as u32 {
-        return Err(CodegenError(format!(
+        return Err(CodegenError::internal(format!(
             "LLVM runtime metadata type `{}` has {} fields, expected {}",
             expected.name,
             actual.count_fields(),
@@ -584,13 +584,13 @@ fn validate_struct_layout(
         let actual_offset = target_data
             .offset_of_element(&actual, index as u32)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "LLVM runtime metadata type `{}` has no field `{}` at index {index}",
                     expected.name, field.name,
                 ))
             })?;
         if actual_offset != field.offset {
-            return Err(CodegenError(format!(
+            return Err(CodegenError::internal(format!(
                 "LLVM runtime metadata field `{}.{}` has offset {actual_offset}, expected {}",
                 expected.name, field.name, field.offset,
             )));
@@ -623,6 +623,6 @@ mod tests {
         let error = RuntimeMetadataV1Types::new(&context)
             .validate_layout(&target_data)
             .expect_err("32-bit pointers must not satisfy metadata v1");
-        assert!(error.0.contains("ScoopItableEntryV1"), "{error}");
+        assert!(error.to_string().contains("ScoopItableEntryV1"), "{error}");
     }
 }

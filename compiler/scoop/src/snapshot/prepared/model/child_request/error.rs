@@ -8,7 +8,6 @@ pub enum ChildRequestPlanError {
     NativeNotPrepared,
     UnknownNode(ConeIdentity),
     PrebuiltNode(ConeIdentity),
-    MissingSourceProjection(ConeIdentity),
     CurrentAlreadyCompleted(ConeIdentity),
     DuplicateCompletedNode(ConeIdentity),
     MissingTrustedCore,
@@ -38,12 +37,6 @@ impl fmt::Display for ChildRequestPlanError {
                 write!(
                     formatter,
                     "prebuilt Cone {identity} must not launch a compiler child"
-                )
-            }
-            Self::MissingSourceProjection(identity) => {
-                write!(
-                    formatter,
-                    "prepared source Cone {identity} has no dependency projection"
                 )
             }
             Self::CurrentAlreadyCompleted(identity) => {

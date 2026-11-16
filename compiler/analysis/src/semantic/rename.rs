@@ -36,6 +36,7 @@ pub enum RenameError {
     Cancelled,
     Analysis(ProjectAnalysisError),
     Unavailable(&'static str),
+    Internal(&'static str),
     InvalidName,
     Conflict(Origin),
     Edit(SnapshotEditError),
@@ -46,6 +47,7 @@ impl fmt::Display for RenameError {
         match self {
             Self::Cancelled => formatter.write_str("rename was cancelled"),
             Self::Analysis(error) => write!(formatter, "rename analysis is unavailable: {error:?}"),
+            Self::Internal(reason) => write!(formatter, "internal compiler error: {reason}"),
             Self::Unavailable(reason) => formatter.write_str(reason),
             Self::InvalidName => formatter.write_str("new name is not a valid source identifier"),
             Self::Conflict(_) => {

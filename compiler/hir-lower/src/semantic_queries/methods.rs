@@ -58,7 +58,7 @@ impl Lowerer {
         )
         .map_err(|error| {
             let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-            diagnostic.file = error.file();
+            diagnostic.set_file(error.file());
             diagnostic
         })?;
         self.query_source_function_identities

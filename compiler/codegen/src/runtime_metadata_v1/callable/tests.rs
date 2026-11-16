@@ -140,7 +140,7 @@ fn reports_missing_callable_entries() {
         plan.registrations()[0].body(),
     )
     .unwrap_err();
-    assert!(error.0.contains("is not declared"), "{error}");
+    assert!(error.to_string().contains("is not declared"), "{error}");
     assert!(
         llvm.get_global(expected.symbol().symbol().as_str())
             .is_none()

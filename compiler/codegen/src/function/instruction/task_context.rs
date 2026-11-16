@@ -9,7 +9,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         match instruction {
             Instruction::TaskContextLoad { out } => {
                 if self.function.temps[*out].ty != scoop_lir::MANAGED_PTR {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "task context load requires a managed result".into(),
                     ));
                 }
@@ -25,7 +25,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             Instruction::TaskContextStore { value } => {
                 if self.function.value_ty(self.globals_arena, *value) != scoop_lir::MANAGED_PTR {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "task context store requires a managed reference".into(),
                     ));
                 }
@@ -41,5 +41,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 }
 
 fn context_error(error: impl std::fmt::Display) -> CodegenError {
-    CodegenError(format!("emit Context access: {error}"))
+    CodegenError::internal(format!("emit Context access: {error}"))
 }

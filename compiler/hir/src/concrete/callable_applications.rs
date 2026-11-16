@@ -186,7 +186,7 @@ impl CallableApplicationIdentities {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CallableApplicationIdentityError {
     ApplicationOrder(StableIdentityOrderError<PersistentCallableApplicationId>),
     OdrGroup(HashError),

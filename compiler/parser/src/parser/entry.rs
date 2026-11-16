@@ -106,12 +106,12 @@ impl Parser {
         diagnostics.extend(syntax_diagnostics);
         diagnostics.sort_by_key(|diagnostic| {
             diagnostic
-                .span
+                .span()
                 .map_or((u32::MAX, u32::MAX), |span| (span.start, span.end))
         });
         let eof = self.tokens.last().expect("the lexer emits EOF").span;
         diagnostics.dedup_by(|next, previous| {
-            next == previous || next.span == Some(eof) && previous.span == Some(eof)
+            next == previous || next.span() == Some(eof) && previous.span() == Some(eof)
         });
         let recovering = diagnostics
             .iter()

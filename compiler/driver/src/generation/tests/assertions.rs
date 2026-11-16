@@ -76,10 +76,15 @@ pub(super) fn errors(queries: &mut dyn SemanticQueries, annotations: &[Generatio
         );
         let diagnostic = &diagnostics[0];
         assert_eq!(
-            diagnostic.source.as_ref().unwrap().logical_path().as_str(),
+            (match diagnostic.source().unwrap() {
+                scoop_ast::LocalDiagnosticSource::Bound(source) => source,
+                source => panic!("unbound diagnostic: {source:?}"),
+            })
+            .logical_path()
+            .as_str(),
             "src/generator-plans.scoop"
         );
-        let span = diagnostic.span.unwrap();
+        let span = diagnostic.span().unwrap();
         assert!(span.start < span.end);
         if note {
             assert_eq!(diagnostic.notes.len(), 1);

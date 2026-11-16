@@ -1,6 +1,8 @@
 //! A companion projection is reduced only after its host is known. It never
 //! adds an inverse constraint from a companion argument to the host variable.
 
+use crate::call_resolution::constraints::InferenceFailure;
+
 use super::*;
 use crate::Type;
 use crate::call_resolution::constraints::RelationKind;
@@ -14,7 +16,7 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         checks: &[AtomicConstraint],
         resolved: &mut HashSet<usize>,
-    ) -> Result<Vec<AtomicConstraint>, ConstraintFailure> {
+    ) -> Result<Vec<AtomicConstraint>, InferenceFailure> {
         let mut derived = Vec::new();
         for (index, check) in checks.iter().enumerate() {
             if resolved.contains(&index) {
@@ -79,7 +81,7 @@ impl Lowerer {
         bindings: &[Option<hir::TypeId>],
         term: TypeTerm,
         origin: ConstraintOrigin,
-    ) -> Result<Option<TypeTerm>, ConstraintFailure> {
+    ) -> Result<Option<TypeTerm>, InferenceFailure> {
         if matches!(term, TypeTerm::Type(ty) if matches!(self.types[ty], Type::Companion(_))) {
             return self
                 .materialize_term(session, bindings, term, origin)
@@ -93,12 +95,13 @@ impl Lowerer {
         variable: InferenceVariableId,
         host: hir::TypeId,
         origin: ConstraintOrigin,
-    ) -> Result<hir::TypeId, ConstraintFailure> {
-        self.projected_companion_type(host)
-            .map_err(|message| ConstraintFailure {
+    ) -> Result<hir::TypeId, InferenceFailure> {
+        self.projected_companion_type(host).map_err(|message| {
+            InferenceFailure::Constraint(ConstraintFailure {
                 origin,
                 kind: ConstraintFailureKind::Companion { variable, message },
             })
+        })
     }
 
     pub(super) fn validate_companion_condition(
@@ -108,7 +111,7 @@ impl Lowerer {
         variable: InferenceVariableId,
         bounds: &hir::CompanionBounds,
         origin: ConstraintOrigin,
-    ) -> Result<(), ConstraintFailure> {
+    ) -> Result<(), InferenceFailure> {
         let host = self.require_materialized(
             session,
             bindings,
@@ -129,7 +132,7 @@ impl Lowerer {
             )?;
             let outcome = self.excludes_interface(companion, required);
             if outcome != crate::types::InterfaceExclusion::Satisfied {
-                return Err(ConstraintFailure {
+                return Err(InferenceFailure::Constraint(ConstraintFailure {
                     origin,
                     kind: ConstraintFailureKind::Companion {
                         variable,
@@ -144,7 +147,7 @@ impl Lowerer {
                             }
                         ),
                     },
-                });
+                }));
             }
         }
         Ok(())

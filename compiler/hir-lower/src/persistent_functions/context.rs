@@ -34,10 +34,12 @@ impl FunctionIdentityBuilder<'_> {
                 self.accessor_context(function, parent, accessor)
             }
             hir::HirFunctionIdentity::LexicalGenerated(record) => {
-                let site = self
-                    .lexical_site(parent)?
-                    .ok_or_else(|| self.failure(function, Detail::InvalidLexicalRoot))?;
-                let mut context = self.context_for_site(parent, site.root, &site.path)?;
+                let crate::FunctionOrigin::Lexical { root, path, .. } =
+                    self.lowerer.functions.origin(parent).clone()
+                else {
+                    return Err(self.failure(function, Detail::InvalidLexicalRoot));
+                };
+                let mut context = self.context_for_site(parent, root, &path)?;
                 context.parent =
                     LexicalCallableParent::from_generated_key(record.key()).map_err(|error| {
                         self.failure(

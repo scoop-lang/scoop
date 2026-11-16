@@ -81,17 +81,35 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             | Instruction::NativeGlobalAddress { protocol, .. } => {
                 protocol.roots().iter().map(|root| root.source).collect()
             }
-            Instruction::Invoke {
-                site: InvokeSite::Managed(site),
-            } => site
-                .roots
+            _ => unreachable!("only safepoint instructions reach debug restoration"),
+        };
+        self.restore_debug_roots(roots)
+    }
+
+    pub(in crate::function) fn finish_debug_invoke(
+        &self,
+        site: &InvokeSite,
+    ) -> Result<(), CodegenError> {
+        let InvokeSite::Managed(site) = site else {
+            return Ok(());
+        };
+        self.restore_debug_roots(
+            site.roots
                 .as_slice()
                 .iter()
                 .filter(|root| root.normal_live)
                 .map(|root| root.root.source)
                 .collect(),
-            _ => unreachable!("only safepoint instructions reach debug restoration"),
+        )
+    }
+
+    fn restore_debug_roots(&self, roots: Vec<CallerRootSource>) -> Result<(), CodegenError> {
+        let Some(debug) = &self.debug else {
+            return Ok(());
         };
+        if !debug.borrow().is_full() {
+            return Ok(());
+        }
         let kept = roots.iter().copied().map(debug_storage).collect::<Vec<_>>();
         debug.borrow().invalidate_managed_except(
             self.builder

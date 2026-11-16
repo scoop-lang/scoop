@@ -11,7 +11,7 @@ mod conversions;
 mod predicates;
 
 fn float_error(error: BuilderError) -> CodegenError {
-    CodegenError(format!("floating operation: {error}"))
+    CodegenError::internal(format!("floating operation: {error}"))
 }
 
 fn bits_type(context: &Context, kind: FloatKind) -> IntType<'_> {

@@ -59,7 +59,7 @@ fn m60_documentation_keeps_file_import_scopes_and_reports_ambiguous_names() {
     assert_eq!(docs.warnings.len(), 1, "{:?}", docs.warnings);
     assert!(docs.warnings[0].message.contains("is ambiguous"));
     assert_eq!(
-        docs.warnings[0].source.as_deref(),
+        docs.warnings[0].source(),
         Some(&test_source_identity("both.scoop"))
     );
     let left = current(&comment(&output, Kind::Function, "left").body.references[0].resolution);

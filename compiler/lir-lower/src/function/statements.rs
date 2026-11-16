@@ -262,8 +262,7 @@ impl<'a> FunctionLowerer<'a> {
                         normal,
                         self.block_map[unwind],
                     );
-                    self.push(lir::Instruction::Invoke { site });
-                    self.seal(lir::Terminator::Br(normal));
+                    self.seal(lir::Terminator::Invoke { site });
                     self.enter(normal);
                     self.seal(lir::Terminator::Unreachable);
                 } else {
@@ -284,8 +283,7 @@ impl<'a> FunctionLowerer<'a> {
                         normal,
                         self.block_map[unwind],
                     );
-                    self.push(lir::Instruction::Invoke { site });
-                    self.seal(lir::Terminator::Br(normal));
+                    self.seal(lir::Terminator::Invoke { site });
                     self.enter(normal);
                     self.seal(lir::Terminator::Unreachable);
                 }

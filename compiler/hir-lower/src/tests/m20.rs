@@ -548,7 +548,7 @@ fn unresolved_partial_callable_argument_points_at_the_infer_slot() {
     .expect_err("an unconstrained infer slot must not reach HIR");
 
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].span, Some(infer_span));
+    assert_eq!(errors[0].span(), Some(infer_span));
     assert!(
         errors[0]
             .message
@@ -589,7 +589,7 @@ fn partial_callable_bound_failure_points_at_the_infer_slot() {
     .expect_err("the inferred argument must satisfy the callable bound");
 
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].span, Some(infer_span));
+    assert_eq!(errors[0].span(), Some(infer_span));
     assert!(
         errors[0]
             .message
@@ -634,7 +634,7 @@ fn partial_constructor_bound_failure_points_at_the_infer_slot() {
     .expect_err("the inferred constructor argument must satisfy its bound");
 
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].span, Some(infer_span));
+    assert_eq!(errors[0].span(), Some(infer_span));
     assert!(
         errors[0]
             .message

@@ -42,7 +42,10 @@ pub use integer::*;
 pub use parsed_sources::*;
 pub use patterns::*;
 pub use recovered::*;
-pub use scoop_source::{Diagnostic, DiagnosticNote, DiagnosticSeverity, Span};
+pub use scoop_source::{
+    Diagnostic, DiagnosticBindingError, DiagnosticKind, DiagnosticLocation, DiagnosticNote,
+    DiagnosticSeverity, LocalDiagnosticSource, SourceDiagnostic, SourceDiagnosticNote, Span,
+};
 pub use statements::*;
 pub use types::*;
 

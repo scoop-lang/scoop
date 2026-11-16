@@ -198,7 +198,7 @@ impl ValidatedBackendProfile {
         let deployment_profile = scoop_target_data::definition(selection.target().id())
             .filter(|definition| definition.selection == selection)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "unsupported target/backend contract for `{}`",
                     selection.target().contract().canonical_triple()
                 ))
@@ -216,7 +216,7 @@ impl ValidatedBackendProfile {
         let definition = scoop_target_data::definition(selection.target().id())
             .filter(|definition| definition.selection == selection)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "unsupported target/backend contract for `{}`",
                     selection.target().contract().canonical_triple()
                 ))
@@ -232,7 +232,7 @@ impl ValidatedBackendProfile {
         let definition = scoop_target_data::definition(selection.target().id())
             .filter(|definition| definition.selection == selection)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "unsupported target/backend contract for `{}`",
                     selection.target().contract().canonical_triple()
                 ))
@@ -381,7 +381,7 @@ impl ValidatedBackendProfile {
         if actual == self.lir_target_selection.target() {
             return Ok(());
         }
-        Err(CodegenError(format!(
+        Err(CodegenError::internal(format!(
             "LIR target profile `{}` does not match codegen target profile `{}`",
             actual.id().canonical_name(),
             self.id().canonical_name(),
@@ -408,13 +408,16 @@ impl ValidatedBackendProfile {
                 .triple(self.llvm_triple(), self.lir_target_profile().architecture()),
         );
         let target = Target::from_triple(&triple).map_err(|error| {
-            CodegenError(format!("no target for {}: {error}", self.canonical_triple))
+            CodegenError::backend(
+                format!("no target for {}: {error}", self.canonical_triple),
+                error,
+            )
         })?;
         let machine = self
             .machine_pipeline
             .create_target_machine(&target, &triple, self, optimization)
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "failed to create target machine for {}",
                     self.canonical_triple
                 ))
@@ -447,7 +450,7 @@ fn validate_llvm_version(version: LlvmVersion) -> Result<LlvmVersion, CodegenErr
     if version.major == REQUIRED_LLVM_MAJOR && version.minor == REQUIRED_LLVM_MINOR {
         Ok(version)
     } else {
-        Err(CodegenError(format!(
+        Err(CodegenError::backend_message(format!(
             "unsupported LLVM backend {version}; Scoop requires LLVM \
              {REQUIRED_LLVM_MAJOR}.{REQUIRED_LLVM_MINOR}"
         )))

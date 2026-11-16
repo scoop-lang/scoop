@@ -335,7 +335,7 @@ fn ambiguous_exact_extension_layer_is_terminal() {
             .expect_err("an applicable ambiguous layer cannot fall through");
         assert!(
             errors.iter().any(|diagnostic| {
-                diagnostic.span == Some(ast::Span::new(700, 710))
+                diagnostic.span() == Some(ast::Span::new(700, 710))
                     && diagnostic
                         .message
                         .contains("ambiguous in extension candidate layer")
@@ -639,7 +639,7 @@ fn crossed_property_invoke_pairs_share_one_effective_msc_partition() {
         );
         assert!(
             errors.iter().any(|diagnostic| {
-                diagnostic.span == Some(ast::Span::new(700, 710))
+                diagnostic.span() == Some(ast::Span::new(700, 710))
                     && diagnostic.message.contains("call to `invoke` is ambiguous")
                     && diagnostic.message.contains("star import layer")
             }),

@@ -24,7 +24,7 @@ fn nested_argument_errors_survive_earlier_outer_bound_failures() {
         assert!(!error.message.contains("compare"), "{error:#?}");
         assert!(!error.message.contains("Equals"), "{error:#?}");
         let start = source.find("\"bad\"").unwrap() as u32;
-        assert_eq!(error.span, Some(Span::new(start, start + 5)));
+        assert_eq!(error.span(), Some(Span::new(start, start + 5)));
     }
 }
 

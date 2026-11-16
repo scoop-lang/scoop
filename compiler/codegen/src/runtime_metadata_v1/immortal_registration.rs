@@ -84,7 +84,7 @@ fn emit_registration<'ctx>(
 ) -> Result<EmittedStrongImmortalObjectRegistrationV1<'ctx>, CodegenError> {
     let object_symbol = plan.object_symbol().symbol();
     let object_value = llvm.get_global(object_symbol.as_str()).ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "immortal object `{object_symbol}` is not defined in the LLVM module"
         ))
     })?;

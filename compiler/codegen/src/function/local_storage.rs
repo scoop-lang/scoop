@@ -21,11 +21,16 @@ fn local_allocation_order(function: &Function) -> Vec<scoop_lir::LocalId> {
                 visit(value);
             }
         }
-        terminator_uses(&block.terminator, |value| {
+        terminator_uses(&block.terminator, function, |value| {
             if let Some(value) = LiveValue::from_value(value) {
                 visit(value);
             }
         });
+        if let Terminator::Invoke { site } = &block.terminator
+            && let scoop_lir::TypedCallResult::IndirectResult(local) = site.result()
+        {
+            visit(LiveValue::Local(local));
+        }
     }
     for (local, _) in function.locals.iter() {
         visit(LiveValue::Local(local));
@@ -70,21 +75,25 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     false,
                 ),
             };
-            let alignment = u32::try_from(alignment).map_err(|_| {
-                CodegenError(format!(
-                    "local %{} alignment exceeds LLVM limits",
-                    local.name
-                ))
+            let alignment = u32::try_from(alignment).map_err(|cause| {
+                CodegenError::internal_cause(
+                    format!("local %{} alignment exceeds LLVM limits", local.name),
+                    cause,
+                )
             })?;
             let pointer = self
                 .builder
                 .build_alloca(ty, &local.name)
-                .map_err(|error| CodegenError(format!("alloca %{}: {error}", local.name)))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("alloca %{}: {error}", local.name), error)
+                })?;
             pointer
                 .as_instruction_value()
                 .expect("alloca is an instruction")
                 .set_alignment(alignment)
-                .map_err(|error| CodegenError(format!("align local %{}: {error}", local.name)))?;
+                .map_err(|error| {
+                    CodegenError::backend(format!("align local %{}: {error}", local.name), error)
+                })?;
             self.allocas.insert(
                 id,
                 if token {
@@ -103,7 +112,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
     ) -> Result<PointerValue<'ctx>, CodegenError> {
         match self.allocas[&local] {
             LocalAllocation::ZstToken(pointer) | LocalAllocation::NonZero(pointer) => Ok(pointer),
-            LocalAllocation::LogicalZst => Err(CodegenError(format!(
+            LocalAllocation::LogicalZst => Err(CodegenError::internal(format!(
                 "function @{} cannot take the address of logical ZST local %{} without a place token",
                 self.function.symbol(),
                 self.function.locals[local].name,

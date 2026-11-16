@@ -153,27 +153,34 @@ impl Lowerer {
                     .flatten()
                     .any(|p| !p.annotations.is_empty())
                     .then(|| state.locals.clone());
-                let function = state.functions.alloc(hir::Function {
-                    signature: hir::CallableSignature {
-                        context_parameters: Vec::new(),
-                        release_callability: Default::default(),
-                        name: state.current_fn_name.clone(),
-                        is_suspend,
-                        modifiers: hir::CallableModifiers::default(),
-                        params,
-                        return_ty,
-                        attributes: hir::FunctionAttributes::default(),
-                        span,
-                    },
+                let function = state.functions.alloc(
+                    hir::Function {
+                        signature: hir::CallableSignature {
+                            context_parameters: Vec::new(),
+                            release_callability: Default::default(),
+                            name: state.current_fn_name.clone(),
+                            is_suspend,
+                            modifiers: hir::CallableModifiers::default(),
+                            params,
+                            return_ty,
+                            attributes: hir::FunctionAttributes::default(),
+                            span,
+                        },
 
-                    access,
-                    genericity: hir::FunctionGenericity::Plain,
-                    kind: hir::FunctionKind::User(hir::Body {
-                        locals: std::mem::take(&mut state.locals).into_arena(),
-                        statements: prefix,
-                    }),
-                    method: None,
-                });
+                        access,
+                        genericity: hir::FunctionGenericity::Plain,
+                        kind: hir::FunctionKind::User(hir::Body {
+                            locals: std::mem::take(&mut state.locals).into_arena(),
+                            statements: prefix,
+                        }),
+                        method: None,
+                    },
+                    crate::FunctionOrigin::Lexical {
+                        root: state.current_definition_root(),
+                        path: definition_path.clone(),
+                        role: scoop_identity::LexicalCallableRole::LambdaBody,
+                    },
+                );
                 if !type_params.is_empty() {
                     state.register_generic(function, type_params.clone());
                 }

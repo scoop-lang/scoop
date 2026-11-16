@@ -15,7 +15,9 @@ mod scopes;
 mod sysroot;
 mod warnings;
 
-fn lower_documented(source: &str) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+fn lower_documented(
+    source: &str,
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let core = support::trusted_core();
     lower_with_core(&core, source, true)
 }
@@ -24,7 +26,7 @@ fn lower_with_core(
     core: &support::TrustedCoreFixture,
     source: &str,
     documentation: bool,
-) -> Result<hir::DependencyHirOutput, Vec<ast::Diagnostic>> {
+) -> Result<hir::DependencyHirOutput, Vec<scoop_ast::SourceDiagnostic>> {
     let parsed = support::parsed_ordinary_text(source);
     let world = core.world(parsed.cone());
     let mut sources = crate::CurrentConeSources::try_new(

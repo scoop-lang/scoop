@@ -14,6 +14,14 @@ impl Lowerer {
         prelude_variant_failure: Option<Box<Lowerer>>,
         found: bool,
     ) -> Option<hir::Expr> {
+        for failure in ordinary_failure
+            .iter()
+            .chain(prelude_variant_failure.iter())
+        {
+            if self.retain_internal_diagnostics(failure) {
+                return None;
+            }
+        }
         let name = &call.callee.text;
         if let Some((owner, index)) = self.contextual_imported_variant(name, expected) {
             return self.lower_imported_variant_construct(
@@ -71,16 +79,23 @@ impl Lowerer {
             self.commit_layer_diagnostics(&failure);
             return None;
         }
-        if (self.scopes.lookup(name).is_some()
+        if self.scopes.lookup(name).is_some()
             || self.available_capture(name).is_some()
-            || self.constructor_params_in_scope.contains_key(name))
-            && let Ok(mut value) =
-                self.probe_expr_layer(|state, sink| state.lower_var(&call.callee, sink, None))
+            || self.constructor_params_in_scope.contains_key(name)
         {
-            let found = value.state.type_name(value.expression.ty);
-            value.state.not_callable(call.callee.span, &found);
-            self.commit_layer_diagnostics(&value.state);
-            return None;
+            match self.probe_expr_layer(|state, sink| state.lower_var(&call.callee, sink, None)) {
+                Ok(mut value) => {
+                    let found = value.state.type_name(value.expression.ty);
+                    value.state.not_callable(call.callee.span, &found);
+                    self.commit_layer_diagnostics(&value.state);
+                    return None;
+                }
+                Err(failure) => {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return None;
+                    }
+                }
+            }
         }
         if let Some(enumeration) = self.exact_expected_enum(expected) {
             self.error(

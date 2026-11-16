@@ -101,7 +101,9 @@ pub(crate) fn page_mapping<'ctx>(
             .as_instruction_value()
             .expect("page-map load is an instruction")
             .set_atomic_ordering(AtomicOrdering::Acquire)
-            .map_err(|error| CodegenError(format!("page-map acquire load: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("page-map acquire load: {error}"), error)
+            })?;
         node = loaded.into_pointer_value();
     }
     Ok(node)
@@ -127,7 +129,7 @@ pub(crate) fn inline_array_queries(
     }
     module
         .run_passes("always-inline", machine, PassBuilderOptions::create())
-        .map_err(|error| CodegenError(format!("array mapping inlining: {error}")))
+        .map_err(|error| CodegenError::backend(format!("array mapping inlining: {error}"), error))
 }
 
 fn define_query<'ctx>(
@@ -161,7 +163,7 @@ fn define_query<'ctx>(
     word.as_instruction_value()
         .expect("GC word load is an instruction")
         .set_atomic_ordering(AtomicOrdering::Monotonic)
-        .map_err(|error| CodegenError(format!("array GC word load: {error}")))?;
+        .map_err(|error| CodegenError::backend(format!("array GC word load: {error}"), error))?;
     let size = builder
         .build_and(
             word.into_int_value(),
@@ -203,5 +205,5 @@ fn define_query<'ctx>(
 }
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
-    CodegenError(format!("GC mapping query: {error}"))
+    CodegenError::internal(format!("GC mapping query: {error}"))
 }

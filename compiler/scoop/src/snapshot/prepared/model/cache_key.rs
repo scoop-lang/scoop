@@ -21,7 +21,8 @@ impl PreparedBuildGraph {
         identity: ConeIdentity,
         completed: &[&CompletedNode],
     ) -> Result<ConeCompileCacheInputV1, CompileCacheKeyError> {
-        let (cone, current_semantic, mut sources) = self.current_cache_inputs(identity)?;
+        let (cone, current_semantic, mut sources, projection) =
+            self.current_cache_inputs(identity)?;
         sources.sort_by(|left, right| left.source().cmp(right.source()));
         if let Some(repeated) = sources
             .windows(2)
@@ -33,10 +34,6 @@ impl PreparedBuildGraph {
         }
 
         let completed = completed_map(identity, completed)?;
-        let projection = self
-            .source_inputs
-            .get(&identity)
-            .ok_or(CompileCacheKeyError::MissingSourceProjection(identity))?;
         let mut inputs = projection
             .direct()
             .iter()
@@ -123,6 +120,7 @@ impl PreparedBuildGraph {
             ConeRecord,
             CurrentConeSemanticProjectionV1,
             Vec<SourceCacheInputV1>,
+            &crate::ResolvedDependencyProjection,
         ),
         CompileCacheKeyError,
     > {
@@ -146,6 +144,7 @@ impl PreparedBuildGraph {
                         }
                     });
                 manifest_cache_inputs(&node.snapshot, node.snapshot.requested_kind, subsystem)
+                    .map(|(cone, semantic, sources)| (cone, semantic, sources, &node.dependencies))
             }
             Some(PreparedGraphNode::SingleFile(node)) => {
                 let cone = ConeRecord::new(
@@ -164,6 +163,7 @@ impl PreparedBuildGraph {
                     cone,
                     CurrentConeSemanticProjectionV1::SingleFile,
                     vec![SourceCacheInputV1::new(&node.snapshot.source)],
+                    &node.dependencies,
                 ))
             }
             Some(PreparedGraphNode::PrebuiltArtifact(_)) => {
@@ -256,7 +256,6 @@ pub enum CompileCacheKeyError {
     NativeNotPrepared,
     UnknownNode(ConeIdentity),
     PrebuiltNode(ConeIdentity),
-    MissingSourceProjection(ConeIdentity),
     DuplicateSource(scoop_identity::SourceIdentity),
     DuplicateCompletedNode(ConeIdentity),
     CurrentNodeAlreadyCompleted(ConeIdentity),
@@ -284,10 +283,6 @@ impl fmt::Display for CompileCacheKeyError {
             Self::PrebuiltNode(identity) => write!(
                 formatter,
                 "prebuilt node {identity} does not have a source compile cache key"
-            ),
-            Self::MissingSourceProjection(identity) => write!(
-                formatter,
-                "source Cone {identity} has no resolved dependency projection"
             ),
             Self::DuplicateSource(source) => write!(
                 formatter,

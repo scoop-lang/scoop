@@ -354,7 +354,7 @@ fn failed_named_call_reports_the_source_use_after_exhausting_layers() {
     assert!(
         errors
             .iter()
-            .any(|error| error.span == Some(ast::Span::new(100, 106))
+            .any(|error| error.span() == Some(ast::Span::new(100, 106))
                 && error.message.contains("choose")),
         "{errors:?}"
     );
@@ -475,7 +475,7 @@ fn equally_specific_function_and_constructor_are_ambiguous_in_any_import_order()
             errors
                 .iter()
                 .any(|error| error.message.contains("ambiguous")
-                    && error.span == Some(ast::Span::new(100, 106))),
+                    && error.span() == Some(ast::Span::new(100, 106))),
             "{errors:?}"
         );
     }
@@ -747,7 +747,7 @@ fn applicable_exact_ambiguity_does_not_fall_through_to_current_package() {
             errors
                 .iter()
                 .any(|error| error.message.contains("ambiguous")
-                    && error.span == Some(ast::Span::new(100, 106))),
+                    && error.span() == Some(ast::Span::new(100, 106))),
             "{errors:?}"
         );
     }
@@ -897,7 +897,7 @@ fn distinct_property_invoke_pairs_at_one_effective_layer_are_not_first_match() {
             errors
                 .iter()
                 .any(|error| error.message.contains("ambiguous")
-                    && error.span == Some(ast::Span::new(100, 106))),
+                    && error.span() == Some(ast::Span::new(100, 106))),
             "{errors:?}"
         );
     }

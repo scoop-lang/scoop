@@ -104,7 +104,7 @@ impl CoroutineStartIdentity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoroutineSupportIdentityError {
     InvalidStartSignature,
     InvalidWorkSignature,

@@ -1165,10 +1165,10 @@ fn nullable_data_pointer_ref_rejects_a_mismatched_exact_pointee() {
     let error = c_layout_assertions(&module).expect_err("mismatched exact pointee must fail");
     assert!(
         error
-            .0
+            .to_string()
             .contains("renderer received mismatched exact pointee"),
         "{}",
-        error.0
+        error.to_string()
     );
 }
 
@@ -1220,10 +1220,10 @@ fn nullable_code_pointer_ref_rejects_a_mismatched_exact_signature() {
     let error = c_layout_assertions(&module).expect_err("mismatched exact signature must fail");
     assert!(
         error
-            .0
+            .to_string()
             .contains("renderer received mismatched exact signature"),
         "{}",
-        error.0
+        error.to_string()
     );
 }
 
@@ -1620,7 +1620,9 @@ fn c_layout_rejects_a_mutual_by_value_struct_cycle() {
 
     let error = c_layout_assertions(&module).expect_err("by-value C cycles are invalid");
     assert!(
-        error.0.contains("recursive by-value C layout `A`"),
+        error
+            .to_string()
+            .contains("recursive by-value C layout `A`"),
         "unexpected diagnostic: {error}"
     );
 }

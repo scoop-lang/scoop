@@ -76,7 +76,7 @@ impl GlobalReferences {
                 }
                 references.instruction(instruction);
             }
-            dataflow::terminator_uses(&block.terminator, |value| references.value(value));
+            dataflow::terminator_uses(&block.terminator, function, |value| references.value(value));
         }
         for id in references.arrays.clone() {
             references.descriptor(module.meta.arrays[id].type_descriptor);

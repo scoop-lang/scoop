@@ -47,10 +47,9 @@ pub(crate) fn optimize(
         if function.count_basic_blocks() == 0 {
             continue;
         }
-        let name = function
-            .get_name()
-            .to_str()
-            .map_err(|error| CodegenError(format!("LLVM function name: {error}")))?;
+        let name = function.get_name().to_str().map_err(|error| {
+            CodegenError::backend(format!("LLVM function name: {error}"), error)
+        })?;
         let no_gc =
             expected.functions.get(name) == Some(&GcEffect::NoGc) && !site_owners.contains(name);
         if profile.optimization() == scoop_lir::OptimizationMode::Release {
@@ -87,9 +86,10 @@ pub(crate) fn optimize(
         function
             .run_passes(passes, machine, PassBuilderOptions::create())
             .map_err(|error| {
-                CodegenError(format!(
-                    "ordinary LLVM lowering of `{name}` failed: {error}"
-                ))
+                CodegenError::backend(
+                    format!("ordinary LLVM lowering of `{name}` failed: {error}"),
+                    error,
+                )
             })?;
         if profile.optimization() == scoop_lir::OptimizationMode::Release && !no_gc {
             bounded_loops::optimize(function, machine, profile.tuning())?;
@@ -114,7 +114,12 @@ pub(super) fn finish_managed_optimization(
             machine,
             PassBuilderOptions::create(),
         )
-        .map_err(|error| CodegenError(format!("final LLVM constraint cleanup failed: {error}")))
+        .map_err(|error| {
+            CodegenError::backend(
+                format!("final LLVM constraint cleanup failed: {error}"),
+                error,
+            )
+        })
 }
 
 pub(crate) fn lower(
@@ -127,7 +132,9 @@ pub(crate) fn lower(
             machine,
             PassBuilderOptions::create(),
         )
-        .map_err(|error| CodegenError(format!("rewrite-statepoints-for-gc failed: {error}")))?;
+        .map_err(|error| {
+            CodegenError::backend(format!("rewrite-statepoints-for-gc failed: {error}"), error)
+        })?;
     address_bits::lower(module)?;
     // Instruction selection also simplifies terminal blocks. Finalize only
     // after that cleanup, so dead relocates before unreachable do not inflate

@@ -263,6 +263,19 @@ fn lower_with_source(
     )
 }
 
+pub(crate) fn bound_source(source: &ast::LocalDiagnosticSource) -> &scoop_identity::SourceIdentity {
+    match source {
+        ast::LocalDiagnosticSource::Bound(source) => source,
+        ast::LocalDiagnosticSource::Index(index) => {
+            panic!("diagnostic source {index} was not bound before leaving lowering")
+        }
+    }
+}
+
+pub(crate) fn diagnostic_source(diagnostic: &ast::Diagnostic) -> &scoop_identity::SourceIdentity {
+    bound_source(diagnostic.source().expect("expected a source diagnostic"))
+}
+
 pub(crate) fn test_source_identity(path: &str) -> scoop_identity::SourceIdentity {
     scoop_identity::SourceIdentity::new(
         scoop_identity::ConeCoordinate::new("test", "scoop-hir-lower", "0.0.0")

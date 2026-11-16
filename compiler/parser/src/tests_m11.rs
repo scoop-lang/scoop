@@ -128,7 +128,7 @@ fn suspend_requires_a_function_arrow() {
     let diagnostics = parse("fun use(task: suspend (Int)) {}\nfun main() {}")
         .expect_err("suspend tuple must not parse as a type");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].span, Some(Span::new(27, 28)));
+    assert_eq!(diagnostics[0].span(), Some(Span::new(27, 28)));
     assert_eq!(
         diagnostics[0].message,
         "expected `->` in suspend function type, found `)`"
@@ -140,7 +140,7 @@ fn function_type_requires_a_return_type() {
     let diagnostics = parse("fun use(op: (Int) ->) {}\nfun main() {}")
         .expect_err("missing return type must fail");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].span, Some(Span::new(20, 21)));
+    assert_eq!(diagnostics[0].span(), Some(Span::new(20, 21)));
     assert_eq!(diagnostics[0].message, "expected type, found `)`");
 }
 

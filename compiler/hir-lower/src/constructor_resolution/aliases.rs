@@ -71,6 +71,11 @@ impl Lowerer {
         }) {
             Ok(inferred) => inferred,
             Err(failure) => {
+                if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
+                    state
+                        .diagnostics
+                        .push(scoop_ast::Diagnostic::internal(error));
+                }
                 if let ArgumentInferenceFailureKind::Constraint(constraint) = failure.kind {
                     let reason = state.render_imported_constraint_failure(
                         &[],

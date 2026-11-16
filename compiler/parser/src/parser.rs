@@ -93,11 +93,11 @@ impl Parser {
         syntax: &Diagnostic,
         lexical_diagnostics: &[Diagnostic],
     ) -> bool {
-        let Some(syntax_span) = syntax.span else {
+        let Some(syntax_span) = syntax.span() else {
             return false;
         };
         lexical_diagnostics.iter().any(|lexical| {
-            let Some(lexical_span) = lexical.span else {
+            let Some(lexical_span) = lexical.span() else {
                 return false;
             };
             let overlaps_recovery_token =

@@ -612,7 +612,8 @@ fn machine_heap_store_rejects_cross_domain_state() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("frame and adapter state domains must not be interchangeable");
     assert!(
-        error.0.contains("machine_heap_store") && error.0.contains("CoroutineFrameState"),
+        error.to_string().contains("machine_heap_store")
+            && error.to_string().contains("CoroutineFrameState"),
         "unexpected error: {error}"
     );
 }
@@ -638,7 +639,8 @@ fn generic_heap_store_rejects_machine_scalar() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("generic heap storage must not erase a machine domain");
     assert!(
-        error.0.contains("heap_store") && error.0.contains("machine<coroutine-frame-state>"),
+        error.to_string().contains("heap_store")
+            && error.to_string().contains("machine<coroutine-frame-state>"),
         "unexpected error: {error}"
     );
 }
@@ -665,7 +667,7 @@ fn generic_heap_load_rejects_machine_scalar_result() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile())
         .expect_err("generic heap loads must not manufacture a machine domain");
     assert!(
-        error.0.contains("heap_load") && error.0.contains("machine scalar"),
+        error.to_string().contains("heap_load") && error.to_string().contains("machine scalar"),
         "unexpected error: {error}"
     );
 }

@@ -141,7 +141,7 @@ impl ArgumentExpression<'_> {
             context_dependent,
             span: diagnostics
                 .first()
-                .and_then(|diagnostic| diagnostic.span)
+                .and_then(|diagnostic| diagnostic.span())
                 .unwrap_or(span),
             reason,
         })

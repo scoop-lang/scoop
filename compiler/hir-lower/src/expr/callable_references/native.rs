@@ -60,6 +60,9 @@ impl Lowerer {
                     match NativeReferenceDeclaration::resolve(&mut state, candidate, &name.text) {
                         Ok(declaration) => declaration,
                         Err(failure) => {
+                            if self.retain_internal_diagnostics(&state) {
+                                return None;
+                            }
                             failures.push(failure);
                             continue;
                         }
@@ -75,7 +78,14 @@ impl Lowerer {
                         state: Box::new(state),
                         declaration,
                     }),
-                    Err(constraint) => failures.push(declaration.failure(&state, &constraint)),
+                    Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
+                        self.diagnostics
+                            .push(scoop_ast::Diagnostic::internal(error));
+                        return None;
+                    }
+                    Err(crate::call_resolution::constraints::InferenceFailure::Constraint(
+                        constraint,
+                    )) => failures.push(declaration.failure(&state, &constraint)),
                 }
             }
             if matching.len() == 1 {

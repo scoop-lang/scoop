@@ -79,6 +79,9 @@ impl Lowerer {
                 )
             }) {
                 Ok(layer) => PropertyExtensionInvokeOutcome::Resolved(layer),
+                Err(failure) if failure.has_internal_diagnostics() => {
+                    PropertyExtensionInvokeOutcome::Failed(failure)
+                }
                 Err(failure) => PropertyExtensionInvokeOutcome::NoApplicable(Some(failure)),
             };
         }
@@ -163,6 +166,9 @@ impl Lowerer {
                                 ));
                             }
                             Err(failure) => {
+                                if failure.has_internal_diagnostics() {
+                                    return PropertyExtensionInvokeOutcome::Failed(failure);
+                                }
                                 first_failure.get_or_insert(failure);
                             }
                         }
@@ -191,6 +197,9 @@ impl Lowerer {
                                 ));
                             }
                             Err(failure) => {
+                                if failure.has_internal_diagnostics() {
+                                    return PropertyExtensionInvokeOutcome::Failed(failure);
+                                }
                                 first_failure.get_or_insert(failure);
                             }
                         }

@@ -1543,18 +1543,18 @@ fn failed_composite_lambda_owner_rolls_back_earlier_parameters_and_function_coun
         errors[0].message,
         "type `Incomplete` has no method `component1`"
     );
-    assert_eq!(errors[0].span, Some(missing_span));
+    assert_eq!(errors[0].span(), Some(missing_span));
     assert_eq!(
         errors[1].message,
         "suspend function `AsyncRollback.component1` cannot be called from non-suspend function `$lambda.0`",
         "the failed first lambda must roll back its generated-function counter"
     );
-    assert_eq!(errors[1].span, Some(suspend_span));
+    assert_eq!(errors[1].span(), Some(suspend_span));
     assert!(
         errors[2].message.starts_with("unknown variable `first`"),
         "the successfully planned first parameter of the failed owner must not escape"
     );
-    assert_eq!(errors[2].span, Some(escaped_span));
+    assert_eq!(errors[2].span(), Some(escaped_span));
 }
 
 #[test]

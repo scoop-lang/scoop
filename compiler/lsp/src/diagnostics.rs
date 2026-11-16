@@ -35,17 +35,14 @@ pub(crate) fn collect(
     for diagnostic in &semantic {
         if let Some(diagnostic) =
             convert::diagnostic(&source.text, diagnostic, settings.encoding, |note| {
-                let (Some(project), Some(identity)) = (
-                    snapshot.workspace.project_for_source(source_id),
-                    note.source.as_deref(),
-                ) else {
+                let Some(project) = snapshot.workspace.project_for_source(source_id) else {
                     return Ok(None);
                 };
                 convert::location(
                     snapshot,
                     project,
                     &scoop_hir::SemanticSourceLocation {
-                        source: identity.clone(),
+                        source: note.source.clone(),
                         span: note.span,
                     },
                     settings,
@@ -70,7 +67,7 @@ pub(crate) fn semantic(
     snapshot: &AnalysisSnapshot,
     source_id: SourceId,
     semantics: &mut SemanticSession,
-) -> Result<Vec<scoop_source::Diagnostic>, ResponseError> {
+) -> Result<Vec<scoop_source::SourceDiagnostic>, ResponseError> {
     match semantics.diagnostics(snapshot, source_id) {
         Ok(diagnostics) => Ok(diagnostics),
         Err(
@@ -84,6 +81,9 @@ pub(crate) fn semantic(
             ErrorCode::RequestCanceled,
             "analysis revision changed",
         )),
+        Err(ProjectAnalysisError::Internal(message)) => {
+            Err(convert::error(ErrorCode::InternalError, message))
+        }
         Err(
             ProjectAnalysisError::Artifact(message) | ProjectAnalysisError::Dependency(message),
         ) => Err(convert::error(ErrorCode::RequestFailed, message)),

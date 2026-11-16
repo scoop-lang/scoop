@@ -37,12 +37,18 @@ pub fn context_key_table_atom(
 pub fn function_context_keys(function: &crate::Function) -> Vec<ContextKey> {
     let mut keys = std::collections::BTreeSet::new();
     for (_, block) in function.blocks.iter() {
-        for instruction in &block.instructions {
-            let arguments = match instruction {
-                crate::Instruction::Call { site } => site.args(),
-                crate::Instruction::Invoke { site } => site.args(),
-                _ => continue,
-            };
+        let calls = block
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                crate::Instruction::Call { site } => Some(site.args()),
+                _ => None,
+            });
+        let invoke = match &block.terminator {
+            crate::Terminator::Invoke { site } => Some(site.args()),
+            _ => None,
+        };
+        for arguments in calls.chain(invoke) {
             for argument in arguments {
                 if let crate::AbiCallArgument::Direct(crate::Value::ContextKeyCell(key)) = argument
                 {

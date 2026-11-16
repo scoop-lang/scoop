@@ -81,11 +81,11 @@ fn cross_kind_forwarding_keeps_source_parameters_rigid_and_state_unchanged() {
     let types_before = state.types.len();
     for _ in 0..2 {
         assert!(
-            !state.declaration_forwards(source, target),
+            !state.declaration_forwards(source, target).unwrap(),
             "a rigid constructor owner parameter cannot be inferred as Int"
         );
         assert!(
-            state.declaration_forwards(target, source),
+            state.declaration_forwards(target, source).unwrap(),
             "the target constructor parameter is fresh"
         );
     }
@@ -119,10 +119,10 @@ fn owner_and_callable_binders_do_not_collapse_across_constructor_comparison() {
     assert_eq!(target.owner_parameters.len(), 1);
     assert!(target.callable_parameters.is_empty());
     assert!(
-        !state.declaration_forwards(source, target),
+        !state.declaration_forwards(source, target).unwrap(),
         "invariant inputs cannot identify distinct rigid owner/callable parameters"
     );
-    assert!(state.declaration_forwards(target, source));
+    assert!(state.declaration_forwards(target, source).unwrap());
 }
 
 #[test]
@@ -140,17 +140,25 @@ fn cross_kind_forwarding_checks_both_source_and_target_kind_bounds() {
     let target_types = [state.intern_type(Type::Param(target_parameter.id))];
     let source = constructor(vec![source_parameter], Vec::new(), state.unit);
     let mut target = callable(Vec::new(), vec![target_parameter], Vec::new(), state.unit);
-    assert!(!state.declaration_forwards(
-        source.forwarding(&source_types),
-        target.forwarding(&target_types)
-    ));
+    assert!(
+        !state
+            .declaration_forwards(
+                source.forwarding(&source_types),
+                target.forwarding(&target_types)
+            )
+            .unwrap()
+    );
     target.signature.callable_parameters[0].bounds = hir::TypeParamBounds::Value {
         span: ast::Span::new(0, 0),
     };
-    assert!(state.declaration_forwards(
-        source.forwarding(&source_types),
-        target.forwarding(&target_types)
-    ));
+    assert!(
+        state
+            .declaration_forwards(
+                source.forwarding(&source_types),
+                target.forwarding(&target_types)
+            )
+            .unwrap()
+    );
 }
 
 #[test]
@@ -167,17 +175,19 @@ fn fixed_application_parameter_types_are_not_replaced_by_generic_owner_binders()
     let function = function.forwarding(&fixed_types);
     let generic = generic.forwarding(&generic_types);
     let fixed = fixed.forwarding(&fixed_types);
-    assert!(!state.declaration_forwards(generic, function));
-    assert!(state.declaration_forwards(fixed, function));
-    assert!(state.declaration_forwards(function, fixed));
+    assert!(!state.declaration_forwards(generic, function).unwrap());
+    assert!(state.declaration_forwards(fixed, function).unwrap());
+    assert!(state.declaration_forwards(function, fixed).unwrap());
     assert!(
-        !state.declaration_forwards(
-            DeclarationForwardingView {
-                parameter_types: &[],
-                ..fixed
-            },
-            function
-        ),
+        !state
+            .declaration_forwards(
+                DeclarationForwardingView {
+                    parameter_types: &[],
+                    ..fixed
+                },
+                function
+            )
+            .unwrap(),
         "source arity is checked before constraint solving"
     );
 }
@@ -248,10 +258,14 @@ fn callable_and_constructor_mappings_share_default_and_named_source_order() {
         assert_eq!(nominal_types, expected);
         assert_eq!(function_map.explicit_default_count(), defaults);
         assert_eq!(nominal_map.explicit_default_count(), defaults);
-        assert!(state.declaration_forwards(
-            function.forwarding(&function_types),
-            nominal.forwarding(&nominal_types)
-        ));
+        assert!(
+            state
+                .declaration_forwards(
+                    function.forwarding(&function_types),
+                    nominal.forwarding(&nominal_types)
+                )
+                .unwrap()
+        );
     }
 }
 

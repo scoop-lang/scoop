@@ -133,20 +133,18 @@ pub(super) fn exceptions_module() -> Module {
     blocks[entry] = BasicBlock {
         terminator_origin: Default::default(),
         name: "entry".to_string(),
-        instructions: vec![Instruction::Invoke {
+        instructions: vec![].into(),
+        terminator: Terminator::Invoke {
             site: managed_invoke(first_invoke, normal, lpad),
-        }]
-        .into(),
-        terminator: Terminator::Br(normal),
+        },
     };
     blocks[normal] = BasicBlock {
         terminator_origin: Default::default(),
         name: "normal".to_string(),
-        instructions: vec![Instruction::Invoke {
+        instructions: vec![].into(),
+        terminator: Terminator::Invoke {
             site: managed_invoke(second_invoke, done, lpad),
-        }]
-        .into(),
-        terminator: Terminator::Br(done),
+        },
     };
     blocks[done] = BasicBlock {
         terminator_origin: Default::default(),
@@ -175,12 +173,11 @@ pub(super) fn exceptions_module() -> Module {
                 out: t5,
                 raw: Value::Temp(t4),
             },
-            Instruction::Invoke {
-                site: managed_invoke(handler_invoke, handler_done, cleanup),
-            },
         ]
         .into(),
-        terminator: Terminator::Br(handler_done),
+        terminator: Terminator::Invoke {
+            site: managed_invoke(handler_invoke, handler_done, cleanup),
+        },
     };
     blocks[handler_done] = BasicBlock {
         terminator_origin: Default::default(),

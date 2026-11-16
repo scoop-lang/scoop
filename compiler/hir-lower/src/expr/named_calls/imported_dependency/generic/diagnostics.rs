@@ -150,12 +150,6 @@ impl Lowerer {
                     "callable shape expects {expected} parameter(s), but the actual type has {actual}"
                 ),
             },
-            Kind::ForeignVariable(_) => {
-                "candidate references an inference variable from another session".into()
-            }
-            Kind::ForeignTypeParameter(_) => {
-                "candidate references a type parameter outside its declaration".into()
-            }
             Kind::UnresolvedTerm(term) => format!("cannot resolve type term {}", type_term(*term)),
             Kind::NonConcreteApplication(_) => {
                 "candidate result is not a complete concrete type application".into()

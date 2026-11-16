@@ -147,7 +147,8 @@ fn managed_invoke_uses_stack_root_table_on_normal_and_exceptional_edges() {
     blocks[entry] = BasicBlock {
         terminator_origin: Default::default(),
         name: "entry".to_string(),
-        instructions: vec![Instruction::Invoke {
+        instructions: vec![].into(),
+        terminator: Terminator::Invoke {
             site: scoop_lir::InvokeSite::Managed(scoop_lir::ManagedInvokeSite {
                 call: TypedCall::Direct {
                     target,
@@ -167,9 +168,7 @@ fn managed_invoke_uses_stack_root_table_on_normal_and_exceptional_edges() {
                 normal,
                 unwind,
             }),
-        }]
-        .into(),
-        terminator: Terminator::Br(normal),
+        },
     };
     blocks[normal] = BasicBlock {
         terminator_origin: Default::default(),

@@ -199,8 +199,6 @@ pub(crate) enum ConstraintFailureKind {
         required: hir::TypeId,
         outcome: crate::types::InterfaceExclusion,
     },
-    ForeignVariable(InferenceVariableId),
-    ForeignTypeParameter(hir::TypeParamId),
     Relation {
         relation: RelationKind,
         left: TypeTerm,
@@ -241,7 +239,6 @@ impl ConstraintFailureKind {
     pub(crate) fn inference_variable(&self) -> Option<InferenceVariableId> {
         match self {
             Self::Companion { variable, .. }
-            | Self::ForeignVariable(variable)
             | Self::ConflictingExactBounds { variable, .. }
             | Self::NoUniqueSolution { variable, .. }
             | Self::Kind { variable, .. }
@@ -256,7 +253,6 @@ impl ConstraintFailureKind {
             }),
             Self::UnresolvedTerm(TypeTerm::Variable(variable)) => Some(*variable),
             Self::MemberRequirement(_)
-            | Self::ForeignTypeParameter(_)
             | Self::CallableShape(_)
             | Self::UnresolvedTerm(TypeTerm::Type(_) | TypeTerm::Rigid(_))
             | Self::NonConcreteApplication(_) => None,
@@ -269,6 +265,44 @@ pub(crate) struct ConstraintFailure {
     pub(crate) origin: ConstraintOrigin,
     pub(crate) kind: ConstraintFailureKind,
 }
+
+/// An unsatisfied source constraint and a broken inference graph have different
+/// consumers. Internal failures must abort candidate selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum InferenceFailure {
+    Constraint(ConstraintFailure),
+    Internal(InferenceInvariantError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InferenceInvariantError {
+    pub(crate) origin: ConstraintOrigin,
+    pub(crate) kind: InferenceInvariantErrorKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum InferenceInvariantErrorKind {
+    ForeignVariable(InferenceVariableId),
+    ForeignTypeParameter(hir::TypeParamId),
+}
+
+impl std::fmt::Display for InferenceInvariantError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            InferenceInvariantErrorKind::ForeignVariable(variable) => write!(
+                f,
+                "inference variable {variable:?} belongs to another session ({:?})",
+                self.origin
+            ),
+            InferenceInvariantErrorKind::ForeignTypeParameter(parameter) => write!(
+                f,
+                "type parameter {parameter:?} is outside the inference declaration ({:?})",
+                self.origin
+            ),
+        }
+    }
+}
+impl std::error::Error for InferenceInvariantError {}
 
 #[derive(Debug, Clone)]
 struct InferenceEnvironment {

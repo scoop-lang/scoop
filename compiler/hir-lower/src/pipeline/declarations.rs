@@ -297,7 +297,7 @@ impl Lowerer {
         PhaseFailure::check(check)?;
         if let Err(error) = self.establish_nominal_identities() {
             let mut diagnostic = Diagnostic::at(error.span(), error.to_string());
-            diagnostic.file = error.file();
+            diagnostic.set_file(error.file());
             return Err(vec![diagnostic].into());
         }
 

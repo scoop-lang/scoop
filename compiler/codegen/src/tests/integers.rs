@@ -238,7 +238,9 @@ fn compiler_pointer_shell_cannot_be_emitted_as_an_aggregate_struct() {
     )
     .expect_err("compiler pointer shells are not aggregate values");
     assert!(
-        error.0.contains("cannot be emitted as an aggregate struct"),
+        error
+            .to_string()
+            .contains("cannot be emitted as an aggregate struct"),
         "unexpected error: {error}"
     );
 }
@@ -317,7 +319,9 @@ fn compare_to_rejects_a_non_long_result() {
     );
     let error = codegen_error(&module);
     assert!(
-        error.0.contains("must produce canonical Long/i64"),
+        error
+            .to_string()
+            .contains("must produce canonical Long/i64"),
         "unexpected error: {error}"
     );
 }
@@ -447,9 +451,11 @@ fn generic_binary_equality_rejects_source_integer_operands() {
         );
         let error = codegen_error(&module);
         assert!(
-            error.0.contains(&format!("generic equality {op:?}"))
-                && error.0.contains("cannot consume source integer")
-                && error.0.contains("i32"),
+            error
+                .to_string()
+                .contains(&format!("generic equality {op:?}"))
+                && error.to_string().contains("cannot consume source integer")
+                && error.to_string().contains("i32"),
             "unexpected error: {error}"
         );
     }
@@ -468,7 +474,8 @@ fn typed_integer_operation_rejects_same_width_constant_of_the_wrong_kind() {
     });
     let error = codegen_error(&module);
     assert!(
-        error.0.contains("Add<UInt8>") && error.0.contains("requires i8, got i8"),
+        error.to_string().contains("Add<UInt8>")
+            && error.to_string().contains("requires i8, got i8"),
         "same-width signedness mismatch must still be rejected: {error}"
     );
 }

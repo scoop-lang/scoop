@@ -37,7 +37,7 @@ impl Lowerer {
                     .find(|requirement| requirement.contract == contract)
                 {
                     let mut error = ast::Diagnostic::at(call.span, "duplicate member requirement");
-                    error.file = self.current_file;
+                    error.set_file(self.current_file);
                     error.notes.push(ast::DiagnosticNote::at(
                         self.current_file,
                         previous.span,

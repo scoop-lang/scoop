@@ -159,7 +159,9 @@ fn rejects_array_descriptor_without_its_exact_element_scan_definition() {
     let error = try_strong_shape_ir_of(&module)
         .expect_err("descriptor inline scans require a nonempty typed LIR scan definition");
     assert!(
-        error.0.contains("references empty typed inline scan"),
+        error
+            .to_string()
+            .contains("references empty typed inline scan"),
         "{error}"
     );
 }

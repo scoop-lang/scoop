@@ -65,7 +65,7 @@ impl Anchors {
             return Ok(anchor.clone());
         }
         if key.arena.is_some() {
-            return Err(RenameError::Unavailable(
+            return Err(RenameError::Internal(
                 "local binding has no source declaration origin",
             ));
         }
@@ -92,7 +92,7 @@ impl World {
                     .insert(anchor.clone(), key)
                     .is_some_and(|previous| previous != key)
                 {
-                    return Err(RenameError::Unavailable(
+                    return Err(RenameError::Internal(
                         "source declaration origin is ambiguous",
                     ));
                 }
@@ -182,5 +182,20 @@ impl World {
             return Err(RenameError::Conflict(origin.clone()));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_local_anchor_is_an_internal_failure() {
+        let anchors = Anchors(HashMap::new());
+        let key = Key::new(
+            ConeIdentity::SINGLE_FILE,
+            Target::Binding(scoop_hir::BindingId::from_raw(0)),
+        );
+        assert!(matches!(anchors.target(key), Err(RenameError::Internal(_))));
     }
 }

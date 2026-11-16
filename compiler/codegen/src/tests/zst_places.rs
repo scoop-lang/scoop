@@ -84,7 +84,7 @@ fn codegen_rejects_address_of_a_logical_zst_without_a_lir_token_plan() {
     let error = emit_llvm_module(&context, &module, &machine, host_profile()).unwrap_err();
     assert!(
         error
-            .0
+            .to_string()
             .contains("logical ZST local %logical without a place token"),
         "{error}"
     );

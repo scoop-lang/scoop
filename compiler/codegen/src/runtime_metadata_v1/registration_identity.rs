@@ -10,7 +10,7 @@ pub(super) fn definition_linkage(
     match request.linkage() {
         scoop_lir::LinkageClass::ConeStrong => Ok(inkwell::module::Linkage::External),
         scoop_lir::LinkageClass::OdrWeak => Ok(inkwell::module::Linkage::WeakODR),
-        _ => Err(crate::CodegenError(format!(
+        _ => Err(crate::CodegenError::internal(format!(
             "`{}` is not a local Strong or ODR definition",
             request.symbol()
         ))),

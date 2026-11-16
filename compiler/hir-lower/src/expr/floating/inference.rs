@@ -29,7 +29,7 @@ pub(crate) fn float_literal_default_kind(expr: &ast::Expr) -> Option<hir::FloatK
 
 impl Lowerer {
     pub(in crate::expr) fn probe_float_literal_receiver(
-        &self,
+        &mut self,
         receiver: &ast::Expr,
         expected: Option<TypeId>,
         mut lower: impl FnMut(&mut Lowerer, hir::Expr, &mut Vec<hir::Statement>) -> Option<hir::Expr>,
@@ -38,12 +38,18 @@ impl Lowerer {
         let expected_kind = expected.and_then(|ty| self.float_kind(ty));
         let mut successful = Vec::new();
         for &kind in kinds {
-            let Ok(layer) = self.probe_expr_layer(|state, sink| {
+            let layer = match self.probe_expr_layer(|state, sink| {
                 let ty = state.core_float_type(kind).ok()?;
                 let receiver = state.lower_expr(receiver, sink, Some(ty))?;
                 lower(state, receiver, sink)
-            }) else {
-                continue;
+            }) {
+                Ok(layer) => layer,
+                Err(failure) => {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return None;
+                    }
+                    continue;
+                }
             };
             let preserves_kind = match &layer.expression.kind {
                 ExprKind::FloatUnary {

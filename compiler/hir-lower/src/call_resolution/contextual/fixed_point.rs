@@ -1,6 +1,7 @@
 //! Fixed-point expression facts, before complete constraint validation.
 
 use super::*;
+use crate::call_resolution::constraints::InferenceFailure;
 use crate::expr::ExpressionContextRequirement;
 
 impl Lowerer {
@@ -30,7 +31,7 @@ impl Lowerer {
             .map_err(|failure| {
                 Box::new(ArgumentInferenceFailure {
                     arguments: values.clone(),
-                    kind: ArgumentInferenceFailureKind::Constraint(failure),
+                    kind: failure.into(),
                 })
             })?;
         let initial_hints = hint_bindings(parameters, &initial);
@@ -63,6 +64,13 @@ impl Lowerer {
                             sinks[index] = sink;
                         }
                         Err(failure) => {
+                            if state.has_internal_diagnostics() {
+                                std::mem::swap(self, &mut state);
+                                return Err(Box::new(ArgumentInferenceFailure {
+                                    arguments: values,
+                                    kind: ArgumentInferenceFailureKind::Expression(failure),
+                                }));
+                            }
                             independent_failures[index] = Some((state, failure));
                         }
                     }
@@ -90,26 +98,37 @@ impl Lowerer {
         let hints = loop {
             let partial = match previous.take() {
                 Some(partial) => partial,
-                None => match self.solve_constraints_partially(session, environment) {
-                    Ok(partial) => partial,
-                    Err(constraint) => {
-                        // The candidate is already inapplicable. Keep an argument
-                        // error observed during synthesis instead of losing it to
-                        // an outer bound that happened to be checked first.
-                        let kind = if let Some((mut state, failure)) =
-                            independent_failures.iter_mut().find_map(Option::take)
-                        {
-                            std::mem::swap(self, &mut state);
-                            ArgumentInferenceFailureKind::Expression(failure)
-                        } else {
-                            ArgumentInferenceFailureKind::Constraint(constraint)
-                        };
-                        return Err(Box::new(ArgumentInferenceFailure {
-                            arguments: values,
-                            kind,
-                        }));
+                None => {
+                    match self.solve_constraints_partially(session, environment) {
+                        Ok(partial) => partial,
+                        Err(constraint) => {
+                            let constraint = match constraint {
+                                InferenceFailure::Constraint(failure) => failure,
+                                InferenceFailure::Internal(error) => {
+                                    return Err(Box::new(ArgumentInferenceFailure {
+                                        arguments: values,
+                                        kind: ArgumentInferenceFailureKind::Internal(error),
+                                    }));
+                                }
+                            };
+                            // The candidate is already inapplicable. Keep an argument
+                            // error observed during synthesis instead of losing it to
+                            // an outer bound that happened to be checked first.
+                            let kind = if let Some((mut state, failure)) =
+                                independent_failures.iter_mut().find_map(Option::take)
+                            {
+                                std::mem::swap(self, &mut state);
+                                ArgumentInferenceFailureKind::Expression(failure)
+                            } else {
+                                ArgumentInferenceFailureKind::Constraint(constraint)
+                            };
+                            return Err(Box::new(ArgumentInferenceFailure {
+                                arguments: values,
+                                kind,
+                            }));
+                        }
                     }
-                },
+                }
             };
             let complete = partial
                 .owner
@@ -143,6 +162,12 @@ impl Lowerer {
                         progress = true;
                     }
                     Err(mut failure) => {
+                        if self.has_internal_diagnostics() {
+                            return Err(Box::new(ArgumentInferenceFailure {
+                                arguments: values,
+                                kind: ArgumentInferenceFailureKind::Expression(failure),
+                            }));
+                        }
                         if independent_failures[index]
                             .as_ref()
                             .is_some_and(|(_, prior)| {
@@ -208,6 +233,13 @@ impl Lowerer {
                         break;
                     }
                     Err(failure) => {
+                        if state.has_internal_diagnostics() {
+                            std::mem::swap(self, &mut state);
+                            return Err(Box::new(ArgumentInferenceFailure {
+                                arguments: values,
+                                kind: ArgumentInferenceFailureKind::Expression(failure),
+                            }));
+                        }
                         first_failure.get_or_insert((state, failure));
                     }
                 }

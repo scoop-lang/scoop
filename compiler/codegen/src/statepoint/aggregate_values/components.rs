@@ -58,7 +58,9 @@ pub(super) fn extract<'ctx>(
     for index in path {
         value = builder
             .build_extract_value(aggregate(value), *index, "gc.part")
-            .map_err(|error| CodegenError(format!("extract aggregate component: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("extract aggregate component: {error}"), error)
+            })?;
     }
     Ok(value)
 }
@@ -84,5 +86,7 @@ pub(super) fn insert<'ctx>(
             AggregateValueEnum::StructValue(value) => value.into(),
             AggregateValueEnum::ArrayValue(value) => value.into(),
         })
-        .map_err(|error| CodegenError(format!("rebuild aggregate component: {error}")))
+        .map_err(|error| {
+            CodegenError::backend(format!("rebuild aggregate component: {error}"), error)
+        })
 }

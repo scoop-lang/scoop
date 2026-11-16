@@ -7,7 +7,7 @@ mod imports;
 mod support;
 use support::lower;
 
-fn rejects(source: &str, message: &str) -> Vec<ast::Diagnostic> {
+fn rejects(source: &str, message: &str) -> Vec<ast::SourceDiagnostic> {
     let errors = match lower(&format!("import scoop.test.*\n{source}"), SourceRole::Test) {
         Ok(_) => panic!("accepted invalid test source: {source}"),
         Err(errors) => errors,
@@ -15,10 +15,9 @@ fn rejects(source: &str, message: &str) -> Vec<ast::Diagnostic> {
     assert!(
         errors.iter().any(|error| error.message.contains(message)
             && error
-                .source
-                .as_deref()
+                .source()
                 .is_some_and(|source| source.logical_path().as_str() == "tests/check.scoop")
-            && error.span.is_some()),
+            && error.span().is_some()),
         "expected {message}: {errors:#?}"
     );
     errors
@@ -156,7 +155,7 @@ fn ignore_without_test_points_to_the_ignore_annotation() {
             .iter()
             .find(|error| error.message.contains("requires `@Test`"))
             .unwrap();
-        let span = diagnostic.span.unwrap();
+        let span = diagnostic.span().unwrap();
         let full_source = format!("import scoop.test.*\n{source}");
         assert_eq!(
             &full_source[span.start as usize..span.end as usize],
@@ -177,7 +176,7 @@ fn duplicate_hooks_report_both_declarations() {
             .find(|e| e.message.contains("at most one"))
             .unwrap();
         assert_eq!(diagnostic.notes.len(), 1);
-        assert_ne!(diagnostic.span, Some(diagnostic.notes[0].span));
+        assert_ne!(diagnostic.span(), Some(diagnostic.notes[0].span));
     }
 }
 

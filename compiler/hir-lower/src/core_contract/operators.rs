@@ -344,7 +344,7 @@ impl Lowerer {
     }
 
     pub(crate) fn source_function_name(&self, function: FunctionId) -> &str {
-        if let Some(source) = self.source_function_declarations.get(&function) {
+        if let Some(source) = self.functions.source(function) {
             return &source.name;
         }
         if let Some(forwarder) = self.interface_forwarders.get(&function) {

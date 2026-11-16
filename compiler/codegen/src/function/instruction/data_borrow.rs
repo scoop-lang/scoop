@@ -22,12 +22,16 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 );
                 self.builder
                     .build_call(push, &[frame.into(), self.value(*object)?.into()], "")
-                    .map_err(|error| CodegenError(format!("push pin frame: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("push pin frame: {error}"), error)
+                    })?;
                 self.temps.insert(*out, frame.into());
             }
             Instruction::PopPinFrame { frame } => {
                 if self.function.value_ty(self.globals_arena, *frame) != scoop_lir::RAW_PTR {
-                    return Err(CodegenError("pin frame must be a raw stack pointer".into()));
+                    return Err(CodegenError::internal(
+                        "pin frame must be a raw stack pointer".into(),
+                    ));
                 }
                 let pop = self.native_boundary_fn(
                     scoop_lir::RuntimeAbiSymbolV1::PopPinFrame.logical_symbol(),
@@ -37,7 +41,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 );
                 self.builder
                     .build_call(pop, &[self.value(*frame)?.into()], "")
-                    .map_err(|error| CodegenError(format!("pop pin frame: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("pop pin frame: {error}"), error)
+                    })?;
             }
             Instruction::ArrayDataPointer {
                 out,
@@ -46,7 +52,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             } => {
                 let (array, _) = self.array_type(*array_type);
                 if array.layout.instance().object_scan().contains_reference() {
-                    return Err(CodegenError(
+                    return Err(CodegenError::internal(
                         "array data borrow requires GC-free elements".into(),
                     ));
                 }
@@ -70,7 +76,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 let value = self
                     .builder
                     .build_load(self.context.i64_type(), address, "borrow_length")
-                    .map_err(|error| CodegenError(format!("borrow data length: {error}")))?;
+                    .map_err(|error| {
+                        CodegenError::backend(format!("borrow data length: {error}"), error)
+                    })?;
                 self.temps.insert(*out, value);
             }
             _ => unreachable!("data borrow dispatch is exhaustive"),
@@ -87,7 +95,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         if &self.function.temps[out].ty != result
             || self.function.value_ty(self.globals_arena, object) != scoop_lir::MANAGED_PTR
         {
-            return Err(CodegenError(
+            return Err(CodegenError::internal(
                 "data borrow requires a managed object and an exact result type".into(),
             ));
         }
@@ -107,7 +115,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         let raw = self
             .builder
             .build_address_space_cast(data, ptr_ty(self.context), "borrow_raw")
-            .map_err(|error| CodegenError(format!("borrow data address: {error}")))?;
+            .map_err(|error| {
+                CodegenError::backend(format!("borrow data address: {error}"), error)
+            })?;
         self.temps.insert(out, raw.into());
         Ok(())
     }

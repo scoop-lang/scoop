@@ -82,7 +82,7 @@ fn emit_registration<'ctx, D: Copy, C>(
 ) -> Result<EmittedStrongTypeRegistrationV1<'ctx>, CodegenError> {
     let descriptor_symbol = plan.descriptor_symbol().symbol();
     let type_descriptor = llvm.get_global(descriptor_symbol.as_str()).ok_or_else(|| {
-        CodegenError(format!(
+        CodegenError::internal(format!(
             "type descriptor `{descriptor_symbol}` is not declared in the LLVM module"
         ))
     })?;

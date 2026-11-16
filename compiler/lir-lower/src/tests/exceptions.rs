@@ -93,14 +93,11 @@ fn try_catch_lowers_to_invoke_landingpad_and_rethrow() {
         ret
       block try.body.8
         invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn0() normal @invoke.normal.1 unwind @try.unwind.1
-        br @invoke.normal.1
       block try.catch.9
         store local3 -> local0
         invoke managed-void-target1 sp<managed-invoke:1> roots=[] sig=void1 () local-fn1() normal @invoke.normal.2 unwind @try.handler_pad.3
-        br @invoke.normal.2
       block try.next.10
         invoke no-gc-void-target0 sig=void2 () runtime @scoop_rt_rethrow() normal @rethrow.normal.3 unwind @try.exit_pad.5
-        br @rethrow.normal.3
       block invoke.normal.1
         t8 = aggregate () : {}
         br @try.end.7
@@ -115,7 +112,6 @@ fn try_catch_lowers_to_invoke_landingpad_and_rethrow() {
         poll gateway managed-void-target1 sp<managed-poll:0> live=[]
         call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(td11)
         invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn2() normal @success unwind @failure
-        br @success
       block success
         raw_store param2 integer<Int>(0x00000000) align 4
         ret integer<UInt>(0x00000000)
@@ -220,20 +216,17 @@ fn managed_invoke_roots_have_complete_edge_roles_and_argument_coverage() {
         .functions
         .iter()
         .find(|function| {
-            function.blocks.iter().any(|(_, block)| {
-                block
-                    .instructions
-                    .iter()
-                    .any(|instruction| matches!(instruction, lir::Instruction::Invoke { .. }))
-            })
+            function
+                .blocks
+                .iter()
+                .any(|(_, block)| matches!(block.terminator, lir::Terminator::Invoke { .. }))
         })
         .expect("test module contains the invoking function");
     let roots = main
         .blocks
         .iter()
-        .flat_map(|(_, block)| &block.instructions)
-        .find_map(|instruction| match instruction {
-            lir::Instruction::Invoke {
+        .find_map(|(_, block)| match &block.terminator {
+            lir::Terminator::Invoke {
                 site: lir::InvokeSite::Managed(site),
             } => Some(site.roots.as_slice()),
             _ => None,

@@ -90,7 +90,7 @@ fn rejects_duplicate_top_level_suspend_modifier() {
     let diagnostics = parse("suspend suspend fun work() {}\nfun main() {}")
         .expect_err("duplicate top-level suspend must fail");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].span, Some(Span::new(8, 15)));
+    assert_eq!(diagnostics[0].span(), Some(Span::new(8, 15)));
     assert_eq!(
         diagnostics[0].message,
         "duplicate `suspend` modifier on top-level function"
@@ -102,7 +102,7 @@ fn rejects_suspend_on_non_function_declarations() {
     let diagnostics =
         parse("suspend class Work\nfun main() {}").expect_err("suspend is not a class modifier");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].span, Some(Span::new(0, 7)));
+    assert_eq!(diagnostics[0].span(), Some(Span::new(0, 7)));
     assert_eq!(
         diagnostics[0].message,
         "`suspend` modifier is only allowed on function declarations"
@@ -114,7 +114,7 @@ fn rejects_suspend_on_non_function_members() {
     let diagnostics = parse("class Owner { final suspend class Nested }\nfun main() {}")
         .expect_err("suspend is not a nested-class modifier");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].span, Some(Span::new(20, 27)));
+    assert_eq!(diagnostics[0].span(), Some(Span::new(20, 27)));
     assert_eq!(
         diagnostics[0].message,
         "`suspend` modifier is only allowed on function declarations"

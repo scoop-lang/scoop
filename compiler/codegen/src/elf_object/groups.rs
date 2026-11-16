@@ -8,9 +8,9 @@ impl ElfObject<'_> {
         signature: &str,
         sections: &[SectionIndex],
     ) -> Result<(), CodegenError> {
-        let symbol = self
-            .original_symbol(signature)
-            .ok_or_else(|| CodegenError(format!("missing ELF COMDAT signature `{signature}`")))?;
+        let symbol = self.original_symbol(signature).ok_or_else(|| {
+            CodegenError::internal(format!("missing ELF COMDAT signature `{signature}`"))
+        })?;
         let group = self
             .file
             .sections()
@@ -20,14 +20,16 @@ impl ElfObject<'_> {
                     && header.sh_info(LE) as usize == symbol.index().0
             })
             .ok_or_else(|| {
-                CodegenError(format!(
+                CodegenError::internal(format!(
                     "ELF ODR definition `{signature}` has no COMDAT group"
                 ))
             })?;
         let group_index = group.index();
         let data = group.data().map_err(error)?;
         if data.len() < 4 || data.len() % 4 != 0 || data[..4] != elf::GRP_COMDAT.to_le_bytes() {
-            return Err(CodegenError("ELF ODR section group is malformed".into()));
+            return Err(CodegenError::internal(
+                "ELF ODR section group is malformed".into(),
+            ));
         }
         let mut members = data[4..]
             .chunks_exact(4)
@@ -54,7 +56,7 @@ impl ElfObject<'_> {
                 .section_by_index(SectionIndex(*index))
                 .map_err(error)?;
             if self.section_flags(section.index())? & u64::from(elf::SHF_GROUP) != 0 {
-                return Err(CodegenError(
+                return Err(CodegenError::internal(
                     "ELF associated atom already belongs to another group".into(),
                 ));
             }

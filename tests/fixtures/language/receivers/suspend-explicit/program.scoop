@@ -1,1 +1,6 @@
-fun main() { val action: suspend Int.() -> Int = { this } }
+fun main() {
+    val action: suspend Int.() -> Int =
+        fun Int.(): Int {
+            return this
+        }
+}

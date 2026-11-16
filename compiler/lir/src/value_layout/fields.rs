@@ -200,7 +200,7 @@ impl PlacedFieldStorageV1 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageReplayError {
     Shape(TypeInstanceShapeError),
     Scan(crate::RefScanValidationError),

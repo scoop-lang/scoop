@@ -205,6 +205,10 @@ impl Lowerer {
         }) {
             Ok(arguments) => arguments,
             Err(failure) => {
+                if let ArgumentInferenceFailureKind::Internal(error) = &failure.kind {
+                    self.diagnostics
+                        .push(scoop_ast::Diagnostic::internal(error));
+                }
                 if let ArgumentInferenceFailureKind::Constraint(failure) = failure.kind {
                     if alias_signature.is_some() {
                         let message = self.render_imported_constraint_failure(

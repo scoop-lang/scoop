@@ -11,8 +11,7 @@ impl FunctionLowerer<'_> {
         if let Some(unwind) = self.current_unwind {
             let normal = self.new_block("invoke.normal");
             let site = self.invoke_site(destination, call, normal, unwind);
-            self.push(lir::Instruction::Invoke { site });
-            self.seal(lir::Terminator::Br(normal));
+            self.seal(lir::Terminator::Invoke { site });
             self.enter(normal);
         } else {
             let site = self.call_site(destination, call);

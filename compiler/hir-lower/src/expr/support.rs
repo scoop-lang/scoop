@@ -208,7 +208,7 @@ impl Lowerer {
     /// members. User and extension methods with the same spelling therefore
     /// cannot obtain reverse literal inference.
     pub(in crate::expr) fn probe_numeric_literal_receiver(
-        &self,
+        &mut self,
         receiver: &ast::Expr,
         expected: Option<TypeId>,
         mut lower: impl FnMut(&mut Lowerer, hir::Expr, &mut Vec<hir::Statement>) -> Option<hir::Expr>,
@@ -224,12 +224,18 @@ impl Lowerer {
         });
         let mut successful = Vec::new();
         for kind in kinds {
-            let Ok(layer) = self.probe_expr_layer(|state, layer_sink| {
+            let layer = match self.probe_expr_layer(|state, layer_sink| {
                 let receiver_ty = state.integer_type(kind);
                 let receiver = state.lower_expr(receiver, layer_sink, Some(receiver_ty))?;
                 lower(state, receiver, layer_sink)
-            }) else {
-                continue;
+            }) {
+                Ok(layer) => layer,
+                Err(failure) => {
+                    if self.retain_internal_diagnostics(&failure) {
+                        return None;
+                    }
+                    continue;
+                }
             };
             if layer
                 .state

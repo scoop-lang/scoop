@@ -162,7 +162,7 @@ fn runtime_global_atoms<'ctx, D, C, I>(
             .canonical_definitions()
             .plan(emitted.definition())
             .ok_or_else(|| {
-                CodegenError(
+                CodegenError::internal(
                     "root entry definition is absent from canonical symbol plan".to_string(),
                 )
             })?;

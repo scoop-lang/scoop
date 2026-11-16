@@ -64,16 +64,7 @@ pub(super) fn remap_block_targets(block: &mut lir::BasicBlock, block_map: &[Opti
             *then_block = remap_block(*then_block, block_map);
             *else_block = remap_block(*else_block, block_map);
         }
-        lir::Terminator::Return { .. }
-        | lir::Terminator::Resume { .. }
-        | lir::Terminator::Unreachable => {}
-    }
-
-    for instruction in &mut block.instructions {
-        let lir::Instruction::Invoke { site } = instruction else {
-            continue;
-        };
-        match site {
+        lir::Terminator::Invoke { site } => match site {
             lir::InvokeSite::Managed(site) => {
                 site.normal = remap_block(site.normal, block_map);
                 site.unwind = remap_block(site.unwind, block_map);
@@ -82,7 +73,11 @@ pub(super) fn remap_block_targets(block: &mut lir::BasicBlock, block_map: &[Opti
                 site.normal = remap_block(site.normal, block_map);
                 site.unwind = remap_block(site.unwind, block_map);
             }
-        }
+        },
+
+        lir::Terminator::Return { .. }
+        | lir::Terminator::Resume { .. }
+        | lir::Terminator::Unreachable => {}
     }
 }
 

@@ -326,9 +326,9 @@ fn array_alloc_rejects_wrong_element_domain() {
 
     let error = array_codegen_error(&module);
     assert!(
-        error.0.contains("array_alloc")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("expected i64"),
+        error.to_string().contains("array_alloc")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("expected i64"),
         "unexpected error: {error}"
     );
 }
@@ -345,9 +345,9 @@ fn array_get_rejects_machine_scalar_result_for_i64_element() {
 
     let error = array_codegen_error(&module);
     assert!(
-        error.0.contains("array_get")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("i64"),
+        error.to_string().contains("array_get")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("i64"),
         "unexpected error: {error}"
     );
 }
@@ -364,9 +364,9 @@ fn array_set_rejects_machine_scalar_for_i64_element() {
 
     let error = array_codegen_error(&module);
     assert!(
-        error.0.contains("array_set")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("i64"),
+        error.to_string().contains("array_set")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("i64"),
         "unexpected error: {error}"
     );
 }
@@ -385,9 +385,9 @@ fn array_assembly_rejects_wrong_element_domain() {
 
     let error = array_codegen_error(&module);
     assert!(
-        error.0.contains("array_assembly")
-            && error.0.contains("machine<enum-tag>")
-            && error.0.contains("expected i64"),
+        error.to_string().contains("array_assembly")
+            && error.to_string().contains("machine<enum-tag>")
+            && error.to_string().contains("expected i64"),
         "unexpected error: {error}"
     );
 }

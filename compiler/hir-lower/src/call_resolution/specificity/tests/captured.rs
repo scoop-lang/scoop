@@ -12,11 +12,23 @@ fn forwarding_keeps_captured_alias_owners_fixed() {
         DeclarationForwardingView::parameter_groups(&[], &[], &[outer_ty, integer]).to_owned();
     let general =
         DeclarationForwardingView::parameter_groups(&[], &[], &[outer_ty, any]).to_owned();
-    assert!(state.declaration_forwards(specific.as_view(), general.as_view()));
-    assert!(!state.declaration_forwards(general.as_view(), specific.as_view()));
+    assert!(
+        state
+            .declaration_forwards(specific.as_view(), general.as_view())
+            .unwrap()
+    );
+    assert!(
+        !state
+            .declaration_forwards(general.as_view(), specific.as_view())
+            .unwrap()
+    );
     let different_owner =
         DeclarationForwardingView::parameter_groups(&[], &[], &[state.string, any]).to_owned();
-    assert!(!state.declaration_forwards(specific.as_view(), different_owner.as_view()));
+    assert!(
+        !state
+            .declaration_forwards(specific.as_view(), different_owner.as_view())
+            .unwrap()
+    );
 
     let first = parameter(11, 0);
     let second = parameter(12, 0);
@@ -28,6 +40,14 @@ fn forwarding_keeps_captured_alias_owners_fixed() {
         DeclarationForwardingView::parameter_groups(&[], &[first], &[left, integer]).to_owned();
     let general =
         DeclarationForwardingView::parameter_groups(&[], &[second], &[right, any]).to_owned();
-    assert!(state.declaration_forwards(specific.as_view(), general.as_view()));
-    assert!(!state.declaration_forwards(general.as_view(), specific.as_view()));
+    assert!(
+        state
+            .declaration_forwards(specific.as_view(), general.as_view())
+            .unwrap()
+    );
+    assert!(
+        !state
+            .declaration_forwards(general.as_view(), specific.as_view())
+            .unwrap()
+    );
 }

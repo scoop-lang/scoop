@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 
 mode, root, output, argument = sys.argv[1:]
-cache = Path(root) / "final-products-v2"
-programs = sorted(cache.glob("program-*/program"))
+cache = Path(root)
+namespaces = sorted(cache.glob("toolchains/*/final-products-v2"))
+programs = sorted(path for namespace in namespaces for path in namespace.glob("program-*/program"))
 output = Path(output)
 debug_file = Path(str(output) + (".dSYM" if sys.platform == "darwin" else ".debug"))
 if mode == "count":
@@ -16,7 +17,8 @@ elif mode in ("debug", "none"):
     assert debug_file.exists() == (mode == "debug"), debug_file
     assert not Path(str(output) + ".map").exists()
 else:
-    paths = sorted(cache.glob("*.json")) + programs + [output]
+    paths = sorted(path for namespace in namespaces for path in namespace.glob("*.json"))
+    paths += programs + [output]
     for parent in [*(p.parent for p in programs), output.parent]:
         for path in parent.glob("program.*"):
             paths.extend([path, *path.rglob("*")] if path.is_dir() else [path])

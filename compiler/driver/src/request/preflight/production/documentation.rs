@@ -56,15 +56,16 @@ impl PendingDocumentation {
                     span(warning.location.range),
                     &warning.message,
                 );
-                diagnostic.source = Some(Box::new(source.clone()));
+                diagnostic.set_source(source.clone());
                 diagnostic.notes = warning
                     .notes
                     .iter()
                     .map(|note| {
-                        let (file, source) = &sources[&note.location.source];
+                        let (_, source) = &sources[&note.location.source];
                         scoop_ast::DiagnosticNote {
-                            file: *file,
-                            source: Some(Box::new(source.clone())),
+                            source: scoop_source::LocalDiagnosticSource::Bound(Box::new(
+                                source.clone(),
+                            )),
                             span: span(note.location.range),
                             message: note.message.clone(),
                             import_path: Vec::new(),

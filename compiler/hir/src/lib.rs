@@ -44,7 +44,7 @@ pub struct Output {
     pub native_boundary_types: HirNativeBoundaryTypeDefinitions,
     /// Non-fatal source diagnostics produced while constructing this output.
     /// They are not part of either HIR graph or serialized metadata.
-    pub warnings: Vec<Diagnostic>,
+    pub warnings: Vec<scoop_source::SourceDiagnostic>,
     /// Present only for a documentation request, after ordinary HIR succeeds.
     pub documentation: Option<ConeDocumentation>,
 }

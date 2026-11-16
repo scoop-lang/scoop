@@ -187,7 +187,8 @@ fn private_declaration_does_not_cross_user_source_slots() {
     let errors = lower_user_sources(&core, &first, &[(&second, "second.scoop")])
         .expect_err("file-private lookup must use the exact user source slot");
     assert!(errors.iter().any(|error| {
-        error.file == 2 && error.message == "function `privateHelper` is not accessible here"
+        diagnostic_source(error) == &test_source_identity("src/second.scoop")
+            && error.message == "function `privateHelper` is not accessible here"
     }));
 }
 
@@ -247,7 +248,8 @@ fn a_later_user_source_does_not_gain_core_intrinsic_authority() {
     let errors = lower_user_sources(&core, &first, &[(&second, "second.scoop")])
         .expect_err("source position must not grant core intrinsic authority");
     assert!(errors.iter().any(|error| {
-        error.file == 2 && error.message == "`@Intrinsic` is only allowed in the core library"
+        diagnostic_source(error) == &test_source_identity("src/second.scoop")
+            && error.message == "`@Intrinsic` is only allowed in the core library"
     }));
 }
 
@@ -357,11 +359,10 @@ fn same_package_cross_source_non_overloadable_declaration_is_duplicate() {
 
     let errors = lower_user_sources(&core, &first, &[(&second, "second.scoop")])
         .expect_err("a non-overloadable declaration is unique across its whole package");
-    assert!(
-        errors
-            .iter()
-            .any(|error| { error.file == 2 && error.message == "duplicate struct `Duplicate`" })
-    );
+    assert!(errors.iter().any(|error| {
+        diagnostic_source(error) == &test_source_identity("src/second.scoop")
+            && error.message == "duplicate struct `Duplicate`"
+    }));
 }
 
 #[test]
@@ -376,7 +377,8 @@ fn different_packages_do_not_share_short_names() {
     let errors = lower_user_sources(&core, &first, &[(&second, "second.scoop")])
         .expect_err("a short name cannot cross a package boundary");
     assert!(errors.iter().any(|error| {
-        error.file == 2 && error.message.starts_with("unknown function `hidden`")
+        diagnostic_source(error) == &test_source_identity("src/second.scoop")
+            && error.message.starts_with("unknown function `hidden`")
     }));
 }
 
@@ -458,7 +460,8 @@ fn core_bodies_cannot_see_current_package_declarations() {
     let errors = lower_user_sources(&core, &user, &[])
         .expect_err("the current package must not leak into core lookup");
     assert!(errors.iter().any(|error| {
-        error.file == 0 && error.message.starts_with("unknown function `userOnly`")
+        diagnostic_source(error) == &core_source_identity("src/core.scoop")
+            && error.message.starts_with("unknown function `userOnly`")
     }));
 }
 
@@ -633,16 +636,22 @@ fn source_identity_permutation_preserves_ambiguity_origins() {
             .iter()
             .find(|error| error.message.contains("type `Chosen` is ambiguous"))
             .expect("type ambiguity diagnostic");
-        assert_eq!(ordered[diagnostic.file - 1].0, 99);
+        assert_eq!(diagnostic_source(diagnostic), &sparse_source_identity(99));
         let mut origins = diagnostic
             .notes
             .iter()
-            .map(|note| ordered[note.file - 1].0)
+            .map(|note| bound_source(&note.source).clone())
             .collect::<Vec<_>>();
         origins.sort_unstable();
         observed.push(origins);
     }
-    assert_eq!(observed, [vec![7, 41], vec![7, 41]]);
+    assert_eq!(
+        observed,
+        [
+            vec![sparse_source_identity(7), sparse_source_identity(41)],
+            vec![sparse_source_identity(7), sparse_source_identity(41)]
+        ]
+    );
 }
 
 #[test]
@@ -685,10 +694,13 @@ fn source_identity_permutation_preserves_duplicate_signature_origin() {
                 error.message == "function `clash` is already declared with the same signature"
             })
             .expect("duplicate-signature diagnostic");
-        origins.push(ordered[duplicate.file - 1].0);
+        origins.push(diagnostic_source(duplicate).clone());
     }
 
-    assert_eq!(origins, [97, 97]);
+    assert_eq!(
+        origins,
+        [sparse_source_identity(97), sparse_source_identity(97)]
+    );
 }
 
 #[test]
@@ -809,6 +821,8 @@ fn shared_display_locator_does_not_merge_distinct_private_sources() {
         IntrinsicDeclarationPolicy::CoreOnly,
     )
     .expect_err("equal diagnostic labels cannot grant file-private access");
-    assert!(errors.iter().any(|error| error.file == 2
-        && error.message == "function `privateHelper` is not accessible here"));
+    assert!(errors.iter().any(
+        |error| diagnostic_source(error) == &sparse_source_identity(33)
+            && error.message == "function `privateHelper` is not accessible here"
+    ));
 }

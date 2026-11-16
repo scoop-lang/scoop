@@ -84,36 +84,36 @@ impl Lowerer {
             file_index,
             slot_access,
         );
-        let id = self.functions.alloc(Function {
-            signature: hir::CallableSignature {
-                context_parameters: Vec::new(),
-                release_callability: Default::default(),
-                name,
-                is_suspend: decl.is_suspend,
-                modifiers: hir::CallableModifiers::default(),
-                params: Vec::new(),
-                return_ty: self.unit,
-                attributes: checked.attributes,
-                span: decl.span,
-            },
+        let id = self.functions.alloc(
+            Function {
+                signature: hir::CallableSignature {
+                    context_parameters: Vec::new(),
+                    release_callability: Default::default(),
+                    name,
+                    is_suspend: decl.is_suspend,
+                    modifiers: hir::CallableModifiers::default(),
+                    params: Vec::new(),
+                    return_ty: self.unit,
+                    attributes: checked.attributes,
+                    span: decl.span,
+                },
 
-            access,
-            genericity: hir::FunctionGenericity::Plain,
-            kind,
-            method: Some(hir::Method {
-                availability: None,
-                owner: host_ty,
-                modifier,
-                dispatch: hir::MethodDispatch::Direct,
-            }),
-        });
-        self.source_function_declarations.insert(
-            id,
-            crate::SourceFunctionDeclaration {
+                access,
+                genericity: hir::FunctionGenericity::Plain,
+                kind,
+                method: Some(hir::Method {
+                    availability: None,
+                    owner: host_ty,
+                    modifier,
+                    dispatch: hir::MethodDispatch::Direct,
+                }),
+            },
+            crate::FunctionOrigin::Source(crate::SourceFunctionDeclaration {
                 name: decl.name.text.clone(),
                 name_span: Some(decl.name.span),
-            },
+            }),
         );
+
         if let Some(intrinsic) = checked.intrinsic {
             self.register_intrinsic_function(id, intrinsic, decl.span);
         }
@@ -199,31 +199,31 @@ impl Lowerer {
             }),
         };
         let access = self.top_level_access(decl.visibility, decl.name.span, "function", file_index);
-        let id = self.functions.alloc(Function {
-            signature: hir::CallableSignature {
-                context_parameters: Vec::new(),
-                release_callability: Default::default(),
-                name: decl.name.text.clone(),
-                is_suspend: decl.is_suspend,
-                modifiers: hir::CallableModifiers::default(),
-                params: Vec::new(),
-                return_ty: self.unit,
-                attributes: checked.attributes,
-                span: decl.span,
-            },
+        let id = self.functions.alloc(
+            Function {
+                signature: hir::CallableSignature {
+                    context_parameters: Vec::new(),
+                    release_callability: Default::default(),
+                    name: decl.name.text.clone(),
+                    is_suspend: decl.is_suspend,
+                    modifiers: hir::CallableModifiers::default(),
+                    params: Vec::new(),
+                    return_ty: self.unit,
+                    attributes: checked.attributes,
+                    span: decl.span,
+                },
 
-            access,
-            genericity: hir::FunctionGenericity::Plain,
-            kind,
-            method: None,
-        });
-        self.source_function_declarations.insert(
-            id,
-            crate::SourceFunctionDeclaration {
+                access,
+                genericity: hir::FunctionGenericity::Plain,
+                kind,
+                method: None,
+            },
+            crate::FunctionOrigin::Source(crate::SourceFunctionDeclaration {
                 name: decl.name.text.clone(),
                 name_span: Some(decl.name.span),
-            },
+            }),
         );
+
         if let Some(intrinsic) = checked.intrinsic {
             self.register_intrinsic_function(id, intrinsic, decl.span);
         }
