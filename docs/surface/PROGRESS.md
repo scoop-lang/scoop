@@ -92,3 +92,9 @@ ARM64 与 Rosetta 示例都已运行，观察到正确的 Skia 路径、旋转�
 ## 2026-11-01：文本公共能力设计
 
 新增 [scoop.graphics.text 规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)及[文本排版设计](../graphics/text/DESIGN.md)：独立字体／富文本／段落能力，支持样式继承、行内图片与控件的尺寸／基线／可见位置。UI 设计同步增加 LayoutMetrics、可选子项放置及公共 ParagraphHost，Label 使用相同接口。现有 SkParagraph 已有 placeholder 接口，但 Scoop 接入、native 拆分与控件组合尚未实现；本次仅更新设计，没有新增运行验收结论。
+
+## 2026-11-16：原生命中快照
+
+graphics.native.CanvasGeometry.withNativeHitTest 为原生宿主借出可保留的只读几何；context 与 retain／release／contains 组成普通 C ABI 值，不回调 Scoop 或借用 GPU／画布。独立引用支持原始几何关闭后的并发 native 查询，继续共享不可变裁剪前缀。普通 hitTest 与 native contains 共用同一实现，并补齐目标 viewport 排除，右／下边界及视口外不再返回命中。
+
+本批 aarch64-apple-darwin release 验证通过：生产／测试源码检查、Scoop 与 C++ 格式检查、C++ 严格编译检查，以及 13 项定向测试（10 项几何、3 项原生画布借用）。新增用例从真实 native 工作线程与调用线程查询同一快照，覆盖源对象关闭、变换、路径孔洞、视口边界、不可逆变换、非有限坐标及异常借用收尾。API 站点已生成并核对 Unsafe 方法、返回类型、函数指针签名与 import，规范、README 和编程导航已同步；临时站点在核对后清理。其他目标留到本轮集中平台验证，未以这些离屏结果声明 accessibility 场景或实窗命中已经完成。

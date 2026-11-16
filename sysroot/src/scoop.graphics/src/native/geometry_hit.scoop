@@ -1,0 +1,39 @@
+package scoop.graphics.native
+
+import scoop.graphics.GraphicsException
+
+/**
+ * A borrowed native snapshot. Retain before saving or handing off; release each owned reference.
+ * The paired functions support concurrent native queries without entering Scoop or its runtime.
+ */
+@CLayout
+public struct NativeGeometryHitTest(
+    val context: Ptr<Unit>,
+    val retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    val release: FunPtr<(Ptr<Unit>) -> Unit>,
+    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>
+)
+
+@CLayout
+private struct NativeGeometryExport(
+    val context: Ptr<Unit>?,
+    val retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    val release: FunPtr<(Ptr<Unit>) -> Unit>,
+    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>
+)
+
+@Unsafe
+internal fun <T> withGeometryHitTest(pointer: Ptr<Unit>, block: (NativeGeometryHitTest) -> T): T {
+    val exported = nativeGeometryExport(pointer)
+    val context = exported.context ?: throw GraphicsException("export native hit geometry")
+    try {
+        return block(
+            NativeGeometryHitTest(context, exported.retain, exported.release, exported.contains)
+        )
+    } finally {
+        exported.release(context)
+    }
+}
+
+@Extern(name = "scoop_graphics_geometry_export_hit")
+private fun nativeGeometryExport(geometry: Ptr<Unit>): NativeGeometryExport
