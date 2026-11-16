@@ -1,4 +1,5 @@
 #import "accessibility.h"
+#include <math.h>
 
 @implementation SWAccessibilityNode
 - (SWAccessibilityState *)state {
@@ -181,6 +182,42 @@
   return NSAccessibilityFrameInView(
       view, NSMakeRect(data.x, data.y, data.width, data.height));
 }
+- (BOOL)isWithin:(int64_t)ancestor {
+  int64_t number = self.number;
+  while (number) {
+    if (number == ancestor)
+      return YES;
+    SWAccessibilityState *state = self.tree.published[@(number)];
+    if (!state)
+      return NO;
+    number = state.data.parent;
+  }
+  return ancestor == 0;
+}
+- (id)accessibilityHitTest:(NSPoint)screenPoint {
+  if (![self participatesInAccessibility] || !isfinite(screenPoint.x) ||
+      !isfinite(screenPoint.y))
+    return nil;
+  SWAccessibilityTree *tree = self.tree;
+  SWView *view = tree.view;
+  NSPoint windowPoint = [view.window convertPointFromScreen:screenPoint];
+  NSPoint point = [view convertPoint:windowPoint fromView:nil];
+  if (!NSPointInRect(point, view.bounds))
+    return nil;
+  for (NSNumber *number in tree.hitOrder.reverseObjectEnumerator) {
+    SWAccessibilityNode *node = [tree element:number.longLongValue];
+    SWAccessibilityState *state = node.state;
+    if (!state || !state.data.geometry || !state.data.visible ||
+        ![node participatesInAccessibility] || ![node isWithin:self.number] ||
+        ![state.hit containsPoint:point])
+      continue;
+    while (node.number && (node.state.data.flags & SWAXIgnored))
+      node = [tree element:node.state.data.parent];
+    if (node.isAccessibilityElement)
+      return node;
+  }
+  return self.number == 0 ? self : nil;
+}
 - (BOOL)isAccessibilityFocused {
   return self.state && self.number != 0 && self.tree.focused == self.number &&
          self.isAccessibilityElement && self.tree.view.window.keyWindow;
@@ -239,6 +276,8 @@
     return self.number == 0 || state.data.geometry;
   if (selector == @selector(accessibilityActivationPoint))
     return NO;
+  if (selector == @selector(accessibilityHitTest:))
+    return [self participatesInAccessibility];
   NSString *name = NSStringFromSelector(selector);
   if ([name hasPrefix:@"accessibilityPerform"] ||
       [name hasPrefix:@"setAccessibility"])

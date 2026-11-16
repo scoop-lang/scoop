@@ -13,7 +13,10 @@ internal class SemanticSceneRoot(probe: SemanticSceneProbe, scope: ComponentScop
     private val content =
         element(
             { mount -> SemanticCanvas(probe, mount) },
-            [cachedScene(element({ mount -> SemanticLeaf(probe, mount) }))]
+            [
+                cachedScene(element({ mount -> SemanticLeaf(probe, mount) })),
+                cachedScene(element({ mount -> SemanticPath(probe, mount) }))
+            ]
         )
     public override fun render(): View = content
 }
@@ -27,23 +30,31 @@ private class SemanticCanvas(private val probe: SemanticSceneProbe, scope: Compo
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
-        if (probe.skip)
-            context.skipChild(0L)
-        else {
-            context.measureChild(0L, Constraints.tight(Size(50.0, 20.0)))
-            context.placeChild(0L, Point(30.0, 20.0))
-        }
+        for (index in 0L ..< 2L)
+            if (probe.skip)
+                context.skipChild(index)
+            else {
+                context.measureChild(index, Constraints.tight(Size(50.0, 20.0)))
+                context.placeChild(index, Point(30.0, 20.0))
+            }
         return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 120.0))), Unit)
     }
     public override fun scene(context: SceneContext, layout: Unit) {
         probe.frames += 1
         val previous = probe.semantic!!.geometry
+        val previousPath = probe.pathSemantic!!.geometry
         context.saveLayer(probe.alpha)
         context.translate(probe.offset, 0.0)
         context.clipRect(Rect(0.0, 0.0, probe.clipWidth, 120.0))
-        context.children()
+        context.children(
+            if (probe.reverse)
+                [1L, 0L]
+            else
+                [0L, 1L]
+        )
         context.restore()
         assertEquals(previous, probe.semantic!!.geometry)
+        assertEquals(previousPath, probe.pathSemantic!!.geometry)
         assertFailsWith<IllegalArgumentException> {
             context.semantics(probe.semantic!!, Rect(0.0, 0.0, 1.0, 1.0))
         }
@@ -58,9 +69,39 @@ private class SemanticCanvas(private val probe: SemanticSceneProbe, scope: Compo
                 case Discarded -> {
                     assertTrue(discard)
                     assertEquals(previous, probe.semantic!!.geometry)
+                    assertEquals(previousPath, probe.pathSemantic!!.geometry)
                     probe.discarded += 1
                     scope.requestFrame()
                 }
+            }
+        }
+    }
+}
+
+private class SemanticPath(private val probe: SemanticSceneProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Button)
+    private val paintKey = PaintKey()
+    init {
+        semantic.update(SemanticProperties(name = Some("Path"), automationId = Some("path")))
+        probe.pathSemantic = Some(semantic)
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.None
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(50.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.pathScenes += 1
+        val bounds = Rect(0.0, 0.0, 50.0, 20.0)
+        path(FillRule.EvenOdd) {
+            addRect(bounds)
+            addRect(Rect(10.0, 5.0, 30.0, 10.0))
+        }.use {
+            shape ->
+            context.semantics(semantic, shape)
+            context.drawLayer(paintKey, bounds, 0L) {
+                paint -> paint.canvas.drawPath(shape, Paint(Color(0.8, 0.4, 0.2)))
             }
         }
     }

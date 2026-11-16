@@ -12,6 +12,7 @@ when = { os = "darwin" }
 
 [test-dependencies]
 "scoop:scoop.window" = { version = "0.1.0", path = "../.." }
+"scoop:scoop.graphics" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.test" = "0.1.0"
@@ -25,6 +26,10 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/relations.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/geometry.m"
 when = { os = "darwin" }
 
 [[native.libraries]]

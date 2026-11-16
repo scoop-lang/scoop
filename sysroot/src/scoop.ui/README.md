@@ -69,6 +69,8 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 属性与结构在普通逻辑更新结束后发布，直接更新 handle 也沿现有宿主队列生效，不要求 drawable。场景登记参与缓存重放，仅在 Accepted 后发布当前 transform／clip 的几何；Discarded 保留仍匹配的旧几何。名字或值改变会使旧几何不可用，后续匹配场景恢复它。`geometry=None` 与已布局但被裁剪的 `visibleBounds=None` 分开。
 
+`context.semantics(handle, shape: Path)` 可登记非矩形语义区域；它和 Path 输入登记一样使当前场景不缓存，调用后可以关闭 Path。Rect 登记保持可缓存。两者都捕获原生只读命中快照，Accepted 后按实际场景层叠顺序查询，路径孔洞、祖先裁剪和窗口视口共同生效；阅读顺序不随层叠变化。位置失效时同时撤下命中，丢弃帧与关闭释放候选引用。按点定位不提供未经实际输入验证的激活点。
+
 动作使用 `SemanticActions` 的实际回调和结果，经过当前输入边界及 Surface 错误处理；状态更新先完成普通 UI 更新再返回。`bindFocus` 借用本挂载的 FocusTarget，发布实际焦点，并在没有自定义 focus handler 时提供现有 FocusHandle 的入口；尚待显露的焦点请求返回 Busy。关闭父语义 handle 保留独立拥有的子节点，作用域卸载或根关闭退休对应资源；角色替换与根重新附着使用新身份。
 
 `handle.update(properties, actions, relations = SemanticRelations(labelledBy = [label.id]))` 可引用同一活动根内的标签；同一值还提供 describedBy、errorMessages 和 controls。显式名称／说明／错误（包括空串）优先于关系，标签修改只更新实际依赖者，不必重新 render 控件。handle.relations 返回清理后的当前引用，目标关闭不会将关系转接到相同位置的新节点；bindFocus 保留该当前值。标签名称变化也使旧几何失效，Accepted 场景使用底层内容版本核对，避免迟到场景恢复不匹配的位置。

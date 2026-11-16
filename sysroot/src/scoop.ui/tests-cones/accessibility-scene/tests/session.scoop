@@ -21,6 +21,7 @@ private class UiSemanticSceneTest {
             }
             assertTrue(probe.finished)
             assertEquals(1, probe.leafMounts)
+            assertTrue(probe.pathScenes > 1)
             assertTrue(probe.discarded == 0 || probe.discarded == 1)
             assertTrue(probe.semantic!!.isClosed)
         } finally {
@@ -32,16 +33,19 @@ private class UiSemanticSceneTest {
 internal class SemanticSceneProbe: Closeable {
     var root: ComponentScope? = None
     var semantic: SemanticsHandle? = None
+    var pathSemantic: SemanticsHandle? = None
     var label: SemanticsHandle? = None
     var focus: FocusHandle? = None
     var target: FocusTarget? = None
     var window: Window? = None
     var skip = false
+    var reverse = false
     var alpha = 1.0
     var offset = 0.0
     var clipWidth = 240.0
     var frames = 0
     var leafScenes = 0
+    var pathScenes = 0
     var leafMounts = 0
     var discardNext = false
     var discarded = 0
@@ -49,6 +53,8 @@ internal class SemanticSceneProbe: Closeable {
     private var phase = 0
     private var active: ActiveApplication? = None
     private var reference: NativeNode? = None
+    private var tree: NativeNode? = None
+    private var pathReference: NativeNode? = None
     private var calls: NativeCalls? = None
     private var lease: NativeWindowLease? = None
     private var view: Ptr<Unit>? = None
@@ -118,8 +124,10 @@ internal class SemanticSceneProbe: Closeable {
             case 0 -> {
                 @Unsafe
                 {
-                    NativeNode(nativeRoot(view!!)!!).use { tree -> reference = tree.find("leaf") }
+                    tree = Some(NativeNode(nativeRoot(view!!)!!))
                 }
+                reference = tree!!.find("leaf")
+                pathReference = tree!!.find("path")
                 identity = Some(semantic!!.id)
                 assertEquals(1, leafScenes)
                 checkBounds(30.0, 50.0)
@@ -151,6 +159,8 @@ internal class SemanticSceneProbe: Closeable {
             }
             case 4 -> {
                 assertEquals(None, semantic!!.geometry)
+                assertEquals(None, pathSemantic!!.geometry)
+                assertTrue(tree!!.hit(view!!, 55.0, 25.0, tree))
                 assertFalse(reference!!.flag(2))
                 assertTrue(reference!!.flag(0))
                 assertEquals(identity, Some(semantic!!.id))
@@ -172,6 +182,7 @@ internal class SemanticSceneProbe: Closeable {
                     assertEquals(None, semantic!!.geometry)
                     assertTrue(reference!!.text(0, Some("Changed")))
                     assertFalse(reference!!.flag(2))
+                    assertTrue(reference!!.hit(view!!, 75.0, 30.0, None))
                     phase = 6
                     window!!.setVisible(true)
                     root!!.requestFrame()
@@ -189,8 +200,14 @@ internal class SemanticSceneProbe: Closeable {
                 checkBounds(70.0, 50.0)
                 assertEquals(identity, Some(semantic!!.id))
                 assertTrue(reference!!.frame(view!!, 70.0, 20.0, 50.0, 20.0))
+                reverse = true
+                next()
+            }
+            case 8 -> {
+                checkBounds(70.0, 50.0)
+                assertTrue(pathReference!!.hit(view!!, 75.0, 25.0, pathReference))
                 finished = true
-                phase = 8
+                phase = 9
                 active!!.requestExit()
             }
             else -> {}
@@ -207,6 +224,30 @@ internal class SemanticSceneProbe: Closeable {
             Some(LogicalRect(LogicalPosition(x, 20.0), LogicalSize(visible, 20.0))),
             geometry.visibleBounds
         )
+        assertTrue(
+            tree!!.hit(
+                view!!,
+                x + 5.0,
+                25.0,
+                if (reverse)
+                    reference
+                else
+                    pathReference
+            )
+        )
+        assertTrue(
+            tree!!.hit(
+                view!!,
+                x + 25.0,
+                30.0,
+                if (visible > 25.0)
+                    reference
+                else
+                    tree
+            )
+        )
+        assertTrue(tree!!.hit(view!!, x + visible + 1.0, 30.0, tree))
+        assertTrue(reference!!.hit(view!!, x + 5.0, 25.0, reference))
     }
     private fun next() {
         phase += 1;
@@ -217,6 +258,10 @@ internal class SemanticSceneProbe: Closeable {
         calls = None
         reference?.close()
         reference = None
+        pathReference?.close()
+        pathReference = None
+        tree?.close()
+        tree = None
         lease?.close()
         lease = None
     }

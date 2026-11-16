@@ -105,6 +105,10 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
   return self.semanticRoot ? sw_accessibility_focused(self)
                            : [super accessibilityFocusedUIElement];
 }
+- (id)accessibilityHitTest:(NSPoint)point {
+  return self.semanticRoot ? [self.semanticRoot accessibilityHitTest:point]
+                           : [super accessibilityHitTest:point];
+}
 - (BOOL)isFlipped {
   return YES;
 }

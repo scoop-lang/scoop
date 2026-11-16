@@ -7,11 +7,23 @@ typedef int32_t (*SWAccessibilityCallback)(void *, int64_t, int32_t,
                                            const uint8_t *, int64_t);
 
 typedef struct {
-  int64_t number, parent, order;
+  int64_t number, parent, order, scene_order;
   int32_t role, flags, actions, checked, geometry, visible;
   double x, y, width, height;
   double visible_x, visible_y, visible_width, visible_height;
 } SWAccessibilityData;
+
+typedef struct {
+  void *context;
+  void (*retain)(void *);
+  void (*release)(void *);
+  int32_t (*contains)(void *, double, double);
+} SWAccessibilityHitData;
+
+@interface SWAccessibilityHitGeometry : NSObject
+- (instancetype)initWithValue:(SWAccessibilityHitData)value;
+- (BOOL)containsPoint:(NSPoint)point;
+@end
 
 enum {
   SWAXEnabled = 1,
@@ -29,6 +41,7 @@ enum {
 @property(nonatomic, copy) NSString *name, *help, *error, *identifier, *value;
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *labels, *controls,
     *titleFor;
+@property(nonatomic, strong) SWAccessibilityHitGeometry *hit;
 @end
 
 @interface SWAccessibilityNode : NSAccessibilityElement
@@ -50,6 +63,7 @@ enum {
     NSDictionary<NSNumber *, SWAccessibilityState *> *published;
 @property(nonatomic, strong)
     NSDictionary<NSNumber *, NSArray<NSNumber *> *> *children;
+@property(nonatomic, strong) NSArray<NSNumber *> *hitOrder;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWAccessibilityState *> *pending;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *removed;

@@ -2,46 +2,108 @@ package scoop.ui
 
 import scoop.collections.HashMap
 import scoop.graphics.*
-import scoop.graphics.native.captureGeometry
+import scoop.graphics.native.*
 import scoop.window.LogicalRect
 import scoop.window.LogicalPosition
 import scoop.window.LogicalSize
 import scoop.window.accessibility.*
+import scoop.window.accessibility.native.NativeSemanticHitTest
 
-private class SemanticPlacement(val generation: ULong, val geometry: SemanticGeometry)
+private class SemanticPlacement(
+    val generation: ULong,
+    private val geometry: SemanticGeometry,
+    private val order: Long,
+    private val hit: NativeGeometryHitTest
+): Closeable {
+    private var closed = false
+    init {
+        @Unsafe
+        {
+            hit.retain(hit.context)
+        }
+    }
+    fun apply(node: AccessibilityNode) {
+        @Unsafe
+        {
+            node.setGeometry(
+                geometry,
+                NativeSemanticHitTest(hit.context, hit.retain, hit.release, hit.contains),
+                order
+            )
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            hit.release(hit.context)
+        }
+    }
+}
 
-/** A candidate frame owns values only; native geometry is queried once at capture. */
-internal class SemanticScene {
+/** A candidate owns immutable native snapshots until matching accepted geometry is installed. */
+internal class SemanticScene: Closeable {
     private val placements = HashMap<SemanticNodeId, SemanticPlacement>()
 
     fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect) {
-        requireUi(!placements.containsKey(handle.id), "semantic node was already placed this frame")
+        check(handle)
         @Unsafe
         {
-            val shape = captureGeometry(canvas, rect)
-            try {
-                val visible =
-                    when (val value = shape.visibleBounds) {
-                        case Some(val bounds) -> Some(semanticRect(bounds))
-                        case None -> None
-                    }
-                placements[handle.id] =
-                    SemanticPlacement(
-                        handle.generation,
-                        SemanticGeometry(semanticRect(shape.bounds), visible)
-                    )
-            } finally {
-                shape.close()
+            captureGeometry(canvas, rect).use { shape -> append(handle, shape) }
+        }
+    }
+
+    fun capture(handle: SemanticsHandle, canvas: Canvas, path: Path) {
+        check(handle)
+        @Unsafe
+        {
+            captureGeometry(canvas, path).use { shape -> append(handle, shape) }
+        }
+    }
+
+    private fun check(handle: SemanticsHandle) {
+        requireUi(!placements.containsKey(handle.id), "semantic node was already placed this frame")
+    }
+
+    private fun append(handle: SemanticsHandle, shape: CanvasGeometry) {
+        val visible =
+            when (val value = shape.visibleBounds) {
+                case Some(val bounds) -> Some(semanticRect(bounds))
+                case None -> None
+            }
+        val bounds = SemanticGeometry(semanticRect(shape.bounds), visible)
+        @Unsafe
+        {
+            shape.withNativeHitTest {
+                hit ->
+                val placement = SemanticPlacement(handle.generation, bounds, placements.size, hit)
+                try {
+                    placements[handle.id] = placement
+                } catch (error: Throwable) {
+                    placement.close()
+                    throw error
+                }
             }
         }
     }
 
-    fun geometry(handle: SemanticsHandle): SemanticGeometry? {
-        val placement = placements[handle.id] ?: return None
-        return if (placement.generation == handle.generation)
-            Some(placement.geometry)
-        else
-            None
+    fun apply(handle: SemanticsHandle) {
+        when (val placement = placements[handle.id]) {
+            case Some(val value) -> if (value.generation == handle.generation) {
+                value.apply(handle.resource)
+                return
+            }
+            case None -> {}
+        }
+        handle.resource.geometry = None
+    }
+
+    public override fun close() {
+        for (placement in placements.values)
+            placement.close()
+        placements.clear()
     }
 }
 

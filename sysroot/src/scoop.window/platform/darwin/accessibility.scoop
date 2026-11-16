@@ -1,6 +1,7 @@
 package scoop.window.accessibility
 
 import scoop.window.*
+import scoop.window.accessibility.native.NativeSemanticHitTest
 
 /** Attaches the native content subtree. The window closes it before native destruction. */
 public fun Window.createAccessibilityProvider(): AccessibilityProvider {
@@ -93,6 +94,13 @@ private class DarwinAccessibilityProjection(
                         nativeAccessibilityPut(pointer, describe(node)),
                         "publish accessibility node"
                     )
+                    when (val hit = node.hit) {
+                        case Some(val value) -> checkNativeStatus(
+                            nativeAccessibilityHit(pointer, node.id.number, value.native),
+                            "publish accessibility hit geometry"
+                        )
+                        case None -> {}
+                    }
                     text(node.id.number, 0, node.resolvedName)
                     text(node.id.number, 1, node.resolvedDescription)
                     text(node.id.number, 2, node.properties.automationId)
@@ -194,6 +202,7 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
         node.id.number,
         node.parentNode?.id?.number ?: 0L,
         node.order,
+        node.sceneOrder,
         when (node.role) {
             case Group -> 0;
             case Text -> 1;
@@ -238,6 +247,7 @@ private struct NativeSemanticNode(
     val number: Long,
     val parent: Long,
     val order: Long,
+    val sceneOrder: Long,
     val role: Int,
     val flags: Int,
     val actions: Int,
@@ -282,6 +292,13 @@ private fun nativeAccessibilityRelation(
     number: Long,
     field: Int,
     target: Long
+): Long
+
+@Extern(name = "scoop_window_accessibility_hit")
+private fun nativeAccessibilityHit(
+    provider: Ptr<Unit>,
+    number: Long,
+    geometry: NativeSemanticHitTest
 ): Long
 
 @Extern(name = "scoop_window_accessibility_remove")

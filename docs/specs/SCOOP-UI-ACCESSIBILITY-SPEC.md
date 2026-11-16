@@ -38,11 +38,13 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 ## 4. 场景与几何
 
-`SceneContext.semantics(handle, bounds: Rect)` 只接受本挂载的活动 handle，在当前 Canvas 坐标与裁剪中捕获独立几何。每个节点每帧只能登记一次；不创建 InputArea。登记作为 SceneCommand 参与缓存记录和重放，重放时重新应用当前祖先变换与 clip，不保存上一帧的输入位置。opacity 为零或没有绘图不自动隐藏语义节点。
+`SceneContext.semantics(handle, bounds: Rect)` 与 Path 重载只接受本挂载的活动 handle，在当前 Canvas 坐标与裁剪中捕获独立几何和 native 命中快照。每个节点每帧只能登记一次；不创建 InputArea。Rect 登记作为 SceneCommand 参与缓存记录和重放，重放时重新应用当前祖先变换与 clip，不保存上一帧的输入位置；Path 与现有 Path 输入放置一样使该场景不缓存，捕获后不借用调用方的 Path。opacity 为零或没有绘图不自动隐藏语义节点。
 
 根统一在 FrameCompletion.Accepted 发布候选几何；Discarded 释放候选，保留仍匹配当前语义属性的上次几何。尚未呈现、当前 Accepted 场景未登记或名称／值已变化的节点报告 None；被自身 clip 完全裁掉时，保留完整 bounds，并以 visibleBounds=None 表示裁剪。后续匹配场景恢复几何，节点身份不变。帧生成后发生名称／值变化或节点退休，旧候选不能重新使其几何有效。
 
-几何来自 graphics 的 CanvasGeometry，与真实绘制使用同一变换和精确 clip 交集；Window 只取得窗口逻辑坐标的 bounds／visibleBounds，不据矩形中心承诺可点击点。本批不公布尚未接入的原生精确命中能力。滚动条留白、滚动变换、Portal 和其他场景变换均在登记点生效；完整 Reveal 与虚拟化能力继续使用既有滚动／焦点路径。
+几何来自 graphics 的 CanvasGeometry，与真实绘制使用同一变换、精确 clip 和 viewport。通过 withNativeHitTest 保留不可变命中快照，再连同窗口逻辑坐标的 bounds／visibleBounds 交给 Window；原生 getter 不回到 UI 代码，也不据矩形中心承诺可点击点。登记的实际场景顺序决定命中先后，不使用挂载／阅读顺序代替层叠。滚动条留白、滚动变换、Portal 和其他场景变换均在登记点生效；完整 Reveal 与虚拟化能力继续使用既有滚动／焦点路径。
+
+候选场景持有自己的 native 引用，Accepted 时仅把内容版本仍匹配的几何与命中一起发布；Discarded、版本不匹配、场景失败及根关闭均释放候选引用。已发布 Window 节点和原生投影各自保留所需快照，候选释放不使当前命中悬空；纯属性发布不重新捕获几何。未放置与名称／值失效同时撤下位置和命中，旧 native 对象不能继续按过期形状命中。
 
 ## 5. 验证边界
 

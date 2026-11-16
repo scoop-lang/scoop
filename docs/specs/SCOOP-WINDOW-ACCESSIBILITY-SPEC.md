@@ -14,7 +14,7 @@
 
 首批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea。SemanticProperties 保存 name、description、error、automationId、value、enabled、readOnly、protectedText、checked、hidden 与 ignored；名称、说明、错误、标识和值采用可选字符串，已知空字符串与未知值不同。checked 为可选 Off／On／Mixed。只有实际文本用途才设置 protectedText；受保护时不允许通过 value 发布明文，不因屏幕暂时显示正文而解除保护。hidden 排除整个节点子树但保留身份，恢复后使用原身份；ignored 仅忽略当前节点，保留后代并把它们接到最近未忽略的语义祖先；hidden 优先排除整个子树。忽略不退休身份、不改变实际键盘焦点，旧引用不能执行被忽略节点的动作；后代继续遵守祖先的 hidden／enabled。update 在改变原状态前检查这些规则。
 
-update(properties, actions = SemanticActions(), relations = SemanticRelations()) 替换属性、最新动作实现及关系。值／名称变化使旧几何失效；新的匹配布局可通过 geometry 再发布。只读 contentRevision 随影响名称／值的变更递增，供场景比较捕获时的内容版本；关系名称的依赖变化同样使旧候选失效。SemanticGeometry 保存窗口内容逻辑坐标中的 bounds 和可选 visibleBounds；后者必须在 bounds 内，且两者坐标有限、尺寸非负。None 表示几何不可用；visibleBounds=None 表示已经有合法布局但被自身裁剪，不表示节点退休或程序化隐藏。宽度或高度为零的可见矩形不进入 visible children，仍保留合法布局与语义身份。矩形仅描述外接区域，不能据矩形中心推断任意自绘形状的可点击点；精确场景命中在 UI 接入批次提供。
+update(properties, actions = SemanticActions(), relations = SemanticRelations()) 替换属性、最新动作实现及关系。值／名称变化使旧几何失效；新的匹配布局可通过 geometry 再发布。只读 contentRevision 随影响名称／值的变更递增，供场景比较捕获时的内容版本；关系名称的依赖变化同样使旧候选失效。SemanticGeometry 保存窗口内容逻辑坐标中的 bounds 和可选 visibleBounds；后者必须在 bounds 内，且两者坐标有限、尺寸非负。None 表示几何不可用；visibleBounds=None 表示已经有合法布局但被自身裁剪，不表示节点退休或程序化隐藏。宽度或高度为零的可见矩形不进入 visible children，仍保留合法布局与语义身份。矩形仅描述外接区域，不能据矩形中心推断任意自绘形状的可点击点；精确命中使用本节的独立 native 快照合同。
 
 SemanticRelations 保存有序的 labelledBy、describedBy、errorMessages、controls 节点 ID 数组，默认均为空，以有序内容判断相等。每次替换在修改前检查同一活动 provider 的目标、同一数组无重复和非自身引用；controls 等关系不套用父子树的无环规则。有效名称的循环依赖在 publish 解析受影响名称时拒绝，保留上次原生投影和待发布变更，调用方可修正后重试。显式名称已截断的依赖不算有效名称环；不会为了未采用的标签重新遍历整张关系图。关系不改变父子归属或焦点，不保活已退休的目标；目标关闭时自动清除所有指向它的关系，普通重排保持引用身份。node.relations 只读返回清理后的当前关系。
 
@@ -25,6 +25,12 @@ node.contentLabels 是单独保存的有序内容标签 ID 数组，默认空，
 创建、修改和重排先修改 managed 状态，publish() 在正常 owner 更新完成后原子发布本批差量；未变节点不重复序列化和验证，单纯替换相同能力的 handler 不更新 native 属性。原生 getter 只读取已发布投影，不调用 Scoop handler 或布局。原生准备失败保留上一份投影，差量仍待处理；已经原子提交的结果不因随后平台通知失败回滚，错误按普通 native 操作失败报告。退休立即禁止旧对象动作，结构变更在 publish 时统一通知；新节点发布前不进入原生树。几何合法性在设置 geometry 的边界检查，失败保留原值。
 
 focused 属性保存当前实际获得键盘焦点的活动节点或 None。它不代表辅助技术阅读位置，也不因为 Focus 请求已排队就改变。publish 先发布属性、结构和实际焦点，再发送适用的结构／值／焦点通知；无差量时不通知、不请求帧。几何仍由调用方使用匹配的 Accepted 场景提供，provider 不替调用方启动绘制。
+
+node.geometry 保存值型 bounds／visibleBounds；只赋矩形不提供精确命中。原生 renderer 可使用 `@Unsafe node.setGeometry(geometry: SemanticGeometry, hitTest: NativeSemanticHitTest, order: Long = 0L)` 同时登记匹配几何、命中快照和实际场景顺序。NativeSemanticHitTest 位于 `scoop.window.accessibility.native`，是 context、retain、release、contains 的 CLayout 值；后三者分别为 FunPtr<(Ptr<Unit>) -> Unit>、同签名释放函数和 FunPtr<(Ptr<Unit>, Double, Double) -> Int>。调用方提供成套的原生只读实现，contains 接收窗口逻辑坐标并返回 1／0，函数不回调 Scoop、进入 UI 状态或抛出跨 ABI 异常。
+
+setGeometry 在验证几何后为节点持有一个引用；原生投影在发布时独立保留自己的引用，调用方可在 setGeometry 返回后释放借用。替换、名称／值失效、退休和关闭释放对应引用，准备失败时旧原生投影仍有自己的有效快照。普通 geometry 赋值明确替换为仅有矩形的几何并清除旧命中；None 同时清除位置与命中。Window 不检查 Path 或重建 clip 引擎，第三方 renderer 可提供自己的实际原生命中实现。
+
+命中顺序使用场景 order，值较大者在上，同值按节点创建顺序确定；它与阅读顺序分别保存。命中忽略 hidden 子树及已退休对象，ignored 自身命中映射到最近未忽略祖先，独立后代仍可成为结果。disabled 对象仍可被辅助技术定位和读取，动作继续按 enabled 拒绝。缺少有效命中快照时不根据 bounds 猜测结果，也不把矩形中心声明为有效激活点。
 
 ## 3. 动作与同步边界
 
@@ -42,6 +48,8 @@ NSAccessibility 的 performPress 等 BOOL 动作仅在 Completed 时返回 YES�
 
 AppKit 以 accessibilityLabel／Title 发布解析后的名称；只有一个有效标签且没有显式名称覆盖时，同时提供 TitleUIElement 及对应 ServesAsTitleForUIElements。多个标签保留合成名称，不伪造单一标题对象。controls 映射 LinkedUIElements，说明与错误的非空文本按顺序进入 Help。原生关系只返回可导航的活动对象；hidden 标签可提供文字但不通过对象关系重新暴露。关系或相关文字变化随同一 publish 发布并发送适用的名称／布局通知，客户端保留旧对象后查询不跳转到新身份。
 
-本批定向验证必须覆盖实际原生查询、动作结果、受控拒绝、发布顺序、重入拒绝、窗口／provider 关闭和客户端保留旧对象；外部 AX 客户端与 VoiceOver 的实际结果分别记录，直接调用 NSAccessibility 方法不冒充跨进程验收。完整文本范围、滚动动作、复杂控件关系、精确命中、虚拟集合、三平台与真实工具任务仍执行 S2～S11 的相应验证。
+本批定向验证必须覆盖实际原生查询、精确命中、动作结果、受控拒绝、发布顺序、重入拒绝、窗口／provider 关闭和客户端保留旧对象；外部 AX 客户端与 VoiceOver 的实际结果分别记录，直接调用 NSAccessibility 方法不冒充跨进程验收。完整文本范围、滚动动作、复杂控件关系、激活点、虚拟集合、三平台与真实工具任务仍执行 S2～S11 的相应验证。
 
 忽略节点的 AppKit Children／Parent 使用同一份已发布阅读关系折叠包装，不能丢掉其独立交互后代。原生端仅在父子／阅读顺序变化时更新子项索引，名称、几何和透明度更新不重建该索引。忽略与恢复分别发送适用结构通知，不发送退休通知。
+
+AppKit 的 accessibilityHitTest 从屏幕点经当前 NSWindow／NSView 转为窗口逻辑坐标，按已发布的场景顺序调用 native contains；内容 view 与 provider 根使用同一入口。节点内查询限于该语义子树，根查询覆盖全部内容；窗口内没有命中子项时返回内容根，窗口外或失活时无结果。更新窗口位置或 DPI 使用现有坐标换算，查询不请求帧。命中索引只在快照有无、节点增删或场景顺序变化时更新；名称、错误和普通 handler 更新不重排索引。激活点查询仍须另行满足实际输入资格和可点击位置合同，本批不开放未经验证的 ActivationPoint。

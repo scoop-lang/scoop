@@ -127,7 +127,7 @@ public class AccessibilityProvider internal constructor(
         node.active = false
         retireSemanticRelations(node)
         node.actions = SemanticActions()
-        node.placement = None
+        node.invalidateGeometry()
         projection!!.retire(node.id.number)
         for (child in node.children.toArray())
             retire(child)
@@ -206,7 +206,7 @@ public class AccessibilityProvider internal constructor(
         for (node in nodes.values) {
             node.active = false
             node.actions = SemanticActions()
-            node.placement = None
+            node.invalidateGeometry()
             node.children.clear()
             node.parentNode = None
             node.relationValues = SemanticRelations()

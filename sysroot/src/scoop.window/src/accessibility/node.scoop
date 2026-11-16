@@ -2,6 +2,7 @@ package scoop.window.accessibility
 
 import scoop.collections.HashMap
 import scoop.window.*
+import scoop.window.accessibility.native.NativeSemanticHitTest
 
 /** A semantic resource whose role and identity last until it is explicitly retired. */
 public class AccessibilityNode internal constructor(
@@ -26,6 +27,8 @@ public class AccessibilityNode internal constructor(
     private var revision = 0UL
     internal var placement: SemanticGeometry? = None
     internal var order = 0L
+    internal var hit: SemanticHitSnapshot? = None
+    internal var sceneOrder = 0L
 
     public val isClosed: Boolean get() {
         provider.checkThread()
@@ -72,9 +75,30 @@ public class AccessibilityNode internal constructor(
     set(value) {
         checkOpen()
         if (placement == value)
-            return
+            when (hit) {
+                case None -> return
+                case Some(_) -> {}
+            }
         value?.check()
+        invalidateGeometry()
         placement = value
+        provider.changed(this)
+    }
+
+    /** Retains matching accepted geometry and its native hit test in actual scene order. */
+    @Unsafe
+    public fun setGeometry(
+        geometry: SemanticGeometry,
+        hitTest: NativeSemanticHitTest,
+        order: Long = 0L
+    ) {
+        checkOpen()
+        geometry.check()
+        val next = SemanticHitSnapshot(hitTest)
+        invalidateGeometry()
+        placement = Some(geometry)
+        hit = Some(next)
+        sceneOrder = order
         provider.changed(this)
     }
 
@@ -143,7 +167,14 @@ public class AccessibilityNode internal constructor(
 
     internal fun invalidateContent() {
         revision += 1UL
+        invalidateGeometry()
+    }
+
+    internal fun invalidateGeometry() {
         placement = None
+        hit?.close()
+        hit = None
+        sceneOrder = 0L
     }
 
     /** Changes reading order; geometry and creation identity do not determine parenthood. */

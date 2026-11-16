@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、名称／说明／错误／controls 关系、内容合并／忽略和 Accepted 场景接入已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、复杂控件关系、精确命中和外部客户端仍待完成 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、名称／说明／错误／controls 关系、内容合并／忽略、Accepted 场景与精确命中已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、复杂控件关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
 | S5～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
@@ -159,3 +159,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - Window／UI 生产源码和受影响测试 Cone 检查、三个依赖产物的 release 构建、Scoop 格式与 Objective-C 严格编译检查通过。Window 原生测试实际通过，新增 UI 内容合并测试与既有无 drawable 逻辑回归实际通过，覆盖优先级、名称环恢复、展平、动态动作／焦点资格、真实原生动作、重排身份、隐藏／忽略和关闭；隐藏窗口中的纯文字更新没有 measure／scene。
 
 已同步两份正式无障碍规范、设计与计划、README、测试说明和编程导航，生成并查询 Window／UI API，核对 contentLabels、ignored、mergeLabels 的访问器、默认值和 import；临时 API 站点已清理。桌面仍为 ScreenIsLocked=true，未重复启动依赖实际呈现的场景或将本批进程内原生方法记为外部 AX／VoiceOver 通过。内置控件、精确命中、完整文本与虚拟集合及其他平台继续按完整计划实施。
+
+### 已接受场景的原生精确命中
+
+- graphics 所需的不可变 native 命中快照已独立提交，并经 [PR #143](https://github.com/scoop-lang/scoop/pull/143) 合入 main；工作分支与开发 graphics／text 产物已更新。Window 的 NativeSemanticHitTest 只描述配套的 context／retain／release／contains，不依赖 graphics，也不在原生 getter 中回调 Scoop。节点与已发布投影分别保留引用，普通 geometry 赋值清除命中，内容失效、替换、退休和关闭释放各自引用。
+- UI 的 Rect／Path 语义登记捕获真实变换、路径 clip、viewport 与层叠顺序；Rect 参与缓存重放，Path 与已有输入登记一致使该场景不缓存。候选、节点及原生投影寿命分别管理，只有内容版本匹配的 Accepted 场景生效；Discarded、场景失败与根关闭释放候选。AppKit 从屏幕点转换到当前窗口逻辑点，按前景顺序查询，支持 ignored 祖先映射和独立后代；阅读顺序不随场景顺序变化，没有命中快照时不猜矩形结果。
+- 13 个变更的 Scoop 文件格式、6 个 native 文件格式及生产／测试 Objective-C 严格编译检查通过；Window／UI 及受影响测试 Cone 检查、Window→Surface→UI 的 release 构建通过。Window 原生测试实际通过，覆盖带孔路径、源对象关闭、层叠／阅读顺序、窗口边界、禁用／隐藏／忽略、内容失效、仅矩形赋值及发布失败保留旧快照。UI 无 drawable 逻辑与内容合并两组回归实际通过。
+- UI 场景程序新增重叠矩形与带孔 Path、屏幕坐标查询、祖先裁剪、缓存重放、未放置、内容失效、层叠重排和 Accepted／Discarded 组合；源码检查与 release 可执行文件构建通过。桌面仍为 ScreenIsLocked=true，实际呈现及焦点场景未运行；进程内 NSAccessibility 方法结果不代替外部 AX、VoiceOver 或其他平台验收。ActivationPoint 的真实输入资格与可点击位置仍待接入。
+
+正式规范、两份设计、计划、README、测试说明与编程导航已同步；Window／UI API 已生成并查询 setGeometry、NativeSemanticHitTest 的字段和 import，以及 SceneContext 的 Rect／Path 重载。临时 API 站点已清理，保留共享开发产物与待实窗运行的程序。内置控件、完整文本／集合、其余平台和本轮交互能力继续按统一计划推进。

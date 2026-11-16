@@ -6,6 +6,8 @@
 
 普通 `scoop test . --release` 在独立的原生主队列任务中执行 NSAccessibility 方法，确保动作不被业务回调的重入保护误接收。所有 native 检查失败均返回对应源码行号；最后一个动作故意抛出异常，验证正常退出和 callback 退休。
 
+精确命中用例通过 graphics 创建变换后的带孔 Path 与矩形，关闭源 Canvas／Path／Geometry 后再查询真实原生对象。公开 accessibilityHitTest 覆盖 view／根／子树入口、窗口边界、层叠与阅读顺序分离、hidden／ignored／disabled、仅矩形时不猜命中、内容失效及旧对象退休。发布名称环失败后旧投影仍可命中，修正发布后不再使用旧快照。
+
 跨进程验证使用本目录的 `native/client.c`，通过公开 AXUIElement C API 连接测试进程，按实际 identifier 查找并执行动作。不需要新增服务或第二个编辑模型。先在仓库外编译客户端，再设置 `SCOOP_ACCESSIBILITY_CLIENT` 为其绝对路径运行同一个 Cone：
 
 ```sh

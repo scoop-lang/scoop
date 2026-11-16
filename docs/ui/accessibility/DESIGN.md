@@ -1,6 +1,6 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并与忽略已接入，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、复杂控件关系、文本范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
+日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并／忽略及精确命中已接入，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、复杂控件关系、文本范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
 
 完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 
@@ -143,11 +143,11 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 
 ### 5.2 几何有效性
 
-`SceneContext.semantics` 记录局部 bounds、transform、clip、scroll path 和层叠信息，由根在 `FrameCompletion.Accepted` 时统一生效。`Discarded` 不发布候选坐标；旧场景仍有效且语义对象未改变时可继续使用其几何。
+`SceneContext.semantics` 的 Rect／Path 重载捕获局部形状、transform、clip 和实际层叠顺序，由根在 `FrameCompletion.Accepted` 时统一发布位置与精确命中。Rect 登记参与场景缓存重放，Path 与现有 Path 输入登记一样使场景不缓存；调用结束后不借用原 Path。`Discarded` 不发布候选坐标；旧场景仍有效且语义对象未改变时可继续使用其几何。
 
 新节点尚未呈现、布局与当前内容不匹配，或旧场景已经失效时，几何明确标为不可用。不能用 `(0, 0, 0, 0)`、缓存前的位置或估算的列表 extent 冒充可点击位置。原生协议要求固定形状返回值时，使用其规定的空值／失败，同时不能据此声称元素已在屏幕上。
 
-对部分可见或非矩形裁剪内容，bounding rectangle 只是外接矩形。可点击点必须通过有效命中区域验证；矩形中心不构成点击保证。精确 hit test 复用已提交的 UI 场景，不在 Window 层复制一套 Path／clip 引擎。
+对部分可见或非矩形裁剪内容，bounding rectangle 只是外接矩形。可点击点必须通过有效命中区域验证；矩形中心不构成点击保证。精确 hit test 通过 graphics 的 withNativeHitTest 保留已提交场景的不可变原生命中快照，不在 Window 层复制 Path／clip 引擎，也不在原生 getter 中回调 Scoop。候选、Window 节点和已发布投影分别持有所需引用，丢弃、版本失效、替换及关闭释放对应引用。AppKit 从屏幕点转换到当前窗口逻辑坐标，按场景顺序查询；阅读顺序保持独立。ActivationPoint 仍须通过真实输入资格和可点击位置验证，不能仅因已有 hit test 就开放矩形中心。
 
 原生后端负责窗口逻辑坐标到平台要求的屏幕坐标转换，包括缩放、多显示器和坐标轴方向。窗口移动可刷新原生坐标映射，不要求重绘所有语义节点。窗口被其他窗口遮挡与控件被自身滚动容器裁剪分别处理，不能把二者统一映射为 hidden。
 

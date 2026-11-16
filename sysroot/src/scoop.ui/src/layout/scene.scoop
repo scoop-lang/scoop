@@ -66,6 +66,13 @@ public class SceneContext internal constructor(
         handle.controller.capture(handle, frame.canvas, bounds)
         recorder?.add(SceneCommand.Semantics(handle, bounds))
     }
+    /** Captures a precise path; like path input placement, this scene is not cached. */
+    public fun semantics(handle: SemanticsHandle, shape: Path) {
+        checkOwner(handle.owner)
+        handle.checkOpen()
+        pass.cacheable = false
+        handle.controller.capture(handle, frame.canvas, shape)
+    }
     /** Runs after this frame ends, while this node remains mounted and its root remains open. */
     public fun onFrameComplete(action: (FrameCompletion) -> Unit) {
         checkActive()

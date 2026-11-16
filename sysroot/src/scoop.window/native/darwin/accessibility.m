@@ -1,5 +1,24 @@
 #import "accessibility.h"
 
+@implementation SWAccessibilityHitGeometry {
+  SWAccessibilityHitData _value;
+}
+- (instancetype)initWithValue:(SWAccessibilityHitData)value {
+  if ((self = [super init])) {
+    _value = value;
+    _value.retain(_value.context);
+  }
+  return self;
+}
+- (BOOL)containsPoint:(NSPoint)point {
+  return _value.contains(_value.context, point.x, point.y) != 0;
+}
+- (void)dealloc {
+  if (_value.context)
+    _value.release(_value.context);
+}
+@end
+
 @implementation SWAccessibilityState
 @end
 
@@ -45,6 +64,7 @@ SWResult scoop_window_accessibility_create(void *window,
       tree.context = context;
       tree.published = @{};
       tree.children = @{};
+      tree.hitOrder = @[];
       tree.elements = [NSMutableDictionary new];
       tree.retiring = [NSMutableSet new];
       tree.rootState = [SWAccessibilityState new];
@@ -89,6 +109,22 @@ int64_t scoop_window_accessibility_put(void *pointer,
       state.titleFor = [NSMutableArray new];
       tree.pending[@(data.number)] = state;
       return 0;
+    } @catch (NSException *exception) {
+      return 1;
+    }
+  }
+}
+
+int64_t scoop_window_accessibility_hit(void *pointer, int64_t number,
+                                       SWAccessibilityHitData value) {
+  @autoreleasepool {
+    @try {
+      SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
+      SWAccessibilityState *state = tree.pending[@(number)];
+      if (!state || tree.closed)
+        return -4;
+      state.hit = [[SWAccessibilityHitGeometry alloc] initWithValue:value];
+      return state.hit ? 0 : 1;
     } @catch (NSException *exception) {
       return 1;
     }
@@ -237,6 +273,22 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
   }
 }
 
+static NSArray<NSNumber *> *
+hitIndex(NSDictionary<NSNumber *, SWAccessibilityState *> *states) {
+  NSMutableArray<NSNumber *> *numbers = [NSMutableArray new];
+  for (NSNumber *number in states)
+    if (states[number].hit)
+      [numbers addObject:number];
+  return [numbers sortedArrayUsingComparator:^NSComparisonResult(
+                      NSNumber *left, NSNumber *right) {
+    int64_t a = states[left].data.scene_order;
+    int64_t b = states[right].data.scene_order;
+    return a < b   ? NSOrderedAscending
+           : a > b ? NSOrderedDescending
+                   : [left compare:right];
+  }];
+}
+
 int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
   @autoreleasepool {
     @try {
@@ -251,19 +303,25 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
         [next removeObjectForKey:number];
       [next addEntriesFromDictionary:changes];
       BOOL orderChanged = removed.count != 0;
+      BOOL hitOrderChanged = removed.count != 0;
       BOOL visibilityChanged = NO;
       for (NSNumber *number in changes) {
         SWAccessibilityState *old = previous[number];
         SWAccessibilityState *value = changes[number];
-        orderChanged |= !old || old.data.parent != value.data.parent ||
-                        old.data.order != value.data.order;
-        visibilityChanged |= ((old.data.flags ^ value.data.flags) &
+        SWAccessibilityData before = old ? old.data : (SWAccessibilityData){0};
+        orderChanged |= !old || before.parent != value.data.parent ||
+                        before.order != value.data.order;
+        hitOrderChanged |= (old.hit == nil) != (value.hit == nil) ||
+                           before.scene_order != value.data.scene_order;
+        visibilityChanged |= ((before.flags ^ value.data.flags) &
                               (SWAXHidden | SWAXIgnored)) != 0;
       }
       NSDictionary *children = orderChanged ? childIndex(next) : tree.children;
+      NSArray *hits = hitOrderChanged ? hitIndex(next) : tree.hitOrder;
       int64_t oldFocus = tree.focused;
       tree.published = next;
       tree.children = children;
+      tree.hitOrder = hits;
       tree.focused = focused;
       tree.pending = nil;
       tree.removed = nil;
@@ -321,6 +379,7 @@ void scoop_window_accessibility_close(void *pointer) {
   [tree.retiring removeAllObjects];
   tree.published = @{};
   tree.children = @{};
+  tree.hitOrder = @[];
   tree.pending = nil;
   tree.removed = nil;
 }

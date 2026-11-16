@@ -75,6 +75,12 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeFrame(pointer, view, x, y, width, height) != 0
         }
     }
+    public fun hit(view: Ptr<Unit>, x: Double, y: Double, expected: NativeNode?): Boolean {
+        @Unsafe
+        {
+            return nativeHit(pointer, view, x, y, expected?.pointer) != 0
+        }
+    }
     public override fun close() {
         @Unsafe
         {
@@ -184,6 +190,15 @@ private fun nativeFrame(
     y: Double,
     width: Double,
     height: Double
+): Int
+
+@Extern(name = "scoop_ui_ax_hit")
+private fun nativeHit(
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    expected: Ptr<Unit>?
 ): Int
 
 @Extern(name = "scoop_ui_ax_release")

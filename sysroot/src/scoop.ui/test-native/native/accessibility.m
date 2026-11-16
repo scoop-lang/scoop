@@ -100,6 +100,15 @@ int32_t scoop_ui_ax_frame(void *pointer, void *view, double x, double y,
   return NSEqualRects([(__bridge id)pointer accessibilityFrame], expected);
 }
 
+int32_t scoop_ui_ax_hit(void *pointer, void *viewPointer, double x, double y,
+                        void *expected) {
+  NSView *view = (__bridge NSView *)viewPointer;
+  NSPoint windowPoint = [view convertPoint:NSMakePoint(x, y) toView:nil];
+  NSPoint point = [view.window convertPointToScreen:windowPoint];
+  return [(__bridge id)pointer accessibilityHitTest:point] ==
+         (__bridge id)expected;
+}
+
 int32_t scoop_ui_ax_press(void *pointer) {
   return [(__bridge id)pointer accessibilityPerformPress];
 }

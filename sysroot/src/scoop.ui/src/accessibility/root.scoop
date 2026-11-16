@@ -2,6 +2,7 @@ package scoop.ui
 
 import scoop.graphics.Canvas
 import scoop.graphics.Rect
+import scoop.graphics.Path
 import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
@@ -137,29 +138,39 @@ internal class RootSemantics(
     }
 
     fun beginFrame() {
+        drawing?.close()
         drawing = Some(SemanticScene())
     }
-    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect) {
+    private fun frame(): SemanticScene {
         when (drawing) {
             case None -> drawing = Some(SemanticScene())
             case Some(_) -> {}
         }
-        drawing!!.capture(handle, canvas, rect)
+        return drawing!!
+    }
+    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect) {
+        frame().capture(handle, canvas, rect)
+    }
+    fun capture(handle: SemanticsHandle, canvas: Canvas, path: Path) {
+        frame().capture(handle, canvas, path)
     }
     fun complete(frame: FrameCompletion) {
         val scene = drawing
         drawing = None
-        if (closed || provider.isClosed || frame.submission != FrameSubmission.Accepted)
-            return
-        for (handle in handles)
-            if (handle.active)
-                handle.resource.geometry =
+        try {
+            if (closed || provider.isClosed || frame.submission != FrameSubmission.Accepted)
+                return
+            for (handle in handles)
+                if (handle.active)
                     when (scene) {
-                        case Some(val value) -> value.geometry(handle)
-                        case None -> None
+                        case Some(val value) -> value.apply(handle)
+                        case None -> handle.resource.geometry = None
                     }
-        dirty = true
-        publish()
+            dirty = true
+            publish()
+        } finally {
+            scene?.close()
+        }
     }
 
     fun retire(handle: SemanticsHandle) {
@@ -193,9 +204,11 @@ internal class RootSemantics(
         if (closed)
             return
         closed = true
+        val scene = drawing
         drawing = None
         focusedArea = None
-        var failure = cleanupUi(None) { observer.close() }
+        var failure = cleanupUi(None) { scene?.close() }
+        failure = cleanupUi(failure) { observer.close() }
         failure = cleanupUi(failure) { provider.close() }
         for (handle in handles)
             handle.finishClose()
