@@ -18,7 +18,7 @@
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及四个原生场景的源码检查／构建通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；Reveal、滚动实窗及平台验收待继续 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
-| S6 | 进行中 | 首批 Window／AppKit 接收资源已接入，格式与 effect 协商、延迟数据读取和生命周期协议方法测试通过；source、UI 路由、文本事务、三个范围的真实系统会话与其他平台继续推进 |
+| S6 | 进行中 | Window／AppKit source／target、UI Accepted 接收路由与来源阈值已接入；格式协商、接收生命周期和真实帧下来源准备／取消测试通过，双窗口消费者构建通过；文本事务、三个范围的完整系统会话、活动来源生命周期与其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -278,3 +278,13 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 同步 Window 主规范与拖放规范、设计、计划、README 和编程导航，局部 Markdown 目标检查通过；临时 API 站点清理，保留开发产物与共享缓存。
 
 实际 NSDraggingSession、外部程序的双向 Copy／Move、活动源关闭和跨窗口系统会话尚未验收。UI source、文本拖出与落点事务、其他平台继续按 S6 实现，不以本批准备通路或替身测试关闭对应条目。
+
+### UI 来源阈值、准备与实际帧接入
+
+- ComponentScope.dragSource 借用同一挂载的 InputArea，左键单击超过窗口逻辑阈值后才准备数据并沿 Surface claim 接管；未达阈值或 prepare 返回 None 保留点击。DragSourceStart 同时提供 Accepted 局部坐标和原始／当前输入，DragSourceData 将具体来源与本次完成处理器配对，普通 render 更新不会把旧结果交给新来源。
+- 可追踪的 isDragging、update、cancelPending 与 close 已接入；准备回调内取消会使当前准备失效，完成先清状态再走本根业务派发。SystemOperation 和正常失焦不取消已经准备的数据会话，禁用／卸载／关根关闭关联资源。AppKit 活动 OS 会话继续沿 Window 的实际关闭边界，不伪造取消或来源删除。
+- 两个 UiDragSourceTest 实际通过，覆盖轴向阈值、不同显示 scale、非法配置、同挂载归属、评估阶段限制与借用资源收尾。UiDragSourceSessionTest 使用真实 Accepted 窗口帧、平移／缩放几何、真实 AppKit view 输入方法，实际通过阈值前点击、拒绝仅准备一次、原回调配对、准备内取消、未启动原生请求的一次完成、禁用和关根收尾。此测试主动在 NSDraggingSession 启动前取消或关闭请求，不冒充系统拖动验收。
+- 既有 UiDropRoutingTest 回归通过。双窗口示例接入文本／URL 拖出与原接收区域，保留文件父目标、同一模型的复制／粘贴、键盘入口、真实焦点和语义 Press；release 检查与链接通过，实际跨窗口／跨程序拖动和 VoiceOver 操作待验。
+- 10 个 Scoop 文件的格式检查通过；UI 含测试检查、来源接入 Cone 检查及 Surface→UI 开发产物更新完成。9 次 API 查询核对创建入口、Options／Data／Start、更新／取消／关闭、状态访问器、默认值与导入。规范、设计、计划、README 和编程导航同步；局部 Markdown 的 123 个本地目标检查通过，临时 API 站点清理。
+
+本批关闭 UI 来源准备通路的局部交付。文本选区拖出、接收事务与 caret、同文档 Move、活动来源的模态／关闭组合和三范围完整 OS 会话保持未完成；静态 API、实际窗口帧、注入输入、原生 tracking 和外部程序结果分开记录。

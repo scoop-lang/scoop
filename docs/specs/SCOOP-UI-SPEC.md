@@ -423,7 +423,7 @@ ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后�
 
 ### 7.3 输入与焦点接入
 
-数据拖放的区域登记、逻辑父链接收、反馈和同步完成见[UI 数据拖放规范](SCOOP-UI-DRAG-DROP-SPEC.md)；它借用本节 InputArea，独立于普通鼠标 capture 与失焦收尾。
+Darwin 的 scope.dragSource 和 scope.dropTarget 借用本节同一挂载的 InputArea。DragSource 在窗口逻辑阈值后准备数据并接管原按下路径，未开始时保留普通点击；准备的数据持有本次完成处理器，更新后续准备函数不替换旧会话的来源。区域登记、逻辑父链接收、反馈、同步完成与资源收尾见[UI 数据拖放规范](SCOOP-UI-DRAG-DROP-SPEC.md)，系统会话独立于普通鼠标 capture 与失焦收尾。
 
 `ComponentScope.moveFocus(reverse: Boolean = false): Boolean` 从本作用域内当前逻辑焦点继续一次 Tab／Shift+Tab 遍历。没有本作用域内的有效焦点时返回 false；有效时从目标最近的 FocusScope 开始，沿用其 loop、父级续行、roving、lazy 显露、唯一 pending 与 FocusOrigin.Keyboard。它不合成键盘事件，不激活 OS 窗口，也不跨越当前焦点域；返回 true 表示请求已被接受。只能在逻辑／输入／完成回调阶段调用。菜单在 Portal 的 onClosed（焦点域已释放且正常恢复已尝试）中消费保存的 Tab 方向；新焦点已离开原 owner 时不抢回焦点。
 

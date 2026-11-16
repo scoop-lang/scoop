@@ -20,6 +20,20 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
 
+    internal fun createDragSource(
+        area: InputArea,
+        options: DragSourceOptions,
+        prepare: (DragSourceStart) -> DragSourceData?,
+        begin: (DragSourceData, (DragResult) -> Unit) -> DragSession
+    ): DragSource {
+        checkMounted()
+        checkDropMutation()
+        requireBehaviorArea(area)
+        val value = DragSource(root, this, area, options, prepare, begin)
+        managed.add(value)
+        return value
+    }
+
     internal fun createDropArea(
         area: InputArea,
         handlers: DropAreaHandlers,

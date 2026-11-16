@@ -1,0 +1,119 @@
+package scoop.ui
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class UiDragSourceTest {
+    @Test
+    fun `data drag threshold uses either logical axis independently of display scale`() {
+        for (scale in [1.0, 2.0, 1.5]) {
+            val start = sourcePointer(40.0, 50.0, scale)
+            assertFalse(dragSourceThreshold(start, sourcePointer(43.9, 53.9, scale), 4.0))
+            assertTrue(dragSourceThreshold(start, sourcePointer(44.0, 50.0, scale), 4.0))
+            assertTrue(dragSourceThreshold(start, sourcePointer(40.0, 46.0, scale), 4.0))
+            assertTrue(dragSourceThreshold(start, start, 0.0))
+            assertFalse(dragSourceThreshold(start, sourcePointer(1.0 / 0.0, 50.0, scale), 4.0))
+        }
+        for (threshold in [-1.0, 0.0 / 0.0, 1.0 / 0.0])
+            assertFailsWith<IllegalArgumentException> { DragSourceOptions(threshold) }
+        assertEquals(4.0, DragSourceOptions().threshold)
+        assertTrue(DragSourceOptions().enabled)
+        assertEquals(DragEffects(true, false, false), DragSourceData(DragContent.Text("")).effects)
+    }
+
+    @Test
+    fun `sources borrow same mount areas and retire without preparing data`() {
+        val values = ArrayList<SourceResourceComponent>()
+        UiHost {
+            host,
+            active,
+            event -> when (event) {
+                case Resumed -> {
+                    for (index in 0 ..< 2) {
+                        val window =
+                            active.createWindow(
+                                windowAttributes {
+                                    title = "Scoop drag source resources"
+                                    visible = false
+                                    requestActivation = false
+                                }
+                            )
+                        host.attach(window, { scope -> SourceResourceComponent(values, scope) })
+                    }
+                    val first = values[0L]
+                    val second = values[1L]
+                    assertFailsWith<IllegalArgumentException> {
+                        first.mount.dragSource(second.area) { _ -> None }
+                    }
+                    first.source.update(DragSourceOptions(9.0, false)) { _ -> fail() }
+                    assertFalse(first.source.isDragging)
+                    assertFalse(first.source.cancelPending())
+                    first.source.close()
+                    first.source.close()
+                    assertTrue(first.source.isClosed)
+                    assertFalse(first.area.isClosed)
+                    assertFailsWith<IllegalArgumentException> {
+                        first.source.update(DragSourceOptions()) { _ -> None }
+                    }
+                    first.mount.dragSource(first.area) { _ -> None }
+                    active.requestExit()
+                }
+                else -> {}
+            }
+        }.use { host -> Application().run(host) }
+        assertEquals(2L, values.size)
+        for (value in values) {
+            assertTrue(value.renderChecked)
+            assertTrue(value.source.isClosed)
+            assertTrue(value.area.isClosed)
+        }
+    }
+}
+
+private class SourceResourceComponent(
+    values: ArrayList<SourceResourceComponent>,
+    val mount: ComponentScope
+): Component(mount) {
+    val area = mount.createArea()
+    val source = mount.dragSource(area) { _ -> fail(Some("resource test must not prepare data")) }
+    var renderChecked = false
+    init {
+        values.add(this)
+    }
+    public override fun render(): View {
+        assertFailsWith<IllegalStateException> { source.update(DragSourceOptions()) { _ -> None } }
+        assertFailsWith<IllegalStateException> { source.close() }
+        assertFailsWith<IllegalStateException> { source.cancelPending() }
+        assertFailsWith<IllegalStateException> { mount.dragSource(area) { _ -> None } }
+        renderChecked = true
+        return empty()
+    }
+}
+
+private fun sourcePointer(x: Double, y: Double, scale: Double): InputPointer {
+    val time = InputTime.Event(MonotonicTimeSource.markNow())
+    return InputPointer(
+        PointerState(
+            LogicalPosition(x, y),
+            PhysicalPosition(x * scale, y * scale),
+            scale,
+            Modifiers(
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                ModifierSides(None, None),
+                ModifierSides(None, None),
+                ModifierSides(None, None),
+                ModifierSides(None, None)
+            ),
+            time
+        ),
+        time
+    )
+}

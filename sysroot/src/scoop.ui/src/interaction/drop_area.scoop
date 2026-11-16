@@ -70,7 +70,7 @@ public class DropArea internal constructor(
 internal fun checkDropMutation() {
     when (currentEvaluation()) {
         case Some(_) -> throw IllegalStateException(
-            Some("drop bindings cannot change during render, measure, scene or draw")
+            Some("data drag bindings cannot change during render, measure, scene or draw")
         )
         case None -> {}
     }

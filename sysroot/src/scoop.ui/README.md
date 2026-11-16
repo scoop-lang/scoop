@@ -91,7 +91,7 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 自定义滚动条可在同一挂载创建 ScrollBar 节点，并在正常 update 以及视口 Accepted 完成回调之后调用 `semantic.updateScrollBar(viewport, SemanticOrientation.Vertical, lineStep = 40.0)`；方向从 `scoop.window.accessibility` 导入，扩展函数位于 scoop.ui。文本编辑器的同名重载从 scoop.ui.text 导入，首参数为 TextEditHost，继续借用其原视口。范围来自真实 Accepted 快照，尚无范围或零范围时忽略条节点。动作沿原 ScrollState 的 User 请求，连续写入保留另一轴的待处理位置；换绑后旧回调不可操作新状态。滚动请求登记与位置呈现分别处理，视觉自动隐藏不移除逻辑能力。
 
-## 数据拖放接收
+## 数据拖放
 
 macOS 的 `scope.dropTarget(area, DropAreaHandlers(offer, drop, leave), enabled = true)` 在当前挂载借用已有 InputArea，返回随 scope 关闭的 DropArea；同一区域同时只登记一个。offer／drop 的首参数复用 Window 的元数据／自有内容，第二参数为区域局部坐标。offer 只选择实际提供的格式与操作；drop 的 Boolean 表示已经实际接收，不能先排队再返回 true。
 
@@ -99,7 +99,11 @@ macOS 的 `scope.dropTarget(area, DropAreaHandlers(offer, drop, leave), enabled 
 
 `hover: DropHover?` 提供当前接收格式、操作与局部位置，可以在 render 或 scene 读取来绘制反馈。目标变化和正常结束清除旧值并通知仍存活目标；禁用后的 leave 在正常 UI 收尾时执行。UI 使用 AppKit 的活动拖放更新重新查询几何；无活动会话时不为拖放建立 timer 或持续请求帧。
 
-接口及边界见[UI 数据拖放规范](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md)，完整消费者见[接收示例](examples/drop-target/README.md)。示例把粘贴、键盘／语义 Press 与文本接收写入同一状态。普通逻辑测试见 [drop_routing.scoop](tests/drop_routing.scoop)；source、文本编辑事务、其他平台和三个范围的真实系统会话继续按 S6 推进，分层测试不能替代实窗验收。
+macOS 的 `scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, onCompleted))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 InputPointer 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。
+
+DragSource.update 替换下一次准备的配置／函数；每份数据的 onCompleted 保留自己的来源，先清除 isDragging 再回到本根业务派发。默认只提供 Copy；需要 Move 时在准备中捕获原模型及修订，收到 Dropped(Move) 后核对原内容仍可删除。库不替业务删除数据。isDragging 包含尚未启动的准备状态，cancelPending 只撤销候选或未启动请求；关闭行为撤销完成回调，AppKit 活动会话的数据按系统生命周期保留。
+
+接口及边界见[UI 数据拖放规范](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md)，完整消费者见[双窗口拖放示例](examples/drop-target/README.md)。示例把文本／URL 拖出、复制／粘贴、键盘／语义 Press 和接收写入同一状态。逻辑测试见 [drop_routing.scoop](tests/drop_routing.scoop) 和 [drag_source.scoop](tests/drag_source.scoop)，Accepted 来源接入见 [drag-source 测试](tests-cones/drag-source/README.md)。文本编辑事务、其他平台和三个范围的真实系统会话继续按 S6 推进，分层测试不能替代实窗验收。
 
 ## 自绘与资源
 

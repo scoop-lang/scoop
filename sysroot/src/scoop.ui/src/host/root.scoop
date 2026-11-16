@@ -68,6 +68,7 @@ internal class UiRoot(
     val overlays = OverlayController(this)
     var semantics: RootSemantics? = None
     var drops: RootDrops? = None
+    var dragSource: DragSource? = None
     var windowFrame: UiWindowFrameClaim? = None
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
@@ -133,6 +134,7 @@ internal class UiRoot(
         }
         semantics?.publish()
         drops?.flushLeaves()
+        dragSource?.reconcile()
     }
     override fun dispatchUpdate() {
         surface.dispatch { flush() }
@@ -195,6 +197,7 @@ internal class UiRoot(
             failure = cleanupUi(failure) { preferences.close() }
             failure = cleanupUi(failure) { focus.close() }
             failure = cleanupUi(failure) { drops?.close() }
+            failure = cleanupUi(failure) { dragSource?.close() }
             failure = cleanupUi(failure) { semantics?.close() }
             failure = cleanupUi(failure) { node?.deactivate() }
             failure = cleanupUi(failure) { overlays.stop() }

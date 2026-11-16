@@ -8,7 +8,11 @@ import scoop.ui.text.*
 import scoop.window.*
 import scoop.window.accessibility.*
 
-private struct DropView(val message: String, val accept: (DragContent) -> Unit)
+private struct DropView(
+    val message: String,
+    val received: DragContent?,
+    val accept: (DragContent) -> Unit
+)
 
 private class DropDemo(scope: ComponentScope): Component(scope) {
     private var received: DragContent? by state<DragContent?>(None)
@@ -21,7 +25,7 @@ private class DropDemo(scope: ComponentScope): Component(scope) {
                 case None -> "Nothing received yet."
             }
         return element(
-            DropView(message, { value -> received = Some(value) }),
+            DropView(message, received, { value -> received = Some(value) }),
             { props, mount -> DropDrawing(props, mount) }
         )
     }
@@ -33,23 +37,30 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
     private val paragraph = scope.resource { ParagraphHost() }
     private val background = scope.createArea()
     private val textArea = scope.createArea(focusable = true, parent = Some(background))
-    private val urlArea = scope.createArea(parent = Some(background))
+    private val urlArea = scope.createArea(focusable = true, parent = Some(background))
     private val files = scope.dropTarget(background, handlers(DragFormat.Files))
     private val text = scope.dropTarget(textArea, handlers(DragFormat.Text))
     private val url = scope.dropTarget(urlArea, handlers(DragFormat.Url))
+    private val textSource =
+        scope.dragSource(textArea) { _ -> Some(DragSourceData(DragContent.Text(textContent()))) }
+    private val urlSource =
+        scope.dragSource(urlArea) { _ -> Some(DragSourceData(DragContent.Url(urlContent()))) }
     private val press =
         scope.press(textArea) {
             paste();
             Unit
         }
     private val focus = scope.focusTarget(textArea)
+    private val urlPress = scope.press(urlArea) { copy(true) }
+    private val urlFocus = scope.focusTarget(urlArea)
     private val fileSemantic = scope.semantics(SemanticRole.Group)
     private val textSemantic = scope.semantics(SemanticRole.Button, Some(fileSemantic))
-    private val urlSemantic = scope.semantics(SemanticRole.Group, Some(fileSemantic))
+    private val urlSemantic = scope.semantics(SemanticRole.Button, Some(fileSemantic))
     private val resultSemantic = scope.semantics(SemanticRole.Text, Some(fileSemantic))
 
     public override fun onMount() {
         textSemantic.bindFocus(Some(focus))
+        urlSemantic.bindFocus(Some(urlFocus))
         scope.resource {
             ShortcutScope(
                 scope.input,
@@ -63,6 +74,13 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                             paste();
                             Unit
                         }
+                    ),
+                    shortcutBinding(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("c")),
+                            ShortcutModifiers(primary = true)
+                        ),
+                        { copy(urlArea.hasFocus) }
                     )
                 ]
             )
@@ -73,6 +91,26 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
         val value = scope.nativeWindow.clipboard.readText() ?: return SemanticActionResult.Rejected
         props.value.accept(DragContent.Text(value))
         return SemanticActionResult.Completed
+    }
+
+    private fun textContent(): String =
+        when (val value = props.value.received) {
+            case Some(DragContent.Text(val text)) -> text
+            case Some(DragContent.Url(val url)) -> url
+            else -> "Scoop text — 中文 é 😀"
+        }
+    private fun urlContent(): String =
+        when (val value = props.value.received) {
+            case Some(DragContent.Url(val url)) -> url
+            else -> "https://example.com/"
+        }
+    private fun copy(url: Boolean) {
+        scope.nativeWindow.clipboard.writeText(
+            if (url)
+                urlContent()
+            else
+                textContent()
+        )
     }
 
     private fun handlers(format: DragFormat): DropAreaHandlers =
@@ -105,12 +143,27 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                 name = Some("Paste text"),
                 description =
                     Some(
-                        "Click, press Enter or Space, or use Command V. Text drops are also accepted."
+                        "Click, press Enter or Space, or use Command V to paste. Drag to send text, or use Command C to copy it."
                     )
             ),
             SemanticActions(invoke = Some({ paste() }))
         )
-        urlSemantic.update(SemanticProperties(name = Some("Receive URL")))
+        urlSemantic.update(
+            SemanticProperties(
+                name = Some("Copy URL"),
+                description =
+                    Some("Click or press Enter or Space to copy. Drag to send the same URL.")
+            ),
+            SemanticActions(
+                invoke =
+                    Some(
+                        {
+                            copy(true);
+                            SemanticActionResult.Completed
+                        }
+                    )
+            )
+        )
         resultSemantic.update(SemanticProperties(value = Some(props.value.message)))
         return UiInvalidation.Layout
     }
@@ -128,7 +181,8 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
         val content =
             styledText {
                 this.text(
-                    "Left: text or paste. Right: URL.\nFiles can be dropped anywhere.\n\n" + message
+                    "Left: drag text; click to paste. Right: drag URL; click to copy.\nCommand C copies the focused region. Files drop anywhere.\n\n" +
+                        message
                 )
                 style { fontSize = 18.0 }
             }
@@ -168,9 +222,10 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
             Rect(24.0, 24.0, layout.metrics.size.width, layout.metrics.size.height)
         )
         val fileHover = files.hover != None
-        val textHover = text.hover != None
-        val urlHover = url.hover != None
+        val textHover = text.hover != None || textSource.isDragging
+        val urlHover = url.hover != None || urlSource.isDragging
         val focused = press.interaction.focusVisible
+        val urlFocused = urlPress.interaction.focusVisible
         context.draw {
             paint ->
             paint.canvas.clear(
@@ -208,6 +263,13 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                     12.0,
                     Paint(Color(0.12, 0.24, 0.5), PaintingStyle.Stroke, 3.0)
                 )
+            if (urlFocused)
+                paint.canvas.drawRoundRect(
+                    right,
+                    12.0,
+                    12.0,
+                    Paint(Color(0.10, 0.32, 0.70), PaintingStyle.Stroke, 3.0)
+                )
         }
         context.translate(24.0, 24.0)
         paragraph.scene(context, layout)
@@ -215,5 +277,32 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
 }
 
 fun main() {
-    runUiApplication("Scoop — drop receivers", { mount -> DropDemo(mount) })
+    val windows = ArrayList<Window>()
+    UiHost {
+        host,
+        active,
+        event -> when (event) {
+            case Resumed -> for (index in 1 .. 2) {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop — data dragging " + index.toString()
+                            size = LogicalSize(720.0, 480.0)
+                        }
+                    )
+                windows.add(window)
+                host.attach(window, { mount -> DropDemo(mount) })
+            }
+            case Window(val id, WindowEvent.CloseRequested) -> {
+                for (window in windows)
+                    if (window.id == id)
+                        window.requestDestroy()
+            }
+            else -> {}
+        }
+    }.use {
+        host -> Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(
+            host
+        )
+    }
 }
