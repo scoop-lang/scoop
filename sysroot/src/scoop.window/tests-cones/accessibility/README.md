@@ -21,3 +21,5 @@ SCOOP_ACCESSIBILITY_CLIENT=/absolute/work/ax-client scoop test . --release
 客户端必须具有系统 Accessibility 权限；测试只检查现有权限，不弹出提示或修改系统设置。客户端完成一次请求后退出，owner 按实际结果继续下一个场景；最终异常收尾仍由进程内调用覆盖，避免外部测试进程因应用退出丢失完成通知。外部客户端退出状态与 AppKit 方法测试分别记录。
 
 外部客户端会验证按钮／切换、拒绝及成功的文本值设置、聚焦与解除焦点、隐藏／禁用，以及自身、provider 和窗口退休后的保留引用。关系的跨进程查询、完整文本范围、虚拟条目、精确命中和读屏器任务沿 UI 总计划继续。
+
+选择角色的值校验同时覆盖 Switch／ToggleButton／RadioButton 的 Off／On 与 Mixed 拒绝；拒绝保留原几何和正文版本，未发布节点关闭不改变已发布原生树。实际选择控件的原生角色、动作、受控绑定和按 key 生命周期由 Component 的 choice-accessibility Cone 覆盖。

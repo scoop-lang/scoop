@@ -3,13 +3,15 @@ package scoop.ui.component
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.SemanticRole
 
 public class ToggleGroupEntry<T: Equals<T>> public constructor(
     public val choice: Choice<T>,
     public val content: ButtonContent? = None,
     public val focus: FocusOptions = FocusOptions(),
     public val invalid: Boolean = false,
-    public val style: ButtonStyle? = None
+    public val style: ButtonStyle? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class ToggleGroupProps<T: Equals<T>> public constructor(
@@ -24,7 +26,8 @@ public class ToggleGroupProps<T: Equals<T>> public constructor(
     public val size: ToggleSize = ToggleSize.Default,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(spacing, "toggle group spacing must be finite and nonnegative")
@@ -38,6 +41,10 @@ public class ToggleGroup<T: Equals<T>> public constructor(
 ): Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess(scope)
+    private val semantics = createComponentSemantics(scope, SemanticRole.Group)
+    init {
+        scope.routeSemanticsChildren(semantics)
+    }
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -116,7 +123,8 @@ public class ToggleGroup<T: Equals<T>> public constructor(
                         if (input.spacing == 0.0)
                             Some(GroupPosition(input.axis, index == 0L, index == keys.size - 1L))
                         else
-                            None
+                            None,
+                        entry.semantics
                     ),
                     { current, mount -> Toggle(current, scope = mount) }
                 )
@@ -129,7 +137,9 @@ public class ToggleGroup<T: Equals<T>> public constructor(
             input.spacing,
             input.loop,
             input.enabled,
-            input.style
+            input.style,
+            semantics = semantics,
+            semanticOptions = input.semantics
         )
     }
 }

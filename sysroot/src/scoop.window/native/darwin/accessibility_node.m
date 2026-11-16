@@ -34,13 +34,24 @@
       NSAccessibilityGroupRole,     NSAccessibilityStaticTextRole,
       NSAccessibilityButtonRole,    NSAccessibilityCheckBoxRole,
       NSAccessibilityTextFieldRole, NSAccessibilityScrollAreaRole,
-      NSAccessibilityScrollBarRole};
+      NSAccessibilityScrollBarRole, NSAccessibilityButtonRole,
+      NSAccessibilityButtonRole,    NSAccessibilityRadioButtonRole,
+      NSAccessibilityRadioGroupRole};
   return roles[state.data.role];
 }
 - (NSString *)accessibilitySubrole {
-  return self.state.data.flags & SWAXProtected
-             ? NSAccessibilitySecureTextFieldSubrole
-             : nil;
+  SWAccessibilityState *state = self.state;
+  if (state.data.flags & SWAXProtected)
+    return NSAccessibilitySecureTextFieldSubrole;
+  if (state.data.role == 7)
+    return NSAccessibilitySwitchSubrole;
+  if (state.data.role == 8)
+    return NSAccessibilityToggleSubrole;
+  return nil;
+}
+- (BOOL)usesToggleAction {
+  int32_t role = self.state.data.role;
+  return role == 3 || role == 7 || role == 8;
 }
 - (NSString *)accessibilityLabel {
   return self.state.name;
@@ -311,7 +322,7 @@
   SWAccessibilityState *state = self.state;
   if (!state)
     return NO;
-  int32_t action = state.data.role == 3 && (state.data.actions & 2) ? 1 : 0;
+  int32_t action = self.usesToggleAction && (state.data.actions & 2) ? 1 : 0;
   if (!(state.data.actions & (1 << action)))
     return NO;
   return [self perform:action text:nil] == 1;
@@ -358,7 +369,7 @@
     return self.isAccessibilityElement;
   if (selector == @selector(accessibilityPerformPress))
     return self.isAccessibilityEnabled &&
-           (state.data.actions & (state.data.role == 3 ? 3 : 1)) != 0;
+           (state.data.actions & (self.usesToggleAction ? 3 : 1)) != 0;
   if (selector == @selector(setAccessibilityValue:))
     return self.isAccessibilityEnabled &&
            (state.data.actions & (state.data.scroll_orientation ? 128 : 4)) &&

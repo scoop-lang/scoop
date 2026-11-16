@@ -62,7 +62,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 在 macOS 导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。
 
-本批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 仅用于 Checkbox，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
+本批角色包括 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar、Switch、ToggleButton、RadioButton 与 RadioGroup。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 用于 Checkbox／Switch／ToggleButton／RadioButton，Mixed 仅用于 Checkbox；protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
 Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 
@@ -75,6 +75,8 @@ Text／TextField 的已知非保护 value 同时提供纯文本正文；`selecti
 `node.contentLabels = [text.id]` 提供独立的内容名称回退，优先级低于显式 name 和 labelledBy 的已知文字，普通 update 不清空它；内容引用同样按身份维护和清理。调用方用 `SemanticProperties(ignored = true)` 忽略当前节点并展开其后代，用 hidden 排除整棵子树。忽略／恢复保留原身份，旧引用不能执行被忽略节点的动作；后代仍受祖先禁用和隐藏约束。Window 不因 contentLabels 自动忽略目标，UI 的 mergeLabels 按实际内容决定合并。
 
 这些资源要求 owner 线程。原生动作在普通 owner 回调之间同步执行，重入返回 Busy，不递归 pump 或布局；异常沿应用现有退出路径报告。节点 close 退休子树，provider close 退休全部节点；窗口进入 Closing 自动关闭 provider。客户端持有的旧原生对象不再执行动作；重新附着产生新身份。
+
+Switch／ToggleButton 在 AppKit 使用 Button 加 Switch／Toggle 子角色，Press 进入 toggle；RadioButton 的 Press 进入 invoke 选择，RadioGroup 保留实际父子关系与阅读顺序。重复选择是否写入由真实控件决定，查询不改变值或键盘焦点。
 
 `SemanticProperties.required` 默认 false，用于发布实际必填要求；AppKit 以公开的只读 Required 属性提供它。更新不改变正文版本、几何或焦点，也不替应用执行校验；其他状态与动作仍按各自真实条件判断。
 

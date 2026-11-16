@@ -33,11 +33,13 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 
 ### 1.1 默认无障碍语义
 
-Label、Button、Checkbox、Input／Textarea、SelectableStyledText 与 Typography 的 Props 和 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
+Label、Button、Checkbox、Switch／Toggle／RadioGroup／ToggleGroup、Input／Textarea、SelectableStyledText 与 Typography 的 Props 和 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
 
 - Label 使用 Text，正文取 StyledText.toPlainText，包括行内 alternateText；行内交互子控件保留独立语义。名称覆盖不修改正文。正文投影按不可变内容身份复用，纯语义覆盖变化不重新测量段落。
 - Button 使用 Button，并合并自己声明的纯静态 Label 后代；名称优先显式覆盖、labelledBy，最后内容标签。Custom／Resolved 中的独立交互内容不被合并。Invoke 调用现有最新 onClick，不模拟指针或隐式获得焦点；仅换 handler 仍可复用渲染。
 - Checkbox 使用 Checkbox，checked 映射 Off／On／Mixed，Toggle 使用原有 nextCheckState 与 Binding；写入被拒绝时返回 Rejected，并继续报告实际值，不预先翻转语义状态。Boolean、自有状态及组合入口传递同一覆盖值。
+- Switch／Toggle 的 Props 与 builder 同样提供 ComponentSemantics，分别使用 Switch／ToggleButton。布尔值取实际 checked／pressed Binding，语义 Toggle 与指针／键盘走同一写入入口；只有实际采纳期望值才返回 Completed，禁用或拒绝不提前翻转投影。Switch 沿原 FieldTarget 发布标签／说明／错误与 required；Toggle 沿 Button 的静态内容合并与独立交互后代规则。
+- RadioGroup／ToggleGroup 的 Props、条目与对应 builder 均提供 ComponentSemantics。RadioGroup 创建 RadioGroup 容器和 RadioButton 子项；Invoke 按当前 key 选择真实 Binding，重复选择已选项不取消且不重复调用 setter。ToggleGroup 使用 Group 容器和 ToggleButton 子项，单选／多选继续使用原选择规则。条目按稳定 ViewKey 保持身份，重排更新阅读顺序，删除退休旧对象。组和条目的 enabled、隐藏与命名分别生效，现有 roving 焦点和 FieldTarget 不另建目标。普通 Radio 标签参与内容合并；自定义内容可用语义覆盖命名，独立交互后代保留。
 - Input／Textarea 在拥有 TextEditHost 的绘制 Element 内持有 TextField 节点，正常 update 调用 updateTextEditor；正文、选区、焦点、只读、受保护用途、策略、undo 与菜单沿宿主合同。placeholder 不作为名称。既有 description 在没有显式 description 时作为说明，invalid 时同时作为缺省错误文字；显式空说明／错误可覆盖。装饰性的重复说明不再额外进入阅读树，行内／子控件仍独立。
 
 语义资源在构造时创建并由 scope 自动释放，属性由正常 update 发布；场景只登记真实表面／文本区域，使用 UI 的 Accepted 几何合同。Button／Checkbox 的后代绘制 Element 可登记由祖先 Component 拥有的 handle，真实 FocusTarget 仍由原挂载拥有。不为语义另建 Press、输入区域、焦点目标或文本模型。复用 LabelProps／ButtonProps／InputProps／TextareaProps 的包装和显示比较必须传递并比较覆盖值，不能把纯名称或关系更新吞掉。

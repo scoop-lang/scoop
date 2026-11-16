@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class RadioItemProps(
     val label: String,
@@ -16,7 +17,9 @@ internal class RadioItemProps(
     val content: ((RadioItemContent) -> View)?,
     val fonts: FontCollection?,
     val theme: Theme,
-    val activate: () -> Unit
+    val activate: () -> Unit,
+    val semantics: ComponentSemantics,
+    val select: () -> SemanticActionResult
 )
 
 internal class RadioItem(
@@ -31,6 +34,17 @@ internal class RadioItem(
             { props.value.activate() }
         )
     private val text = ActionTextStyle()
+    private val semantics = createComponentSemantics(scope, SemanticRole.RadioButton)
+    init {
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.bindFocus(Some(control.focus))
+                handle.mergeLabels = true
+                scope.routeSemanticsChildren(Some(handle))
+            }
+            case None -> {}
+        }
+    }
 
     public override fun render(): View {
         val input = props.value
@@ -73,14 +87,18 @@ internal class RadioItem(
                 }
             }
         return element(
-            RadioInkProps(input, control),
+            RadioInkProps(input, control, semantics),
             { current, mount -> RadioInk(current, scope = mount) },
             [content]
         )
     }
 }
 
-private class RadioInkProps(val input: RadioItemProps, val control: PressControl)
+private class RadioInkProps(
+    val input: RadioItemProps,
+    val control: PressControl,
+    val semantics: SemanticsHandle?
+)
 
 private class RadioInk(private val props: Props<RadioInkProps>, scope: ComponentScope): Element<
     Unit
@@ -88,7 +106,14 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
     private var field: FieldLink? = None
     public override fun onMount() {
         val control = props.value.control
-        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+        field =
+            Some(
+                scope.resource {
+                    FieldLink(scope, control.area, control.focus, props.value.semantics) {
+                        updateSemantics()
+                    }
+                }
+            )
     }
     public override fun update(): UiInvalidation {
         val input = props.value.input
@@ -97,7 +122,30 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
         control.area.scope.enabled = input.enabled
         control.focus.options = input.focus
         field!!.update(input.labelTarget, input.enabled, input.activate)
+        updateSemantics()
         return UiInvalidation.Layout
+    }
+    private fun updateSemantics() {
+        val value = props.value
+        val handle = value.semantics ?: return
+        if (handle.isClosed)
+            return
+        val input = value.input
+        handle.update(
+            input.semantics.properties(
+                enabled = input.enabled,
+                required = field!!.isRequired(handle),
+                checked =
+                    Some(
+                        if (input.selected)
+                            SemanticChecked.On
+                        else
+                            SemanticChecked.Off
+                    )
+            ),
+            SemanticActions(invoke = Some(input.select)),
+            field!!.relations(handle, input.semantics.relations)
+        )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -116,6 +164,13 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
     }
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value.input
+        when (val handle = props.value.semantics) {
+            case Some(val value) -> context.semantics(
+                value,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         if (!input.enabled)
             context.saveLayer(input.theme.tokens.disabledOpacity)
         context.children()

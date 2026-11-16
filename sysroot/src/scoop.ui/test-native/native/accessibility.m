@@ -73,6 +73,9 @@ int32_t scoop_ui_ax_text(void *pointer, int32_t field, const uint8_t *bytes,
   case 5:
     value = [node accessibilityHelp];
     break;
+  case 6:
+    value = [node accessibilitySubrole];
+    break;
   default:
     return 0;
   }

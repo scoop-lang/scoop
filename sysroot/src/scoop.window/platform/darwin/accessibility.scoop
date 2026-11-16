@@ -229,6 +229,10 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             case TextField -> 4;
             case ScrollArea -> 5;
             case ScrollBar -> 6
+            case Switch -> 7
+            case ToggleButton -> 8
+            case RadioButton -> 9
+            case RadioGroup -> 10
         },
         flag(value.enabled) +
             2 *

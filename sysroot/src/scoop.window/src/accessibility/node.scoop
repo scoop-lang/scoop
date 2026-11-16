@@ -115,8 +115,21 @@ public class AccessibilityNode internal constructor(
             "scroll ranges require the scrollbar role"
         )
         requireWindow(
-            properties.checked == None || role == SemanticRole.Checkbox,
-            "checked state requires the checkbox role"
+            properties.checked ==
+                None ||
+                role ==
+                SemanticRole.Checkbox ||
+                role ==
+                SemanticRole.Switch ||
+                role ==
+                SemanticRole.ToggleButton ||
+                role ==
+                SemanticRole.RadioButton,
+            "checked state requires a checkable role"
+        )
+        requireWindow(
+            properties.checked != Some(SemanticChecked.Mixed) || role == SemanticRole.Checkbox,
+            "mixed state requires the checkbox role"
         )
         requireWindow(
             properties.selection ==

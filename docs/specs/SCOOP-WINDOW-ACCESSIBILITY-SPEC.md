@@ -16,6 +16,8 @@
 
 SemanticProperties.required 为 Boolean，默认 false，描述表单是否要求填写或选择；它不执行校验、不改变 enabled／readOnly 或文本内容。AppKit 通过公开的 NSAccessibilityRequiredAttribute／isAccessibilityRequired 读取该事实，客户端不能改写它。required 变化不改变节点身份、正文版本或几何，发布后发送适用的属性布局通知；隐藏／退休后的 selector 与其他只读属性遵守同一可访问性边界。
 
+选择控件还提供 Switch、ToggleButton、RadioButton 与 RadioGroup。前两者在 AppKit 使用 Button 角色及公开的 Switch／Toggle subrole，checked 的 Off／On 为实际布尔值，Press 调用 toggle；Mixed 仅用于 Checkbox，其他选择角色拒绝该值；RadioButton 使用原生同名角色、Off／On 值及 invoke 选择动作，不能用反转操作取消单选。RadioGroup 使用原生 RadioGroup 角色，其条目保持普通父子／阅读顺序，组本身不凭角色获得选择或焦点动作。checked 变化发布值通知；查询不改变选择或键盘焦点。
+
 update(properties, actions = SemanticActions(), relations = SemanticRelations()) 替换属性、最新动作实现及关系。值／名称变化使旧几何失效；新的匹配布局可通过 geometry 再发布。只读 contentRevision 随影响名称／值的变更递增，供场景比较捕获时的内容版本；关系名称的依赖变化同样使旧候选失效。SemanticGeometry 保存窗口内容逻辑坐标中的 bounds 和可选 visibleBounds；后者必须在 bounds 内，且两者坐标有限、尺寸非负。None 表示几何不可用；visibleBounds=None 表示已经有合法布局但被自身裁剪，不表示节点退休或程序化隐藏。宽度或高度为零的可见矩形不进入 visible children，仍保留合法布局与语义身份。矩形仅描述外接区域，不能据矩形中心推断任意自绘形状的可点击点；精确命中使用本节的独立 native 快照合同。
 
 SemanticRelations 保存有序的 labelledBy、describedBy、errorMessages、controls 节点 ID 数组，默认均为空，以有序内容判断相等。每次替换在修改前检查同一活动 provider 的目标、同一数组无重复和非自身引用；controls 等关系不套用父子树的无环规则。有效名称的循环依赖在 publish 解析受影响名称时拒绝，保留上次原生投影和待发布变更，调用方可修正后重试。显式名称已截断的依赖不算有效名称环；不会为了未采用的标签重新遍历整张关系图。关系不改变父子归属或焦点，不保活已退休的目标；目标关闭时自动清除所有指向它的关系，普通重排保持引用身份。node.relations 只读返回清理后的当前关系。

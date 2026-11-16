@@ -184,6 +184,20 @@ private class AccessibilityHandler: ApplicationHandler {
         assertFailsWith<IllegalArgumentException> {
             secret.update(SemanticProperties(value = Some("password"), protectedText = true))
         }
+        for (role in [SemanticRole.Switch, SemanticRole.ToggleButton, SemanticRole.RadioButton]) {
+            val choice = tree.createNode(role)
+            choice.update(SemanticProperties(checked = Some(SemanticChecked.On)))
+            val geometry =
+                SemanticGeometry(rect(0.0, 0.0, 20.0, 20.0), Some(rect(0.0, 0.0, 20.0, 20.0)))
+            choice.geometry = Some(geometry)
+            val revision = choice.contentRevision
+            assertFailsWith<IllegalArgumentException> {
+                choice.update(SemanticProperties(checked = Some(SemanticChecked.Mixed)))
+            }
+            assertEquals(Some(geometry), choice.geometry)
+            assertEquals(revision, choice.contentRevision)
+            choice.close()
+        }
         assertFailsWith<IllegalArgumentException> {
             button!!.geometry = Some(SemanticGeometry(rect(0.0, 0.0, -1.0, 3.0)))
         }

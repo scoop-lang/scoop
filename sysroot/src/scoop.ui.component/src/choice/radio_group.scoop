@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public class RadioItemContent internal constructor(
     public val indicator: View,
@@ -18,7 +19,8 @@ public class RadioGroupEntry<T: Equals<T>> public constructor(
     public val labelTarget: FieldTarget? = None,
     public val invalid: Boolean = false,
     public val marker: RadioOptions = radioOptions(),
-    public val content: ((RadioItemContent) -> View)? = None
+    public val content: ((RadioItemContent) -> View)? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class RadioGroupProps<T: Equals<T>> public constructor(
@@ -31,7 +33,8 @@ public class RadioGroupProps<T: Equals<T>> public constructor(
     public val invalid: Boolean = false,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(spacing, "radio group spacing must be finite and nonnegative")
@@ -45,22 +48,34 @@ public class RadioGroup<T: Equals<T>> public constructor(
 ): Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess(scope)
+    private val semantics = createComponentSemantics(scope, SemanticRole.RadioGroup)
+    init {
+        scope.routeSemanticsChildren(semantics)
+    }
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun select(key: ViewKey) {
+        selectValue(key)
+    }
+    private fun selectValue(key: ViewKey): SemanticActionResult {
         val input = props.value
         if (!input.enabled)
-            return
-        for (entry in input.entries)
-            if (
-                entry.choice.key ==
-                    key &&
-                    entry.choice.enabled &&
-                    input.selected.value !=
-                    Some(entry.choice.value)
-            )
-                input.selected.value = Some(entry.choice.value)
+            return SemanticActionResult.Rejected
+        for (entry in input.entries) {
+            if (entry.choice.key != key)
+                continue
+            if (!entry.choice.enabled)
+                return SemanticActionResult.Rejected
+            val expected = Some(entry.choice.value)
+            if (input.selected.value != expected)
+                input.selected.value = expected
+            return if (input.selected.value == expected)
+                SemanticActionResult.Completed
+            else
+                SemanticActionResult.Rejected
+        }
+        return SemanticActionResult.Unavailable
     }
     public override fun render(): View {
         val input = props.value
@@ -92,7 +107,9 @@ public class RadioGroup<T: Equals<T>> public constructor(
                         entry.content,
                         input.fonts,
                         theme,
-                        { select(entry.choice.key) }
+                        { select(entry.choice.key) },
+                        entry.semantics,
+                        { selectValue(entry.choice.key) }
                     ),
                     { current, mount -> RadioItem(current, scope = mount) }
                 )
@@ -112,7 +129,9 @@ public class RadioGroup<T: Equals<T>> public constructor(
                     if (focus[index] === handle)
                         select(keys[index])
             },
-            fitCross = false
+            fitCross = false,
+            semantics = semantics,
+            semanticOptions = input.semantics
         )
     }
 }

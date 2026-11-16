@@ -20,7 +20,8 @@ internal class ActionInkProps(
     val labelTarget: FieldTarget? = None,
     val actionable: Boolean = true,
     val semantics: SemanticsHandle? = None,
-    val semanticOptions: ComponentSemantics = ComponentSemantics()
+    val semanticOptions: ComponentSemantics = ComponentSemantics(),
+    val semanticToggle: (() -> SemanticActionResult)? = None
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
@@ -97,17 +98,28 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             case Press(_, val action, _) -> handle.update(
                 value.semanticOptions.properties(
                     enabled = value.visual.interaction.enabled && value.actionable,
-                    required = field?.isRequired(handle) ?: false
+                    required = field?.isRequired(handle) ?: false,
+                    checked =
+                        when (value.shape) {
+                            case Toggle(_, _, val pressed) -> Some(
+                                if (pressed)
+                                    SemanticChecked.On
+                                else
+                                    SemanticChecked.Off
+                            )
+                            else -> None
+                        }
                 ),
-                SemanticActions(
-                    invoke =
-                        Some(
-                            {
+                when (val toggle = value.semanticToggle) {
+                    case Some(_) -> SemanticActions(toggle = toggle)
+                    case None -> SemanticActions(
+                        invoke =
+                            Some {
                                 action();
                                 SemanticActionResult.Completed
                             }
-                        )
-                ),
+                    )
+                },
                 field?.relations(handle, value.semanticOptions.relations) ?:
                     value.semanticOptions.relations
             )

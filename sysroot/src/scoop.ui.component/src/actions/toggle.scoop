@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.text.StyledText
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum ToggleVariant {
     Default, Outline
@@ -22,7 +23,8 @@ public class ToggleProps public constructor(
     public val style: ButtonStyle = buttonStyle { kind = SurfaceKind.Plain },
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val group: GroupPosition? = None
+    public val group: GroupPosition? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Toggle public constructor(
@@ -31,6 +33,32 @@ public class Toggle public constructor(
 ): Component(scope) {
     private val control =
         PressControl(scope, PressOptions(props.value.enabled), props.value.focus, { activate() })
+    private val semantics = createComponentSemantics(scope, SemanticRole.ToggleButton)
+    private val semanticToggle: () -> SemanticActionResult =
+        {
+            val input = props.value
+            if (!input.enabled)
+                SemanticActionResult.Unavailable
+            else {
+                val binding = input.pressed
+                val expected = !binding.value
+                activate()
+                if (binding.value == expected)
+                    SemanticActionResult.Completed
+                else
+                    SemanticActionResult.Rejected
+            }
+        }
+    init {
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.bindFocus(Some(control.focus))
+                handle.mergeLabels = true
+                scope.routeSemanticsChildren(Some(handle))
+            }
+            case None -> {}
+        }
+    }
     private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     private fun activate() {
@@ -63,7 +91,10 @@ public class Toggle public constructor(
                 input.style,
                 visual,
                 ActionBehavior.Press(control, { activate() }, input.focus),
-                input.group
+                input.group,
+                semantics = semantics,
+                semanticOptions = input.semantics,
+                semanticToggle = Some(semanticToggle)
             ),
             { current, mount -> ActionInk(current, scope = mount) },
             [

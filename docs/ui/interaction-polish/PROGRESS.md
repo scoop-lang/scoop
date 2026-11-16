@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、只读文本、Field 注释关系与滚动容器的原生回归通过，场景构建通过但实窗待验；其余控件、复杂关系、激活点和外部客户端仍待完成 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，场景构建通过但实窗待验；其余控件、复杂关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及四个原生场景的源码检查／构建通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；Reveal、滚动实窗及平台验收待继续 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
@@ -234,3 +234,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 基础组件的原生 Cone 实际通过，覆盖 ScrollArea 名称／身份、尚无 Accepted 范围时不提供轴以及根关闭；原有文本、选择、表单与动作回归一并通过。新增 scroll-accessibility 场景的源码检查及 release 可执行文件构建通过，覆盖真实条的隐藏／显露、位置写入、禁用／恢复、换绑、只读文本滚动和关闭。该场景依赖 drawable；本机桌面仍锁定，因此只记录构建通过，实窗运行、外部 AX／VoiceOver 与其他平台仍待验。
 
 正式规范、两份设计、计划、README 与编程导航已同步；生成并查询 Window／UI／Component 的 API 文档，核对范围类型、两个 updateScrollBar 重载、动作以及 ScrollArea／VirtualList Props 和 builder 的语义入口。152 个本地 Markdown 目标检查通过，临时 API 站点已清理，保留后续所需的开发产物与共享缓存。Reveal、虚拟集合的完整可访问性和其余计划保持未完成状态。
+
+
+### Switch、Toggle 与选择组的默认语义
+
+- Window 增加 Switch／ToggleButton／RadioButton／RadioGroup。AppKit 使用公开的 Button + Switch／Toggle subrole、RadioButton 和 RadioGroup；按角色进入真实 toggle 或 invoke。二态控件拒绝 Mixed，参数错误保留原几何和正文版本，不改变已发布树。
+- Switch／Toggle 的 Props 与 builder、RadioGroup／ToggleGroup 的组和条目统一提供 ComponentSemantics。Switch 与 Radio 条目复用原 FieldTarget 发布标签／说明／错误与 required；Toggle 和普通 Radio 标签使用既有内容合并，独立交互后代保留。语义使用原 Press、FocusTarget、选择 Binding 与 key，不增加另一份状态或焦点目标。
+- 原生动作仅在 Binding 实际采纳请求时报告成功；Radio 重复选择已选项不取消也不重复写入。单选／多选 ToggleGroup 保留原规则，重排更新阅读顺序并保留对象，删除及重建后旧对象不能继续操作。
+- 17 个 Scoop 文件与 2 个 native 文件的格式检查、Objective-C 严格编译检查通过；Window 含测试的源码检查，以及 Window→Surface→UI→style→shadcn→Component 的 release 产物构建通过。Window 原生回归实际通过，覆盖新增角色值校验及既有文本、关系、滚动、动作和关闭。
+- 新 choice-accessibility Cone 的源码检查与实际运行通过，覆盖角色／子角色、Field 动态命名和必填、绑定拒绝／转换、重复选择、禁用／隐藏、按 key 重排／删除／重建、单选／多选及保留旧对象。StyledToggle 使用真实 StyledText 重载配置继承的 semantics，并通过同一运行回归；已有基础控件原生回归一并通过。
+
+规范、两份设计、计划、README 与编程导航已同步；API 查询核对六类 Props／条目及实际声明 builder 的字段、默认值、访问器和导入路径，继承调用由真实消费者编译与运行验证。临时原生查询程序和 API 站点已清理，保留开发产物与共享缓存。本批没有把进程内方法结果记为 Accepted 几何、真实焦点操作、VoiceOver／外部 AX 或其他平台通过；这些范围及其余控件继续按 S2／S5／S11 推进。

@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-Label、Button、Checkbox、Input／Textarea、SelectableStyledText 与 Typography 已接入默认语义。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored；角色、checked、禁用、只读、文本和动作仍取实际控件。当前原生资源使用 macOS provider，其他平台及其余控件按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续接入。
+Label、Button、Checkbox、Switch、Toggle、RadioGroup、ToggleGroup、Input／Textarea、SelectableStyledText 与 Typography 已接入默认语义。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored；角色、checked、禁用、只读、文本和动作仍取实际控件。当前原生资源使用 macOS provider，其他平台及其余控件按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续接入。
 
 ```kotlin
 import scoop.ui.View
@@ -16,6 +16,8 @@ fun saveButton(onSave: () -> Unit): View =
 ```
 
 Button 默认从自己可合并的静态 Label 取得名称，独立交互后代继续可访问；显式 name（包括空串）优先于 labelledBy 和内容标签。Label 正文保留 StyledText 的行内 alternateText，覆盖名称不替换正文。Checkbox 的原生切换使用真实 Binding，拒绝写入不会先翻转语义状态。ButtonGroup、InputGroup、Command、Combobox、Sidebar 和原生文件按钮的相关包装继续传递覆盖值。
+
+Switch／Toggle 读取实际布尔绑定；RadioGroup 通过原选择入口选择，重复激活已选项不会取消或重复调用 setter。RadioGroup／ToggleGroup 的组和条目均可设置 semantics；重排沿原 key 保留节点，删除后旧引用失效，单选／多选规则不变。Switch 和 Radio 条目沿 FieldTarget 接入标签、说明、错误与 required。用法及运行范围见[选择控件语义测试](tests-cones/choice-accessibility/README.md)。
 
 输入控件直接复用 TextEditHost 的正文、选区、策略、撤销、焦点与菜单，placeholder 不作为 label；既有 description 提供默认说明，invalid 时也提供默认错误文字，显式覆盖可替换或清空它们。受保护输入不公布正文／长度／选区。用例和当前验证边界见[内置控件语义测试](tests-cones/accessibility/README.md)；字段状态和其他控件继续按计划推进。
 
