@@ -1,6 +1,6 @@
 # Window 无障碍接口规范
 
-状态：S0／S2 实施中。本文规定已有窗口内容的低层语义节点、AppKit 投影与同步动作边界；UI 资源与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。内置控件、内容合并及复杂控件关系、文本范围、虚拟集合和 Windows／Linux provider 继续按[完整实施计划](../ui/interaction-polish/PLAN.md)推进，不能以本批接口代替这些完成条件。实际构建／运行结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
+状态：S0／S2 实施中。本文规定已有窗口内容的低层语义节点、AppKit 投影与同步动作边界；UI 资源、内容合并与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。内置控件、复杂控件关系、文本范围、虚拟集合和 Windows／Linux provider 继续按[完整实施计划](../ui/interaction-polish/PLAN.md)推进，不能以本批接口代替这些完成条件。实际构建／运行结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
 
 ## 1. 包、身份与寿命
 
@@ -12,13 +12,15 @@
 
 ## 2. 属性与发布
 
-首批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea。SemanticProperties 保存 name、description、error、automationId、value、enabled、readOnly、protectedText、checked 与 hidden；名称、说明、错误、标识和值采用可选字符串，已知空字符串与未知值不同。checked 为可选 Off／On／Mixed。只有实际文本用途才设置 protectedText；受保护时不允许通过 value 发布明文，不因屏幕暂时显示正文而解除保护。hidden 排除整个节点子树但保留身份，恢复后使用原身份；它不表示仅忽略当前节点。update 在改变原状态前检查这些规则。
+首批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea。SemanticProperties 保存 name、description、error、automationId、value、enabled、readOnly、protectedText、checked、hidden 与 ignored；名称、说明、错误、标识和值采用可选字符串，已知空字符串与未知值不同。checked 为可选 Off／On／Mixed。只有实际文本用途才设置 protectedText；受保护时不允许通过 value 发布明文，不因屏幕暂时显示正文而解除保护。hidden 排除整个节点子树但保留身份，恢复后使用原身份；ignored 仅忽略当前节点，保留后代并把它们接到最近未忽略的语义祖先；hidden 优先排除整个子树。忽略不退休身份、不改变实际键盘焦点，旧引用不能执行被忽略节点的动作；后代继续遵守祖先的 hidden／enabled。update 在改变原状态前检查这些规则。
 
 update(properties, actions = SemanticActions(), relations = SemanticRelations()) 替换属性、最新动作实现及关系。值／名称变化使旧几何失效；新的匹配布局可通过 geometry 再发布。只读 contentRevision 随影响名称／值的变更递增，供场景比较捕获时的内容版本；关系名称的依赖变化同样使旧候选失效。SemanticGeometry 保存窗口内容逻辑坐标中的 bounds 和可选 visibleBounds；后者必须在 bounds 内，且两者坐标有限、尺寸非负。None 表示几何不可用；visibleBounds=None 表示已经有合法布局但被自身裁剪，不表示节点退休或程序化隐藏。宽度或高度为零的可见矩形不进入 visible children，仍保留合法布局与语义身份。矩形仅描述外接区域，不能据矩形中心推断任意自绘形状的可点击点；精确场景命中在 UI 接入批次提供。
 
-SemanticRelations 保存有序的 labelledBy、describedBy、errorMessages、controls 节点 ID 数组，默认均为空，以有序内容判断相等。每次替换在修改前检查同一活动 provider 的目标、同一数组无重复和非自身引用；labelledBy 不能形成名称依赖环，controls 等关系不套用父子树的无环规则。关系不改变父子归属或焦点，不保活已退休的目标；目标关闭时自动清除所有指向它的关系，普通重排保持引用身份。node.relations 只读返回清理后的当前关系。
+SemanticRelations 保存有序的 labelledBy、describedBy、errorMessages、controls 节点 ID 数组，默认均为空，以有序内容判断相等。每次替换在修改前检查同一活动 provider 的目标、同一数组无重复和非自身引用；controls 等关系不套用父子树的无环规则。有效名称的循环依赖在 publish 解析受影响名称时拒绝，保留上次原生投影和待发布变更，调用方可修正后重试。显式名称已截断的依赖不算有效名称环；不会为了未采用的标签重新遍历整张关系图。关系不改变父子归属或焦点，不保活已退休的目标；目标关闭时自动清除所有指向它的关系，普通重排保持引用身份。node.relations 只读返回清理后的当前关系。
 
-名称采用显式 name（含空字符串）优先，否则按 labelledBy 顺序连接已知的目标名称；被引用的静态 Text 没有名称时可用其非受保护 value 作为标签文字，但不因此为该 Text 自身重复发布 name。description 和 error 分别采用显式属性优先，否则从对应关系取得目标文字。未知条目跳过，已知空文字仍与全部未知区分；连接非空文字时使用单个空格。显式关系可以使用仍活动但 hidden／离屏的标签文字，不把被引用节点重新放回导航树，也不公开受保护 value。目标的名称或静态文字变化只更新实际依赖者，发布后原生 getter 直接读取解析结果，不进入应用代码或重复遍历名称图。
+node.contentLabels 是单独保存的有序内容标签 ID 数组，默认空，采用与关系相同的归属／重复／自身检查与退休清理。它只提供名称的第三优先来源：显式 name → labelledBy 的已知文字 → contentLabels 的已知文字；已知空串同样截断后续回退。普通 update 不清空 contentLabels。底层不会据内容引用自行隐藏节点，UI 等实际调用方负责声明合并与 ignored；内容引用、普通标签及其混合有效依赖共享同一次名称解析与循环检查。
+
+各类标签按数组顺序连接已知的目标名称；被引用的静态 Text 没有名称时可用其非受保护 value 作为标签文字，但不因此为该 Text 自身重复发布 name。description 和 error 分别采用显式属性优先，否则从对应关系取得目标文字。未知条目跳过，已知空文字仍与全部未知区分；连接非空文字时使用单个空格。显式关系可以使用仍活动但 hidden／离屏的标签文字，不把被引用节点重新放回导航树，也不公开受保护 value。目标的名称或静态文字变化只更新实际依赖者，发布后原生 getter 直接读取解析结果，不进入应用代码或重复遍历名称图。
 
 创建、修改和重排先修改 managed 状态，publish() 在正常 owner 更新完成后原子发布本批差量；未变节点不重复序列化和验证，单纯替换相同能力的 handler 不更新 native 属性。原生 getter 只读取已发布投影，不调用 Scoop handler 或布局。原生准备失败保留上一份投影，差量仍待处理；已经原子提交的结果不因随后平台通知失败回滚，错误按普通 native 操作失败报告。退休立即禁止旧对象动作，结构变更在 publish 时统一通知；新节点发布前不进入原生树。几何合法性在设置 geometry 的边界检查，失败保留原值。
 
@@ -40,4 +42,6 @@ NSAccessibility 的 performPress 等 BOOL 动作仅在 Completed 时返回 YES�
 
 AppKit 以 accessibilityLabel／Title 发布解析后的名称；只有一个有效标签且没有显式名称覆盖时，同时提供 TitleUIElement 及对应 ServesAsTitleForUIElements。多个标签保留合成名称，不伪造单一标题对象。controls 映射 LinkedUIElements，说明与错误的非空文本按顺序进入 Help。原生关系只返回可导航的活动对象；hidden 标签可提供文字但不通过对象关系重新暴露。关系或相关文字变化随同一 publish 发布并发送适用的名称／布局通知，客户端保留旧对象后查询不跳转到新身份。
 
-本批定向验证必须覆盖实际原生查询、动作结果、受控拒绝、发布顺序、重入拒绝、窗口／provider 关闭和客户端保留旧对象；外部 AX 客户端与 VoiceOver 的实际结果分别记录，直接调用 NSAccessibility 方法不冒充跨进程验收。完整文本范围、滚动动作、内容合并及复杂控件关系、精确命中、虚拟集合、三平台与真实工具任务仍执行 S2～S11 的相应验证。
+本批定向验证必须覆盖实际原生查询、动作结果、受控拒绝、发布顺序、重入拒绝、窗口／provider 关闭和客户端保留旧对象；外部 AX 客户端与 VoiceOver 的实际结果分别记录，直接调用 NSAccessibility 方法不冒充跨进程验收。完整文本范围、滚动动作、复杂控件关系、精确命中、虚拟集合、三平台与真实工具任务仍执行 S2～S11 的相应验证。
+
+忽略节点的 AppKit Children／Parent 使用同一份已发布阅读关系折叠包装，不能丢掉其独立交互后代。原生端仅在父子／阅读顺序变化时更新子项索引，名称、几何和透明度更新不重建该索引。忽略与恢复分别发送适用结构通知，不发送退休通知。

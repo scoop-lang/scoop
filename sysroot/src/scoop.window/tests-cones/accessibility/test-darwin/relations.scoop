@@ -6,6 +6,7 @@ import scoop.window.accessibility.*
 
 internal fun checkRelations(tree: AccessibilityProvider, view: Ptr<Unit>) {
     val group = tree.createNode(SemanticRole.Group)
+    group.update(SemanticProperties(automationId = Some("relation-group")))
     val label = tree.createNode(SemanticRole.Text, Some(group))
     val alias = tree.createNode(SemanticRole.Text, Some(group))
     val suffix = tree.createNode(SemanticRole.Text, Some(group))
@@ -31,18 +32,54 @@ internal fun checkRelations(tree: AccessibilityProvider, view: Ptr<Unit>) {
         SemanticProperties(value = Some("input"), automationId = Some("relation-field"))
     val multiple =
         SemanticRelations(
-            labelledBy = [alias.id, suffix.id, empty.id, unknown.id, protected.id],
+            labelledBy = [unknown.id, protected.id],
             describedBy = [description.id],
             errorMessages = [error.id],
             controls = [button.id, suffix.id]
         )
     field.update(properties, relations = multiple)
+    field.contentLabels = [alias.id, suffix.id, empty.id]
     tree.publish()
     @Unsafe
     {
         val probe = nativeRelationsOpen(view)
         try {
             assertEquals(0, nativeRelationsCheck(probe, 0))
+            group.update(SemanticProperties(automationId = Some("relation-group"), ignored = true))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 15))
+            group.update(
+                SemanticProperties(
+                    automationId = Some("relation-group"),
+                    ignored = true,
+                    enabled = false
+                )
+            )
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 16))
+            group.update(
+                SemanticProperties(
+                    automationId = Some("relation-group"),
+                    ignored = true,
+                    hidden = true
+                )
+            )
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 17))
+            group.update(SemanticProperties(automationId = Some("relation-group")))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 18))
+            alias.update(
+                SemanticProperties(automationId = Some("relation-alias")),
+                relations = SemanticRelations(labelledBy = [field.id])
+            )
+            assertFailsWith<IllegalArgumentException> { tree.publish() }
+            assertEquals(0, nativeRelationsCheck(probe, 0))
+            alias.update(
+                SemanticProperties(automationId = Some("relation-alias")),
+                relations = SemanticRelations(labelledBy = [label.id])
+            )
+            tree.publish()
             val geometry =
                 Some(
                     SemanticGeometry(
@@ -68,6 +105,8 @@ internal fun checkRelations(tree: AccessibilityProvider, view: Ptr<Unit>) {
                     controls = [button.id]
                 )
             field.update(properties, relations = single)
+            assertEquals(3L, field.contentLabels.size)
+            field.contentLabels = []
             tree.publish()
             assertEquals(0, nativeRelationsCheck(probe, 2))
             field.geometry = geometry
@@ -108,12 +147,21 @@ internal fun checkRelations(tree: AccessibilityProvider, view: Ptr<Unit>) {
                 SemanticProperties(name = Some("Use full name")),
                 relations = SemanticRelations(describedBy = [field.id])
             )
-            assertFailsWith<IllegalArgumentException> {
-                label.update(
-                    SemanticProperties(name = Some("Broken")),
-                    relations = SemanticRelations(labelledBy = [alias.id])
-                )
-            }
+            label.update(
+                SemanticProperties(name = Some("Ignored"), automationId = Some("relation-label")),
+                relations = SemanticRelations(labelledBy = [alias.id])
+            )
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 4))
+            label.update(
+                SemanticProperties(automationId = Some("relation-label")),
+                relations = SemanticRelations(labelledBy = [alias.id])
+            )
+            assertFailsWith<IllegalArgumentException> { tree.publish() }
+            assertEquals(0, nativeRelationsCheck(probe, 4))
+            label.update(
+                SemanticProperties(name = Some("Ignored"), automationId = Some("relation-label"))
+            )
             assertFailsWith<IllegalArgumentException> {
                 field.update(
                     SemanticProperties(name = Some("Broken")),
@@ -164,6 +212,15 @@ internal fun checkRelations(tree: AccessibilityProvider, view: Ptr<Unit>) {
             field.update(properties, relations = SemanticRelations(labelledBy = [replacement.id]))
             tree.publish()
             assertEquals(0, nativeRelationsCheck(probe, 7))
+            field.contentLabels = [replacement.id]
+            field.update(properties, relations = SemanticRelations(labelledBy = [unknown.id]))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 13))
+            field.update(properties, relations = SemanticRelations(labelledBy = [empty.id]))
+            tree.publish()
+            assertEquals(0, nativeRelationsCheck(probe, 14))
+            replacement.close()
+            assertEquals(0L, field.contentLabels.size)
             field.update(properties, relations = SemanticRelations(labelledBy = [unknown.id]))
             tree.publish()
             assertEquals(0, nativeRelationsCheck(probe, 8))

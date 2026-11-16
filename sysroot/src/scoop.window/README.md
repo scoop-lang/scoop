@@ -66,11 +66,13 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 更新后调用 `publish()`，原生 getter 仅读取已发布状态。`node.geometry` 是可选的已接受布局几何，使用窗口内容逻辑坐标；可选 visibleBounds 描述自身裁剪，零面积不算可见。名称／值改变会清除旧几何，匹配布局可用后再设置；不能以外接矩形中心代替精确可点击点。发布不触发绘制，无变化不重复通知。
 
-`SemanticRelations(labelledBy = [label.id], describedBy = [hint.id], errorMessages = [error.id], controls = [target.id])` 使用同一 provider 的活动节点，保持数组顺序，拒绝重复、自身与循环名称依赖。显式 name／description／error（包括空字符串）优先，否则由对应标签文字解析；静态 Text 的非受保护 value 可以被用作标签文字，未知与已知空文字分开。目标改名更新依赖者，关闭目标清理引用；`node.relations` 返回清理后的关系。名称依赖变化同样清除旧几何并递增 `contentRevision`，调用方不能用旧版本场景重新发布位置。hidden 标签可贡献显式引用的文字，但不恢复到导航树中。
+`SemanticRelations(labelledBy = [label.id], describedBy = [hint.id], errorMessages = [error.id], controls = [target.id])` 使用同一 provider 的活动节点，保持数组顺序，替换时拒绝重复与自身引用。显式 name／description／error（包括空字符串）优先，否则由对应标签文字解析；静态 Text 的非受保护 value 可以被用作标签文字，未知与已知空文字分开。实际采用的名称依赖环在 publish 时拒绝，保留之前的原生投影，可修正后重试；显式名称已覆盖的依赖不构成实际名称环。目标改名更新依赖者，关闭目标清理引用；`node.relations` 返回清理后的关系。名称依赖变化同样清除旧几何并递增 `contentRevision`，调用方不能用旧版本场景重新发布位置。hidden 标签可贡献显式引用的文字，但不恢复到导航树中。
+
+`node.contentLabels = [text.id]` 提供独立的内容名称回退，优先级低于显式 name 和 labelledBy 的已知文字，普通 update 不清空它；内容引用同样按身份维护和清理。调用方用 `SemanticProperties(ignored = true)` 忽略当前节点并展开其后代，用 hidden 排除整棵子树。忽略／恢复保留原身份，旧引用不能执行被忽略节点的动作；后代仍受祖先禁用和隐藏约束。Window 不因 contentLabels 自动忽略目标，UI 的 mergeLabels 按实际内容决定合并。
 
 这些资源要求 owner 线程。原生动作在普通 owner 回调之间同步执行，重入返回 Busy，不递归 pump 或布局；异常沿应用现有退出路径报告。节点 close 退休子树，provider close 退休全部节点；窗口进入 Closing 自动关闭 provider。客户端持有的旧原生对象不再执行动作；重新附着产生新身份。
 
-当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景已通过公共资源接入；内置控件、内容合并、文本范围、精确命中、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
+当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景及内容合并已通过公共资源接入；内置控件、文本范围、精确命中、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 
 ## 多窗口、模态与窗框
 

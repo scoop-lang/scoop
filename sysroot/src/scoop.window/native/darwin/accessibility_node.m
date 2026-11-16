@@ -9,7 +9,7 @@
     return nil;
   return self.number == 0 ? tree.rootState : tree.published[@(self.number)];
 }
-- (BOOL)isAccessibilityElement {
+- (BOOL)participatesInAccessibility {
   SWAccessibilityState *state = self.state;
   if (!state || !self.tree.view.window.visible ||
       self.tree.view.owner.inputBlocked)
@@ -20,6 +20,10 @@
     state = state.data.parent ? self.tree.published[@(state.data.parent)] : nil;
   }
   return YES;
+}
+- (BOOL)isAccessibilityElement {
+  return !(self.state.data.flags & SWAXIgnored) &&
+         [self participatesInAccessibility];
 }
 - (NSAccessibilityRole)accessibilityRole {
   SWAccessibilityState *state = self.state;
@@ -112,8 +116,18 @@
   SWAccessibilityState *state = self.state;
   if (!state)
     return nil;
-  return self.number == 0 ? NSAccessibilityUnignoredAncestor(self.tree.view)
-                          : [self.tree element:state.data.parent];
+  if (self.number == 0)
+    return NSAccessibilityUnignoredAncestor(self.tree.view);
+  int64_t parent = state.data.parent;
+  while (parent) {
+    SWAccessibilityState *ancestor = self.tree.published[@(parent)];
+    if (!ancestor)
+      return nil;
+    if (!(ancestor.data.flags & SWAXIgnored))
+      break;
+    parent = ancestor.data.parent;
+  }
+  return [self.tree element:parent];
 }
 - (id)accessibilityWindow {
   return self.state ? self.tree.view.window : nil;
@@ -121,27 +135,27 @@
 - (id)accessibilityTopLevelUIElement {
   return self.accessibilityWindow;
 }
-- (NSArray *)accessibilityChildren {
-  if (!self.isAccessibilityElement)
-    return @[];
-  NSMutableArray<SWAccessibilityNode *> *children = [NSMutableArray new];
+- (void)appendChildrenOf:(int64_t)parent to:(NSMutableArray *)children {
   SWAccessibilityTree *tree = self.tree;
-  for (NSNumber *number in tree.published) {
+  for (NSNumber *number in tree.children[@(parent)]) {
     SWAccessibilityState *state = tree.published[number];
-    if (state.data.parent == self.number) {
+    if (!state || (state.data.flags & SWAXHidden) ||
+        [tree.retiring containsObject:number])
+      continue;
+    if (state.data.flags & SWAXIgnored)
+      [self appendChildrenOf:number.longLongValue to:children];
+    else {
       SWAccessibilityNode *child = [tree element:number.longLongValue];
       if (child.isAccessibilityElement)
         [children addObject:child];
     }
   }
-  [children sortUsingComparator:^NSComparisonResult(
-                SWAccessibilityNode *left, SWAccessibilityNode *right) {
-    int64_t a = left.state.data.order, b = right.state.data.order;
-    if (a != b)
-      return a < b ? NSOrderedAscending : NSOrderedDescending;
-    return left.number < right.number ? NSOrderedAscending
-                                      : NSOrderedDescending;
-  }];
+}
+- (NSArray *)accessibilityChildren {
+  if (![self participatesInAccessibility])
+    return @[];
+  NSMutableArray *children = [NSMutableArray new];
+  [self appendChildrenOf:self.number to:children];
   return children;
 }
 - (NSArray *)accessibilityChildrenInNavigationOrder {

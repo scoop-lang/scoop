@@ -8,8 +8,8 @@
   } while (0)
 
 @interface SWRelationProbe : NSObject
-@property(nonatomic, strong) NSAccessibilityElement *root, *field, *label,
-    *alias, *suffix, *button;
+@property(nonatomic, strong) NSAccessibilityElement *root, *group, *field,
+    *label, *alias, *suffix, *button;
 @end
 @implementation SWRelationProbe
 @end
@@ -30,6 +30,7 @@ void *scoop_ax_relations_open(void *pointer) {
   NSView *view = (__bridge NSView *)pointer;
   SWRelationProbe *probe = [SWRelationProbe new];
   probe.root = view.accessibilityChildren.firstObject;
+  probe.group = find(probe.root, @"relation-group");
   probe.field = find(probe.root, @"relation-field");
   probe.label = find(probe.root, @"relation-label");
   probe.alias = find(probe.root, @"relation-alias");
@@ -117,6 +118,35 @@ int32_t scoop_ax_relations_check(void *pointer, int32_t phase) {
     CHECK(probe.field.accessibilityLinkedUIElements.count == 0);
     CHECK(!probe.button.accessibilityRole);
     CHECK([probe.field.accessibilityLabel isEqualToString:@"Ignored"]);
+    break;
+  case 13:
+    CHECK([probe.field.accessibilityLabel isEqualToString:@"Replacement"]);
+    break;
+  case 14:
+    CHECK([probe.field.accessibilityLabel isEqualToString:@""]);
+    break;
+  case 15:
+    CHECK(!probe.group.isAccessibilityElement);
+    CHECK(probe.field.isAccessibilityElement);
+    CHECK(probe.field.accessibilityParent == probe.root);
+    CHECK(probe.group.accessibilityChildren.count == 10);
+    CHECK(probe.root.accessibilityChildren.count == 10);
+    break;
+  case 16:
+    CHECK(probe.field.isAccessibilityElement);
+    CHECK(!probe.field.isAccessibilityEnabled);
+    break;
+  case 17:
+    CHECK(!probe.group.isAccessibilityElement);
+    CHECK(!probe.field.isAccessibilityElement);
+    CHECK(probe.group.accessibilityChildren.count == 0);
+    CHECK(probe.root.accessibilityChildren.count == 0);
+    break;
+  case 18:
+    CHECK(probe.group.isAccessibilityElement);
+    CHECK(probe.field.accessibilityParent == probe.group);
+    CHECK(probe.root.accessibilityChildren.count == 1);
+    CHECK(find(probe.root, @"relation-group") == probe.group);
     break;
   default:
     return -1;

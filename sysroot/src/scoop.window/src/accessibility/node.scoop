@@ -15,8 +15,10 @@ public class AccessibilityNode internal constructor(
     internal var properties = SemanticProperties()
     internal var actions = SemanticActions()
     internal var relationValues = SemanticRelations()
+    internal var content: Array<SemanticNodeId> = []
     internal val referrers = HashMap<Long, AccessibilityNode>()
     internal var nameDirty = true
+    internal var resolvingName = false
     internal var textDirty = true
     internal var resolvedName: String? = None
     internal var resolvedDescription: String? = None
@@ -40,6 +42,25 @@ public class AccessibilityNode internal constructor(
     public val relations: SemanticRelations get() {
         checkOpen()
         return relationValues
+    }
+
+    /** Fallback content names; callers separately decide which labels should be ignored. */
+    public var contentLabels: Array<SemanticNodeId>
+    get() {
+        checkOpen()
+        return content
+    }
+    set(value) {
+        checkOpen()
+        if (sameSemanticIds(content, value))
+            return
+        checkSemanticTargets(this, value)
+        installSemanticReferences(this, relationValues, value)
+        val affectsName = properties.name == None
+        if (affectsName)
+            invalidateContent()
+        semanticTextChanged(this, affectsName)
+        provider.changed(this)
     }
 
     /** Stages matching, already accepted layout geometry; None invalidates an old layout. */
@@ -108,7 +129,7 @@ public class AccessibilityNode internal constructor(
         if (nameChanged || this.properties.value != properties.value)
             invalidateContent()
         if (this.relationValues != relations)
-            installSemanticRelations(this, relations)
+            installSemanticReferences(this, relations, content)
         if ((this.properties.name == None) != (properties.name == None))
             for (id in relations.labelledBy) {
                 val target = provider.lookup(id) ?: continue
@@ -162,6 +183,8 @@ public class AccessibilityNode internal constructor(
     }
 
     internal fun canAct(): Boolean {
+        if (properties.ignored)
+            return false
         var current: AccessibilityNode? = Some(this)
         while (true) {
             val node = current ?: return true

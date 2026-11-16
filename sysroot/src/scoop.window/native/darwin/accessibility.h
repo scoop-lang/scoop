@@ -18,7 +18,8 @@ enum {
   SWAXReadOnly = 2,
   SWAXProtected = 4,
   SWAXHidden = 8,
-  SWAXNamed = 16
+  SWAXNamed = 16,
+  SWAXIgnored = 32
 };
 
 @class SWAccessibilityTree;
@@ -47,6 +48,8 @@ enum {
 @property(nonatomic, strong) SWAccessibilityState *rootState;
 @property(nonatomic, strong)
     NSDictionary<NSNumber *, SWAccessibilityState *> *published;
+@property(nonatomic, strong)
+    NSDictionary<NSNumber *, NSArray<NSNumber *> *> *children;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWAccessibilityState *> *pending;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *removed;

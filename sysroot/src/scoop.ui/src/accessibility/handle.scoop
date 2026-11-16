@@ -14,10 +14,35 @@ public class SemanticsHandle internal constructor(
     internal var properties = SemanticProperties()
     internal var actions = SemanticActions()
     internal var focus: FocusTarget? = None
+    internal var merged = false
+    private var merging = false
     internal val generation: ULong get() = resource.contentRevision
 
     public val id: SemanticNodeId get() = resource.id
     public val role: SemanticRole get() = resource.role
+    /** Merges plain text leaves in this semantic container, retaining interactive children. */
+    public var mergeLabels: Boolean
+    get() {
+        checkOpen()
+        return merging
+    }
+    set(value) {
+        checkOpen()
+        checkSemanticsMutation()
+        if (merging == value)
+            return
+        merging = value
+        controller.contentChanged()
+    }
+
+    internal val mergeCandidate: Boolean get() {
+        if (role != SemanticRole.Text || merging || properties.protectedText)
+            return false
+        return when ((actions.invoke, actions.toggle, actions.setValue, actions.focus, focus)) {
+            case(None, None, None, None, None) -> true
+            else -> false
+        }
+    }
     /** Current same-root references, with retired targets removed. */
     public val relations: SemanticRelations get() {
         checkOpen()
@@ -44,10 +69,23 @@ public class SemanticsHandle internal constructor(
     ) {
         checkOpen()
         checkSemanticsMutation()
-        resource.update(properties, semanticActions(this, actions), relations)
+        val candidate = mergeCandidate
+        val exposure =
+            this.properties.ignored !=
+                properties.ignored ||
+                this.properties.hidden !=
+                properties.hidden
+        resource.update(
+            semanticProperties(properties, merged),
+            semanticActions(this, actions),
+            relations
+        )
         this.properties = properties
         this.actions = actions
-        controller.changed()
+        if (exposure || candidate != mergeCandidate)
+            controller.contentChanged()
+        else
+            controller.changed()
     }
 
     /** Borrows the real focus target; binding never requests keyboard focus. */
@@ -64,9 +102,17 @@ public class SemanticsHandle internal constructor(
             }
             case None -> {}
         }
+        val candidate = mergeCandidate
         focus = target
-        resource.update(properties, semanticActions(this, actions), resource.relations)
-        controller.changed()
+        resource.update(
+            semanticProperties(properties, merged),
+            semanticActions(this, actions),
+            resource.relations
+        )
+        if (candidate != mergeCandidate)
+            controller.contentChanged()
+        else
+            controller.changed()
     }
 
     internal fun checkOpen() {

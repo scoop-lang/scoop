@@ -5,6 +5,7 @@ import scoop.window.accessibility.*
 /** Only an actual structural change walks the mounted tree, in declaration order. */
 internal class SemanticOrder {
     private var next = 0L
+    val handles = ArrayList<SemanticsHandle>()
     fun apply(node: MountedNode, inherited: SemanticsHandle?) {
         if (!node.active)
             return
@@ -14,6 +15,7 @@ internal class SemanticOrder {
             val parent = semanticParent(handle.explicitParent, inherited)
             handle.resource.reparent(parent?.resource, next)
             handle.parent = parent
+            handles.add(handle)
             next += 1L
         }
         val route = semanticParent(node.semanticRoute, inherited)

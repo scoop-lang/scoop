@@ -44,6 +44,7 @@ SWResult scoop_window_accessibility_create(void *window,
       tree.callback = callback;
       tree.context = context;
       tree.published = @{};
+      tree.children = @{};
       tree.elements = [NSMutableDictionary new];
       tree.retiring = [NSMutableSet new];
       tree.rootState = [SWAccessibilityState new];
@@ -182,6 +183,32 @@ static BOOL same(NSString *left, NSString *right) {
   return left == right || [left isEqualToString:right];
 }
 
+static NSDictionary<NSNumber *, NSArray<NSNumber *> *> *
+childIndex(NSDictionary<NSNumber *, SWAccessibilityState *> *states) {
+  NSMutableDictionary<NSNumber *, NSMutableArray<NSNumber *> *> *groups =
+      [NSMutableDictionary new];
+  for (NSNumber *number in states) {
+    NSNumber *parent = @(states[number].data.parent);
+    NSMutableArray *children = groups[parent];
+    if (!children) {
+      children = [NSMutableArray new];
+      groups[parent] = children;
+    }
+    [children addObject:number];
+  }
+  NSMutableDictionary *result = [NSMutableDictionary new];
+  for (NSNumber *parent in groups)
+    result[parent] = [groups[parent]
+        sortedArrayUsingComparator:^NSComparisonResult(NSNumber *left,
+                                                       NSNumber *right) {
+          int64_t a = states[left].data.order, b = states[right].data.order;
+          if (a != b)
+            return a < b ? NSOrderedAscending : NSOrderedDescending;
+          return [left compare:right];
+        }];
+  return result;
+}
+
 static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
                    SWAccessibilityState *next) {
   if (!same(old.name, next.name))
@@ -223,18 +250,26 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
       for (NSNumber *number in removed)
         [next removeObjectForKey:number];
       [next addEntriesFromDictionary:changes];
-      int64_t oldFocus = tree.focused;
-      tree.published = next;
-      tree.focused = focused;
-      tree.pending = nil;
-      tree.removed = nil;
-      BOOL structure = removed.count != 0;
+      BOOL orderChanged = removed.count != 0;
+      BOOL visibilityChanged = NO;
       for (NSNumber *number in changes) {
         SWAccessibilityState *old = previous[number];
         SWAccessibilityState *value = changes[number];
-        structure |= !old || old.data.parent != value.data.parent ||
-                     old.data.order != value.data.order ||
-                     ((old.data.flags ^ value.data.flags) & SWAXHidden) != 0;
+        orderChanged |= !old || old.data.parent != value.data.parent ||
+                        old.data.order != value.data.order;
+        visibilityChanged |= ((old.data.flags ^ value.data.flags) &
+                              (SWAXHidden | SWAXIgnored)) != 0;
+      }
+      NSDictionary *children = orderChanged ? childIndex(next) : tree.children;
+      int64_t oldFocus = tree.focused;
+      tree.published = next;
+      tree.children = children;
+      tree.focused = focused;
+      tree.pending = nil;
+      tree.removed = nil;
+      for (NSNumber *number in changes) {
+        SWAccessibilityState *old = previous[number];
+        SWAccessibilityState *value = changes[number];
         if (old)
           notify([tree element:number.longLongValue], old, value);
       }
@@ -246,7 +281,7 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
         [tree.elements removeObjectForKey:number];
         [tree.retiring removeObject:number];
       }
-      if (structure)
+      if (orderChanged || visibilityChanged)
         NSAccessibilityPostNotification(
             tree.root, NSAccessibilityLayoutChangedNotification);
       if (oldFocus != focused)
@@ -285,6 +320,7 @@ void scoop_window_accessibility_close(void *pointer) {
   [tree.elements removeAllObjects];
   [tree.retiring removeAllObjects];
   tree.published = @{};
+  tree.children = @{};
   tree.pending = nil;
   tree.removed = nil;
 }

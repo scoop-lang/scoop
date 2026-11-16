@@ -210,6 +210,7 @@ public class AccessibilityProvider internal constructor(
             node.children.clear()
             node.parentNode = None
             node.relationValues = SemanticRelations()
+            node.content = []
             node.referrers.clear()
             node.resolvedName = None
             node.resolvedDescription = None

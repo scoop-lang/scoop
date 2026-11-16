@@ -17,7 +17,9 @@ internal class RootSemantics(
     private val provider: AccessibilityProvider
 ): Closeable {
     private val handles = ArrayList<SemanticsHandle>()
+    private var ordered: Array<SemanticsHandle> = []
     private var structure = true
+    private var content = true
     private var dirty = true
     private var closed = false
     private var drawing: SemanticScene? = None
@@ -48,6 +50,10 @@ internal class RootSemantics(
     }
     fun structureChanged() {
         structure = true
+        contentChanged()
+    }
+    fun contentChanged() {
+        content = true
         changed()
     }
 
@@ -56,10 +62,18 @@ internal class RootSemantics(
             return
         if (structure) {
             when (val node = root.node) {
-                case Some(val value) -> SemanticOrder().apply(value, None)
+                case Some(val value) -> {
+                    val order = SemanticOrder()
+                    order.apply(value, None)
+                    ordered = order.handles.toArray()
+                }
                 case None -> return
             }
             structure = false
+        }
+        if (content) {
+            SemanticContent(ordered).apply()
+            content = false
         }
         var focused: AccessibilityNode? = None
         for (handle in handles) {
@@ -186,6 +200,7 @@ internal class RootSemantics(
         for (handle in handles)
             handle.finishClose()
         handles.clear()
+        ordered = []
         throwUi(failure)
     }
 }

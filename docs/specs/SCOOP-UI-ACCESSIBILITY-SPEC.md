@@ -1,6 +1,6 @@
 # UI 无障碍接口规范
 
-状态：S2 实施中。本文规定公共语义资源、逻辑更新和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。内容合并、复杂控件关系、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
+状态：S2 实施中。本文规定公共语义资源、逻辑更新、内容合并和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。复杂控件关系、完整文本与集合、内置控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
 
 ## 1. 资源与父子关系
 
@@ -18,7 +18,7 @@
 
 `handle.update(properties, actions = SemanticActions(), relations = SemanticRelations())` 替换 Window SemanticProperties、最新动作与关系；关系使用同一活动根的 handle.id，不改变角色、身份、父子归属或业务状态。检查、名称／说明／错误解析、只读／禁用／受保护文本规则沿底层公共合同。名称或值改变立即使旧几何失效；只替换同能力处理器不要求绘制，也不重复原生属性通知。render／measure／scene／draw 不能创建、更新或关闭语义资源；Scene 只登记几何，挂载构造与正常 update 可修改资源。
 
-标签文字变化经底层关系依赖更新引用者，无需重建消费它的 Element 或请求 drawable；显式空名称优先于标签。单独关闭 UI handle 后指向它的 labelledBy／describedBy／errorMessages／controls 自动清除，handle.relations 只读返回当前关系，不按相同位置或新角色转接到替代节点。bindFocus 保留当前关系，不重新提交已清理的旧引用。Scene 捕获并核对底层 contentRevision，标签依赖变化后的迟到 Accepted 场景不能恢复旧几何。内容合并／忽略策略继续独立实现，关系不自动吞掉标签的交互子项。
+标签文字变化经底层关系依赖更新引用者，无需重建消费它的 Element 或请求 drawable；显式空名称优先于标签。单独关闭 UI handle 后指向它的 labelledBy／describedBy／errorMessages／controls 自动清除，handle.relations 只读返回当前关系，不按相同位置或新角色转接到替代节点。bindFocus 保留当前关系，不重新提交已清理的旧引用。Scene 捕获并核对底层 contentRevision，标签依赖变化后的迟到 Accepted 场景不能恢复旧几何。内容合并／忽略策略见下节，关系本身不自动吞掉标签的交互子项。
 
 属性、父子关系与实际焦点在根的一次正常逻辑更新结束后一起发布。独立 handle 更新也通过现有 UiHost 队列唤醒该根，不请求 drawable，不增加另一套调度器。结构未变时不重新遍历挂载树；同一轮重复修改按最终值合并。失活／关闭立即拒绝旧动作，不等待下一帧。
 
@@ -26,7 +26,17 @@
 
 `handle.bindFocus(target: FocusTarget?)` 借用本挂载的实际 FocusTarget，None 解除绑定；同一目标不能同时绑定两个活动语义节点。绑定使 provider 的 focused 反映真实活动键盘焦点，查询不改变焦点。若 actions 未显式提供 focus，绑定提供经 FocusHandle 的聚焦／解除焦点动作；需要后续布局显露的请求返回 Busy，直到实际获得焦点才可返回 Completed，不把排队成功当成聚焦完成。目标关闭后不再报告焦点，动作返回 Unavailable。显式 focus handler 仍使用绑定目标作为实际焦点事实。
 
-## 3. 场景与几何
+## 3. 内容合并与忽略
+
+SemanticProperties.ignored 仅忽略当前语义节点，hidden 排除其语义子树；它们不修改真实布局、输入或键盘焦点。忽略的包装保留后代的身份和阅读顺序，祖先禁用／隐藏仍约束后代动作。没有语义资源的布局继续默认透明，不需要为透明布局额外创建节点。
+
+handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，根沿该容器的语义阅读顺序吸收纯 Text 叶子的内容，并把这些叶子标为 ignored；它们继续保留资源身份和标签依赖。只有没有动作、没有绑定焦点、非受保护且没有语义子节点的 Text 才能合并。显式 ignored 包装允许继续查找其后代，但不贡献包装自身的文字；hidden 子树不贡献内容。普通 Group、其他角色、带动作／焦点／子控件的文本及嵌套合并容器保持独立，不遍历任意 Custom View 猜测内容。
+
+合并名称采用显式 name、有效 labelledBy、已知内容文字的顺序，空字符串与未知分开。即使有显式名称覆盖，已经声明合并的静态标签仍避免重复进入导航。由内容声明产生的 fallback 引用不混入 handle.relations；根借用 Window contentLabels 发布并随结构、动作、焦点绑定和隐藏策略变化更新。合并、忽略和恢复均不退休节点，不请求 drawable；纯标签文字变化沿既有名称依赖更新，不重走挂载树。
+
+动作、焦点或结构变化使文本不再适合合并时，同一次逻辑发布恢复该节点并保留其真实动作。先撤下已改变的旧内容引用，再安装本次引用，避免合法重排被中间状态的旧关系干扰；实际名称循环仍按 Window 的 publish 合同报告。UI 根通过现有错误边界处理非法声明，不发布半棵原生树。内容名称变化沿 contentRevision 拒绝不匹配的旧场景。
+
+## 4. 场景与几何
 
 `SceneContext.semantics(handle, bounds: Rect)` 只接受本挂载的活动 handle，在当前 Canvas 坐标与裁剪中捕获独立几何。每个节点每帧只能登记一次；不创建 InputArea。登记作为 SceneCommand 参与缓存记录和重放，重放时重新应用当前祖先变换与 clip，不保存上一帧的输入位置。opacity 为零或没有绘图不自动隐藏语义节点。
 
@@ -34,7 +44,7 @@
 
 几何来自 graphics 的 CanvasGeometry，与真实绘制使用同一变换和精确 clip 交集；Window 只取得窗口逻辑坐标的 bounds／visibleBounds，不据矩形中心承诺可点击点。本批不公布尚未接入的原生精确命中能力。滚动条留白、滚动变换、Portal 和其他场景变换均在登记点生效；完整 Reveal 与虚拟化能力继续使用既有滚动／焦点路径。
 
-## 4. 验证边界
+## 5. 验证边界
 
 用真实第三方 Element 验证无 InputArea 的文本、多节点、透明挂载、子项路由、重排／角色替换、最新 handler、禁用／隐藏／模态限制、自删与关根、跨根错误和旧对象退休。无 drawable 的属性更新必须独立验证；场景缓存命中、Accepted／Discarded、裁剪、未放置和属性与候选帧不匹配必须通过实际场景验证。
 
