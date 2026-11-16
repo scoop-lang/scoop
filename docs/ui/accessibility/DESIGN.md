@@ -319,6 +319,8 @@ S5 已接入 `SemanticsHandle.updateTextEditor`：普通 update 从同一挂载�
 
 Linux D-Bus 方法可保留调用并在 owner 完成后回复；Windows COM 调用需要核实 apartment、线程和重入行为；AppKit 必须逐项确认同步 getter、动作和 setter 的实际返回合同。无返回值 setter 只能在后续状态与通知中体现真实修改，不提前改写 native 值。
 
+macOS 的独立 AX 客户端已验证基础属性、实际动作、焦点与退休。AppKit 的 AXUIElementPerformAction 可以在禁用动作被拒绝后仍返回 kAXErrorSuccess，标准 NSButton 对照也复现；该系统确认不代表业务 Completed。库提供的 BOOL／公共结果仍按实际完成返回，跨进程客户端另读当前值和有效目标，具体边界见 Window 无障碍规范。窗口的 AXFocused 不等于子节点焦点，实际对象通过应用的 AXFocusedWindow／AXFocusedUIElement 核对。
+
 内部请求状态仅服务当前调用的完成、失败与关闭清理，不新增公共 future／RPC 服务。同步 Realize 和跨线程关闭必须在平台原型阶段验证，不能等到所有控件改造后才发现 owner 无法推进。
 
 本轮原生文本菜单和数据拖放同样存在同步查询／动作与 tracking loop。与其共同核查已有 owner 的可进入边界，复用必要的派发保护，不各建一套可重入事件循环。原生菜单条目或 drop callback 触发 UI 修改时仍不能进入正在执行的 render／layout；各协议分别满足自身返回合同，不因共用执行入口而统一返回“已排队”。

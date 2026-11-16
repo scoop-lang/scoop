@@ -12,9 +12,9 @@
 
 | 批次 | 状态 | 已完成与剩余 |
 | --- | --- | --- |
-| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常仍待独立客户端复验；系统文本服务、拖放与其他平台验证待继续 |
+| S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，独立 AX 客户端的基础查询／动作／焦点／退休已通过；系统文本服务、完整外部客户端与读屏器、拖放及其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题离屏测试、实窗双根偏好热切换及帧复用回归通过；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
-| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；其余控件、复杂关系、激活点和外部客户端仍待完成 |
+| S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、关系、内容合并／忽略、Accepted 场景与精确命中已实现；基础控件、Switch／Toggle／RadioGroup／ToggleGroup、只读文本、Field 注释关系与滚动容器的原生回归通过，Accepted 场景、缓存重放与精确命中的实窗回归通过；基础跨进程 AX 回归已通过；其余控件、复杂关系、激活点及完整外部／读屏器验收仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，两类宿主的真实文本菜单与 IME 组合实窗回归通过；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
@@ -337,3 +337,12 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 生产与新用例的源码检查、release 构建、native 严格编译、12 个 Scoop 文件格式和 diff 检查通过。Window、Window.asyncio、Surface、UI、Style、四套主题与 Component 的开发产物已按依赖更新，复用共享缓存。Window API 文档生成与查询确认 reveal 的可选回调、None 默认值及导入路径；两份规范、设计、计划、库／测试 README 和编程导航同步，96 个本地 Markdown 目标检查通过。临时 API 站点、应用包及逐次报告已清理，保留后续需要的启动脚本与缓存。
 
 本批只关闭已挂载节点的本地显露能力与原生协议回归。外部 AX／VoiceOver、未实例化条目的 Realize／Reveal 和其他平台继续按 S7／S10／S11 验收。
+
+
+### macOS 独立 AX 客户端基础回归
+
+- 桌面恢复并用普通应用包运行后，AXWindows 正常返回 AXWindow，先前窗口引用报告 AXApplication 的现象未再出现。客户端通过公开 AXUIElement API 连接独立进程，现有 Accessibility 权限可用。
+- 完整外部模式通过按钮、切换、拒绝及成功的 Unicode 值写入、真实聚焦与解除、隐藏／禁用，以及节点、provider 和窗口关闭后的保留引用。应用继续检查实际业务调用次数、状态与身份；最后一个故意抛出异常的收尾动作沿原进程内路径验证。正式测试事件包含无失败的 end 和 complete。
+- 修正客户端焦点断言，直接核对应用的 AXFocusedUIElement／AXFocusedWindow 及目标 AXFocused。窗口自身 AXFocused 可以为 false，而当前子节点确实拥有焦点，不能要求两者相等。
+- 独立标准 AppKit 禁用 NSButton 对照复现 AXUIElementPerformAction 返回 kAXErrorSuccess 的平台行为。客户端允许这一系统确认，同时严格验证值不变和业务未再次执行；退休后继续验证旧引用不可读取。库的 BOOL／SemanticActionResult 合同未改变，未把系统确认改报成业务成功。
+- 客户端 C11 严格编译和格式检查通过，测试使用当前 Window release 产物；规范、设计和 README 同步平台边界，本地文档目标检查通过。原生对照程序、临时应用包和逐次报告已清理，保留后续使用的 AX 客户端与构建缓存。完整关系／文本几何／虚拟集合的外部查询、VoiceOver 与其他平台仍按原计划验收。

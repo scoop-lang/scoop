@@ -85,7 +85,7 @@ static int retired(AXUIElementRef node) {
   return !role && last_error != kAXErrorSuccess;
 }
 
-static int run(AXUIElementRef window, int operation) {
+static int run(AXUIElementRef app, AXUIElementRef window, int operation) {
   CFStringRef identifier = operation == 1 || operation == 7   ? CFSTR("check")
                            : operation >= 2 && operation <= 5 ? CFSTR("field")
                                                               : CFSTR("save");
@@ -116,9 +116,18 @@ static int run(AXUIElementRef window, int operation) {
   case 4: {
     CHECK(set(node, kAXFocusedAttribute, kCFBooleanTrue));
     int node_focused = boolean(node, kAXFocusedAttribute);
-    int window_focused = boolean(window, kAXFocusedAttribute);
-    CHECK(node_focused >= 0 && window_focused >= 0);
-    CHECK(node_focused == window_focused);
+    CFTypeRef focused_window = copy(app, kAXFocusedWindowAttribute);
+    CFTypeRef focused_element = copy(app, kAXFocusedUIElementAttribute);
+    int matches_window = focused_window && CFEqual(focused_window, window);
+    int matches_element = focused_element && CFEqual(focused_element, node);
+    if (focused_window)
+      CFRelease(focused_window);
+    if (focused_element)
+      CFRelease(focused_element);
+    if (node_focused != 1 || !matches_window || !matches_element)
+      fprintf(stderr, "AX focus mismatch: node=%d window=%d target=%d\n",
+              node_focused, matches_window, matches_element);
+    CHECK(node_focused == 1 && matches_window && matches_element);
     break;
   }
   case 5:
@@ -127,7 +136,10 @@ static int run(AXUIElementRef window, int operation) {
     break;
   case 7:
     CHECK(!boolean(node, kAXEnabledAttribute));
-    CHECK(!press(node));
+    // AppKit may acknowledge the IPC call even when the BOOL action rejects it.
+    press(node);
+    CHECK(last_error == kAXErrorSuccess ||
+          last_error == kAXErrorActionUnsupported);
     CHECK(number_is(node, kAXValueAttribute, 1));
     break;
   case 8:
@@ -135,7 +147,11 @@ static int run(AXUIElementRef window, int operation) {
   case 10:
     CHECK(press(node));
     CHECK(retired(node));
-    CHECK(!press(node));
+    press(node);
+    CHECK(last_error == kAXErrorSuccess ||
+          last_error == kAXErrorActionUnsupported ||
+          last_error == kAXErrorInvalidUIElement);
+    CHECK(retired(node));
     break;
   default:
     CFRelease(node);
@@ -164,7 +180,7 @@ int main(int argc, char **argv) {
     }
   }
   CHECK(string_is(window, kAXRoleAttribute, kAXWindowRole));
-  int result = run(window, (int)strtol(argv[2], NULL, 10));
+  int result = run(app, window, (int)strtol(argv[2], NULL, 10));
   CFRelease(windows);
   CFRelease(app);
   return result;

@@ -22,4 +22,6 @@ SCOOP_ACCESSIBILITY_CLIENT=/absolute/work/ax-client scoop test . --release
 
 外部客户端会验证按钮／切换、拒绝及成功的文本值设置、聚焦与解除焦点、隐藏／禁用，以及自身、provider 和窗口退休后的保留引用。关系的跨进程查询、完整文本范围、虚拟条目、精确命中和读屏器任务沿 UI 总计划继续。
 
+焦点通过应用的 AXFocusedUIElement／AXFocusedWindow 和节点自身 AXFocused 核对；窗口自身的 AXFocused 不是后代焦点的同义值。AppKit 的 AXUIElementPerformAction 可能在禁用动作拒绝时仍返回 kAXErrorSuccess，标准禁用 NSButton 也复现此行为；客户端因此检查实际值不变，应用端继续严格检查业务回调次数。退休后的再次调用允许系统确认或对应 unavailable／unsupported 错误，但旧对象仍必须不可读取且不能再次执行业务。传输失败不当作禁用或退休成功。
+
 选择角色的值校验同时覆盖 Switch／ToggleButton／RadioButton 的 Off／On 与 Mixed 拒绝；拒绝保留原几何和正文版本，未发布节点关闭不改变已发布原生树。实际选择控件的原生角色、动作、受控绑定和按 key 生命周期由 Component 的 choice-accessibility Cone 覆盖。

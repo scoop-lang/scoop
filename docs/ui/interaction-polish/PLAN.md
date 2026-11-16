@@ -98,7 +98,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S2 公共语义模型与 macOS 基础闭环
 
-当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。Label、Button、Checkbox、Switch／Toggle／RadioGroup／ToggleGroup、Input／Textarea、SelectableStyledText、Typography、ScrollArea 与 VirtualList 滚动容器已提供默认语义及统一覆盖值，组合控件可由后代 Element 登记祖先资源的几何。具体运行与构建范围见[实施记录](PROGRESS.md)；Accepted 场景、缓存及精确命中的 macOS 实窗回归已通过；其余控件、复杂控件关系、激活点和外部客户端仍待继续，不据基础资源交付标记本批完成。
+当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。Label、Button、Checkbox、Switch／Toggle／RadioGroup／ToggleGroup、Input／Textarea、SelectableStyledText、Typography、ScrollArea 与 VirtualList 滚动容器已提供默认语义及统一覆盖值，组合控件可由后代 Element 登记祖先资源的几何。具体运行与构建范围见[实施记录](PROGRESS.md)；Accepted 场景、缓存及精确命中的 macOS 实窗回归已通过；基础独立 AX 客户端的动作、焦点和退休回归已通过；其余控件、复杂控件关系、激活点与完整外部／读屏器验收仍待继续，不据基础资源交付标记本批完成。
 
 **主要范围：** UI scope／挂载／host／scene，Window 的 `accessibility` 包与 AppKit 后端，基础控件。先改 UI、Window、Component 及必要的 Surface spec。
 

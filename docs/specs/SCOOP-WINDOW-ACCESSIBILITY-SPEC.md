@@ -46,6 +46,8 @@ AppKit getter 不进入 managed 代码。同步动作使用创建 provider 时�
 
 NSAccessibility 的 performPress 等 BOOL 动作仅在 Completed 时返回 YES。setAccessibilityValue 与 setAccessibilityFocused 为无返回值 setter：只在实际回调中改变业务状态，失败时保持旧值；调用方必须读取结果，不能把 setter 返回解释为写入成功。原生注册在释放 callback 前撤销；动作中关闭时，callback ownership 经现有 owner control 队列在调用退栈后释放。客户端晚到查询／动作不会访问已释放 context。
 
+AppKit 的跨进程 AX 桥由系统实现；`AXUIElementPerformAction` 的 kAXErrorSuccess 可能只确认调用已送达，即使原 BOOL 动作拒绝也返回该值，标准禁用 NSButton 同样如此。库不把这一系统状态再解释为 SemanticActionResult.Completed；客户端结合当前 enabled、实际值、焦点或对象退休状态判断业务结果，校验中也分别记录跨进程调用与真实 handler 的结果。聚焦后通过应用的 AXFocusedUIElement／AXFocusedWindow 及目标自身的 AXFocused 核对，不要求窗口自身 AXFocused 与后代节点相等。
+
 showContextMenu 映射 AppKit accessibilityPerformShowMenu，经相同 owner／生命周期／输入边界执行真实菜单请求，不合成右键或建立第二份菜单模型。Completed 表示调用方已经创建绑定该目标的菜单会话；选中菜单项及后续业务操作属于该会话，不能在动作中递归 pump 菜单 tracking。原生菜单提供自己的语义，不把其项目复制为 UI 子节点。实际动作能力增删后发送适用的 LayoutChanged 通知，单纯替换能力相同的 handler 不通知，也不重建子项索引。
 
 ### 3.1 纯文本正文与选区
