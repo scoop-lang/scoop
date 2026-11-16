@@ -55,6 +55,10 @@ DPI 缩放由目标根部施加一次，geometry 快照仍使用逻辑坐标。�
 
 文本等原生绘图适配通过 `scoop.graphics.native` 的 `@Unsafe Canvas.withSkiaCanvas` 同步借用实际 SkCanvas。借用保留现有坐标／裁剪，正常返回和异常退出都恢复原生状态，不增加 DPI 缩放。指针仅限回调内使用；回调不能重入同一 Canvas 的 Scoop 操作、越过借用的保存边界、提交目标或变更 context。详细合同见 [Surface 规范](../../../docs/specs/SCOOP-SURFACE-SPEC.md#2-几何与绘制)。
 
+需要向原生宿主交付精确命中查询时，在几何的 owner 线程调用 `@Unsafe geometry.withNativeHitTest { hit -> ... }`。NativeGeometryHitTest 包含配套的 context、retain、release、contains 原生函数指针；contains(context, x, y) 使用窗口逻辑坐标，返回 1／0。要跨越 block 保存或交给其他线程，先 retain，每份拥有的引用最后 release 一次；普通值复制不增加引用。借用结束或抛错自动释放本次临时引用，保留的只读快照独立于 CanvasGeometry、画布和目标，不进入 Scoop 回调或布局。
+
+普通 hitTest 与原生 contains 共用形状、变换和完整 clip，并排除 viewport 外的点（包含右／下边界）。孔洞、不可逆变换和非有限的原生坐标不产生命中；窗口的层叠顺序、语义状态与实际呈现时机仍由消费者处理。
+
 准备 [native 资源](../../../scripts/README.md)后运行 `scoop test sysroot/src/scoop.graphics --release --sysroot sysroot`。测试通过真实 Skia 像素、几何和跨 Cone 借用验证行为；文本与字体测试归 graphics.text。整体进展见 [Surface 实施记录](../../../docs/surface/PROGRESS.md)及 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
 
 `Path.rasterizeRegion(clip, scale)` 和 `graphics.native.CanvasGeometry.rasterizeRegion(scale)` 使用 Skia 的非抗锯齿区域栅格化，返回逻辑坐标中的自有矩形集合。后者包含捕获时的真实变换、路径 clip 与 viewport，可供 Accepted 帧发布原生输入／窗框区域；graphics 保持不依赖 window。

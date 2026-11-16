@@ -137,10 +137,12 @@ SGGeometry *scoop_graphics_geometry_rect(SGCanvas *value, SGRect rect) {
 SGGeometry *scoop_graphics_geometry_path(SGCanvas *value, SGPath *path) {
   return geometry(value, path->path);
 }
-int32_t scoop_graphics_geometry_hit(SGGeometry *value, SGPoint point) {
-  if (!value->invertible)
+int32_t scoop_graphics_geometry_hit(const SGGeometry *value, SGPoint point) {
+  if (!value->invertible || !std::isfinite(point.x) || !std::isfinite(point.y))
     return 0;
   SkPoint window = sg_point(point);
+  if (!value->viewport.contains(window.x(), window.y()))
+    return 0;
   if (value->clips) {
     const auto bounds = value->clips->bounds;
     if (bounds.isEmpty() || window.x() < bounds.left() ||

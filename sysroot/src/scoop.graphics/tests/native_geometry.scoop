@@ -1,0 +1,123 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.test.*
+import scoop.tests.graphics.queryNativeGeometry
+
+@Test
+private class NativeGeometryTest {
+    @Test
+    fun `retained native queries preserve transformed holes and viewport after source close`() {
+        val geometry =
+            RasterSurface(100, 80).use {
+                surface -> path(FillRule.EvenOdd) {
+                    addRect(Rect(0.0, 0.0, 100.0, 100.0))
+                    addRect(Rect(20.0, 20.0, 20.0, 20.0))
+                }.use {
+                    hole -> surface.draw {
+                        canvas ->
+                        canvas.translate(10.0, 5.0)
+                        canvas.clipPath(hole)
+                        @Unsafe
+                        {
+                            return@draw captureGeometry(canvas, Rect(-20.0, -20.0, 160.0, 160.0))
+                        }
+                    }
+                }
+            }
+        val retained = retainGeometry(geometry)
+        try {
+            geometry.close()
+            assertNativeHit(retained, Point(15.0, 10.0), 1)
+            assertNativeHit(retained, Point(35.0, 30.0), 0)
+            assertNativeHit(retained, Point(5.0, 10.0), 0)
+            assertNativeHit(retained, Point(99.0, 10.0), 1)
+            assertNativeHit(retained, Point(100.0, 10.0), 0)
+            assertNativeHit(retained, Point(105.0, 10.0), 0)
+            assertNativeHit(retained, Point(15.0, 80.0), 0)
+            assertNativeHit(retained, Point(Double.NaN, 10.0), 0)
+            assertFailsWith<IllegalStateException> {
+                @Unsafe
+                {
+                    geometry.withNativeHitTest { _ -> Unit }
+                }
+            }
+        } finally {
+            geometry.close()
+            @Unsafe
+            {
+                retained.release(retained.context)
+            }
+        }
+    }
+
+    @Test
+    fun `native geometry survives an exceptional borrow and rejects singular transforms`() {
+        val retained = ArrayList<NativeGeometryHitTest>()
+        try {
+            RasterSurface(20, 20).use {
+                surface -> surface.draw {
+                    canvas ->
+                    canvas.scale(0.0, 1.0)
+                    @Unsafe
+                    {
+                        captureGeometry(canvas, Rect(0.0, 0.0, 10.0, 10.0)).use {
+                            geometry -> assertFailsWith<IllegalArgumentException> {
+                                @Unsafe
+                                {
+                                    geometry.withNativeHitTest {
+                                        value ->
+                                        @Unsafe
+                                        {
+                                            value.retain(value.context)
+                                        }
+                                        retained.add(value)
+                                        throw IllegalArgumentException(Some("end native borrow"))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            assertEquals(1L, retained.size)
+            assertNativeHit(retained[0L], Point(0.0, 5.0), 0)
+        } finally {
+            for (value in retained)
+                @Unsafe
+                {
+                    value.release(value.context)
+                }
+        }
+    }
+}
+
+private fun retainGeometry(geometry: CanvasGeometry): NativeGeometryHitTest {
+    @Unsafe
+    {
+        return geometry.withNativeHitTest {
+            value -> @Unsafe
+            {
+                value.retain(value.context)
+                return@withNativeHitTest value
+            }
+        }
+    }
+}
+
+private fun assertNativeHit(geometry: NativeGeometryHitTest, point: Point, expected: Int) {
+    @Unsafe
+    {
+        assertEquals(
+            expected,
+            queryNativeGeometry(
+                geometry.context,
+                geometry.retain,
+                geometry.release,
+                geometry.contains,
+                point.x,
+                point.y
+            )
+        )
+    }
+}
