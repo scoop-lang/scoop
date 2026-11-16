@@ -14,6 +14,14 @@ when = { os = ["darwin", "windows"] }
 path = "platform/darwin"
 when = { os = "darwin" }
 
+[[sources]]
+path = "platform/without-drag"
+when = { os = "windows" }
+
+[[sources]]
+path = "platform/without-drag"
+when = { os = "linux", env = "gnu" }
+
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"

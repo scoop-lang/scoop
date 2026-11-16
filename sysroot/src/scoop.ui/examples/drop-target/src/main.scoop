@@ -16,6 +16,7 @@ private struct DropView(
 
 private class DropDemo(scope: ComponentScope): Component(scope) {
     private var received: DragContent? by state<DragContent?>(None)
+    private val editor = TextEditorState("Drop text or a URL here, or type and paste normally.")
     public override fun render(): View {
         val message =
             when (val value = received) {
@@ -26,7 +27,8 @@ private class DropDemo(scope: ComponentScope): Component(scope) {
             }
         return element(
             DropView(message, received, { value -> received = Some(value) }),
-            { props, mount -> DropDrawing(props, mount) }
+            { props, mount -> DropDrawing(props, mount) },
+            [element(editor, { props, mount -> DropEditor(props, mount) })]
         )
     }
 }
@@ -61,30 +63,31 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
     public override fun onMount() {
         textSemantic.bindFocus(Some(focus))
         urlSemantic.bindFocus(Some(urlFocus))
-        scope.resource {
-            ShortcutScope(
-                scope.input,
-                [
-                    shortcutBinding(
-                        ShortcutChord(
-                            ShortcutKey.Logical(LogicalKey.Character("v")),
-                            ShortcutModifiers(primary = true)
+        for (area in [textArea, urlArea])
+            scope.resource {
+                ShortcutScope(
+                    area.scope,
+                    [
+                        shortcutBinding(
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("v")),
+                                ShortcutModifiers(primary = true)
+                            ),
+                            {
+                                paste();
+                                Unit
+                            }
                         ),
-                        {
-                            paste();
-                            Unit
-                        }
-                    ),
-                    shortcutBinding(
-                        ShortcutChord(
-                            ShortcutKey.Logical(LogicalKey.Character("c")),
-                            ShortcutModifiers(primary = true)
-                        ),
-                        { copy(urlArea.hasFocus) }
-                    )
-                ]
-            )
-        }
+                        shortcutBinding(
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("c")),
+                                ShortcutModifiers(primary = true)
+                            ),
+                            { copy(urlArea.hasFocus) }
+                        )
+                    ]
+                )
+            }
     }
 
     private fun paste(): SemanticActionResult {
@@ -135,7 +138,7 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
         fileSemantic.update(
             SemanticProperties(
                 name = Some("Receive files"),
-                description = Some("Files can be dropped anywhere, including both child areas.")
+                description = Some("Drop files on the background or either coloured area.")
             )
         )
         textSemantic.update(
@@ -171,17 +174,28 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement
     > {
-        val size = constraints.constrain(Size(720.0, 480.0))
+        val size = constraints.constrain(Size(720.0, 560.0))
         val width =
             if (size.width > 48.0)
                 size.width - 48.0
             else
                 0.0
+        context.measureChild(0L, Constraints.tight(Size(width, 80.0)))
+        context.placeChild(
+            0L,
+            Point(
+                24.0,
+                if (size.height > 104.0)
+                    size.height - 104.0
+                else
+                    0.0
+            )
+        )
         val message = props.value.message
         val content =
             styledText {
                 this.text(
-                    "Left: drag text; click to paste. Right: drag URL; click to copy.\nCommand C copies the focused region. Files drop anywhere.\n\n" +
+                    "Left: drag text; click to paste. Right: drag URL; click to copy.\nCommand C copies the focused region. Drop text into the editor below.\n\n" +
                         message
                 )
                 style { fontSize = 18.0 }
@@ -205,8 +219,8 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                 0.0
         val top = 48.0 + layout.metrics.size.height
         val height =
-            if (context.size.height > top + 24.0)
-                context.size.height - top - 24.0
+            if (context.size.height > top + 128.0)
+                context.size.height - top - 128.0
             else
                 0.0
         val left = Rect(24.0, top, width, height)
@@ -271,6 +285,7 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
                     Paint(Color(0.10, 0.32, 0.70), PaintingStyle.Stroke, 3.0)
                 )
         }
+        context.children()
         context.translate(24.0, 24.0)
         paragraph.scene(context, layout)
     }
@@ -287,7 +302,7 @@ fun main() {
                     active.createWindow(
                         windowAttributes {
                             title = "Scoop — data dragging " + index.toString()
-                            size = LogicalSize(720.0, 480.0)
+                            size = LogicalSize(720.0, 560.0)
                         }
                     )
                 windows.add(window)

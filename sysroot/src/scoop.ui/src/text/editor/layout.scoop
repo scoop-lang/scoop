@@ -15,6 +15,8 @@ internal class EditorInputLayout(
 internal class EditorFrame(
     private val retained: RetainedEditorLayout,
     val snapshot: ScrollSnapshot,
+    val editor: TextEditorState,
+    val projection: TextProjection,
     val revision: Long,
     val display: TextDisplay,
     val cells: TextEditCells?,
@@ -173,6 +175,8 @@ internal fun editorMeasure(
         LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline)),
         layout.retain(),
         scroll,
+        host.current,
+        host.options.projection,
         host.current.revision,
         text.display,
         cells,
@@ -214,6 +218,8 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         EditorFrame(
             measure.retained.layout.retain(),
             measure.scrollSnapshot,
+            measure.editor,
+            measure.projection,
             measure.revision,
             measure.display,
             measure.cells,
@@ -226,6 +232,11 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
     val appearance = host.appearance
     val input = host.current.inputState
     val caret = editorCaret(host, EditorInputLayout(layout, frame.display, frame.caretStyle))
+    val dropCaret =
+        when (host.dropTarget) {
+            case Some(val target) -> target.caret(frame)
+            case None -> None
+        }
     val selection = layout.selection(frame.display.displayRange(input.selection.range))
     val marked =
         when (input.markedRange) {
@@ -285,7 +296,12 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                         Paint(appearance.markedColor)
                     )
                 if (
-                    active && host.caretVisible && input.selection.anchor == input.selection.cursor
+                    active &&
+                        host.caretVisible &&
+                        dropCaret ==
+                        None &&
+                        input.selection.anchor ==
+                        input.selection.cursor
                 ) {
                     when (caret) {
                         case Some(val rect) -> paint.canvas.drawRect(
@@ -294,6 +310,10 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                         )
                         case None -> {}
                     }
+                }
+                when (dropCaret) {
+                    case Some(val rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
+                    case None -> {}
                 }
             }
         }
@@ -312,10 +332,12 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         val previous = host.accepted
         host.accepted = Some(frame)
         previous?.close()
+        host.dropTarget?.accepted()
         if (host.current.revision == frame.revision) {
             if (
                 host.revealNeeded &&
                     !editorDragging(host) &&
+                    !(host.dropTarget?.isHovering ?: false) &&
                     host.area.isFocusActive &&
                     host.revealRevision ==
                     host.focus.node.root.surface.focusRevision

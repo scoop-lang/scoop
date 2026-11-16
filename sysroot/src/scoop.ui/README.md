@@ -211,6 +211,8 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 
+macOS 的 TextEditHost 默认接收纯文本／URL Copy；`TextEditOptions(acceptDrops = false)` 可单独关闭接收，普通拖选、键盘与粘贴继续可用。临时落点 caret 使用当前模型、修订与投影匹配的 Accepted 几何，边缘自动滚动沿既有视口；metadata 阶段保持原选区和输入法组合。接受的数据以 `TextEditSource.DragDrop` 进入 paste 清洗、通用变换及长度／字符策略，拒绝时保留整个原状态，接受后只产生一个独立 undo 项。只读／禁用目标拒绝接收，受保护用途可以导入但不会因此开放导出。示例见 [drop-target](examples/drop-target/README.md)，规则与目标平台范围见[UI 拖放规范](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)；文本拖出、Move 与其他平台仍按 S6 推进。
+
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。
 
 密码等受保护用途在 `TextEditOptions(protectedText = true)` 中明确声明；显示明文时继续保留这个标记。`TextCopyPolicy.Default` 在受保护用途或内置遮罩时禁止 Copy／Cut，Allow 明确允许复制原文，Deny 始终禁止；Paste、选择、删除和撤销仍按通常的编辑策略执行。更换 projection 或 protectedText 不更换模型／IME 连接，菜单立即更新可用性，迟到动作读取当前策略。该标记独立于视觉效果；完整 accessibility 文本、拖放和系统文本服务的接入仍按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)推进。

@@ -39,7 +39,8 @@ public class InputOtpProps public constructor(
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
     public val onComplete: (TextEditorState) -> Unit = { _ -> Unit },
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
-    public val protectedText: Boolean = false
+    public val protectedText: Boolean = false,
+    public val acceptDrops: Boolean = true
 ) {
     init {
         requireComponent(length > 0L, "OTP length must be positive")

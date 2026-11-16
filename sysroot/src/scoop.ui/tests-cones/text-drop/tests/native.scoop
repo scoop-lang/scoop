@@ -1,0 +1,118 @@
+package scoop.tests.ui.textdrop
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+
+internal class NativeTextDrop(private val pointer: Ptr<Unit>): Closeable {
+    private var closed = false
+    fun post(callback: ForeignCallback<(Ptr<Unit>) -> Int>) {
+        @Unsafe
+        {
+            postProbe(pointer, callback.function, callback.context)
+        }
+    }
+    fun text(value: String, url: Boolean = false) {
+        @Unsafe
+        {
+            value.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    assertTrue(
+                        setContent(
+                            pointer,
+                            bytes,
+                            length,
+                            if (url)
+                                1
+                            else
+                                0
+                        )
+                    )
+                }
+            }
+        }
+    }
+    fun offer(point: Point, effects: Int = 1): Int {
+        @Unsafe
+        {
+            return offerAt(pointer, point.x, point.y, effects)
+        }
+    }
+    fun drop(): Int {
+        @Unsafe
+        {
+            return perform(pointer)
+        }
+    }
+    fun mark() {
+        @Unsafe
+        {
+            assertTrue(markProbe(pointer))
+        }
+    }
+    fun canMark(): Boolean {
+        @Unsafe
+        {
+            return canMarkProbe(pointer)
+        }
+    }
+    fun leave() {
+        @Unsafe
+        {
+            leaveProbe(pointer)
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            closeProbe(pointer)
+        }
+    }
+}
+
+internal fun nativeTextDrop(window: Window): NativeTextDrop {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, val view) -> NativeTextDrop(openProbe(view) ?: fail())
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_ui_text_drop_open")
+private fun openProbe(view: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_text_drop_post")
+private fun postProbe(probe: Ptr<Unit>, callback: FunPtr<(Ptr<Unit>) -> Int>, context: Ptr<Unit>)
+
+@Extern(name = "scoop_ui_text_drop_content")
+private fun setContent(probe: Ptr<Unit>, bytes: Ptr<UInt8>, length: Long, format: Int): Boolean
+
+@Extern(name = "scoop_ui_text_drop_offer")
+private fun offerAt(probe: Ptr<Unit>, x: Double, y: Double, effects: Int): Int
+
+@Extern(name = "scoop_ui_text_drop_perform")
+private fun perform(probe: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ui_text_drop_mark")
+private fun markProbe(probe: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_ui_text_drop_can_mark")
+private fun canMarkProbe(probe: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_ui_text_drop_leave")
+private fun leaveProbe(probe: Ptr<Unit>)
+
+@Extern(name = "scoop_ui_text_drop_close")
+private fun closeProbe(probe: Ptr<Unit>)

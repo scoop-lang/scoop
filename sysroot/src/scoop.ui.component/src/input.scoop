@@ -31,7 +31,8 @@ public class InputProps public constructor(
     public val chrome: TextFieldChrome = TextFieldChrome.Framed,
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
     public val protectedText: Boolean = false,
-    public val semantics: ComponentSemantics = ComponentSemantics()
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val acceptDrops: Boolean = true
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -64,7 +65,8 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             projection = input.projection,
             copy = input.copy,
             contextMenu = input.contextMenu,
-            protectedText = input.protectedText
+            protectedText = input.protectedText,
+            acceptDrops = input.acceptDrops
         ),
         1L,
         ScrollbarVisibility.Hidden,

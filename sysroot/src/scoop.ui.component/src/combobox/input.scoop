@@ -67,7 +67,8 @@ internal fun <T: Equals<T>> comboEditor(
                 TextFieldChrome.Bare,
                 field.contextMenu,
                 field.protectedText,
-                field.semantics
+                field.semantics,
+                field.acceptDrops
             ),
             { current, mount -> Input(current, scope = mount) }
         )

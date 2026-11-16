@@ -1,0 +1,161 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.*
+
+private class DropPolicyFailure: Exception(Some("expected drop policy failure"))
+
+@Test
+private class TextDropEditTest {
+    @Test
+    fun `drop import uses paste then general policy and one separate history entry`() {
+        val calls = ArrayList<Int>()
+        val editor = TextEditorState("ab", Some(Utf8Selection(2L, 0L)))
+        val policy =
+            textEditPolicy {
+                paste {
+                    candidate ->
+                    calls.add(1)
+                    assertEquals(TextEditSource.DragDrop, candidate.source)
+                    assertEquals("aQ Rb", candidate.after.text)
+                    assertEquals(2L, candidate.before.anchor.byteOffset)
+                    assertEquals(0L, candidate.before.cursor.byteOffset)
+                    TextEditDecision.Transform(
+                        [TextEditReplacement(candidate.insertedRanges[0L], "X")]
+                    )
+                }
+                transform {
+                    candidate ->
+                    calls.add(2)
+                    assertEquals("aXb", candidate.after.text)
+                    TextEditDecision.Accept
+                }
+                accepts {
+                    text ->
+                    calls.add(3);
+                    text == "X"
+                }
+            }
+        val prepared = prepareEditorDrop(editor, 1L, "Q\r\nR", policy, true)!!
+        assertEquals("ab", editor.text)
+        assertEquals(3L, calls.size)
+        for (index in 0L ..< calls.size)
+            assertEquals((index + 1L).toInt(), calls[index])
+        assertTrue(prepared.publish(editor, false))
+        assertEquals("aXb", editor.text)
+        assertEquals(Utf8Selection(2L, 2L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("ab", editor.text)
+        assertEquals(Utf8Selection(2L, 0L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("aXb", editor.text)
+        assertEquals(3L, calls.size)
+    }
+
+    @Test
+    fun `drop length limits trim inserted graphemes and preserve existing Unicode text`() {
+        val editor = TextEditorState("原尾")
+        val prepared =
+            prepareEditorDrop(editor, 3L, "AB👨‍👩‍👧‍👦Z", textEditPolicy { maxLength = Some(4L) })!!
+        assertTrue(prepared.publish(editor, false))
+        assertEquals("原AB尾", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("原尾", editor.text)
+        val empty = TextEditorState()
+        val trimmed = prepareEditorDrop(empty, 0L, "é😀", textEditPolicy { maxLength = Some(0L) })!!
+        assertTrue(trimmed.accepted)
+        trimmed.publish(empty, false)
+        assertEquals("", empty.text)
+        assertFalse(empty.canUndo)
+    }
+
+    @Test
+    fun `rejected or throwing drop policy preserves the whole pending composition`() {
+        val editor = composingDropEditor()
+        val before = editor.inputState
+        when (
+            prepareEditorDrop(
+                editor,
+                4L,
+                "X",
+                textEditPolicy { paste { _ -> TextEditDecision.Reject } }
+            )
+        ) {
+            case None -> Unit
+            case Some(_) -> fail(Some("drop must be rejected"))
+        }
+        assertEquals(before, editor.inputState)
+        assertTrue(editor.isComposing)
+        assertFailsWith<DropPolicyFailure> {
+            prepareEditorDrop(
+                editor,
+                4L,
+                "X",
+                textEditPolicy { paste { _ -> throw DropPolicyFailure() } }
+            )
+        }
+        assertEquals(before, editor.inputState)
+        assertTrue(editor.undo())
+        assertEquals("ab", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `accepted drop commits marked text and insertion in one publication and undo item`() {
+        val editor = composingDropEditor()
+        val revision = editor.revision
+        val prepared = prepareEditorDrop(editor, 4L, "X", textEditPolicy())!!
+        assertTrue(editor.isComposing)
+        assertEquals("a候b", editor.text)
+        assertTrue(prepared.publish(editor, false))
+        assertEquals(revision + 1L, editor.revision)
+        assertEquals("a候Xb", editor.text)
+        assertFalse(editor.isComposing)
+        assertTrue(editor.undo())
+        assertEquals("ab", editor.text)
+        assertEquals(Utf8Selection(1L, 1L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("a候Xb", editor.text)
+        assertFalse(editor.isComposing)
+    }
+
+    @Test
+    fun `invalid scalar offsets do not change the document and drops break typing groups`() {
+        val invalid = TextEditorState("a候b")
+        val before = invalid.inputState
+        assertFailsWith<IllegalArgumentException> {
+            prepareEditorDrop(invalid, 2L, "X", textEditPolicy())
+        }
+        assertEquals(before, invalid.inputState)
+        val editor = TextEditorState()
+        typeDropText(editor, "a")
+        prepareEditorDrop(editor, 0L, "X", textEditPolicy())!!.publish(editor, false)
+        typeDropText(editor, "B")
+        assertEquals("XBa", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("Xa", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("a", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+    }
+}
+
+private fun composingDropEditor(): TextEditorState {
+    val editor = TextEditorState("ab", Some(Utf8Selection(1L, 1L)))
+    editor.applyInput(
+        TextInputBatch(
+            None,
+            [TextInputOperation.Preedit("候", None, TextReplacement.CurrentSelection)]
+        )
+    )
+    return editor
+}
+
+private fun typeDropText(editor: TextEditorState, text: String) {
+    editor.applyInput(
+        TextInputBatch(None, [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)])
+    )
+}

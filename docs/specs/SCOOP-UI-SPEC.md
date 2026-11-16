@@ -538,7 +538,7 @@ ParagraphMeasurement.layout 借出该测量持有的 TextLayout，供自绘控�
 
 `applyEdit(range, text, policy, source = Programmatic)` 是显式遵循输入策略的程序编辑入口。普通 replace／replaceAll／setSelection 继续表示明确的模型操作，不读取活动宿主的 policy；宿主发起的粘贴、删除、换行、制表符和结束组合的选择操作统一走策略事务。
 
-`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic／Accessibility。顺序为单行换行处理、Paste 与 Accessibility 外来文本来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段；无障碍选区操作沿 EditCommand 的组合结束事务，不把纯选择当成外来文字导入。语义宿主入口见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
+`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic／Accessibility／DragDrop。顺序为单行换行处理、Paste／Accessibility／DragDrop 外来文本来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段；无障碍选区操作沿 EditCommand 的组合结束事务，不把纯选择当成外来文字导入。语义宿主入口见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
 
 paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文、anchor／cursor TextPosition 及可选 markedRange）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
 
@@ -551,6 +551,8 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 #### 7.5.2 公共纯文本编辑宿主
 
 TextEditOptions.contextMenu 及 TextEditHost.showContextMenu 接入原生文本菜单，模式、选区、已接受锚点、目标绑定与收尾遵守[原生菜单规范第 6 节](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。默认 PreferSystem，无可复用系统项目时使用标准原生模板；Disabled 允许调用方完全接管上下文菜单。
+
+TextEditOptions.acceptDrops 默认 true；当前 macOS 宿主可接收 Copy 文本／URL，临时落点 caret、边缘滚动、Accepted 模型与修订匹配及编辑事务见[文本拖入合同](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。DragDrop 是独立的 TextEditSource，导入清洗复用 Paste 阶段；拒绝 Drop 保留尚未发布的 composition 候选，不采用原生输入必须确认批次时的拒绝发布路径。
 
 `TextEditHost(scope, state, appearance, options = TextEditOptions(), onInteractionChanged = { _ -> Unit })` 是普通 Closeable，由呈现它的 Element 在构造中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints, cells=None, scrollPadding={ _, _ -> ScrollPadding() })` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 

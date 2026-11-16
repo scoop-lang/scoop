@@ -27,6 +27,7 @@ public open class InputBuilder internal constructor() {
     public var projection: TextProjection = textProjection()
     public var copy: TextCopyPolicy = TextCopyPolicy.Default
     public var protectedText: Boolean = false
+    public var acceptDrops: Boolean = true
     public var contextMenu: TextContextMenuOptions = TextContextMenuOptions()
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
@@ -68,7 +69,8 @@ public open class InputBuilder internal constructor() {
             chrome,
             contextMenu,
             protectedText,
-            semantics
+            semantics,
+            acceptDrops
         )
 }
 
@@ -117,7 +119,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             contextMenu,
             scrollbarBehavior,
             protectedText,
-            semantics
+            semantics,
+            acceptDrops
         )
 }
 

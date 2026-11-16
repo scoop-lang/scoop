@@ -1,0 +1,384 @@
+package scoop.tests.ui.textdrop
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class TextDropHostTest {
+    @Test
+    fun `native destination uses accepted text geometry policies and bounded edge scrolling`() {
+        FontCollection().use {
+            fonts ->
+            fonts.register(testSansBytes, "Drop Test")
+            val probe = TextDropProbe(fonts)
+            try {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+                assertTrue(probe.finished)
+                assertEquals(5, probe.edits)
+                assertEquals(1, probe.preedits)
+                assertTrue(probe.field!!.isClosed)
+                assertEquals("done", probe.model.text)
+            } finally {
+                probe.native?.close()
+                @Unsafe
+                {
+                    when (probe.callback) {
+                        case Some(val value) -> releaseForeignCallback(value)
+                        case None -> {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal class TextDropProbe(fonts: FontCollection) {
+    val appearance =
+        TextEditAppearance(
+            fonts,
+            textStyle {
+                families = ["Drop Test"]
+                fontSize = 20.0
+            }
+        )
+    private val plain = textProjection()
+    var model = TextEditorState("abcd", Some(Utf8Selection(3L, 1L)))
+    var field: TextEditHost? = None
+    private var window: Window? = None
+    var native: NativeTextDrop? = None
+    var callback: ForeignCallback<(Ptr<Unit>) -> Int>? = None
+    var ui: UiWindow? = None
+    var settle: WindowDeadline? = None
+    var frames = 0
+    var edits = 0
+    var preedits = 0
+    var finished = false
+    var settled = false
+    private var phase = 0
+    private var requiredFrames = 1
+    private var queued = false
+    private var closeOnEdit = false
+    private var pendingMarked = true
+    private var stoppedOffset = Point(0.0, 0.0)
+
+    fun options(
+        accept: Boolean = true,
+        readonly: Boolean = false,
+        enabled: Boolean = true,
+        projection: TextProjection? = None,
+        policy: TextEditPolicy = textEditPolicy()
+    ): TextEditOptions =
+        TextEditOptions(
+            readOnly = readonly,
+            enabled = enabled,
+            caretBlink = Some(Duration.milliseconds(0L)),
+            policy = policy,
+            projection = projection ?: plain,
+            acceptDrops = accept
+        )
+
+    fun configure(value: TextEditOptions? = None) {
+        field!!.update(
+            model,
+            appearance,
+            value ?: options(),
+            onEdited =
+                {
+                    value ->
+                    if (value.isComposing)
+                        preedits += 1
+                    else
+                        edits += 1
+                    if (closeOnEdit)
+                        ui!!.close()
+                }
+        )
+    }
+
+    private fun nextFrame() {
+        requiredFrames = frames + 1
+    }
+    private fun point(offset: Long): Point {
+        val caret = field!!.caret(TextPosition(offset)) ?: fail(Some("missing drop caret"))
+        val scroll = field!!.scrollSnapshot.offset
+        return Point(
+            20.0 + caret.x - scroll.x + 0.05,
+            20.0 + caret.y - scroll.y + caret.height / 2.0
+        )
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop text drop destination"
+                            size = LogicalSize(240.0, 120.0)
+                            visible = false
+                        }
+                    )
+                this.window = Some(window)
+                native = Some(nativeTextDrop(window))
+                @Unsafe
+                {
+                    callback =
+                        Some(
+                            foreignCallback<(Ptr<Unit>) -> Int>(
+                                {
+                                    queued = false
+                                    try {
+                                        advance(active)
+                                    } catch (error: Throwable) {
+                                        active.proxy().post { _ -> throw error }
+                                    }
+                                    0
+                                },
+                                0,
+                                ForeignCallbackMode.Reusable
+                            )
+                        )
+                }
+                ui = host.attach(window, { scope -> TextDropRoot(this, scope) })
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+                window.setVisible(true)
+                window.requestFocus()
+            }
+            case AboutToWait -> {
+                if (
+                    !finished &&
+                        !queued &&
+                        frames >=
+                        requiredFrames &&
+                        (phase != 7 || !pendingMarked || native!!.canMark()) &&
+                        (phase != 10 || field!!.scrollSnapshot.offset.x > 0.0) &&
+                        (phase != 11 || settled)
+                ) {
+                    queued = true
+                    native!!.post(callback!!)
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"text drop timeout: phase=${phase}, frames=${frames}/${
+                        requiredFrames
+                    }, windowFocus=${window!!.isFocused}, inputFocus=${
+                        field!!.area.isFocusActive
+                    }, nativeReady=${native!!.canMark()}"
+                )
+            )
+            else -> {}
+        }
+    }
+
+    private fun advance(active: ActiveApplication) {
+        val probe = native!!
+        if (phase == 7 && pendingMarked) {
+            pendingMarked = false
+            probe.mark()
+            nextFrame()
+            return
+        }
+        when (phase) {
+            case 0 -> {
+                val before = model.inputState
+                probe.text("Q\r\nR")
+                assertEquals(0, probe.offer(point(2L), 2))
+                assertEquals(1, probe.offer(point(2L)))
+                assertEquals(before, model.inputState)
+                nextFrame()
+            }
+            case 1 -> {
+                assertEquals("abcd", model.text)
+                assertEquals(Utf8Selection(3L, 1L), model.selection)
+                assertEquals(3, probe.drop())
+                assertEquals("abQ Rcd", model.text)
+                assertEquals(Utf8Selection(5L, 5L), model.selection)
+                assertEquals(1, edits)
+                assertTrue(model.undo())
+                assertEquals("abcd", model.text)
+                assertEquals(Utf8Selection(3L, 1L), model.selection)
+                assertFalse(model.canUndo)
+                nextFrame()
+            }
+            case 2 -> {
+                probe.text("https://scoop.dev", true)
+                assertEquals(1, probe.offer(point(0L)))
+                assertEquals(3, probe.drop())
+                assertEquals("https://scoop.devabcd", model.text)
+                assertEquals(2, edits)
+                assertTrue(model.undo())
+                configure(Some(options(accept = false)))
+                probe.text("disabled")
+                assertEquals(0, probe.offer(Point(40.0, 30.0)))
+                assertEquals(0, probe.drop())
+                nextFrame()
+            }
+            case 3 -> {
+                configure(Some(options(readonly = true)))
+                probe.text("readonly")
+                assertEquals(0, probe.offer(Point(40.0, 30.0)))
+                configure(Some(options(enabled = false)))
+                assertEquals(0, probe.offer(Point(40.0, 30.0)))
+                probe.leave()
+                model = TextEditorState("原😀尾", Some(Utf8Selection(10L, 0L)))
+                configure()
+                nextFrame()
+            }
+            case 4 -> {
+                probe.text("X")
+                assertEquals(1, probe.offer(point(3L)))
+                val previous = model
+                model = TextEditorState(previous.text, Some(previous.selection))
+                assertEquals(previous.revision, model.revision)
+                configure()
+                assertEquals(0, probe.drop())
+                probe.text("X")
+                assertEquals(0, probe.offer(point(3L)))
+                probe.leave()
+                assertEquals("原😀尾", model.text)
+                nextFrame()
+            }
+            case 5 -> {
+                configure(Some(options(projection = Some(textMask("*")))))
+                probe.text("X")
+                assertEquals(0, probe.offer(point(3L)))
+                probe.leave()
+                nextFrame()
+            }
+            case 6 -> {
+                probe.text("X")
+                assertEquals(1, probe.offer(point(3L)))
+                assertEquals(3, probe.drop())
+                assertEquals("原X😀尾", model.text)
+                assertEquals(3, edits)
+                assertTrue(model.undo())
+                model.setSelection(Utf8Selection(3L, 3L))
+                configure(
+                    Some(
+                        options(policy = textEditPolicy { paste { _ -> TextEditDecision.Reject } })
+                    )
+                )
+                window!!.requestFocus()
+                field!!.area.requestFocus(FocusOrigin.Pointer)
+                nextFrame()
+            }
+            case 7 -> {
+                val before = model.inputState
+                assertTrue(model.isComposing)
+                probe.text("X")
+                assertEquals(1, probe.offer(point(6L)))
+                assertEquals(1, probe.drop())
+                assertEquals(before, model.inputState)
+                assertTrue(model.isComposing)
+                assertEquals(3, edits)
+                configure()
+                nextFrame()
+            }
+            case 8 -> {
+                val revision = model.revision
+                probe.text("X")
+                assertEquals(1, probe.offer(point(6L)))
+                assertEquals(3, probe.drop())
+                assertEquals("原候X😀尾", model.text)
+                assertEquals(revision + 1L, model.revision)
+                assertFalse(model.isComposing)
+                assertEquals(4, edits)
+                assertTrue(model.undo())
+                assertEquals("原😀尾", model.text)
+                assertEquals(Utf8Selection(3L, 3L), model.selection)
+                model =
+                    TextEditorState(
+                        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen",
+                        Some(Utf8Selection(0L, 0L))
+                    )
+                configure()
+                nextFrame()
+            }
+            case 9 -> {
+                assertTrue(field!!.scrollSnapshot.maximum.x > 0.0)
+                probe.text("edge")
+                assertEquals(1, probe.offer(Point(179.0, 30.0)))
+            }
+            case 10 -> {
+                assertEquals(Utf8Selection(0L, 0L), model.selection)
+                assertTrue(field!!.scrollSnapshot.offset.x <= field!!.scrollSnapshot.maximum.x)
+                probe.leave()
+                stoppedOffset = field!!.scroll.offset
+                settled = false
+                settle!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(50L))
+            }
+            case 11 -> {
+                assertEquals(stoppedOffset, field!!.scroll.offset)
+                assertEquals(4, edits)
+                model = TextEditorState()
+                configure()
+                nextFrame()
+            }
+            else -> {
+                probe.text("done")
+                assertEquals(1, probe.offer(point(0L)))
+                closeOnEdit = true
+                assertEquals(3, probe.drop())
+                assertTrue(ui!!.isClosed)
+                assertEquals(5, edits)
+                probe.text("retired")
+                assertEquals(0, probe.offer(Point(40.0, 30.0)))
+                probe.close()
+                probe.close()
+                finished = true
+                active.requestExit()
+            }
+        }
+        phase += 1
+    }
+}
+
+private class TextDropRoot(private val probe: TextDropProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View = element({ mount -> TextDropField(probe, mount) })
+}
+
+private class TextDropField(private val probe: TextDropProbe, scope: ComponentScope): Element<
+    TextEditMeasurement
+>(scope) {
+    private val editor =
+        scope.resource { TextEditHost(scope, probe.model, probe.appearance, probe.options()) }
+    public override fun onMount() {
+        probe.field = Some(editor)
+        probe.settle = Some(scope.createDeadline { probe.settled = true })
+        probe.configure()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = editor.measure(Constraints.tight(Size(160.0, 40.0)))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(240.0, 120.0))),
+            measured,
+            { measured.close() }
+        )
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.translate(20.0, 20.0)
+        editor.scene(context, measured)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.frames += 1
+        }
+    }
+}

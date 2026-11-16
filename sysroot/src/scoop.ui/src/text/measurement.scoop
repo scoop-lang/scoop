@@ -21,6 +21,8 @@ public class TextEditMeasurement internal constructor(
     public val metrics: LayoutMetrics,
     internal val retained: RetainedEditorLayout,
     internal val scroll: ScrollLayout,
+    internal val editor: TextEditorState,
+    internal val projection: TextProjection,
     internal val revision: Long,
     public val display: TextDisplay,
     internal val cells: TextEditCells?,

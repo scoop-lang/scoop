@@ -35,7 +35,8 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
             field.chrome,
             field.contextMenu,
             field.protectedText,
-            field.semantics
+            field.semantics,
+            field.acceptDrops
         )
     val addons = ArrayList<InputGroupAddon>()
     if (input.showSearchIcon)

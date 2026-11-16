@@ -1,0 +1,45 @@
+package scoop.examples.ui.drop
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.accessibility.*
+
+internal class DropEditor(
+    private val props: Props<TextEditorState>,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val appearance = TextEditAppearance(scope.defaultFonts, textStyle { fontSize = 18.0 })
+    private val options = TextEditOptions(multiline = true, acceptDrops = true)
+    private val host = scope.resource { TextEditHost(scope, props.value, appearance, options) }
+    private val semantic = scope.semantics(SemanticRole.TextField)
+
+    public override fun update(): UiInvalidation {
+        host.update(props.value, appearance, options)
+        semantic.updateTextEditor(
+            host,
+            SemanticProperties(
+                name = Some("Text drop editor"),
+                description =
+                    Some(
+                        "Drop or paste text and URLs. Use the usual selection, editing and undo commands."
+                    )
+            )
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color.White)) }
+        context.semantics(semantic, bounds)
+        host.scene(context, measured)
+    }
+}

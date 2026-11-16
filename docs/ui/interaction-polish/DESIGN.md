@@ -180,6 +180,8 @@ AppKit 的公开 NSDraggingSession 不提供强制取消。Window 因而分开 c
 
 ### 6.3 文本拖放
 
+当前 Copy 接收合同见[UI 拖放规范第 4 节](../../specs/SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)：macOS 的 TextEditHost／Input／Textarea／OTP 使用 acceptDrops 开关，按模型身份、修订、投影和 Accepted 帧定位；临时 caret 与边缘滚动不改正文选区。TextEditSource.DragDrop 复用 Paste 导入策略，拒绝保持 composition，接受只发布一次并形成独立撤销项。本节其余拖出、Move 与完整系统会话仍属于本轮范围。
+
 文本宿主提供独立的拖出、接收开关和允许的 effect。普通可编辑 Input／Textarea 缺省启用拖出与接收；只读文本和 SelectableText 只允许按复制策略拖出 Copy，受保护文本缺省关闭拖出。应用可以分别关闭两端，不能为了禁用拖放而禁用普通拖选或文本编辑。启用状态更新立即作用于当前候选和落放资格。
 
 在既有非空选区中按下时先保留选区，达到拖动阈值后按启用配置发起文本数据拖动；未成为拖放的点击在释放时完成普通定位。选区外仍正常拖选；Shift 扩选、双击／三击单位选择、只读及遮罩行为不能被新的 source 抢走。

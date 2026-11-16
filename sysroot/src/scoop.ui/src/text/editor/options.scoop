@@ -30,7 +30,8 @@ public class TextEditOptions public constructor(
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
     /** A protected purpose remains set when its display projection becomes plain text. */
-    public val protectedText: Boolean = false
+    public val protectedText: Boolean = false,
+    public val acceptDrops: Boolean = true
 ) {
     internal fun check() {
         when (caretBlink) {

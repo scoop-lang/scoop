@@ -18,7 +18,7 @@
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及四个原生场景的源码检查／构建通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；Reveal、滚动实窗及平台验收待继续 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；实际菜单呈现、范围几何／单位导航／保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
-| S6 | 进行中 | Window／AppKit source／target、UI Accepted 接收路由与来源阈值已接入；格式协商、接收生命周期和真实帧下来源准备／取消测试通过，双窗口消费者构建通过；文本事务、三个范围的完整系统会话、活动来源生命周期与其他平台继续推进 |
+| S6 | 进行中 | Window／AppKit source／target、UI Accepted 接收路由、来源阈值与文本 Copy 接收已接入；格式协商、生命周期、真实帧下来源准备／取消和文本目标协议测试通过；文本拖出／Move、三个范围的完整系统会话、活动来源生命周期与其他平台继续推进 |
 | S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -288,3 +288,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 10 个 Scoop 文件的格式检查通过；UI 含测试检查、来源接入 Cone 检查及 Surface→UI 开发产物更新完成。9 次 API 查询核对创建入口、Options／Data／Start、更新／取消／关闭、状态访问器、默认值与导入。规范、设计、计划、README 和编程导航同步；局部 Markdown 的 123 个本地目标检查通过，临时 API 站点清理。
 
 本批关闭 UI 来源准备通路的局部交付。文本选区拖出、接收事务与 caret、同文档 Move、活动来源的模态／关闭组合和三范围完整 OS 会话保持未完成；静态 API、实际窗口帧、注入输入、原生 tracking 和外部程序结果分开记录。
+
+### 文本 Copy 接收、编辑事务与边缘滚动
+
+- TextEditHost 在 macOS 接入同一区域的 DropArea；TextEditOptions、Input／Textarea／OTP 的 Props／builder 增加 acceptDrops=true，组合输入透传。只协商 Text／Url Copy，禁用、只读、关闭或旧模型／修订／投影的 Accepted 几何拒绝接收；受保护用途允许导入，不因此开放导出。
+- 临时落点 caret 复用实际排版、投影、槽位、裁剪和滚动变换，保持正文选区。数据拖入在有效视口内侧 16 个逻辑像素启动边缘滚动，窄视口不超过半边；普通拖选继续越界滚动。每次滚动等 Accepted 后重新定位，再判断焦点显露，避免抢回原光标；Leave 和退休撤销 deadline。
+- TextEditSource.DragDrop 复用 Paste 清洗、一般 transform／accepts／grapheme 长度限制。拒绝不发布候选，完整保留 composition；接受将结束 marked 与落点插入放入同一批次，一次发布和一个独立 undo 项，沿原模型发送编辑及语义通知。接收后才请求普通焦点，业务关闭／换绑后不聚焦新内容。
+- TextDropEditTest 的五项模型测试通过，覆盖清洗顺序、反向选区、Unicode／grapheme 裁剪、策略拒绝／异常、组合结束、修订与分离撤销。TextDropHostTest 使用真实 Accepted 窗口、平移后的实际命中、AppKit destination 方法与原生 setMarkedText，最终版本完整通过 Text／Url、开关／只读／禁用、同正文同修订的模型换绑、遮罩、composition 接受／拒绝、自动滚动／Leave 停止、空段落落点、一次接收和回调内关闭根。
+- InputOtpTest 的五项测试及 ComponentReceiverDslTests 的六项测试通过，覆盖 DragDrop 的 OTP 分隔符清洗、字符拒绝、长度裁剪与 undo，以及 Input／Textarea／OTP 的默认开关、不可变 Props 快照和宿主选项透传。两组复用同一测试产物。
+- UI／Component 含测试检查通过，更新 UI、Style 和四套主题的开发产物；双窗口示例增加实际多行编辑器与同一宿主的文本语义，区域快捷键限制到自己的来源区域，release 检查与链接通过。UI／Component 的 10 项 API 查询核对类型、DragDrop 分支、默认值、访问器、Textarea 继承与导入。29 个 Scoop 文件的格式检查及 native 严格编译通过，179 个本地 Markdown 目标检查通过；两个临时 API 站点已清理。
+
+本批测试使用独立 pasteboard，未改系统剪贴板；原生协议方法在 AppKit 主队列的普通 owner 派发栈外执行，未放宽库的重入限制。曾因系统未授予窗口键盘焦点停在预编辑前置条件，用户准备手动操作后，原命令复用最终产物重跑完整通过；保持真实焦点与原生选区检查，临时 app bundle 已清理。没有启动 NSDraggingSession，尚不能据此确认实际光标观感、完整系统拖动、跨程序结果或 VoiceOver 操作。文本拖出与 Move 仍保持 S6 原范围，其他平台没有据 macOS 结果记为完成。

@@ -65,7 +65,8 @@ public class SidebarInput public constructor(
                 input.chrome,
                 input.contextMenu,
                 input.protectedText,
-                input.semantics
+                input.semantics,
+                input.acceptDrops
             ),
             { current, mount -> Input(current, scope = mount) }
         )

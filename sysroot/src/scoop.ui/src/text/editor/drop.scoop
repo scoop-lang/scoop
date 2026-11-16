@@ -1,0 +1,232 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+private class EditorDropPosition(
+    val frame: EditorFrame,
+    val windowPoint: Point,
+    val local: Point,
+    val position: TextPosition
+)
+
+/** Metadata feedback and final Copy insertion share the editor's accepted model and layout. */
+internal class EditorDropTarget(
+    private val host: TextEditHost,
+    create: (DropAreaHandlers, Boolean) -> DropArea
+): Closeable {
+    private var closed = false
+    private var location: EditorDropPosition? = None
+    private var waiting = false
+    private val timer = host.scope.createDeadline { tick() }
+    private val handlers =
+        DropAreaHandlers(
+            { value, point -> offer(value, point) },
+            { request, point -> receive(request, point) },
+            { clear() }
+        )
+    private val binding = create(handlers, enabled)
+    private val enabled: Boolean get() =
+        !closed &&
+            !host.closed &&
+            host.options.enabled &&
+            host.options.acceptDrops &&
+            !host.options.readOnly &&
+            host.scope.isMounted &&
+            host.area.scope.isInputAllowed
+    val isHovering: Boolean get() =
+        when (validLocation()) {
+            case Some(_) -> binding.hover != None
+            case None -> false
+        }
+
+    fun update() {
+        if (closed)
+            return
+        clear()
+        binding.update(handlers, enabled)
+    }
+
+    private fun locate(windowPoint: Point, local: Point): EditorDropPosition? {
+        if (!enabled)
+            return None
+        val frame = host.accepted ?: return None
+        if (
+            !(frame.editor === host.current) ||
+                frame.revision !=
+                host.current.revision ||
+                !(frame.projection === host.options.projection)
+        )
+            return None
+        val visual = frame.layout.hitTest(local)
+        val point = frame.display.documentPosition(frame.display.mapping.reverse(visual))
+        return Some(EditorDropPosition(frame, windowPoint, local, point))
+    }
+
+    private fun validLocation(): EditorDropPosition? {
+        if (!enabled)
+            return None
+        val value = location ?: return None
+        val frame = host.accepted ?: return None
+        if (
+            !(frame === value.frame) ||
+                !(frame.editor === host.current) ||
+                frame.revision !=
+                host.current.revision ||
+                !(frame.projection === host.options.projection)
+        )
+            return None
+        return Some(value)
+    }
+
+    private fun offer(value: DropOffer, point: Point): DropDecision {
+        if (!value.effects.copy) {
+            clear()
+            return DropDecision.Reject
+        }
+        val format =
+            if (value.formats.text)
+                Some(DragFormat.Text)
+            else
+                if (value.formats.url)
+                    Some(DragFormat.Url)
+                else
+                    None
+        if (format == None) {
+            clear()
+            return DropDecision.Reject
+        }
+        val next =
+            when (val result = locate(Point(value.position.x, value.position.y), point)) {
+                case Some(val position) -> position
+                case None -> {
+                    clear();
+                    return DropDecision.Reject
+                }
+            }
+        location = Some(next)
+        schedule()
+        return DropDecision.Accept(format!!, DragEffect.Copy)
+    }
+
+    private fun receive(request: DropRequest, point: Point): Boolean {
+        val value = validLocation() ?: return false
+        if (request.effect != DragEffect.Copy || value.local != point)
+            return false
+        val text =
+            when (request.content) {
+                case Text(val text) -> text
+                case Url(val text) -> text
+                case Files(_) -> return false
+            }
+        clear()
+        val editor = host.current
+        val prepared =
+            prepareEditorDrop(
+                editor,
+                value.position.byteOffset,
+                text,
+                host.options.policy,
+                !host.options.multiline
+            ) ?:
+                return false
+        host.perform({ prepared.publish(editor, false) }, endComposition = true)
+        if (!host.closed && host.scope.isMounted && host.current === editor && enabled)
+            host.area.requestFocus(FocusOrigin.Pointer)
+        return true
+    }
+
+    fun caret(frame: EditorFrame): Rect? {
+        val value = validLocation() ?: return None
+        if (
+            binding.hover ==
+                None ||
+                !(frame.editor === host.current) ||
+                frame.revision !=
+                value.frame.revision
+        )
+            return None
+        return frame.caretStyle.caret(
+            frame.layout,
+            editorVisualPosition(frame.layout, frame.display.toDisplay(value.position))
+        )
+    }
+
+    private fun schedule() {
+        val value = validLocation() ?: return
+        if (
+            waiting ||
+                !host.window.isVisible ||
+                host.window.isOccluded ||
+                editorEdgeDelta(host, value.windowPoint, 16.0) ==
+                Point(0.0, 0.0)
+        ) {
+            timer.cancel()
+            return
+        }
+        if (!timer.isScheduled)
+            timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(16L))
+    }
+
+    private fun tick() {
+        val value = validLocation() ?: return
+        if (binding.hover == None || !host.window.isVisible || host.window.isOccluded)
+            return
+        val consumed =
+            host.scroll.scrollBy(editorEdgeDelta(host, value.windowPoint, 16.0), ScrollOrigin.User)
+        if (consumed == Point(0.0, 0.0))
+            return
+        waiting = true
+        host.revealNeeded = false
+    }
+
+    fun accepted() {
+        if (closed)
+            return
+        waiting = false
+        val previous = location ?: return
+        if (binding.hover == None) {
+            clear()
+            return
+        }
+        val local = host.area.toLocal(previous.windowPoint)
+        val next =
+            when (local) {
+                case Some(val point) -> locate(previous.windowPoint, point)
+                case None -> None
+            }
+        location = next
+        val current =
+            when (next) {
+                case Some(val value) -> value
+                case None -> {
+                    timer.cancel();
+                    return
+                }
+            }
+        if (previous.position != current.position || previous.local != current.local)
+            host.scope.requestFrame()
+        schedule()
+    }
+
+    private fun clear() {
+        location = None
+        waiting = false
+        timer.cancel()
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        clear()
+        var failure = cleanupUi(None) { binding.close() }
+        failure = cleanupUi(failure) { timer.close() }
+        throwUi(failure)
+    }
+}

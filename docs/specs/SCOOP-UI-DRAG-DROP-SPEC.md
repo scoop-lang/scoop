@@ -1,6 +1,6 @@
 # Scoop UI 数据拖放
 
-本文为交互打磨 S6 的 UI 数据拖放合同，复用 [Window 数据拖放](SCOOP-WINDOW-DRAG-DROP-SPEC.md)与 [Surface 命中](SCOOP-SURFACE-SPEC.md#6-区域输入与焦点)。文本事务、触摸来源和三平台系统会话继续按[统一计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)实现。
+本文为交互打磨 S6 的 UI 数据拖放合同，复用 [Window 数据拖放](SCOOP-WINDOW-DRAG-DROP-SPEC.md)与 [Surface 命中](SCOOP-SURFACE-SPEC.md#6-区域输入与焦点)。文本拖出与 Move、触摸来源和三平台系统会话继续按[统一计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)实现。
 
 ## 1. 接收区域
 
@@ -40,6 +40,18 @@ isDragging 是可追踪的 UI 状态，表示该行为当前持有准备中或�
 
 拖动不自动产生另一棵语义树。消费者仍应提供同一业务模型的复制／粘贴、菜单或键盘入口，并以已有 semantics 发布这些入口。拖放成功不能替代非拖动入口及辅助技术操作的验收。
 
-## 4. 验证范围
+## 4. 文本 Copy 接收
+
+TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 builder 提供同名开关并透传到宿主。macOS 的 TextEditHost 在自己的区域接入 DropArea；只接受 Copy 的 Text／Url，文件列表和仅提供 Move／Link 的来源拒绝。其他平台在 Window 接收后端具备后接入同一文本实现；当前没有原生接收后端的平台不分配接收资源，不影响已有键盘、粘贴或鼠标拖选。文本拖出与 Move 保持 S6 的后续交付，不用 Copy 接收替代其验收。
+
+接收资格同时要求宿主、挂载、区域有效，acceptDrops／enabled 为 true 且不是 readOnly。protectedText 和遮罩不禁止导入，但不因此开放任何导出能力。offer 只选择格式和当前落点；不读取正文、不改变文档选区、composition、焦点或历史。仅使用属于当前 TextEditorState、修订和投影的最近 Accepted 排版；重绑定、正文变化或投影变化后等待匹配的新帧，不能把旧视图的落点套在新文档上。空文本仍使用真实空段落的 caret。
+
+接收位置显示独立的临时 caret，使用同一投影、文本槽位、滚动变换和裁剪；临时 caret 存在时不重复绘制普通闪烁 caret，但不改变原选区或向输入法发布新 caret。进入有效视口内侧 16 个逻辑像素的边缘带时，沿现有滚动模型及拖选步长自动滚动；窄视口的每侧边缘带不超过该轴有效尺寸的一半。普通拖选仍在越出视口后滚动，数据接收不要求先离开目标。每次实际滚动等待下一 Accepted 帧后更新落点；无可用残量、离开、禁用、卸载或关闭后停止 deadline。临时 caret 不触发常规焦点显露去抢回原文档光标的位置。
+
+实际 Drop 再次确认宿主、模型身份、修订、Accepted 帧及局部位置。TextEditSource 新增 DragDrop，默认进入与 Paste 相同的导入清洗，再执行通用变换、字符与 grapheme 长度限制；保持来源可辨认，不绕过已有 paste 策略。Copy 可以接受经过清洗或截断的结果。被拒绝的 Drop 不发布候选，保留正文、选区、composition 和撤销历史；策略异常沿普通根错误边界处理。
+
+接受时按现有输入批次在同一编辑事务中结束 marked 状态并在落点插入；旧坐标在准备阶段使用，不在 composition 结束后重新解释。只发布一次结果，实际编辑形成独立撤销项，空结果不制造冗余历史；正文及已提交回调、原生文本快照和 accessibility 通知沿既有模型路径。实际编辑生效后才请求该区域的普通焦点；业务回调关闭宿主或重绑定时，不把焦点交给新内容，已经接受的结果仍返回 true。
+
+## 5. 验证范围
 
 Surface 以真实离屏几何覆盖路径、变换、裁剪、边界和无副作用查询。UI 逻辑测试使用真实挂载、InputArea 和资源，分别验证候选路径、最新处理器、实际接受与生命周期。完整 GUI 场景单独构建和运行；这些分层结果不能代替真实 Accepted 命中与独立进程拖放会话。

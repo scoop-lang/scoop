@@ -1,0 +1,4 @@
+package scoop.ui.text
+
+/** These targets have no Window data destination; ordinary text input stays available. */
+internal fun createEditorDropTarget(host: TextEditHost): EditorDropTarget? = None

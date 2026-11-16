@@ -90,6 +90,7 @@ private class ComponentReceiverDslTests {
             projection = textMask()
             copy = TextCopyPolicy.Allow
             protectedText = true
+            acceptDrops = false
             contextMenu {
                 mode = TextContextMenuMode.StandardNative
                 selection = TextContextMenuSelection.Preserve
@@ -114,6 +115,13 @@ private class ComponentReceiverDslTests {
         assertEquals(TextCopyPolicy.Allow, props.copy)
         captured[0L].protectedText = false
         assertTrue(props.protectedText)
+        captured[0L].acceptDrops = true
+        assertFalse(props.acceptDrops)
+        assertTrue(captured[0L].textareaProps(model).acceptDrops)
+        assertTrue(InputProps(model).acceptDrops)
+        val input = InputBuilder()
+        input.acceptDrops = false
+        assertFalse(input.inputProps(model).acceptDrops)
         assertEquals(TextContextMenuMode.StandardNative, props.contextMenu.mode)
         assertEquals(TextContextMenuSelection.Preserve, props.contextMenu.selection)
         assertEquals(Some("Copy field"), props.contextMenu.labels!!.copy)
@@ -124,11 +132,17 @@ private class ComponentReceiverDslTests {
         assertEquals(Some(2.0), props.style.caretWidth)
         assertFailsWith<IllegalArgumentException> { textarea(model) { rows = 0L } }
         val otp = InputOtpBuilder()
+        assertTrue(otp.snapshot(model, 6L).acceptDrops)
+        otp.acceptDrops = false
         otp.protectedText = true
         otp.contextMenu { mode = TextContextMenuMode.Disabled }
         val code = otp.snapshot(model, 6L)
         otp.protectedText = false
         assertTrue(code.protectedText)
+        otp.acceptDrops = true
+        assertFalse(code.acceptDrops)
+        assertFalse(otpOptions(code).acceptDrops)
+        assertTrue(otp.snapshot(model, 6L).acceptDrops)
         assertFalse(otp.snapshot(model, 6L).protectedText)
         otp.contextMenu { mode = TextContextMenuMode.StandardNative }
         assertEquals(TextContextMenuMode.Disabled, code.contextMenu.mode)

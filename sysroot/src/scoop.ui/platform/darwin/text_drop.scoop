@@ -1,0 +1,11 @@
+package scoop.ui.text
+
+import scoop.ui.*
+
+internal fun createEditorDropTarget(host: TextEditHost): EditorDropTarget? =
+    Some(
+        EditorDropTarget(host) {
+            handlers,
+            enabled -> host.scope.dropTarget(host.area, handlers, enabled)
+        }
+    )
