@@ -27,6 +27,7 @@ impl Lowerer {
             let Some(block) = blocks.next() else { continue };
             for duplicate in blocks {
                 self.error(
+                    scoop_source::DiagnosticCode::E1110,
                     duplicate.span,
                     "a class may declare only one `release` block".into(),
                 );
@@ -35,6 +36,7 @@ impl Lowerer {
                 || !self.classes[class].is_declared()
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1109,
                     block.span,
                     "`release` requires an ordinary final class".into(),
                 );
@@ -46,6 +48,7 @@ impl Lowerer {
                 && self.is_subtype(owner_type, throwable)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1109,
                     block.span,
                     "a Throwable subtype cannot declare a `release` block".into(),
                 );
@@ -68,6 +71,7 @@ impl Lowerer {
             for member in object.members() {
                 if let ast::ClassMember::ReleaseBlock(block) = member {
                     self.error(
+                        scoop_source::DiagnosticCode::E1109,
                         block.span,
                         format!(
                             "`release` blocks are not allowed in {}",

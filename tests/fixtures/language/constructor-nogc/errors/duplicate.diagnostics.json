@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1302",
     "message": "annotation `@NoGC` must not be repeated",
     "notes": [],
     "origin": {

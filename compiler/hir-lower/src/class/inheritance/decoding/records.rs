@@ -23,13 +23,14 @@ impl Lowerer {
             if let Some(name) = &parameter.wire {
                 if record.keyed && !names.insert(name) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1314,
                         span,
                         format!("automatic decode has duplicate field name `{name}`"),
                     );
                     return None;
                 }
             } else if parameter.missing_value().is_none() {
-                self.error(span, format!("automatic decode requires a declared default for omitted constructor parameter `{}`", parameter.name));
+                self.error(scoop_source::DiagnosticCode::E1315, span, format!("automatic decode requires a declared default for omitted constructor parameter `{}`", parameter.name));
                 return None;
             }
         }

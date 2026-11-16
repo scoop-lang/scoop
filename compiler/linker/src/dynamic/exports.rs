@@ -55,9 +55,10 @@ impl DynamicInputs {
                     imported,
                 } => {
                     let child = self.edges.get(&(id, *dependency)).ok_or_else(|| {
-                        error(format!(
-                            "native renamed re-export {symbol} has no resolved dependency"
-                        ))
+                        error(
+                            scoop_source::DiagnosticCode::E2305,
+                            format!("native renamed re-export {symbol} has no resolved dependency"),
+                        )
                     })?;
                     self.find(*child, imported, visited).map(|binding| {
                         binding.map(|mut binding| {
@@ -73,7 +74,10 @@ impl DynamicInputs {
                     interface,
                 } => {
                     let child = *self.edges.get(&(id, *dependency)).ok_or_else(|| {
-                        error(format!("previous SDK export {symbol} has no load provider"))
+                        error(
+                            scoop_source::DiagnosticCode::E2305,
+                            format!("previous SDK export {symbol} has no load provider"),
+                        )
                     })?;
                     Ok(Some(DynamicBinding {
                         owner: child,

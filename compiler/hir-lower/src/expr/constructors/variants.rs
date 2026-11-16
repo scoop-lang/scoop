@@ -45,8 +45,10 @@ impl Lowerer {
         ) {
             Ok(type_args) => type_args,
             Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
-                self.diagnostics
-                    .push(scoop_ast::Diagnostic::internal(error));
+                self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0601,
+                    error,
+                ));
                 return None;
             }
             Err(crate::call_resolution::constraints::InferenceFailure::Constraint(failure)) => {
@@ -95,13 +97,9 @@ impl Lowerer {
         if self.resolved_variant_style(target) == VariantStyle::Unit {
             let enumeration = target.enumeration();
             let variant = &self.enums[enumeration].variants[target.local_index() as usize];
-            self.error(
+            self.error_with_note(scoop_source::DiagnosticCode::E0732,
                 call.span,
-                format!(
-                    "unit variant `{}` of `{}` does not take arguments; use `{}` without parentheses",
-                    variant.name, self.enums[enumeration].name, variant.name
-                ),
-            );
+                format!("unit variant `{__diagnostic_arg0}` of `{__diagnostic_arg1}` does not take arguments" , __diagnostic_arg0 = variant.name, __diagnostic_arg1 = self.enums[enumeration].name), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H0704, format!("use `{__diagnostic_arg2}` without parentheses" , __diagnostic_arg2 = variant.name)));
             return None;
         }
         let enum_id = target.enumeration();
@@ -120,7 +118,7 @@ impl Lowerer {
             ) {
                 Ok(argument_map) => argument_map,
                 Err(failure) => {
-                    self.diagnose_nominal_shape_failure(&view, span, failure.describe());
+                    self.diagnose_nominal_shape_failure(&view, span, failure.diagnostic_note());
                     return None;
                 }
             };
@@ -133,10 +131,10 @@ impl Lowerer {
             self.diagnose_nominal_shape_failure(
                 &view,
                 span,
-                format!(
+                scoop_ast::DiagnosticNote::without_location(scoop_source::DiagnosticCode::E0601, format!(
                     "expects {type_param_count} explicit type argument(s), but {} were supplied",
                     explicit_type_args.len()
-                ),
+                )),
             );
             return None;
         }

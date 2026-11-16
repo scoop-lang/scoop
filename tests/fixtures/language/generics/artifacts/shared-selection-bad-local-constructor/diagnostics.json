@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `Ambiguous` is ambiguous in current package layer:\n  - class Ambiguous(first: Int, second: Any, extra: Int) — applicable; tied by MSC\n  - class Ambiguous(first: Any, second: Int) — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `Ambiguous` is ambiguous in current package layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Ambiguous(first: Int, second: Any, extra: Int)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Ambiguous(first: Any, second: Int)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "c4f1c001542a30924cb868d02e8a64812b04ec3b5bb673235864f967b6234a2e",
       "end": 210,

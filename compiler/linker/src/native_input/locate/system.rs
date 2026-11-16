@@ -22,7 +22,10 @@ fn darwin(
     profile: &ValidatedFinalLinkProfile,
     observed: &mut Vec<PathBuf>,
 ) -> Result<LibraryResolution, LinkError> {
-    let sdk = profile.startup_toolchain().sdk_root().map_err(error)?;
+    let sdk = profile
+        .startup_toolchain()
+        .sdk_root()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
     let name = key.library().as_str();
     let library = sdk.join("usr/lib");
     let framework = sdk
@@ -64,10 +67,10 @@ fn darwin(
         match std::fs::symlink_metadata(&path) {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
             Err(err) => {
-                return Err(error(format!(
-                    "system native candidate {}: {err}",
-                    path.display()
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2201,
+                    format!("system native candidate {}: {err}", path.display()),
+                ));
             }
             Ok(_) => {}
         }
@@ -89,7 +92,7 @@ fn linux_library(
     let directory = tempfile::Builder::new()
         .prefix("scoop-system-library-")
         .tempdir()
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut command = profile.startup_toolchain().driver_command();
     command
         .current_dir(directory.path())
@@ -110,22 +113,25 @@ fn linux_library(
             NativeLibraryKind::TargetDefault => format!("-l{name}"),
             NativeLibraryKind::Framework => {
                 return Err(error(
+                    scoop_source::DiagnosticCode::E2301,
                     "framework libraries are not supported by the Linux target",
                 ));
             }
         })
         .arg("-o")
         .arg(directory.path().join("lookup"));
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
         let diagnostic = String::from_utf8_lossy(&output.stderr);
         if diagnostic.contains("cannot find -l") {
             return Err(missing(key, profile));
         }
-        return Err(error(format!(
-            "system native library {name:?}: {}",
-            diagnostic.trim()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2308,
+            format!("system native library {name:?}: {}", diagnostic.trim()),
+        ));
     }
     let mut result = LibraryResolution {
         files: Vec::new(),
@@ -133,27 +139,35 @@ fn linux_library(
         system_alias: false,
     };
     let mut seen = std::collections::BTreeSet::new();
-    for line in String::from_utf8(output.stdout).map_err(error)?.lines() {
+    for line in String::from_utf8(output.stdout)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?
+        .lines()
+    {
         let path = Path::new(line.trim());
         if !path.is_absolute() {
             continue;
         }
-        let path = path.canonicalize().map_err(error)?;
+        let path = path
+            .canonicalize()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         if !seen.insert(path.clone()) {
             continue;
         }
-        let bytes = std::fs::read(&path).map_err(error)?;
+        let bytes = std::fs::read(&path)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let kind = if bytes.starts_with(b"!<arch>\n") {
             NativeFileKind::Archive
         } else if bytes.starts_with(b"\x7fELF") {
             if static_library {
-                return Err(error(format!(
-                    "static native library {name:?} resolved to a dynamic input"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    format!("static native library {name:?} resolved to a dynamic input"),
+                ));
             }
             NativeFileKind::SharedObject
         } else {
-            std::str::from_utf8(&bytes).map_err(error)?;
+            std::str::from_utf8(&bytes)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
             result.scripts.push((path, sha256(&bytes)));
             continue;
         };
@@ -176,9 +190,12 @@ fn linux_library(
 }
 
 fn missing(key: &NativeLinkRequirementKey, profile: &ValidatedFinalLinkProfile) -> LinkError {
-    error(format!(
-        "missing native library {:?} for {}; no candidate in explicit roots or the selected target's system libraries",
-        key.library().as_str(),
-        profile.canonical_triple()
-    ))
+    error(
+        scoop_source::DiagnosticCode::E2302,
+        format!(
+            "missing native library {:?} for {}; no candidate in explicit roots or the selected target's system libraries",
+            key.library().as_str(),
+            profile.canonical_triple()
+        ),
+    )
 }

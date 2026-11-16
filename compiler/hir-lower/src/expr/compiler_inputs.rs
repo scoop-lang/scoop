@@ -48,6 +48,7 @@ impl Lowerer {
         };
         let Some(value) = value else {
             self.error(
+                scoop_source::DiagnosticCode::E1601,
                 name.span,
                 match kind {
                     hir::IntrinsicFunctionKind::CompileEnv => {
@@ -76,12 +77,17 @@ impl Lowerer {
         let name = match hir::CompileTimeEnvironmentName::parse(&value) {
             Ok(name) => name,
             Err(message) => {
-                self.error(name.span, message.into());
+                self.error(
+                    scoop_source::DiagnosticCode::E1607,
+                    name.span,
+                    message.into(),
+                );
                 return None;
             }
         };
         let Some(inputs) = &self.compile_time_inputs else {
             self.error(
+                scoop_source::DiagnosticCode::E1604,
                 span,
                 "no compile-time input host was supplied for `env`".into(),
             );
@@ -90,7 +96,7 @@ impl Lowerer {
         let value = match inputs.environment(&name) {
             Ok(value) => value,
             Err(message) => {
-                self.error(arguments[0].span, message);
+                self.error(message.code, arguments[0].span, message.message);
                 return None;
             }
         };
@@ -142,16 +148,21 @@ impl Lowerer {
         ty: hir::TypeId,
     ) -> Option<hir::Expr> {
         let result = hir::CompileTimePath::parse(&value)
-            .map_err(str::to_owned)
+            .map_err(|message| {
+                hir::CompileTimeInputError::new(scoop_source::DiagnosticCode::E1605, message)
+            })
             .and_then(|path| {
                 let inputs = self.compile_time_inputs.as_ref().ok_or_else(|| {
-                    format!(
-                        "no compile-time input host was supplied for `{}`",
-                        match kind {
-                            hir::IntrinsicFunctionKind::IncludeStr => "includeStr",
-                            hir::IntrinsicFunctionKind::IncludeBytes => "includeBytes",
-                            _ => unreachable!("only file input intrinsics are normalized here"),
-                        }
+                    hir::CompileTimeInputError::new(
+                        scoop_source::DiagnosticCode::E1604,
+                        format!(
+                            "no compile-time input host was supplied for `{}`",
+                            match kind {
+                                hir::IntrinsicFunctionKind::IncludeStr => "includeStr",
+                                hir::IntrinsicFunctionKind::IncludeBytes => "includeBytes",
+                                _ => unreachable!("only file input intrinsics are normalized here"),
+                            }
+                        ),
                     )
                 })?;
                 inputs.file(self.source_identity(self.current_file), &path)
@@ -159,7 +170,7 @@ impl Lowerer {
         let bytes = match result {
             Ok(value) => value,
             Err(message) => {
-                self.error(path_span, message);
+                self.error(message.code, path_span, message.message);
                 return None;
             }
         };
@@ -171,7 +182,7 @@ impl Lowerer {
                 let value = match std::str::from_utf8(&bytes) {
                     Ok(value) => value.to_owned(),
                     Err(error) => {
-                        self.error(path_span, format!(
+                        self.error(scoop_source::DiagnosticCode::E1602, path_span, format!(
                             "includeStr input `{value}` must be valid UTF-8 (invalid sequence at byte offset {})",
                             error.valid_up_to()
                         ));

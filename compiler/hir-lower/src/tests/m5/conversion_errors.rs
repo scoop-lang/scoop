@@ -19,8 +19,8 @@ fn conversion_takes_exactly_one_argument() {
     let errors = lower_user(file).expect_err("`Array()` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `Array` in core prelude layer:\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(size: Long, init: (Long) -> T) — expects 2 argument(s), but 0 were supplied\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — expects 1 argument(s), but 0 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `Array` in core prelude layer; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(size: Long, init: (Long) -> T); expects 2 argument(s), but 0 were supplied; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(source: MutableArray<T>); expects 1 argument(s), but 0 were supplied"
     );
     // Two arguments.
     let file2 = super::file(vec![fun(
@@ -30,8 +30,8 @@ fn conversion_takes_exactly_one_argument() {
     let errors = lower_user(file2).expect_err("`Array(m, m)` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `Array` in core prelude layer:\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(size: Long, init: (Long) -> T) — argument for `size` has type MutableArray<Int>, which is not a subtype of Long\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — expects 1 argument(s), but 2 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `Array` in core prelude layer; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(size: Long, init: (Long) -> T); argument for `size` has type MutableArray<Int>, which is not a subtype of Long; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(source: MutableArray<T>); expects 1 argument(s), but 2 were supplied"
     );
 }
 
@@ -50,8 +50,8 @@ fn conversion_methods_take_no_arguments_and_only_exist_on_the_source_kind() {
     let errors = lower_user(file).expect_err("conversion method arguments must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `toMutableArray` in member candidate layer:\n  - fun Array<T>.toMutableArray(): MutableArray<T> — expects 0 argument(s), but 1 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `toMutableArray` in member candidate layer; fun Array<T>.toMutableArray(): MutableArray<T>; expects 0 argument(s), but 1 were supplied"
     );
 
     let file2 = super::file(vec![fun(
@@ -82,8 +82,8 @@ fn conversion_needs_the_other_array_kind() {
     let errors = lower_user(file).expect_err("same-kind conversion must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `Array` in core prelude layer:\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(size: Long, init: (Long) -> T) — expects 2 argument(s), but 1 were supplied\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — argument for `source` has type Array<Int>, which is not a subtype of MutableArray<T>"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `Array` in core prelude layer; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(size: Long, init: (Long) -> T); expects 2 argument(s), but 1 were supplied; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(source: MutableArray<T>); argument for `source` has type Array<Int>, which is not a subtype of MutableArray<T>"
     );
 
     // `MutableArray(x)` where `x` is already a `MutableArray`.
@@ -101,8 +101,8 @@ fn conversion_needs_the_other_array_kind() {
     let errors = lower_user(file2).expect_err("same-kind conversion must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `MutableArray` in core prelude layer:\n  - no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer:\n  - class MutableArray<T>(size: Long, init: (Long) -> T) — expects 2 argument(s), but 1 were supplied\n  - no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer:\n  - class MutableArray<T>(source: Array<T>) — argument for `source` has type MutableArray<Int>, which is not a subtype of Array<T>"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `MutableArray` in core prelude layer; no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer; class MutableArray<T>(size: Long, init: (Long) -> T); expects 2 argument(s), but 1 were supplied; no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer; class MutableArray<T>(source: Array<T>); argument for `source` has type MutableArray<Int>, which is not a subtype of Array<T>"
     );
 }
 
@@ -115,8 +115,8 @@ fn conversion_argument_must_be_an_array() {
     let errors = lower_user(file).expect_err("`Array(1)` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `Array` in core prelude layer:\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(size: Long, init: (Long) -> T) — expects 2 argument(s), but 1 were supplied\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — argument for `source` has type Int, which is not a subtype of MutableArray<T>"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `Array` in core prelude layer; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(size: Long, init: (Long) -> T); expects 2 argument(s), but 1 were supplied; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(source: MutableArray<T>); argument for `source` has type Int, which is not a subtype of MutableArray<T>"
     );
 
     let file2 = super::file(vec![fun(
@@ -126,8 +126,8 @@ fn conversion_argument_must_be_an_array() {
     let errors = lower_user(file2).expect_err("`MutableArray(1)` must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `MutableArray` in core prelude layer:\n  - no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer:\n  - class MutableArray<T>(size: Long, init: (Long) -> T) — expects 2 argument(s), but 1 were supplied\n  - no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer:\n  - class MutableArray<T>(source: Array<T>) — argument for `source` has type Int, which is not a subtype of Array<T>"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `MutableArray` in core prelude layer; no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer; class MutableArray<T>(size: Long, init: (Long) -> T); expects 2 argument(s), but 1 were supplied; no applicable candidate for constructor `MutableArray` in nominal constructor candidate layer; class MutableArray<T>(source: Array<T>); argument for `source` has type Int, which is not a subtype of Array<T>"
     );
 }
 
@@ -150,8 +150,8 @@ fn conversion_explicit_type_arguments_participate_in_constraints() {
     let errors = lower_user(file).expect_err("the explicit element type must constrain the source");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `Array` in core prelude layer:\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(size: Long, init: (Long) -> T) — expects 2 argument(s), but 1 were supplied\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — conflicting types for `T`: String and Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `Array` in core prelude layer; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(size: Long, init: (Long) -> T); expects 2 argument(s), but 1 were supplied; no applicable candidate for constructor `Array` in nominal constructor candidate layer; class Array<T>(source: MutableArray<T>); conflicting types for `T`: String and Int"
     );
 }
 
@@ -173,8 +173,7 @@ fn array_conversion_intrinsics_are_required_and_shape_checked() {
     });
     let errors = lower(&[missing, user()]).expect_err("the array conversion intrinsic is required");
     assert!(errors.iter().any(|error| {
-        error
-            .message
+        crate::tests::diagnostic_text(error)
             .contains("scoop.core must define exactly one `array_to_mutable` intrinsic")
     }));
 
@@ -199,8 +198,7 @@ fn array_conversion_intrinsics_are_required_and_shape_checked() {
         .return_ty = Some(ty_named("String"));
     let errors = lower(&[malformed, user()]).expect_err("the array conversion signature is fixed");
     assert!(errors.iter().any(|error| {
-        error
-            .message
+        crate::tests::diagnostic_text(error)
             .contains("malformed core array intrinsic `array_to_immutable`")
     }));
 }

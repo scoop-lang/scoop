@@ -71,7 +71,11 @@ impl Lowerer {
             let callee = match selected {
                 Ok(callee) => callee,
                 Err(error) => {
-                    self.error(call_span, error.to_string());
+                    self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
+                        call_span,
+                        error.to_string(),
+                    );
                     return None;
                 }
             };

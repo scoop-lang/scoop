@@ -50,6 +50,7 @@ pub(crate) fn output_kind(
         })
         .map_err(|error| {
             vec![ast::Diagnostic::at(
+                scoop_source::DiagnosticCode::ICE0501,
                 ast::Span::new(0, 0),
                 format!("invalid generated test entry: {error}"),
             )]
@@ -152,7 +153,7 @@ impl Lowerer {
                     {
                         let span = case.method.origin.span;
                         let Some(passed) = state.named_enum_variant(result.ty, "Passed") else {
-                            state.error(span, "test execution requires runReportedTestCase to return TestResult with a Passed variant".into());
+                            state.error(scoop_source::DiagnosticCode::E1403, span, "test execution requires runReportedTestCase to return TestResult with a Passed variant".into());
                             continue;
                         };
                         case_body.push(hir::Statement {
@@ -197,7 +198,7 @@ impl Lowerer {
                 && let Some(completed) = state.test_api_call("completeTestRun", Vec::new(), span, &mut statements)
             {
                 if !state.types_equal(completed.ty, state.unit) {
-                    state.error(span, "test execution requires completeTestRun to return Unit".into());
+                    state.error(scoop_source::DiagnosticCode::E1403, span, "test execution requires completeTestRun to return Unit".into());
                 } else {
                     statements.push(hir::Statement { span, kind: hir::StatementKind::Expr(completed) });
                 }

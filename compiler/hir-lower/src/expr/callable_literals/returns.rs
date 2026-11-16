@@ -15,6 +15,7 @@ impl Lowerer {
                 let found = self.type_name(value.ty);
                 let expected = self.type_name(expected);
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     span,
                     format!("lambda result must be of type {expected}, found {found}"),
                 );

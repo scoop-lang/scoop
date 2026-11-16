@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1115",
     "message": "context binding must have a non-null managed reference type, found Int",
     "notes": [],
     "origin": {

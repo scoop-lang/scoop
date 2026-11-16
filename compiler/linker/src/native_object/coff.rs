@@ -15,7 +15,7 @@ pub(crate) fn read_with_import_sections(
 ) -> Result<(NativeObjectInfo, bool), LinkError> {
     let architecture = object_architecture(target)?;
     let file = object::File::parse(bytes).map_err(|err| {
-        error(format!(
+        error(scoop_source::DiagnosticCode::E2305, format!(
             "ordinary COFF object required for the selected target; MSVC /GL or /LTCG input is not supported: {err}"
         ))
     })?;
@@ -25,6 +25,7 @@ pub(crate) fn read_with_import_sections(
         || !file.is_little_endian()
     {
         return Err(error(
+            scoop_source::DiagnosticCode::E2305,
             "native input must be an ordinary COFF object for the selected target (including bigobj), not MSVC /GL or /LTCG",
         ));
     }
@@ -40,7 +41,10 @@ pub(crate) fn read_with_import_sections(
         .sections()
         .any(|section| section.name().is_ok_and(|name| name.starts_with(".idata$")));
     for symbol in file.symbols().filter(|symbol| symbol.is_global()) {
-        let name = symbol.name().map_err(error)?.to_owned();
+        let name = symbol
+            .name()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+            .to_owned();
         if symbol.is_common() {
             definitions.insert(
                 name,
@@ -60,7 +64,10 @@ pub(crate) fn read_with_import_sections(
         }
         let section = symbol
             .section_index()
-            .map(|index| file.section_by_index(index).map_err(error))
+            .map(|index| {
+                file.section_by_index(index)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))
+            })
             .transpose()?;
         let tls = section.as_ref().is_some_and(|section| {
             section
@@ -98,7 +105,10 @@ pub(crate) fn read_with_import_sections(
             )
             .is_some()
         {
-            return Err(error(format!("duplicate native COFF definition {name}")));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("duplicate native COFF definition {name}"),
+            ));
         }
     }
     Ok((
@@ -115,8 +125,9 @@ pub(crate) fn object_architecture(
 ) -> Result<Architecture, LinkError> {
     match target.object_target() {
         scoop_lir::ObjectTargetProfileV1::CoffAmd64 => Ok(Architecture::X86_64),
-        object_target => Err(error(format!(
-            "no COFF native object reader for {object_target:?}"
-        ))),
+        object_target => Err(error(
+            scoop_source::DiagnosticCode::E2301,
+            format!("no COFF native object reader for {object_target:?}"),
+        )),
     }
 }

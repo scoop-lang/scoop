@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "negative bound of type parameter `U` must be an interface, found `T`",
     "notes": [],
     "origin": {

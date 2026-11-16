@@ -21,7 +21,11 @@ impl Lowerer {
                 } else {
                     "a class with a primary constructor requires every secondary constructor to declare `this(...)` delegation"
                 };
-                self.error(source.span, message.into());
+                self.error(
+                    scoop_source::DiagnosticCode::E1001,
+                    source.span,
+                    message.into(),
+                );
                 return;
             };
             let Some((target, arguments)) = self.lower_class_this_edge(
@@ -62,7 +66,11 @@ impl Lowerer {
                 arguments, span, ..
             }) => {
                 let Some(base_ty) = self.classes[owner].base_class else {
-                    self.error(*span, "`super(...)` requires a direct base class".into());
+                    self.error(
+                        scoop_source::DiagnosticCode::E1001,
+                        *span,
+                        "`super(...)` requires a direct base class".into(),
+                    );
                     return;
                 };
                 let Some(base) = self.lower_base_initialization(

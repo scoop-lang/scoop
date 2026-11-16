@@ -70,6 +70,13 @@ impl Lowerer {
             type_parameters,
             parameters,
         )
-        .map_err(|error| Diagnostic::at_file(origin.file as usize, origin.span, error.to_string()))
+        .map_err(|error| {
+            Diagnostic::at_file(
+                scoop_source::DiagnosticCode::ICE0401,
+                origin.file as usize,
+                origin.span,
+                error.to_string(),
+            )
+        })
     }
 }

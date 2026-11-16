@@ -1,8 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for callable reference `::answer` in dependency top-level candidate layer:\n  - fun answer(): Int — Int is not equal to String",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for callable reference `::answer` in dependency top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun answer(): Int",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "Int is not equal to String",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "96c4fe741e794bd30d6c73e826c59d29fc030f984441aa6f59077a4db26605d6",
       "end": 134,

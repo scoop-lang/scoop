@@ -23,8 +23,20 @@ impl Lowerer {
         usage: MissingNameUse,
     ) {
         let notes = self.import_suggestions(name, usage);
-        let mut diagnostic = ast::Diagnostic::at_file(self.current_text_file(), name.span, message);
+        let code = match usage {
+            MissingNameUse::Method(_) | MissingNameUse::Property(_) => {
+                scoop_source::DiagnosticCode::E0402
+            }
+            MissingNameUse::Type | MissingNameUse::Value | MissingNameUse::Call => {
+                scoop_source::DiagnosticCode::E0401
+            }
+        };
+        let mut diagnostic =
+            ast::Diagnostic::at_file(code, self.current_text_file(), name.span, message);
         diagnostic.notes = notes;
+        if matches!(usage, MissingNameUse::Value | MissingNameUse::Call) {
+            diagnostic.notes.push(ast::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H0402, "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"));
+        }
         self.diagnostics.push(diagnostic);
     }
 
@@ -63,10 +75,15 @@ impl Lowerer {
             let mut note = match binding {
                 ImportedTargetBinding::CurrentCone { binding, .. } => {
                     let binding = self.imports.binding(*binding);
-                    let mut note = ast::DiagnosticNote::at(binding.file, binding.span, "");
-                    note.source = scoop_source::LocalDiagnosticSource::Bound(Box::new(
+                    let mut note = ast::DiagnosticNote::at(
+                        scoop_source::DiagnosticCode::N0001,
+                        binding.file,
+                        binding.span,
+                        "",
+                    );
+                    note.set_source(scoop_source::LocalDiagnosticSource::Bound(Box::new(
                         binding.source.clone(),
-                    ));
+                    )));
                     note
                 }
                 ImportedTargetBinding::DirectDependency(binding) => {
@@ -82,6 +99,7 @@ impl Lowerer {
                 .collect::<Vec<_>>()
                 .join(".");
             note.message = format!("available with import {rendered}");
+            note.code = scoop_source::DiagnosticCode::H0401.into();
             note.import_path = path;
             notes.push(note);
         }

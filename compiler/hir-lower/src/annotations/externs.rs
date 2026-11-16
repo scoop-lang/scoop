@@ -29,6 +29,7 @@ impl Lowerer {
                 }
                 if capture_errno {
                     self.error(
+                        scoop_source::DiagnosticCode::E0703,
                         arg.span,
                         "duplicate `@Extern` argument `captureErrno`".into(),
                     );
@@ -41,7 +42,11 @@ impl Lowerer {
                 Some("name") => (&mut native_symbol, "name"),
                 Some("abi") => (&mut abi, "abi"),
                 Some(name) => {
-                    self.error(arg.span, format!("unknown argument `{name}` for `@Extern`"));
+                    self.error(
+                        scoop_source::DiagnosticCode::E0702,
+                        arg.span,
+                        format!("unknown argument `{name}` for `@Extern`"),
+                    );
                     continue;
                 }
                 None if positional == 0 => {
@@ -58,6 +63,7 @@ impl Lowerer {
                 }
                 None => {
                     self.error(
+                        scoop_source::DiagnosticCode::E0701,
                         arg.span,
                         "`@Extern` accepts at most four arguments".to_string(),
                     );
@@ -66,6 +72,7 @@ impl Lowerer {
             };
             if slot.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0703,
                     arg.span,
                     format!("duplicate `@Extern` argument `{expected}`"),
                 );
@@ -73,6 +80,7 @@ impl Lowerer {
             }
             let ast::AnnotationLiteral::String(value) = &arg.value else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     arg.span,
                     format!("argument `{expected}` of `@Extern` must be a string"),
                 );
@@ -89,6 +97,7 @@ impl Lowerer {
                 || library.starts_with('-'))
         {
             self.error(
+                scoop_source::DiagnosticCode::E1206,
                 annotation.span,
                 "`@Extern` library must be a logical library name, not a path or linker flag"
                     .to_string(),
@@ -99,6 +108,7 @@ impl Lowerer {
             .unwrap_or_else(|| source_name.to_string());
         if !is_c_identifier(&native_symbol) {
             self.error(
+                scoop_source::DiagnosticCode::E1206,
                 annotation.span,
                 format!("extern symbol `{native_symbol}` is not a portable C identifier"),
             );
@@ -108,6 +118,7 @@ impl Lowerer {
             "scoop" => hir::ExternAbi::Scoop,
             value => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1204,
                     annotation.span,
                     format!("extern ABI `{value}` is not supported; expected `c` or `scoop`"),
                 );

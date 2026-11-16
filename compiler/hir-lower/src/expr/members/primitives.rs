@@ -67,7 +67,11 @@ impl Lowerer {
             }
             hir::IntegerIntrinsicKind::ManagedOperation { kind, operation } => {
                 if let Err(error) = self.prepare_arithmetic_exception_type() {
-                    self.error(span, error.diagnostic("integer division exception type"));
+                    self.error(
+                        scoop_source::DiagnosticCode::E1403,
+                        span,
+                        error.diagnostic("integer division exception type"),
+                    );
                 }
                 ExprKind::IntegerOperation(integer_expression(
                     hir::IntegerOperation::Managed { kind, operation },

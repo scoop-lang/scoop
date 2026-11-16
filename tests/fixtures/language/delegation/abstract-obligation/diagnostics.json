@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Host` does not implement interface method `J.other`",
     "notes": [],
     "origin": {

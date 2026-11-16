@@ -140,7 +140,31 @@ pub(super) fn text(output: &Output) -> serde_json::Result<String> {
     for params in &output.diagnostics {
         for diagnostic in &params.diagnostics {
             position(&mut text, params.uri.as_str(), diagnostic.range.start);
-            let _ = writeln!(text, "  {}", diagnostic.message);
+            let code = diagnostic
+                .code
+                .as_ref()
+                .map(|code| match code {
+                    lsp_types::NumberOrString::String(code) => code.clone(),
+                    lsp_types::NumberOrString::Number(code) => code.to_string(),
+                })
+                .unwrap_or_default();
+            let level = if diagnostic.severity == Some(lsp_types::DiagnosticSeverity::WARNING) {
+                "warning"
+            } else {
+                "error"
+            };
+            let _ = writeln!(text, "  {level}[{code}]: {}", diagnostic.message);
+            if let Some(notes) = diagnostic
+                .data
+                .as_ref()
+                .and_then(|data| data.get("notes"))
+                .and_then(serde_json::Value::as_array)
+            {
+                for note in notes {
+                    diagnostic_note(&mut text, note, 2);
+                }
+                continue;
+            }
             for note in diagnostic.related_information.iter().flatten() {
                 position(
                     &mut text,
@@ -204,5 +228,27 @@ fn symbol_text(text: &mut String, symbol: &DocumentSymbol, depth: usize) {
     );
     for child in symbol.children.iter().flatten() {
         symbol_text(text, child, depth + 1);
+    }
+}
+
+fn diagnostic_note(text: &mut String, note: &serde_json::Value, depth: usize) {
+    if let Some(location) = note
+        .get("location")
+        .and_then(|value| serde_json::from_value::<lsp_types::Location>(value.clone()).ok())
+    {
+        position(text, location.uri.as_str(), location.range.start);
+    }
+    let _ = writeln!(
+        text,
+        "{}{}[{}]: {}",
+        "  ".repeat(depth),
+        note["kind"].as_str().unwrap_or("note"),
+        note["code"].as_str().unwrap_or(""),
+        note["message"].as_str().unwrap_or("")
+    );
+    if let Some(notes) = note["notes"].as_array() {
+        for child in notes {
+            diagnostic_note(text, child, depth + 1);
+        }
     }
 }

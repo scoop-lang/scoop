@@ -12,6 +12,7 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         if Some(struct_id) == self.ffi_fun_ptr {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 call.span,
                 "intrinsic struct `FunPtr` has no source constructor".to_string(),
             );
@@ -19,6 +20,7 @@ impl Lowerer {
         }
         if Some(struct_id) == self.ffi_gc_leaf_fun_ptr {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 call.span,
                 "intrinsic struct `GCLeafFunPtr` has no source constructor".to_string(),
             );
@@ -47,6 +49,7 @@ impl Lowerer {
         let explicit = self.resolve_call_type_args(call.type_args)?;
         if explicit.len() > 1 {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 call.span,
                 format!(
                     "`Ptr` expects one explicit type argument, but {} were supplied",
@@ -63,10 +66,14 @@ impl Lowerer {
             [ResolvedCallTypeArgument::Explicit { ty, .. }] => *ty,
             [ResolvedCallTypeArgument::Infer { .. }] | [] => {
                 let Some(pointee) = contextual_pointee else {
-                    self.error(
+                    self.error_with_note(
+                        scoop_source::DiagnosticCode::E0607,
                         call.span,
-                        "cannot infer `Ptr` pointee type; supply one explicit type argument"
-                            .to_string(),
+                        "cannot infer `Ptr` pointee type".to_owned(),
+                        scoop_source::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::H0502,
+                            "supply one explicit type argument".to_owned(),
+                        ),
                     );
                     return None;
                 };
@@ -80,6 +87,7 @@ impl Lowerer {
         if !self.type_contains_param(pointee) && !self.is_gc_free(pointee) {
             let found = self.type_name(pointee);
             self.error(
+                scoop_source::DiagnosticCode::E1213,
                 call.span,
                 format!("`Ptr` pointee must be GC-free, found {found}"),
             );
@@ -93,6 +101,7 @@ impl Lowerer {
                 ast::CallArgumentName::Named(name) if name.text == "raw" => {}
                 ast::CallArgumentName::Named(name) => {
                     self.error(
+                        scoop_source::DiagnosticCode::E0702,
                         name.span,
                         format!("`Ptr` has no value parameter named `{}`", name.text),
                     );
@@ -101,6 +110,7 @@ impl Lowerer {
             }
             if raw_argument.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E0703,
                     argument.span,
                     "`Ptr` value parameter `raw` is supplied more than once".to_string(),
                 );
@@ -108,6 +118,7 @@ impl Lowerer {
             }
             if !matches!(argument.spread, ast::SpreadSyntax::Plain) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0707,
                     argument.span,
                     "spread is not allowed for `Ptr` value parameter `raw`".to_string(),
                 );
@@ -117,6 +128,7 @@ impl Lowerer {
         }
         let Some(argument) = raw_argument else {
             self.error(
+                scoop_source::DiagnosticCode::E0708,
                 call.span,
                 "required `Ptr` value parameter `raw` has no argument".to_string(),
             );
@@ -129,6 +141,7 @@ impl Lowerer {
         if !self.is_subtype(raw.ty, ulong) {
             let found = self.type_name(raw.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 argument.span,
                 format!("`Ptr` raw address must be ULong, found {found}"),
             );
@@ -139,6 +152,7 @@ impl Lowerer {
             .is_some_and(|value| value.raw_bits() == 0)
         {
             self.error(
+                scoop_source::DiagnosticCode::E1215,
                 argument.span,
                 "`Ptr` raw address must be nonzero".to_string(),
             );

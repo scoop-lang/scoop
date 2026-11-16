@@ -105,6 +105,7 @@ impl Lowerer {
         };
         if property.interface().owner() != hir::PublicDeclarationOwnerV1::Extension {
             state.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 name.span,
                 format!(
                     "dependency property `{}` is not an extension property",
@@ -118,6 +119,7 @@ impl Lowerer {
         }
         let Some(receiver_signature) = property.interface().receiver() else {
             state.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 name.span,
                 format!(
                     "invalid dependency extension property `{}`: receiver type is missing",
@@ -135,6 +137,7 @@ impl Lowerer {
         };
         if !state.is_subtype(receiver.ty, receiver_type) {
             state.error(
+                scoop_source::DiagnosticCode::E0501,
                 name.span,
                 format!(
                     "extension property `{}` expects receiver {}, found {}",

@@ -24,10 +24,13 @@ pub fn read_text_stubs(
                 if record.flags.iter().any(|flag| {
                     flag != "not_app_extension_safe" && flag != "not_for_dyld_shared_cache"
                 }) {
-                    return Err(ToolchainError(format!(
-                        "text stub {} has unsupported load flags {:?}",
-                        record.install_name, record.flags
-                    )));
+                    return Err(ToolchainError::new(
+                        scoop_source::DiagnosticCode::E2303,
+                        format!(
+                            "text stub {} has unsupported load flags {:?}",
+                            record.install_name, record.flags
+                        ),
+                    ));
                 }
                 let mut exports = BTreeMap::new();
                 let mut reexports = Vec::new();
@@ -50,10 +53,13 @@ pub fn read_text_stubs(
     for record in records {
         if let Some(index) = names.get(&record.install_name) {
             if unique[*index] != record {
-                return Err(ToolchainError(format!(
-                    "conflicting text stub records for install name {}",
-                    record.install_name
-                )));
+                return Err(ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!(
+                        "conflicting text stub records for install name {}",
+                        record.install_name
+                    ),
+                ));
             }
         } else {
             names.insert(record.install_name.clone(), unique.len());
@@ -79,9 +85,10 @@ pub fn write_link_stub(
             (SystemExportKind::Symbol, true) => weak_symbols.push(symbol.as_str()),
             (SystemExportKind::ThreadLocal, false) => thread_local_symbols.push(symbol.as_str()),
             (SystemExportKind::ThreadLocal, true) => {
-                return Err(ToolchainError(format!(
-                    "v4 stub cannot preserve weak TLS export {symbol}"
-                )));
+                return Err(ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!("v4 stub cannot preserve weak TLS export {symbol}"),
+                ));
             }
         }
     }
@@ -98,8 +105,12 @@ pub fn write_link_stub(
             thread_local_symbols,
         }],
     };
-    let yaml = serde_yaml_ng::to_string(&value)
-        .map_err(|err| ToolchainError(format!("cannot write native link stub: {err}")))?;
+    let yaml = serde_yaml_ng::to_string(&value).map_err(|err| {
+        ToolchainError::new(
+            scoop_source::DiagnosticCode::E2201,
+            format!("cannot write native link stub: {err}"),
+        )
+    })?;
     Ok(format!("--- !tapi-tbd\n{yaml}...\n").into_bytes())
 }
 

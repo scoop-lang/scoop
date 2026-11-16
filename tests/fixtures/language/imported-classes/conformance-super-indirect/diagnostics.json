@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1025",
     "message": "interface `ParentReader` is not a direct superinterface of class `LocalReader`",
     "notes": [],
     "origin": {

@@ -18,7 +18,7 @@ impl Lowerer {
                         .statements_control_outcomes(&statements)
                         .can_fall_through()
                 {
-                    self.error(block.span, format!("non-Unit local function `{name}` may complete without returning a value"));
+                    self.error(scoop_source::DiagnosticCode::E0801, block.span, format!("non-Unit local function `{name}` may complete without returning a value"));
                 }
                 statements
             }
@@ -42,7 +42,9 @@ impl Lowerer {
                         let value = self.adapt_to(value, result);
                         self.push_return(Some(value), expression.span(), &mut statements);
                     } else {
-                        let message = self.with_nominal_invariance_detail(
+                        self.error_with_invariance(
+                            scoop_source::DiagnosticCode::E0501,
+                            expression.span(),
                             format!(
                                 "body of local function `{name}` must be of type {}, found {}",
                                 self.type_name(result),
@@ -51,13 +53,13 @@ impl Lowerer {
                             value.ty,
                             result,
                         );
-                        self.error(expression.span(), message);
                     }
                 }
                 statements
             }
             ast::FunctionBody::None => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0308,
                     declaration.name.span,
                     format!("local function `{name}` must have a body"),
                 );

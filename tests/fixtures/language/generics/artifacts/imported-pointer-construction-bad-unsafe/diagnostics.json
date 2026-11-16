@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "constructing `Ptr` from a raw integer requires an unsafe context",
     "notes": [],
     "origin": {

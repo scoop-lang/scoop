@@ -168,7 +168,12 @@ pub fn parse_all(
                         identity: identity.clone(),
                         diagnostic: diagnostic
                             .bind(std::slice::from_ref(identity))
-                            .unwrap_or_else(scoop_source::SourceDiagnostic::internal),
+                            .unwrap_or_else(|error| {
+                                scoop_source::SourceDiagnostic::internal(
+                                    scoop_source::DiagnosticCode::ICE0401,
+                                    error,
+                                )
+                            }),
                     }
                 }));
             }
@@ -345,9 +350,16 @@ fn input_error(
 ) -> ParseAllDiagnostic {
     ParseAllDiagnostic {
         identity: identity.clone(),
-        diagnostic: Diagnostic::without_span(scoop_ast::DiagnosticSeverity::Error, 0, message)
-            .bind(std::slice::from_ref(identity))
-            .unwrap_or_else(scoop_source::SourceDiagnostic::internal),
+        diagnostic: Diagnostic::without_span(
+            scoop_source::DiagnosticCode::ICE0301,
+            scoop_ast::DiagnosticSeverity::Error,
+            0,
+            message,
+        )
+        .bind(std::slice::from_ref(identity))
+        .unwrap_or_else(|error| {
+            scoop_source::SourceDiagnostic::internal(scoop_source::DiagnosticCode::ICE0401, error)
+        }),
     }
 }
 

@@ -1,4 +1,6 @@
+use crate::ApiError;
 use crate::schema::*;
+use scoop_source::DiagnosticCode as C;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -55,32 +57,42 @@ pub struct ResultPage<'a> {
     pub items: Vec<&'a Entry>,
 }
 
-fn read<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    serde_json::from_slice(&bytes).map_err(|e| format!("invalid API data {}: {e}", path.display()))
+fn read<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, ApiError> {
+    let bytes = std::fs::read(path)
+        .map_err(|e| ApiError::new(C::E2201, format!("cannot read {}: {e}", path.display())))?;
+    serde_json::from_slice(&bytes).map_err(|e| {
+        ApiError::new(
+            C::E1801,
+            format!("invalid API data {}: {e}", path.display()),
+        )
+    })
 }
 
-fn schema(actual: u32) -> Result<(), String> {
+fn schema(actual: u32) -> Result<(), ApiError> {
     if actual == SCHEMA {
         Ok(())
     } else {
-        Err(format!(
-            "unsupported API schema {actual}; expected {SCHEMA}"
+        Err(ApiError::new(
+            C::E1801,
+            format!("unsupported API schema {actual}; expected {SCHEMA}"),
         ))
     }
 }
 
 impl Catalog {
-    pub fn read(root: &Path, target: Option<&str>) -> Result<Self, String> {
+    pub fn read(root: &Path, target: Option<&str>) -> Result<Self, ApiError> {
         let index: Index = read(&root.join("api/index.json")).map_err(|error|
-            format!("{error}; generate documentation explicitly with scoop doc, or update installed documentation with scoop-install docs"))?;
+            error.with_help(C::H1801, "generate documentation explicitly with scoop doc, or update installed documentation with scoop-install docs"))?;
         schema(index.schema)?;
         if let Some(target) = target
             && index.target != target
         {
-            return Err(format!(
-                "documentation target is {}, requested {target}",
-                index.target
+            return Err(ApiError::new(
+                C::E1801,
+                format!(
+                    "documentation target is {}, requested {target}",
+                    index.target
+                ),
             ));
         }
         let mut entries = BTreeMap::<String, Entry>::new();
@@ -90,7 +102,10 @@ impl Catalog {
             let cone: Cone = read(&root.join(&reference.file))?;
             schema(cone.schema)?;
             if reference.coordinate != cone.coordinate {
-                return Err(format!("API coordinate mismatch in {}", reference.file));
+                return Err(ApiError::new(
+                    C::E1801,
+                    format!("API coordinate mismatch in {}", reference.file),
+                ));
             }
             for declaration in cone.declarations {
                 for alternate in &declaration.alternate_keys {
@@ -105,7 +120,10 @@ impl Catalog {
                     imports: Vec::new(),
                 };
                 if entries.insert(key.clone(), entry).is_some() {
-                    return Err(format!("duplicate API declaration {key}"));
+                    return Err(ApiError::new(
+                        C::E1801,
+                        format!("duplicate API declaration {key}"),
+                    ));
                 }
             }
             bindings.extend(
@@ -160,7 +178,10 @@ impl Catalog {
             let mut seen = std::collections::BTreeSet::new();
             while let Some(key) = current {
                 if !seen.insert(key) {
-                    return Err(format!("cyclic API parent at {key}"));
+                    return Err(ApiError::new(
+                        C::E1801,
+                        format!("cyclic API parent at {key}"),
+                    ));
                 }
                 if let Some(bindings) = imports.get(key) {
                     entry.imports.extend(bindings.iter().cloned());

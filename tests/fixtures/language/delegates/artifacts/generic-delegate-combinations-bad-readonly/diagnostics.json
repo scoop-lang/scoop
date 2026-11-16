@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1501",
     "message": "cannot assign to immutable property `zero`",
     "notes": [],
     "origin": {

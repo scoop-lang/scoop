@@ -40,7 +40,15 @@ impl Lowerer {
                 if let Some(local) = self.scopes.lookup(&name.text) {
                     Some((hir::Place::Local(local), self.locals[local].ty))
                 } else if self.release_has_field_name(&name.text) {
-                    self.error(name.span, "a `release` block cannot take the address of an owner field; copy its value to a local first".into());
+                    self.error_with_note(
+                        scoop_source::DiagnosticCode::E1112,
+                        name.span,
+                        "a `release` block cannot take the address of an owner field".to_owned(),
+                        scoop_source::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::H1501,
+                            "copy its value to a local first".to_owned(),
+                        ),
+                    );
                     return None;
                 } else {
                     let target = self.resolve_value_name(name).ok()?;
@@ -83,7 +91,7 @@ impl Lowerer {
             _ => None,
         };
         let Some((place, ty)) = place else {
-            self.error(expression.span(), "`addressOf` argument must be an addressable local, parameter, global, or value-type `this`".into());
+            self.error(scoop_source::DiagnosticCode::E1214, expression.span(), "`addressOf` argument must be an addressable local, parameter, global, or value-type `this`".into());
             return None;
         };
         if let hir::Place::Global(global) = &place
@@ -116,6 +124,7 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         if !self.types_equal(inferred, place_ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 place_span,
                 format!(
                     "`addressOf` type argument must match the place type {}, found {}",
@@ -129,6 +138,7 @@ impl Lowerer {
             || (!self.type_contains_param(place_ty) && !self.is_gc_free(place_ty))
         {
             self.error(
+                scoop_source::DiagnosticCode::E1213,
                 place_span,
                 format!(
                     "`addressOf` requires a GC-free value type, found {}",
@@ -154,6 +164,7 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         if !self.is_value_ty(target) {
             self.error(
+                scoop_source::DiagnosticCode::E0511,
                 span,
                 format!(
                     "memory layout requires a value type, found {}",

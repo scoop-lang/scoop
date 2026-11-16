@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1015",
     "message": "property `value` overrides an inherited property and must be marked `override`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1015",
     "message": "`$get$value` overrides `Valued.$get$value` and must be marked `override`",
     "notes": [],
     "origin": {

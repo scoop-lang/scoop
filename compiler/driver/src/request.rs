@@ -302,9 +302,7 @@ pub enum BuildRequestNormalizationError {
 impl fmt::Display for BuildRequestNormalizationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ManifestRequiresScoop => formatter.write_str(
-                "scoopc does not read Cone.toml; use scoop build/check for Cone projects",
-            ),
+            Self::ManifestRequiresScoop => formatter.write_str("scoopc does not read Cone.toml"),
             Self::ManifestRoot(error) => error.fmt(formatter),
             Self::SingleFile(error) => error.fmt(formatter),
             Self::HostPath(error) => error.fmt(formatter),
@@ -353,3 +351,45 @@ fn validate_request_shape(
 
 #[cfg(test)]
 mod tests;
+
+impl SingleConeBuildRequestError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::EmptyArtifactLocator => C::E2002,
+            Self::EmptyOutputDestination
+            | Self::InvalidOutputExtension { .. }
+            | Self::InvalidDocumentationOutput { .. } => C::E2020,
+            Self::CurrentDirectory(_) => C::E2201,
+            Self::InvalidCurrentCoreCombination => C::E2011,
+            Self::TestRequiresManifest
+            | Self::DocumentationRequiresProductionManifest
+            | Self::DocumentationMachineDump
+            | Self::CheckRequiresNoMachineInputs => C::E2001,
+            Self::OutputIsolation { kind, .. } => match kind {
+                OutputIsolationErrorKind::InspectOutput(_)
+                | OutputIsolationErrorKind::CanonicalizeOutput(_)
+                | OutputIsolationErrorKind::CanonicalizeOutputParent(_)
+                | OutputIsolationErrorKind::CanonicalizeInput { .. } => C::E2201,
+                OutputIsolationErrorKind::OutputNotRegularFile
+                | OutputIsolationErrorKind::MissingOutputFileName
+                | OutputIsolationErrorKind::AliasesInput { .. } => C::E2020,
+            },
+        }
+    }
+}
+
+impl BuildRequestNormalizationError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::ManifestRequiresScoop => C::E2001,
+            Self::ManifestRoot(e) => e.code(),
+            Self::SingleFile(e) => e.code(),
+            Self::HostPath(_) => C::E2502,
+            Self::Target(e) | Self::Generators(e) => e.code(),
+            Self::Backend(e) => e.code(),
+            Self::Request(e) => e.code(),
+        }
+    }
+}

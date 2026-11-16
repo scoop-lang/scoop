@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0404",
     "message": "import namespace is ambiguous in the current compilation unit",
     "notes": [],
     "origin": {

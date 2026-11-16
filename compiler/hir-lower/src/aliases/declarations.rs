@@ -33,7 +33,11 @@ impl Lowerer {
             } else {
                 format!("duplicate type `{name}` (already declared as {kind})")
             };
-            self.error(declaration.name.span, message);
+            self.error(
+                scoop_source::DiagnosticCode::E0301,
+                declaration.name.span,
+                message,
+            );
             return;
         }
         let access = if let Some(owner) = owner {
@@ -83,6 +87,7 @@ impl Lowerer {
     pub(crate) fn declare_local_type_alias(&mut self, declaration: &ast::TypeAliasDecl) {
         if self.scopes.type_declared_here(&declaration.name.text) {
             self.error(
+                scoop_source::DiagnosticCode::E0301,
                 declaration.name.span,
                 format!("duplicate local typealias `{}`", declaration.name.text),
             );
@@ -103,6 +108,7 @@ impl Lowerer {
             self.scopes
                 .declare_type_alias(declaration.name.text.clone(), previous);
             self.error(
+                scoop_source::DiagnosticCode::E0301,
                 declaration.name.span,
                 format!("duplicate local typealias `{}`", declaration.name.text),
             );
@@ -145,6 +151,7 @@ impl Lowerer {
                 .any(|existing| existing.name == parameter.name.text)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     parameter.span,
                     format!("duplicate type parameter `{}`", parameter.name.text),
                 );

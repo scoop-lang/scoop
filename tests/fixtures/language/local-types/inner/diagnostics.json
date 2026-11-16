@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1020",
     "message": "`inner class` must be declared directly in a class body",
     "notes": [],
     "origin": {

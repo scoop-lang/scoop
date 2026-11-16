@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "`suspend` modifier is only allowed on function declarations",
     "notes": [],
     "origin": {

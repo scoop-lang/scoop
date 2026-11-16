@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0614",
     "message": "type parameter `T` of function cannot have more than one class upper bound; found `LocalBase`",
     "notes": [],
     "origin": {

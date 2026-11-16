@@ -19,7 +19,7 @@ impl Lowerer {
         };
         for interface in ordinary {
             if self.open_types_may_equal(interface, declaration.interface) {
-                self.error(declaration.span, format!(
+                self.error(scoop_source::DiagnosticCode::E1022, declaration.span, format!(
                     "conditional implementation of `{}` may overlap the unconditional interface `{}` on {}",
                     self.type_name(declaration.interface), self.type_name(interface), owner.describe(self),
                 ));
@@ -34,6 +34,7 @@ impl Lowerer {
                 )
             {
                 let mut diagnostic = ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1022,
                     self.current_file,
                     declaration.span,
                     format!(
@@ -44,6 +45,7 @@ impl Lowerer {
                     ),
                 );
                 diagnostic.notes.push(ast::DiagnosticNote::at(
+                    scoop_source::DiagnosticCode::N0001,
                     self.current_file,
                     previous.span,
                     "the other implementation is here",

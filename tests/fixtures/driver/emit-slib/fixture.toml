@@ -20,7 +20,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{code = "SCOOP_PACKAGE_PREPARE", message = "no locked resolution for dev.pm:app:0.1.0 / production / ${target}; run scoop pm resolve", notes = [], origin = {kind = "none"}, severity = "error"}]
+diagnostics = [{"code" = "E2111", "message" = "no locked resolution for dev.pm:app:0.1.0 / production / aarch64-apple-darwin", "notes" = [{"code" = "H2101", "kind" = "help", "message" = "run scoop pm resolve", "notes" = [], "origin" = {"kind" = "none"}}], "origin" = {"kind" = "none"}, "severity" = "error"}]
 checks = [{file = "${work}/project/Cone.lock", exists = false}]
 
 [[steps]]
@@ -116,7 +116,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{code = "SCOOP_PACKAGE_PREPARE", message = "no locked resolution for dev.pm:app:0.1.0 / production / ${target}; run scoop pm resolve", notes = [], origin = {kind = "none"}, severity = "error"}]
+diagnostics = [{"code" = "E2111", "message" = "no locked resolution for dev.pm:app:0.1.0 / production / aarch64-apple-darwin", "notes" = [{"code" = "H2101", "kind" = "help", "message" = "run scoop pm resolve", "notes" = [], "origin" = {"kind" = "none"}}], "origin" = {"kind" = "none"}, "severity" = "error"}]
 checks = [{file = "${work}/run-project/Cone.lock", exists = false}]
 
 [[steps]]

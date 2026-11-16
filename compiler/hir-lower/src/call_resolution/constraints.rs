@@ -187,8 +187,29 @@ pub(crate) enum CallableShapeMismatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MemberRequirementFailure {
+    pub code: scoop_source::DiagnosticIdentifier,
+    pub message: String,
+    pub notes: Vec<scoop_source::DiagnosticNote>,
+}
+impl MemberRequirementFailure {
+    pub fn new(code: scoop_source::DiagnosticCode, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            notes: Vec::new(),
+        }
+    }
+}
+impl std::fmt::Display for MemberRequirementFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ConstraintFailureKind {
-    MemberRequirement(String),
+    MemberRequirement(MemberRequirementFailure),
     Companion {
         variable: InferenceVariableId,
         message: String,
@@ -435,5 +456,38 @@ impl InferenceSession {
 impl Default for InferenceSession {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConstraintFailure {
+    pub(crate) fn code(&self) -> scoop_source::DiagnosticIdentifier {
+        use scoop_source::DiagnosticCode as Code;
+        match &self.kind {
+            ConstraintFailureKind::MemberRequirement(failure) => return failure.code.clone(),
+            ConstraintFailureKind::Companion { .. } => Code::E0617,
+            ConstraintFailureKind::ExcludedInterface { .. } => Code::E0604,
+            ConstraintFailureKind::Relation { .. } => Code::E0501,
+            ConstraintFailureKind::CallableShape(shape) => match shape {
+                CallableShapeMismatch::ExpectedCallable => Code::E0502,
+                CallableShapeMismatch::Suspend => Code::E0504,
+                CallableShapeMismatch::Arity { .. } => Code::E0503,
+            },
+            ConstraintFailureKind::ConflictingExactBounds { .. } => Code::E0605,
+            ConstraintFailureKind::NoUniqueSolution {
+                solution_frontier, ..
+            } => {
+                if solution_frontier.len() > 1 {
+                    Code::E0606
+                } else {
+                    Code::E0607
+                }
+            }
+            ConstraintFailureKind::Kind { .. } => Code::E0602,
+            ConstraintFailureKind::InterfaceBound { .. }
+            | ConstraintFailureKind::ClassBound { .. } => Code::E0603,
+            ConstraintFailureKind::UnresolvedTerm(_)
+            | ConstraintFailureKind::NonConcreteApplication(_) => Code::E0607,
+        }
+        .into()
     }
 }

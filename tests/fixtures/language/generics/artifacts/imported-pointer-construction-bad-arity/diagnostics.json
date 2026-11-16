@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "`Ptr` expects one explicit type argument, but 2 were supplied",
     "notes": [],
     "origin": {

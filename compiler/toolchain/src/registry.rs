@@ -134,16 +134,26 @@ pub fn host_target_triple() -> Result<&'static str, ToolchainError> {
     };
     scoop_target_data::host(os, arch, environment)
         .map(|host| host.default_target)
-        .ok_or_else(|| ToolchainError(format!("unsupported host {arch}-{os}-{environment}")))
+        .ok_or_else(|| {
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2301,
+                format!("unsupported host {arch}-{os}-{environment}"),
+            )
+        })
 }
 
 pub fn select_target(triple: &str) -> Result<ValidatedLirTargetSelection, ToolchainError> {
     scoop_target_data::named_target(triple)
         .map(|target| target.selection)
         .ok_or_else(|| {
-            ToolchainError(format!(
-                "unsupported target {triple:?}; use a registered complete target"
-            ))
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2301,
+                format!("unsupported target {triple:?}"),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2001,
+                "use a registered complete target".to_string(),
+            )
         })
 }
 

@@ -34,7 +34,7 @@ name = "producer"
 argv = ["${scoopc}", "build", "--profile", "release", "${work}/left.scoop", "--sysroot", "${sysroot}", "--target", "${target}", "--out-slib", "${work}/producer.slib"]
 exit = 1
 stdout = ""
-stderr = "error: invalid single-file input ${work}/left.scoop: cannot canonicalize: Too many levels of symbolic links (os error ${errno_eloop})\n"
+stderr = "error[E2201]: invalid single-file input ${work}/left.scoop: cannot canonicalize: Too many levels of symbolic links (os error ${errno_eloop})\n"
 checks = [
   {"file" = "${work}/producer.slib", "exists" = false},
 ]
@@ -44,7 +44,7 @@ name = "human"
 argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${work}/left.scoop", "-o", "${work}/previous.slib", {"each" = "${human_options}"}]
 exit = 1
 stdout = ""
-stderr = "${work}/left.scoop: error[SCOOP_CLI_CONFIG]: invalid single-file input ${work}/left.scoop: cannot canonicalize: Too many levels of symbolic links (os error ${errno_eloop})\n"
+stderr = "${work}/left.scoop: error[E2201]: invalid single-file input ${work}/left.scoop: cannot canonicalize: Too many levels of symbolic links (os error ${errno_eloop})\n"
 checks = [
   {"file" = "${work}/previous.slib", "equals" = "previous output\n"},
 ]

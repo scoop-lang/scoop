@@ -19,14 +19,24 @@ impl Lowerer {
         };
         let declaration = dependencies
             .callable_declaration(identity)
-            .map_err(|error| Diagnostic::at(Span::new(0, 0), error.to_string()))?;
+            .map_err(|error| {
+                Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    Span::new(0, 0),
+                    error.to_string(),
+                )
+            })?;
         let interface = declaration.interface();
         let origin = imported_location(declaration.definition_origin().origin())?;
         let owner_parameters = match interface.owner() {
             hir::PublicDeclarationOwnerV1::Nominal(owner) => self
                 .imported_callable_owner_parameters(owner)
                 .map_err(|error| {
-                    Diagnostic::at(origin.span, error.diagnostic("queried callable owner"))
+                    Diagnostic::at(
+                        scoop_source::DiagnosticCode::ICE0501,
+                        origin.span,
+                        error.diagnostic("queried callable owner"),
+                    )
                 })?,
             hir::PublicDeclarationOwnerV1::TopLevel | hir::PublicDeclarationOwnerV1::Extension => {
                 Vec::new()
@@ -40,22 +50,34 @@ impl Lowerer {
             .map(|ty| self.imported_signature_type_with_bindings(ty, &bindings))
             .transpose()
             .map_err(|error| {
-                Diagnostic::at(origin.span, error.diagnostic("queried callable receiver"))
+                Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    origin.span,
+                    error.diagnostic("queried callable receiver"),
+                )
             })?;
         let context_parameters = self
             .imported_context_parameters(interface.context_parameters(), &bindings, origin.span)
-            .map_err(|error| Diagnostic::at(origin.span, error))?;
+            .map_err(|error| {
+                Diagnostic::at(scoop_source::DiagnosticCode::ICE0501, origin.span, error)
+            })?;
         let substitutions = self.complete_parameter_substitution(type_parameters.iter(), &[]);
         let parameters = self.query_imported_parameters(&declaration, &bindings, &substitutions)?;
         let result = self
             .imported_signature_type_with_bindings(interface.result(), &bindings)
             .map_err(|error| {
-                Diagnostic::at(origin.span, error.diagnostic("queried callable result"))
+                Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    origin.span,
+                    error.diagnostic("queried callable result"),
+                )
             })?;
         let effects = interface.effects();
         let release_callability = self
             .imported_release_callability(&effects, &bindings)
-            .map_err(|error| Diagnostic::at(origin.span, error))?;
+            .map_err(|error| {
+                Diagnostic::at(scoop_source::DiagnosticCode::ICE0501, origin.span, error)
+            })?;
         Ok(Some(hir::SemanticFunctionSignature {
             function: hir::SemanticCallable::Imported(callable),
             name: declaration.name().into(),

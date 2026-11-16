@@ -85,6 +85,7 @@ fn emit_registration<'ctx, D: Copy, C>(
         CodegenError::internal(format!(
             "type descriptor `{descriptor_symbol}` is not declared in the LLVM module"
         ))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
     })?;
     let descriptor = llvm
         .get_global(plan.symbol().symbol().as_str())

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0305",
     "message": "const property must be a `val`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1517",
     "message": "const dependency cycle: first -> second -> first",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer may only reference const properties; `ordinary` is not const",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "const operator operands must have the same type, found Boolean and Int",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1519",
     "message": "division by zero in const initializer",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1519",
     "message": "division by zero in const initializer",
     "notes": [],
     "origin": {

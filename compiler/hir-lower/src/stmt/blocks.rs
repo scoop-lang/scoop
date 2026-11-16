@@ -187,12 +187,13 @@ impl Lowerer {
             {
                 let expected = self.type_name(result_ty);
                 let found = self.type_name(value.ty);
-                let message = self.with_nominal_invariance_detail(
+                self.error_with_invariance(
+                    scoop_source::DiagnosticCode::E0501,
+                    value.span,
                     format!("{kind} branch result must be of type {expected}, found {found}"),
                     value.ty,
                     result_ty,
                 );
-                self.error(value.span, message);
                 return None;
             }
         }
@@ -241,6 +242,7 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         let Some(else_block) = &if_.else_block else {
             self.error(
+                scoop_source::DiagnosticCode::E0807,
                 if_.span,
                 "if expression requires an `else` branch".to_string(),
             );

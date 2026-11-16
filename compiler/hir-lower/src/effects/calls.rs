@@ -56,7 +56,7 @@ impl Lowerer {
         &self,
         callee: hir::CallableTarget,
         span: Span,
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
     ) {
         let native_transition = match callee {
             hir::CallableTarget::Local(callable) => {
@@ -87,9 +87,11 @@ impl Lowerer {
             hir::CallableTarget::Application(_) => false,
         };
         if native_transition {
-            out.push((
+            out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1104,
+                self.current_text_file(),
                 span,
-                "native calls requiring a state transition are not allowed in `@NoGC` code".into(),
+                "native calls requiring a state transition are not allowed in `@NoGC` code",
             ));
             return;
         }
@@ -102,20 +104,25 @@ impl Lowerer {
                 self.functions[self.callable_function_id(callable)].name,
             ),
             hir::CallableTarget::Application(_) => {
-                "calling a managed dependency function is not allowed in `@NoGC` code".into()
+                "calling a managed dependency function is not allowed in `@NoGC` code".to_owned()
             }
             hir::CallableTarget::Dependency(_) => {
-                "managed dependency calls are not allowed in `@NoGC` code".into()
+                "managed dependency calls are not allowed in `@NoGC` code".to_owned()
             }
         };
-        out.push((span, message));
+        out.push(scoop_ast::Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E1104,
+            self.current_text_file(),
+            span,
+            message,
+        ));
     }
 
     pub(super) fn check_no_gc_callee(
         &self,
         callable: hir::Callable,
         span: Span,
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
     ) {
         self.check_no_gc_call_target(callable.into(), span, out);
     }
@@ -124,7 +131,7 @@ impl Lowerer {
         &self,
         function: hir::FunctionId,
         span: Span,
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
     ) {
         self.check_no_gc_callee(hir::Callable::Function(function), span, out);
     }

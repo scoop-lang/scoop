@@ -1,3 +1,15 @@
 [
-  {"code":"SCOOP_FMT_INPUT","message":"source discovery failed at ${source_directory.canonical}: symlink traversal creates a directory cycle","notes":[],"origin":{"kind":"host","path":"${source_directory.canonical}","start":null,"end":null},"phase":"Request","severity":"error"}
+  {
+    "code": "E2006",
+    "message": "source discovery failed at ${source_directory.canonical}: symlink traversal creates a directory cycle",
+    "notes": [],
+    "origin": {
+      "kind": "host",
+      "path": "${source_directory.canonical}",
+      "start": null,
+      "end": null
+    },
+    "phase": "Request",
+    "severity": "error"
+  }
 ]

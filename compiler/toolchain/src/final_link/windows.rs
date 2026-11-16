@@ -69,9 +69,12 @@ impl WindowsFinalLinkProfile {
         cxx: Option<ValidatedCxxToolchain>,
     ) -> Result<Self, ToolchainError> {
         let output = OutputConfiguration::resolve(startup.target(), options)?;
-        let environment = startup.windows_environment().map_err(error)?;
+        let environment = startup
+            .windows_environment()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
         if options.mode == Some(LinkMode::Static) {
             return Err(error(
+                scoop_source::DiagnosticCode::E2301,
                 "Windows target resources use their selected dynamic CRT; --link-mode static is not supported",
             ));
         }
@@ -122,13 +125,13 @@ impl WindowsFinalLinkProfile {
             options.sysroot.as_deref(),
             options.unwind_prefix.as_deref(),
         )?)
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let archive = unwind_prefix.join("lib/libunwind.a");
         if !archive.is_file() {
-            return Err(error(format!(
-                "missing Windows LLVM unwind resource {}",
-                archive.display()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2302,
+                format!("missing Windows LLVM unwind resource {}", archive.display()),
+            ));
         }
         Ok(Self {
             data: Discovery {
@@ -180,6 +183,7 @@ impl WindowsFinalLinkProfile {
         }
     }
     pub fn fingerprint(&self) -> Result<Digest256, ToolchainError> {
-        domain_separated_cbor_hash("scoop-windows-final-link-profile-v2", self).map_err(error)
+        domain_separated_cbor_hash("scoop-windows-final-link-profile-v2", self)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
     }
 }

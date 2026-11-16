@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1019",
     "message": "a direct subtype of sealed `State` must be a named non-local declaration in the same origin Cone and package",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1019",
     "message": "a direct subtype of sealed `Result<T>` must be a named non-local declaration in the same origin Cone and package",
     "notes": [],
     "origin": {

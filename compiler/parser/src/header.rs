@@ -83,12 +83,14 @@ impl Parser {
             } => {
                 if matches!(self.peek().kind, TokenKind::As) {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0408,
                         self.peek().span,
                         "star imports cannot have an alias",
                     ));
                 }
                 if matches!(self.peek().kind, TokenKind::Dot) {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0408,
                         self.peek().span,
                         "a star import selector must end at `*`",
                     ));
@@ -176,6 +178,7 @@ impl Parser {
     fn consecutive_dot_diagnostic(&self) -> Diagnostic {
         let token = self.peek();
         Diagnostic::at(
+            scoop_source::DiagnosticCode::E0201,
             Span::new(token.span.start + 1, token.span.end),
             "expected identifier after `.`, found `.`",
         )

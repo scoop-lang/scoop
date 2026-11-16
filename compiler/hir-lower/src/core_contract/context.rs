@@ -23,7 +23,7 @@ impl Lowerer {
                 .is_some_and(|payload| self.is_type_param(payload, 0))
             && signature.attributes == hir::FunctionAttributes::default();
         if !valid {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 "intrinsic `context_or_none` must be an ordinary top-level `fun <T : ref> contextOrNone(): Option<T>`".into(),
             );
@@ -41,6 +41,7 @@ impl Lowerer {
             let file = self.core_diagnostic_file();
             self.current_file = file;
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 files[file],
                 "scoop.core must define class `MissingContextException`".into(),
             );
@@ -60,7 +61,7 @@ impl Lowerer {
             || !self.class_descends_from(class, throwable)
             || constructor.is_none()
         {
-            self.error(self.classes[class].span, "`MissingContextException` must be a non-generic final Throwable subtype with a `(String?)` constructor".into());
+            self.error(scoop_source::DiagnosticCode::E1403, self.classes[class].span, "`MissingContextException` must be a non-generic final Throwable subtype with a `(String?)` constructor".into());
             return None;
         }
         constructor

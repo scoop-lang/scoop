@@ -29,21 +29,24 @@ impl ImportedReferenceDeclaration {
         crate::expr::named_calls::imported_dependency::semantic_function_target(&self.candidate)
     }
 
-    fn resolve(state: &mut Lowerer, candidate: ImportedCallableCandidate) -> Result<Self, String> {
+    fn resolve(
+        state: &mut Lowerer,
+        candidate: ImportedCallableCandidate,
+    ) -> Result<Self, ReferenceFailureReason> {
         let interface = candidate.interface();
         if matches!(
             interface.effects().implementation(),
             hir::CallableImplementationV1::Intrinsic(hir::IntrinsicFunctionKind::Atomic(_))
         ) {
-            return Err(crate::expr::atomics::ATOMIC_REFERENCE_ERROR.into());
+            return Err(ReferenceFailureReason::atomic());
         }
         if interface.effects().implementation()
             == hir::CallableImplementationV1::Intrinsic(hir::IntrinsicFunctionKind::AnnotationKey)
         {
-            return Err(
-                "annotationKey is a declaration query and cannot be used as a callable reference"
-                    .into(),
-            );
+            return Err(ReferenceFailureReason::candidate(
+                scoop_source::DiagnosticCode::E0713,
+                "annotationKey is a declaration query and cannot be used as a callable reference",
+            ));
         }
         if candidate
             .callable_body()
@@ -64,7 +67,14 @@ impl ImportedReferenceDeclaration {
                 .expect("reference lookup has a dependency catalog")
                 .callable_declaration(interface.declaration())
                 .expect("a candidate retains its catalog declaration");
-            let template = state.request_imported_generic_template(declaration)?;
+            let template = state
+                .request_imported_generic_template(declaration)
+                .map_err(|message| {
+                    ReferenceFailureReason::candidate(
+                        scoop_source::DiagnosticCode::ICE0501,
+                        message,
+                    )
+                })?;
             let (signature, _) = ImportedGenericTarget::Function(template).signature(state);
             return Ok(Self {
                 candidate,
@@ -75,7 +85,12 @@ impl ImportedReferenceDeclaration {
         }
         let signature = state
             .imported_native_signature(&candidate)
-            .map_err(|error| error.diagnostic("callable reference signature"))?;
+            .map_err(|error| {
+                ReferenceFailureReason::candidate(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    error.diagnostic("callable reference signature"),
+                )
+            })?;
         let receiver_key = match interface.owner() {
             hir::PublicDeclarationOwnerV1::Nominal(hir::SourceNominalId::Concrete(owner)) => {
                 Some(scoop_identity::SignatureTypeKey::Nominal(owner))
@@ -86,7 +101,12 @@ impl ImportedReferenceDeclaration {
             .as_ref()
             .map(|ty| state.imported_signature_type(ty))
             .transpose()
-            .map_err(|error| error.diagnostic("callable reference receiver"))?;
+            .map_err(|error| {
+                ReferenceFailureReason::candidate(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    error.diagnostic("callable reference receiver"),
+                )
+            })?;
         Ok(Self {
             candidate,
             implementation: ImportedReferenceImplementation::Dependency,
@@ -320,7 +340,10 @@ impl Lowerer {
                         .expect("reference lookup has a dependency catalog")
                         .callable_candidate(binding)
                         .map_err(|error| {
-                            invalid(format!("invalid imported callable reference: {error}").into())
+                            invalid(ReferenceFailureReason::candidate(
+                                scoop_source::DiagnosticCode::ICE0501,
+                                format!("invalid imported callable reference: {error}"),
+                            ))
                         })?,
                 ))
             }
@@ -335,12 +358,12 @@ impl Lowerer {
         if let Some(reason) = state.imported_intrinsic_reference_failure(&candidate) {
             return Err(invalid(reason).into());
         }
-        let declaration = ImportedReferenceDeclaration::resolve(&mut state, candidate)
-            .map_err(|reason| invalid(reason.into()))?;
-        let fail = |state: &Lowerer, reason: String| ReferenceFailure {
+        let declaration =
+            ImportedReferenceDeclaration::resolve(&mut state, candidate).map_err(invalid)?;
+        let fail = |state: &Lowerer, code, reason: String| ReferenceFailure {
             signature: declaration.signature(state, context.name),
             layer: declaration.layer(),
-            reason: reason.into(),
+            reason: ReferenceFailureReason::candidate(code, reason),
         };
         let extension = declaration.extension();
         let bound_receiver = match context.extension_mode {
@@ -405,10 +428,11 @@ impl Lowerer {
             })
             .map_err(|failure| {
                 if let crate::call_resolution::applicability::ReferenceApplicabilityFailure::Internal(error) = failure {
-                    return super::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(error));
+                    return super::ReferenceProbeError::Internal(scoop_ast::Diagnostic::internal(scoop_source::DiagnosticCode::ICE0601, error));
                 }
                 super::ReferenceProbeError::Rejected(fail(
                     &state,
+                    failure.code(),
                     failure.describe(|constraint| {
                         state.render_imported_constraint_failure(
                             &declaration.signature.owner_parameters,

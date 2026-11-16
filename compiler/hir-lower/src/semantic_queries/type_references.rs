@@ -21,7 +21,9 @@ impl FrontendQueries<'_, '_> {
         let binders = self.lowerer.signature_binders(context);
         self.lowerer.type_query(context, span, |lowerer| {
             let signature = signature
-                .map_err(|message| lowerer.error(span, message))
+                .map_err(|message| {
+                    lowerer.error(scoop_source::DiagnosticCode::ICE2502, span, message)
+                })
                 .ok()?;
             lowerer.resolve_query_signature_type(&signature, &binders, span)
         })
@@ -46,7 +48,11 @@ impl Lowerer {
                 };
                 return result
                     .map_err(|error| {
-                        self.error(span, error.diagnostic("queried nominal type"));
+                        self.error(
+                            scoop_source::DiagnosticCode::ICE2502,
+                            span,
+                            error.diagnostic("queried nominal type"),
+                        );
                     })
                     .ok();
             }
@@ -116,6 +122,7 @@ impl Lowerer {
                     .find(|binder| binder.depth == *depth && binder.index == *index);
                 let Some(parameter) = parameter else {
                     self.error(
+                        scoop_source::DiagnosticCode::E2503,
                         span,
                         format!("type binder {depth}:{index} does not exist in the query context"),
                     );
@@ -127,7 +134,9 @@ impl Lowerer {
                 let host = self.resolve_query_signature_type(host, binders, span)?;
                 return self
                     .projected_companion_type(host)
-                    .map_err(|message| self.error(span, message))
+                    .map_err(|message| {
+                        self.error(scoop_source::DiagnosticCode::ICE2502, span, message)
+                    })
                     .ok();
             }
         };

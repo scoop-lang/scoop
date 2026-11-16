@@ -184,7 +184,7 @@ fn same_layer_type_ambiguity_lists_every_origin_at_the_use_site() {
             error
                 .notes
                 .iter()
-                .map(|note| bound_source(&note.source).clone())
+                .map(|note| bound_source(note.source().unwrap()).clone())
                 .collect::<Vec<_>>(),
             [
                 test_source_identity("src/first.scoop"),

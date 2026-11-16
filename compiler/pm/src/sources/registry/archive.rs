@@ -25,10 +25,10 @@ pub(super) fn extract(input: &Path, output: &Path) -> PmResult<()> {
             .components()
             .any(|part| !matches!(part, Component::Normal(_) | Component::CurDir))
         {
-            return Err(PmError::new(format!(
-                "archive path escapes the package: {}",
-                path.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2119,
+                format!("archive path escapes the package: {}", path.display()),
+            ));
         }
         let path: PathBuf = path
             .components()
@@ -39,19 +39,19 @@ pub(super) fn extract(input: &Path, output: &Path) -> PmResult<()> {
             .collect();
         let kind = entry.header().entry_type();
         if !kind.is_file() && !kind.is_dir() {
-            return Err(PmError::new(format!(
-                "unsupported archive entry type: {}",
-                path.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2119,
+                format!("unsupported archive entry type: {}", path.display()),
+            ));
         }
         if path.as_os_str().is_empty() && kind.is_dir() {
             continue;
         }
         if path.as_os_str().is_empty() || !entries.insert(path.clone()) {
-            return Err(PmError::new(format!(
-                "duplicate or empty archive path: {}",
-                path.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2119,
+                format!("duplicate or empty archive path: {}", path.display()),
+            ));
         }
         let destination = output.join(&path);
         if kind.is_dir() {
@@ -84,10 +84,15 @@ pub(super) fn download(http: &ureq::Agent, url: &str, path: &Path, expected: &st
     let mut digest = Sha256::new();
     let mut buffer = [0; 65536];
     loop {
-        scoop_process::check_interrupted().map_err(|error| PmError::new(error.to_string()))?;
-        let length = input
-            .read(&mut buffer)
-            .map_err(|error| PmError::new(format!("GET {url}: {error}")))?;
+        scoop_process::check_interrupted().map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::E2204, error.to_string())
+        })?;
+        let length = input.read(&mut buffer).map_err(|error| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2117,
+                format!("GET {url}: {error}"),
+            )
+        })?;
         if length == 0 {
             break;
         }
@@ -97,7 +102,10 @@ pub(super) fn download(http: &ureq::Agent, url: &str, path: &Path, expected: &st
             .map_err(|error| PmError::io(path, error))?;
     }
     if scoop_wire::Digest256::from_array(digest.finalize().into()).to_string() != expected {
-        return Err(PmError::new(format!("SHA-256 mismatch downloading {url}")));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2118,
+            format!("SHA-256 mismatch downloading {url}"),
+        ));
     }
     output.flush().map_err(|error| PmError::io(path, error))?;
     Ok(())

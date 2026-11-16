@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1707",
     "message": "invalid test or lifecycle method: value parameters are not allowed, including defaulted parameters; expected a safe synchronous instance method with no parameters or type parameters returning Unit",
     "notes": [],
     "origin": {

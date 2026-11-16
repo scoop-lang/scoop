@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0614",
     "message": "type parameter `T` of function cannot combine nominal upper bounds with a kind bound",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0612",
     "message": "unknown type parameter `U` in where clause of function",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0613",
     "message": "upper bound of type parameter `T` must be a class or interface, found `Int`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0615",
     "message": "duplicate interface upper bound `Marker` for type parameter `T` of function",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "generic interface `Boxed` requires 1 type argument(s)",
     "notes": [],
     "origin": {
@@ -65,9 +65,56 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `value` is ambiguous in member candidate layer:\n  - fun Left.value(): Int — tied after pairwise declaration forwarding\n  - fun Right.value(): Int — tied after pairwise declaration forwarding",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `value` is ambiguous in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Left.value(): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 81,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 65
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Right.value(): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "tied after pairwise declaration forwarding",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 123,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 107
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 559,
@@ -78,9 +125,37 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `requiresMarker` in current-unit top-level candidate layer:\n  - fun requiresMarker<T : Marker>(value: T): T — type argument `Int` for `T` must satisfy interface upper bound `Marker`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `requiresMarker` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun requiresMarker<T : Marker>(value: T): T",
+        "notes": [
+          {
+            "code": "E0603",
+            "kind": "cause",
+            "message": "type argument `Int` for `T` must satisfy interface upper bound `Marker`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 596,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 578
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 486,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 434
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 596,

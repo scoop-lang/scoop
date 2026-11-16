@@ -67,7 +67,7 @@ impl Lowerer {
             Some(hir::IntrinsicFunctionKind::CompileEnv | hir::IntrinsicFunctionKind::IncludeStr)
         ) || !statements.is_empty()
         {
-            self.error(call.span, "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions".into());
+            self.error(scoop_source::DiagnosticCode::E1518, call.span, "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions".into());
             return None;
         }
         let value = self

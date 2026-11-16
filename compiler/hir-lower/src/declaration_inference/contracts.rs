@@ -85,7 +85,7 @@ impl Lowerer {
                         self.type_name(actual)
                     )
                 };
-                self.error(check.span, message);
+                self.error(scoop_source::DiagnosticCode::E1013, check.span, message);
             }
         }
         self.current_file = file;

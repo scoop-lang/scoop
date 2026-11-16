@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0806",
     "message": "unknown loop label `outer` in this callable for `continue`",
     "notes": [],
     "origin": {

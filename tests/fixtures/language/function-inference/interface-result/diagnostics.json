@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "return type of `read` must match inherited result String, found Int",
     "notes": [],
     "origin": {

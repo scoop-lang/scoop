@@ -26,6 +26,7 @@ impl Lowerer {
     ) -> Option<EvaluatedConst> {
         let ast::InfixTarget::Named(name) = target else {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 span,
                 "const initializer cannot invoke an untyped infix callable".to_string(),
             );
@@ -56,6 +57,7 @@ impl Lowerer {
         )?;
         let hir::Type::Integer(kind) = self.types[left.ty] else {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 name.span,
                 "integer const intrinsic requires an integer receiver".to_string(),
             );
@@ -69,6 +71,7 @@ impl Lowerer {
         }) = self.resolve_const_integer_intrinsic(kind, &name.text)
         else {
             self.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 name.span,
                 "const initializer did not resolve to the exact typed core integer intrinsic"
                     .to_string(),
@@ -77,6 +80,7 @@ impl Lowerer {
         };
         if !is_infix || operation.arity() != hir::IntegerOperationArity::Binary {
             self.error(
+                scoop_source::DiagnosticCode::E1518,
                 name.span,
                 "const infix call did not resolve to a typed core integer infix intrinsic"
                     .to_string(),
@@ -109,6 +113,7 @@ impl Lowerer {
         ) = (left.value, right.value)
         else {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 "integer const intrinsic requires integer operands".to_string(),
             );
@@ -116,6 +121,7 @@ impl Lowerer {
         };
         if right.ty != right_expected {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "integer const intrinsic expected {}, found {}",

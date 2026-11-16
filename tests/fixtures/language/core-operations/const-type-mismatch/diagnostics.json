@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "const initializer of `broken` must be of type Boolean, found Int",
     "notes": [],
     "origin": {

@@ -163,6 +163,7 @@ impl Lowerer {
                     .collect::<Vec<_>>();
                 path.push(self.const_definition_name(&declarations[index]));
                 self.error(
+                    scoop_source::DiagnosticCode::E1517,
                     use_span.unwrap_or(declarations[index].declaration.span),
                     format!("const dependency cycle: {}", path.join(" -> ")),
                 );
@@ -203,6 +204,7 @@ impl Lowerer {
                 Some(evaluated)
             } else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     expression.span(),
                     format!(
                         "const initializer of `{}` must be of type {}, found {}",
@@ -251,6 +253,7 @@ impl Lowerer {
             (ast::UnOp::Plus | ast::UnOp::Neg, hir::ConstPropertyValue::Integer(value)) => {
                 let hir::Type::Integer(kind) = self.types[operand.ty] else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         span,
                         "integer const operator requires an integer operand".to_string(),
                     );
@@ -267,6 +270,7 @@ impl Lowerer {
                     hir::IntegerIntrinsicKind::NoGcOperation { kind, operation },
                 ) {
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         span,
                         "const integer operator did not resolve to the exact typed core intrinsic"
                             .to_string(),
@@ -285,6 +289,7 @@ impl Lowerer {
             }),
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1518,
                     span,
                     "invalid unary operator in const initializer".to_string(),
                 );

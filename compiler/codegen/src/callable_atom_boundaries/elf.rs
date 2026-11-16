@@ -18,14 +18,17 @@ pub(super) fn materialize(
         .original_symbol(primary_name.as_str())
         .ok_or_else(|| {
             CodegenError::internal(format!("ELF callable `{primary_name}` is missing"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
-    let primary_section = primary
-        .section_index()
-        .ok_or_else(|| CodegenError::internal("ELF callable is undefined".into()))?;
+    let primary_section = primary.section_index().ok_or_else(|| {
+        CodegenError::internal("ELF callable is undefined".into())
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
+    })?;
     let primary_start = primary.address();
-    let primary_end = primary_start
-        .checked_add(primary.size())
-        .ok_or_else(|| CodegenError::internal("ELF callable extent overflows".into()))?;
+    let primary_end = primary_start.checked_add(primary.size()).ok_or_else(|| {
+        CodegenError::internal("ELF callable extent overflows".into())
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
+    })?;
     let mut associated = vec![primary_section];
     let personality_atom = personality::atom(plan)?;
     let constants_atom =
@@ -75,10 +78,12 @@ pub(super) fn materialize(
                     let [section] = sections.as_slice() else {
                         return Err(CodegenError::internal(format!(
                             "ELF callable requires exactly one {role:?} contribution"
-                        )));
+                        ))
+                        .with_code(scoop_source::DiagnosticCode::ICE2302));
                     };
                     if section.size() == 0 {
-                        return Err(CodegenError::internal("ELF backend atom is empty".into()));
+                        return Err(CodegenError::internal("ELF backend atom is empty".into())
+                            .with_code(scoop_source::DiagnosticCode::ICE2302));
                     }
                     Some((section.index(), 0, section.size()))
                 }
@@ -87,7 +92,8 @@ pub(super) fn materialize(
                 | DefinitionAtomRole::WindowsUnwindInfo => {
                     return Err(CodegenError::internal(
                         "ELF callable plan contains a Mach-O compact-unwind atom".into(),
-                    ));
+                    )
+                    .with_code(scoop_source::DiagnosticCode::ICE2302));
                 }
                 DefinitionAtomRole::AddressTakenConstant
                 | DefinitionAtomRole::RuntimeRecord

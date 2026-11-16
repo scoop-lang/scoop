@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1304",
     "message": "annotation argument must be a scalar literal or const val reference",
     "notes": [],
     "origin": {

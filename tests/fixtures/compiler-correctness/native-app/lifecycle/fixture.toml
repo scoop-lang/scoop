@@ -96,7 +96,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{code = "SCOOP_RUN_NATIVE_APP", phase = "Request", severity = "error", message = "native-app requires a native host; run accepts executable Cones", origin = {kind = "none"}, notes = []}]
+diagnostics = [{code = "E2001", phase = "Request", severity = "error", message = "native-app requires a native host; run accepts executable Cones", origin = {kind = "none"}, notes = []}]
 
 [[steps]]
 name = "test-entry"

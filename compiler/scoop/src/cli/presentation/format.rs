@@ -17,7 +17,7 @@ impl Reporter {
         }
         match self.0 {
             MessageFormat::Json => write_json(
-                &json!({ "schema": 1, "kind": "format", "mode": if check { "check" } else { "write" }, "success": success,
+                &json!({ "schema": 2, "kind": "format", "mode": if check { "check" } else { "write" }, "success": success,
                 "files": files.iter().map(|file| json!({ "path": path_value(&file.path), "status": file.status.as_str() })).collect::<Vec<_>>(), "counts": counts }),
             ),
             MessageFormat::Human => {

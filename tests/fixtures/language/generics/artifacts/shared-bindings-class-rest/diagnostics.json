@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0903",
     "message": "a class component pattern cannot contain `..`",
     "notes": [],
     "origin": {
@@ -13,9 +13,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown variable `value`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "code": "E0401",
+    "message": "unknown variable `value`",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "bb8cc4849723c272022eba8ada75d2104089b5b86fc7ebb374ef92173f3f8c75",
       "end": 147,

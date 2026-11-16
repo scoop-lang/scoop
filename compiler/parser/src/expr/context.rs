@@ -71,6 +71,7 @@ impl Parser {
         self.bump(); // `(`, established by lookahead.
         if matches!(self.peek().kind, TokenKind::RParen) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1117,
                 self.peek().span,
                 "a context scope requires exactly one binding value",
             ));
@@ -78,6 +79,7 @@ impl Parser {
         let value = self.parse_expr()?;
         if matches!(self.peek().kind, TokenKind::Comma) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1117,
                 self.peek().span,
                 "a context scope requires exactly one binding value",
             ));

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include path must be nonempty and must not contain NUL",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include path must be nonempty and must not contain NUL",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include path must be nonempty and must not contain NUL",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1601",
     "message": "`includeStr` requires a compile-time constant String path",
     "notes": [],
     "origin": {
@@ -52,9 +52,28 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "compiler intrinsic `includeStr` does not support callable references\nnote: this intrinsic is evaluated at compile time and has no runtime callable entry\nhelp: import and call it directly with a constant path",
-    "notes": [],
+    "code": "E0713",
+    "message": "compiler intrinsic `includeStr` does not support callable references",
+    "notes": [
+      {
+        "code": "N0705",
+        "kind": "note",
+        "message": "this intrinsic is evaluated at compile time and has no runtime callable entry",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "H0701",
+        "kind": "help",
+        "message": "import and call it directly with a constant path",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 184,
@@ -65,7 +84,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1602",
     "message": "includeStr input `invalid.bin` must be valid UTF-8 (invalid sequence at byte offset 2)",
     "notes": [],
     "origin": {
@@ -78,7 +97,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include path `${work}/cone/.` must name a regular file",
     "notes": [],
     "origin": {
@@ -91,7 +110,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include path `${work}/cone/../outside.txt` is outside the defining Cone directory `${work}/cone`",
     "notes": [],
     "origin": {
@@ -104,7 +123,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include symlink target `${work}/outside.txt` is outside the defining Cone directory `${work}/cone`",
     "notes": [],
     "origin": {
@@ -117,7 +136,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E2201",
     "message": "cannot read include input `${work}/cone/missing.txt`: No such file or directory (os error 2)",
     "notes": [],
     "origin": {
@@ -130,7 +149,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include path must be nonempty and must not contain NUL",
     "notes": [],
     "origin": {
@@ -143,7 +162,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1601",
     "message": "`includeBytes` requires a compile-time constant String path",
     "notes": [],
     "origin": {
@@ -156,9 +175,28 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "compiler intrinsic `includeBytes` does not support callable references\nnote: this intrinsic is evaluated at compile time and has no runtime callable entry\nhelp: import and call it directly with a constant path",
-    "notes": [],
+    "code": "E0713",
+    "message": "compiler intrinsic `includeBytes` does not support callable references",
+    "notes": [
+      {
+        "code": "N0705",
+        "kind": "note",
+        "message": "this intrinsic is evaluated at compile time and has no runtime callable entry",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "H0701",
+        "kind": "help",
+        "message": "import and call it directly with a constant path",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 619,
@@ -169,7 +207,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "include symlink target `${work}/outside.txt` is outside the defining Cone directory `${work}/cone`",
     "notes": [],
     "origin": {

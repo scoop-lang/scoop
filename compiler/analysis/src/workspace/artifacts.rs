@@ -1,3 +1,4 @@
+use scoop_slib::SlibDiagnostic;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -21,7 +22,8 @@ impl ArtifactInputs {
         coordinate: &ConeCoordinate,
         target: ValidatedLirTargetSelection,
     ) -> Result<ArtifactConeInput, LoadError> {
-        let path = normalize_path(path).map_err(|error| LoadError::new(path, error))?;
+        let path = normalize_path(path)
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2201, path, error))?;
         let stamp = FileStamp::read(&path)?;
         let key = (path.clone(), target.target().id());
         let input = if let Some(previous) = self.files.get(&key)
@@ -29,11 +31,12 @@ impl ArtifactInputs {
         {
             previous.clone()
         } else {
-            let file = scoop_slib::ArtifactFile::open(&path, target)
-                .map_err(|error| LoadError::new(&path, error))?;
+            let file = scoop_slib::ArtifactFile::open(&path, target).map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::E2201, &path, error)
+            })?;
             let summary = Arc::new(
                 file.summary()
-                    .map_err(|error| LoadError::new(&path, error))?
+                    .map_err(|error| LoadError::new(error.code(), &path, error))?
                     .clone(),
             );
             let input = ArtifactConeInput {
@@ -48,6 +51,7 @@ impl ArtifactInputs {
         let cone = input.summary.cone();
         if cone.coordinate() != coordinate {
             return Err(LoadError::new(
+                scoop_source::DiagnosticCode::E2102,
                 path,
                 format!(
                     "dependency coordinate mismatch: expected {coordinate:?}, found {:?}",
@@ -60,6 +64,7 @@ impl ArtifactInputs {
             || cone.identity() == ConeIdentity::SINGLE_FILE
         {
             return Err(LoadError::new(
+                scoop_source::DiagnosticCode::E2103,
                 path,
                 "dependency must be a manifest library",
             ));

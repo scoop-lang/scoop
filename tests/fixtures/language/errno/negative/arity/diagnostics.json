@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1220",
     "message": "an errno-capturing extern must return `(R, Int)`",
     "notes": [],
     "origin": {

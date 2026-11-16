@@ -69,6 +69,7 @@ impl Lowerer {
             self.current_file = file;
             if declaration.is_override && declaration.params.iter().any(has_explicit_default) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0723,
                     declaration.name.span,
                     format!(
                         "override function `{}` cannot declare a new default expression",

@@ -97,7 +97,7 @@ impl Lowerer {
         &mut self,
         receiver_ty: TypeId,
         name: &str,
-    ) -> Option<String> {
+    ) -> Option<(scoop_source::DiagnosticCode, String)> {
         let candidate = self
             .method_candidates(receiver_ty)
             .into_iter()
@@ -118,13 +118,19 @@ impl Lowerer {
             && let Some(current) = self.protected_access_class(base)
             && self.receiver_class(receiver_ty).is_some()
         {
-            return Some(format!(
-                "protected method `{name}` cannot be accessed through receiver of static type `{}`; receiver must be `{}` or one of its subclasses",
-                self.type_name(receiver_ty),
-                self.classes[current].name
+            return Some((
+                scoop_source::DiagnosticCode::E0411,
+                format!(
+                    "protected method `{name}` cannot be accessed through receiver of static type `{}`; receiver must be `{}` or one of its subclasses",
+                    self.type_name(receiver_ty),
+                    self.classes[current].name
+                ),
             ));
         }
-        Some(format!("method `{name}` is not accessible here"))
+        Some((
+            scoop_source::DiagnosticCode::E0403,
+            format!("method `{name}` is not accessible here"),
+        ))
     }
 
     fn collect_class_method_candidates(

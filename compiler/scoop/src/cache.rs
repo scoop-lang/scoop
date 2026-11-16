@@ -11,4 +11,4 @@ pub use record::*;
 pub(crate) use store::open_build_lock;
 pub use store::*;
 
-pub(crate) const COMPILE_CACHE_NAMESPACE: &str = "compile-v3";
+pub(crate) const COMPILE_CACHE_NAMESPACE: &str = "compile-v4";

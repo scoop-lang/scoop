@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "generic function `typeAddress` requires type argument Managed for `T` to be a GC-free `Ptr` pointee",
     "notes": [],
     "origin": {

@@ -175,6 +175,7 @@ impl Lowerer {
                 self.fail_editing_owner(self.current_owner.expect("source inheritance owner"));
                 let name = self.classes[id].name.clone();
                 self.error(
+                    scoop_source::DiagnosticCode::E1009,
                     span,
                     format!("{host} `{name}` directly or indirectly inherits from itself"),
                 );

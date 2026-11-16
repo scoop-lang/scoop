@@ -44,6 +44,7 @@ impl Parser {
                 self.require_unmodified_nominal_prefix(&prefix, "companion object")?;
                 if has_companion {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E1021,
                         self.peek().span,
                         "a nominal declaration may contain at most one companion object",
                     ));
@@ -53,11 +54,13 @@ impl Parser {
                     .map(NominalMember::Companion)
             }
             TokenKind::Ident(text) if text == "init" => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "`init` blocks are not allowed in enums",
             )),
             TokenKind::Ident(text) if text == "release" => self.invalid_release_owner("enums"),
             TokenKind::Ident(text) if text == "constructor" => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0311,
                 self.peek().span,
                 "secondary constructors are not allowed in enums",
             )),
@@ -68,6 +71,7 @@ impl Parser {
                 .map(Box::new)
                 .map(NominalMember::Nested),
             _ => Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "expected an enum property, function, nested declaration, or companion object",
             )),

@@ -44,6 +44,7 @@ impl Lowerer {
             Some(hir::Type::Tuple(types)) => {
                 if types.len() != elements.len() {
                     self.error(
+                        scoop_source::DiagnosticCode::E1520,
                         span,
                         format!(
                             "constant tuple has {} elements, expected {}",
@@ -74,6 +75,7 @@ impl Lowerer {
                 && !self.types_equal(value.ty, expected)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     element.span(),
                     format!(
                         "constant tuple element must be of type {}, found {}",

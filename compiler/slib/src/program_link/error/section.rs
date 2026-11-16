@@ -5,7 +5,23 @@ use super::{ProgramLinkReadError, error};
 pub(in crate::program_link) fn section(
     source: SingleConeLinkSectionDecodeError,
 ) -> ProgramLinkReadError {
-    let mut result = error(&source);
+    use SingleConeLinkSectionDecodeError::*;
+    use scoop_source::DiagnosticCode as Code;
+    let code = match &source {
+        MemberRead(cause) => cause.code(),
+        OuterEnvelope { source, .. } => source.code(),
+        WrongProfile { .. } => Code::E2404,
+        MissingMetadataMember { .. }
+        | MissingMetadataMemberPayload { .. }
+        | MissingSection { .. } => Code::E2403,
+        InnerSection { source, .. } | Resource(source) => source.code(),
+        Inventory(cause) => match cause {
+            ArtifactProfileInventoryError::ConflictingCapabilityVersion { .. } => Code::E2402,
+            ArtifactProfileInventoryError::UnsupportedRequiredCapability { .. } => Code::E2411,
+            ArtifactProfileInventoryError::MissingRequiredCapability { .. } => Code::E2403,
+        },
+    };
+    let mut result = error(code, &source);
     result.semantic_path = path(&source);
     result
 }

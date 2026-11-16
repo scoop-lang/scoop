@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1305",
     "message": "annotation parameters require a scalar, integral enum, annotation class, or one-dimensional Array of these types",
     "notes": [],
     "origin": {

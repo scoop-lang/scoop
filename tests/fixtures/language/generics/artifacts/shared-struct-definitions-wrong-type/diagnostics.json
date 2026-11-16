@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "copy update field `value` expects Int, found String",
     "notes": [],
     "origin": {

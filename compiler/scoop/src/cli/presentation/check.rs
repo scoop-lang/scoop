@@ -23,7 +23,7 @@ impl Reporter {
                     .collect::<Vec<_>>();
                 invocations.push(json!({"identity": outcome.root.identity().expect("checked coordinate has identity").to_string(), "operation": "check"}));
                 write_json(&json!({
-                    "schema": 1, "kind": "check", "success": true,
+                    "schema": 2, "kind": "check", "success": true,
                     "root": { "identity": outcome.root.identity().expect("checked coordinate has identity").to_string(),
                         "coordinate": { "group": outcome.root.group(), "name": outcome.root.name(), "version": outcome.root.version() } },
                     "target": outcome.target, "purpose": purpose,

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1003",
     "message": "root type `Nothing` cannot be explicitly inherited",
     "notes": [],
     "origin": {

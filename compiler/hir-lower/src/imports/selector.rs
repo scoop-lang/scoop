@@ -30,6 +30,21 @@ pub(super) enum SelectorError {
 }
 
 impl SelectorError {
+    pub(super) fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as Code;
+        match self {
+            Self::ExpectedBindingAfterPackage | Self::NotStaticOwner => Code::E0406,
+            Self::Missing { inaccessible } => {
+                if inaccessible.is_empty() {
+                    Code::E0406
+                } else {
+                    Code::E0403
+                }
+            }
+            Self::AmbiguousBinding | Self::AmbiguousStaticOwner => Code::E0404,
+        }
+    }
+
     pub(super) const fn message(&self) -> &'static str {
         match self {
             Self::ExpectedBindingAfterPackage => {

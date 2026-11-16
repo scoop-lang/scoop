@@ -54,7 +54,7 @@ impl Lowerer {
         span: Span,
     ) -> Option<()> {
         if self.uninitialized_condition_bindings.contains(&binding) {
-            self.error(span, format!("local `{name}` may be uninitialized when a do-while continue reaches the condition"));
+            self.error(scoop_source::DiagnosticCode::E0810, span, format!("local `{name}` may be uninitialized when a do-while continue reaches the condition"));
             None
         } else {
             Some(())

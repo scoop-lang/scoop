@@ -89,7 +89,7 @@ impl Lowerer {
                         span,
                     });
                 } else if state.diagnostics.len() == before {
-                    state.error(span, "automatic decode could not resolve the required core decoder or constructor".into());
+                    state.error(scoop_source::DiagnosticCode::E1310, span, "automatic decode could not resolve the required core decoder or constructor".into());
                 }
                 statements
             });
@@ -121,7 +121,7 @@ impl Lowerer {
                 self.decode_tuple(context, context.target, &codecs, decoder, span, sink)
             }
             _ => {
-                self.error(span, format!("automatic decode requires a struct, enum, tuple, or final class with a primary constructor; result {} requires an explicit implementation", self.type_name(context.target)));
+                self.error_with_note(scoop_source::DiagnosticCode::E1310, span, "automatic decode requires a struct, enum, tuple, or final class with a primary constructor".to_owned(), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1301, format!("result {__diagnostic_arg0} requires an explicit implementation" , __diagnostic_arg0 = self.type_name(context.target))));
                 None
             }
         }

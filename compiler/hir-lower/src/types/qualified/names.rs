@@ -55,6 +55,7 @@ impl Lowerer {
             let Some(owner) = self.type_name_nominal_owner(target) else {
                 let previous = &path[index - 1];
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     previous.span,
                     format!(
                         "typealias `{}` does not name a type qualifier",
@@ -84,6 +85,7 @@ impl Lowerer {
                     .collect::<Vec<_>>()
                     .join(".");
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     name.span,
                     format!(
                         "type `{prefix}` has no accessible nested type `{}`",
@@ -115,6 +117,7 @@ impl Lowerer {
                 }
                 if !arguments.is_empty() && index + 1 == path.len() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0601,
                         name.span,
                         "companion type arguments belong to its host".into(),
                     );
@@ -137,6 +140,7 @@ impl Lowerer {
                 .collect::<Vec<_>>()
                 .join(".");
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 ast::Span::new(first.span.start, last.span.end),
                 format!("type `{name}` is not accessible from this source location"),
             );
@@ -155,6 +159,7 @@ impl Lowerer {
             let package_name = package.name();
             let Some(name) = path.get(length) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     path.last().expect("a package path is non-empty").span,
                     format!("`{package_name}` names a package, not a type",),
                 );
@@ -163,6 +168,7 @@ impl Lowerer {
             let lookup = self.lookup_package_type(&package, &name.text);
             let Some(binding) = self.commit_type_lookup(name, lookup)? else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     name.span,
                     format!(
                         "package `{package_name}` has no accessible type `{}`",

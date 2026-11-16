@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0711",
     "message": "type `Plain` has no applicable member operator `equals` for `==`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0711",
     "message": "type `Generic<Int>` has no applicable member operator `equals` for `==`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0711",
     "message": "type `Hidden<Int>` has no applicable member operator `equals` for `==`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0711",
     "message": "type `Choice` has no applicable member operator `equals` for `==`",
     "notes": [],
     "origin": {

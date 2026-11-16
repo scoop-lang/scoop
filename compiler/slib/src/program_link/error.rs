@@ -7,12 +7,16 @@ pub(super) use section::section;
 
 #[derive(Debug)]
 pub struct ProgramLinkReadError {
+    code: scoop_source::DiagnosticCode,
     message: String,
     artifact: Option<ConeIdentity>,
     semantic_path: String,
 }
 
 impl ProgramLinkReadError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        self.code
+    }
     pub const fn artifact(&self) -> Option<ConeIdentity> {
         self.artifact
     }
@@ -41,8 +45,12 @@ impl std::fmt::Display for ProgramLinkReadError {
 }
 impl std::error::Error for ProgramLinkReadError {}
 
-pub(super) fn error(value: impl std::fmt::Display) -> ProgramLinkReadError {
+pub(super) fn error(
+    code: scoop_source::DiagnosticCode,
+    value: impl std::fmt::Display,
+) -> ProgramLinkReadError {
     ProgramLinkReadError {
+        code,
         message: value.to_string(),
         artifact: None,
         semantic_path: "Link:$".to_owned(),
@@ -70,5 +78,22 @@ pub(super) fn graph(
         | MultipleVersions { .. }
         | MissingDirectArtifact { .. } => (root, "manifest:direct_dependencies"),
     };
-    error(source).at(cone, path)
+    let code = match &source {
+        InvalidProviderKind { .. } => scoop_source::DiagnosticCode::E2103,
+        TargetMismatch { .. } => scoop_source::DiagnosticCode::E2404,
+        DuplicateArtifact { .. } => scoop_source::DiagnosticCode::E2106,
+        CurrentArtifactPresent { .. } | CurrentArtifactIdentityMismatch { .. } => {
+            scoop_source::DiagnosticCode::E2405
+        }
+        MissingDependencyArtifact { .. } | MissingDirectArtifact { .. } => {
+            scoop_source::DiagnosticCode::E2101
+        }
+        StaleDependency { .. } => scoop_source::DiagnosticCode::E2108,
+        MultipleVersions { .. } => scoop_source::DiagnosticCode::E2104,
+        InvalidDependencyFirstOrder { .. }
+        | UnreachableSupport { .. }
+        | NonCanonicalDirectProviders { .. }
+        | CurrentDirectSetMismatch { .. } => scoop_source::DiagnosticCode::E2107,
+    };
+    error(code, source).at(cone, path)
 }

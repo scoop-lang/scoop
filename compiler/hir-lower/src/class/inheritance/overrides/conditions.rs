@@ -42,7 +42,7 @@ impl Lowerer {
                 None => self.conditional_application_holds(&required),
             };
             if !covered {
-                self.error(span, format!(
+                self.error(scoop_source::DiagnosticCode::E1011, span, format!(
                     "condition of override `{}` must cover the entire inherited method condition",
                     self.source_function_name(function),
                 ));

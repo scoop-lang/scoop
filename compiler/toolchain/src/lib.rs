@@ -73,7 +73,40 @@ pub use trusted_core::TrustedCoreSlotLayoutV1;
 pub use unwind::{runtime_unwind_include, selected_unwind_prefix};
 
 #[derive(Clone, Debug)]
-pub struct ToolchainError(pub String);
+pub struct ToolchainError(
+    pub String,
+    pub scoop_source::DiagnosticCode,
+    pub Vec<scoop_source::DiagnosticNote>,
+);
+
+impl ToolchainError {
+    pub fn new(code: scoop_source::DiagnosticCode, message: String) -> Self {
+        Self(message, code, Vec::new())
+    }
+    pub fn with_help(
+        mut self,
+        code: scoop_source::DiagnosticCode,
+        message: impl Into<String>,
+    ) -> Self {
+        self.2.push(scoop_source::DiagnosticNote::without_location(
+            code, message,
+        ));
+        self
+    }
+
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        self.1
+    }
+
+    pub fn in_chain<'a>(mut error: &'a (dyn std::error::Error + 'static)) -> Option<&'a Self> {
+        loop {
+            if let Some(error) = error.downcast_ref::<Self>() {
+                return Some(error);
+            }
+            error = error.source()?;
+        }
+    }
+}
 
 impl fmt::Display for ToolchainError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -12,6 +12,7 @@ ar_archive_writer.workspace = true
 fs4.workspace = true
 serde_json.workspace = true
 scoop-identity.workspace = true
+scoop-source.workspace = true
 scoop-lir.workspace = true
 scoop-slib.workspace = true
 scoop-toolchain.workspace = true

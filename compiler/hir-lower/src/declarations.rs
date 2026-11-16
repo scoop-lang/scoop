@@ -33,6 +33,7 @@ impl Lowerer {
         let core_diagnostic_file = self.core_diagnostic_file();
         self.current_file = core_diagnostic_file;
         self.error(
+            scoop_source::DiagnosticCode::E1404,
             files[core_diagnostic_file],
             format!("scoop.core must define exactly one `{name}` struct"),
         );

@@ -35,6 +35,7 @@ impl Lowerer {
             self.nominal_declaration_parameters(declaration)
                 .map_err(|error| {
                     Diagnostic::at(
+                        scoop_source::DiagnosticCode::ICE0501,
                         Span::new(0, 0),
                         error.diagnostic("queried nominal declaration"),
                     )

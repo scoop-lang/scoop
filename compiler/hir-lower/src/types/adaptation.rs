@@ -146,13 +146,21 @@ impl Lowerer {
             && matches!(self.types[target], Type::Interface(_))
         {
             if let Err(error) = self.retain_string_dispatch_source() {
-                self.error(span, error.diagnostic("String interface dispatch"));
+                self.error(
+                    scoop_source::DiagnosticCode::E1403,
+                    span,
+                    error.diagnostic("String interface dispatch"),
+                );
             }
         } else if self.is_value_ty(source)
             && self.is_ref_ty(target)
             && let Err(error) = self.retain_imported_box_source(source)
         {
-            self.error(span, error.diagnostic("boxed value type"));
+            self.error(
+                scoop_source::DiagnosticCode::E1403,
+                span,
+                error.diagnostic("boxed value type"),
+            );
         }
     }
 }

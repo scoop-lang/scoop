@@ -104,6 +104,7 @@ impl Lexer<'_> {
             match self.peek_char() {
                 None => {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0102,
                         self.span_from(start),
                         "unterminated block comment",
                     ));

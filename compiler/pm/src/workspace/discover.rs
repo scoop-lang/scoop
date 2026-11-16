@@ -24,17 +24,21 @@ pub(super) fn discover(
                 .join("Cone.toml");
             let loaded = manifests.load(&path)?;
             if loaded.document.workspace.is_some() {
-                return Err(
-                    PmError::new("a nested workspace cannot be an outer workspace member")
-                        .at(owner.origin(member.span.clone())),
-                );
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2018,
+                    "a nested workspace cannot be an outer workspace member",
+                )
+                .at(owner.origin(member.span.clone())));
             }
             if paths
                 .iter()
                 .any(|(_, existing)| existing.path == loaded.path)
             {
-                return Err(PmError::new("duplicate workspace member")
-                    .at(owner.origin(member.span.clone())));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2018,
+                    "duplicate workspace member",
+                )
+                .at(owner.origin(member.span.clone())));
             }
             paths.push((member.value.as_str().to_owned(), loaded));
         }
@@ -45,11 +49,14 @@ pub(super) fn discover(
         let cone = expand::expand(&loaded, definition.map(|_| owner.as_ref()))?;
         let key = DependencyCoordinateKey::from_coordinate(&cone.coordinate);
         if let Some(previous) = members.get(&key) {
-            return Err(PmError::new(format!(
-                "duplicate workspace coordinate {key}: {} and {}",
-                previous.manifest.display(),
-                loaded.path.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2018,
+                format!(
+                    "duplicate workspace coordinate {key}: {} and {}",
+                    previous.manifest.display(),
+                    loaded.path.display()
+                ),
+            ));
         }
         if selected.path != owner.path && selected.path == loaded.path {
             invoking_member = Some(key.clone());
@@ -77,15 +84,21 @@ pub(super) fn discover(
                 .find(|(_, member)| member.relative_path == path.value.as_str())
                 .map(|(key, _)| key.clone())
                 .ok_or_else(|| {
-                    PmError::new(format!(
-                        "default member {:?} is not a workspace member",
-                        path.value.as_str()
-                    ))
+                    PmError::new(
+                        scoop_source::DiagnosticCode::E2018,
+                        format!(
+                            "default member {:?} is not a workspace member",
+                            path.value.as_str()
+                        ),
+                    )
                     .at(owner.origin(path.span.clone()))
                 })?;
             if !defaults.insert(key) {
-                return Err(PmError::new("duplicate default workspace member")
-                    .at(owner.origin(path.span.clone())));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2018,
+                    "duplicate default workspace member",
+                )
+                .at(owner.origin(path.span.clone())));
             }
         }
         defaults.into_iter().collect()
@@ -174,7 +187,10 @@ fn input_manifest(
         } else if metadata.is_file() && path.file_name().is_some_and(|name| name == "Cone.toml") {
             Ok(path)
         } else {
-            Err(PmError::new("input must be a Cone directory or Cone.toml"))
+            Err(PmError::new(
+                scoop_source::DiagnosticCode::E2002,
+                "input must be a Cone directory or Cone.toml",
+            ))
         };
     }
     for directory in cwd.ancestors() {
@@ -183,8 +199,8 @@ fn input_manifest(
             return Ok(path);
         }
     }
-    Err(PmError::new(format!(
-        "no Cone.toml found from {} or its parents",
-        cwd.display()
-    )))
+    Err(PmError::new(
+        scoop_source::DiagnosticCode::E2002,
+        format!("no Cone.toml found from {} or its parents", cwd.display()),
+    ))
 }

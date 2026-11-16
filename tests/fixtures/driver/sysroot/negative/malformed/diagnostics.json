@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2008",
     "message": "${work}/sysroot/src/scoop.platform/Cone.toml: invalid Cone.toml: TOML parse error at line 1, column 10\n  |\n1 | [invalid manifest\n  |          ^\ninvalid table header\nexpected `.`, `]`\n",
     "notes": [
       {
+        "code": "N0001",
+        "kind": "note",
         "message": "related declaration",
+        "notes": [],
         "origin": {
           "end": 199,
           "kind": "host",

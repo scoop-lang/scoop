@@ -1,8 +1,49 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `consume` in current-unit top-level candidate layer:\n  - fun consume(block: () -> Int): Unit — argument for `block` (expected () -> Int): return label `consume` does not name the current callable; non-local returns are not allowed, lambda result must be of type Int, found Unit",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `consume` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun consume(block: () -> Int): Unit",
+        "notes": [
+          {
+            "code": "E0805",
+            "kind": "cause",
+            "message": "argument for `block` (expected () -> Int): return label `consume` does not name the current callable; non-local returns are not allowed",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 80,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 73
+            }
+          },
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "argument for `block` (expected () -> Int): lambda result must be of type Int, found Unit",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 84,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 64
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 32,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 80,

@@ -42,15 +42,21 @@ impl Lowerer {
                 .next()
                 .expect("a non-exhaustive one-column matrix has one witness")
                 .render();
-            let guard_note =
-                has_guard.then_some("; guarded arms do not contribute to exhaustiveness");
-            self.error(
+            let mut diagnostic = scoop_ast::Diagnostic::at(
+                scoop_source::DiagnosticCode::E0904,
                 span,
-                format!(
-                    "non-exhaustive when: missing pattern {witness}{}",
-                    guard_note.unwrap_or_default(),
-                ),
+                format!("non-exhaustive when: missing pattern {witness}"),
             );
+            diagnostic.set_file(self.current_text_file());
+            if has_guard {
+                diagnostic
+                    .notes
+                    .push(scoop_source::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::N0901,
+                        "guarded arms do not contribute to exhaustiveness",
+                    ));
+            }
+            self.diagnostics.push(diagnostic);
             return None;
         }
 

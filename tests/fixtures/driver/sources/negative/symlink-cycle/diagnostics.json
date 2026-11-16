@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2006",
     "message": "cannot snapshot manifest sources: source discovery failed at ${work}/cone/left.scoop: symlink targets form a cycle",
     "notes": [],
     "origin": {

@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `conflict` is ambiguous in member layer:\n  - Overloads<T>.conflict<U>(owner: T, left: U, right: Int): Int — applicable; tied by MSC\n  - Overloads<T>.conflict<U>(owner: T, left: Int, right: U): Int — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `conflict` is ambiguous in member layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "Overloads<T>.conflict<U>(owner: T, left: U, right: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "Overloads<T>.conflict<U>(owner: T, left: Int, right: U): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "af714c840bd4aff92dc9e9ac4477a4e7e88f7e5b33987b77b08c412f24b65dd6",
       "end": 128,

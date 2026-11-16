@@ -43,6 +43,7 @@ impl Lowerer {
                 if failures.contains(&ty) && reported.insert(ty) {
                     self.current_file = file;
                     self.error(
+                        scoop_source::DiagnosticCode::E1114,
                         span,
                         format!(
                             "type {} requires ReleaseValue arguments for its `release` block",

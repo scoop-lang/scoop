@@ -39,7 +39,8 @@ impl<'a> ElfObject<'a> {
             _ => {
                 return Err(CodegenError::internal(format!(
                     "atom materialization has no ELF implementation for {object_target:?}"
-                )));
+                ))
+                .with_code(scoop_source::DiagnosticCode::ICE2302));
             }
         };
         let file = ElfFile64::<LE>::parse(bytes).map_err(error)?;
@@ -51,7 +52,8 @@ impl<'a> ElfObject<'a> {
             return Err(CodegenError::internal(
                 "ELF atom materialization requires ELF64LE ET_REL for the selected object machine"
                     .into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         let tables = file
             .sections()
@@ -60,12 +62,14 @@ impl<'a> ElfObject<'a> {
         let [symtab] = tables.as_slice() else {
             return Err(CodegenError::internal(
                 "ELF atom materialization requires one symbol table".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         };
         if symtab.elf_section_header().sh_entsize(LE) != 24 {
             return Err(CodegenError::internal(
                 "ELF symbol table has an invalid entry size".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         let strtab = SectionIndex(symtab.elf_section_header().sh_link(LE) as usize);
         let strings = file
@@ -119,19 +123,22 @@ impl<'a> ElfObject<'a> {
         {
             return Err(CodegenError::internal(format!(
                 "ELF boundary `{name}` is invalid or already defined"
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         let target = self.file.section_by_index(section).map_err(error)?;
         if value > target.size() {
             return Err(CodegenError::internal(format!(
                 "ELF boundary `{name}` escapes its section"
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         let index = u16::try_from(section.0).map_err(error)?;
         if index >= elf::SHN_LORESERVE {
             return Err(CodegenError::internal(
                 "ELF callable boundary section requires an extended symbol index".into(),
-            ));
+            )
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
         let existing = self.original_symbols.get(name.as_bytes()).copied();
         let entry_offset = if let Some(symbol) = existing {
@@ -162,21 +169,22 @@ impl<'a> ElfObject<'a> {
     ) -> Result<(), CodegenError> {
         let symbol = self.original_symbol(name).ok_or_else(|| {
             CodegenError::internal(format!("ELF atom boundary `{name}` is missing"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
         if symbol.section_index().is_none() || symbol.is_local() {
             return Err(CodegenError::internal(format!(
                 "ELF atom boundary `{name}` is not an external section definition"
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
-        let offset = symbol
-            .index()
-            .0
-            .checked_mul(24)
-            .ok_or_else(|| CodegenError::internal("ELF symbol offset overflows".into()))?;
-        let entry = self
-            .symbols
-            .get_mut(offset..offset + 24)
-            .ok_or_else(|| CodegenError::internal("ELF symbol lies outside its table".into()))?;
+        let offset = symbol.index().0.checked_mul(24).ok_or_else(|| {
+            CodegenError::internal("ELF symbol offset overflows".into())
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
+        let entry = self.symbols.get_mut(offset..offset + 24).ok_or_else(|| {
+            CodegenError::internal("ELF symbol lies outside its table".into())
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
         entry[4] = binding(linkage)? << 4 | (entry[4] & 15);
         entry[5] = (entry[5] & !3) | elf::STV_HIDDEN;
         if end {
@@ -212,7 +220,10 @@ impl<'a> ElfObject<'a> {
         Ok(u64::from_le_bytes(
             self.bytes
                 .get(field..field + 8)
-                .ok_or_else(|| CodegenError::internal("ELF section flags are out of range".into()))?
+                .ok_or_else(|| {
+                    CodegenError::internal("ELF section flags are out of range".into())
+                        .with_code(scoop_source::DiagnosticCode::ICE2302)
+                })?
                 .try_into()
                 .expect("ELF64 field"),
         ))
@@ -228,13 +239,19 @@ impl<'a> ElfObject<'a> {
                     .checked_mul(64)
                     .and_then(|offset| start.checked_add(offset))
             })
-            .ok_or_else(|| CodegenError::internal("ELF section header offset overflows".into()))
+            .ok_or_else(|| {
+                CodegenError::internal("ELF section header offset overflows".into())
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
+            })
     }
 
     fn write_u64(&mut self, field: usize, value: u64) -> Result<(), CodegenError> {
         self.bytes
             .get_mut(field..field + 8)
-            .ok_or_else(|| CodegenError::internal("ELF field is outside the file".into()))?
+            .ok_or_else(|| {
+                CodegenError::internal("ELF field is outside the file".into())
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
+            })?
             .copy_from_slice(&value.to_le_bytes());
         Ok(())
     }
@@ -242,7 +259,10 @@ impl<'a> ElfObject<'a> {
     fn write_u32(&mut self, field: usize, value: u32) -> Result<(), CodegenError> {
         self.bytes
             .get_mut(field..field + 4)
-            .ok_or_else(|| CodegenError::internal("ELF field is outside the file".into()))?
+            .ok_or_else(|| {
+                CodegenError::internal("ELF field is outside the file".into())
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
+            })?
             .copy_from_slice(&value.to_le_bytes());
         Ok(())
     }
@@ -250,14 +270,18 @@ impl<'a> ElfObject<'a> {
     fn replace_section(&mut self, section: SectionIndex, data: &[u8]) -> Result<(), CodegenError> {
         let old = self.file.section_by_index(section).map_err(error)?;
         let header = self.header_offset(section)?;
-        let (old_offset, old_size) = old
-            .file_range()
-            .ok_or_else(|| CodegenError::internal("ELF edited section has no file bytes".into()))?;
+        let (old_offset, old_size) = old.file_range().ok_or_else(|| {
+            CodegenError::internal("ELF edited section has no file bytes".into())
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
+        })?;
         if old_size == data.len() as u64 {
             let offset = usize::try_from(old_offset).map_err(error)?;
             self.bytes
                 .get_mut(offset..offset + data.len())
-                .ok_or_else(|| CodegenError::internal("ELF section is outside the file".into()))?
+                .ok_or_else(|| {
+                    CodegenError::internal("ELF section is outside the file".into())
+                        .with_code(scoop_source::DiagnosticCode::ICE2302)
+                })?
                 .copy_from_slice(data);
         } else {
             let alignment = usize::try_from(old.align().max(1)).map_err(error)?;
@@ -267,6 +291,7 @@ impl<'a> ElfObject<'a> {
                 .checked_next_multiple_of(alignment)
                 .ok_or_else(|| {
                     CodegenError::internal("ELF appended section offset overflows".into())
+                        .with_code(scoop_source::DiagnosticCode::ICE2302)
                 })?;
             self.bytes.resize(offset, 0);
             self.bytes.extend_from_slice(data);
@@ -294,10 +319,12 @@ fn binding(linkage: LinkageClass) -> Result<u8, CodegenError> {
         LinkageClass::OdrWeak => Ok(elf::STB_WEAK),
         LinkageClass::RuntimeAbi => Err(CodegenError::internal(
             "runtime ABI symbol cannot be an ELF atom boundary".into(),
-        )),
+        )
+        .with_code(scoop_source::DiagnosticCode::ICE2302)),
     }
 }
 
 pub(super) fn error(error: impl std::fmt::Display) -> CodegenError {
     CodegenError::internal(format!("ELF atom materialization: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
 }

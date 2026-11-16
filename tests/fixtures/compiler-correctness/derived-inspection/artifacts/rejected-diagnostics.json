@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "class `LocalSecret` has no property `token`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "automatic inspect cannot read member `token` from this inspector",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "automatic inspect cannot read member `value` from this inspector",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "automatic inspect cannot read member `value` from this inspector",
     "notes": [],
     "origin": {

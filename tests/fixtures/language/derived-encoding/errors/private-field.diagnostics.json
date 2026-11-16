@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "automatic encode cannot read property `value` from this codec",
     "notes": [],
     "origin": {

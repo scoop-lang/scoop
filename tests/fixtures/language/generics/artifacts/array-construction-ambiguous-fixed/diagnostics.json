@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `Make` is ambiguous in exact import layer:\n  - Make(source: MutableArray<Int>): Array<Int> — applicable; tied by MSC\n  - class Array<T>(source: MutableArray<T>) — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `Make` is ambiguous in exact import layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "Make(source: MutableArray<Int>): Array<Int>",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "class Array<T>(source: MutableArray<T>)",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "b87ee89ecab117584e2f8a413efb8392438990dfce7ccca21dbce2d446361701",
       "end": 251,

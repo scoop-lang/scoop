@@ -19,9 +19,10 @@ pub(super) fn include(
     let diagnostic = format!("{origin} ({})", file.locator.display());
     for symbol in index.definitions.keys() {
         if inputs.compiler_owned(symbol) {
-            return Err(error(format!(
-                "{diagnostic} defines compiler-owned symbol {symbol}"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("{diagnostic} defines compiler-owned symbol {symbol}"),
+            ));
         }
         if let Some(previous) = inputs.definitions.get(symbol) {
             if matches!(previous, DefinitionOwner::Runtime(_))
@@ -57,9 +58,10 @@ pub(super) fn include(
                     .to_string(),
                 other => format!("{other:?}"),
             };
-            return Err(error(format!(
-                "{diagnostic} conflicts with {previous} at {symbol}"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("{diagnostic} conflicts with {previous} at {symbol}"),
+            ));
         }
         inputs
             .definitions
@@ -126,8 +128,12 @@ pub(super) fn resolve(
             .get(&symbol)
             .map(|origins| origins.join(", "))
             .unwrap_or_else(|| "program startup/linker support".into());
-        let candidate = candidate(source_symbol, binding, inputs)
-            .map_err(|err| error(format!("{err}; reference chain: {symbol} <- {origin}")))?;
+        let candidate = candidate(source_symbol, binding, inputs).map_err(|err| {
+            error(
+                err.code(),
+                format!("{err}; reference chain: {symbol} <- {origin}"),
+            )
+        })?;
         match candidate {
             Candidate::Object(id) => {
                 if !inputs.native.selected.contains_key(&id) {
@@ -168,7 +174,7 @@ pub(super) fn resolve(
             let origins = declaration
                 .map(|decl| decl.origins.join(", "))
                 .unwrap_or_default();
-            error(format!("{err}; origins: {origins}"))
+            error(err.code(), format!("{err}; origins: {origins}"))
         })?;
         if let (Candidate::Object(id), Some(declaration)) = (candidate, declaration) {
             let (index, _) = inputs.native.object(id)?;

@@ -68,15 +68,20 @@ impl RuntimeBuildOutput {
 }
 
 #[derive(Debug)]
-pub struct RuntimeBuildError(pub String);
+pub struct RuntimeBuildError(pub String, pub scoop_source::DiagnosticCode);
+impl RuntimeBuildError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        self.1
+    }
+}
 impl std::fmt::Display for RuntimeBuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
 }
 impl std::error::Error for RuntimeBuildError {}
-fn error(value: impl std::fmt::Display) -> RuntimeBuildError {
-    RuntimeBuildError(format!("runtime build: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> RuntimeBuildError {
+    RuntimeBuildError(format!("runtime build: {value}"), code)
 }
 
 pub fn build_runtime(
@@ -88,21 +93,22 @@ pub fn build_runtime(
     if let Some(output) = record::load(&entry, request.target)? {
         return Ok(output);
     }
-    std::fs::create_dir_all(&namespace).map_err(error)?;
+    std::fs::create_dir_all(&namespace)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let lock = crate::cache::open_build_lock(&namespace.join(format!("{}.lock", inputs.base_key)))
-        .map_err(error)?;
-    FileExt::lock(&lock).map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    FileExt::lock(&lock).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     if let Some(output) = record::load(&entry, request.target)? {
         return Ok(output);
     }
     let staging = tempfile::Builder::new()
         .prefix("runtime-")
         .tempdir_in(&namespace)
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let object_directory = tempfile::Builder::new()
         .prefix(".objects-")
         .tempdir_in(&namespace)
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let (paths, dependencies) = compile::compile(&request, &inputs, object_directory.path())?;
     let configuration = RuntimeBuildConfiguration {
         input_key: dependencies.input_key(inputs.base_key)?,
@@ -125,12 +131,13 @@ pub fn build_runtime(
         paths,
         staging.path(),
     )
-    .map_err(error)?;
+    .map_err(|cause| error(cause.code(), cause))?;
     let index = objects.index_path().to_owned();
     let input_paths = dependencies.input_paths()?;
     let record = record::Record {
         dependencies,
-        index: scoop_protocol::HostPathCarrier::from_path(&index).map_err(error)?,
+        index: scoop_protocol::HostPathCarrier::from_path(&index)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
     };
     let _ = staging.keep();
     record::save(&entry, &record)?;

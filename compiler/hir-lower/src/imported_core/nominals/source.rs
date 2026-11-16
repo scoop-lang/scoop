@@ -45,6 +45,7 @@ impl Lowerer {
                 != 0
         {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 "inner type requires complete outer type arguments".into(),
             );
@@ -52,11 +53,16 @@ impl Lowerer {
         }
         let parameters = declaration.interface.type_parameters().binders();
         if parameters.is_empty() && !arguments.is_empty() {
-            self.error(name.span, format!("type `{}` is not generic", name.text));
+            self.error(
+                scoop_source::DiagnosticCode::E0601,
+                name.span,
+                format!("type `{}` is not generic", name.text),
+            );
             return None;
         }
         if arguments.len() != parameters.len() {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 format!(
                     "type `{}` takes {} type argument(s), but {} were supplied",
@@ -95,6 +101,7 @@ impl Lowerer {
             };
             if !self.type_satisfies_kind(*argument, kind) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0602,
                     syntax.span,
                     format!(
                         "type argument `{}` for `{}` of type `{}` must satisfy `{}`",
@@ -121,6 +128,7 @@ impl Lowerer {
                             Ok(required) => required,
                             Err(error) => {
                                 self.error(
+                                    scoop_source::DiagnosticCode::ICE0501,
                                     syntax.span,
                                     format!("invalid dependency type bound: {error:?}"),
                                 );
@@ -150,6 +158,7 @@ impl Lowerer {
             Ok(ty) => ty,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     name.span,
                     format!("cannot resolve dependency type `{}`: {error:?}", name.text),
                 );

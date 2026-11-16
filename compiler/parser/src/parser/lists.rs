@@ -71,6 +71,7 @@ impl Parser {
                 continue;
             }
             self.diagnostics.push(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 format!(
                     "expected {} after list item, found {}",

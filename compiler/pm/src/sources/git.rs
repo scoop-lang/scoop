@@ -72,9 +72,14 @@ pub fn checkout(
     let exists = db.try_exists().map_err(|error| PmError::io(&db, error))?;
     if !exists {
         if offline {
-            return Err(PmError::new(format!(
-                "Git objects for {repository} are not cached; fetch without --offline"
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2112,
+                format!("Git objects for {repository} are not cached"),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2102,
+                "fetch without --offline".to_string(),
+            ));
         }
         fs::create_dir_all(&directory).map_err(|error| PmError::io(&directory, error))?;
         let staged =
@@ -98,9 +103,14 @@ pub fn checkout(
     let commit = if let Some(commit) = locked {
         if !object_exists(&db, commit)? {
             if offline {
-                return Err(PmError::new(format!(
-                    "Git commit {commit} for {repository} is not cached; fetch without --offline"
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2112,
+                    format!("Git commit {commit} for {repository} is not cached"),
+                )
+                .with_help(
+                    scoop_source::DiagnosticCode::H2102,
+                    "fetch without --offline".to_string(),
+                ));
             }
             git(Command::new("git")
                 .arg("--git-dir")
@@ -110,6 +120,7 @@ pub fn checkout(
         let full = resolve_commit(&db, commit)?;
         if full != commit {
             return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2113,
                 "Cone.lock must contain the full Git commit ID",
             ));
         }
@@ -144,10 +155,14 @@ fn materialize(db: &Path, checkout: &GitCheckout, offline: bool) -> PmResult<()>
     ]))?;
     let submodules = tree.lines().any(|line| line.starts_with("160000 "));
     if offline && submodules {
-        return Err(PmError::new(format!(
-            "checkout {} needs uncached submodules; fetch without --offline",
-            checkout.commit
-        )));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2112,
+            format!("checkout {} needs uncached submodules", checkout.commit),
+        )
+        .with_help(
+            scoop_source::DiagnosticCode::H2102,
+            "fetch without --offline".to_string(),
+        ));
     }
     let directory = checkout.root.parent().expect("checkout path has a parent");
     fs::create_dir_all(directory).map_err(|error| PmError::io(directory, error))?;
@@ -183,13 +198,19 @@ fn materialize(db: &Path, checkout: &GitCheckout, offline: bool) -> PmResult<()>
 pub fn repository_url(repository: &str, base: &Path) -> PmResult<String> {
     if repository.is_empty() || repository.contains('\0') {
         return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2014,
             "Git repository must not be empty or contain NUL",
         ));
     }
     if repository.contains("://") {
         return url::Url::parse(repository)
             .map(String::from)
-            .map_err(|error| PmError::new(format!("invalid Git repository URL: {error}")));
+            .map_err(|error| {
+                PmError::new(
+                    scoop_source::DiagnosticCode::E2016,
+                    format!("invalid Git repository URL: {error}"),
+                )
+            });
     }
     if repository.contains(':') && !Path::new(repository).is_absolute() {
         return Ok(repository.to_owned()); // Preserve system Git's SCP-like syntax.
@@ -199,10 +220,13 @@ pub fn repository_url(repository: &str, base: &Path) -> PmResult<String> {
     url::Url::from_directory_path(&path)
         .map(String::from)
         .map_err(|()| {
-            PmError::new(format!(
-                "cannot represent Git repository {} as a file URL",
-                path.display()
-            ))
+            PmError::new(
+                scoop_source::DiagnosticCode::E2016,
+                format!(
+                    "cannot represent Git repository {} as a file URL",
+                    path.display()
+                ),
+            )
         })
 }
 
@@ -213,6 +237,7 @@ fn validate_commit(commit: &str) -> PmResult<()> {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     {
         Err(PmError::new(
+            scoop_source::DiagnosticCode::E2113,
             "locked Git commit must be a full lowercase hexadecimal object ID",
         ))
     } else {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0108",
     "message": "a character literal must contain exactly one Unicode scalar value",
     "notes": [],
     "origin": {

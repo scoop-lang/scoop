@@ -34,6 +34,7 @@ impl Lowerer {
         };
         if intrinsic {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 declaration.span,
                 "intrinsic type bodies cannot declare conditional interface implementations"
                     .to_string(),
@@ -54,6 +55,7 @@ impl Lowerer {
         };
         if !matches!(self.types[interface], Type::Interface(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E1004,
                 declaration.interface.span,
                 "an interface implementation must target an interface type".to_string(),
             );

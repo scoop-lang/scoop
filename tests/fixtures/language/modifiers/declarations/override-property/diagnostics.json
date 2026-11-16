@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "member modality and `override` are not allowed on top-level properties",
     "notes": [],
     "origin": {

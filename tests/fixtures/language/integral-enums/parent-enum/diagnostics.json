@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1004",
     "message": "enum parent must be a primitive integer or an interface, found A",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1521",
     "message": "explicit enum values require a primitive integer parent",
     "notes": [],
     "origin": {

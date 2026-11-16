@@ -101,7 +101,11 @@ impl Lowerer {
                         &scoop_wire::WirePath::root(),
                     );
                     if let Err(error) = result {
-                        self.error(span, error.to_string());
+                        self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
+                            span,
+                            error.to_string(),
+                        );
                         return None;
                     }
                     let type_arguments = self.inherited_default_type_arguments(
@@ -138,7 +142,7 @@ impl Lowerer {
             [] => None,
             _ => {
                 let signature = &self.signatures[&function];
-                self.error(span, format!("override function `{}` inherits conflicting default expressions for parameter `{}`",
+                self.error(scoop_source::DiagnosticCode::E0721, span, format!("override function `{}` inherits conflicting default expressions for parameter `{}`",
                     self.source_function_name(function), signature.params[key.position as usize].name.text));
                 None
             }

@@ -87,6 +87,17 @@ pub struct SingleFileInputError {
 }
 
 impl SingleFileInputError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use SingleFileInputErrorKind::*;
+        use scoop_source::DiagnosticCode as C;
+        match &self.kind {
+            InvalidExtension | NotRegularFile => C::E2002,
+            InvalidUtf8 => C::E2003,
+            Header(_) => C::E2014,
+            Io { .. } => C::E2201,
+        }
+    }
+
     fn new(path: PathBuf, kind: SingleFileInputErrorKind) -> Self {
         Self { path, kind }
     }

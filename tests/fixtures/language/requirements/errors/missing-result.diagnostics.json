@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0623",
     "message": "a required method call must declare its result type",
     "notes": [],
     "origin": {

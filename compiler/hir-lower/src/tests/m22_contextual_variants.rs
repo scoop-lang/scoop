@@ -375,11 +375,9 @@ fn applicable_ordinary_layers_and_callable_locals_keep_their_priority() {
     assert_eq!(errors.len(), 2, "{errors:?}");
     assert!(
         errors.iter().all(|error| {
-            error
-                .message
+            crate::tests::diagnostic_text(error)
                 .contains("initializer of `ordinary` must be of type State, found Int")
-                || error
-                    .message
+                || crate::tests::diagnostic_text(error)
                     .contains("initializer of `shadowed` must be of type State, found Int")
         }),
         "{errors:?}"
@@ -479,34 +477,36 @@ fn contextual_failures_report_exact_enum_shape_and_missing_targets() {
 
     let messages = errors
         .iter()
-        .map(|error| error.message.as_str())
+        .map(crate::tests::diagnostic_text)
         .collect::<Vec<_>>();
     assert!(
         messages.contains(
-            &"function `Missing` is not a value; use `::Missing` to create a callable reference"
+            &"function `Missing` is not a value; candidate declared here; use `::Missing` to create a callable reference"
+                .to_owned()
         ),
         "{errors:?}"
     );
     assert!(
-        messages.contains(&"enum `State` has no variant `Some`"),
+        messages.contains(&"enum `State` has no variant `Some`".to_owned()),
         "{errors:?}"
     );
     assert!(
         messages.contains(
             &"variant `Value` of `State` takes arguments; use `Value(...)` to construct it"
+                .to_owned()
         ),
         "{errors:?}"
     );
-    assert!(messages.contains(&"unit variant `Ready` of `State` does not take arguments; use `Ready` without parentheses"), "{errors:?}");
+    assert!(messages.contains(&"unit variant `Ready` of `State` does not take arguments; use `Ready` without parentheses".to_owned()), "{errors:?}");
     assert!(
         messages.iter().any(|message| message.contains(
-            "variant State.Pair(_1: Int, _2: Int) — expects 2 argument(s), but 1 were supplied"
+            "variant State.Pair(_1: Int, _2: Int); expects 2 argument(s), but 1 were supplied"
         )),
         "{errors:?}"
     );
     assert!(
         messages.iter().any(|message| message
-            .contains("fun Missing(value: Int): Int — expects 1 argument(s), but 0 were supplied")),
+            .contains("fun Missing(value: Int): Int; expects 1 argument(s), but 0 were supplied")),
         "{errors:?}"
     );
 }
@@ -530,7 +530,7 @@ fn non_enum_or_absent_expected_types_never_trigger_a_global_variant_search() {
     assert!(
         errors
             .iter()
-            .all(|error| error.message.contains("qualified as `E.V`"))
+            .all(|error| crate::tests::diagnostic_text(error).contains("qualified as `E.V`"))
     );
 }
 
@@ -560,7 +560,7 @@ fn candidate_independent_unknown_names_keep_their_focused_diagnostic() {
 
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(
-        errors[0].message,
+        crate::tests::diagnostic_text(&errors[0]),
         "unknown variable `missing`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"
     );
 }

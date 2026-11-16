@@ -49,7 +49,7 @@ class DependencyDigestTests(unittest.TestCase):
 
     def test_complete_diagnostics_stay_exact_including_during_snapshot_update(self):
         diagnostic = {
-            "code": "SCOOP_LINK_FAILED",
+            "code": "E2304",
             "message": message(),
             "notes": [],
             "origin": {

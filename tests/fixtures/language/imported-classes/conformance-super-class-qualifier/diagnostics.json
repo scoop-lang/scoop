@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1025",
     "message": "qualified `super` type must be an interface",
     "notes": [],
     "origin": {

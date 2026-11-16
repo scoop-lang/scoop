@@ -95,7 +95,7 @@ fn publication_failures_preserve_destinations_and_current_warnings() {
         "package declaration is ignored in single-file mode; using the default root package"
     );
     let rendered = warnings.render_human();
-    assert!(rendered.starts_with("warning:"), "{rendered}");
+    assert!(rendered.starts_with("warning[W2001]:"), "{rendered}");
     assert!(rendered.contains(":1:1"), "{rendered}");
     assert!(rendered.contains("1 | package test"), "{rendered}");
 }

@@ -15,6 +15,7 @@ pub(super) fn materialize(
     for definition in definitions {
         let plan = surface.plan(*definition).ok_or_else(|| {
             CodegenError::internal(format!("missing ELF atom definition {definition}"))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
         })?;
         for boundary in plan.atom_boundaries() {
             existing_pair(&mut output, *boundary)?;
@@ -31,12 +32,14 @@ pub(crate) fn existing_pair(
 ) -> Result<SectionIndex, CodegenError> {
     let start_name = boundary.start().symbol();
     let end_name = boundary.end().symbol();
-    let start = output
-        .original_symbol(start_name.as_str())
-        .ok_or_else(|| CodegenError::internal(format!("missing ELF atom start `{start_name}`")))?;
-    let section = start
-        .section_index()
-        .ok_or_else(|| CodegenError::internal(format!("ELF atom `{start_name}` has no section")))?;
+    let start = output.original_symbol(start_name.as_str()).ok_or_else(|| {
+        CodegenError::internal(format!("missing ELF atom start `{start_name}`"))
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
+    })?;
+    let section = start.section_index().ok_or_else(|| {
+        CodegenError::internal(format!("ELF atom `{start_name}` has no section"))
+            .with_code(scoop_source::DiagnosticCode::ICE2302)
+    })?;
     output.existing_boundary(start_name.as_str(), boundary.start().linkage(), false)?;
     output.existing_boundary(end_name.as_str(), boundary.end().linkage(), true)?;
     Ok(section)

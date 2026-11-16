@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `withCString`: suspend (Ptr<Int8>) -> Long is not a subtype of (Ptr<Int8>) -> R",
     "notes": [],
     "origin": {

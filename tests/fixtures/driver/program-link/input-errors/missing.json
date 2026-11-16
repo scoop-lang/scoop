@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LINK_FAILED",
+    "code": "E2201",
     "message": "No such file or directory (os error 2)",
     "notes": [],
     "origin": {

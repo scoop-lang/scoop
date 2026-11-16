@@ -23,6 +23,7 @@ impl Lowerer {
             || !self.local_function_scopes.lookup(&name.text).is_empty()
         {
             self.error(
+                scoop_source::DiagnosticCode::E1217,
                 span,
                 "a native `FunPtr` address cannot target a local function or function value"
                     .to_string(),
@@ -79,8 +80,10 @@ impl Lowerer {
                         declaration,
                     }),
                     Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
-                        self.diagnostics
-                            .push(scoop_ast::Diagnostic::internal(error));
+                        self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                            scoop_source::DiagnosticCode::ICE0601,
+                            error,
+                        ));
                         return None;
                     }
                     Err(crate::call_resolution::constraints::InferenceFailure::Constraint(
@@ -100,7 +103,7 @@ impl Lowerer {
                 let target = match selected.declaration.commit(self) {
                     Ok(target) => target,
                     Err(message) => {
-                        self.error(span, message);
+                        self.error(scoop_source::DiagnosticCode::ICE0501, span, message);
                         return None;
                     }
                 };
@@ -117,23 +120,35 @@ impl Lowerer {
             }
             if matching.len() > 1 {
                 let layer = matching[0].declaration.layer;
-                let traces = matching
-                    .iter()
-                    .map(|candidate| {
-                        format!(
-                            "  - {} — exactly matches the expected FunPtr signature",
-                            candidate.declaration.display
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                self.error(
+                let mut diagnostic = ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E0712,
+                    self.current_text_file(),
                     span,
                     format!(
-                        "native function reference `::{}` is ambiguous in {layer} layer:\n{traces}",
+                        "native function reference `::{}` is ambiguous in {layer} layer",
                         name.text
                     ),
                 );
+                diagnostic
+                    .notes
+                    .push(scoop_ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::N0701,
+                        format!(
+                            "expected native function pointer type: {}",
+                            self.type_name(expected)
+                        ),
+                    ));
+                diagnostic.notes.extend(matching.iter().map(|candidate| {
+                    scoop_ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::N0002,
+                        candidate.declaration.display.clone(),
+                    )
+                    .with_note(scoop_ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::N0703,
+                        "exactly matches the expected FunPtr signature",
+                    ))
+                }));
+                self.diagnostics.push(diagnostic);
                 return None;
             }
             if suppressed {
@@ -156,21 +171,42 @@ impl Lowerer {
         failures: &[NativeReferenceFailure],
         span: Span,
     ) {
+        if let Some(diagnostic) = failures
+            .iter()
+            .find_map(|failure| failure.reason.internal_diagnostic())
+        {
+            self.diagnostics.push(diagnostic);
+            return;
+        }
         if let [failure] = failures
             && self.report_intrinsic_reference_failure(span, &failure.reason)
         {
             return;
         }
         let Some(first) = failures.first() else {
-            self.error(span, format!("no eligible `@NoGC` top-level function `::{}` exactly matches the expected FunPtr signature", name.text));
+            self.error(scoop_source::DiagnosticCode::E1217, span, format!("no eligible `@NoGC` top-level function `::{}` exactly matches the expected FunPtr signature", name.text));
             return;
         };
         let layer = first.layer;
-        let traces = failures
+        let mut diagnostic = scoop_ast::Diagnostic::at(
+            scoop_source::DiagnosticCode::E0711,
+            span,
+            format!(
+                "no applicable candidate for native function reference `::{}` in {layer} layer",
+                name.text
+            ),
+        );
+        diagnostic.set_file(self.current_text_file());
+        diagnostic.notes = failures
             .iter()
-            .map(|failure| format!("  - {} — {}", failure.display, failure.reason))
-            .collect::<Vec<_>>()
-            .join("\n");
-        self.error(span, format!("no applicable candidate for native function reference `::{}` in {layer} layer:\n{traces}", name.text));
+            .map(|failure| {
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::N0002,
+                    failure.display.clone(),
+                )
+                .with_note(failure.reason.note())
+            })
+            .collect();
+        self.diagnostics.push(diagnostic);
     }
 }

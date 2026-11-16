@@ -8,7 +8,8 @@ impl ElfNamespace {
         &mut self,
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<(), LinkError> {
-        let architecture = scoop_slib::ElfArchitecture::for_target(profile.id()).map_err(error)?;
+        let architecture = scoop_slib::ElfArchitecture::for_target(profile.id())
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?;
         for path in &self.paths {
             // Driver executables and CRT objects are not source extern providers.
             let filename = path
@@ -18,14 +19,19 @@ impl ElfNamespace {
             if !filename.ends_with(".a") && !filename.contains(".so") {
                 continue;
             }
-            let bytes = std::fs::read(path).map_err(error)?;
+            let bytes = std::fs::read(path)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             let mut symbols = BTreeMap::new();
             let (kind, name) = if bytes.starts_with(b"!<arch>\n") {
-                let archive = ArchiveFile::parse(bytes.as_slice()).map_err(error)?;
+                let archive = ArchiveFile::parse(bytes.as_slice())
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
                 for member in archive.members() {
-                    let member = member.map_err(error)?;
+                    let member = member
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
                     symbols.extend(exports(
-                        member.data(bytes.as_slice()).map_err(error)?,
+                        member
+                            .data(bytes.as_slice())
+                            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?,
                         architecture,
                     )?);
                 }
@@ -62,12 +68,14 @@ fn exports(
     bytes: &[u8],
     architecture: scoop_slib::ElfArchitecture,
 ) -> Result<BTreeMap<String, NativeSymbolDefinition>, LinkError> {
-    let file: ElfFile64<'_> = ElfFile64::parse(bytes).map_err(error)?;
+    let file: ElfFile64<'_> = ElfFile64::parse(bytes)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     if file.architecture() != architecture.object_architecture()
         || !file.is_little_endian()
         || file.kind() != ObjectKind::Relocatable
     {
         return Err(error(
+            scoop_source::DiagnosticCode::E2305,
             "selected system input is not an ELF64 object for the selected target machine",
         ));
     }
@@ -86,14 +94,26 @@ fn exports(
             _ => continue,
         };
         let read_only = match symbol.section_index() {
-            Some(index) => match file.section_by_index(index).map_err(error)?.flags() {
+            Some(index) => match file
+                .section_by_index(index)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                .flags()
+            {
                 SectionFlags::Elf { sh_flags } => sh_flags & u64::from(elf::SHF_WRITE) == 0,
-                _ => return Err(error("non-ELF section in ELF input")),
+                _ => {
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "non-ELF section in ELF input",
+                    ));
+                }
             },
             None => false,
         };
         result.insert(
-            symbol.name().map_err(error)?.to_owned(),
+            symbol
+                .name()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                .to_owned(),
             NativeSymbolDefinition {
                 kind,
                 read_only,

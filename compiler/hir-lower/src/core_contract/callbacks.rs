@@ -40,7 +40,7 @@ impl Lowerer {
                     && context.name == "context"
                     && matches!(self.types[context.ty], hir::Type::Ptr(pointee) if pointee == self.unit));
         if !callback_valid {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 callback_decl.span,
                 "core `ForeignCallback<F>` must contain `function: FunPtr<F>` and `context: Ptr<Unit>`"
                     .to_string(),
@@ -165,6 +165,7 @@ impl Lowerer {
             };
             if !common || !signature_valid {
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     function.span,
                     format!(
                         "intrinsic `foreign_callback_{operation}` has an invalid core signature"

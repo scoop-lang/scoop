@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0107",
     "message": "integer literal `1L` is not representable as Int",
     "notes": [],
     "origin": {

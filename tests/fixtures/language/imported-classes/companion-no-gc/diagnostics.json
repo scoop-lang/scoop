@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `primary` has non-GC-free return type Counter",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Counter is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "managed dependency calls are not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "value of non-GC-free type Factory is not allowed in `@NoGC` code",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1105",
     "message": "singleton access may initialize, allocate, and throw in `@NoGC` code",
     "notes": [],
     "origin": {

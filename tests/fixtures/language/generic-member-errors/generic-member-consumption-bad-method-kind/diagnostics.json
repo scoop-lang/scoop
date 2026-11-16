@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "dependency function `valueOnly`: type argument `Reference` for `U` must satisfy `value`",
     "notes": [],
     "origin": {

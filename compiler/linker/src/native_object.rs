@@ -64,13 +64,20 @@ impl NativeObjectInfo {
         toolchain: &CBridgeToolchainProfileV1,
     ) -> Result<Self, LinkError> {
         let target = toolchain.contract().target().id();
-        let profile = scoop_target_data::layout(target)
-            .ok_or_else(|| error("unsupported native object target"))?;
+        let profile = scoop_target_data::layout(target).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2301,
+                "unsupported native object target",
+            )
+        })?;
         match profile.native_object_format() {
             scoop_lir::NativeObjectFormat::MachO64 => Self::read(
                 bytes,
                 target,
-                toolchain.contract().deployment().map_err(error)?,
+                toolchain
+                    .contract()
+                    .deployment()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
             ),
             scoop_lir::NativeObjectFormat::Elf64 => elf::read(bytes, target),
             scoop_lir::NativeObjectFormat::Coff64 => coff::read(bytes, profile),
@@ -82,14 +89,17 @@ impl NativeObjectInfo {
         target: scoop_lir::TargetProfileId,
         deployment: &DarwinCBridgeDeploymentContractV1,
     ) -> Result<Self, LinkError> {
-        let machine = scoop_slib::MachOArchitecture::for_target(target).map_err(error)?;
-        let file: MachOFile64<'_> = MachOFile64::parse(bytes).map_err(error)?;
+        let machine = scoop_slib::MachOArchitecture::for_target(target)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?;
+        let file: MachOFile64<'_> = MachOFile64::parse(bytes)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         if file.architecture() != machine.object_architecture()
             || file.kind() != ObjectKind::Relocatable
             || !file.is_little_endian()
             || file.macho_header().cpusubtype.get(file.endian()) != machine.cpu_subtype()
         {
             return Err(error(
+                scoop_source::DiagnosticCode::E2305,
                 "native input must be an ordinary little-endian Mach-O object for the selected target",
             ));
         }
@@ -97,7 +107,10 @@ impl NativeObjectInfo {
         let mut definitions = BTreeMap::new();
         let mut requirements = BTreeSet::new();
         for symbol in file.symbols().filter(|symbol| symbol.is_global()) {
-            let name = symbol.name().map_err(error)?.to_owned();
+            let name = symbol
+                .name()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                .to_owned();
             // Mach-O tentative storage uses N_UNDF with a nonzero n_value.
             if symbol.is_undefined() && symbol.address() != 0 {
                 definitions.insert(
@@ -116,7 +129,10 @@ impl NativeObjectInfo {
             }
             let section = symbol
                 .section_index()
-                .map(|index| file.section_by_index(index).map_err(error))
+                .map(|index| {
+                    file.section_by_index(index)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))
+                })
                 .transpose()?;
             let instructions = section.as_ref().is_some_and(|section| {
                 section.macho_section().flags.get(file.endian())
@@ -136,7 +152,10 @@ impl NativeObjectInfo {
                         object::SectionKind::ReadOnlyData
                             | object::SectionKind::ReadOnlyString
                             | object::SectionKind::Text
-                    ) || section.segment_name().map_err(error)? == Some("__DATA_CONST")
+                    ) || section
+                        .segment_name()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                        == Some("__DATA_CONST")
                 }
                 None => true,
             };
@@ -151,7 +170,10 @@ impl NativeObjectInfo {
                 )
                 .is_some()
             {
-                return Err(error(format!("duplicate native definition {name}")));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2306,
+                    format!("duplicate native definition {name}"),
+                ));
             }
         }
         Ok(Self {
@@ -165,14 +187,22 @@ fn check_deployment(
     file: &MachOFile64<'_>,
     deployment: &DarwinCBridgeDeploymentContractV1,
 ) -> Result<(), LinkError> {
-    let mut commands = file.macho_load_commands().map_err(error)?;
+    let mut commands = file
+        .macho_load_commands()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     let endian = file.endian();
-    while let Some(command) = commands.next().map_err(error)? {
-        if let Some(build) = command.build_version().map_err(error)?
+    while let Some(command) = commands
+        .next()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+    {
+        if let Some(build) = command
+            .build_version()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
             && (build.platform.get(endian) != macho::PLATFORM_MACOS
                 || build.minos.get(endian) > deployment.minimum_os().packed())
         {
             return Err(error(
+                scoop_source::DiagnosticCode::E2305,
                 "native object has incompatible platform or minimum macOS",
             ));
         }

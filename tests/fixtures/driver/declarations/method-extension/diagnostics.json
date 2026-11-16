@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0307",
     "message": "extension functions may only be declared at top level",
     "notes": [],
     "origin": {

@@ -54,7 +54,11 @@ impl Lowerer {
             }
             hir::IntrinsicFunctionKind::ArrayAccess(access) => {
                 if let Err(error) = self.prepare_array_bounds_exception_type() {
-                    self.error(span, error.diagnostic("array bounds exception type"));
+                    self.error(
+                        scoop_source::DiagnosticCode::E1403,
+                        span,
+                        error.diagnostic("array bounds exception type"),
+                    );
                     return None;
                 }
                 match (access, args) {

@@ -19,7 +19,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 checks = [
-  {actual = "${reject.diagnostics.0.code}", equals = "SCOOPC_HIR_ERROR"},
+  {actual = "${reject.diagnostics.0.code}", equals = "E1404"},
   {actual = "${reject.diagnostics.0.message}", equals = "scoop.core must define exactly one `core_nothing` intrinsic type"},
   {actual = "${reject.diagnostics.0.notes}", equals = []},
   {actual = "${reject.diagnostics.0.severity}", equals = "error"},

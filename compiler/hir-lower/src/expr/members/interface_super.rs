@@ -32,6 +32,7 @@ impl Lowerer {
             }
             PropertyExtensionInvokeOutcome::NoApplicable(None) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     name.span,
                     format!(
                         "direct superinterface `{}` has no method `{}`",
@@ -80,6 +81,7 @@ impl Lowerer {
             });
         }
         self.error(
+            scoop_source::DiagnosticCode::E0402,
             name.span,
             format!(
                 "direct superinterface `{}` has no property `{}`",
@@ -122,6 +124,7 @@ impl Lowerer {
         let getter = self.property_getters[declaration.capability.getter()].clone();
         if !self.property_accessor_is_accessible(id, &getter.access, Some(property.receiver.ty)) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!(
                     "getter of property `{}` is not accessible",
@@ -132,6 +135,7 @@ impl Lowerer {
         }
         let hir::PropertyAccessorImplementation::Body(function) = getter.implementation else {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 span,
                 format!(
                     "abstract interface getter `{}` cannot be called with qualified `super`",
@@ -186,6 +190,7 @@ impl Lowerer {
         let declaration = self.properties[id].clone();
         let Some(setter) = declaration.capability.setter() else {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 span,
                 format!("cannot assign to immutable property `{}`", declaration.name),
             );
@@ -194,6 +199,7 @@ impl Lowerer {
         let setter = self.property_setters[setter].clone();
         if !self.property_accessor_is_accessible(id, &setter.access, Some(property.receiver.ty)) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!(
                     "setter of property `{}` is not accessible",
@@ -204,6 +210,7 @@ impl Lowerer {
         }
         let hir::PropertyAccessorImplementation::Body(function) = setter.implementation else {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 span,
                 format!(
                     "abstract interface setter `{}` cannot be called with qualified `super`",
@@ -239,7 +246,7 @@ impl Lowerer {
         span: Span,
     ) -> Option<(hir::Expr, TypeId)> {
         if self.current_this.is_none() {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1025,
                 span,
                 "qualified interface `super` is only allowed directly inside a member or accessor body"
                     .into(),
@@ -248,6 +255,7 @@ impl Lowerer {
         }
         let Some(owner) = self.current_owner else {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 span,
                 "qualified interface `super` requires a nominal member owner".into(),
             );
@@ -256,6 +264,7 @@ impl Lowerer {
         let qualifier_ty = self.resolve_type_ref(qualifier)?;
         if !matches!(self.types[qualifier_ty], Type::Interface(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 qualifier.span,
                 "qualified `super` type must be an interface".into(),
             );
@@ -275,6 +284,7 @@ impl Lowerer {
             .any(|candidate| self.types_equal(*candidate, qualifier_ty))
         {
             self.error(
+                scoop_source::DiagnosticCode::E1025,
                 qualifier.span,
                 format!(
                     "interface `{}` is not a direct superinterface of {}",

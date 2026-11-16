@@ -303,7 +303,7 @@ fn generated_type_errors_point_into_fragment_and_keep_request_note() {
     );
     assert!(error.span().unwrap().end as usize <= fragment.len());
     assert_eq!(
-        &error.notes.last().unwrap().source,
+        error.notes.last().unwrap().source().unwrap(),
         &scoop_ast::LocalDiagnosticSource::Bound(Box::new(crate::tests::test_source_identity(
             "src/user.scoop"
         )))

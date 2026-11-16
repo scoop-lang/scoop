@@ -74,7 +74,10 @@ impl Lowerer {
                 ))
             }
             Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
-                self.diagnostics.push(ast::Diagnostic::internal(error));
+                self.diagnostics.push(ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0601,
+                    error,
+                ));
                 None
             }
             Err(crate::call_resolution::constraints::InferenceFailure::Constraint(failure)) => {
@@ -83,7 +86,11 @@ impl Lowerer {
                     &mapped.signature.callable_parameters,
                     &failure,
                 );
-                self.error(span, format!("typealias `{}`: {reason}", alias.name.text));
+                self.error(
+                    failure.code(),
+                    span,
+                    format!("typealias `{}`: {reason}", alias.name.text),
+                );
                 None
             }
         }

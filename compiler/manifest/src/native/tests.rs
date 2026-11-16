@@ -140,7 +140,7 @@ fn flags_cannot_replace_driver_owned_inputs_or_outputs() {
         let source = format!("{CONE}\n[native]\nc_flags = ['{flag}']");
         let error = parse_cone_manifest(&source).unwrap_err();
         assert!(
-            matches!(error.kind(), ManifestParseErrorKind::InvalidNative(_)),
+            matches!(error.kind(), ManifestParseErrorKind::InvalidNative(..)),
             "{flag}: {error}"
         );
         assert_eq!(&source[error.span().unwrap().range()], format!("'{flag}'"));

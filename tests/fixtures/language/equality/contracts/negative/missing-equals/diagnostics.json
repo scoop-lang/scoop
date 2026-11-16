@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "struct `Key` does not implement interface method `Equals<Key>.equals`",
     "notes": [],
     "origin": {

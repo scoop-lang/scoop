@@ -11,6 +11,7 @@ impl Lowerer {
         let host = self.nominal_application(outer)?;
         if self.nominal_enclosing_owner(inner) != Some(host.template) {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 span,
                 "inner type requires its declaring outer application".into(),
             );
@@ -31,6 +32,7 @@ impl Lowerer {
         let own_arity = arity - host.arguments.len();
         if own_arity != arguments.len() {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 span,
                 format!(
                     "inner class takes {own_arity} type argument(s), but {} were supplied",
@@ -45,11 +47,21 @@ impl Lowerer {
         }
         let ty = self
             .apply_nominal_type(inner, resolved.clone())
-            .map_err(|error| self.error(span, format!("cannot resolve inner type: {error:?}")))
+            .map_err(|error| {
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("cannot resolve inner type: {error:?}"),
+                )
+            })
             .ok()?;
         let parameters = self.class_definition(inner).type_params.clone();
         if !self.nominal_is_accessible(ty) {
-            self.error(span, "inner class is not accessible here".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0403,
+                span,
+                "inner class is not accessible here".into(),
+            );
             return None;
         }
         self.check_type_argument_kinds(&parameters, &resolved, span, "inner class")

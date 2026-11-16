@@ -83,6 +83,7 @@ impl Lowerer {
         for (index, param) in sig_params.iter().enumerate() {
             if self.scopes.is_declared_here(&param.name.text) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     param.name.span,
                     format!("duplicate parameter `{}`", param.name.text),
                 );

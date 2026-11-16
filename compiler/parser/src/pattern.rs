@@ -113,6 +113,7 @@ impl Parser {
     fn parse_explicit_pattern_binding(&mut self) -> Result<Ident, Diagnostic> {
         if matches!(&self.peek().kind, TokenKind::Ident(name) if name == "_") {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0908,
                 self.peek().span,
                 "use `_` without `val` to ignore a matched value",
             ));

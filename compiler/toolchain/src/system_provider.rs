@@ -81,23 +81,28 @@ impl SystemProvider {
             }
             if !records.contains_key(&name) {
                 let relative = name.strip_prefix('/').ok_or_else(|| {
-                    ToolchainError(format!(
-                        "SDK re-export has no absolute install name: {name}"
-                    ))
+                    ToolchainError::new(
+                        scoop_source::DiagnosticCode::E2303,
+                        format!("SDK re-export has no absolute install name: {name}"),
+                    )
                 })?;
                 let path = Path::new(relative);
                 if path
                     .components()
                     .any(|part| !matches!(part, std::path::Component::Normal(_)))
                 {
-                    return Err(ToolchainError(format!(
-                        "invalid SDK re-export path: {name}"
-                    )));
+                    return Err(ToolchainError::new(
+                        scoop_source::DiagnosticCode::E2303,
+                        format!("invalid SDK re-export path: {name}"),
+                    ));
                 }
                 read_file(sdk, &path.with_extension("tbd"), &mut files, &mut records)?;
             }
             let record = records.get(&name).ok_or_else(|| {
-                ToolchainError(format!("SDK stub does not define re-export {name}"))
+                ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2303,
+                    format!("SDK stub does not define re-export {name}"),
+                )
             })?;
             let mut local = BTreeMap::new();
             let mut directives =
@@ -124,9 +129,12 @@ impl SystemProvider {
                 root_directives = directives;
             }
         }
-        let root = records
-            .get(LIBSYSTEM_INSTALL_NAME)
-            .ok_or_else(|| ToolchainError("SDK stub has no libSystem record".into()))?;
+        let root = records.get(LIBSYSTEM_INSTALL_NAME).ok_or_else(|| {
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2303,
+                "SDK stub has no libSystem record".into(),
+            )
+        })?;
         Ok(Self {
             install_name: root_directives
                 .install_name
@@ -175,23 +183,27 @@ fn read_file(
     records: &mut BTreeMap<String, tbd::Record>,
 ) -> Result<(), ToolchainError> {
     if files.contains_key(relative) {
-        return Err(ToolchainError(format!(
-            "missing re-export in SDK stub {}",
-            relative.display()
-        )));
+        return Err(ToolchainError::new(
+            scoop_source::DiagnosticCode::E2303,
+            format!("missing re-export in SDK stub {}", relative.display()),
+        ));
     }
     let path = sdk.join(relative);
     let bytes = std::fs::read(&path).map_err(|error| {
-        ToolchainError(format!("cannot read SDK stub {}: {error}", path.display()))
+        ToolchainError::new(
+            scoop_source::DiagnosticCode::E2201,
+            format!("cannot read SDK stub {}: {error}", path.display()),
+        )
     })?;
     for record in tbd::parse(&bytes)? {
         let name = record.install_name.clone();
         if let Some(previous) = records.insert(name.clone(), record.clone())
             && previous != record
         {
-            return Err(ToolchainError(format!(
-                "conflicting SDK stub definitions for {name}"
-            )));
+            return Err(ToolchainError::new(
+                scoop_source::DiagnosticCode::E2303,
+                format!("conflicting SDK stub definitions for {name}"),
+            ));
         }
     }
     files.insert(

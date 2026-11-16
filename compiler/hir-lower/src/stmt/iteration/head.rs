@@ -43,6 +43,7 @@ impl Lowerer {
             [] => {
                 let found = self.type_name(iterator_call.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0811,
                     iterable.span(),
                     format!(
                         "iterator operator result type `{found}` does not implement `Iterator<T>`"
@@ -52,7 +53,7 @@ impl Lowerer {
             }
             _ => {
                 let found = self.type_name(iterator_call.ty);
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E0811,
                     iterable.span(),
                     format!(
                         "iterator operator result type `{found}` implements multiple distinct `Iterator<T>` applications"

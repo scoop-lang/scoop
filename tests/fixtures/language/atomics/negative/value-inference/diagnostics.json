@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "dependency function `Atomic`: type argument `Payload` for `T` must satisfy `value`",
     "notes": [],
     "origin": {

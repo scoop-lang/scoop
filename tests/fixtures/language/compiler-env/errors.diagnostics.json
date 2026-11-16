@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1607",
     "message": "compile-time environment names must start with `SCOOP_`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1607",
     "message": "compile-time environment names must start with `SCOOP_`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1607",
     "message": "compile-time environment names must start with `SCOOP_`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1607",
     "message": "compile-time environment names must not contain `=` or NUL",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1607",
     "message": "compile-time environment names must not contain `=` or NUL",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1601",
     "message": "`env` requires a compile-time constant String name",
     "notes": [],
     "origin": {
@@ -78,9 +78,28 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "compiler intrinsic `env` does not support callable references\nnote: this intrinsic is evaluated at compile time and has no runtime callable entry\nhelp: import and call it directly with a constant name",
-    "notes": [],
+    "code": "E0713",
+    "message": "compiler intrinsic `env` does not support callable references",
+    "notes": [
+      {
+        "code": "N0705",
+        "kind": "note",
+        "message": "this intrinsic is evaluated at compile time and has no runtime callable entry",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "H0701",
+        "kind": "help",
+        "message": "import and call it directly with a constant name",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 295,
@@ -91,7 +110,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1607",
     "message": "compile-time environment names must start with `SCOOP_`",
     "notes": [],
     "origin": {

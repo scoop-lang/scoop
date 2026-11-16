@@ -81,11 +81,12 @@ pub(crate) fn resolve_with_overlays(
 ) -> PmResult<ResolvedWorkspace> {
     if request.locked && request.update.is_some() {
         return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2001,
             "update cannot be combined with --locked/--frozen",
         ));
     }
     let target = scoop_toolchain::select_target(&request.target)
-        .map_err(|error| PmError::new(error.to_string()))?;
+        .map_err(|error| PmError::new(error.code(), error.to_string()))?;
     let target_name = target.target().contract().canonical_triple();
     let cache = PackageCache::resolve(&request.cwd, request.package_cache.as_deref())?;
     let workspace = Workspace::discover_cached(
@@ -104,7 +105,10 @@ pub(crate) fn resolve_with_overlays(
     let lockfile = transaction.path().to_owned();
     let selected = workspace.select(&request.members)?;
     if selected.is_empty() {
-        return Err(PmError::new("no workspace members selected"));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2018,
+            "no workspace members selected",
+        ));
     }
     let config = config::registry(&cache)?;
     let mut observed = BTreeMap::new();
@@ -140,10 +144,14 @@ pub(crate) fn resolve_with_overlays(
                 .current()
                 .resolution(&member.relative_path, request.purpose, target_name);
         if request.locked && previous.is_none() {
-            return Err(PmError::new(format!(
-                "no locked resolution for {} / {} / {target_name}; run scoop pm resolve",
-                member.cone.coordinate, request.purpose
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2111,
+                format!(
+                    "no locked resolution for {} / {} / {target_name}",
+                    member.cone.coordinate, request.purpose
+                ),
+            )
+            .with_help(scoop_source::DiagnosticCode::H2101, "run scoop pm resolve"));
         }
         let mut policy = ResolvePolicy {
             locked: previous
@@ -159,10 +167,10 @@ pub(crate) fn resolve_with_overlays(
         let root = catalog.root(member, request.purpose)?;
         let solution = solving::solve(root, &mut policy, &mut catalog).map_err(|mut error| {
             if request.locked && !error.resolution_conflicts.is_empty() {
-                error.message.push_str("\nCone.lock cannot satisfy the current requirements; run scoop pm resolve");
+                error = error.with_help(scoop_source::DiagnosticCode::H2101, "Cone.lock cannot satisfy the current requirements; run scoop pm resolve");
             }
             if request.offline && !error.resolution_conflicts.is_empty() {
-                error.message.push_str("\n--offline used only local metadata and Git objects; remote versions were not checked");
+                error = error.with_note(scoop_source::DiagnosticCode::N2101, "--offline used only local metadata and Git objects; remote versions were not checked");
             }
             error
         })?;
@@ -172,10 +180,14 @@ pub(crate) fn resolve_with_overlays(
             target_name.into(),
         )?;
         if request.locked && previous != Some(&resolution) {
-            return Err(PmError::new(format!(
-                "Cone.lock no longer matches {}; run scoop pm resolve without --locked",
-                member.cone.coordinate
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2111,
+                format!("Cone.lock no longer matches {}", member.cone.coordinate),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2101,
+                "run scoop pm resolve without --locked",
+            ));
         }
         catalog.materialize(&solution)?;
         observed.extend(
@@ -202,9 +214,10 @@ pub(crate) fn resolve_with_overlays(
             .iter()
             .any(|root| root.solution.packages.contains_key(key))
         {
-            return Err(PmError::new(format!(
-                "package {key} is not in any selected dependency graph"
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2114,
+                format!("package {key} is not in any selected dependency graph"),
+            ));
         }
     }
     for (path, stamp) in &observed {
@@ -212,10 +225,13 @@ pub(crate) fn resolve_with_overlays(
     }
     for path in &missing_inputs {
         if crate::cache::FileStamp::optional(path)?.is_some() {
-            return Err(PmError::new(format!(
-                "input appeared while preparing packages: {}; retry the command",
-                path.display()
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2206,
+                format!(
+                    "input appeared while preparing packages: {}; retry the command",
+                    path.display()
+                ),
+            ));
         }
     }
     let changed = roots.iter().any(|root| {

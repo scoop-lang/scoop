@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1313",
     "message": "automatic decode has ambiguous primary val dependencies for T: first, second",
     "notes": [],
     "origin": {

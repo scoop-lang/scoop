@@ -63,7 +63,10 @@ fn template(args: &NewArgs) -> BuildResult<Vec<(&'static str, String)>> {
         .name
         .as_deref()
         .or_else(|| args.path.file_name()?.to_str())
-        .ok_or_else(|| invalid("destination has no UTF-8 directory name; use --name"))?;
+        .ok_or_else(|| {
+            invalid("destination has no UTF-8 directory name".to_owned())
+                .with_help(scoop_source::DiagnosticCode::H2001, "use --name")
+        })?;
     let coordinate = ConeCoordinate::new(&args.group, name, &args.version).map_err(invalid)?;
     let package = package::source(&args.group, args.package.as_deref())?;
     let (kind, source_path, body) = match args.kind {
@@ -102,9 +105,18 @@ fn template(args: &NewArgs) -> BuildResult<Vec<(&'static str, String)>> {
 }
 
 fn invalid(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_NEW_INPUT", BuildFailurePhase::Request, error)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E2001,
+        BuildFailurePhase::Request,
+        error,
+    )
 }
 
 fn io_error(path: &Path, error: std::io::Error) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_NEW_IO", BuildFailurePhase::Request, error).at_host(path)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E2201,
+        BuildFailurePhase::Request,
+        error,
+    )
+    .at_host(path)
 }

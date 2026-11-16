@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "an `@Extern` function must not be generic",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "`@Extern` cannot be used on a suspend function",
     "notes": [],
     "origin": {

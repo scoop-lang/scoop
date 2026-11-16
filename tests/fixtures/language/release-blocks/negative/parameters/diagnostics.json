@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "`release` must be followed by a block without parameters or a return type",
     "notes": [],
     "origin": {

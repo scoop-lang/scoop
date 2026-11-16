@@ -148,13 +148,13 @@ fn directory_checks_excluded_symlinks_cycles_and_non_regular_entries() {
     for selection in [filter(&[], &[]), filter(&["**"], &["escape/**"])] {
         let error = read(&host(&root), "../assets", &selection).unwrap_err();
         assert!(
-            matches!(error, Error::Input(message) if message.contains("entry `escape`") && message.contains("outside the defining Cone"))
+            matches!(error, Error::Input(message) if message.message.contains("entry `escape`") && message.message.contains("outside the defining Cone"))
         );
     }
     fs::remove_file(root.join("assets/escape")).unwrap();
     symlink(".", root.join("assets/loop")).unwrap();
     assert!(
-        matches!(read(&host(&root), "../assets", &filter(&[], &[])), Err(Error::Input(message)) if message.contains("directory cycle"))
+        matches!(read(&host(&root), "../assets", &filter(&[], &[])), Err(Error::Input(message)) if message.message.contains("directory cycle"))
     );
     fs::remove_file(root.join("assets/loop")).unwrap();
     symlink("missing", root.join("assets/broken")).unwrap();
@@ -167,7 +167,7 @@ fn directory_checks_excluded_symlinks_cycles_and_non_regular_entries() {
             .is_empty()
     );
     assert!(
-        matches!(read(&host(&root), "../assets", &filter(&["**"], &[])), Err(Error::Input(message)) if message.contains("must name a regular file"))
+        matches!(read(&host(&root), "../assets", &filter(&["**"], &[])), Err(Error::Input(message)) if message.message.contains("must name a regular file"))
     );
 }
 
@@ -234,7 +234,7 @@ fn directory_root_bounds_keep_original_link_dotdot_resolution() {
     let outside = root.parent().unwrap().join("inward");
     symlink(root.join("assets"), &outside).unwrap();
     assert!(
-        matches!(read(&host(&root), outside.to_str().unwrap(), &filter(&["**"], &[])), Err(Error::Input(message)) if message.contains("include path") && message.contains("outside the defining Cone"))
+        matches!(read(&host(&root), outside.to_str().unwrap(), &filter(&["**"], &[])), Err(Error::Input(message)) if message.message.contains("include path") && message.message.contains("outside the defining Cone"))
     );
 }
 
@@ -251,6 +251,6 @@ fn directory_rejects_non_utf8_names_even_when_not_selected() {
     )
     .unwrap();
     assert!(
-        matches!(read(&host(&root), "../assets", &filter(&[], &[])), Err(Error::Input(message)) if message.contains("valid UTF-8 path"))
+        matches!(read(&host(&root), "../assets", &filter(&[], &[])), Err(Error::Input(message)) if message.message.contains("valid UTF-8 path"))
     );
 }

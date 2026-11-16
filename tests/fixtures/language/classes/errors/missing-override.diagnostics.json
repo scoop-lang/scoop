@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1015",
     "message": "`f` overrides `A.f` and must be marked `override`",
     "notes": [],
     "origin": {

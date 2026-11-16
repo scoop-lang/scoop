@@ -80,6 +80,7 @@ pub(crate) fn emit_strong_callable_registrations_v1<'ctx>(
                         "missing callable support plan {}",
                         registration.body()
                     ))
+                    .with_code(scoop_source::DiagnosticCode::ICE2302)
                 })?;
             let keys = context_keys::emit(
                 context,
@@ -123,6 +124,7 @@ fn emit_registration<'ctx>(
         CodegenError::internal(format!(
             "callable entry `{entry_symbol}` is not declared in the LLVM module"
         ))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
     })?;
     let descriptor = if let Some(global) = llvm.get_global(descriptor_symbol.as_str()) {
         global

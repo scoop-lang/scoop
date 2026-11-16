@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0810",
     "message": "field `later` is not initialized during initializer of property `first` in class `ForwardRead`; initializing receiver cannot observe a field before its store completes",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0810",
     "message": "field `value` is not initialized during initializer of property `value` in class `SelfRead`; initializing receiver cannot observe a field before its store completes",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0810",
     "message": "field `later` is not initialized during init block in class `ForwardWrite`; initializing receiver cannot observe a field before its store completes",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1501",
     "message": "cannot assign to immutable constructor parameter `value`",
     "notes": [],
     "origin": {
@@ -52,9 +52,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown variable `hidden`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "code": "E0401",
+    "message": "unknown variable `hidden`",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 321,

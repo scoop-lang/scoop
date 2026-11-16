@@ -34,6 +34,7 @@ impl Lowerer {
             };
             let Some(value) = value else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0715,
                     span,
                     "inner constructor requires a matching outer instance".into(),
                 );
@@ -53,6 +54,7 @@ impl Lowerer {
                 ImportedDependencyCallReceiver::Implicit => Ok(ImportedCallReceiver::Absent),
                 ImportedDependencyCallReceiver::Explicit(_) => {
                     self.error(
+                        scoop_source::DiagnosticCode::E0716,
                         name.span,
                         format!("dependency constructor `{}` has no receiver", name.text),
                     );
@@ -67,6 +69,7 @@ impl Lowerer {
                 }
                 ImportedDependencyCallReceiver::Explicit(_) => {
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         name.span,
                         format!("dependency function `{}` is not an extension", name.text),
                     );
@@ -76,6 +79,7 @@ impl Lowerer {
             hir::PublicDeclarationOwnerV1::Extension => {
                 let Some(signature) = interface.receiver() else {
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         name.span,
                         format!(
                             "invalid imported dependency extension `{}`: receiver type is missing",
@@ -115,6 +119,7 @@ impl Lowerer {
                         };
                         let Some(value) = value else {
                             self.error(
+                                scoop_source::DiagnosticCode::E0716,
                                 name.span,
                                 format!("dependency member `{}` requires a receiver", name.text),
                             );
@@ -161,6 +166,7 @@ impl Lowerer {
     ) -> Result<ImportedCallReceiver, Box<Lowerer>> {
         if !self.is_subtype(receiver.ty(), expected) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 name.span,
                 format!(
                     "dependency {kind} `{}` expects receiver {}, found {}",

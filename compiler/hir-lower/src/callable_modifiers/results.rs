@@ -20,6 +20,7 @@ impl Lowerer {
             && !self.types_equal(result, self.unit)
         {
             self.error(
+                scoop_source::DiagnosticCode::E0729,
                 decl.name.span,
                 format!(
                     "property delegate operator `setValue` must return Unit, found {}",
@@ -58,6 +59,7 @@ impl Lowerer {
                     && !self.is_subtype(result, receiver)
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E0729,
                         decl.name.span,
                         format!(
                             "operator `{}` must return a subtype of receiver type {}, found {}",

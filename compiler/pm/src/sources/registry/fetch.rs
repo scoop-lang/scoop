@@ -48,7 +48,10 @@ impl Locations {
             return Ok(None);
         }
         let record: PackageRecord = read_json(&self.record)?.ok_or_else(|| {
-            PmError::new(format!("missing package record {}", self.record.display()))
+            PmError::new(
+                scoop_source::DiagnosticCode::E2101,
+                format!("missing package record {}", self.record.display()),
+            )
         })?;
         if record.metadata.sha256 != sha256 {
             return Err(immutable_error(&self.source));
@@ -104,9 +107,10 @@ pub fn fetch_locked(
         .iter()
         .find(|version| version.version == coordinate.version())
         .ok_or_else(|| {
-            PmError::new(format!(
-                "locked package {coordinate} is missing from {registry}"
-            ))
+            PmError::new(
+                scoop_source::DiagnosticCode::E2101,
+                format!("locked package {coordinate} is missing from {registry}"),
+            )
         })?;
     if version.archive != archive || version.sha256 != sha256 {
         return Err(immutable_error(&locations.source));
@@ -148,9 +152,14 @@ pub fn fetch(
         None
     } else {
         if offline {
-            return Err(PmError::new(format!(
-                "archive for {coordinate} is not cached; fetch without --offline"
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2112,
+                format!("archive for {coordinate} is not cached"),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2102,
+                "fetch without --offline".to_string(),
+            ));
         }
         let file = tempfile::NamedTempFile::new_in(archive_parent)
             .map_err(|error| PmError::io(archive_parent, error))?;
@@ -172,14 +181,16 @@ pub fn fetch(
         staged.path(),
     )?;
     let manifest = staged.path().join("Cone.toml");
-    let text = fs::read_to_string(&manifest).map_err(|error| PmError::io(&manifest, error))?;
+    let text =
+        fs::read_to_string(&manifest).map_err(|error| PmError::manifest_read(&manifest, error))?;
     let (actual, kind, dependencies, document) = published_manifest(&text)?;
     let mut expected = version.dependencies.clone();
     expected.sort_by(|left, right| left.key.cmp(&right.key));
     if &actual != coordinate || kind != version.kind || dependencies != expected {
-        return Err(PmError::new(format!(
-            "archive manifest does not match registry metadata for {coordinate}"
-        )));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2120,
+            format!("archive manifest does not match registry metadata for {coordinate}"),
+        ));
     }
     if let Some(download) = download {
         download
@@ -212,8 +223,11 @@ fn same_publication(left: &RegistryVersion, right: &RegistryVersion, path: &Path
 }
 
 fn immutable_error(path: &Path) -> PmError {
-    PmError::new(format!(
-        "immutable registry version metadata changed for {}; cannot overwrite the cached package",
-        path.display()
-    ))
+    PmError::new(
+        scoop_source::DiagnosticCode::E2120,
+        format!(
+            "immutable registry version metadata changed for {}; cannot overwrite the cached package",
+            path.display()
+        ),
+    )
 }

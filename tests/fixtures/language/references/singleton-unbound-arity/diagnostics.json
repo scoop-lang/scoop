@@ -1,8 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for bound callable reference `receiver::read` in member candidate layer:\n  - fun Tools.read(value: Int): Int — callable shape expects 2 parameter(s), but the actual type has 1",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for bound callable reference `receiver::read` in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Tools.read(value: Int): Int",
+        "notes": [
+          {
+            "code": "E0503",
+            "kind": "cause",
+            "message": "callable shape expects 2 parameter(s), but the actual type has 1",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 248,
@@ -13,9 +33,29 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for bound callable reference `receiver::read` in member candidate layer:\n  - fun Box.Companion<T>.read(value: T): T — callable shape expects 2 parameter(s), but the actual type has 1",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for bound callable reference `receiver::read` in member candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Box.Companion<T>.read(value: T): T",
+        "notes": [
+          {
+            "code": "E0503",
+            "kind": "cause",
+            "message": "callable shape expects 2 parameter(s), but the actual type has 1",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 301,

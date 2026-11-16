@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0618",
     "message": "a dependent type only supports the `Companion` projection",
     "notes": [],
     "origin": {

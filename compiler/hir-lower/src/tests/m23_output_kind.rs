@@ -394,11 +394,11 @@ fn missing_executable_entry_lists_invalid_mains_in_persistent_location_order() {
             .notes
             .iter()
             .map(|note| (
-                (match &note.source {
+                (match &note.source().unwrap() {
                     scoop_ast::LocalDiagnosticSource::Index(index) => *index,
                     source => panic!("expected local source, got {source:?}"),
                 }),
-                note.span,
+                note.span().unwrap(),
                 note.message.as_str()
             ))
             .collect::<Vec<_>>(),
@@ -500,11 +500,11 @@ fn multiple_entries_are_reported_in_persistent_source_location_order() {
     assert_eq!(errors[0].notes.len(), 1);
     assert_eq!(
         (
-            (match &errors[0].notes[0].source {
+            (match &errors[0].notes[0].source().unwrap() {
                 scoop_ast::LocalDiagnosticSource::Index(index) => *index,
                 source => panic!("expected local source, got {source:?}"),
             }),
-            errors[0].notes[0].span
+            errors[0].notes[0].span().unwrap()
         ),
         (1, high_span)
     );

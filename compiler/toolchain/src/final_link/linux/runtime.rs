@@ -24,14 +24,21 @@ impl RuntimeLibraries {
             options.sysroot.as_deref(),
             options.unwind_prefix.as_deref(),
         )?;
-        let unwind_prefix = std::path::absolute(prefix).map_err(error)?;
+        let unwind_prefix = std::path::absolute(prefix)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let archive = unwind_prefix.join("lib/libunwind.a");
         if !archive.is_file() {
-            return Err(error(format!(
-                "missing LLVM unwind archive {}; run scripts/build_llvm_unwind.py for {}",
-                archive.display(),
-                target.contract().canonical_triple()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2302,
+                format!("missing LLVM unwind archive {}", archive.display()),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2301,
+                format!(
+                    "run scripts/build_llvm_unwind.py for {}",
+                    target.contract().canonical_triple()
+                ),
+            ));
         }
         Ok(Self::C { unwind_prefix })
     }

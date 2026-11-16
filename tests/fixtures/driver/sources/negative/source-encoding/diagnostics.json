@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_BUILD_FAILED",
+    "code": "E2003",
     "message": "source discovery failed at ${work}/cone/bad.scoop: source file is not valid UTF-8",
     "notes": [],
     "origin": {

@@ -63,17 +63,18 @@ impl WorkspaceLoader {
         let workspace_root = members
             .root
             .to_path_buf()
-            .map_err(|error| LoadError::new(root, error))?;
-        let all =
-            normalize_path(root).map_err(|error| LoadError::new(root, error))? == workspace_root;
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2502, root, error))?;
+        let all = normalize_path(root)
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2201, root, error))?
+            == workspace_root;
         let lockfile = configuration
             .lockfile
             .clone()
             .unwrap_or_else(|| workspace_root.join("Cone.lock"));
         let initialize_lockfile = missing_lockfiles.contains(&lockfile)
-            || !lockfile
-                .try_exists()
-                .map_err(|error| LoadError::new(&lockfile, error))?;
+            || !lockfile.try_exists().map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::E2201, &lockfile, error)
+            })?;
         if initialize_lockfile {
             // All members and configurations in this load need their own lock records.
             missing_lockfiles.insert(lockfile);
@@ -83,10 +84,9 @@ impl WorkspaceLoader {
             .iter()
             .filter(|member| all || member.selected)
         {
-            let directory = member
-                .directory
-                .to_path_buf()
-                .map_err(|error| LoadError::new(root, error))?;
+            let directory = member.directory.to_path_buf().map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::E2502, root, error)
+            })?;
             let mut member_configuration = configuration.clone();
             member_configuration.root = directory.clone();
             let result = package
@@ -96,6 +96,7 @@ impl WorkspaceLoader {
                         || prepared.resolutions[0].coordinate != member.coordinate
                     {
                         return Err(LoadError::new(
+                            scoop_source::DiagnosticCode::E2502,
                             &directory,
                             "package manager returned a different member selection",
                         ));
@@ -175,6 +176,8 @@ fn diagnostic(
         error.span = None;
     }
     ProjectDiagnostic {
+        notes: error.notes,
+        code: error.code,
         configuration: configuration.name.clone(),
         path: error.path,
         span: error.span,

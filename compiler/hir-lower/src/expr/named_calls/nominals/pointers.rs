@@ -19,6 +19,7 @@ impl Lowerer {
             Ok(parameters) => parameters,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     call.span,
                     format!("invalid pointer type declaration: {error}"),
                 );

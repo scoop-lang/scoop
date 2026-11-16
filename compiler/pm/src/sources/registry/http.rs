@@ -20,7 +20,12 @@ pub(super) fn get(http: &ureq::Agent, url: &str) -> PmResult<ureq::http::Respons
         }
         result => result,
     };
-    response.map_err(|error| PmError::new(format!("GET {url}: {error}")))
+    response.map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2117,
+            format!("GET {url}: {error}"),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -86,7 +91,9 @@ mod tests {
                 get(&http, &url)?
                     .body_mut()
                     .read_to_string()
-                    .map_err(|error| PmError::new(error.to_string()))
+                    .map_err(|error| {
+                        PmError::new(scoop_source::DiagnosticCode::E2117, error.to_string())
+                    })
             })
             .collect();
         // Wake accept if the failing client never opened its second connection.
@@ -138,10 +145,9 @@ mod tests {
             });
             let result = get(&client(), &format!("http://{address}/package.json")).and_then(
                 |mut response| {
-                    response
-                        .body_mut()
-                        .read_to_string()
-                        .map_err(|error| PmError::new(error.to_string()))
+                    response.body_mut().read_to_string().map_err(|error| {
+                        PmError::new(scoop_source::DiagnosticCode::E2117, error.to_string())
+                    })
                 },
             );
             let _ = TcpStream::connect(address);

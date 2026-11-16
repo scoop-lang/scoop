@@ -43,6 +43,7 @@ impl Parser {
             let reference = self.parse_postfix()?;
             if !is_constant_path(&reference) {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1304,
                     reference.span(),
                     "annotation argument must be a scalar literal or const val reference",
                 ));
@@ -72,6 +73,7 @@ impl Parser {
                     }
                     _ => {
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E1304,
                             number.span,
                             "annotation sign must precede a numeric literal",
                         ));
@@ -81,6 +83,7 @@ impl Parser {
             }
             _ => {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1304,
                     token.span,
                     "annotation argument must be a scalar literal or const val reference",
                 ));

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1525",
     "message": "type `Wrong<T>` has no applicable property delegate operator `getValue`",
     "notes": [],
     "origin": {

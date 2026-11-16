@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2014",
     "message": "${fixture}/program/Cone.toml: a dependency must select only one source",
     "notes": [],
     "origin": {

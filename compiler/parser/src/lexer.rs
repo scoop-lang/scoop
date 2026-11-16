@@ -104,6 +104,7 @@ impl<'a> Lexer<'a> {
                     self.interpolations.last()
                 {
                     diagnostics.push(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0102,
                         self.span_from(*start),
                         "unterminated string interpolation",
                     ));
@@ -320,6 +321,7 @@ impl<'a> Lexer<'a> {
             c => {
                 self.pos += c.len_utf8();
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0101,
                     self.span_from(start),
                     format!("unexpected character `{c}`"),
                 ));

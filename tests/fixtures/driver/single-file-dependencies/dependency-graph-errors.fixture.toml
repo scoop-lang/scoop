@@ -25,7 +25,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{"code" = "SCOOP_GRAPH_MULTIPLE_VERSIONS", "message" = "resolved graph contains multiple exact versions; scoop:scoop.std = 0.1.0 0.2.0", "notes" = [], "origin" = {"kind" = "none"}, "phase" = "GraphVersionKind", "severity" = "error"}]
+diagnostics = [{"code" = "E2104", "message" = "resolved graph contains multiple exact versions; scoop:scoop.std = 0.1.0 0.2.0", "notes" = [], "origin" = {"kind" = "none"}, "phase" = "GraphVersionKind", "severity" = "error"}]
 
 [[steps]]
 name = "executable"

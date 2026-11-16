@@ -1,8 +1,38 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for bound callable reference `receiver::load` in dependency candidate layer:\n  - dependency function `load` — atomic methods with memory-order parameters cannot be referenced; use a lambda with fixed orders",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for bound callable reference `receiver::load` in dependency candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "dependency function `load`",
+        "notes": [
+          {
+            "code": "E1223",
+            "kind": "cause",
+            "message": "atomic methods with memory-order parameters cannot be referenced",
+            "notes": [
+              {
+                "code": "H0702",
+                "kind": "help",
+                "message": "use a lambda with fixed orders",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 59,

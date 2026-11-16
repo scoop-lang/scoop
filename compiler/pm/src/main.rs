@@ -12,11 +12,14 @@ fn main() -> ExitCode {
                 }) {
                     Ok(record) => eprintln!("{record}"),
                     Err(encoding) => {
-                        eprintln!("error: {error}\ncannot encode diagnostic: {encoding}")
+                        eprintln!(
+                            "error[{}]: {error}\nerror[ICE2501]: cannot encode diagnostic: {encoding}",
+                            error.code
+                        )
                     }
                 }
             } else {
-                eprintln!("error: {error}");
+                eprintln!("error[{}]: {error}", error.code);
             }
             ExitCode::FAILURE
         }

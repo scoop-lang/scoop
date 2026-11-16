@@ -10,6 +10,7 @@ impl Lowerer {
         let generic = !alias.parameters.is_empty();
         if !generic && !call.type_args.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 call.callee.span,
                 format!("typealias `{}` is not generic", call.callee.text),
             );
@@ -36,6 +37,7 @@ impl Lowerer {
             self.imported_nominal_plans(owner, call, expected, false)
         } else {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 call.callee.span,
                 format!(
                     "typealias `{}` does not name a constructible type",

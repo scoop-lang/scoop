@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0505",
     "message": "`!!` requires an Option operand, found Int",
     "notes": [],
     "origin": {

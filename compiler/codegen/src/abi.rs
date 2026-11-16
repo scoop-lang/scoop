@@ -136,6 +136,7 @@ fn apply_parameter_attributes(
             .and_then(|index| index.checked_add(parameter_offset))
             .ok_or_else(|| {
                 CodegenError::internal("Scoop ABI parameter index exceeds u32::MAX".to_string())
+                    .with_code(scoop_source::DiagnosticCode::E2205)
             })?;
         let attribute_name = match parameter.origin() {
             AbiPhysicalParameterOrigin::IndirectReturn => Some("sret"),

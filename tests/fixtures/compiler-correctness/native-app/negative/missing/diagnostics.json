@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1702",
     "message": "missing native-app entry: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
     "notes": [],
     "origin": {

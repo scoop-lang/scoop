@@ -34,7 +34,15 @@ impl Lowerer {
                 hir::ClassRepresentation::Declared
             )
         {
-            self.error(span, "automatic inspect requires a final class without a class base; provide an explicit implementation for other targets".into());
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E1310,
+                span,
+                "automatic inspect requires a final class without a class base".to_owned(),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H1301,
+                    "provide an explicit implementation for other targets",
+                ),
+            );
             return None;
         }
         let fields = match self.source_class_id(application.template) {
@@ -77,7 +85,18 @@ impl Lowerer {
                     !self.property_setters[setter].implementation.is_storage()
                 })
             {
-                self.error(span, format!("stored property `{}` has a custom accessor or delegate; provide an explicit inspect implementation", property.name));
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E1311,
+                    span,
+                    format!(
+                        "stored property `{}` has a custom accessor or delegate",
+                        property.name
+                    ),
+                    scoop_ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H1301,
+                        "provide an explicit inspect implementation".to_string(),
+                    ),
+                );
                 return None;
             }
             fields.push(InspectionMember {
@@ -126,7 +145,18 @@ impl Lowerer {
                     .setter_source()
                     .is_some_and(|source| !source.implementation().is_storage())
             {
-                self.error(span, format!("stored property `{}` has a custom accessor or delegate; provide an explicit inspect implementation", field.name));
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E1311,
+                    span,
+                    format!(
+                        "stored property `{}` has a custom accessor or delegate",
+                        field.name
+                    ),
+                    scoop_ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H1301,
+                        "provide an explicit inspect implementation".to_string(),
+                    ),
+                );
                 return None;
             }
             fields.push(InspectionMember {

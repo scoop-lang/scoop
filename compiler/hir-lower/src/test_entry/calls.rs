@@ -47,6 +47,7 @@ impl Lowerer {
         self.pop_scope();
         if result.is_none() && self.diagnostics.len() == diagnostics_before {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 span,
                 format!("test execution cannot call `{name}` with the generated arguments"),
             );

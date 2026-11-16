@@ -33,6 +33,7 @@ impl Lowerer {
         if !self.nominal_is_accessible(ty) {
             let name = self.type_name(ty);
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 ty_ref.span,
                 format!("type `{name}` is not accessible from this source location"),
             );
@@ -68,6 +69,7 @@ impl Lowerer {
                     .position(|param| param.name == name.text)
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E0601,
                         name.span,
                         format!(
                             "type parameter `{}` takes no type arguments",
@@ -78,6 +80,7 @@ impl Lowerer {
                 }
                 if self.outer_type_parameter_owner(&name.text).is_some() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0619,
                         name.span,
                         if self.current_owner_is_companion() {
                             format!(
@@ -106,6 +109,7 @@ impl Lowerer {
                         crate::namespace::TopLevelTypeTarget::Annotation(_),
                     )) => {
                         self.error(
+                            scoop_source::DiagnosticCode::E0405,
                             name.span,
                             format!("annotation `{}` cannot be used as a value type", name.text),
                         );
@@ -126,11 +130,16 @@ impl Lowerer {
                 if let Some((struct_id, _)) = self.top_level_struct_named(&name.text) {
                     let arity = self.structs[struct_id].type_params.len();
                     if arity == 0 {
-                        self.error(name.span, format!("struct `{}` is not generic", name.text));
+                        self.error(
+                            scoop_source::DiagnosticCode::E0601,
+                            name.span,
+                            format!("struct `{}` is not generic", name.text),
+                        );
                         return None;
                     }
                     if arity != args.len() {
                         self.error(
+                            scoop_source::DiagnosticCode::E0601,
                             name.span,
                             format!(
                                 "struct `{}` takes {arity} type argument(s), but {} were supplied",
@@ -168,6 +177,7 @@ impl Lowerer {
                         }
                         let Type::Function(function_type) = self.types[resolved[0]] else {
                             self.error(
+                                scoop_source::DiagnosticCode::E1216,
                                 name.span,
                                 "`FunPtr` type argument must be an ordinary concrete function type"
                                     .to_string(),
@@ -193,7 +203,7 @@ impl Lowerer {
                             return Some(self.struct_application(struct_id, resolved));
                         }
                         let Type::Function(function_type) = self.types[resolved[0]] else {
-                            self.error(
+                            self.error(scoop_source::DiagnosticCode::E1216,
                                 name.span,
                                 "`GCLeafFunPtr` type argument must be an ordinary concrete function type"
                                     .to_string(),
@@ -218,13 +228,14 @@ impl Lowerer {
                     let arity = self.interfaces[interface_id].type_params.len();
                     if arity == 0 {
                         self.error(
+                            scoop_source::DiagnosticCode::E0601,
                             name.span,
                             format!("interface `{}` is not generic", name.text),
                         );
                         return None;
                     }
                     if arity != args.len() {
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E0601,
                             name.span,
                             format!(
                                 "interface `{}` takes {arity} type argument(s), but {} were supplied",
@@ -252,11 +263,16 @@ impl Lowerer {
                 if let Some((class_id, _)) = self.top_level_class_named(&name.text) {
                     let arity = self.classes[class_id].type_params.len();
                     if arity == 0 {
-                        self.error(name.span, format!("class `{}` is not generic", name.text));
+                        self.error(
+                            scoop_source::DiagnosticCode::E0601,
+                            name.span,
+                            format!("class `{}` is not generic", name.text),
+                        );
                         return None;
                     }
                     if arity != args.len() {
                         self.error(
+                            scoop_source::DiagnosticCode::E0601,
                             name.span,
                             format!(
                                 "class `{}` takes {arity} type argument(s), but {} were supplied",
@@ -282,7 +298,11 @@ impl Lowerer {
                     return Some(self.class_application(class_id, resolved));
                 }
                 if self.top_level_object_named(&name.text).is_some() {
-                    self.error(name.span, format!("object `{}` is not generic", name.text));
+                    self.error(
+                        scoop_source::DiagnosticCode::E0601,
+                        name.span,
+                        format!("object `{}` is not generic", name.text),
+                    );
                     return None;
                 }
                 let Some(enum_id) = self.top_level_enum_named(&name.text) else {
@@ -297,7 +317,7 @@ impl Lowerer {
                 let arity = self.enums[enum_id].type_params.len();
                 if arity != args.len() {
                     let enum_name = self.enums[enum_id].name.clone();
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0601,
                         name.span,
                         format!(
                             "enum `{enum_name}` takes {arity} type argument(s), but {} were supplied",
@@ -336,6 +356,7 @@ impl Lowerer {
                 }
                 if self.outer_type_parameter_owner(&name.text).is_some() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0619,
                         name.span,
                         if self.current_owner_is_companion() {
                             format!(
@@ -368,6 +389,7 @@ impl Lowerer {
                         crate::namespace::TopLevelTypeTarget::Annotation(_),
                     )) => {
                         self.error(
+                            scoop_source::DiagnosticCode::E0405,
                             name.span,
                             format!("annotation `{}` cannot be used as a value type", name.text),
                         );
@@ -459,6 +481,7 @@ impl Lowerer {
                     true => Some(self.option_type(inner)),
                     false => {
                         self.error(
+                            scoop_source::DiagnosticCode::E1404,
                             ty_ref.span,
                             "`T?` requires `Option<T>` from scoop.core, which is not defined"
                                 .to_string(),

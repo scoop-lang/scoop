@@ -31,6 +31,7 @@ impl Lowerer {
             | hir::PropertyOwner::Object(_) => {
                 let Some(this_parameter) = parameters.first() else {
                     self.error(
+                        scoop_source::DiagnosticCode::ICE0501,
                         property.span,
                         "a receiver delegated-property accessor requires an instance receiver"
                             .to_string(),
@@ -70,6 +71,7 @@ impl Lowerer {
                     hir::DelegateStorageLocation::ClassField(field) => {
                         let hir::Type::Class(application) = self.types[this_ref.ty] else {
                             self.error(
+                                scoop_source::DiagnosticCode::ICE0501,
                                 property.span,
                                 "a class delegated-property accessor requires a class receiver"
                                     .to_string(),
@@ -192,6 +194,7 @@ impl Lowerer {
                     }
                     None => {
                         self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
                             property.span,
                             "a mutable delegated-property accessor requires a value parameter"
                                 .to_string(),

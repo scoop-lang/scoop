@@ -34,7 +34,7 @@ impl WindowsCEnvironment {
             native_sysroot: native_sysroot
                 .map(std::path::absolute)
                 .transpose()
-                .map_err(error)?,
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
             includes: Vec::new(),
             libraries: Vec::new(),
             search_path: std::env::var_os("PATH").unwrap_or_default(),
@@ -45,8 +45,22 @@ impl WindowsCEnvironment {
             != scoop_target_data::NativeEnvironment::MicrosoftUcrt
         {
             if environment.native_sysroot.is_none() {
-                environment.native_sysroot = Some(compiler.parent().and_then(Path::parent)
-                    .ok_or_else(|| error("cannot infer LLVM-MinGW prefix; provide an explicit native sysroot"))?.to_owned());
+                environment.native_sysroot = Some(
+                    compiler
+                        .parent()
+                        .and_then(Path::parent)
+                        .ok_or_else(|| {
+                            error(
+                                scoop_source::DiagnosticCode::E2302,
+                                "cannot infer LLVM-MinGW prefix".to_owned(),
+                            )
+                            .with_help(
+                                scoop_source::DiagnosticCode::H2301,
+                                "provide an explicit native sysroot",
+                            )
+                        })?
+                        .to_owned(),
+                );
             }
             let root = environment
                 .native_sysroot
@@ -71,9 +85,14 @@ impl WindowsCEnvironment {
             }
         } else if let Some(root) = &environment.native_sysroot {
             let config = root.join("msvc.toml");
-            let contents = std::fs::read_to_string(&config)
-                .map_err(|err| error(format!("{}: {err}", config.display())))?;
-            let MsvcConfig { msvc } = toml::from_str(&contents).map_err(error)?;
+            let contents = std::fs::read_to_string(&config).map_err(|err| {
+                error(
+                    scoop_source::DiagnosticCode::E2201,
+                    format!("{}: {err}", config.display()),
+                )
+            })?;
+            let MsvcConfig { msvc } = toml::from_str(&contents)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
             let tools = root.join(msvc.vc_tools);
             let sdk = root.join(msvc.windows_sdk);
             let include = sdk.join("Include").join(&msvc.sdk_version);
@@ -99,7 +118,16 @@ impl WindowsCEnvironment {
     #[cfg(windows)]
     fn discover_microsoft(&mut self) -> Result<(), ToolchainError> {
         let tool = find_msvc_tools::find_tool(self.machine.msvc_discovery_target(), "cl.exe")
-            .ok_or_else(|| error("no Microsoft C++ Build Tools and Windows SDK found; provide an explicit native sysroot"))?;
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2302,
+                    "no Microsoft C++ Build Tools and Windows SDK found".to_owned(),
+                )
+                .with_help(
+                    scoop_source::DiagnosticCode::H2301,
+                    "provide an explicit native sysroot",
+                )
+            })?;
         // find-msvc-tools reuses an initialized developer shell without
         // returning overrides. Capture its effective environment before the
         // compiler command clears inherited variables.
@@ -121,6 +149,7 @@ impl WindowsCEnvironment {
     #[cfg(not(windows))]
     fn discover_microsoft(&mut self) -> Result<(), ToolchainError> {
         Err(error(
+            scoop_source::DiagnosticCode::E2302,
             "Microsoft cross-compilation requires a native sysroot containing msvc.toml",
         ))
     }
@@ -211,7 +240,10 @@ impl WindowsCEnvironment {
 fn search_directories(value: &std::ffi::OsStr) -> Result<Vec<PathBuf>, ToolchainError> {
     std::env::split_paths(value)
         .filter(|path| !path.as_os_str().is_empty())
-        .map(|path| std::path::absolute(path).map_err(error))
+        .map(|path| {
+            std::path::absolute(path)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
+        })
         .collect()
 }
 

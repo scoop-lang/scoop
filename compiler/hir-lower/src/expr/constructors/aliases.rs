@@ -40,11 +40,19 @@ impl Lowerer {
         };
         let template = self.enum_applications[application].template;
         if self.enum_definition(template).variants[index as usize].style != VariantStyle::Unit {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0732,
                 name.span,
                 format!(
-                    "variant `{}` takes arguments; use `{}(...)` to construct it",
-                    name.text, name.text
+                    "variant `{__diagnostic_arg0}` takes arguments",
+                    __diagnostic_arg0 = name.text
+                ),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0704,
+                    format!(
+                        "use `{__diagnostic_arg1}(...)` to construct it",
+                        __diagnostic_arg1 = name.text
+                    ),
                 ),
             );
             return None;
@@ -135,11 +143,19 @@ impl Lowerer {
         };
         let template = self.enum_applications[application].template;
         if self.enum_definition(template).variants[index as usize].style == VariantStyle::Unit {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0732,
                 span,
                 format!(
-                    "unit variant `{}` does not take arguments; use `{}` without parentheses",
-                    name.text, name.text
+                    "unit variant `{__diagnostic_arg0}` does not take arguments",
+                    __diagnostic_arg0 = name.text
+                ),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0704,
+                    format!(
+                        "use `{__diagnostic_arg1}` without parentheses",
+                        __diagnostic_arg1 = name.text
+                    ),
                 ),
             );
             return None;

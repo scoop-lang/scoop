@@ -97,6 +97,6 @@ source.write_text(source.read_text().replace("left() + right()", '"wrong type"')
 failed_output = work / "failed.slib"
 failed = run("build", root, "--release", "--emit-slib", "-o", failed_output, exit_code=1)
 diagnostics = progress(failed, {coordinates["root"]: "Compiling"}, status="Failed")
-assert "error[SCOOPC_HIR_ERROR]" in diagnostics and "found String" in diagnostics, diagnostics
+assert "error[E0501]" in diagnostics and "found String" in diagnostics, diagnostics
 assert not failed_output.exists()
 sys.stdout.buffer.write(b"per-cone progress passed\n")

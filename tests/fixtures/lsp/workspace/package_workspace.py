@@ -171,9 +171,14 @@ def main():
         symbols = peer.request("workspace/symbol", {"query": "localOnly"})
         assert any(item["name"] == "localOnly" for item in symbols), symbols
         diagnostics = peer.diagnostics[(root / "missing/Cone.toml").as_uri()]["diagnostics"]
+        error = next(item for item in diagnostics if item["code"] == "E2111")
+        assert "no locked resolution" in error["message"], error
         assert any(
-            item["code"] == "SCOOP_PROJECT" and "resolve" in item["message"] for item in diagnostics
-        ), diagnostics
+            note["code"] == "H2101"
+            and note["kind"] == "help"
+            and note["message"] == "run scoop pm resolve"
+            for note in error["data"]["notes"]
+        ), error
         assert (
             peer.request(
                 "textDocument/hover",

@@ -359,7 +359,13 @@ def main():
             {"settings": {"scoop": {**options, "target": other}}},
         )
         symbols()
-        assert peer.diagnostics[manifest]["diagnostics"][0]["code"] == "SCOOP_PROJECT"
+        unresolved = peer.diagnostics[manifest]["diagnostics"][0]
+        assert unresolved["code"] == "E2111", unresolved
+        assert "no locked resolution" in unresolved["message"]
+        assert any(
+            note["code"] == "H2101" and note["message"] == "run scoop pm resolve"
+            for note in unresolved["data"]["notes"]
+        )
         assert hover(0, 5) is None
         peer.notify(
             "workspace/didChangeConfiguration",
@@ -381,7 +387,7 @@ def main():
         )
         symbols()
         assert peer.diagnostics[manifest]["version"] == 1
-        assert peer.diagnostics[manifest]["diagnostics"][0]["code"] == "SCOOP_PROJECT"
+        assert peer.diagnostics[manifest]["diagnostics"][0]["code"] == "E2008"
         peer.notify(
             "textDocument/didChange",
             {

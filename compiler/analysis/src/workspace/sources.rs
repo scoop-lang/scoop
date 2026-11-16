@@ -26,7 +26,7 @@ impl FileInputs {
         } else {
             scoop_manifest::select_manifest_sources(&manifest, target)
         }
-        .map_err(|error| LoadError::new(manifest.manifest_path(), error))?;
+        .map_err(|error| LoadError::new(error.code(), manifest.manifest_path(), error))?;
         let sources = self.selected_sources(
             host,
             overlays,
@@ -40,10 +40,13 @@ impl FileInputs {
             .dependency_iter()
             .filter(|_| include_tests)
             .map(|(_, dependency)| {
-                dependency
-                    .coordinate()
-                    .identity()
-                    .map_err(|error| LoadError::new(manifest.manifest_path(), error))
+                dependency.coordinate().identity().map_err(|error| {
+                    LoadError::new(
+                        scoop_source::DiagnosticCode::ICE0401,
+                        manifest.manifest_path(),
+                        error,
+                    )
+                })
             })
             .collect::<Result<_, _>>()?;
         Ok(SourceConeInput {
@@ -61,14 +64,17 @@ impl FileInputs {
         configuration: &ProjectConfiguration,
         include_tests: bool,
     ) -> Result<Vec<ProjectSource>, LoadError> {
-        let root = member
-            .directory
-            .to_path_buf()
-            .map_err(|error| LoadError::new(&configuration.root, error))?;
+        let root = member.directory.to_path_buf().map_err(|error| {
+            LoadError::new(
+                scoop_source::DiagnosticCode::E2502,
+                &configuration.root,
+                error,
+            )
+        })?;
         let identity = member
             .coordinate
             .identity()
-            .map_err(|error| LoadError::new(&root, error))?;
+            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::ICE0401, &root, error))?;
         let selected = scoop_manifest::select_cone_sources(
             &root,
             identity,
@@ -76,7 +82,7 @@ impl FileInputs {
             include_tests.then_some(&member.test_sources),
             configuration.target.target().id(),
         )
-        .map_err(|error| LoadError::new(root.join("Cone.toml"), error))?;
+        .map_err(|error| LoadError::new(error.code(), root.join("Cone.toml"), error))?;
         self.selected_sources(host, overlays, &root, identity, selected)
     }
 
@@ -110,8 +116,9 @@ impl FileInputs {
             let Ok(logical) = path.strip_prefix(root) else {
                 continue;
             };
-            let logical = NormalizedSourcePath::from_relative_path(logical)
-                .map_err(|error| LoadError::new(path, error))?;
+            let logical = NormalizedSourcePath::from_relative_path(logical).map_err(|error| {
+                LoadError::new(scoop_source::DiagnosticCode::E2002, path, error)
+            })?;
             let Some(role) = selected.role_for_path(&logical) else {
                 continue;
             };

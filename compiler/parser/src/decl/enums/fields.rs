@@ -70,6 +70,7 @@ impl Parser {
         let modifier_span = self.parse_vararg_modifier(vararg_span)?;
         if matches!(self.peek().kind, TokenKind::Var) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1507,
                 self.peek().span,
                 "`var` variant fields are not supported (value types are immutable)",
             ));
@@ -119,6 +120,7 @@ impl Parser {
         let ty = self.parse_type_ref()?;
         if matches!(self.peek().kind, TokenKind::Equal) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0724,
                 self.peek().span,
                 "variant field defaults require the constructor-style form (milestone M4)",
             ));

@@ -13,6 +13,7 @@ impl Lowerer {
                 Ok(parameters) => parameters,
                 Err(error) => {
                     self.diagnostics.push(ast::Diagnostic::without_span(
+                        scoop_source::DiagnosticCode::ICE0501,
                         ast::DiagnosticSeverity::Error,
                         self.current_file,
                         format!("cannot load sealed subtype: {error:?}"),
@@ -188,8 +189,10 @@ impl Lowerer {
         match self.solve_constraints(&session) {
             Ok(_) => true,
             Err(crate::call_resolution::constraints::InferenceFailure::Internal(error)) => {
-                self.diagnostics
-                    .push(scoop_ast::Diagnostic::internal(error));
+                self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0601,
+                    error,
+                ));
                 false
             }
             Err(crate::call_resolution::constraints::InferenceFailure::Constraint(failure)) => {

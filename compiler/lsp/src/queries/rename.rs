@@ -127,5 +127,8 @@ fn error(error: RenameError) -> ResponseError {
         }
         _ => ErrorCode::RequestFailed,
     };
-    convert::error(code, error)
+    let diagnostic_code = error.code();
+    let mut response = convert::error(code, error);
+    response.data = diagnostic_code.map(|code| serde_json::json!({"code": code}));
+    response
 }

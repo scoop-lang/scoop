@@ -18,6 +18,7 @@ impl Lowerer {
                 kind
             } else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0107,
                     span,
                     format!(
                         "integer literal `{}` is not representable as {}",
@@ -31,6 +32,7 @@ impl Lowerer {
             let kind = default_integer_kind(literal, negative);
             let Some(kind) = kind else {
                 self.error(
+                    scoop_source::DiagnosticCode::E0107,
                     span,
                     format!(
                         "integer literal `{}` is outside its suffix domain",

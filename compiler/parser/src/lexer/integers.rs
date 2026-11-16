@@ -57,6 +57,7 @@ impl Lexer<'_> {
                 if !saw_digit || !valid_next {
                     self.skip_integer_tail();
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0104,
                         Span::new(separator_start as u32, self.pos as u32),
                         "integer separators must appear between two valid digits",
                     ));
@@ -74,6 +75,7 @@ impl Lexer<'_> {
                 IntegerRadix::Hexadecimal => "hexadecimal",
             };
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0105,
                 self.span_from(start),
                 format!("{radix_name} integer prefix must be followed by a valid digit"),
             ));
@@ -83,6 +85,7 @@ impl Lexer<'_> {
             let invalid_start = self.pos;
             self.skip_integer_tail();
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0105,
                 Span::new(invalid_start as u32, self.pos as u32),
                 format!(
                     "invalid digit in base-{base} integer literal `{}`",
@@ -112,6 +115,7 @@ impl Lexer<'_> {
         if self.peek_char().is_some_and(is_ident_continue) {
             self.skip_integer_tail();
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0106,
                 Span::new(suffix_start as u32, self.pos as u32),
                 format!(
                     "invalid integer literal suffix `{}`",
@@ -122,6 +126,7 @@ impl Lexer<'_> {
 
         if overflowed {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0107,
                 self.span_from(start),
                 format!(
                     "integer literal magnitude `{}` is out of range for u64",

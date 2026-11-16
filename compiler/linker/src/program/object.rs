@@ -33,11 +33,16 @@ impl InputObject<'_> {
 
     pub fn read_bytes(&self, target: LirTargetProfile) -> Result<Cow<'_, [u8]>, LinkError> {
         let bytes = match &self.bytes {
-            ObjectBytes::Artifact { artifact, member } => {
-                Cow::Borrowed(artifact.object_bytes(*member).map_err(error)?)
-            }
+            ObjectBytes::Artifact { artifact, member } => Cow::Borrowed(
+                artifact
+                    .object_bytes(*member)
+                    .map_err(|cause| error(cause.code(), cause))?,
+            ),
             ObjectBytes::Native { file, range } => Cow::Borrowed(&file[range.clone()]),
-            ObjectBytes::File { path } => Cow::Owned(std::fs::read(path).map_err(error)?),
+            ObjectBytes::File { path } => Cow::Owned(
+                std::fs::read(path)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+            ),
         };
         crate::native_archive::prepare_object(target, bytes)
     }

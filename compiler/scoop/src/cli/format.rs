@@ -112,7 +112,7 @@ fn expand(
     {
         let path = absolute(cwd, path.clone())?;
         if let CurrentConeInput::SingleFile { source } = classify_current_cone_operand(&path)
-            .map_err(|error| failure("SCOOP_FMT_INPUT", error.path(), &error))?
+            .map_err(|error| failure(error.code(), error.path(), &error))?
         {
             if options.explicit() {
                 return Err(config(
@@ -135,17 +135,17 @@ fn expand(
                 &member.sources,
                 &member.test_sources,
             )
-            .map_err(|error| failure("SCOOP_FMT_INPUT", error.path(), &error))?,
+            .map_err(|error| failure(error.code(), error.path(), &error))?,
         );
     }
     Ok(sources)
 }
 
 fn format_file(path: &Path, check: bool, reporter: &Reporter) -> BuildResult<FileStatus> {
-    let source =
-        std::fs::read_to_string(path).map_err(|error| failure("SCOOP_FMT_IO", path, error))?;
+    let source = std::fs::read_to_string(path)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, path, error))?;
     let parsed = scoop_parser::parse_recovering(&source)
-        .map_err(|error| failure("SCOOP_FMT_PARSE", path, error))?;
+        .map_err(|error| failure(scoop_source::DiagnosticCode::ICE0301, path, error))?;
     let diagnostics = diagnostics::convert(path, parsed.diagnostics())?;
     reporter
         .host_diagnostics(&diagnostics, path, &source)
@@ -160,7 +160,8 @@ fn format_file(path: &Path, check: bool, reporter: &Reporter) -> BuildResult<Fil
     if check {
         return Ok(FileStatus::NeedsFormat);
     }
-    write_file(path, &formatted).map_err(|error| failure("SCOOP_FMT_IO", path, error))?;
+    write_file(path, &formatted)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, path, error))?;
     Ok(FileStatus::Formatted)
 }
 
@@ -183,6 +184,10 @@ fn write_file(path: &Path, text: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn failure(code: &str, path: &Path, error: impl std::fmt::Display) -> Box<BuildFailure> {
+fn failure(
+    code: scoop_source::DiagnosticCode,
+    path: &Path,
+    error: impl std::fmt::Display,
+) -> Box<BuildFailure> {
     BuildFailure::tool(code, BuildFailurePhase::Request, error).at_host(path)
 }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0902",
     "message": "refutable patterns are only allowed in `when`",
     "notes": [],
     "origin": {

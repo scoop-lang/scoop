@@ -24,7 +24,12 @@ pub(crate) fn bundled_clang_path() -> Result<PathBuf, ToolchainError> {
             root.join("libexec/llvm/bin")
                 .join(crate::host_executable_name("clang"))
         })
-        .ok_or_else(|| error("cannot locate the installed LLVM tools"))
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2302,
+                "cannot locate the installed LLVM tools",
+            )
+        })
 }
 
 pub fn resolve_linux_c_toolchain(
@@ -40,7 +45,8 @@ pub fn resolve_linux_c_toolchain(
     let selected_driver = compiler
         .or_else(|| bundled.as_deref().filter(|path| path.is_file()))
         .unwrap_or_else(|| Path::new(default_driver));
-    let search_path = std::env::var_os("PATH").ok_or_else(|| error("PATH is not set"))?;
+    let search_path = std::env::var_os("PATH")
+        .ok_or_else(|| error(scoop_source::DiagnosticCode::E2302, "PATH is not set"))?;
     let driver = find_program(selected_driver.as_os_str(), &search_path)?;
     // Only a wrapper that actually reads REALGCC receives this environment input.
     let real_gcc = underlying_compiler(
@@ -51,11 +57,11 @@ pub fn resolve_linux_c_toolchain(
     let sysroot = native_sysroot
         .map(std::fs::canonicalize)
         .transpose()
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let directory = tempfile::Builder::new()
         .prefix("scoop-linux-c-")
         .tempdir()
-        .map_err(error)?;
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut paths = CompilerPaths {
         target,
         family: NativeCompilerFamily::Gcc,
@@ -70,7 +76,8 @@ pub fn resolve_linux_c_toolchain(
         .args(["-dM", "-E", "-x", "c", "-"])
         .stdin(std::process::Stdio::null()))?;
     paths.family = NativeCompilerFamily::from_gnu_macros(
-        std::str::from_utf8(&predefined.stdout).map_err(error)?,
+        std::str::from_utf8(&predefined.stdout)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?,
     )?;
     let source = directory.path().join("probe.c");
     let object = directory.path().join("probe.o");
@@ -79,9 +86,10 @@ pub fn resolve_linux_c_toolchain(
         &source,
         format!("{PROBE_PREFIX}{libc_check}\nint scoop_linux_c_probe(void) {{ return 0; }}\n"),
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let macros = run(paths.command().args(["-dM", "-E"]).arg(&source))?;
-    let macros_text = std::str::from_utf8(&macros.stdout).map_err(error)?;
+    let macros_text = std::str::from_utf8(&macros.stdout)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let configuration = sha256(&macros.stdout);
     let compiler = match paths.family {
         NativeCompilerFamily::Gcc => {
@@ -92,7 +100,8 @@ pub fn resolve_linux_c_toolchain(
                 macro_number(macros_text, "__GNUC_PATCHLEVEL__")?
             );
             LinuxCCompilerIdentityV1::Gcc(
-                GccCompilerIdentityV1::new(&version, configuration).map_err(error)?,
+                GccCompilerIdentityV1::new(&version, configuration)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?,
             )
         }
         NativeCompilerFamily::Clang => {
@@ -105,9 +114,15 @@ pub fn resolve_linux_c_toolchain(
                 configuration,
             ))
         }
-        NativeCompilerFamily::Msvc => return Err(error("Linux requires a GNU-style C driver")),
+        NativeCompilerFamily::Msvc => {
+            return Err(error(
+                scoop_source::DiagnosticCode::E2303,
+                "Linux requires a GNU-style C driver",
+            ));
+        }
     };
-    let profile = scoop_target_data::linux_c_bridge_profile(target, compiler).map_err(error)?;
+    let profile = scoop_target_data::linux_c_bridge_profile(target, compiler)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let invocation = ValidatedCBridgeToolchainInvocation::new_linux(
         target,
         profile,
@@ -116,10 +131,12 @@ pub fn resolve_linux_c_toolchain(
         paths.real_gcc,
         paths.search_path,
     )
-    .map_err(error)?;
+    .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     run(&mut invocation.object_compilation_command(&source, &object))?;
-    let bytes = std::fs::read(object).map_err(error)?;
-    let file = object::File::parse(bytes.as_slice()).map_err(error)?;
+    let bytes =
+        std::fs::read(object).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    let file = object::File::parse(bytes.as_slice())
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     if file.architecture() != selected.machine.object_architecture()
         || file.format() != BinaryFormat::Elf
         || file.kind() != ObjectKind::Relocatable
@@ -127,7 +144,10 @@ pub fn resolve_linux_c_toolchain(
         || !file.is_64()
         || file.symbol_by_name("scoop_linux_c_probe").is_none()
     {
-        return Err(error("C driver did not emit the selected ELF64 C object"));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2303,
+            "C driver did not emit the selected ELF64 C object",
+        ));
     }
     Ok(invocation)
 }
@@ -199,13 +219,22 @@ fn underlying_compiler(
 
 fn uses_real_gcc(driver: &Path) -> Result<bool, ToolchainError> {
     use std::io::{BufRead, Read};
-    let mut file = std::fs::File::open(driver).map_err(error)?;
+    let mut file = std::fs::File::open(driver)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut prefix = [0; 2];
-    if file.read(&mut prefix).map_err(error)? != 2 || &prefix != b"#!" {
+    if file
+        .read(&mut prefix)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+        != 2
+        || &prefix != b"#!"
+    {
         return Ok(false);
     }
     for line in std::io::BufReader::new(file).lines() {
-        if line.map_err(error)?.contains("REALGCC") {
+        if line
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+            .contains("REALGCC")
+        {
             return Ok(true);
         }
     }
@@ -216,19 +245,24 @@ fn uses_real_gcc(driver: &Path) -> Result<bool, ToolchainError> {
 mod discovery_tests;
 
 fn run(command: &mut Command) -> Result<Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "C tool failed ({}): {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "C tool failed ({}): {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+        ));
     }
     Ok(output)
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("Linux C toolchain: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("Linux C toolchain: {value}"))
 }
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]

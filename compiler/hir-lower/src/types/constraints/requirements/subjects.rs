@@ -13,7 +13,7 @@ impl Lowerer {
             return Some(ty);
         }
         let Some(&index) = own.get(&receiver.text) else {
-            self.error(receiver.span, "a member requirement receiver must name a virtual parameter or this function's type parameter".into());
+            self.error(scoop_source::DiagnosticCode::E0612, receiver.span, "a member requirement receiver must name a virtual parameter or this function's type parameter".into());
             return None;
         };
         Some(self.intern_type(Type::Companion(parameters[index].id)))

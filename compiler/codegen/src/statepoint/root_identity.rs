@@ -15,6 +15,7 @@ pub(crate) fn mark_root_identity<'ctx>(
         .and_then(|intrinsic| intrinsic.get_declaration(module, &[]))
         .ok_or_else(|| {
             CodegenError::internal("LLVM lacks required llvm.fake.use intrinsic".into())
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
         })?;
     let call = builder
         .build_call(intrinsic, &[value.into()], "")
@@ -57,7 +58,8 @@ pub(super) fn read(
     if instruction.get_opcode() != InstructionOpcode::Call {
         return Err(CodegenError::internal(
             "typed root identity is not attached to llvm.fake.use".into(),
-        ));
+        )
+        .with_code(scoop_source::DiagnosticCode::ICE1101));
     }
     // SAFETY: the opcode check establishes a CallBase.
     let call = unsafe { CallSiteValue::new(instruction.as_value_ref()) };
@@ -68,10 +70,12 @@ pub(super) fn read(
     {
         return Err(CodegenError::internal(
             "typed root use has the wrong intrinsic or arity".into(),
-        ));
+        )
+        .with_code(scoop_source::DiagnosticCode::ICE1101));
     }
     let values = metadata.get_node_values().ok_or_else(|| {
         CodegenError::internal("statepoint root identity metadata is not a node".into())
+            .with_code(scoop_source::DiagnosticCode::ICE1101)
     })?;
     let [
         BasicMetadataValueEnum::IntValue(site),
@@ -82,11 +86,13 @@ pub(super) fn read(
     else {
         return Err(CodegenError::internal(
             "statepoint root identity metadata has an invalid shape".into(),
-        ));
+        )
+        .with_code(scoop_source::DiagnosticCode::ICE1101));
     };
     let site = constant(*site)?;
     let index = u32::try_from(constant(*index)?).map_err(|cause| {
         CodegenError::internal_cause("root source index exceeds u32::MAX".into(), cause)
+            .with_code(scoop_source::DiagnosticCode::ICE1101)
     })?;
     let source = match constant(*kind)? {
         0 => scoop_lir::CallerRootSource::Param(index),
@@ -99,7 +105,8 @@ pub(super) fn read(
         kind => {
             return Err(CodegenError::internal(format!(
                 "statepoint {site} has unknown root source kind {kind}"
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101));
         }
     };
     Ok(Some((
@@ -121,7 +128,8 @@ pub(super) fn restored_value<'ctx>(
         return Err(CodegenError::internal(format!(
             "root restoration is not an AS{} managed pointer",
             space.llvm()
-        )));
+        ))
+        .with_code(scoop_source::DiagnosticCode::ICE1101));
     }
     Ok(unsafe { PointerValue::new(value) })
 }
@@ -130,7 +138,8 @@ fn constant(value: inkwell::values::IntValue<'_>) -> Result<u64, CodegenError> {
     if unsafe { LLVMIsAConstantInt(value.as_value_ref()) }.is_null() {
         return Err(CodegenError::internal(
             "root identity metadata is not a constant integer".into(),
-        ));
+        )
+        .with_code(scoop_source::DiagnosticCode::ICE1101));
     }
     Ok(unsafe { LLVMConstIntGetZExtValue(value.as_value_ref()) })
 }

@@ -76,12 +76,12 @@ impl Lowerer {
             CaptureKey::Binding(_) => "captured value",
         };
         if !has_environment {
-            self.error(span, format!("this type cannot capture runtime binding `{name}`; only a local class instance may capture values"));
+            self.error(scoop_source::DiagnosticCode::E1503, span, format!("this type cannot capture runtime binding `{name}`; only a local class instance may capture values"));
             return None;
         }
         let available = self.local_types[&owner].available[key].clone();
         if available.mutable {
-            self.error(span, format!("cannot capture mutable local `{name}`; bind its current value to a `val` snapshot or capture explicit reference state"));
+            self.error(scoop_source::DiagnosticCode::E1502, span, format!("cannot capture mutable local `{name}`; bind its current value to a `val` snapshot or capture explicit reference state"));
             return None;
         }
         if let CaptureSource::ClassValue {

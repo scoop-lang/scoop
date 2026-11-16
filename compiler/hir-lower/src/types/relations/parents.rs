@@ -105,6 +105,7 @@ impl Lowerer {
     ) -> Vec<TypeId> {
         if let Err(error) = self.resolve_imported_intrinsic_type(kind) {
             self.diagnostics.push(ast::Diagnostic::without_span(
+                scoop_source::DiagnosticCode::ICE0501,
                 ast::DiagnosticSeverity::Error,
                 self.current_file,
                 error.diagnostic(&format!(

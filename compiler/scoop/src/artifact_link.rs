@@ -45,7 +45,7 @@ pub struct LinkOutcome {
 
 pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
     let target = ResolvedTargetProfile::resolve_with(&request.target, &request.c_toolchain)
-        .map_err(failure)?;
+        .map_err(|error| failure(error.code(), error))?;
     let selection = target.lir_target_selection();
     let (root, dependencies) = resolve::artifacts(&request, selection)?;
     let inputs = dependencies
@@ -56,7 +56,7 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
         .map_err(|error| read_failure(error, &root, &dependencies))?;
     let profile =
         scoop_linker::resolve_program_link_profile(&closure, &target, &request.final_link)
-            .map_err(failure)?;
+            .map_err(BuildFailure::link)?;
     let runtime_index = request.runtime_index.clone().unwrap_or_else(|| {
         scoop_toolchain::default_runtime_index(
             &request.sysroot,
@@ -70,18 +70,19 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
         profile.target(),
         profile.startup_toolchain().profile(),
     )
-    .map_err(failure)?;
+    .map_err(BuildFailure::link)?;
     runtime
         .require_gc_stress(request.enable_gc_stress)
-        .map_err(failure)?;
+        .map_err(BuildFailure::link)?;
     runtime
         .require_startup_stats(request.enable_startup_stats)
-        .map_err(failure)?;
-    let output = OutputLocation::new(&request.output).map_err(failure)?;
+        .map_err(BuildFailure::link)?;
+    let output = OutputLocation::new(&request.output)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     let directory = tempfile::Builder::new()
         .prefix(".scoop-link-output-")
         .tempdir_in(output.parent())
-        .map_err(failure)?;
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     let linked = link_program(
         &closure,
         &runtime,
@@ -100,21 +101,23 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
         ),
         &request.cache_dir,
     )
-    .map_err(failure)?;
+    .map_err(BuildFailure::link)?;
     if let Some(file) = &linked.debug_file {
         OutputLocation::new(&file.kind.output_path(output.path()))
-            .map_err(failure)?
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?
             .publish(&file.path, None)
-            .map_err(failure)?;
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     }
     if let Some(file) = &linked.import_library {
         let name = file.file_name().expect("import library has a basename");
         OutputLocation::new(&output.parent().join(name))
-            .map_err(failure)?
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?
             .publish(file, None)
-            .map_err(failure)?;
+            .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     }
-    output.publish(&linked.path, None).map_err(failure)?;
+    output
+        .publish(&linked.path, None)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     Ok(LinkOutcome {
         output: output.path().to_owned(),
         root,
@@ -125,8 +128,8 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
     })
 }
 
-fn failure(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_LINK_FAILED", BuildFailurePhase::FinalLink, error)
+fn failure(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> Box<BuildFailure> {
+    BuildFailure::tool(code, BuildFailurePhase::FinalLink, error)
 }
 
 fn read_failure(
@@ -135,19 +138,19 @@ fn read_failure(
     dependencies: &[LocatedLinkArtifact],
 ) -> Box<BuildFailure> {
     let Some(identity) = error.artifact() else {
-        return failure(error);
+        return failure(error.code(), error);
     };
     let Some(artifact) = std::iter::once(root)
         .chain(dependencies)
         .find(|artifact| artifact.summary.cone().identity() == identity)
     else {
         return BuildFailure::tool(
-            "SCOOP_INTERNAL_ERROR",
+            scoop_source::DiagnosticCode::ICE2201,
             BuildFailurePhase::FinalLink,
             format!(
                 "Link diagnostic references an artifact outside its inputs: {identity}: {error}"
             ),
         );
     };
-    failure(&error).at_artifact(&artifact.path, error.semantic_path())
+    failure(error.code(), &error).at_artifact(&artifact.path, error.semantic_path())
 }

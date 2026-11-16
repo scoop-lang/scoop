@@ -331,7 +331,8 @@ fn failed_exact_value_member_lookup_does_not_fall_back_to_a_typealias() {
         .expect_err("a selected value receiver cannot retry as a lower type qualifier");
     assert!(
         errors.iter().any(|error| {
-            error.message.contains("EmptyReceiver") && error.message.contains("mark")
+            crate::tests::diagnostic_text(error).contains("EmptyReceiver")
+                && crate::tests::diagnostic_text(error).contains("mark")
         }),
         "{errors:?}"
     );
@@ -352,8 +353,12 @@ fn exact_function_blocks_a_lower_type_qualifier() {
         .expect_err("a function is a terminal non-type binding in its source layer");
     assert!(
         errors.iter().any(|error| {
-            error.message
-                == "function `Receiver` is not a value; use `::Receiver` to create a callable reference"
+            error.code == ast::DiagnosticCode::E0405
+                && error.message == "function `Receiver` is not a value"
+                && error.notes.iter().any(|note| {
+                    note.code == ast::DiagnosticCode::H0703
+                        && note.message == "use `::Receiver` to create a callable reference"
+                })
         }),
         "{errors:?}"
     );
@@ -464,11 +469,12 @@ fn local_function_blocks_a_top_level_type_qualifier() {
     let errors = lower_sources(vec![user], core_file())
         .expect_err("a lexical function cannot be bypassed as a type qualifier");
     assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("Receiver") && {
-                error.message.contains("not a value") || error.message.contains("unknown variable")
-            }),
+        errors.iter().any(
+            |error| crate::tests::diagnostic_text(error).contains("Receiver") && {
+                crate::tests::diagnostic_text(error).contains("not a value")
+                    || crate::tests::diagnostic_text(error).contains("unknown variable")
+            }
+        ),
         "{errors:?}"
     );
 }

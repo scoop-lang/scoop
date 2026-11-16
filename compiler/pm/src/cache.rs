@@ -66,9 +66,12 @@ impl PackageCache {
 }
 
 pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> PmResult<()> {
-    let directory = path
-        .parent()
-        .ok_or_else(|| PmError::new("output path has no parent"))?;
+    let directory = path.parent().ok_or_else(|| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2020,
+            "output path has no parent",
+        )
+    })?;
     fs::create_dir_all(directory).map_err(|error| PmError::io(directory, error))?;
     let mut output =
         tempfile::NamedTempFile::new_in(directory).map_err(|error| PmError::io(path, error))?;
@@ -87,7 +90,16 @@ fn home() -> PmResult<PathBuf> {
     std::env::var_os(variable)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .ok_or_else(|| PmError::new("cannot locate the home directory; use --package-cache-dir"))
+        .ok_or_else(|| {
+            PmError::new(
+                scoop_source::DiagnosticCode::E2201,
+                "cannot locate the home directory".to_owned(),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2001,
+                "use --package-cache-dir",
+            )
+        })
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "body of `implicitLeaf` must be of type GCLeafFunPtr<() -> Unit>, found FunPtr<() -> Unit>",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "body of `implicitSafe` must be of type FunPtr<() -> Unit>, found GCLeafFunPtr<() -> Unit>",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "calling an unsafe dependency function requires an unsafe context",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "body of `wrongSignature` must be of type FunPtr<() -> Long>, found FunPtr<() -> Int>",
     "notes": [],
     "origin": {
@@ -52,9 +52,29 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for bound callable reference `receiver::asGCLeaf` in extension candidate layer:\n  - fun FunPtr<F>.asGCLeaf<F>(): GCLeafFunPtr<F> — unsafe functions cannot be stored in a managed function type because safety is not part of function-type identity",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for bound callable reference `receiver::asGCLeaf` in extension candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun FunPtr<F>.asGCLeaf<F>(): GCLeafFunPtr<F>",
+        "notes": [
+          {
+            "code": "E1102",
+            "kind": "cause",
+            "message": "unsafe functions cannot be stored in a managed function type because safety is not part of function-type identity",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 441,

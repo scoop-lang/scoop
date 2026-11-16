@@ -89,7 +89,7 @@ impl NativeInputId {
                     profile,
                 },
             )
-            .map_err(error)?,
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         ))
     }
 }
@@ -124,18 +124,21 @@ impl NativeInputs {
                 && let Some(previous) = positions.insert((name.clone(), *position), id)
                 && previous != id
             {
-                return Err(error(format!(
-                    "native library group {} position {position} conflicts: {previous}, {id}; origins: {}",
-                    name.as_str(),
-                    origins.join(", ")
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2306,
+                    format!(
+                        "native library group {} position {position} conflicts: {previous}, {id}; origins: {}",
+                        name.as_str(),
+                        origins.join(", ")
+                    ),
+                ));
             }
             let resolution = locate::library(&key, roots, profile, &mut result.observed_paths)
                 .map_err(|err| {
-                    error(format!(
-                        "{err}; requirement {id}; origins: {}",
-                        origins.join(", ")
-                    ))
+                    error(
+                        err.code(),
+                        format!("{err}; requirement {id}; origins: {}", origins.join(", ")),
+                    )
                 })?;
             result.libraries.insert(
                 id,

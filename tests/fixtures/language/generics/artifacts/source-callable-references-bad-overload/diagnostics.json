@@ -1,8 +1,65 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "callable reference `::overload` is ambiguous in dependency top-level candidate layer:\n  - fun overload(value: Int): Int — forms a complete non-generic function type\n  - fun overload(value: Boolean): Int — forms a complete non-generic function type",
-    "notes": [],
+    "code": "E0712",
+    "message": "callable reference `::overload` is ambiguous in dependency top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun overload(value: Int): Int",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "forms a complete non-generic function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun overload(value: Boolean): Int",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "forms a complete non-generic function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "e351be120768d5c01d36809f29032efb92f92d355fc5afc7765650345a646e21",
       "end": 122,

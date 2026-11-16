@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2203",
     "message": "native compilation: native.c: ${work}/cone/native.c:1:2: error: native fixture diagnostic\n    1 | #error native fixture diagnostic\n      |  ^\n1 error generated.",
     "notes": [],
     "origin": {

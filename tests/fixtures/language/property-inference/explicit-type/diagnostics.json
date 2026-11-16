@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "top-level property initializer must be of type String, found Int",
     "notes": [],
     "origin": {

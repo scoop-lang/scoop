@@ -30,14 +30,14 @@ impl ProjectBuilder {
             || resolution.purpose != configuration.purpose
         {
             return Err(LoadError::new(
+                scoop_source::DiagnosticCode::E2502,
                 &manifest,
                 "prepared target or purpose differs from the request",
             ));
         }
-        let root = resolution
-            .coordinate
-            .identity()
-            .map_err(|error| LoadError::new(&manifest, error))?;
+        let root = resolution.coordinate.identity().map_err(|error| {
+            LoadError::new(scoop_source::DiagnosticCode::ICE0401, &manifest, error)
+        })?;
         let mut builder = Self {
             manifest,
             project: ProjectInput {
@@ -52,19 +52,25 @@ impl ProjectBuilder {
         };
         let mut errors = Vec::new();
         for node in resolution.nodes {
-            let identity = node
-                .cone
-                .coordinate()
-                .identity()
-                .map_err(|error| LoadError::new(&builder.manifest, error))?;
+            let identity = node.cone.coordinate().identity().map_err(|error| {
+                LoadError::new(
+                    scoop_source::DiagnosticCode::ICE0401,
+                    &builder.manifest,
+                    error,
+                )
+            })?;
             let dependencies = node
                 .dependencies
                 .into_iter()
                 .chain(node.test_dependencies)
                 .map(|coordinate| {
-                    coordinate
-                        .identity()
-                        .map_err(|error| LoadError::new(&builder.manifest, error))
+                    coordinate.identity().map_err(|error| {
+                        LoadError::new(
+                            scoop_source::DiagnosticCode::ICE0401,
+                            &builder.manifest,
+                            error,
+                        )
+                    })
                 })
                 .collect::<Result<_, _>>()?;
             let input = match node.cone {
@@ -98,9 +104,13 @@ impl ProjectBuilder {
                     ConeInput::Source(source)
                 }
                 PreparedConeV1::Prebuilt { artifact, summary } => {
-                    let path = artifact
-                        .to_path_buf()
-                        .map_err(|error| LoadError::new(&builder.manifest, error))?;
+                    let path = artifact.to_path_buf().map_err(|error| {
+                        LoadError::new(
+                            scoop_source::DiagnosticCode::E2502,
+                            &builder.manifest,
+                            error,
+                        )
+                    })?;
                     ConeInput::Artifact(loader.artifacts.read(
                         &path,
                         summary.cone().coordinate(),

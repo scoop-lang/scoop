@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1521",
     "message": "explicit enum values require a primitive integer parent",
     "notes": [],
     "origin": {

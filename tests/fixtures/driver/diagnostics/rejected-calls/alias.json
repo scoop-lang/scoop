@@ -1,7 +1,7 @@
 [
   {
     "severity": "error",
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0510",
     "message": "`ForeignCallback` values can only be produced by `foreignCallback`",
     "origin": {
       "kind": "source",

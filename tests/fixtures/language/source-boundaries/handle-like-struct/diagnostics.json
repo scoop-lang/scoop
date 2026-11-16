@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: consumeToken.parameter1: ordinary struct `ResourceToken` has no stable C layout",
     "notes": [],
     "origin": {

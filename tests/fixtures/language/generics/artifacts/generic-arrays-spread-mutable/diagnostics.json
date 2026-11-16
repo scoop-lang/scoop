@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `pack`: MutableArray<Int> is not equal to Array<T>",
     "notes": [],
     "origin": {

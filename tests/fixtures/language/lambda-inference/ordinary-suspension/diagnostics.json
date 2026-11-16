@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `scope` in extension candidate layer:\n  - fun T.scope<T : Carrier, R>(block: (T) -> R): R — argument for `block`: suspend function `read` cannot be called from non-suspend function `$lambda.0`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `scope` in extension candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun T.scope<T : Carrier, R>(block: (T) -> R): R",
+        "notes": [
+          {
+            "code": "E1103",
+            "kind": "cause",
+            "message": "argument for `block`: suspend function `read` cannot be called from non-suspend function `$$lambda.0`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 379,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 373
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 189,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 127
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 379,
@@ -13,7 +41,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1103",
     "message": "suspend function `scope` cannot be called from non-suspend function `main`",
     "notes": [],
     "origin": {

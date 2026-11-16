@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0905",
     "message": "intrinsic type `Char` cannot be destructured",
     "notes": [],
     "origin": {

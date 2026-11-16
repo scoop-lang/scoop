@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2401",
     "message": "${work}/artifacts/scoop/scoop.platform/0.1.0/cone.slib: archive global magic is not canonical",
     "notes": [],
     "origin": {

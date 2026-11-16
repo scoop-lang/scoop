@@ -1,4 +1,6 @@
 //! Enumerate and validate all entries before reading the selected regular files.
+use scoop_hir::CompileTimeInputError as InputError;
+use scoop_source::DiagnosticCode as C;
 
 use super::{
     files::Sources,
@@ -45,7 +47,7 @@ pub(super) fn read(
                 let resolved = entry
                     .resolved
                     .to_path_buf()
-                    .map_err(|error| Error::Input(error.to_string()))?;
+                    .map_err(|error| Error::Input(InputError::new(C::ICE2501, error)))?;
                 let bytes: Arc<[u8]> = fs::read(&resolved)
                     .map_err(|error| Error::Input(io_error(&locator.join(&entry.path), error)))?
                     .into();
@@ -83,16 +85,19 @@ fn inspect(
     locator: &Path,
     filter: &CompileTimeDirectoryFilter,
     patterns: &Patterns,
-) -> Result<DirectoryInputV1, String> {
+) -> Result<DirectoryInputV1, InputError> {
     let scope = Scope::new(root)?;
     let resolved = scope.resolve(locator)?;
     if !fs::metadata(&resolved)
         .map_err(|error| io_error(locator, error))?
         .is_dir()
     {
-        return Err(format!(
-            "includeDir path `{}` must name a directory",
-            locator.display()
+        return Err(InputError::new(
+            C::E1605,
+            format!(
+                "includeDir path `{}` must name a directory",
+                locator.display()
+            ),
         ));
     }
     let mut walk = Walk {
@@ -122,11 +127,16 @@ struct Walk<'a> {
 }
 
 impl Walk<'_> {
-    fn directory(&mut self, locator: &Path, resolved: &Path, prefix: &str) -> Result<(), String> {
+    fn directory(
+        &mut self,
+        locator: &Path,
+        resolved: &Path,
+        prefix: &str,
+    ) -> Result<(), InputError> {
         if !self.ancestors.insert(resolved.to_owned()) {
-            return Err(format!(
-                "includeDir directory cycle at `{}`",
-                locator.display()
+            return Err(InputError::new(
+                C::E1605,
+                format!("includeDir directory cycle at `{}`", locator.display()),
             ));
         }
         let mut entries = fs::read_dir(resolved)
@@ -138,9 +148,12 @@ impl Walk<'_> {
             let name = entry.file_name();
             let path = locator.join(&name);
             let name = name.to_str().ok_or_else(|| {
-                format!(
-                    "includeDir entry `{}` must have a valid UTF-8 path",
-                    path.display()
+                InputError::new(
+                    C::E1605,
+                    format!(
+                        "includeDir entry `{}` must have a valid UTF-8 path",
+                        path.display()
+                    ),
                 )
             })?;
             let relative = if prefix.is_empty() {
@@ -148,14 +161,18 @@ impl Walk<'_> {
             } else {
                 format!("{prefix}/{name}")
             };
-            self.entry(&path, &relative)
-                .map_err(|message| format!("includeDir entry `{relative}`: {message}"))?;
+            self.entry(&path, &relative).map_err(|message| {
+                InputError::new(
+                    message.code,
+                    format!("includeDir entry `{relative}`: {message}"),
+                )
+            })?;
         }
         self.ancestors.remove(resolved);
         Ok(())
     }
 
-    fn entry(&mut self, locator: &Path, relative: &str) -> Result<(), String> {
+    fn entry(&mut self, locator: &Path, relative: &str) -> Result<(), InputError> {
         let resolved = self.scope.resolve(locator)?;
         let metadata = fs::metadata(&resolved).map_err(|error| io_error(locator, error))?;
         let state = if metadata.is_dir() {
@@ -163,9 +180,12 @@ impl Walk<'_> {
             DirectoryEntryStateV1::Directory
         } else if self.patterns.matches(relative) {
             if !metadata.is_file() {
-                return Err(format!(
-                    "includeDir path `{}` must name a regular file",
-                    locator.display()
+                return Err(InputError::new(
+                    C::E1605,
+                    format!(
+                        "includeDir path `{}` must name a regular file",
+                        locator.display()
+                    ),
                 ));
             }
             DirectoryEntryStateV1::File {

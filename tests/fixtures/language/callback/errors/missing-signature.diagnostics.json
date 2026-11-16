@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1216",
     "message": "`foreignCallback` requires one explicit function type",
     "notes": [],
     "origin": {

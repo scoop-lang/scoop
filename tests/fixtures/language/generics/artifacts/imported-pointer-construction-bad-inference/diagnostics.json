@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "cannot infer `Ptr` pointee type; supply one explicit type argument",
-    "notes": [],
+    "code": "E0607",
+    "message": "cannot infer `Ptr` pointee type",
+    "notes": [
+      {
+        "code": "H0502",
+        "kind": "help",
+        "message": "supply one explicit type argument",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "a613cc97b73a94ca2576c234615faf545a9315b5a6bcb3d6842ff42e93d1e263",
       "end": 79,

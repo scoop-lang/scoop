@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1305",
     "message": "annotation arrays require the actual one-dimensional core Array type",
     "notes": [],
     "origin": {

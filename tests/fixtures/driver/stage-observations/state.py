@@ -8,8 +8,8 @@ mode, root, output, saved = sys.argv[1:]
 root = Path(root)
 paths = [Path(output)]
 for pattern in (
-    "compile-v3/**/artifact.slib",
-    "compile-v3/**/record.cbor",
+    "compile-v4/**/artifact.slib",
+    "compile-v4/**/record.cbor",
     "link-archives-v2/members-*/part-*",
     "final-products-v2/*.json",
     "final-products-v2/program-*/program*",

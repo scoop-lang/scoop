@@ -17,6 +17,7 @@ fn input_host(root: &Path) -> CompileTimeInputs {
 
 fn read(host: &CompileTimeInputs, path: &str) -> Result<Arc<[u8]>, String> {
     host.file(&identity(), &CompileTimePath::parse(path).unwrap())
+        .map_err(|error| error.to_string())
 }
 
 fn setup() -> tempfile::TempDir {

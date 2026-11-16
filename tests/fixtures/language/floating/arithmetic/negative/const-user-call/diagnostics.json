@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions",
     "notes": [],
     "origin": {

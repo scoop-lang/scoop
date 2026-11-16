@@ -27,6 +27,7 @@ impl Parser {
             if visibility_token(&self.peek().kind).is_some() {
                 if !matches!(constructor_visibility, VisibilitySyntax::Omitted) {
                     return Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0303,
                         self.peek().span,
                         "a constructor may have only one visibility modifier",
                     ));
@@ -58,12 +59,14 @@ impl Parser {
             && explicit_constructor.is_none()
         {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "primary constructor annotations or visibility require the `constructor` keyword",
             ));
         }
         if explicit_constructor.is_some() && !matches!(self.peek().kind, TokenKind::LParen) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "an explicit primary constructor requires a parameter list",
             ));
@@ -112,6 +115,7 @@ impl Parser {
         let keyword = self.bump();
         if !matches!(self.peek().kind, TokenKind::LBrace) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "`init` must be followed by a block",
             ));
@@ -145,6 +149,7 @@ impl Parser {
         self.record_syntax_name("constructor", keyword.span);
         if matches!(self.peek().kind, TokenKind::Less) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0310,
                 self.peek().span,
                 "secondary constructors cannot declare type parameters",
             ));
@@ -158,6 +163,7 @@ impl Parser {
         };
         if !matches!(self.peek().kind, TokenKind::LBrace) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "secondary constructors require a block body",
             ));
@@ -190,6 +196,7 @@ impl Parser {
             TokenKind::Ident(text) if text == "super" => false,
             _ => {
                 return Err(Diagnostic::at(
+                    scoop_source::DiagnosticCode::E1001,
                     target.span,
                     "constructor delegation target must be `this` or `super`",
                 ));
@@ -198,6 +205,7 @@ impl Parser {
         self.bump();
         if !matches!(self.peek().kind, TokenKind::LParen) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0201,
                 self.peek().span,
                 "constructor delegation requires an argument list",
             ));

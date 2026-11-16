@@ -43,3 +43,21 @@ impl std::error::Error for LayoutProductionError {
         })
     }
 }
+
+impl LayoutProductionError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::HirTypes(_) => C::ICE0501,
+            Self::MirExports(_) | Self::MirUses(_) | Self::MirSection(_) => C::ICE0701,
+            Self::Shape(_)
+            | Self::Selection(_)
+            | Self::Initialization(_)
+            | Self::Registration(_)
+            | Self::LayoutExports(_)
+            | Self::LayoutUses(_) => C::ICE1201,
+            Self::Codegen(e) => e.code(),
+            Self::Artifact(e) => e.code(),
+        }
+    }
+}

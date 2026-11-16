@@ -53,6 +53,7 @@ impl Lexer<'_> {
                 self.pos += 1;
             }
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0106,
                 self.span_from(start),
                 "invalid floating literal suffix",
             ));
@@ -79,6 +80,7 @@ impl Lexer<'_> {
                             self.pos += 1;
                         }
                         return Err(Diagnostic::at(
+                            scoop_source::DiagnosticCode::E0104,
                             self.span_from(start),
                             "floating separators must appear between two decimal digits",
                         ));
@@ -91,6 +93,7 @@ impl Lexer<'_> {
             Ok(())
         } else {
             Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0105,
                 self.span_from(start),
                 "floating fraction or exponent must contain a decimal digit",
             ))

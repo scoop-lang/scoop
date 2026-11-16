@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "unsafe function `bad` may only be called from an unsafe context",
     "notes": [],
     "origin": {

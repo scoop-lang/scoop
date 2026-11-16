@@ -105,47 +105,61 @@ fn execute(cli: Cli) -> PmResult<()> {
 }
 
 fn prepare() -> PmResult<()> {
-    let request = serde_json::from_reader(std::io::stdin().lock())
-        .map_err(|error| PmError::new(format!("invalid package preparation request: {error}")))?;
+    let request = serde_json::from_reader(std::io::stdin().lock()).map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2502,
+            format!("invalid package preparation request: {error}"),
+        )
+    })?;
     let prepared = scoop_pm::prepare::prepare(request)?;
-    let response =
-        serde_json::to_vec(&prepared).map_err(|error| PmError::new(error.to_string()))?;
+    let response = serde_json::to_vec(&prepared)
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string()))?;
     let mut stdout = std::io::stdout().lock();
     stdout
         .write_all(&response)
         .and_then(|()| stdout.flush())
         .map_err(|error| {
-            PmError::new(format!(
-                "cannot write package preparation response: {error}"
-            ))
+            PmError::new(
+                scoop_source::DiagnosticCode::E2201,
+                format!("cannot write package preparation response: {error}"),
+            )
         })
 }
 
 fn create_workspace(directory: &std::path::Path) -> PmResult<()> {
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let directory = cwd.join(directory);
     if directory
         .try_exists()
-        .map_err(|error| PmError::new(error.to_string()))?
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?
     {
-        return Err(PmError::new(format!(
-            "refusing to overwrite {}",
-            directory.display()
-        )));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2020,
+            format!("refusing to overwrite {}", directory.display()),
+        ));
     }
     if let Some(parent) = directory.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| PmError::new(error.to_string()))?;
+        std::fs::create_dir_all(parent).map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string())
+        })?;
     }
-    std::fs::create_dir(&directory).map_err(|error| PmError::new(error.to_string()))?;
+    std::fs::create_dir(&directory)
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let manifest = directory.join("Cone.toml");
-    std::fs::write(&manifest, "schema = 1\n\n[workspace]\nmembers = []\n")
-        .map_err(|error| PmError::new(format!("{}: {error}", manifest.display())))?;
+    std::fs::write(&manifest, "schema = 1\n\n[workspace]\nmembers = []\n").map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2201,
+            format!("{}: {error}", manifest.display()),
+        )
+    })?;
     println!("Created workspace {}", directory.display());
     Ok(())
 }
 
 fn members(args: LocalMembersArgs) -> PmResult<()> {
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let overlays = metadata::read_overlays(args.overlays_stdin)?;
     let args = args.members;
     let workspace = Workspace::discover_with_overlays(&cwd, args.input.as_deref(), overlays)?;
@@ -163,7 +177,9 @@ fn members(args: LocalMembersArgs) -> PmResult<()> {
         .collect();
     if args.json {
         let host_path = |path: &std::path::Path| {
-            HostPathCarrier::from_path(path).map_err(|error| PmError::new(error.to_string()))
+            HostPathCarrier::from_path(path).map_err(|error| {
+                PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
+            })
         };
         let members = workspace
             .members
@@ -190,8 +206,10 @@ fn members(args: LocalMembersArgs) -> PmResult<()> {
         };
         println!(
             "{}",
-            serde_json::to_string_pretty(&result)
-                .map_err(|error| PmError::new(error.to_string()))?
+            serde_json::to_string_pretty(&result).map_err(|error| PmError::new(
+                scoop_source::DiagnosticCode::ICE2501,
+                error.to_string()
+            ))?
         );
     } else {
         for member in workspace.members.values() {

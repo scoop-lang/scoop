@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_CLI_CONFIG",
+    "code": "E2002",
     "message": "invalid single-file input ${work}/pipe.scoop: resolved input is not a regular file",
     "notes": [],
     "origin": {

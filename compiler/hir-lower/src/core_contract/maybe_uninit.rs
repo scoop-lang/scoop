@@ -12,6 +12,7 @@ impl Lowerer {
             if !self.maybe_uninit_signature_matches(function, kind) {
                 self.current_file = self.function_files[&function];
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     self.functions[function].span,
                     format!("malformed core MaybeUninit intrinsic `{}`", kind.name()),
                 );

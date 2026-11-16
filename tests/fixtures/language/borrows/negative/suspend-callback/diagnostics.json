@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `withDataPointer`: suspend (Ptr<Int>, Long) -> Long is not a subtype of (Ptr<T>, Long) -> R",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function `withDataPointer`: Array<Int> is not a subtype of MutableArray<T>",
     "notes": [],
     "origin": {

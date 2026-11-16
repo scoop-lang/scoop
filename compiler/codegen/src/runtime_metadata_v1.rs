@@ -570,7 +570,7 @@ fn validate_struct_layout(
         return Err(CodegenError::internal(format!(
             "LLVM runtime metadata type `{}` has size/alignment {actual_size}/{actual_alignment}, expected {}/{}",
             expected.name, expected.size, expected.alignment,
-        )));
+        )).with_code(scoop_source::DiagnosticCode::ICE2302));
     }
     if actual.count_fields() != expected.fields.len() as u32 {
         return Err(CodegenError::internal(format!(
@@ -578,7 +578,8 @@ fn validate_struct_layout(
             expected.name,
             actual.count_fields(),
             expected.fields.len(),
-        )));
+        ))
+        .with_code(scoop_source::DiagnosticCode::ICE2302));
     }
     for (index, field) in expected.fields.iter().enumerate() {
         let actual_offset = target_data
@@ -588,12 +589,14 @@ fn validate_struct_layout(
                     "LLVM runtime metadata type `{}` has no field `{}` at index {index}",
                     expected.name, field.name,
                 ))
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
             })?;
         if actual_offset != field.offset {
             return Err(CodegenError::internal(format!(
                 "LLVM runtime metadata field `{}.{}` has offset {actual_offset}, expected {}",
                 expected.name, field.name, field.offset,
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE2302));
         }
     }
     Ok(())

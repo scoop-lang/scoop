@@ -17,6 +17,7 @@ impl Lowerer {
         };
         if !matches!(self.types[ty], Type::Interface(_)) {
             self.error(
+                scoop_source::DiagnosticCode::E0613,
                 reference.span,
                 format!(
                     "negative bound of type parameter `{}` must be an interface, found `{}`",
@@ -29,6 +30,7 @@ impl Lowerer {
         let excluded = subject_exclusions_mut(&mut params[index], companion);
         if let Some(previous) = excluded.iter().find(|bound| self.types_equal(bound.ty, ty)) {
             let mut diagnostic = ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E0615,
                 self.current_file,
                 span,
                 format!(
@@ -38,6 +40,7 @@ impl Lowerer {
                 ),
             );
             diagnostic.notes.push(ast::DiagnosticNote::at(
+                scoop_source::DiagnosticCode::N0001,
                 self.current_file,
                 previous.span,
                 "previous negative bound is here",
@@ -78,6 +81,7 @@ impl Lowerer {
             for positive in bounds.in_source_order() {
                 if self.is_subtype(positive.ty(), excluded.ty) {
                     let mut diagnostic = ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E0614,
                         self.current_file,
                         excluded.span,
                         format!(
@@ -88,6 +92,7 @@ impl Lowerer {
                         ),
                     );
                     diagnostic.notes.push(ast::DiagnosticNote::at(
+                        scoop_source::DiagnosticCode::N0001,
                         self.current_file,
                         positive.span(),
                         "conflicting upper bound is here",

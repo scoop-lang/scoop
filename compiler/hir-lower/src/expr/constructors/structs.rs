@@ -23,6 +23,7 @@ impl Lowerer {
             hir::StructRepresentation::Intrinsic(_)
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 span,
                 format!("intrinsic struct `{name}` has no source constructor"),
             );

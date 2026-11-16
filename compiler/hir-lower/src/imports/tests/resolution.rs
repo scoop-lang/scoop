@@ -93,13 +93,13 @@ fn exact_private_failure_has_a_declaration_note_and_commits_nothing() {
     );
     assert_eq!(error.notes.len(), 1);
     assert_eq!(
-        (match &error.notes[0].source {
+        (match &error.notes[0].source().unwrap() {
             scoop_ast::LocalDiagnosticSource::Index(index) => *index,
             source => panic!("expected local source, got {source:?}"),
         }),
         1
     );
-    assert_eq!(error.notes[0].span, ast::Span::new(70, 73));
+    assert_eq!(error.notes[0].span().unwrap(), ast::Span::new(70, 73));
     lowerer.current_file = 1;
     lowerer.diagnostics.clear();
     let local = surface.resolve_file(&mut lowerer, &syntax);

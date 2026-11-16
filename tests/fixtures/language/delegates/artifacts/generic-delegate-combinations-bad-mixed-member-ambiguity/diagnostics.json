@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `setValue` is ambiguous in member layer:\n  - fun Ambiguous<T>.setValue(thisRef: Any, value: Int): Unit — applicable; tied by MSC\n  - AmbiguousBase<T>.setValue(thisRef: Receiver<T>, value: Any): Unit — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `setValue` is ambiguous in member layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun Ambiguous<T>.setValue(thisRef: Any, value: Int): Unit",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "AmbiguousBase<T>.setValue(thisRef: Receiver<T>, value: Any): Unit",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "3a5cee79904667926bd2bc87d168552561c5cc466830b222acc43fe376410d08",
       "end": 290,

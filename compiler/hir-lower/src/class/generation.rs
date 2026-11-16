@@ -41,6 +41,7 @@ impl Lowerer {
         );
 
         let mut diagnostic = ast::Diagnostic::at(
+            scoop_source::DiagnosticCode::E1008,
             span,
             format!(
                 "{host} does not implement interface method `{}.{}`",

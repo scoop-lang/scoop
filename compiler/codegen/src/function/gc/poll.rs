@@ -17,7 +17,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             return Err(CodegenError::internal(format!(
                 "managed poll @{} has a non-safepoint target",
                 self.function.symbol()
-            )));
+            ))
+            .with_code(scoop_source::DiagnosticCode::ICE1101));
         }
         let context = self.context;
         let builder = self.builder;
@@ -198,4 +199,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 
 fn poll_error(error: impl std::fmt::Display) -> CodegenError {
     CodegenError::internal(format!("emit conditional managed poll: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

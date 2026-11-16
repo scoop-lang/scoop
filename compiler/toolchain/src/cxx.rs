@@ -41,7 +41,10 @@ impl ValidatedCxxToolchain {
         selected: Option<&Path>,
     ) -> Result<Discovery, ToolchainError> {
         if c.native_environment() == scoop_target_data::NativeEnvironment::LinuxMusl {
-            return Err(error("native.cxx = true is not supported for Linux musl"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2301,
+                "native.cxx = true is not supported for Linux musl",
+            ));
         }
         if crate::windows_native::is_windows_target(c) {
             let default = crate::windows_native::paired_driver(
@@ -67,14 +70,16 @@ impl ValidatedCxxToolchain {
             .args(["-dM", "-E", "-x", "c++", "-"])
             .stdin(Stdio::null()))?;
         let family = NativeCompilerFamily::from_gnu_macros(
-            std::str::from_utf8(&compiler_macros.stdout).map_err(error)?,
+            std::str::from_utf8(&compiler_macros.stdout)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?,
         )?;
         let macros = run(c
             .driver_command_for(&driver, family)
             .args(["-dM", "-E", "-x", "c++", "-include", "string", "-"])
             .stdin(Stdio::null()))?;
         Ok(Discovery {
-            driver: scoop_protocol::HostPathCarrier::from_path(&driver).map_err(error)?,
+            driver: scoop_protocol::HostPathCarrier::from_path(&driver)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2501, cause))?,
             configuration: *sha256(&macros.stdout).as_array(),
             kind: NativeDriverKind::Gnu,
             family,
@@ -100,13 +105,18 @@ impl ValidatedCxxToolchain {
 }
 
 fn run(command: &mut Command) -> Result<std::process::Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(String::from_utf8_lossy(&output.stderr).trim()));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            String::from_utf8_lossy(&output.stderr).trim(),
+        ));
     }
     Ok(output)
 }
 
-fn error(value: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("native C++ toolchain: {value}"))
+fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("native C++ toolchain: {value}"))
 }

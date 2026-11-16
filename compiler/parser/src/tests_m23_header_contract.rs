@@ -143,6 +143,7 @@ fn duplicate_package_priority_survives_imports_and_declaration_recovery() {
         assert_eq!(
             errors[index].notes,
             [scoop_ast::DiagnosticNote::at(
+                scoop_source::DiagnosticCode::N0001,
                 0,
                 Span::new(0, 7),
                 "first `package` header is here",
@@ -176,12 +177,12 @@ fn duplicate_package_note_tracks_the_first_valid_header_and_multi_source_index()
     let first_valid = span_of(text, "package valid").start;
     assert_eq!(
         duplicate.notes,
-        [scoop_source::SourceDiagnosticNote {
-            source: second.clone(),
-            span: Span::new(first_valid, first_valid + 7),
-            message: "first `package` header is here".into(),
-            import_path: Vec::new(),
-        }]
+        [scoop_source::SourceDiagnosticNote::located(
+            scoop_source::DiagnosticCode::N0001,
+            second.clone(),
+            Span::new(first_valid, first_valid + 7),
+            "first `package` header is here"
+        )]
     );
     assert_eq!(errors[1].identity(), &second);
     let context = ParserDiagnosticContext::new([

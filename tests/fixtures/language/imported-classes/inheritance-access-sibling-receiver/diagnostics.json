@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0411",
     "message": "protected method `secret` cannot be accessed through receiver of static type `Sibling`; receiver must be `Derived` or one of its subclasses",
     "notes": [],
     "origin": {

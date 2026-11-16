@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0103",
     "message": "escaped identifier must not be empty",
     "notes": [],
     "origin": {

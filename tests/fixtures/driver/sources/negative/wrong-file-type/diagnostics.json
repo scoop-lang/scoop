@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2002",
     "message": "cannot snapshot manifest sources: source discovery failed at ${work}/cone/plain.txt: selected path must be a directory or a regular .scoop file",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0702",
     "message": "unknown annotation parameter `unknown`",
     "notes": [],
     "origin": {

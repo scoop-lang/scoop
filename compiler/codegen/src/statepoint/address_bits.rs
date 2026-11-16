@@ -125,4 +125,5 @@ pub(super) fn lower(module: &LlvmModule<'_>) -> Result<(), CodegenError> {
 
 fn error(error: inkwell::builder::BuilderError) -> CodegenError {
     CodegenError::internal(format!("managed address conversion: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

@@ -51,6 +51,7 @@ impl Lowerer {
             && owner.is_some_and(|host| self.companion_by_host.contains_key(&host))
         {
             self.error(
+                scoop_source::DiagnosticCode::E1021,
                 source.span(),
                 "a nominal declaration may contain at most one companion object".to_string(),
             );
@@ -70,16 +71,25 @@ impl Lowerer {
             )
             .map(|kind| (*lookup_name, kind))
         }) {
-            let message = if matches!(source, ObjectSource::Companion(_)) {
-                format!(
-                    "companion object name `{conflict}` conflicts with {kind} in the same owner"
+            let (code, message) = if matches!(source, ObjectSource::Companion(_)) {
+                (
+                    scoop_source::DiagnosticCode::E1021,
+                    format!(
+                        "companion object name `{conflict}` conflicts with {kind} in the same owner"
+                    ),
                 )
             } else if kind == "an object" {
-                format!("duplicate object `{name}`")
+                (
+                    scoop_source::DiagnosticCode::E0301,
+                    format!("duplicate object `{name}`"),
+                )
             } else {
-                format!("duplicate type `{name}` (already declared as {kind})")
+                (
+                    scoop_source::DiagnosticCode::E0301,
+                    format!("duplicate type `{name}` (already declared as {kind})"),
+                )
             };
-            self.error(name_span, message);
+            self.error(code, name_span, message);
             return None;
         }
 
@@ -140,6 +150,7 @@ impl Lowerer {
         let backing_identity = hir::HirNominalIdentity::from_generated_key(backing_key)
             .map_err(|error| {
                 let mut diagnostic = Diagnostic::at(
+                    scoop_source::DiagnosticCode::ICE0401,
                     source.span(),
                     format!("cannot derive persistent nominal identity: {error}"),
                 );

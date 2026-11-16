@@ -12,6 +12,7 @@ impl Lowerer {
         // `UnitLiteral`); reject it here so every AST shape is handled.
         if elements.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0204,
                 span,
                 "tuple literal must contain at least one element".to_string(),
             );
@@ -83,12 +84,13 @@ impl Lowerer {
                 if !self.is_subtype(element.ty, element_ty) || would_auto_box {
                     let expected = self.type_name(element_ty);
                     let found = self.type_name(element.ty);
-                    let message = self.with_nominal_invariance_detail(
+                    self.error_with_invariance(
+                        scoop_source::DiagnosticCode::E0501,
+                        element.span,
                         format!("array literal element must be of type {expected}, found {found}"),
                         element.ty,
                         element_ty,
                     );
-                    self.error(element.span, message);
                     return None;
                 }
                 lowered.push(self.adapt_to(element, element_ty));
@@ -105,6 +107,7 @@ impl Lowerer {
         }
         if elements.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0607,
                 span,
                 "cannot infer the element type of an empty array literal".to_string(),
             );
@@ -204,6 +207,7 @@ impl Lowerer {
                 let first = self.type_name(first_ty);
                 let found = self.type_name(element.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     element.span,
                     format!(
                         "array literal elements must have the same type, found {first} and {found}"

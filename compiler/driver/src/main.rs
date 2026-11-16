@@ -110,9 +110,19 @@ enum Emit {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(error) => {
+            if error.use_stderr() {
+                eprint!("error[E2001]: {error}");
+                return ExitCode::from(2);
+            }
+            print!("{error}");
+            return ExitCode::SUCCESS;
+        }
+    };
     if let Err(error) = scoop_process::initialize() {
-        eprintln!("cannot initialize process signal handling: {error}");
+        eprintln!("error[E2204]: cannot initialize process signal handling: {error}");
         return ExitCode::FAILURE;
     }
     let result = match cli.command {
@@ -172,20 +182,20 @@ fn write_machine_capability() -> ExitCode {
     let capability = match scoop_toolchain::paired_compiler_machine_capability() {
         Ok(capability) => capability,
         Err(error) => {
-            eprintln!("error: cannot construct scoopc machine capability: {error}");
+            eprintln!("error[ICE2501]: cannot construct scoopc machine capability: {error}");
             return ExitCode::FAILURE;
         }
     };
     let frame = match scoop_protocol::encode_machine_capability_frame(&capability) {
         Ok(frame) => frame,
         Err(error) => {
-            eprintln!("error: cannot encode scoopc machine capability: {error}");
+            eprintln!("error[ICE2501]: cannot encode scoopc machine capability: {error}");
             return ExitCode::FAILURE;
         }
     };
     let mut stdout = io::stdout().lock();
     if let Err(error) = stdout.write_all(&frame).and_then(|()| stdout.flush()) {
-        eprintln!("error: cannot write scoopc machine capability: {error}");
+        eprintln!("error[E2204]: cannot write scoopc machine capability: {error}");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
@@ -225,7 +235,8 @@ fn build(
     ) {
         Ok(request) => request.with_jobs(jobs),
         Err(error) => {
-            eprintln!("error: {error}");
+            eprintln!("error[{}]: {error}", error.code());
+            print_notes(&error.notes());
             return ExitCode::FAILURE;
         }
     };
@@ -243,9 +254,28 @@ fn build(
             if let Some(warnings) = error.warnings().filter(|warnings| !warnings.is_empty()) {
                 eprintln!("{}", warnings.render_human());
             }
-            eprintln!("error: {error}");
+            eprintln!("error[{}]: {error}", error.code());
+            print_notes(&error.notes());
             ExitCode::FAILURE
         }
+    }
+}
+
+fn print_notes(notes: &[scoop_source::SourceDiagnosticNote]) {
+    fn print(note: &scoop_source::SourceDiagnosticNote, depth: usize) {
+        eprintln!(
+            "{}{}[{}]: {}",
+            "  ".repeat(depth),
+            note.code.role().as_str(),
+            note.code,
+            note.message
+        );
+        for child in &note.notes {
+            print(child, depth + 1);
+        }
+    }
+    for note in notes {
+        print(note, 1);
     }
 }
 

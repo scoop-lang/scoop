@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_LOCATOR_NOT_FOUND",
+    "code": "E2101",
     "message": "sysroot artifact scoop:scoop.std:0.1.0 for ${target} was not found at ${work}/core-only/lib/${target}/scoop.std.slib",
     "notes": [],
     "origin": {

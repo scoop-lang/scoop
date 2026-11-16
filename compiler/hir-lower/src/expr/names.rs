@@ -150,11 +150,16 @@ impl Lowerer {
             if let Some(target) = self.contextual_variant_ref(&name.text, expected) {
                 let enumeration = target.enumeration();
                 if self.resolved_variant_style(target) != VariantStyle::Unit {
-                    self.error(
+                    self.error_with_note(
+                        scoop_source::DiagnosticCode::E0732,
                         name.span,
                         format!(
-                            "variant `{}` of `{}` takes arguments; use `{}(...)` to construct it",
-                            name.text, self.enums[enumeration].name, name.text
+                            "variant `{}` of `{}` takes arguments",
+                            name.text, self.enums[enumeration].name
+                        ),
+                        scoop_ast::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::H0704,
+                            format!("use `{}(...)` to construct it", name.text),
                         ),
                     );
                     return None;
@@ -163,6 +168,7 @@ impl Lowerer {
             }
             if let Some(enumeration) = self.exact_expected_enum(expected) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0402,
                     name.span,
                     format!(
                         "enum `{}` has no variant `{}`",
@@ -183,11 +189,19 @@ impl Lowerer {
                 || self.has_top_level_function_candidate(&name.text)
                 || self.has_top_level_extension_candidate(&name.text)
             {
-                self.error(
+                self.error_with_note(
+                    scoop_source::DiagnosticCode::E0405,
                     name.span,
                     format!(
-                        "function `{}` is not a value; use `::{}` to create a callable reference",
-                        name.text, name.text
+                        "function `{__diagnostic_arg0}` is not a value",
+                        __diagnostic_arg0 = name.text
+                    ),
+                    scoop_source::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H0703,
+                        format!(
+                            "use `::{__diagnostic_arg1}` to create a callable reference",
+                            __diagnostic_arg1 = name.text
+                        ),
                     ),
                 );
                 return None;
@@ -195,7 +209,7 @@ impl Lowerer {
             if let Some(crate::Owner::Object(object)) = self.current_owner
                 && self.companion_host_declares_property(object, &name.text)
             {
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E0716,
                     name.span,
                     format!(
                         "companion object cannot access host instance property `{}` without a host instance",
@@ -209,6 +223,7 @@ impl Lowerer {
             {
                 self.resolve_type_alias_reference(name, false)?;
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     name.span,
                     format!("typealias `{}` is a type, not a value", name.text),
                 );
@@ -216,10 +231,7 @@ impl Lowerer {
             }
             self.missing_name_error(
                 name,
-                format!(
-                    "unknown variable `{}`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-                    name.text
-                ),
+                format!("unknown variable `{}`", name.text),
                 crate::imports::MissingNameUse::Value,
             );
             return None;
@@ -262,13 +274,17 @@ impl Lowerer {
             ValueTarget::Object(object) => self.lower_singleton_value(object, name.span),
             ValueTarget::Variant(target) => {
                 if self.resolved_variant_style(target) != VariantStyle::Unit {
-                    self.error(
+                    self.error_with_note(
+                        scoop_source::DiagnosticCode::E0732,
                         name.span,
                         format!(
-                            "variant `{}` of `{}` takes arguments; use `{}(...)` to construct it",
+                            "variant `{}` of `{}` takes arguments",
                             name.text,
-                            self.enums[target.enumeration()].name,
-                            name.text
+                            self.enums[target.enumeration()].name
+                        ),
+                        scoop_ast::DiagnosticNote::without_location(
+                            scoop_source::DiagnosticCode::H0704,
+                            format!("use `{}(...)` to construct it", name.text),
                         ),
                     );
                     return None;
@@ -319,6 +335,7 @@ impl Lowerer {
             .collect::<Vec<_>>();
         targets.sort();
         self.error(
+            scoop_source::DiagnosticCode::E0404,
             name.span,
             format!(
                 "ambiguous core-prelude variant `{}`: {}",
@@ -346,6 +363,7 @@ impl Lowerer {
         let parameters = self.classes[declaration.backing_class].type_params.len();
         if arguments.len() != parameters {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 span,
                 "generic companion access requires complete host type arguments".into(),
             );
@@ -357,6 +375,7 @@ impl Lowerer {
                 hir::ObjectKind::Companion(_) => "companion object",
             };
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!("{kind} `{}` is not accessible here", declaration.name),
             );

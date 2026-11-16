@@ -1,16 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "function `increment` is not a value; use `::increment` to create a callable reference",
+    "code": "E0405",
+    "message": "function `increment` is not a value",
     "notes": [
       {
+        "code": "N0002",
+        "kind": "note",
         "message": "candidate declared here",
+        "notes": [],
         "origin": {
           "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
           "end": 13,
           "kind": "source",
           "path": "main.scoop",
           "start": 4
+        }
+      },
+      {
+        "code": "H0703",
+        "kind": "help",
+        "message": "use `::increment` to create a callable reference",
+        "notes": [],
+        "origin": {
+          "kind": "none"
         }
       }
     ],

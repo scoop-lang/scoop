@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1213",
     "message": "`Ptr` pointee must be GC-free, found Managed",
     "notes": [],
     "origin": {

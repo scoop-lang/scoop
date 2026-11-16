@@ -99,6 +99,7 @@ impl Lowerer {
         }
         if let Some(enumeration) = self.exact_expected_enum(expected) {
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 call.callee.span,
                 format!(
                     "enum `{}` has no variant `{name}`",
@@ -121,6 +122,7 @@ impl Lowerer {
                     crate::namespace::TopLevelTypeTarget::Nominal(_)
                     | crate::namespace::TopLevelTypeTarget::Annotation(_),
                 ))) => self.error(
+                    scoop_source::DiagnosticCode::E0403,
                     call.callee.span,
                     format!("type `{name}` is not accessible from this source location"),
                 ),
@@ -135,13 +137,22 @@ impl Lowerer {
             }
         } else if self.has_top_level_function_candidate(name) && !found {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 call.callee.span,
                 format!("function `{name}` is not accessible here"),
             );
         } else {
             match self.resolve_type_name_path(std::slice::from_ref(&call.callee), &[]) {
-                Ok(Some(crate::types::ResolvedTypeName::Annotation(_))) => self.error(call.callee.span, format!("annotation class `{name}` has no runtime constructor")),
-                Ok(_) => self.missing_name_error(&call.callee, format!("unknown function `{name}`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"), crate::imports::MissingNameUse::Call),
+                Ok(Some(crate::types::ResolvedTypeName::Annotation(_))) => self.error(
+                    scoop_source::DiagnosticCode::E0510,
+                    call.callee.span,
+                    format!("annotation class `{name}` has no runtime constructor"),
+                ),
+                Ok(_) => self.missing_name_error(
+                    &call.callee,
+                    format!("unknown function `{name}`"),
+                    crate::imports::MissingNameUse::Call,
+                ),
                 Err(()) => return None,
             }
         }

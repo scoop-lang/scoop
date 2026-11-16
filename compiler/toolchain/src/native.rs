@@ -91,6 +91,6 @@ pub fn compile_native_source(
     command::compile(input, config, compiler, optimization, output)
 }
 
-fn error(error: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError(format!("native compilation: {error}"))
+fn error(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(code, format!("native compilation: {error}"))
 }

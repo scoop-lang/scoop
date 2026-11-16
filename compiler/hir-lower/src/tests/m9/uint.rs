@@ -117,8 +117,8 @@ fn uint_mixed_arithmetic_is_an_error() {
     let errors = lower_user_with_gc(file).expect_err("Int and UInt do not mix");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `plus` in member candidate layer:\n  - fun ULong.plus(other: ULong): ULong — argument for `other` (expected ULong): integer literal `1` is not representable as ULong; primitive integer operands require one exact type; convert this operand explicitly with `toULong()`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `plus` in member candidate layer; fun ULong.plus(other: ULong): ULong; argument for `other` (expected ULong): integer literal `1` is not representable as ULong; primitive integer operands require one exact type; convert this operand explicitly with `toULong()`"
     );
 }
 
@@ -134,8 +134,8 @@ fn uint_mixed_equality_is_an_error() {
     let errors = lower_user_with_gc(file).expect_err("UInt and Int compare unequal");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `equals` in member candidate layer:\n  - fun ULong.equals(other: ULong): Boolean — argument for `other` has type Int, which is not a subtype of ULong; primitive integer operands require one exact type; convert this operand explicitly with `toULong()`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `equals` in member candidate layer; fun ULong.equals(other: ULong): Boolean; argument for `other` has type Int, which is not a subtype of ULong; primitive integer operands require one exact type; convert this operand explicitly with `toULong()`"
     );
 }
 

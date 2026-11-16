@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1217",
     "message": "a native `FunPtr` address must reference an unbound top-level function",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "`FunPtr` signature is not C-FFI-safe: FunPtr<(Box) -> Int>.parameter1: ref type `Box` is managed",
     "notes": [],
     "origin": {

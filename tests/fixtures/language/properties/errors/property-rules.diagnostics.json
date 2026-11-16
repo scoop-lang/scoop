@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1507",
     "message": "value-type property `mutable` cannot be mutable",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1507",
     "message": "value-type property `stored` must be a computed val",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1509",
     "message": "property `optional` without an initializer must be a mutable Option property",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1509",
     "message": "property `missing` without an initializer must be a mutable Option property",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1510",
     "message": "computed property `noGetter` must provide a getter body",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1510",
     "message": "computed mutable property `noSetter` must provide a setter body",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1511",
     "message": "immutable property `immutable` cannot declare a setter",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0309",
     "message": "abstract property `initialized` must omit initializer, delegate, and accessor bodies",
     "notes": [],
     "origin": {
@@ -104,7 +104,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1014",
     "message": "property `fixed` cannot override final property declared by class `FinalBase`",
     "notes": [],
     "origin": {
@@ -117,7 +117,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "immutable property `value` cannot override a mutable property",
     "notes": [],
     "origin": {
@@ -130,7 +130,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1501",
     "message": "cannot assign to immutable property `computed`",
     "notes": [],
     "origin": {
@@ -143,7 +143,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1506",
     "message": "operator `plus` is applicable, but compound-assignment fallback is not writable",
     "notes": [],
     "origin": {
@@ -156,9 +156,19 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "unknown variable `field`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
-    "notes": [],
+    "code": "E0401",
+    "message": "unknown variable `field`",
+    "notes": [
+      {
+        "code": "H0402",
+        "kind": "help",
+        "message": "bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 527,
@@ -169,7 +179,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1514",
     "message": "`field` is only available in the direct property accessor body",
     "notes": [],
     "origin": {

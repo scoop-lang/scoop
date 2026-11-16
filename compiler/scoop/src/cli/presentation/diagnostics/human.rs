@@ -7,9 +7,11 @@ pub(super) fn render(
     contents: &mut SourceContents,
     color: bool,
 ) -> String {
+    let diagnostic_code = scoop_source::DiagnosticCode::parse(diagnostic.code())
+        .unwrap_or(scoop_source::DiagnosticCode::E2510);
     let mut output = match snippet(diagnostic.origin(), sources, contents) {
         Some((path, text, span)) => {
-            let mut source_diagnostic = Diagnostic::at(span, diagnostic.message());
+            let mut source_diagnostic = Diagnostic::at(diagnostic_code, span, diagnostic.message());
             source_diagnostic.severity = match diagnostic.severity() {
                 DiagnosticSeverityV1::Error => DiagnosticSeverity::Error,
                 DiagnosticSeverityV1::Warning => DiagnosticSeverity::Warning,
@@ -31,15 +33,31 @@ pub(super) fn render(
     };
     for note in diagnostic.notes() {
         output.push('\n');
-        output.push_str(&match snippet(note.origin(), sources, contents) {
-            Some((path, text, span)) => DiagnosticNote::at(0, span, note.message())
-                .render_with_color(&path, text.as_str(), color),
-            None => format!(
-                "{}note: {}",
-                location(note.origin(), sources, contents),
-                note.message()
-            ),
-        });
+        output.push_str(&render_note(note, sources, contents, color));
+    }
+    output
+}
+
+fn render_note(
+    note: &scoop_protocol::DiagnosticNoteV1,
+    sources: &[SelectedSource],
+    contents: &mut SourceContents,
+    color: bool,
+) -> String {
+    let mut output = match snippet(note.origin(), sources, contents) {
+        Some((path, text, span)) => DiagnosticNote::at(note.code(), 0, span, note.message())
+            .render_with_color(&path, text.as_str(), color),
+        None => format!(
+            "{}{}[{}]: {}",
+            location(note.origin(), sources, contents),
+            note.code().role().as_str(),
+            note.code(),
+            note.message()
+        ),
+    };
+    for child in note.notes() {
+        output.push('\n');
+        output.push_str(&render_note(child, sources, contents, color));
     }
     output
 }
@@ -119,10 +137,17 @@ mod tests {
         let related = Path::new("library.scoop");
         let diagnostic = StructuredDiagnosticV1::new(
             DiagnosticSeverityV1::Error,
-            "SCOOPC_HIR_ERROR".into(),
+            "E0501".into(),
             "value of type Int is not callable".into(),
             at(path, 11, 12),
-            vec![DiagnosticNoteV1::new("declared here".into(), at(related, 4, 5)).unwrap()],
+            vec![
+                DiagnosticNoteV1::new(
+                    scoop_source::DiagnosticCode::N0001,
+                    "declared here".into(),
+                    at(related, 4, 5),
+                )
+                .unwrap(),
+            ],
         )
         .unwrap();
         let mut contents = SourceContents::from([
@@ -134,7 +159,7 @@ mod tests {
         ]);
         let rendered = render(&diagnostic, &[], &mut contents, false);
         assert!(
-            rendered.starts_with("error[SCOOPC_HIR_ERROR]: value of type Int is not callable\n"),
+            rendered.starts_with("error[E0501]: value of type Int is not callable\n"),
             "{rendered}"
         );
         assert!(rendered.contains("--> main.scoop:1:12"), "{rendered}");
@@ -142,7 +167,10 @@ mod tests {
             rendered.contains("1 | val x = 1; x(100)\n  |            ^"),
             "{rendered}"
         );
-        assert!(rendered.contains("note: declared here\n"), "{rendered}");
+        assert!(
+            rendered.contains("note[N0001]: declared here\n"),
+            "{rendered}"
+        );
         assert!(rendered.contains("--> library.scoop:1:5"), "{rendered}");
         assert!(!rendered.contains('\u{1b}'), "{rendered:?}");
     }
@@ -152,7 +180,7 @@ mod tests {
         let path = Path::new("missing.scoop");
         let diagnostic = StructuredDiagnosticV1::new(
             DiagnosticSeverityV1::Warning,
-            "SCOOPC_COMPILER_WARNING".into(),
+            "VENDOR_WARNING".into(),
             "original warning".into(),
             at(path, 4, 9),
             vec![],
@@ -161,7 +189,7 @@ mod tests {
         let mut contents = SourceContents::from([(path.to_owned(), None)]);
         assert_eq!(
             render(&diagnostic, &[], &mut contents, false),
-            "missing.scoop:bytes 4..9: warning[SCOOPC_COMPILER_WARNING]: original warning"
+            "missing.scoop:bytes 4..9: warning[VENDOR_WARNING]: original warning"
         );
     }
 }

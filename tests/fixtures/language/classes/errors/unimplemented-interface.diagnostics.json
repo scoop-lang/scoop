@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `C` does not implement interface method `I.m`",
     "notes": [],
     "origin": {

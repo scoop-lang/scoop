@@ -156,6 +156,7 @@ impl Lowerer {
         let enum_name = self.enums[enum_id].name.clone();
         let ast::FieldSelector::Name(variant_name) = &access.selector else {
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 access.span,
                 format!("enum `{enum_name}` has no variants selected by index"),
             );
@@ -163,6 +164,7 @@ impl Lowerer {
         };
         let Some(target) = self.find_variant_ref(enum_id, &variant_name.text) else {
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 variant_name.span,
                 format!("enum `{enum_name}` has no variant `{}`", variant_name.text),
             );
@@ -173,10 +175,13 @@ impl Lowerer {
             .len();
         if arity != 0 {
             let vname = &variant_name.text;
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0732,
                 access.span,
-                format!(
-                    "variant `{vname}` of `{enum_name}` takes {arity} argument(s); use `{enum_name}.{vname}(...)` to construct it"
+                format!("variant `{vname}` of `{enum_name}` takes {arity} argument(s)"),
+                scoop_ast::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0704,
+                    format!("use `{enum_name}.{vname}(...)` to construct it"),
                 ),
             );
             return None;
@@ -199,6 +204,7 @@ impl Lowerer {
         let Some(inner) = self.as_option(receiver.ty) else {
             let found = self.type_name(receiver.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0505,
                 access.span,
                 format!("`?.` requires an Option receiver, found {found}"),
             );
@@ -353,6 +359,7 @@ impl Lowerer {
         let Some(inner) = self.as_option(operand.ty) else {
             let found = self.type_name(operand.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0505,
                 span,
                 format!("`!!` requires an Option operand, found {found}"),
             );
@@ -360,6 +367,7 @@ impl Lowerer {
         };
         if let Err(error) = self.prepare_unwrap_exception_type() {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 span,
                 format!("cannot resolve unwrap exception type: {error:?}"),
             );
@@ -401,6 +409,7 @@ impl Lowerer {
                 ast::FieldSelector::Index(index, span) => (format!("_{index}"), *span),
             };
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 span,
                 format!("struct `{}` has no field `{name}`", structure.name),
             );
@@ -419,6 +428,7 @@ impl Lowerer {
                 match selector {
                     ast::FieldSelector::Name(field) => {
                         self.error(
+                            scoop_source::DiagnosticCode::E0402,
                             field.span,
                             format!("class `{class_name}` has no property `{}`", field.text),
                         );
@@ -426,6 +436,7 @@ impl Lowerer {
                     }
                     ast::FieldSelector::Index(index, span) => {
                         self.error(
+                            scoop_source::DiagnosticCode::E0402,
                             *span,
                             format!("class `{class_name}` has no field `_{index}`"),
                         );
@@ -446,6 +457,7 @@ impl Lowerer {
                         None => {
                             let found = self.type_name(receiver_ty);
                             self.error(
+                                scoop_source::DiagnosticCode::E0402,
                                 *span,
                                 format!("tuple type `{found}` has no element `_{index}`"),
                             );
@@ -456,6 +468,7 @@ impl Lowerer {
                 ast::FieldSelector::Name(field) => {
                     let found = self.type_name(receiver_ty);
                     self.error(
+                        scoop_source::DiagnosticCode::E0402,
                         field.span,
                         format!("tuple type `{found}` has no field `{}`", field.text),
                     );
@@ -468,7 +481,11 @@ impl Lowerer {
                     ast::FieldSelector::Name(field) => field.span,
                     ast::FieldSelector::Index(_, span) => *span,
                 };
-                self.error(span, format!("type `{found}` has no fields"));
+                self.error(
+                    scoop_source::DiagnosticCode::E0402,
+                    span,
+                    format!("type `{found}` has no fields"),
+                );
                 None
             }
         };

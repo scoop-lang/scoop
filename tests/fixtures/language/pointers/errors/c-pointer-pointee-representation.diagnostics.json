@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: consumeScoopOnly.parameter1: ordinary struct `ScoopOnly` has no stable C layout",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: consumeEmpty.parameter1: pointer pointee `Empty` is zero-sized; only `Ptr<Unit>` maps to `void *`",
     "notes": [],
     "origin": {

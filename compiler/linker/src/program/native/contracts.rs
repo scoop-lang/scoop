@@ -103,30 +103,37 @@ pub(super) fn check_compiler_contract(
                 }
                 NativeExternAbi::Scoop(signature) => {
                     if signature.gc_effect() != effect {
-                        return Err(error(format!(
-                            "native compiler ABI conflict for {symbol}: GC effect differs"
-                        )));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2306,
+                            format!("native compiler ABI conflict for {symbol}: GC effect differs"),
+                        ));
                     }
                     let args = signature.arguments().iter().map(|argument| match argument {
                         ScoopAbiArgument::Direct(storage) => scoop_value(*storage, closure),
-                        _ => Err(error(format!("native compiler ABI conflict for {symbol}: argument passing differs"))),
+                        _ => Err(error(scoop_source::DiagnosticCode::E2306, format!("native compiler ABI conflict for {symbol}: argument passing differs"))),
                     }).collect::<Result<Vec<_>, _>>()?;
                     let result = match signature.result() {
                         ScoopAbiReturn::UnitVoid => Value::Void,
                         ScoopAbiReturn::Direct(storage) => scoop_value(storage, closure)?,
                         _ => {
-                            return Err(error(format!(
-                                "native compiler ABI conflict for {symbol}: result passing differs"
-                            )));
+                            return Err(error(
+                                scoop_source::DiagnosticCode::E2306,
+                                format!(
+                                    "native compiler ABI conflict for {symbol}: result passing differs"
+                                ),
+                            ));
                         }
                     };
                     (args, result)
                 }
             };
             if actual_parameters != parameters || actual_result != result {
-                return Err(error(format!(
-                    "native compiler ABI conflict for {symbol}: expected {parameters:?} -> {result:?}, found {actual_parameters:?} -> {actual_result:?}"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2306,
+                    format!(
+                        "native compiler ABI conflict for {symbol}: expected {parameters:?} -> {result:?}, found {actual_parameters:?} -> {actual_result:?}"
+                    ),
+                ));
             }
         }
         (
@@ -144,9 +151,10 @@ pub(super) fn check_compiler_contract(
                 NativeExternalContract::ReadOnlyTls { storage, .. } => (*storage, true, false),
                 NativeExternalContract::MutableTls { storage, .. } => (*storage, true, true),
                 _ => {
-                    return Err(error(format!(
-                        "native compiler ABI conflict for {symbol}: expected data"
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2306,
+                        format!("native compiler ABI conflict for {symbol}: expected data"),
+                    ));
                 }
             };
             let actual_size = match c_value(storage)? {
@@ -161,15 +169,19 @@ pub(super) fn check_compiler_contract(
                 || thread_local != actual_tls
                 || mutable != actual_mutable
             {
-                return Err(error(format!(
-                    "native compiler ABI conflict for {symbol}: data layout/TLS/mutability differs"
-                )));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2306,
+                    format!(
+                        "native compiler ABI conflict for {symbol}: data layout/TLS/mutability differs"
+                    ),
+                ));
             }
         }
         _ => {
-            return Err(error(format!(
-                "native compiler ABI conflict for {symbol}: expected function"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("native compiler ABI conflict for {symbol}: expected function"),
+            ));
         }
     }
     Ok(())
@@ -184,6 +196,7 @@ fn c_value(storage: CanonicalCStorageType) -> Result<Value, LinkError> {
             Ok(Value::Pointer)
         }
         CanonicalCStorageType::Struct { .. } => Err(error(
+            scoop_source::DiagnosticCode::E2408,
             "compiler ABI has no aggregate C value at this position",
         )),
     }
@@ -197,10 +210,10 @@ fn scoop_value(
         .artifacts()
         .find_map(|(artifact, _)| artifact.native_value(storage.exact_type()))
         .ok_or_else(|| {
-            error(format!(
-                "missing native ABI layout {}",
-                storage.exact_type()
-            ))
+            error(
+                scoop_source::DiagnosticCode::E2408,
+                format!("missing native ABI layout {}", storage.exact_type()),
+            )
         })?;
     match layout {
         scoop_lir::LinkValueRepresentation::Scalar(
@@ -214,7 +227,10 @@ fn scoop_value(
         ) => Ok(Value::Float(kind)),
         scoop_lir::LinkValueRepresentation::Pointer => Ok(Value::Pointer),
         scoop_lir::LinkValueRepresentation::Scalar(scoop_lir::ScalarRepresentationKindV1::Char) => {
-            Err(error("compiler native ABI requires a scalar or pointer"))
+            Err(error(
+                scoop_source::DiagnosticCode::E2408,
+                "compiler native ABI requires a scalar or pointer",
+            ))
         }
     }
 }

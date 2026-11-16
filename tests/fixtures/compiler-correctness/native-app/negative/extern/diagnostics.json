@@ -1,10 +1,13 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1702",
     "message": "missing native-app entry: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
     "notes": [
       {
+        "code": "N1701",
+        "kind": "note",
         "message": "`appInit` is not eligible because it has no ordinary Scoop body",
+        "notes": [],
         "origin": {
           "cone": "c06582ae30751f86faf4aaff5dda64e10a6b10cd995f56c15fdf3ec9c31565b8",
           "end": 104,

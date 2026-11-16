@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0611",
     "message": "member requirements are only allowed on generic functions, not function",
     "notes": [],
     "origin": {

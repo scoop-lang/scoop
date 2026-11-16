@@ -137,6 +137,7 @@ impl crate::Lowerer {
         failures.sort_by_key(|(function, _)| function.into_raw().into_u32());
         failures.dedup_by_key(|(function, _)| *function);
         let mut diagnostic = ast::Diagnostic::at_file(
+            scoop_source::DiagnosticCode::E2505,
             self.current_file,
             span,
             format!("signature of `{name}` is unavailable"),
@@ -145,6 +146,7 @@ impl crate::Lowerer {
             .notes
             .extend(failures.into_iter().map(|(function, failure)| {
                 ast::DiagnosticNote::at(
+                    scoop_source::DiagnosticCode::N0001,
                     self.function_files[&function],
                     failure.name_span,
                     "this declaration's signature could not be resolved",

@@ -23,10 +23,11 @@ pub(super) fn requests(
     diagnostics: DiagnosticsPolicy,
 ) -> BuildResult<Vec<BuildRequest>> {
     let cwd = std::env::current_dir().map_err(config)?;
-    let generators =
-        scoop_toolchain::GeneratorPrograms::from_cli(&args.generators, &cwd).map_err(config)?;
+    let generators = scoop_toolchain::GeneratorPrograms::from_cli(&args.generators, &cwd)
+        .map_err(crate::cli::commands::toolchain)?;
     let triple = target(args.target)?;
-    let selection = scoop_toolchain::select_target(&triple).map_err(config)?;
+    let selection =
+        scoop_toolchain::select_target(&triple).map_err(crate::cli::commands::toolchain)?;
     let profile = args.profile.unwrap_or(if args.release {
         BuildProfile::Release
     } else {
@@ -38,7 +39,8 @@ pub(super) fn requests(
     });
     let sysroot = absolute(
         &cwd,
-        scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
+        scoop_toolchain::configured_sysroot_root(sysroot)
+            .map_err(crate::cli::commands::toolchain)?,
     )?;
     let search = paths(&cwd, args.cone_path)?;
     let inputs = prepare(PrepareInput {
@@ -61,7 +63,8 @@ pub(super) fn requests(
     )?;
     let compiler = match args.scoopc {
         Some(path) => absolute(&cwd, path)?,
-        None => scoop_toolchain::installed_host_tool("scoopc").map_err(config)?,
+        None => scoop_toolchain::installed_host_tool("scoopc")
+            .map_err(crate::cli::commands::toolchain)?,
     };
     let (c_toolchain, mut final_link) = args.native.resolve(&cwd, &sysroot)?;
     final_link.emit_debug_file |= debug_info != scoop_lir::DebugInfoLevel::None;

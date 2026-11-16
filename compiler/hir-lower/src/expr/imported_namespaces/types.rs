@@ -20,6 +20,7 @@ impl Lowerer {
                 };
                 if !self.access_domain_allows(&self.imported_nominal_access_domain(&declaration)) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0403,
                         name.span,
                         format!(
                             "type `{}` is not accessible from this source location",
@@ -41,7 +42,11 @@ impl Lowerer {
                 ty.map(Some).ok_or(())
             }
             _ => {
-                self.error(name.span, format!("ambiguous nested type `{}`", name.text));
+                self.error(
+                    scoop_source::DiagnosticCode::E0404,
+                    name.span,
+                    format!("ambiguous nested type `{}`", name.text),
+                );
                 Err(())
             }
         }
@@ -84,6 +89,7 @@ impl Lowerer {
                         ExpressionQualifierTarget::DependencyObject(value),
                     ) => self.imported_singleton_type(value).map_err(|error| {
                         self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
                             name.span,
                             format!("invalid dependency singleton: {error:?}"),
                         )

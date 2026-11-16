@@ -89,7 +89,7 @@ impl Lowerer {
                     candidates.push(crate::CallableCandidate::type_owned(function, receiver.ty));
                 }
                 Err(reason) if candidates.is_empty() && imported.is_empty() => {
-                    context.error(call.span, reason);
+                    context.error(scoop_source::DiagnosticCode::E1316, call.span, reason);
                     return PropertyExtensionInvokeOutcome::NoApplicable(Some(context));
                 }
                 Ok(None) | Err(_) => {}

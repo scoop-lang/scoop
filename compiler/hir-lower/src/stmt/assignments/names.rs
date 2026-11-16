@@ -17,6 +17,7 @@ impl Lowerer {
             let (read, write) = self.contextual_backing_field(name.span)?;
             let Some(target) = write else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1501,
                     name.span,
                     "cannot assign to an immutable backing field".to_string(),
                 );
@@ -26,6 +27,7 @@ impl Lowerer {
             let value = self.lower_expr(&assign.value, &mut sink, Some(read.ty))?;
             if !self.is_subtype(value.ty, read.ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     assign.value.span(),
                     format!(
                         "cannot assign value of type {} to backing field of type {}",
@@ -45,6 +47,7 @@ impl Lowerer {
         let Some(local) = self.scopes.lookup(&name.text) else {
             if self.constructor_params_in_scope.contains_key(&name.text) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1501,
                     name.span,
                     format!(
                         "cannot assign to immutable constructor parameter `{}`",
@@ -62,6 +65,7 @@ impl Lowerer {
                 if let Some(plan) = self.local_delegate_plans.get(&capture.binding).cloned() {
                     if !plan.mutable {
                         self.error(
+                            scoop_source::DiagnosticCode::E1501,
                             name.span,
                             format!("cannot assign to immutable property `{}`", name.text),
                         );
@@ -78,15 +82,12 @@ impl Lowerer {
                     );
                 }
                 if capture.mutable {
-                    self.error(
+                    self.error_with_note(scoop_source::DiagnosticCode::E1502,
                         name.span,
-                        format!(
-                            "cannot capture mutable local `{}`; bind its current value to a `val` snapshot or capture explicit reference state",
-                            name.text
-                        ),
-                    );
+                        format!("cannot capture mutable local `{__diagnostic_arg0}`" , __diagnostic_arg0 = name.text), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1501, "bind its current value to a `val` snapshot or capture explicit reference state".to_owned()));
                 } else {
                     self.error(
+                        scoop_source::DiagnosticCode::E1501,
                         name.span,
                         format!("cannot assign to immutable variable `{}`", name.text),
                     );
@@ -129,6 +130,7 @@ impl Lowerer {
                             .is_some() =>
                     {
                         self.error(
+                            scoop_source::DiagnosticCode::E1501,
                             name.span,
                             format!("cannot assign to immutable property `{}`", name.text),
                         );
@@ -145,7 +147,9 @@ impl Lowerer {
                         let expected = property.value_type();
                         let value = self.lower_expr(&assign.value, &mut sink, Some(expected))?;
                         if !self.is_subtype(value.ty, expected) {
-                            let message = self.with_nominal_invariance_detail(
+                            self.error_with_invariance(
+                                scoop_source::DiagnosticCode::E0501,
+                                assign.value.span(),
                                 format!(
                                     "cannot assign value of type {} to property `{}` of type {}",
                                     self.type_name(value.ty),
@@ -155,7 +159,6 @@ impl Lowerer {
                                 value.ty,
                                 expected,
                             );
-                            self.error(assign.value.span(), message);
                             return None;
                         }
                         let value = self.adapt_to(value, expected);
@@ -193,6 +196,7 @@ impl Lowerer {
                 };
                 let crate::imports::lookup::values::ValueTarget::Property(property) = target else {
                     self.error(
+                        scoop_source::DiagnosticCode::E1501,
                         name.span,
                         format!("cannot assign to immutable value `{}`", name.text),
                     );
@@ -206,7 +210,9 @@ impl Lowerer {
                 });
                 let value = self.lower_expr(&assign.value, &mut sink, Some(expected))?;
                 if !self.is_subtype(value.ty, expected) {
-                    let message = self.with_nominal_invariance_detail(
+                    self.error_with_invariance(
+                        scoop_source::DiagnosticCode::E0501,
+                        assign.value.span(),
                         format!(
                             "cannot assign value of type {} to property `{}` of type {}",
                             self.type_name(value.ty),
@@ -216,7 +222,6 @@ impl Lowerer {
                         value.ty,
                         expected,
                     );
-                    self.error(assign.value.span(), message);
                     return None;
                 }
                 let value = self.adapt_to(value, expected);
@@ -225,7 +230,11 @@ impl Lowerer {
                 out.extend(sink);
                 return Some(write);
             }
-            self.error(name.span, format!("unknown variable `{}`", name.text));
+            self.error(
+                scoop_source::DiagnosticCode::E0401,
+                name.span,
+                format!("unknown variable `{}`", name.text),
+            );
             return None;
         };
         let binding = self.locals[local].binding;
@@ -233,6 +242,7 @@ impl Lowerer {
         if let Some(plan) = self.local_delegate_plans.get(&binding).cloned() {
             if !plan.mutable {
                 self.error(
+                    scoop_source::DiagnosticCode::E1501,
                     name.span,
                     format!("cannot assign to immutable property `{}`", name.text),
                 );
@@ -255,6 +265,7 @@ impl Lowerer {
         }
         if !self.locals[local].mutable {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 name.span,
                 format!("cannot assign to immutable variable `{}`", name.text),
             );
@@ -266,7 +277,9 @@ impl Lowerer {
         if !self.is_subtype(value.ty, expected) {
             let expected_name = self.type_name(expected);
             let found = self.type_name(value.ty);
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                assign.value.span(),
                 format!(
                     "cannot assign value of type {found} to `{}` of type {expected_name}",
                     name.text
@@ -274,7 +287,6 @@ impl Lowerer {
                 value.ty,
                 expected,
             );
-            self.error(assign.value.span(), message);
             return None;
         }
         let value = self.adapt_to(value, expected);
@@ -297,7 +309,9 @@ impl Lowerer {
         let mut sink = Vec::new();
         let value = self.lower_expr(&assign.value, &mut sink, Some(expected))?;
         if !self.is_subtype(value.ty, expected) {
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                assign.value.span(),
                 format!(
                     "cannot assign value of type {} to property `{}` of type {}",
                     self.type_name(value.ty),
@@ -307,7 +321,6 @@ impl Lowerer {
                 value.ty,
                 expected,
             );
-            self.error(assign.value.span(), message);
             return None;
         }
         let value = self.adapt_to(value, expected);

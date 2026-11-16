@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0109",
     "message": "Unicode escape must name a Unicode scalar value",
     "notes": [],
     "origin": {

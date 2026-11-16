@@ -17,6 +17,7 @@ impl Lowerer {
         let path_span = path_source.map_or(path.span, ast::Expr::span);
         let Some(path_value) = self.input_string(path, path_source) else {
             self.error(
+                scoop_source::DiagnosticCode::E1601,
                 path_span,
                 "`includeDir` requires a compile-time constant String path".into(),
             );
@@ -25,7 +26,11 @@ impl Lowerer {
         let path = match hir::CompileTimePath::parse(&path_value) {
             Ok(path) => path,
             Err(message) => {
-                self.error(path_span, message.into());
+                self.error(
+                    scoop_source::DiagnosticCode::E2201,
+                    path_span,
+                    message.into(),
+                );
                 return None;
             }
         };
@@ -35,6 +40,7 @@ impl Lowerer {
             self.directory_patterns("exclude", exclude, sources[2].as_ref())?;
         let Some(inputs) = &self.compile_time_inputs else {
             self.error(
+                scoop_source::DiagnosticCode::E1604,
                 span,
                 "no compile-time input host was supplied for `includeDir`".into(),
             );
@@ -47,18 +53,22 @@ impl Lowerer {
         ) {
             Ok(files) => files,
             Err(error) => {
-                let (location, message) = match error {
-                    hir::CompileTimeDirectoryError::Input(message) => (path_span, message),
+                let (code, location, message) = match error {
+                    hir::CompileTimeDirectoryError::Input(error) => {
+                        (error.code, path_span, error.message)
+                    }
                     hir::CompileTimeDirectoryError::IncludePattern { index, message } => (
+                        scoop_source::DiagnosticCode::E1603,
                         include_spans[index],
                         format!("invalid include pattern: {message}"),
                     ),
                     hir::CompileTimeDirectoryError::ExcludePattern { index, message } => (
+                        scoop_source::DiagnosticCode::E1603,
                         exclude_spans[index],
                         format!("invalid exclude pattern: {message}"),
                     ),
                 };
-                self.error(location, message);
+                self.error(code, location, message);
                 return None;
             }
         };
@@ -103,7 +113,7 @@ impl Lowerer {
                 None | Some(ast::Expr::ArrayLiteral { .. }),
             ) => elements,
             _ => {
-                self.error(source.map_or(value.span, ast::Expr::span), format!(
+                self.error(scoop_source::DiagnosticCode::E1601, source.map_or(value.span, ast::Expr::span), format!(
                     "`includeDir` {name} requires an array literal of compile-time constant Strings"
                 ));
                 return None;
@@ -120,6 +130,7 @@ impl Lowerer {
             let span = source.map_or(element.span, ast::Expr::span);
             let Some(pattern) = self.input_string(element, source) else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1601,
                     span,
                     format!("`includeDir` {name} elements must be compile-time constant Strings"),
                 );

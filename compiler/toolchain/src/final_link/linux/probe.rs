@@ -8,10 +8,16 @@ pub(super) fn driver_program(mut command: Command, name: &str) -> Result<PathBuf
         .get_envs()
         .find(|(key, _)| *key == OsStr::new("PATH"))
         .and_then(|(_, value)| value)
-        .ok_or_else(|| error("Linux C invocation is missing PATH"))?
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::ICE2201,
+                "Linux C invocation is missing PATH",
+            )
+        })?
         .to_owned();
     let output = run(command.arg(format!("-print-prog-name={name}")))?;
-    let program = String::from_utf8(output.stdout).map_err(error)?;
+    let program = String::from_utf8(output.stdout)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     crate::paths::find_program(OsStr::new(program.trim()), &path)
 }
 
@@ -36,7 +42,8 @@ pub(super) fn system_inputs(
     }
     profile.append_system_libraries(&mut command);
     let output = run(&mut command)?;
-    let trace = String::from_utf8(output.stdout).map_err(error)?;
+    let trace = String::from_utf8(output.stdout)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
     let paths = trace
         .lines()
         .map(|line| Path::new(line.trim()))
@@ -54,6 +61,7 @@ pub(super) fn system_inputs(
             .is_some_and(|name| name == "libc.so" || name == "libc.a")
     }) {
         return Err(error(
+            scoop_source::DiagnosticCode::E2303,
             "linker trace does not identify the selected libc development input",
         ));
     }
@@ -61,14 +69,19 @@ pub(super) fn system_inputs(
 }
 
 pub(super) fn run(command: &mut Command) -> Result<Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+    let output = command
+        .scoop_output()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2202, cause))?;
     if !output.status.success() {
-        return Err(error(format!(
-            "Linux native tool {command:?} failed ({}): {}{}",
-            output.status,
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2203,
+            format!(
+                "Linux native tool {command:?} failed ({}): {}{}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
     }
     Ok(output)
 }

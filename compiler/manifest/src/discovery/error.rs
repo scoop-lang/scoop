@@ -28,6 +28,25 @@ pub struct SourceDiscoveryError {
 }
 
 impl SourceDiscoveryError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use SourceDiscoveryErrorKind::*;
+        use scoop_source::DiagnosticCode as C;
+        match &self.kind {
+            SourceRootNotDirectory
+            | TestRootNotDirectory
+            | NonUtf8EntryName
+            | InvalidLogicalPath(_)
+            | SelectedPathNotSource => C::E2002,
+            SymlinkCycle | DirectoryCycle => C::E2006,
+            ConflictingSelections { .. } => C::E2005,
+            InvalidUtf8Source => C::E2003,
+            EmptySourceSet => C::E2004,
+            Allocation { .. } => C::E2205,
+            IdentityHash(_) => C::ICE0401,
+            Io { .. } => C::E2201,
+        }
+    }
+
     pub(crate) fn new(path: PathBuf, kind: SourceDiscoveryErrorKind) -> Self {
         Self { path, kind }
     }

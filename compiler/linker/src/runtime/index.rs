@@ -22,28 +22,44 @@ impl RuntimeObjectSet {
         target: LirTargetProfile,
         toolchain: &CBridgeToolchainProfileV1,
     ) -> Result<Self, LinkError> {
-        let path = std::path::absolute(path).map_err(error)?;
+        let path = std::path::absolute(path)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let bytes = std::fs::read(&path).map_err(|cause| {
-            error(format!(
-                "runtime index {} for {}: {cause}",
-                path.display(),
-                target.contract().canonical_triple()
-            ))
+            error(
+                scoop_source::DiagnosticCode::E2201,
+                format!(
+                    "runtime index {} for {}: {cause}",
+                    path.display(),
+                    target.contract().canonical_triple()
+                ),
+            )
         })?;
-        let index: Index = decode_canonical(&bytes).map_err(error)?;
+        let index: Index = decode_canonical(&bytes)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2307, cause))?;
         if index.schema != 8
-            || index.target != encode(&target.wire_id()).map_err(error)?
-            || index.abi.as_array() != RuntimeAbiContract.fingerprint().map_err(error)?.as_array()
+            || index.target
+                != encode(&target.wire_id())
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?
+            || index.abi.as_array()
+                != RuntimeAbiContract
+                    .fingerprint()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?
+                    .as_array()
             || toolchain.contract().target() != &target.wire_id()
         {
             return Err(error(
-                "runtime index schema, target or ABI is incompatible; rebuild runtime",
-            ));
+                scoop_source::DiagnosticCode::E2307,
+                "runtime index schema, target or ABI is incompatible",
+            )
+            .with_help(scoop_source::DiagnosticCode::H2302, "rebuild runtime"));
         }
         index.deployment.check(toolchain)?;
-        let directory = path
-            .parent()
-            .ok_or_else(|| error("runtime index has no parent"))?;
+        let directory = path.parent().ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2307,
+                "runtime index has no parent",
+            )
+        })?;
         let archive = directory.join(archive_path(&index.archive)?);
         Ok(Self {
             target,
@@ -60,11 +76,15 @@ impl RuntimeObjectSet {
     pub(super) fn write_index(&self) -> Result<(), LinkError> {
         let index = Index {
             schema: 8,
-            target: encode(&self.target.wire_id()).map_err(error)?,
+            target: encode(&self.target.wire_id())
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?,
             toolchain: self.toolchain.clone(),
             configuration: self.configuration.clone(),
             abi: Digest256::from_array(
-                *RuntimeAbiContract.fingerprint().map_err(error)?.as_array(),
+                *RuntimeAbiContract
+                    .fingerprint()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?
+                    .as_array(),
             ),
             fingerprint: self.fingerprint.0,
             objects: self.objects.clone(),
@@ -78,13 +98,18 @@ impl RuntimeObjectSet {
                 .expect("generated archive name")
                 .to_owned(),
         };
-        std::fs::write(self.index_path(), encode(&index).map_err(error)?).map_err(error)
+        std::fs::write(
+            self.index_path(),
+            encode(&index).map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?,
+        )
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
     }
 }
 
 fn archive_path(locator: &str) -> Result<&Path, LinkError> {
     if locator.is_empty() || locator.starts_with('/') || locator.contains(['\\', ':', '\0']) {
         return Err(error(
+            scoop_source::DiagnosticCode::E2307,
             "runtime index archive path must be a relative UTF-8 path with / separators",
         ));
     }

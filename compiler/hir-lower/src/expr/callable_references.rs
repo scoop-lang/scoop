@@ -47,10 +47,14 @@ impl Lowerer {
     }
 
     fn reject_requirement_reference(&mut self, span: Span) {
-        self.error(
+        self.error_with_note(
+            scoop_source::DiagnosticCode::E0713,
             span,
-            "member requirements do not provide callable references; wrap the call in a lambda"
-                .into(),
+            "member requirements do not provide callable references".to_owned(),
+            scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H0702,
+                "wrap the call in a lambda".to_owned(),
+            ),
         );
     }
 
@@ -85,6 +89,7 @@ impl Lowerer {
         {
             if receiver.is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1217,
                     span,
                     "a native `FunPtr` address must reference an unbound top-level function"
                         .to_string(),
@@ -99,11 +104,19 @@ impl Lowerer {
         if let Some(local) = self.scopes.lookup(&name.text)
             && matches!(self.types[self.locals[local].ty], Type::Function(_))
         {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E0713,
                 span,
                 format!(
-                    "`::{}` cannot reference an existing function value; use `{}` directly",
-                    name.text, name.text
+                    "`::{__diagnostic_arg0}` cannot reference an existing function value",
+                    __diagnostic_arg0 = name.text
+                ),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H0703,
+                    format!(
+                        "use `{__diagnostic_arg1}` directly",
+                        __diagnostic_arg1 = name.text
+                    ),
                 ),
             );
             return None;
@@ -180,7 +193,11 @@ impl Lowerer {
                 self.reject_requirement_reference(span);
                 return None;
             }
-            self.error(name.span, format!("unknown function `{}`", name.text));
+            self.error(
+                scoop_source::DiagnosticCode::E0401,
+                name.span,
+                format!("unknown function `{}`", name.text),
+            );
             return None;
         }
         let expected_signature = self.expected_function_signature(expected);

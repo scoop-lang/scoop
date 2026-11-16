@@ -10,7 +10,7 @@ impl Lowerer {
         if let Some(&(previous, previous_provider)) = self.intrinsic_functions.get(&intrinsic.kind)
         {
             let previous_name = self.functions[previous].name.clone();
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1406,
                 span,
                 format!(
                     "intrinsic `{}` is already defined by provider {} as `{previous_name}`; provider {} cannot define it again",
@@ -37,6 +37,7 @@ impl Lowerer {
         let valid_name = name.text == spec.kind.source_name();
         if !valid_name {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 name.span,
                 format!(
                     "intrinsic type `{}` must be declared with source name `{}`",
@@ -47,6 +48,7 @@ impl Lowerer {
         }
         if !representation_omitted {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 span,
                 format!(
                     "intrinsic type `{}` must omit its fields or primary constructor",
@@ -77,6 +79,7 @@ impl Lowerer {
         };
         if !valid_parameters {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 span,
                 format!(
                     "intrinsic type `{}` has an invalid type-parameter declaration",
@@ -95,7 +98,7 @@ impl Lowerer {
     ) {
         let provider = self.current_intrinsic_provider();
         if let Some(&(_previous, previous_provider)) = self.intrinsic_type_owners.get(&kind) {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1406,
                 span,
                 format!(
                     "intrinsic type `{}` is already defined by provider {}; provider {} cannot define it again",
@@ -118,6 +121,7 @@ impl Lowerer {
                 let core_diagnostic_file = this.core_diagnostic_file();
                 this.current_file = core_diagnostic_file;
                 this.error(
+                    scoop_source::DiagnosticCode::E1404,
                     files[core_diagnostic_file],
                     format!(
                         "scoop.core must define exactly one `{}` intrinsic type",

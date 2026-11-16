@@ -81,7 +81,7 @@ impl Lowerer {
         } else {
             return true;
         };
-        self.error(span, message);
+        self.error(scoop_source::DiagnosticCode::E1216, span, message);
         false
     }
 
@@ -93,6 +93,7 @@ impl Lowerer {
         let function = self.function_types[signature].clone();
         if function.receiver.is_some() {
             self.error(
+                scoop_source::DiagnosticCode::E1201,
                 span,
                 "foreign callback signature must not declare a receiver".to_owned(),
             );
@@ -100,6 +101,7 @@ impl Lowerer {
         }
         if function.is_suspend || self.function_type_contains_param(signature) {
             self.error(
+                scoop_source::DiagnosticCode::E1201,
                 span,
                 "foreign callback signature must be ordinary and fully concrete".to_string(),
             );
@@ -115,6 +117,7 @@ impl Lowerer {
                 &mut visiting,
             ) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     span,
                     format!(
                         "foreign callback signature is not C-FFI-safe: {}",
@@ -132,6 +135,7 @@ impl Lowerer {
             &mut visiting,
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E1201,
                 span,
                 format!(
                     "foreign callback signature is not C-FFI-safe: {}",
@@ -177,6 +181,7 @@ impl Lowerer {
                 if !compatible {
                     self.current_file = self.property_files[&self.globals[*id].property];
                     self.error(
+                        scoop_source::DiagnosticCode::E1202,
                         self.globals[*id].span,
                         format!(
                             "extern data symbol `{symbol}` conflicts with global `{}`",
@@ -197,6 +202,7 @@ impl Lowerer {
             if let Some(function_name) = conflicting_function {
                 self.current_file = self.property_files[&self.globals[*id].property];
                 self.error(
+                    scoop_source::DiagnosticCode::E1202,
                     self.globals[*id].span,
                     format!(
                         "extern data symbol `{symbol}` conflicts with function `{}`",
@@ -239,6 +245,7 @@ impl Lowerer {
                 })
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     function.span,
                     format!(
                         "C ABI extern function `{}` cannot declare a language `vararg` parameter",
@@ -258,6 +265,7 @@ impl Lowerer {
                 };
                 if let Err(error) = result {
                     self.error(
+                        scoop_source::DiagnosticCode::E1201,
                         function.span,
                         format!("extern parameter is not ABI-safe: {}", error.render()),
                     );
@@ -282,6 +290,7 @@ impl Lowerer {
             };
             if let Err(error) = result {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     function.span,
                     format!("extern return type is not ABI-safe: {}", error.render()),
                 );
@@ -314,6 +323,7 @@ impl Lowerer {
                 {
                     self.current_file = self.function_files[function_id];
                     self.error(
+                        scoop_source::DiagnosticCode::E1202,
                         self.functions[*function_id].span,
                         format!(
                             "extern symbol `{}` conflicts with declaration `{}`",
@@ -341,6 +351,7 @@ impl Lowerer {
             let declaration = self.structs[id].clone();
             if declaration.semantic_fields().is_empty() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     declaration.span,
                     format!(
                         "`@CLayout` struct `{}` must declare at least one field",
@@ -356,6 +367,7 @@ impl Lowerer {
                     self.classify_c_ffi_type(field.ty, &[], false, path, &mut visiting)
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E1201,
                         declaration.span,
                         format!("`@CLayout` field is not C-FFI-safe: {}", error.render()),
                     );
@@ -386,6 +398,7 @@ impl Lowerer {
             self.current_file = self.struct_files[&self.struct_id(id)];
             if let Some(error) = self.c_ffi_type_error(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     self.structs[self.struct_id(id)].span,
                     format!("concrete `@CLayout` type is not C-FFI-safe: {error}"),
                 );
@@ -397,6 +410,7 @@ impl Lowerer {
             self.current_file = file;
             if let Some(error) = self.c_ffi_type_error(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     span,
                     format!("`FunPtr` signature is not C-FFI-safe: {error}"),
                 );
@@ -407,6 +421,7 @@ impl Lowerer {
             self.current_file = file;
             if let Some(error) = self.c_ffi_type_error(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1201,
                     span,
                     format!("`GCLeafFunPtr` signature is not C-FFI-safe: {error}"),
                 );

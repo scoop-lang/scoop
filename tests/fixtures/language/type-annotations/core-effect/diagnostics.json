@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "core annotation `@NoGC` is not allowed in a type position",
     "notes": [],
     "origin": {

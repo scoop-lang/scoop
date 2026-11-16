@@ -30,7 +30,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = [{code = "SCOOP_LINK_FAILED", phase = "FinalLink", severity = "error", message = "native-app DLL must export only scoop_app_init; remove explicit native exports", origin = {kind = "none"}, notes = []}]
+diagnostics = [{code = "E2305", phase = "FinalLink", severity = "error", message = "native-app DLL must export only scoop_app_init", origin = {kind = "none"}, notes = [{code = "H2303", kind = "help", message = "remove explicit native exports", origin = {kind = "none"}, notes = []}]}]
 
 [[steps]]
 name = "preserve-product"

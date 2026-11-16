@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2201",
     "message": "native compilation: ${work}/cone/absent.c: No such file or directory (os error 2)",
     "notes": [],
     "origin": {

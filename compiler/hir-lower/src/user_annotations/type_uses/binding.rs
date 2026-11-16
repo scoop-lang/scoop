@@ -11,6 +11,7 @@ impl Lowerer {
         for annotation in annotations {
             if let Some(site) = annotation.use_site {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     site.span,
                     "annotation use-site targets are not allowed in a type position".into(),
                 );
@@ -22,6 +23,7 @@ impl Lowerer {
                 .is_some_and(crate::annotations::is_core_annotation)
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     format!(
                         "core annotation `@{}` is not allowed in a type position",
@@ -116,7 +118,11 @@ impl Lowerer {
         match mapper.map(ty, &binders) {
             Ok(ty) => Some(ty),
             Err(error) => {
-                self.error(span, format!("invalid annotated type: {error}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("invalid annotated type: {error}"),
+                );
                 None
             }
         }

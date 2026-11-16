@@ -68,8 +68,15 @@ impl Concretizer<'_> {
             "`@NoGC` {kind} `{name}` specialization is not GC-free because it directly or indirectly contains a ref type"
         );
         let diagnostic = match self.type_use_site {
-            Some((file, span)) => Diagnostic::at_file(file, span, message),
-            None => Diagnostic::without_span(DiagnosticSeverity::Error, 0, message),
+            Some((file, span)) => {
+                Diagnostic::at_file(scoop_source::DiagnosticCode::E1106, file, span, message)
+            }
+            None => Diagnostic::without_span(
+                scoop_source::DiagnosticCode::E1106,
+                DiagnosticSeverity::Error,
+                0,
+                message,
+            ),
         };
         self.type_condition_errors.push(diagnostic);
     }

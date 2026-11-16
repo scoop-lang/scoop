@@ -17,6 +17,7 @@ impl Lowerer {
             .ok()?;
         if !self.is_subtype(receiver.ty, interface) {
             self.error(
+                scoop_source::DiagnosticCode::E0603,
                 receiver.span,
                 format!(
                     "f-string expression of type `{}` does not implement core `ToString`",
@@ -34,6 +35,7 @@ impl Lowerer {
             let methods = self.methods_by_name(interface, "toString");
             let [method] = methods.as_slice() else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1404,
                     span,
                     "core ToString requires a unique `toString` member".into(),
                 );
@@ -62,10 +64,13 @@ impl Lowerer {
         } else {
             let methods = self
                 .imported_member_candidates(interface, hir::ImportedMemberLookup::Name("toString"))
-                .map_err(|error| self.error(span, error.to_string()))
+                .map_err(|error| {
+                    self.error(scoop_source::DiagnosticCode::E1403, span, error.to_string())
+                })
                 .ok()?;
             let [method] = methods.as_slice() else {
                 self.error(
+                    scoop_source::DiagnosticCode::E1404,
                     span,
                     "core ToString requires a unique `toString` member".into(),
                 );
@@ -77,7 +82,9 @@ impl Lowerer {
                     method.clone(),
                     MemberCallKind::Ordinary,
                 )
-                .map_err(|error| self.error(span, error.to_string()))
+                .map_err(|error| {
+                    self.error(scoop_source::DiagnosticCode::E1403, span, error.to_string())
+                })
                 .ok()?;
             self.imported_bound_member_callee(
                 &declaration,
@@ -86,7 +93,7 @@ impl Lowerer {
                 &[],
                 self.string,
             )
-            .map_err(|error| self.error(span, error))
+            .map_err(|error| self.error(scoop_source::DiagnosticCode::ICE0501, span, error))
             .ok()??
         };
         Some(hir::Expr {
@@ -118,7 +125,13 @@ impl Lowerer {
                             hir::SourceNominalId::Concrete(owner.persistent()),
                             Vec::new(),
                         )
-                        .map_err(|error| self.error(span, error.diagnostic("core ToString")))
+                        .map_err(|error| {
+                            self.error(
+                                scoop_source::DiagnosticCode::E1403,
+                                span,
+                                error.diagnostic("core ToString"),
+                            )
+                        })
                         .ok()?;
                     if matches!(self.types[ty], Type::Interface(_)) {
                         return Some(ty);
@@ -128,6 +141,7 @@ impl Lowerer {
             }
         }
         self.error(
+            scoop_source::DiagnosticCode::E1404,
             span,
             "f-string requires the core ToString declaration".into(),
         );

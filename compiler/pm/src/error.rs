@@ -12,6 +12,8 @@ pub struct ManifestOrigin {
 
 #[derive(Debug)]
 pub struct PmError {
+    pub notes: Vec<scoop_protocol::DiagnosticNoteV1>,
+    pub code: scoop_source::DiagnosticCode,
     pub message: String,
     pub origins: Vec<ManifestOrigin>,
     pub(crate) resolution_conflicts: Vec<scoop_manifest::DependencyCoordinateKey>,
@@ -20,12 +22,34 @@ pub struct PmError {
 pub type PmResult<T> = Result<T, PmError>;
 
 impl PmError {
-    pub fn new(message: impl Into<String>) -> Self {
+    pub fn new(code: scoop_source::DiagnosticCode, message: impl Into<String>) -> Self {
         Self {
+            notes: Vec::new(),
+            code,
             message: message.into(),
             origins: Vec::new(),
             resolution_conflicts: Vec::new(),
         }
+    }
+
+    pub fn with_help(self, code: scoop_source::DiagnosticCode, message: impl Into<String>) -> Self {
+        self.with_note(code, message)
+    }
+
+    pub fn with_note(
+        mut self,
+        code: scoop_source::DiagnosticCode,
+        message: impl Into<String>,
+    ) -> Self {
+        self.notes.push(
+            scoop_protocol::DiagnosticNoteV1::new(
+                code,
+                message.into(),
+                scoop_protocol::DiagnosticOriginV1::None,
+            )
+            .expect("a compiler attachment has a nonempty message"),
+        );
+        self
     }
 
     pub fn at(mut self, origin: ManifestOrigin) -> Self {
@@ -34,7 +58,19 @@ impl PmError {
     }
 
     pub(crate) fn io(path: &Path, error: std::io::Error) -> Self {
-        Self::new(format!("{}: {error}", path.display()))
+        Self::new(
+            scoop_source::DiagnosticCode::E2201,
+            format!("{}: {error}", path.display()),
+        )
+    }
+
+    pub(crate) fn manifest_read(path: &Path, error: std::io::Error) -> Self {
+        let code = if error.kind() == std::io::ErrorKind::InvalidData {
+            scoop_source::DiagnosticCode::E2003
+        } else {
+            scoop_source::DiagnosticCode::E2201
+        };
+        Self::new(code, format!("{}: {error}", path.display()))
     }
 
     pub fn machine_diagnostic(
@@ -66,17 +102,22 @@ impl PmError {
             .next()
             .transpose()?
             .unwrap_or(DiagnosticOriginV1::None);
-        let notes = origins
+        let mut notes: Vec<_> = origins
             .map(|origin| {
-                DiagnosticNoteV1::new("related declaration".into(), origin?)
-                    .map_err(|e| e.to_string())
+                DiagnosticNoteV1::new(
+                    scoop_source::DiagnosticCode::N0001,
+                    "related declaration".into(),
+                    origin?,
+                )
+                .map_err(|e| e.to_string())
             })
             .collect::<Result<_, String>>()?;
+        notes.extend(self.notes.iter().cloned());
         Ok(scoop_protocol::package::PackageDiagnosticV1 {
             version: scoop_protocol::package::PACKAGE_PROTOCOL_VERSION,
             diagnostic: StructuredDiagnosticV1::new(
                 DiagnosticSeverityV1::Error,
-                "SCOOP_PACKAGE_PREPARE".into(),
+                self.code.to_string(),
                 self.message.clone(),
                 origin,
                 notes,
@@ -96,6 +137,15 @@ impl fmt::Display for PmError {
                 origin.manifest.display(),
                 origin.span.start,
                 origin.span.end
+            )?;
+        }
+        for note in &self.notes {
+            write!(
+                f,
+                "\n{}[{}]: {}",
+                note.code().role().as_str(),
+                note.code(),
+                note.message()
             )?;
         }
         Ok(())

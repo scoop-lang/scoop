@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0107",
     "message": "integer literal magnitude `18446744073709551616uL` is out of range for u64",
     "notes": [],
     "origin": {

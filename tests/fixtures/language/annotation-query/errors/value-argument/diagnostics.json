@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "annotationKey does not accept value arguments",
     "notes": [],
     "origin": {

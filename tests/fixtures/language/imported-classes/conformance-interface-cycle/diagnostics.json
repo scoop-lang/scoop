@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1009",
     "message": "interface `LocalLeft` directly or indirectly inherits from itself",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1009",
     "message": "interface `LocalRight` directly or indirectly inherits from itself",
     "notes": [],
     "origin": {

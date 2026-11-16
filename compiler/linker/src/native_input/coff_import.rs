@@ -13,16 +13,20 @@ pub(crate) struct CoffImport {
 impl CoffImport {
     pub fn read(bytes: &[u8], target: scoop_lir::LirTargetProfile) -> Result<Self, LinkError> {
         let architecture = crate::native_object::coff::object_architecture(target)?;
-        let import = ImportFile::parse(bytes).map_err(error)?;
+        let import = ImportFile::parse(bytes)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         if import.architecture() != architecture {
             return Err(error(
+                scoop_source::DiagnosticCode::E2305,
                 "native import machine does not match the selected COFF target",
             ));
         }
         Ok(Self {
-            dll: std::str::from_utf8(import.dll()).map_err(error)?.to_owned(),
+            dll: std::str::from_utf8(import.dll())
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                .to_owned(),
             symbol: std::str::from_utf8(import.symbol())
-                .map_err(error)?
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
                 .to_owned(),
             definition: NativeSymbolDefinition {
                 kind: if import.import_type() == ImportType::Code {

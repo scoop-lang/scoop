@@ -1,8 +1,35 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `fromUtf8` in exact import layer:\n  - dependency function `fromUtf8` expects 1 argument(s), but 2 were supplied\n  - dependency function argument must be of type Long, found Int",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `fromUtf8` in exact import layer",
+    "notes": [
+      {
+        "code": "E0701",
+        "kind": "cause",
+        "message": "dependency function `fromUtf8` expects 1 argument(s), but 2 were supplied",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 143,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 112
+        }
+      },
+      {
+        "code": "E0501",
+        "kind": "cause",
+        "message": "dependency function argument must be of type Long, found Int",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 142,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 137
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 143,

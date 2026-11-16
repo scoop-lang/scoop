@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "dependency function `extensionValueOnly`: type argument `Reference` for `T` must satisfy `value`",
     "notes": [],
     "origin": {

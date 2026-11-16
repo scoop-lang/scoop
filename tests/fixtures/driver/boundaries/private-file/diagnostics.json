@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "function `hidden` is not accessible here",
     "notes": [],
     "origin": {

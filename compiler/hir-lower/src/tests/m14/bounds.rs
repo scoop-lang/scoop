@@ -79,11 +79,9 @@ fn concrete_and_generic_arguments_must_prove_interface_bounds() {
     ]);
     let errors = lower_user(file(declarations)).expect_err("Int does not implement Marker");
     assert!(errors.iter().any(|error| {
-        error
-            .message
+        crate::tests::diagnostic_text(error)
             .contains("fun boundedIdentity<T : Marker>(value: T): T")
-            && error
-                .message
+            && crate::tests::diagnostic_text(error)
                 .contains("type argument `Int` for `T` must satisfy interface upper bound `Marker`")
     }));
 }

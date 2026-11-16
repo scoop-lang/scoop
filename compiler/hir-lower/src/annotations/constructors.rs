@@ -17,6 +17,7 @@ impl Lowerer {
             };
             if !seen.insert(name) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     format!("annotation `@{name}` must not be repeated"),
                 );
@@ -31,7 +32,11 @@ impl Lowerer {
             }
         }
         if seen.contains("Safe") && seen.contains("Unsafe") {
-            self.error(span, "`@Safe` and `@Unsafe` cannot be combined".to_string());
+            self.error(
+                scoop_source::DiagnosticCode::E1118,
+                span,
+                "`@Safe` and `@Unsafe` cannot be combined".to_string(),
+            );
         }
         safety
     }
@@ -45,6 +50,7 @@ impl Lowerer {
         for annotation in annotations.iter().filter(|a| a.name.is_ident("NoGC")) {
             if seen {
                 self.error(
+                    scoop_source::DiagnosticCode::E1302,
                     annotation.span,
                     "annotation `@NoGC` must not be repeated".to_string(),
                 );
@@ -54,6 +60,7 @@ impl Lowerer {
             let valid = self.annotation_marker(annotation);
             if !struct_secondary {
                 self.error(
+                    scoop_source::DiagnosticCode::E1301,
                     annotation.span,
                     "`@NoGC` is only allowed on struct secondary constructors".to_string(),
                 );

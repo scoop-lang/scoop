@@ -57,7 +57,7 @@ impl Lowerer {
         } else if self.is_subtype(argument, required) {
             true
         } else {
-            self.error(span, diagnostic);
+            self.error(scoop_source::DiagnosticCode::E0603, span, diagnostic);
             false
         }
     }

@@ -25,7 +25,7 @@ exit = 1
 stdout = ""
 stderr = ""
 json = "test-stderr"
-diagnostics = [{code = "SCOOP_TEST_RUN", phase = "Run", severity = "error", message = "test run failed; see the test report", origin = {kind = "none"}, notes = []}]
+diagnostics = [{code = "E2508", phase = "Run", severity = "error", message = "test run failed; see the test report", origin = {kind = "none"}, notes = []}]
 checks = [
     {actual = "${exit-zero.test_result.process.code}", equals = 0},
     {actual = "${exit-zero.test_result.status}", equals = "failed"},

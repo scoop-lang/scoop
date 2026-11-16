@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2017",
     "message": "${manifest.canonical}: windows.subsystem must be \"console\" or \"gui\"",
     "notes": [],
     "origin": {

@@ -23,10 +23,9 @@ fn unicode_identifiers_keep_utf8_spans_and_codepoints() {
         diagnostics: errors,
         ..
     } = lex("f\"$名称\"");
-    assert_eq!(
-        errors[0].message,
-        "`$名称` interpolation requires braces; use `${名称}`"
-    );
+    assert_eq!(errors[0].message, "`$名称` interpolation requires braces");
+    assert_eq!(errors[0].notes[0].code, scoop_ast::DiagnosticCode::H0101);
+    assert_eq!(errors[0].notes[0].message, "use `${名称}`");
 }
 
 #[test]

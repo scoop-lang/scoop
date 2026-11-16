@@ -23,7 +23,7 @@ impl Lowerer {
             ..
         }) = &property.representation
         else {
-            self.error(name.span, format!("`release` can only read own backing fields; `{}` has no ordinary backing field", name.text));
+            self.error(scoop_source::DiagnosticCode::E1111, name.span, format!("`release` can only read own backing fields; `{}` has no ordinary backing field", name.text));
             return None;
         };
         Some(hir::Expr {
@@ -39,11 +39,16 @@ impl Lowerer {
 
     pub(crate) fn reject_release_field_write(&mut self, name: &ast::Ident) -> bool {
         if self.scopes.lookup(&name.text).is_none() && self.release_has_field_name(&name.text) {
-            self.error(
+            self.error_with_note(
+                scoop_source::DiagnosticCode::E1112,
                 name.span,
                 format!(
-                    "release field `{}` is read-only; copy it to a local value before updating",
-                    name.text
+                    "release field `{__diagnostic_arg0}` is read-only",
+                    __diagnostic_arg0 = name.text
+                ),
+                scoop_source::DiagnosticNote::without_location(
+                    scoop_source::DiagnosticCode::H1501,
+                    "copy it to a local value before updating".to_owned(),
                 ),
             );
             return true;

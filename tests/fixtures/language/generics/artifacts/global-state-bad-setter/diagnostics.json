@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "setter of property `guarded` is not accessible",
     "notes": [],
     "origin": {

@@ -21,25 +21,34 @@ pub(crate) fn read(bytes: &[u8]) -> Result<BTreeMap<String, Export>, LinkError> 
     let mut visited = BTreeSet::new();
     while let Some((prefix, offset)) = pending.pop() {
         if !visited.insert(offset) {
-            return Err(error("cyclic or repeated Mach-O export trie node"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                "cyclic or repeated Mach-O export trie node",
+            ));
         }
-        let mut node = Cursor::new(
-            bytes
-                .get(offset..)
-                .ok_or_else(|| error("export trie node is outside the file"))?,
-        );
-        let length = usize::try_from(node.uleb()?).map_err(error)?;
+        let mut node = Cursor::new(bytes.get(offset..).ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2305,
+                "export trie node is outside the file",
+            )
+        })?);
+        let length = usize::try_from(node.uleb()?)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         let mut terminal = Cursor::new(node.take(length)?);
         if length != 0 {
             let flags = terminal.uleb()?;
             if flags & !15 != 0 || flags & 3 == 3 {
-                return Err(error("Mach-O export uses an unknown or resolver kind"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "Mach-O export uses an unknown or resolver kind",
+                ));
             }
             let value = terminal.uleb()?;
             let target = if flags & 8 != 0 {
                 let imported = terminal.name()?;
                 ExportTarget::Reexport {
-                    ordinal: usize::try_from(value).map_err(error)?,
+                    ordinal: usize::try_from(value)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?,
                     imported: if imported.is_empty() {
                         prefix.clone()
                     } else {
@@ -66,7 +75,10 @@ pub(crate) fn read(bytes: &[u8]) -> Result<BTreeMap<String, Export>, LinkError> 
                     )
                     .is_some()
             {
-                return Err(error("invalid or duplicate Mach-O export terminal"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "invalid or duplicate Mach-O export terminal",
+                ));
             }
         }
         let count = node.byte()?;
@@ -74,9 +86,13 @@ pub(crate) fn read(bytes: &[u8]) -> Result<BTreeMap<String, Export>, LinkError> 
         for _ in 0..count {
             let edge = node.name()?;
             if edge.is_empty() || !edges.insert(edge.clone()) {
-                return Err(error("empty or duplicate Mach-O export edge"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "empty or duplicate Mach-O export edge",
+                ));
             }
-            let child = usize::try_from(node.uleb()?).map_err(error)?;
+            let child = usize::try_from(node.uleb()?)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
             pending.push((format!("{prefix}{edge}"), child));
         }
     }

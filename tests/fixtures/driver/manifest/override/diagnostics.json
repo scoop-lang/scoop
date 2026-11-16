@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2109",
     "message": "${fixture}/program/Cone.toml: test dependency \"dev.m43:helper\" is already declared in dependencies; reuse the production dependency",
     "notes": [],
     "origin": {

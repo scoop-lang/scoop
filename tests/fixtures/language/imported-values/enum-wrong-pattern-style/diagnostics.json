@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "variant `Pair` of `Choice` has named fields; use a named field pattern",
-    "notes": [],
+    "code": "E0910",
+    "message": "variant `Pair` of `Choice` has named fields",
+    "notes": [
+      {
+        "code": "H0901",
+        "kind": "help",
+        "message": "use a named field pattern",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "748902d715665a35ad0170b8fcd8a7ddb42b2b294f49d08421962dbe38999f1a",
       "end": 192,

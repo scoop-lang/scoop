@@ -1,12 +1,12 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2302",
     "message": "native C++ toolchain: missing paired C++ driver ${work}/toolchain/g++; C++ required by dev.m33:cxx-config:0.1.0",
     "notes": [],
     "origin": {
       "kind": "none"
     },
-    "phase": "SourceSnapshot",
+    "phase": "FinalLink",
     "severity": "error"
   }
 ]

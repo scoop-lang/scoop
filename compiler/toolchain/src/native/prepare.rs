@@ -29,10 +29,10 @@ pub(super) fn prepare(
         .windows(2)
         .find(|pair| pair[0].path() == pair[1].path())
     {
-        return Err(error(format!(
-            "duplicate native source {}",
-            pair[0].path().as_str()
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2017,
+            format!("duplicate native source {}", pair[0].path().as_str()),
+        ));
     }
     if sources.is_empty() {
         return Ok(PreparedNativeInputs::default());
@@ -44,7 +44,7 @@ pub(super) fn prepare(
             config
                 .source_language(source.path(), target_facts)
                 .map(|language| (source, language))
-                .map_err(error)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let languages: BTreeSet<_> = sources.iter().map(|(_, language)| *language).collect();
@@ -59,13 +59,17 @@ pub(super) fn prepare(
     let target_root = crate::target_library_root(sysroot, compiler.c().target());
     let roots = InputRoots {
         cone: manifest.real_root().to_path_buf(),
-        public: sysroot.join("include").canonicalize().map_err(error)?,
+        public: sysroot
+            .join("include")
+            .canonicalize()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
         target: match target_root.canonicalize() {
             Ok(path) => path,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                std::path::absolute(&target_root).map_err(error)?
+                std::path::absolute(&target_root)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
             }
-            Err(err) => return Err(error(err)),
+            Err(err) => return Err(error(scoop_source::DiagnosticCode::E2201, err)),
         },
         system,
     };
@@ -132,7 +136,10 @@ pub(super) fn prepare(
                 NativeSourceLanguage::C => "/TC",
                 NativeSourceLanguage::Cxx => "/TP",
                 NativeSourceLanguage::ObjectiveC => {
-                    return Err(error("Objective-C sources require a Darwin target"));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2017,
+                        "Objective-C sources require a Darwin target",
+                    ));
                 }
             });
             if kind == NativeDriverKind::ClangCl {
@@ -157,7 +164,11 @@ pub(super) fn prepare(
             };
             let logical = roots.logical(&path)?;
             result.observed_paths.insert(path.clone());
-            path_map.insert(path.canonicalize().map_err(error)?, logical.clone());
+            path_map.insert(
+                path.canonicalize()
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+                logical.clone(),
+            );
             path_map.insert(path, logical);
         }
         let preprocessed = normalize_line_markers(
@@ -185,10 +196,15 @@ fn observe_msvc_search(
     let roots: Vec<_> = search
         .iter()
         .filter(|p| p.is_dir())
-        .map(|p| p.canonicalize().map_err(error))
+        .map(|p| {
+            p.canonicalize()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
+        })
         .collect::<Result<_, _>>()?;
     for dependency in dependencies {
-        let path = dependency.canonicalize().map_err(error)?;
+        let path = dependency
+            .canonicalize()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         if let Some(parent) = path.parent() {
             observed.insert(parent.to_owned());
         }

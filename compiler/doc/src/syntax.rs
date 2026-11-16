@@ -18,6 +18,7 @@ pub fn prepare_comments(comments: &[DocComment], source: &str) -> SourceDocument
         let comment = &comments[offset];
         let DocCommentTarget::Declaration(declaration) = comment.target else {
             output.warnings.push(Diagnostic::warning_at(
+                scoop_source::DiagnosticCode::W1803,
                 comment.span,
                 "documentation comment is not attached to a declaration",
             ));

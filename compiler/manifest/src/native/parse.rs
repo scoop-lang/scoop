@@ -145,10 +145,10 @@ fn parse_flags(flags: Vec<Spanned<String>>) -> Result<Vec<NativeCompileFlag>, Ma
 
 fn error(value: &Spanned<String>, reason: &str) -> ManifestParseError {
     ManifestParseError::new(
-        ManifestParseErrorKind::InvalidNative(format!(
-            "invalid native option {:?}: {reason}",
-            value.get_ref()
-        )),
+        ManifestParseErrorKind::InvalidNative(
+            scoop_source::DiagnosticCode::E2017,
+            format!("invalid native option {:?}: {reason}", value.get_ref()),
+        ),
         Some(value.span()),
     )
 }

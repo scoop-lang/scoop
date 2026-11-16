@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0716",
     "message": "companion object cannot access host instance property `value` without a host instance",
     "notes": [],
     "origin": {

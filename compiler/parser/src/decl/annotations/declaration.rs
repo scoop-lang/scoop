@@ -36,6 +36,7 @@ impl Parser {
         let mut parameters = Vec::new();
         if matches!(self.peek().kind, TokenKind::Less) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E0310,
                 self.peek().span,
                 "annotation classes cannot have type parameters",
             ));
@@ -58,6 +59,7 @@ impl Parser {
         }
         if matches!(self.peek().kind, TokenKind::Colon | TokenKind::LBrace) {
             return Err(Diagnostic::at(
+                scoop_source::DiagnosticCode::E1307,
                 self.peek().span,
                 "annotation classes cannot have supertypes or a body",
             ));

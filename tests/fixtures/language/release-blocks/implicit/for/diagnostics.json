@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1114",
     "message": "`release` requires ReleaseValue values and direct NoTransition calls; allocation, managed access, transitions and trapping operations are forbidden",
     "notes": [],
     "origin": {

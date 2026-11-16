@@ -18,6 +18,7 @@ impl Lowerer {
                 if Some(application.annotation) == target {
                     let [Value::Array { elements, .. }] = application.arguments.as_slice() else {
                         self.error(
+                            scoop_source::DiagnosticCode::E1308,
                             application.definition_origin.span,
                             "core Target requires an AnnotationTarget array".into(),
                         );
@@ -39,12 +40,17 @@ impl Lowerer {
                             Some(kind) => {
                                 if !allowed.insert(kind) {
                                     self.error(
+                                        scoop_source::DiagnosticCode::E1308,
                                         span,
                                         format!("duplicate annotation target `{}`", kind.name()),
                                     );
                                 }
                             }
-                            None => self.error(span, "unknown annotation target".into()),
+                            None => self.error(
+                                scoop_source::DiagnosticCode::E1308,
+                                span,
+                                "unknown annotation target".into(),
+                            ),
                         }
                     }
                     allowed.repeatable = rules.repeatable;

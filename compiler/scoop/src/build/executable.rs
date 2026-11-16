@@ -53,15 +53,20 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     if let Some(executable) = record::load(&entry)? {
         return Ok(executable);
     }
-    std::fs::create_dir_all(&namespace).map_err(failure)?;
-    let lock =
-        crate::cache::open_build_lock(&namespace.join(format!("{key}.lock"))).map_err(failure)?;
-    FileExt::lock(&lock).map_err(failure)?;
+    std::fs::create_dir_all(&namespace)
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
+    let lock = crate::cache::open_build_lock(&namespace.join(format!("{key}.lock")))
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
+    FileExt::lock(&lock).map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     if let Some(executable) = record::load(&entry)? {
         return Ok(executable);
     }
     let target = request.target.production().map_err(|error| {
-        BuildFailure::tool("SCOOP_LINK_TOOLCHAIN", BuildFailurePhase::FinalLink, error)
+        BuildFailure::tool(
+            scoop_source::DiagnosticCode::E2303,
+            BuildFailurePhase::FinalLink,
+            error,
+        )
     })?;
     let (runtime, runtime_index, runtime_paths) = runtime_input(
         request.runtime,
@@ -75,12 +80,11 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let directory = tempfile::Builder::new()
         .prefix("program-")
         .tempdir_in(&namespace)
-        .map_err(failure)?;
-    let closure = read_built_program(request.graph.closure(), target).map_err(failure)?;
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
+    let closure =
+        read_built_program(request.graph.closure(), target).map_err(BuildFailure::link)?;
     let profile = scoop_linker::resolve_program_link_profile(&closure, target, request.options)
-        .map_err(|error| {
-            BuildFailure::tool("SCOOP_LINK_TOOLCHAIN", BuildFailurePhase::FinalLink, error)
-        })?;
+        .map_err(BuildFailure::link)?;
     let linked = scoop_linker::link_program(
         &closure,
         &runtime,
@@ -95,10 +99,12 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
             if request.emit_debug_file()
                 || request.options.output_kind == scoop_toolchain::FinalOutputKind::SharedLibrary
             {
-                request
-                    .output
-                    .file_name()
-                    .ok_or_else(|| failure("executable has no basename"))?
+                request.output.file_name().ok_or_else(|| {
+                    failure(
+                        scoop_source::DiagnosticCode::E2020,
+                        "executable has no basename",
+                    )
+                })?
             } else if scoop_target_data::definition(request.target.id())
                 .expect("resolved build target")
                 .os
@@ -111,16 +117,18 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
         ),
         request.cache,
     )
-    .map_err(failure)?;
+    .map_err(BuildFailure::link)?;
     let mut paths: BTreeSet<_> = linked.input_paths.into_iter().collect();
     paths.extend(runtime_paths);
     let inputs = paths
         .iter()
-        .map(|path| NativeInputMetadata::read(path).map_err(failure))
+        .map(|path| NativeInputMetadata::read(path).map_err(|error| failure(error.code(), error)))
         .collect::<BuildResult<Vec<_>>>()?;
-    let result_key =
-        *scoop_wire::sha256(&serde_json::to_vec(&(key.as_array(), &inputs)).map_err(failure)?)
-            .as_array();
+    let result_key = *scoop_wire::sha256(
+        &serde_json::to_vec(&(key.as_array(), &inputs))
+            .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
+    )
+    .as_array();
     let executable = Executable {
         path: linked.path,
         runtime_index,
@@ -134,6 +142,6 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     Ok(executable)
 }
 
-fn failure(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_LINK_FAILED", BuildFailurePhase::FinalLink, error)
+fn failure(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> Box<BuildFailure> {
+    BuildFailure::tool(code, BuildFailurePhase::FinalLink, error)
 }

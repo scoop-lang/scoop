@@ -3,12 +3,17 @@ use super::*;
 pub(crate) fn read_symbols(file: &ElfFile64<'_>) -> Result<ElfSymbols, LinkError> {
     let endian = file.endian();
     let sections = file.elf_section_table();
-    let versions = sections.versions(endian, file.data()).map_err(error)?;
-    if let Some((indices, table)) = sections.gnu_versym(endian, file.data()).map_err(error)?
+    let versions = sections
+        .versions(endian, file.data())
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
+    if let Some((indices, table)) = sections
+        .gnu_versym(endian, file.data())
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
         && (indices.len() != file.elf_dynamic_symbol_table().len()
             || table != file.elf_dynamic_symbol_table().section())
     {
         return Err(error(
+            scoop_source::DiagnosticCode::E2305,
             "ELF symbol versions do not match the dynamic symbol table",
         ));
     }
@@ -18,7 +23,10 @@ pub(crate) fn read_symbols(file: &ElfFile64<'_>) -> Result<ElfSymbols, LinkError
             continue;
         }
         let raw = symbol.elf_symbol();
-        let name = symbol.name().map_err(error)?.to_owned();
+        let name = symbol
+            .name()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+            .to_owned();
         if name.is_empty() {
             continue;
         }
@@ -27,7 +35,9 @@ pub(crate) fn read_symbols(file: &ElfFile64<'_>) -> Result<ElfSymbols, LinkError
             if index.is_local() && !symbol.is_undefined() {
                 continue;
             }
-            let version = versions.version(index).map_err(error)?;
+            let version = versions
+                .version(index)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
             (
                 version.map(|v| text(v.name())).transpose()?,
                 version.and_then(|v| v.file()).map(text).transpose()?,
@@ -57,12 +67,20 @@ pub(crate) fn read_symbols(file: &ElfFile64<'_>) -> Result<ElfSymbols, LinkError
         let Some(index) = symbol.section_index() else {
             continue;
         };
-        let section = file.section_by_index(index).map_err(error)?;
+        let section = file
+            .section_by_index(index)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         let SectionFlags::Elf { sh_flags } = section.flags() else {
-            return Err(error("non-ELF section in ELF DSO"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                "non-ELF section in ELF DSO",
+            ));
         };
         if sh_flags & u64::from(elf::SHF_ALLOC) == 0 {
-            return Err(error(format!("ELF export {name} has no allocated storage")));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                format!("ELF export {name} has no allocated storage"),
+            ));
         }
         // TLS symbol values are offsets in PT_TLS, not ordinary image VAs.
         let relro = kind != NativeSymbolKind::ThreadLocal
@@ -87,7 +105,10 @@ pub(crate) fn read_symbols(file: &ElfFile64<'_>) -> Result<ElfSymbols, LinkError
         if exports.iter().any(|previous| {
             previous.version == export.version || (previous.default && export.default)
         }) {
-            return Err(error(format!("duplicate ELF export {name} version")));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                format!("duplicate ELF export {name} version"),
+            ));
         }
         exports.push(export);
     }
@@ -95,5 +116,7 @@ pub(crate) fn read_symbols(file: &ElfFile64<'_>) -> Result<ElfSymbols, LinkError
 }
 
 fn text(bytes: &[u8]) -> Result<String, LinkError> {
-    std::str::from_utf8(bytes).map(str::to_owned).map_err(error)
+    std::str::from_utf8(bytes)
+        .map(str::to_owned)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))
 }

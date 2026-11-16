@@ -1,3 +1,4 @@
+use scoop_slib::SlibDiagnostic;
 use std::{collections::BTreeSet, fs};
 
 use scoop_slib::{ArtifactFile, ArtifactManifestSummaryV1, ConeKind};
@@ -15,14 +16,12 @@ impl Catalog<'_> {
         };
         let stamp = FileStamp::read(&path)?;
         let target = self.options.target;
-        let target_key = target
-            .target()
-            .fingerprint()
-            .map_err(|error| PmError::new(error.to_string()))?;
-        let backend_key = target
-            .backend()
-            .fingerprint()
-            .map_err(|error| PmError::new(error.to_string()))?;
+        let target_key = target.target().fingerprint().map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+        })?;
+        let backend_key = target.backend().fingerprint().map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+        })?;
         let extra = [
             target_key.as_array().as_slice(),
             backend_key.as_array().as_slice(),
@@ -32,18 +31,22 @@ impl Catalog<'_> {
             .cache
             .input_record("artifacts-v1", &path, &stamp, &extra)?;
         let summary: ArtifactManifestSummaryV1 = match fs::read(&record) {
-            Ok(bytes) => scoop_wire::decode_canonical(&bytes)
-                .map_err(|error| PmError::new(error.to_string()))?,
+            Ok(bytes) => scoop_wire::decode_canonical(&bytes).map_err(|error| {
+                PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+            })?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 let file =
                     ArtifactFile::open(&path, target).map_err(|error| PmError::io(&path, error))?;
                 let summary = file
                     .summary()
-                    .map_err(|error| PmError::new(format!("{}: {error}", path.display())))?
+                    .map_err(|error| {
+                        PmError::new(error.code(), format!("{}: {error}", path.display()))
+                    })?
                     .clone();
                 stamp.unchanged(&path)?;
-                let bytes = scoop_wire::encode(&summary)
-                    .map_err(|error| PmError::new(error.to_string()))?;
+                let bytes = scoop_wire::encode(&summary).map_err(|error| {
+                    PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
+                })?;
                 crate::cache::atomic_write(&record, &bytes)?;
                 summary
             }
@@ -151,12 +154,15 @@ impl Catalog<'_> {
             if candidate.key() != requirement.key
                 || exact.is_some_and(|exact| *exact != candidate.coordinate)
             {
-                return Err(PmError::new(format!(
-                    "artifact at {} declares {}, expected {}",
-                    path.display(),
-                    candidate.coordinate,
-                    requirement.key
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2102,
+                    format!(
+                        "artifact at {} declares {}, expected {}",
+                        path.display(),
+                        candidate.coordinate,
+                        requirement.key
+                    ),
+                ));
             }
             let PackageInput::Prebuilt { summary, .. } = self.input(&candidate) else {
                 unreachable!("artifact loader stores a prebuilt input")
@@ -164,10 +170,13 @@ impl Catalog<'_> {
             let fingerprint = summary.artifact_fingerprint();
             match fingerprints.insert(candidate.coordinate.to_string(), fingerprint) {
                 Some(existing) if existing != fingerprint => {
-                    return Err(PmError::new(format!(
-                        "ambiguous artifacts for {} in search roots",
-                        candidate.coordinate
-                    )));
+                    return Err(PmError::new(
+                        scoop_source::DiagnosticCode::E2106,
+                        format!(
+                            "ambiguous artifacts for {} in search roots",
+                            candidate.coordinate
+                        ),
+                    ));
                 }
                 Some(_) => {}
                 None => result.push(candidate),
@@ -187,10 +196,13 @@ impl Catalog<'_> {
             )?);
         }
         if result.is_empty() {
-            return Err(PmError::new(format!(
-                "no artifact found for {} in the selected artifact search roots",
-                requirement.key
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2101,
+                format!(
+                    "no artifact found for {} in the selected artifact search roots",
+                    requirement.key
+                ),
+            ));
         }
         Ok(result)
     }

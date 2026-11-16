@@ -247,7 +247,9 @@ impl Lowerer {
             if self.is_subtype(value.ty, parameter.ty) {
                 Some(self.adapt_to(value, parameter.ty))
             } else {
-                let message = self.with_nominal_invariance_detail(
+                self.error_with_invariance(
+                    scoop_source::DiagnosticCode::E0501,
+                    expression.span(),
                     format!(
                         "default value of parameter `{}` in `{}` must be of type {}, found {}",
                         parameter.name.text,
@@ -258,7 +260,6 @@ impl Lowerer {
                     value.ty,
                     parameter.ty,
                 );
-                self.error(expression.span(), message);
                 None
             }
         });

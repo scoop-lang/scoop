@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "operator `plus` returns Int, which cannot be assigned to place of type E",
     "notes": [],
     "origin": {

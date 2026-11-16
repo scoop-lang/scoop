@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "operator `inc` must return a subtype of receiver type Invalid, found Int",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1013",
     "message": "`inc` must have the same `operator` modifier as `Increment<Int>.inc`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `Invalid` does not implement interface method `Increment<Int>.inc`",
     "notes": [],
     "origin": {

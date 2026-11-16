@@ -41,7 +41,8 @@ struct Origin {
 }
 
 pub(super) fn execute(args: DepsArgs, key: DependencyCoordinateKey) -> PmResult<()> {
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let request = ResolveRequest {
         cwd,
         input: args.members.input,
@@ -57,9 +58,9 @@ pub(super) fn execute(args: DepsArgs, key: DependencyCoordinateKey) -> PmResult<
             .target
             .map(Ok)
             .unwrap_or_else(|| scoop_toolchain::host_target_triple().map(str::to_owned))
-            .map_err(|error| PmError::new(error.to_string()))?,
+            .map_err(|error| PmError::new(error.code(), error.to_string()))?,
         sysroot: scoop_toolchain::configured_sysroot_root(args.sysroot)
-            .map_err(|error| PmError::new(error.to_string()))?,
+            .map_err(|error| PmError::new(error.code(), error.to_string()))?,
         artifact_roots: args.cone_path,
         package_cache: args.package_cache_dir,
         lockfile: args.lockfile,
@@ -76,9 +77,10 @@ pub(super) fn execute(args: DepsArgs, key: DependencyCoordinateKey) -> PmResult<
         .map(|root| explain(root, &key))
         .collect::<PmResult<Vec<_>>>()?;
     if resolutions.is_empty() {
-        return Err(PmError::new(format!(
-            "{key} is not in any selected locked graph"
-        )));
+        return Err(PmError::new(
+            scoop_source::DiagnosticCode::E2114,
+            format!("{key} is not in any selected locked graph"),
+        ));
     }
     if args.members.json {
         #[derive(Serialize)]
@@ -92,7 +94,10 @@ pub(super) fn execute(args: DepsArgs, key: DependencyCoordinateKey) -> PmResult<
                 format: 1,
                 resolutions
             })
-            .map_err(|error| PmError::new(error.to_string()))?
+            .map_err(|error| PmError::new(
+                scoop_source::DiagnosticCode::ICE2501,
+                error.to_string()
+            ))?
         );
     } else {
         for explanation in resolutions {
@@ -132,8 +137,9 @@ fn explain(root: &ResolvedRoot, key: &DependencyCoordinateKey) -> PmResult<Expla
                 .iter()
                 .map(|origin| {
                     Ok(Origin {
-                        path: HostPathCarrier::from_path(&origin.manifest)
-                            .map_err(|error| PmError::new(error.to_string()))?,
+                        path: HostPathCarrier::from_path(&origin.manifest).map_err(|error| {
+                            PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
+                        })?,
                         span: origin.span.clone(),
                     })
                 })
@@ -189,10 +195,9 @@ fn print_explanation(value: &Explanation) -> PmResult<()> {
             requirement.source
         );
         for origin in &requirement.origins {
-            let path = origin
-                .path
-                .to_path_buf()
-                .map_err(|error| PmError::new(error.to_string()))?;
+            let path = origin.path.to_path_buf().map_err(|error| {
+                PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
+            })?;
             println!(
                 "      {} (bytes {}..{})",
                 path.display(),

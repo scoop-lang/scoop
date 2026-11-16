@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1702",
     "message": "missing executable entry: declare exactly one ordinary `fun main(): Unit`, `fun main(): Int`, `fun main(args: Array<String>): Unit`, or `fun main(args: Array<String>): Int`",
     "notes": [],
     "origin": {

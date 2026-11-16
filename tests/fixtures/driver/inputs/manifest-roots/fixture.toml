@@ -172,5 +172,5 @@ name = "producer"
 argv = ["${scoopc}", "build", "--profile", "release", "${work}/alias", {"each" = "${compile_args}"}, "--sysroot", "${sysroot}", "--direct-slib", "${baseline.result.dependencies.0.path}", "--out-slib", "${work}/manual.slib"]
 exit = 1
 stdout = ""
-stderr = "error: scoopc does not read Cone.toml; use scoop build/check for Cone projects\n"
+stderr = "error[E2001]: scoopc does not read Cone.toml\n  help[H2001]: use scoop build/check for Cone projects\n"
 checks = [{file = "${work}/manual.slib", exists = false}]

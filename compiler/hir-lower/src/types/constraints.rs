@@ -60,6 +60,7 @@ impl Lowerer {
             for constraint in &clause.constraints {
                 let Some(&index) = own_indices.get(&constraint.subject.parameter().text) else {
                     self.error(
+                        scoop_source::DiagnosticCode::E0612,
                         constraint.subject.parameter().span,
                         format!(
                             "unknown type parameter `{}` in where clause of {target}",

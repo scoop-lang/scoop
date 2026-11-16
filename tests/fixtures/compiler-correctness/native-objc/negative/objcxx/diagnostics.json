@@ -1,12 +1,12 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2017",
     "message": "native compilation: value.mm has an invalid native source extension",
     "notes": [],
     "origin": {
       "kind": "none"
     },
-    "severity": "error",
-    "phase": "SourceSnapshot"
+    "phase": "SourceSnapshot",
+    "severity": "error"
   }
 ]

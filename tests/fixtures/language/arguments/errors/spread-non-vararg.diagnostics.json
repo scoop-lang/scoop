@@ -1,8 +1,36 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `one` in current-unit top-level candidate layer:\n  - fun one(value: Array<Int>): Long — spread is only allowed for vararg parameter `value`",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `one` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun one(value: Array<Int>): Long",
+        "notes": [
+          {
+            "code": "E0707",
+            "kind": "cause",
+            "message": "spread is only allowed for vararg parameter `value`",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 76,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 64
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 45,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 76,

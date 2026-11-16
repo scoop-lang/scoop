@@ -33,7 +33,7 @@ impl Lowerer {
                 }
                 && signature.attributes == hir::FunctionAttributes::default();
             if !valid {
-                self.error(declaration.span, match kind {
+                self.error(scoop_source::DiagnosticCode::E1403, declaration.span, match kind {
                 hir::IntrinsicFunctionKind::CompileEnv => "intrinsic `compile_env` must be an ordinary top-level `fun env(name: String): Option<String>`",
                 hir::IntrinsicFunctionKind::IncludeStr => "intrinsic `include_str` must be an ordinary top-level `fun includeStr(path: String): String`",
                 hir::IntrinsicFunctionKind::IncludeBytes => "intrinsic `include_bytes` must be an ordinary top-level `fun includeBytes(path: String): Array<Byte>`",
@@ -71,7 +71,7 @@ impl Lowerer {
             }))
             && self.embedded_directory_types(signature.return_ty).is_some();
         if !valid {
-            self.error(span, "intrinsic `include_dir` must be an ordinary top-level `fun includeDir(path: String, include: Array<String> = [\"**\"], exclude: Array<String> = []): EmbeddedDir`, with ordinary directory and file structs".into());
+            self.error(scoop_source::DiagnosticCode::E1403, span, "intrinsic `include_dir` must be an ordinary top-level `fun includeDir(path: String, include: Array<String> = [\"**\"], exclude: Array<String> = []): EmbeddedDir`, with ordinary directory and file structs".into());
         }
     }
 

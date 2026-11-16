@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1118",
     "message": "only `@Unsafe` or `@Safe` may annotate a block",
     "notes": [],
     "origin": {

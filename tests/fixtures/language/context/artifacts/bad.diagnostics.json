@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1116",
     "message": "duplicate context key after specialization of `read`: parameters 1 and 2 have the same exact type",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1116",
     "message": "duplicate context key after specialization of `read`: parameters 1 and 2 have the same exact type",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1116",
     "message": "duplicate context key after specialization of `read`: parameters 1 and 2 have the same exact type",
     "notes": [],
     "origin": {

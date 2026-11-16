@@ -136,7 +136,11 @@ impl Lowerer {
                     .map(|argument| self.imported_signature_type_with_bindings(argument, bindings))
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|error| {
-                        self.error(span, format!("cannot resolve decoding default: {error:?}"))
+                        self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
+                            span,
+                            format!("cannot resolve decoding default: {error:?}"),
+                        )
                     })
                     .ok()?;
                 let prepared = self
@@ -146,12 +150,17 @@ impl Lowerer {
                         arguments,
                     )
                     .map_err(|error| {
-                        self.error(span, format!("cannot prepare decoding default: {error}"))
+                        self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
+                            span,
+                            format!("cannot prepare decoding default: {error}"),
+                        )
                     })
                     .ok()?;
                 self.materialize_imported_default(&prepared, None, previous, span, sink)
                     .map_err(|error| {
                         self.error(
+                            scoop_source::DiagnosticCode::ICE0501,
                             span,
                             format!("cannot instantiate decoding default: {error}"),
                         )

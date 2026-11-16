@@ -370,6 +370,10 @@ impl Lowerer {
         name: &ast::Ident,
         result: LookupResult<TypeLookupCandidate>,
     ) -> Result<Option<TypeLookupTarget>, ()> {
+        let code = match &result {
+            LookupResult::Inaccessible(_) => scoop_source::DiagnosticCode::E0403,
+            _ => scoop_source::DiagnosticCode::E0404,
+        };
         let (message, candidates) = match result {
             LookupResult::Unavailable(bindings) => {
                 self.report_unavailable_lookup(name, bindings.as_slice());
@@ -400,7 +404,7 @@ impl Lowerer {
                 )
             }
         };
-        let mut diagnostic = ast::Diagnostic::at_file(self.current_file, name.span, message);
+        let mut diagnostic = ast::Diagnostic::at_file(code, self.current_file, name.span, message);
         match candidates
             .iter()
             .map(|candidate| self.type_candidate_note(candidate))

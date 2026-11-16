@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PACKAGE_ERROR",
+    "code": "E2007",
     "message": "package `dev.example` must equal Cone group `dev.example` or one of its subpackages",
     "notes": [],
     "origin": {

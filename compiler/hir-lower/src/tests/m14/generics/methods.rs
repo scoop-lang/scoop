@@ -292,9 +292,8 @@ fn generic_method_bounds_are_checked_with_the_method_argument_group() {
     ]))
     .expect_err("the owner argument must not be used in place of the method argument");
     assert!(errors.iter().any(|error| {
-        error.message.contains("fun Host<T>.accept<U : Marker>")
-            && error
-                .message
+        crate::tests::diagnostic_text(error).contains("fun Host<T>.accept<U : Marker>")
+            && crate::tests::diagnostic_text(error)
                 .contains("type argument `Int` for `U` must satisfy interface upper bound `Marker`")
     }));
 }
@@ -351,12 +350,9 @@ fn generic_callable_recursion_requires_an_identity_argument_mapping() {
     let errors = lower_user(file(vec![growing, fun("main", vec![])]))
         .expect_err("a recursive application that grows its argument is polymorphic recursion");
     assert!(errors.iter().any(|error| {
-        error
-            .message
-            .contains("polymorphic recursion is not supported")
-            && error.message.contains("growing")
-            && error
-                .message
+        crate::tests::diagnostic_text(error).contains("polymorphic recursion is not supported")
+            && crate::tests::diagnostic_text(error).contains("growing")
+            && crate::tests::diagnostic_text(error)
                 .contains("changes its complete type-argument mapping")
     }));
 }
@@ -385,9 +381,7 @@ fn generic_method_polymorphic_recursion_checks_both_argument_groups() {
     let errors = lower_user(file(vec![host, fun("main", vec![])]))
         .expect_err("changing the method suffix in a recursive cycle must fail");
     assert!(errors.iter().any(|error| {
-        error
-            .message
-            .contains("polymorphic recursion is not supported")
-            && error.message.contains("Host.grow")
+        crate::tests::diagnostic_text(error).contains("polymorphic recursion is not supported")
+            && crate::tests::diagnostic_text(error).contains("Host.grow")
     }));
 }

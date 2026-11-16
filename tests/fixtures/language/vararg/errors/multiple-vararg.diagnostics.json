@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0719",
     "message": "a parameter list may declare at most one `vararg` parameter",
     "notes": [],
     "origin": {

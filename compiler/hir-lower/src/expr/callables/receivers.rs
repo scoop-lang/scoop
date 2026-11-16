@@ -28,6 +28,7 @@ impl Lowerer {
         }
         if !call.type_args.is_empty() {
             state.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 "function values do not accept explicit type arguments".into(),
             );

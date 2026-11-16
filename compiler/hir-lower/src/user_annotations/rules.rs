@@ -41,6 +41,7 @@ impl Lowerer {
         };
         if !rules.permits(target) {
             self.error(
+                scoop_source::DiagnosticCode::E1301,
                 span,
                 format!("annotation `@{name}` is not allowed on {}", target.name()),
             );
@@ -48,6 +49,7 @@ impl Lowerer {
         }
         if repeated && !rules.repeatable {
             self.error(
+                scoop_source::DiagnosticCode::E1302,
                 span,
                 format!("annotation `@{name}` must not be repeated on the same target"),
             );

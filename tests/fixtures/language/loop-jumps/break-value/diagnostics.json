@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected `;` or newline after statement, found integer literal",
     "notes": [],
     "origin": {

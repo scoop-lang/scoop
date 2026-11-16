@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` struct `Scalar` specialization is not GC-free because it directly or indirectly contains a ref type",
     "notes": [],
     "origin": {

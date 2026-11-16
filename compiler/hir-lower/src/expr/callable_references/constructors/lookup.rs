@@ -63,6 +63,7 @@ impl Lowerer {
             PreparedNominalPlans::Nominal(plans, intrinsic) => {
                 if intrinsic.is_some() {
                     self.error(
+                        scoop_source::DiagnosticCode::E0510,
                         span,
                         format!("type `{}` has no ordinary constructor reference", name.text),
                     );
@@ -123,6 +124,7 @@ impl Lowerer {
             }
             crate::namespace::TopLevelTypeTarget::Annotation(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0510,
                     span,
                     format!("type `{}` has no ordinary constructor reference", name.text),
                 );
@@ -169,6 +171,7 @@ impl Lowerer {
             == hir::NominalInheritanceModalityV1::Abstract
         {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 span,
                 format!("abstract class `{}` cannot be instantiated", name.text),
             );
@@ -181,6 +184,7 @@ impl Lowerer {
                 )
         {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 span,
                 "`ForeignCallback` values can only be produced by `foreignCallback`".into(),
             );
@@ -190,6 +194,7 @@ impl Lowerer {
             Ok(candidates) => candidates,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid dependency constructor declaration: {error}"),
                 );
@@ -198,6 +203,7 @@ impl Lowerer {
         };
         if candidates.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 span,
                 format!("type `{}` does not name a constructible type", name.text),
             );
@@ -209,6 +215,7 @@ impl Lowerer {
             .collect::<Vec<_>>();
         if candidates.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 span,
                 format!("constructor `{}` is not accessible here", name.text),
             );

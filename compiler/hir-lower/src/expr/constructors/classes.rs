@@ -21,6 +21,7 @@ impl Lowerer {
         let name = self.classes[class_id].name.clone();
         if !self.classes[class_id].has_source_constructors() {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 span,
                 format!("intrinsic class `{name}` has no source constructor"),
             );
@@ -28,6 +29,7 @@ impl Lowerer {
         }
         if self.classes[class_id].modifier == hir::ClassModifier::Abstract {
             self.error(
+                scoop_source::DiagnosticCode::E0510,
                 span,
                 format!("abstract class `{name}` cannot be instantiated"),
             );
@@ -35,7 +37,11 @@ impl Lowerer {
         }
         let constructors = self.source_class_constructors(class_id).collect::<Vec<_>>();
         if constructors.is_empty() {
-            self.error(span, format!("class `{name}` has no source constructor"));
+            self.error(
+                scoop_source::DiagnosticCode::E0510,
+                span,
+                format!("class `{name}` has no source constructor"),
+            );
             return None;
         }
         let explicit_type_args = self.resolve_call_type_args(type_arg_refs)?;

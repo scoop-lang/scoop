@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "type `Bag` has no method `contains`",
     "notes": [],
     "origin": {

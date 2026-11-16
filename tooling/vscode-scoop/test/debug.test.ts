@@ -73,8 +73,8 @@ test("debug build consumes the executable record and keeps argument boundaries",
       script,
       `
       console.log('tool output');
-      console.error(JSON.stringify({schema: 1, kind: 'diagnostic', message: 'warning'}));
-      console.error(JSON.stringify({schema: 1, kind: 'executable', output: process.argv[2]}));
+      console.error(JSON.stringify({schema: 2, kind: 'diagnostic', message: 'warning'}));
+      console.error(JSON.stringify({schema: 2, kind: 'executable', output: process.argv[2]}));
     `,
     );
     const lines: string[] = [];
@@ -205,7 +205,7 @@ test("a test lens selects one directory index including ignored and private case
       script,
       `console.error(${JSON.stringify(
         JSON.stringify({
-          schema: 1,
+          schema: 2,
           kind: "executable",
           output: "program",
           test_directory: directory,

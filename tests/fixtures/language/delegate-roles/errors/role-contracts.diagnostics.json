@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "an `@Extern` function must not have an extension receiver",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "property delegate operator `getValue` must be an ordinary function",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0725",
     "message": "`operator` requires a member or extension receiver",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0726",
     "message": "property delegate operator `provideDelegate` must have exactly 0 parameters, found 1",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0727",
     "message": "property delegate operator `getValue` requires required, non-vararg parameters",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "property delegate operator `provideDelegate` must not be suspend",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "property delegate operator `getValue` must not declare type parameters",
     "notes": [],
     "origin": {
@@ -91,7 +91,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0729",
     "message": "property delegate operator `setValue` must return Unit, found Int",
     "notes": [],
     "origin": {
@@ -104,7 +104,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: getValue.parameter1: `Unit` is only allowed as a Scoop ABI return type",
     "notes": [],
     "origin": {

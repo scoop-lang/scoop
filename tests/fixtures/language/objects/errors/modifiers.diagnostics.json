@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1018",
     "message": "open property `extensibleProperty` is not allowed in an object declaration",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1018",
     "message": "abstract property `missingProperty` is not allowed in an object declaration",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1018",
     "message": "open function `extensible` is not allowed in an object declaration",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1018",
     "message": "abstract function `missing` is only allowed in abstract classes",
     "notes": [],
     "origin": {

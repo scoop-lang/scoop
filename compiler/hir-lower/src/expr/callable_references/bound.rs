@@ -43,7 +43,7 @@ impl Lowerer {
             if member_candidates.is_empty() && before != 0 {
                 let found = self.type_name(receiver.ty);
                 let mut failure = self.clone();
-                failure.error(
+                failure.error(scoop_source::DiagnosticCode::E0714,
                     name.span,
                     format!(
                         "generic member function `{}` cannot be referenced through interface type `{found}`",

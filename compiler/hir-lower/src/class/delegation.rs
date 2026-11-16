@@ -72,6 +72,7 @@ impl Lowerer {
                         this.lower_expr(&delegate.expression, sink, Some(delegate.interface))?;
                     if !this.is_subtype(value.ty, delegate.interface) {
                         this.error(
+                            scoop_source::DiagnosticCode::E0501,
                             delegate.expression.span(),
                             format!(
                                 "interface delegate must have type {}, found {}",

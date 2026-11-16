@@ -264,6 +264,7 @@ impl Lowerer {
                 .collect::<Vec<_>>();
             if values.len() > 1 {
                 self.error(
+                    scoop_source::DiagnosticCode::E0404,
                     call.callee.span,
                     format!(
                         "value `{name}` is ambiguous in {} layer",
@@ -344,6 +345,7 @@ impl Lowerer {
             }
             if current_values.len() > 1 {
                 self.error(
+                    scoop_source::DiagnosticCode::E0404,
                     call.callee.span,
                     format!(
                         "property `{name}` is ambiguous in {} layer",

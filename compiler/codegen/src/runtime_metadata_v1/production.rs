@@ -165,6 +165,7 @@ fn runtime_global_atoms<'ctx, D, C, I>(
                 CodegenError::internal(
                     "root entry definition is absent from canonical symbol plan".to_string(),
                 )
+                .with_code(scoop_source::DiagnosticCode::ICE2302)
             })?;
         atoms.push(GlobalAtomMaterializationV1::new(
             definition.primary_atom(),

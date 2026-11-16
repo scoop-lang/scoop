@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_PACKAGE_PREPARE",
+    "code": "E2012",
     "message": "${fixture}/program/Cone.toml: path must not be empty or contain NUL",
     "notes": [],
     "origin": {

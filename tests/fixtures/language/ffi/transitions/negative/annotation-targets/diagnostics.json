@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "`@GCLeaf` requires a C ABI `@Extern` function",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "`@GCLeaf` requires a C ABI `@Extern` function",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "unsupported annotation `@GCLeaf` for this declaration",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "`@GCLeaf` is not allowed on a class",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "`@GCLeaf` is not allowed on a top-level storage declaration",
     "notes": [],
     "origin": {

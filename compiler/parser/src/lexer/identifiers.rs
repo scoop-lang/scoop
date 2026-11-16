@@ -14,6 +14,7 @@ impl Lexer<'_> {
                     Err(invalid_identifier_character(span))
                 } else if text.is_empty() {
                     Err(Diagnostic::at(
+                        scoop_source::DiagnosticCode::E0103,
                         self.span_from(start),
                         "escaped identifier must not be empty",
                     ))
@@ -30,13 +31,18 @@ impl Lexer<'_> {
         Err(invalid_character
             .map(invalid_identifier_character)
             .unwrap_or_else(|| {
-                Diagnostic::at(self.span_from(start), "unterminated escaped identifier")
+                Diagnostic::at(
+                    scoop_source::DiagnosticCode::E0102,
+                    self.span_from(start),
+                    "unterminated escaped identifier",
+                )
             }))
     }
 }
 
 fn invalid_identifier_character(span: Span) -> Diagnostic {
     Diagnostic::at(
+        scoop_source::DiagnosticCode::E0103,
         span,
         "escaped identifier cannot contain a newline or control character",
     )

@@ -253,6 +253,7 @@ impl Lowerer {
             }
         };
         self.error(
+            scoop_source::DiagnosticCode::E1103,
             span,
             format!("suspend function `{callee}` cannot be called from {location}"),
         );
@@ -273,6 +274,7 @@ impl Lowerer {
             .expect("the safety context stack is initialized non-empty");
         if context == hir::Safety::Safe {
             self.error(
+                scoop_source::DiagnosticCode::E1101,
                 span,
                 format!(
                     "unsafe function `{}` may only be called from an unsafe context",
@@ -291,12 +293,33 @@ impl Lowerer {
         if context == hir::Safety::Unsafe {
             return true;
         }
-        self.error(span, format!("{operation} requires an unsafe context"));
+        self.error(
+            scoop_source::DiagnosticCode::E1101,
+            span,
+            format!("{operation} requires an unsafe context"),
+        );
         false
     }
 
-    pub(crate) fn error(&mut self, span: Span, message: String) {
-        let mut diagnostic = Diagnostic::at(span, message);
+    pub(crate) fn error_with_note(
+        &mut self,
+        code: impl Into<scoop_source::DiagnosticIdentifier>,
+        span: Span,
+        message: String,
+        note: scoop_source::DiagnosticNote,
+    ) {
+        let mut diagnostic = Diagnostic::at(code, span, message).with_note(note);
+        diagnostic.set_file(self.current_text_file());
+        self.diagnostics.push(diagnostic);
+    }
+
+    pub(crate) fn error(
+        &mut self,
+        code: impl Into<scoop_source::DiagnosticIdentifier>,
+        span: Span,
+        message: String,
+    ) {
+        let mut diagnostic = Diagnostic::at(code, span, message);
         diagnostic.set_file(self.current_text_file());
         self.diagnostics.push(diagnostic);
     }

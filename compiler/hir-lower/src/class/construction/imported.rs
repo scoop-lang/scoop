@@ -27,6 +27,7 @@ impl Lowerer {
             .constructor_candidates(identity)
             .map_err(|error| {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     span,
                     format!("invalid dependency constructor declaration: {error}"),
                 )
@@ -66,6 +67,7 @@ impl Lowerer {
                         *this = *failure;
                     } else {
                         this.error(
+                            scoop_source::DiagnosticCode::E0403,
                             span,
                             format!("class `{}` has no accessible base constructor", name.text),
                         );

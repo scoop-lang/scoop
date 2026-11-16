@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1605",
     "message": "includeDir entry `excluded-directory`: include symlink target `${work}/outside` is outside the defining Cone directory `${work}/cone`",
     "notes": [],
     "origin": {

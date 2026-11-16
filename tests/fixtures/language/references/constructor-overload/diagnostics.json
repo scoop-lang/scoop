@@ -1,8 +1,65 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "callable reference `::Box` is ambiguous in constructor candidate layer:\n  - constructor Box(Int): Box — forms a complete non-generic function type\n  - constructor Box(): Box — forms a complete non-generic function type",
-    "notes": [],
+    "code": "E0712",
+    "message": "callable reference `::Box` is ambiguous in constructor candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "constructor Box(Int): Box",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "forms a complete non-generic function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "constructor Box(): Box",
+        "notes": [
+          {
+            "code": "N0701",
+            "kind": "note",
+            "message": "forms a complete non-generic function type",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          },
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "candidate remains tied after overload ranking",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 86,

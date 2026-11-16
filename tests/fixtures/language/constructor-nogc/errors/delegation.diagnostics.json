@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1104",
     "message": "`@NoGC` code may not call managed constructor `Bad`",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1201",
     "message": "extern parameter is not ABI-safe: receive.parameter1: ordinary struct `MaybeUninit` has no stable C layout",
     "notes": [],
     "origin": {

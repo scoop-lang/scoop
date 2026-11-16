@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "`Ptr` raw address must be ULong, found Int",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "`Ptr` raw address must be ULong, found UInt",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1101",
     "message": "calling an unsafe dependency function requires an unsafe context",
     "notes": [],
     "origin": {

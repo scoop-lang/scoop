@@ -62,7 +62,7 @@ impl Lowerer {
             if members.is_empty() && before != 0 {
                 let found = self.type_name(receiver.ty);
                 let mut failure = self.probe_state();
-                failure.error(
+                failure.error(scoop_source::DiagnosticCode::E0714,
                     name.span,
                     format!(
                         "generic member function `{}` cannot be called through interface type `{found}`",
@@ -481,8 +481,10 @@ impl Lowerer {
             self.commit_layer_diagnostics(&failure);
         } else if let Some(property_type) = property_type {
             self.not_callable(name.span, &property_type);
-        } else if let Some(message) = self.inaccessible_method_message(receiver.ty, &name.text) {
-            self.error(name.span, message);
+        } else if let Some((code, message)) =
+            self.inaccessible_method_message(receiver.ty, &name.text)
+        {
+            self.error(code, name.span, message);
         } else {
             let found = self.type_name(receiver.ty);
             let capability = if direct_required.infix {
@@ -491,6 +493,7 @@ impl Lowerer {
                 "method"
             };
             self.error(
+                scoop_source::DiagnosticCode::E0402,
                 name.span,
                 format!("type `{found}` has no {capability} `{}`", name.text),
             );

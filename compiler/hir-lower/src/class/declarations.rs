@@ -22,7 +22,7 @@ impl Lowerer {
                     _ => false,
                 };
                 if !valid {
-                    self.error(member.span(), "an intrinsic class cannot declare stored properties, init blocks, or constructors".into());
+                    self.error(scoop_source::DiagnosticCode::E1403, member.span(), "an intrinsic class cannot declare stored properties, init blocks, or constructors".into());
                 }
             }
             if !self.classes[id].has_source_constructors() {
@@ -58,7 +58,11 @@ impl Lowerer {
                         parameter.name.text, decl.name.text
                     )
                 };
-                self.error(parameter.name.span, message);
+                self.error(
+                    scoop_source::DiagnosticCode::E0301,
+                    parameter.name.span,
+                    message,
+                );
                 continue;
             }
             let Some((ty, calling)) = self.resolve_parameter(&parameter.ty, &parameter.syntax)
@@ -148,6 +152,7 @@ impl Lowerer {
             for parameter in &source.params {
                 if !names.insert(parameter.name.text.clone()) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0301,
                         parameter.name.span,
                         format!("duplicate constructor parameter `{}`", parameter.name.text),
                     );
@@ -225,6 +230,7 @@ impl Lowerer {
             };
             if matches!(self.types[ty], Type::Any) || self.is_nothing_ty(ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1003,
                     spec.ty.span,
                     format!(
                         "root type `{}` cannot be explicitly inherited",
@@ -242,6 +248,7 @@ impl Lowerer {
                         spec.initialization
                     {
                         self.error(
+                            scoop_source::DiagnosticCode::E1004,
                             by_span,
                             "interface implementation delegation requires an interface target"
                                 .into(),
@@ -250,6 +257,7 @@ impl Lowerer {
                     }
                     if base.is_some() {
                         self.error(
+                            scoop_source::DiagnosticCode::E1004,
                             spec.span,
                             format!("{host} may have only one direct base class"),
                         );
@@ -258,6 +266,7 @@ impl Lowerer {
                     let base_id = self.class_applications[application].template;
                     if self.class_definition(base_id).modifier == hir::ClassModifier::Final {
                         self.error(
+                            scoop_source::DiagnosticCode::E1005,
                             spec.ty.span,
                             format!(
                                 "class `{}` is final and cannot be inherited",
@@ -272,6 +281,7 @@ impl Lowerer {
                 Type::Interface(_) => {
                     if spec.constructor_arguments().is_some() {
                         self.error(
+                            scoop_source::DiagnosticCode::E1006,
                             spec.span,
                             "interfaces cannot have constructor arguments".into(),
                         );
@@ -293,6 +303,7 @@ impl Lowerer {
                     }
                 }
                 _ => self.error(
+                    scoop_source::DiagnosticCode::E1004,
                     spec.ty.span,
                     format!("`{}` is not a class or interface", self.type_name(ty)),
                 ),
@@ -309,11 +320,12 @@ impl Lowerer {
         let mut interfaces = Vec::new();
         for spec in specs {
             if let ast::SupertypeInitialization::Delegate { by_span, .. } = spec.initialization {
-                self.error(by_span, "interface implementation delegation is only allowed in class and object declarations".into());
+                self.error(scoop_source::DiagnosticCode::E1007, by_span, "interface implementation delegation is only allowed in class and object declarations".into());
                 continue;
             }
             if spec.constructor_arguments().is_some() {
                 self.error(
+                    scoop_source::DiagnosticCode::E1006,
                     spec.span,
                     "interfaces and value types cannot use supertype constructor arguments".into(),
                 );
@@ -324,6 +336,7 @@ impl Lowerer {
             };
             if !matches!(self.types[ty], Type::Interface(..)) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1004,
                     spec.ty.span,
                     format!("`{}` is not an interface", self.type_name(ty)),
                 );
@@ -355,6 +368,7 @@ impl Lowerer {
             }
             if !field_names.insert(property.name.text.clone()) {
                 self.error(
+                    scoop_source::DiagnosticCode::E0301,
                     property.name.span,
                     format!(
                         "duplicate field `{}` in class `{}`",

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0701",
     "message": "`@NoGC` does not accept arguments",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1302",
     "message": "annotation `@NoGC` must not be repeated",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1118",
     "message": "`@Safe` and `@Unsafe` cannot be combined",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0702",
     "message": "unknown argument `unknown` for `@Extern`",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "argument `lib` of `@Extern` must be a string",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "`@CLayout` arguments must be integers",
     "notes": [],
     "origin": {
@@ -78,7 +78,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "`@InteriorMutable` is not allowed on a function",
     "notes": [],
     "origin": {

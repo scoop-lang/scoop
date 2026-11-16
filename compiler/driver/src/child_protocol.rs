@@ -12,8 +12,8 @@ use scoop_protocol::{
 
 const CHILD_COMPILER_FAILURE_EXIT: u8 = 1;
 const CHILD_TRANSPORT_FAILURE_EXIT: u8 = 2;
-const CHILD_REQUEST_ERROR_CODE: &str = "SCOOPC_CHILD_REQUEST_INVALID";
-const CHILD_BUILD_ERROR_CODE: &str = "SCOOPC_BUILD_FAILED";
+const CHILD_REQUEST_ERROR_CODE: &str = "E2502";
+const CHILD_BUILD_ERROR_CODE: &str = "E2201";
 
 pub(crate) fn run(version: u32, jobs: std::num::NonZeroUsize) -> ExitCode {
     let stdin = io::stdin();
@@ -22,7 +22,10 @@ pub(crate) fn run(version: u32, jobs: std::num::NonZeroUsize) -> ExitCode {
         Ok(ChildProtocolExit::Success) => ExitCode::SUCCESS,
         Ok(ChildProtocolExit::CompilerFailure) => ExitCode::from(CHILD_COMPILER_FAILURE_EXIT),
         Err(error) => {
-            eprintln!("scoopc child transport failed: {error}");
+            eprintln!(
+                "error[{}]: scoopc child transport failed: {error}",
+                error.code()
+            );
             ExitCode::from(CHILD_TRANSPORT_FAILURE_EXIT)
         }
     }
@@ -79,7 +82,7 @@ fn execute_request(
     let build = match scoopc::normalize_protocol_build_request(request.build()) {
         Ok(build) => build.with_jobs(jobs),
         Err(error) => {
-            return failure_response(request_id, CHILD_REQUEST_ERROR_CODE, error.to_string());
+            return failure_response(request_id, error.code().as_str(), error.to_string());
         }
     };
     match build.compile(request.observation_only()) {
@@ -228,6 +231,21 @@ enum ChildProtocolError {
     WriteResponse(io::Error),
 }
 
+impl ChildProtocolError {
+    fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::UnsupportedVersion(_) => C::E2501,
+            Self::ReadRequest(_) | Self::WriteResponse(_) => C::E2204,
+            Self::DecodeRequest(_) => C::E2502,
+            Self::ConstructResponse(_) | Self::DiagnosticMapping(_) | Self::EncodeResponse(_) => {
+                C::ICE2501
+            }
+            Self::DumpOutput(_) => C::E2201,
+        }
+    }
+}
+
 impl fmt::Display for ChildProtocolError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -303,7 +321,7 @@ mod tests {
         let request_id = non_machine_request().request_id();
         let warning = StructuredDiagnosticV1::new(
             DiagnosticSeverityV1::Warning,
-            "SCOOPC_COMPILER_WARNING".to_owned(),
+            "VENDOR_WARNING".to_owned(),
             "retained catch-all warning".to_owned(),
             DiagnosticOriginV1::SemanticSourceSpan {
                 cone: scoop_protocol::ProtocolConeIdentity::from_array([17; 32]),
@@ -334,7 +352,7 @@ mod tests {
         assert_eq!(diagnostics[0].severity(), DiagnosticSeverityV1::Error);
         assert_eq!(diagnostics[0].message(), "publication failed");
         assert_eq!(diagnostics[1].severity(), DiagnosticSeverityV1::Warning);
-        assert_eq!(diagnostics[1].code(), "SCOOPC_COMPILER_WARNING");
+        assert_eq!(diagnostics[1].code(), "VENDOR_WARNING");
         assert_eq!(diagnostics[1].message(), "retained catch-all warning");
     }
 

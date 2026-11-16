@@ -66,7 +66,8 @@ impl SymbolPlanIndex {
                 return Err(CodegenError::internal(format!(
                     "ELF global belongs to two definition groups: {} and {group}",
                     self.groups[previous]
-                )));
+                ))
+                .with_code(scoop_source::DiagnosticCode::ICE2302));
             }
             owner.set_comdat(llvm.get_or_insert_comdat(group));
         }

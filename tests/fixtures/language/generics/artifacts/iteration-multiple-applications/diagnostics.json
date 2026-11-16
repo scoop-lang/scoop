@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0811",
     "message": "iterator operator result type `I` implements multiple distinct `Iterator<T>` applications",
     "notes": [],
     "origin": {

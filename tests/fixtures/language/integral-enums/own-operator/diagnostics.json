@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1523",
     "message": "integral enums use the integer parent's operators",
     "notes": [],
     "origin": {

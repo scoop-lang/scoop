@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0809",
     "message": "unreachable catch block: UnwrapException is already covered by an earlier catch",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "generic interface `I` requires 1 type argument(s)",
     "notes": [],
     "origin": {

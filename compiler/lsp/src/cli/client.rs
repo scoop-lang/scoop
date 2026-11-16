@@ -1,3 +1,5 @@
+use super::error::{QueryError, QueryResult};
+use scoop_source::DiagnosticCode as C;
 use std::{
     collections::BTreeMap,
     io::{self, BufReader, Read},
@@ -20,13 +22,14 @@ pub(super) struct Client {
 }
 
 impl Client {
-    pub fn start() -> io::Result<Self> {
+    pub fn start() -> QueryResult<Self> {
         let mut child = Command::new(std::env::current_exe()?)
             .arg("--stdio")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .map_err(|error| QueryError::new(C::E2202, error))?;
         let mut stderr = child.stderr.take().expect("piped stderr");
         let stderr = std::thread::spawn(move || {
             let mut bytes = Vec::new();
@@ -45,38 +48,42 @@ impl Client {
         })
     }
 
-    pub fn notify(&mut self, method: &str, params: Value) -> io::Result<()> {
-        Message::Notification(Notification::new(method.to_owned(), params)).write(&mut self.input)
+    pub fn notify(&mut self, method: &str, params: Value) -> QueryResult<()> {
+        Message::Notification(Notification::new(method.to_owned(), params))
+            .write(&mut self.input)
+            .map_err(QueryError::transport)
     }
 
-    pub fn request(&mut self, method: &str, params: Value) -> io::Result<Value> {
+    pub fn request(&mut self, method: &str, params: Value) -> QueryResult<Value> {
         self.next_id += 1;
         let id = RequestId::from(self.next_id);
         Message::Request(Request::new(id.clone(), method.to_owned(), params))
-            .write(&mut self.input)?;
+            .write(&mut self.input)
+            .map_err(QueryError::transport)?;
         loop {
             if let Some(response) = self.receive()? {
                 if response.id != id {
-                    return Err(io::Error::other(format!(
-                        "unexpected response id {}",
-                        response.id
-                    )));
+                    return Err(QueryError::new(
+                        C::ICE2501,
+                        format!("unexpected response id {}", response.id),
+                    ));
                 }
-                return response.response_result.map_err(|error| {
-                    io::Error::other(format!("{method}: {} ({})", error.message, error.code))
-                });
+                return response
+                    .response_result
+                    .map_err(|error| QueryError::response(method, error));
             }
         }
     }
 
-    pub fn wait_diagnostics(&mut self, uri: &str, version: i32) -> io::Result<()> {
+    pub fn wait_diagnostics(&mut self, uri: &str, version: i32) -> QueryResult<()> {
         while !self
             .diagnostics
             .get(uri)
             .is_some_and(|params| params.version == Some(version))
         {
             if self.receive()?.is_some() {
-                return Err(io::Error::other(
+                return Err(QueryError::new(
+                    C::ICE2501,
                     "unexpected response while waiting for diagnostics",
                 ));
             }
@@ -84,8 +91,8 @@ impl Client {
         Ok(())
     }
 
-    fn receive(&mut self) -> io::Result<Option<Response>> {
-        match Message::read(&mut self.output)? {
+    fn receive(&mut self) -> QueryResult<Option<Response>> {
+        match Message::read(&mut self.output).map_err(QueryError::transport)? {
             Some(Message::Response(response)) => Ok(Some(response)),
             Some(Message::Notification(notification)) => {
                 match notification.method.as_str() {
@@ -109,7 +116,8 @@ impl Client {
                     ErrorCode::MethodNotFound as i32,
                     format!("CLI client does not support {}", request.method),
                 ))
-                .write(&mut self.input)?;
+                .write(&mut self.input)
+                .map_err(QueryError::transport)?;
                 Ok(None)
             }
             None => {
@@ -117,18 +125,18 @@ impl Client {
                 let _ = self.child.wait();
                 self.finished = true;
                 let details = self.stderr_text()?;
-                Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
+                Err(QueryError::new(
+                    C::E2204,
                     format!("language server closed before completing the query{details}"),
                 ))
             }
         }
     }
 
-    pub fn finish(&mut self) -> io::Result<()> {
+    pub fn finish(&mut self) -> QueryResult<()> {
         self.request("shutdown", Value::Null)?;
         self.notify("exit", Value::Null)?;
-        let status = self.child.wait()?;
+        let status = self.child.wait().map_err(QueryError::transport)?;
         self.finished = true;
         let details = self.stderr_text()?;
         if status.success() {
@@ -140,19 +148,20 @@ impl Client {
             }
             Ok(())
         } else {
-            Err(io::Error::other(format!(
-                "language server exited with {status}{details}"
-            )))
+            Err(QueryError::new(
+                C::E2203,
+                format!("language server exited with {status}{details}"),
+            ))
         }
     }
 
-    fn stderr_text(&mut self) -> io::Result<String> {
+    fn stderr_text(&mut self) -> QueryResult<String> {
         let bytes = self
             .stderr
             .take()
             .expect("stderr is collected once")
             .join()
-            .map_err(|_| io::Error::other("server stderr reader stopped"))??;
+            .map_err(|_| QueryError::new(C::ICE2502, "server stderr reader stopped"))??;
         let text = String::from_utf8_lossy(&bytes);
         Ok(if text.trim().is_empty() {
             String::new()

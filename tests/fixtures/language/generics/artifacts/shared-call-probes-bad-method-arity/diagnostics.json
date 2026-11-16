@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0601",
     "message": "dependency function `identity` expects 1 type argument(s), found 2",
     "notes": [],
     "origin": {

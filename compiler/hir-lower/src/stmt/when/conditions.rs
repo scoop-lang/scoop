@@ -43,6 +43,7 @@ impl Lowerer {
             if !self.is_subtype(condition.ty, self.boolean) {
                 let found = self.type_name(condition.ty);
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     source.span(),
                     format!("when guard must be Boolean, found {found}"),
                 );

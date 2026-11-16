@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0706",
     "message": "dependency constructor `Pair` positional variants do not accept named arguments",
     "notes": [],
     "origin": {

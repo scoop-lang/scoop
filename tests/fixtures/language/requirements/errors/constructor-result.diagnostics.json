@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0623",
     "message": "a construction requirement's result must be the constructed type parameter",
     "notes": [],
     "origin": {

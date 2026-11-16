@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type Int, found Long",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type UInt, found ULong",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type Int, found UInt",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type ULong, found Long",
     "notes": [],
     "origin": {
@@ -52,9 +52,29 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "initializer of `invalid` must be of type Iterable<Int8>, found IntRange; nominal application `Iterable` is invariant: first differing type argument 1 (`T`) is `Int` in `Iterable<Int>`, but `Int8` in `Iterable<Int8>`; construct the target application directly or convert explicitly",
-    "notes": [],
+    "code": "E0501",
+    "message": "initializer of `invalid` must be of type Iterable<Int8>, found IntRange",
+    "notes": [
+      {
+        "code": "N0501",
+        "kind": "note",
+        "message": "nominal application `Iterable` is invariant: first differing type argument 1 (`T`) is `Int` in `Iterable<Int>`, but `Int8` in `Iterable<Int8>`",
+        "notes": [
+          {
+            "code": "H0501",
+            "kind": "help",
+            "message": "construct the target application directly or convert explicitly",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 657,
@@ -65,7 +85,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of `invalid` must be of type LongRange, found IntRange",
     "notes": [],
     "origin": {
@@ -78,7 +98,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of `invalid` must be of type ULongRange, found UIntRange",
     "notes": [],
     "origin": {
@@ -91,7 +111,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type Int, found Int8",
     "notes": [],
     "origin": {
@@ -104,7 +124,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type Long, found Int",
     "notes": [],
     "origin": {
@@ -117,7 +137,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type UInt, found ULong",
     "notes": [],
     "origin": {
@@ -130,7 +150,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type Int, found Int8",
     "notes": [],
     "origin": {
@@ -143,7 +163,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "dependency function argument must be of type UInt, found Int",
     "notes": [],
     "origin": {
@@ -156,9 +176,29 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "initializer of `invalid` must be of type Iterator<Long>, found Iterator<Int>; nominal application `Iterator` is invariant: first differing type argument 1 (`T`) is `Int` in `Iterator<Int>`, but `Long` in `Iterator<Long>`; construct the target application directly or convert explicitly",
-    "notes": [],
+    "code": "E0501",
+    "message": "initializer of `invalid` must be of type Iterator<Long>, found Iterator<Int>",
+    "notes": [
+      {
+        "code": "N0501",
+        "kind": "note",
+        "message": "nominal application `Iterator` is invariant: first differing type argument 1 (`T`) is `Int` in `Iterator<Int>`, but `Long` in `Iterator<Long>`",
+        "notes": [
+          {
+            "code": "H0501",
+            "kind": "help",
+            "message": "construct the target application directly or convert explicitly",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 1620,
@@ -169,7 +209,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0702",
     "message": "dependency function `rangeTo` has no parameter named `other`",
     "notes": [],
     "origin": {
@@ -182,7 +222,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "constructor `IntRange` is not accessible here",
     "notes": [],
     "origin": {
@@ -195,7 +235,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "constructor `LongRange` is not accessible here",
     "notes": [],
     "origin": {
@@ -208,7 +248,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "constructor `UIntRange` is not accessible here",
     "notes": [],
     "origin": {
@@ -221,7 +261,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0403",
     "message": "constructor `ULongRange` is not accessible here",
     "notes": [],
     "origin": {

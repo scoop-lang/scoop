@@ -14,16 +14,20 @@ pub struct ManifestOverlays(Arc<BTreeMap<PathBuf, String>>);
 
 impl ManifestOverlays {
     pub fn new(input: ManifestOverlaysV1) -> PmResult<Self> {
-        input.validate().map_err(PmError::new)?;
+        input
+            .validate()
+            .map_err(|message| PmError::new(scoop_source::DiagnosticCode::E2503, message))?;
         let mut texts = BTreeMap::new();
         for manifest in input.manifests {
-            let path = manifest
-                .path
-                .to_path_buf()
-                .map_err(|error| PmError::new(error.to_string()))?;
+            let path = manifest.path.to_path_buf().map_err(|error| {
+                PmError::new(scoop_source::DiagnosticCode::E2502, error.to_string())
+            })?;
             let path = existing_or_unsaved(&path).map_err(|error| PmError::io(&path, error))?;
             if texts.insert(path, manifest.text).is_some() {
-                return Err(PmError::new("duplicate manifest overlay path"));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2502,
+                    "duplicate manifest overlay path",
+                ));
             }
         }
         Ok(Self(Arc::new(texts)))

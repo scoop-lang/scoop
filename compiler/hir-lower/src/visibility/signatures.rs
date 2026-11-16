@@ -38,7 +38,7 @@ impl Lowerer {
         for (dependency, provided) in dependencies {
             if !self.access_domain_is_subset(&access.lookup.0, &provided) {
                 let dependency_name = self.type_name(dependency);
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E0410,
                     span,
                     format!(
                         "signature of {declaration} exposes type `{dependency_name}` outside its access domain"

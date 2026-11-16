@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1517",
     "message": "const dependency cycle: cycle -> cycle",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer calls must select a compiler input intrinsic; ordinary functions and constructors are not constant expressions",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "constant tuple element must be of type String, found Int",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1520",
     "message": "constant tuple has 1 elements, expected 2",
     "notes": [],
     "origin": {

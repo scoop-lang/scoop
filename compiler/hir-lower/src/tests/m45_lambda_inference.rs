@@ -94,7 +94,9 @@ fn partial_lambda_hints_do_not_relax_effects_arity_or_missing_constraints() {
         let source = scoop_parser::parse(&format!("{RESOURCE}\n{source}")).unwrap();
         let errors = lower_user(source).unwrap_err();
         assert!(
-            errors.iter().any(|error| error.message.contains(message)),
+            errors
+                .iter()
+                .any(|error| crate::tests::diagnostic_text(error).contains(message)),
             "{errors:#?}"
         );
     }
@@ -126,7 +128,9 @@ fn unit_lambdas_still_check_explicit_return_values() {
     .unwrap();
     let errors = lower_user(source).unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains("Unit")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains("Unit")),
         "{errors:#?}"
     );
 }

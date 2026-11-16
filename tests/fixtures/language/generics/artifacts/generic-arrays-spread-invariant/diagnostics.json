@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0605",
     "message": "dependency function `pack`: conflicting types for `T`: Any and Reference",
     "notes": [],
     "origin": {

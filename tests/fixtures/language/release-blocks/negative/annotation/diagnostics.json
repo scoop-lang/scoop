@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E1301",
     "message": "annotations are not allowed on a `release` block",
     "notes": [],
     "origin": {

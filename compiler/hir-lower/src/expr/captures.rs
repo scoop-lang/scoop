@@ -146,13 +146,9 @@ impl Lowerer {
             .clone();
         self.require_initialized_condition_binding(available.binding, &name.text, name.span)?;
         if available.mutable {
-            self.error(
+            self.error_with_note(scoop_source::DiagnosticCode::E1502,
                 name.span,
-                format!(
-                    "cannot capture mutable local `{}`; bind its current value to a `val` snapshot or capture explicit reference state",
-                    name.text
-                ),
-            );
+                format!("cannot capture mutable local `{__diagnostic_arg0}`" , __diagnostic_arg0 = name.text), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1501, "bind its current value to a `val` snapshot or capture explicit reference state".to_owned()));
             return None;
         }
         self.register_capture_at(context_index, &name.text, available.clone(), name.span)?;
@@ -189,7 +185,7 @@ impl Lowerer {
         };
         self.require_initialized_condition_binding(binding, fallback_name, span)?;
         if available.mutable {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1502,
                 span,
                 format!(
                     "cannot capture mutable local `{fallback_name}`; bind its current value to a `val` snapshot or capture explicit reference state"

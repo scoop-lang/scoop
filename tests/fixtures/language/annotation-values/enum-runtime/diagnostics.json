@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1304",
     "message": "integral enum annotation argument must be a static variant",
     "notes": [],
     "origin": {

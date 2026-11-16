@@ -23,7 +23,8 @@ impl NativeCompilerFamily {
         {
             Ok(Self::Gcc)
         } else {
-            Err(ToolchainError(
+            Err(ToolchainError::new(
+                scoop_source::DiagnosticCode::E2303,
                 "GNU-style native driver must be GCC or Clang".into(),
             ))
         }
@@ -36,7 +37,12 @@ pub(crate) fn macro_number(macros: &str, name: &str) -> Result<u32, ToolchainErr
         .lines()
         .find_map(|line| line.strip_prefix(&prefix))
         .and_then(|value| value.parse().ok())
-        .ok_or_else(|| ToolchainError(format!("native compiler did not define numeric {name}")))
+        .ok_or_else(|| {
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2303,
+                format!("native compiler did not define numeric {name}"),
+            )
+        })
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -76,10 +82,9 @@ pub(crate) struct NativeDriver {
 impl NativeDriver {
     pub(crate) fn from_discovery(discovery: NativeDriverDiscovery) -> Result<Self, ToolchainError> {
         Ok(Self {
-            path: discovery
-                .driver
-                .to_path_buf()
-                .map_err(|e| ToolchainError(e.to_string()))?,
+            path: discovery.driver.to_path_buf().map_err(|e| {
+                ToolchainError::new(scoop_source::DiagnosticCode::ICE2201, e.to_string())
+            })?,
             fingerprint: crate::build_record::fingerprint(&discovery)?,
             kind: discovery.kind,
             family: discovery.family,

@@ -15,6 +15,7 @@ impl Lowerer {
         let Some(inner) = self.as_option(lhs.ty) else {
             let found = self.type_name(lhs.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0505,
                 span,
                 format!("`?:` requires an Option left-hand side, found {found}"),
             );

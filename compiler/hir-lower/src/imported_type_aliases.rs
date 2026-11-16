@@ -18,6 +18,7 @@ impl Lowerer {
         match binding.target() {
             hir::ImportedTarget::Annotation(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0405,
                     name.span,
                     format!("annotation `{}` cannot be used as a value type", name.text),
                 );
@@ -32,12 +33,17 @@ impl Lowerer {
                     &scoop_identity::SignatureTypeKey::Nominal(declaration),
                 ) {
                     if supplied_type_arguments {
-                        self.error(name.span, format!("type `{}` is not generic", name.text));
+                        self.error(
+                            scoop_source::DiagnosticCode::E0601,
+                            name.span,
+                            format!("type `{}` is not generic", name.text),
+                        );
                         return None;
                     }
                     return Some(ty);
                 }
                 self.error(
+                    scoop_source::DiagnosticCode::E2411,
                     name.span,
                     ImportedCapabilityRequirement::Layout
                         .diagnostic(&format!("dependency type `{}`", name.text)),
@@ -49,6 +55,7 @@ impl Lowerer {
             }
             target => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     name.span,
                     format!(
                         "invalid dependency type binding `{}`: {target:?}",
@@ -68,6 +75,7 @@ impl Lowerer {
     ) -> Option<hir::TypeId> {
         if supplied_type_arguments {
             self.error(
+                scoop_source::DiagnosticCode::E0601,
                 name.span,
                 format!("typealias `{}` is not generic", name.text),
             );
@@ -109,6 +117,7 @@ impl Lowerer {
             Ok(candidate) => candidate,
             Err(error) => {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     name.span,
                     format!("invalid imported dependency typealias: {error}"),
                 );
@@ -122,7 +131,7 @@ impl Lowerer {
         ) {
             Ok(types) => types,
             Err(error) => {
-                self.error(name.span, error.message);
+                self.error(error.code, name.span, error.message);
                 return None;
             }
         };
@@ -142,6 +151,7 @@ impl Lowerer {
             .select_type_alias(candidate)
         {
             self.error(
+                scoop_source::DiagnosticCode::ICE0501,
                 name.span,
                 format!("failed to select imported dependency typealias: {error}"),
             );

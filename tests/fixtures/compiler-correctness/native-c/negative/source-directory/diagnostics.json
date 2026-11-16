@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2002",
     "message": "native compilation: directory.c must be a regular file",
     "notes": [],
     "origin": {

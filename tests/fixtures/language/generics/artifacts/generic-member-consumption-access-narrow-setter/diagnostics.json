@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1016",
     "message": "visibility of `$set$state` does not cover inherited slot `ProtectedBox<T>.$set$state`",
     "notes": [],
     "origin": {

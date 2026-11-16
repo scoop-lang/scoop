@@ -185,13 +185,15 @@ fn same_layer_cross_kind_ambiguity_reports_use_and_every_origin() {
             let errors = lower_sources(sources).expect_err("different value origins are ambiguous");
             let diagnostic = errors
                 .iter()
-                .find(|error| error.message.contains("value `Chosen` is ambiguous"))
+                .find(|error| {
+                    crate::tests::diagnostic_text(error).contains("value `Chosen` is ambiguous")
+                })
                 .expect("value ambiguity");
             assert_eq!(diagnostic.span(), Some(ast::Span::new(100, 106)));
             assert_eq!(diagnostic.notes.len(), 2);
             assert_ne!(
-                bound_source(&diagnostic.notes[0].source),
-                bound_source(&diagnostic.notes[1].source)
+                bound_source(diagnostic.notes[0].source().unwrap()),
+                bound_source(diagnostic.notes[1].source().unwrap())
             );
         }
     }
@@ -328,12 +330,10 @@ fn selected_value_type_mismatch_does_not_fall_back_to_core_or_contextual_enum() 
     user.imports.push(star(&["api"], false));
     let errors =
         lower_sources(vec![library, user]).expect_err("selected property hard-shadows core None");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("initializer of `chosen`")
-                && error.message.contains("found Int"))
-    );
+    assert!(errors.iter().any(|error| {
+        crate::tests::diagnostic_text(error).contains("initializer of `chosen`")
+            && crate::tests::diagnostic_text(error).contains("found Int")
+    }));
 }
 
 #[test]
@@ -434,7 +434,7 @@ fn imported_payload_variant_in_value_position_reports_its_actual_target() {
     user.imports
         .push(exact(&["api", "State", "Payload"], Some("Chosen"), false));
     let errors = lower_sources(vec![library, user]).expect_err("payload variants require a call");
-    assert!(errors.iter().any(|error| error.message
+    assert!(errors.iter().any(|error| crate::tests::diagnostic_text(error)
         == "variant `Chosen` of `State` takes arguments; use `Chosen(...)` to construct it"));
 }
 
@@ -458,12 +458,10 @@ fn assignment_and_update_do_not_skip_a_higher_object_for_a_lower_property() {
         user.imports.push(exact(&["api", "Chosen"], None, false));
         let errors = lower_sources(vec![library.clone(), user])
             .expect_err("all place operations share value selection");
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("immutable value")
-                    || error.message.contains("not writable"))
-        );
+        assert!(errors.iter().any(|error| {
+            crate::tests::diagnostic_text(error).contains("immutable value")
+                || crate::tests::diagnostic_text(error).contains("not writable")
+        }));
     }
 }
 
@@ -478,7 +476,13 @@ fn static_initializer_cannot_fold_a_lower_core_value_past_an_import() {
     for sources in [vec![user.clone(), library.clone()], vec![library, user]] {
         let errors = lower_sources(sources)
             .expect_err("early static image cannot hide imported type mismatch");
-        assert!(errors.iter().any(|error| error.message.contains("initializer") && error.message.contains("Int")), "{errors:#?}");
+        assert!(
+            errors.iter().any(
+                |error| crate::tests::diagnostic_text(error).contains("initializer")
+                    && crate::tests::diagnostic_text(error).contains("Int")
+            ),
+            "{errors:#?}"
+        );
     }
 }
 
@@ -496,11 +500,9 @@ fn static_initializer_preserves_import_ambiguity_and_constant_origin() {
     user.imports.push(star(&["other"], false));
     let errors = lower_sources(vec![user, library, other])
         .expect_err("static folding cannot select one ambiguous origin");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("value `Chosen` is ambiguous"))
-    );
+    assert!(errors.iter().any(|error| {
+        crate::tests::diagnostic_text(error).contains("value `Chosen` is ambiguous")
+    }));
 }
 
 #[test]
@@ -536,7 +538,7 @@ fn const_initializer_uses_import_identity_and_dependency_cycles_across_sources()
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("const dependency cycle"))
+            .any(|error| crate::tests::diagnostic_text(error).contains("const dependency cycle"))
     );
 }
 
@@ -556,7 +558,7 @@ fn const_initializer_cannot_bypass_cross_kind_shadowing_or_ambiguity() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("not const")),
+            .any(|error| crate::tests::diagnostic_text(error).contains("not const")),
         "{errors:#?}"
     );
     let other = package(
@@ -566,11 +568,9 @@ fn const_initializer_cannot_bypass_cross_kind_shadowing_or_ambiguity() {
     user.imports.push(exact(&["other", "Chosen"], None, false));
     let errors = lower_sources(vec![user, library, other])
         .expect_err("const evaluator preserves value ambiguity");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("value `Chosen` is ambiguous"))
-    );
+    assert!(errors.iter().any(|error| {
+        crate::tests::diagnostic_text(error).contains("value `Chosen` is ambiguous")
+    }));
 }
 
 #[test]
@@ -593,5 +593,5 @@ fn core_value_body_cannot_read_current_unit_property() {
     .expect_err("core has no current unit value layer");
     assert!(errors.iter().any(|error| diagnostic_source(error)
         == &core_source_identity("src/core.scoop")
-        && error.message.contains("unknown variable `UserValue`")));
+        && crate::tests::diagnostic_text(error).contains("unknown variable `UserValue`")));
 }

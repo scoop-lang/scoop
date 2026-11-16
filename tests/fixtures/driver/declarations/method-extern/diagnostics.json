@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1203",
     "message": "`@Extern` is only allowed on a top-level function",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0308",
     "message": "function `check` must have a body",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1106",
     "message": "`@NoGC` function `Cases.check` has non-GC-free parameter `this` of type Cases",
     "notes": [],
     "origin": {

@@ -23,7 +23,7 @@ pub(crate) fn err(source: &str) -> (Span, String) {
     let diagnostic = diagnostics.into_iter().next().unwrap();
     (
         diagnostic.span().expect("parser diagnostics carry a span"),
-        diagnostic.message,
+        diagnostic_text(&diagnostic),
     )
 }
 
@@ -384,4 +384,17 @@ pub(super) fn case_pattern(arm: &scoop_ast::WhenArm) -> &scoop_ast::Pattern {
         panic!("expected a case arm");
     };
     pattern
+}
+
+fn diagnostic_text(diagnostic: &scoop_ast::Diagnostic) -> String {
+    fn append(notes: &[scoop_ast::DiagnosticNote], text: &mut String) {
+        for note in notes {
+            text.push_str("; ");
+            text.push_str(&note.message);
+            append(&note.notes, text);
+        }
+    }
+    let mut text = diagnostic.message.clone();
+    append(&diagnostic.notes, &mut text);
+    text
 }

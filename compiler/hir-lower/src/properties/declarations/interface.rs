@@ -11,6 +11,7 @@ impl Lowerer {
         self.reject_logical_property_annotations("an interface property", &declaration.annotations);
         if declaration.receiver_ty.is_some() || !declaration.type_params.is_empty() {
             self.error(
+                scoop_source::DiagnosticCode::E0307,
                 declaration.span,
                 "extension properties may only be declared at top level".to_string(),
             );
@@ -21,6 +22,7 @@ impl Lowerer {
             ast::PropertyBodySyntax::Computed(_) | ast::PropertyBodySyntax::Abstract
         ) {
             self.error(
+                scoop_source::DiagnosticCode::E1515,
                 declaration.span,
                 format!(
                     "interface property `{}` cannot have storage, an initializer, or a delegate",
@@ -59,6 +61,7 @@ impl Lowerer {
                 })
             {
                 self.error(
+                    scoop_source::DiagnosticCode::E1510,
                     declaration.name.span,
                     format!(
                         "private interface property `{}` must provide every accessor body",

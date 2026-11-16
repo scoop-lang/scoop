@@ -265,7 +265,11 @@ impl hir::SemanticQueries for FrontendQueries<'_, '_> {
         mapper
             .map(ty, &self.lowerer.signature_binders(context))
             .map_err(|error| {
-                Diagnostic::at(Span::new(0, 0), format!("cannot describe type: {error}"))
+                Diagnostic::at(
+                    scoop_source::DiagnosticCode::E2505,
+                    Span::new(0, 0),
+                    format!("cannot describe type: {error}"),
+                )
             })
     }
 
@@ -361,7 +365,14 @@ impl hir::SemanticQueries for FrontendQueries<'_, '_> {
             method,
         )
         .map(|record| record.id())
-        .map_err(|error| Diagnostic::at_file(error.file(), error.span(), error.to_string()))
+        .map_err(|error| {
+            Diagnostic::at_file(
+                scoop_source::DiagnosticCode::ICE0401,
+                error.file(),
+                error.span(),
+                error.to_string(),
+            )
+        })
     }
 
     fn resolve_type(

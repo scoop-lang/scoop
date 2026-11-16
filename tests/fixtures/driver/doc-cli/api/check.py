@@ -103,8 +103,10 @@ assert query("search", "nowhere-named-api")["status"] == "empty"
 other_target = (
     "x86_64-unknown-linux-gnu" if target != "x86_64-unknown-linux-gnu" else "aarch64-apple-darwin"
 )
-assert query("show", "orElse", "--target", other_target, code=1)["kind"] == "error"
-assert query("show", "orElse", docs=work / "not-published", code=1)["kind"] == "error"
+invalid_target = query("show", "orElse", "--target", other_target, code=1)
+assert invalid_target["kind"] == "error" and invalid_target["code"] == "E1801", invalid_target
+missing_site = query("show", "orElse", docs=work / "not-published", code=1)
+assert missing_site["kind"] == "error" and missing_site["code"] == "E2201", missing_site
 text = subprocess.run(
     [api, "--docs", str(site), "show", "orElse", "--cone", "scoop.std"],
     capture_output=True,

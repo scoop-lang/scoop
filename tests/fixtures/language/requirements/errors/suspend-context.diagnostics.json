@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1103",
     "message": "suspend function `read` cannot be called from non-suspend function `read`",
     "notes": [],
     "origin": {

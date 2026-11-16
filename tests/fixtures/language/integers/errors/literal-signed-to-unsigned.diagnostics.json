@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0107",
     "message": "integer literal `1` is not representable as UInt8",
     "notes": [],
     "origin": {

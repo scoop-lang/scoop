@@ -16,6 +16,7 @@ impl Lowerer {
         if !self.is_subtype(ty, throwable) {
             let found = self.type_name(ty);
             self.error(
+                scoop_source::DiagnosticCode::E0808,
                 source.span,
                 format!("catch parameter type {found} is not a subtype of Throwable"),
             );
@@ -24,6 +25,7 @@ impl Lowerer {
         if previous.any(|earlier| self.is_subtype(ty, earlier)) {
             let found = self.type_name(ty);
             self.error(
+                scoop_source::DiagnosticCode::E0809,
                 span,
                 format!("unreachable catch block: {found} is already covered by an earlier catch"),
             );

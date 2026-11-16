@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0720",
     "message": "default expression references a constructor outside the callable's complete call domain",
     "notes": [],
     "origin": {

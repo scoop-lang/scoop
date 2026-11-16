@@ -4,16 +4,18 @@ impl Lowerer {
     pub(super) fn collect_no_gc_statement_violations(
         &self,
         statements: &[hir::Statement],
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
         requirements: &mut HashSet<hir::TypeParamId>,
     ) {
         for statement in statements {
             match &statement.kind {
                 hir::StatementKind::MemberRequirementCall(call) => {
                     if call.contract.effects.gc_effect != hir::GcEffect::NoGc {
-                        out.push((
+                        out.push(scoop_ast::Diagnostic::at_file(
+                            scoop_source::DiagnosticCode::E1104,
+                            self.current_text_file(),
                             statement.span,
-                            "managed member requirement is not allowed in `@NoGC` code".into(),
+                            "managed member requirement is not allowed in `@NoGC` code",
                         ));
                     }
                     for argument in &call.arguments {
@@ -21,18 +23,24 @@ impl Lowerer {
                     }
                 }
                 hir::StatementKind::ContextScope { value, body } => {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         statement.span,
-                        "context scopes are not allowed in `@NoGC` code".into(),
+                        "context scopes are not allowed in `@NoGC` code",
                     ));
                     self.collect_no_gc_expr_violations(value, out, requirements);
                     self.collect_no_gc_statement_violations(body, out, requirements);
                 }
                 hir::StatementKind::InitializationEnsure(_)
-                | hir::StatementKind::GenericDelegateEnsure(_) => out.push((
-                    statement.span,
-                    "an initialization gate is not allowed in `@NoGC` code".to_string(),
-                )),
+                | hir::StatementKind::GenericDelegateEnsure(_) => {
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
+                        statement.span,
+                        "an initialization gate is not allowed in `@NoGC` code".to_string(),
+                    ))
+                }
                 hir::StatementKind::Expr(expr) => {
                     self.collect_no_gc_expr_violations(expr, out, requirements)
                 }
@@ -52,7 +60,9 @@ impl Lowerer {
                         | hir::AssignTarget::GenericDelegateStorage(_)
                         | hir::AssignTarget::SingletonPublishedRoot(_) => {}
                         hir::AssignTarget::Index { array, index } => {
-                            out.push((
+                            out.push(scoop_ast::Diagnostic::at_file(
+                                scoop_source::DiagnosticCode::E1105,
+                                self.current_text_file(),
                                 statement.span,
                                 "array assignment is not allowed in `@NoGC` code".to_string(),
                             ));
@@ -60,17 +70,24 @@ impl Lowerer {
                             self.collect_no_gc_expr_violations(index, out, requirements);
                         }
                         hir::AssignTarget::Field { receiver, .. } => {
-                            out.push((
+                            out.push(scoop_ast::Diagnostic::at_file(
+                                scoop_source::DiagnosticCode::E1105,
+                                self.current_text_file(),
                                 statement.span,
                                 "managed field assignment is not allowed in `@NoGC` code"
                                     .to_string(),
                             ));
                             self.collect_no_gc_expr_violations(receiver, out, requirements);
                         }
-                        hir::AssignTarget::InitializingClassField { .. } => out.push((
-                            statement.span,
-                            "managed field assignment is not allowed in `@NoGC` code".to_string(),
-                        )),
+                        hir::AssignTarget::InitializingClassField { .. } => {
+                            out.push(scoop_ast::Diagnostic::at_file(
+                                scoop_source::DiagnosticCode::E1105,
+                                self.current_text_file(),
+                                statement.span,
+                                "managed field assignment is not allowed in `@NoGC` code"
+                                    .to_string(),
+                            ))
+                        }
                     }
                     self.collect_no_gc_expr_violations(value, out, requirements);
                 }
@@ -121,12 +138,16 @@ impl Lowerer {
                         self.collect_no_gc_statement_violations(body, out, requirements);
                     }
                 }
-                hir::StatementKind::Try(_) => out.push((
+                hir::StatementKind::Try(_) => out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     statement.span,
                     "`try`/`catch` is not allowed in `@NoGC` code".to_string(),
                 )),
                 hir::StatementKind::Throw(expr) => {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         statement.span,
                         "`throw` is not allowed in `@NoGC` code".to_string(),
                     ));
@@ -139,7 +160,7 @@ impl Lowerer {
     pub(super) fn collect_no_gc_expr_violations(
         &self,
         expr: &hir::Expr,
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
         requirements: &mut HashSet<hir::TypeParamId>,
     ) {
         use hir::ExprKind;
@@ -155,23 +176,33 @@ impl Lowerer {
                     self.collect_no_gc_expr_violations(operand, out, requirements);
                 }
             }
-            ExprKind::AnnotationKey(_) => out.push((
+            ExprKind::AnnotationKey(_) => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
-                "annotation metadata allocation is not allowed in `@NoGC` code".into(),
+                "annotation metadata allocation is not allowed in `@NoGC` code",
             )),
-            ExprKind::ContextLookup(_) => out.push((
+            ExprKind::ContextLookup(_) => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
-                "context lookup is not allowed in `@NoGC` code".into(),
+                "context lookup is not allowed in `@NoGC` code",
             )),
-            ExprKind::EmbeddedFileArrayLiteral(_) => out.push((
+            ExprKind::EmbeddedFileArrayLiteral(_) => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
-                "embedded file arrays are not allowed in `@NoGC` code".into(),
+                "embedded file arrays are not allowed in `@NoGC` code",
             )),
-            ExprKind::ByteArrayLiteral(_) => out.push((
+            ExprKind::ByteArrayLiteral(_) => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
-                "embedded byte arrays are not allowed in `@NoGC` code".into(),
+                "embedded byte arrays are not allowed in `@NoGC` code",
             )),
-            ExprKind::StringLiteral { .. } => out.push((
+            ExprKind::StringLiteral { .. } => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
                 "string literals are not allowed in `@NoGC` code".to_string(),
             )),
@@ -189,13 +220,17 @@ impl Lowerer {
             | ExprKind::Capture(_)
             | ExprKind::InitializingStructFieldAccess { .. }
             | ExprKind::NoneLiteral => {}
-            ExprKind::SingletonValue(_) => out.push((
+            ExprKind::SingletonValue(_) => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
                 "singleton access may initialize, allocate, and throw in `@NoGC` code".to_string(),
             )),
             ExprKind::TupleLiteral(elements) | ExprKind::ArrayLiteral(elements) => {
                 if matches!(&expr.kind, ExprKind::ArrayLiteral(_)) {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         expr.span,
                         "array allocation is not allowed in `@NoGC` code".to_string(),
                     ));
@@ -205,7 +240,9 @@ impl Lowerer {
                 }
             }
             ExprKind::ArrayGenerate { count, initializer } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "array allocation is not allowed in `@NoGC` code".to_string(),
                 ));
@@ -213,7 +250,9 @@ impl Lowerer {
                 self.collect_no_gc_expr_violations(initializer, out, requirements);
             }
             ExprKind::ArrayAssembly(assembly) => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "array allocation is not allowed in `@NoGC` code".to_string(),
                 ));
@@ -251,7 +290,9 @@ impl Lowerer {
                 self.collect_no_gc_expr_violations(operand, out, requirements);
             }
             ExprKind::ClassInit { args, .. } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "class allocation is not allowed in `@NoGC` code".to_string(),
                 ));
@@ -262,23 +303,31 @@ impl Lowerer {
             ExprKind::Lambda(_)
             | ExprKind::AnonymousFunction(_)
             | ExprKind::CallableReference(_)
-            | ExprKind::FunctionCoercion { .. } => out.push((
+            | ExprKind::FunctionCoercion { .. } => out.push(scoop_ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E1105,
+                self.current_text_file(),
                 expr.span,
                 "managed function values are not allowed in `@NoGC` code".to_string(),
             )),
             ExprKind::FieldAccess { receiver, field } => {
                 if matches!(field, hir::FieldRef::ClassField { .. }) {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         expr.span,
                         "managed field access is not allowed in `@NoGC` code".to_string(),
                     ));
                 }
                 self.collect_no_gc_expr_violations(receiver, out, requirements);
             }
-            ExprKind::InitializingClassFieldAccess { .. } => out.push((
-                expr.span,
-                "managed field access is not allowed in `@NoGC` code".to_string(),
-            )),
+            ExprKind::InitializingClassFieldAccess { .. } => {
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
+                    expr.span,
+                    "managed field access is not allowed in `@NoGC` code".to_string(),
+                ))
+            }
             ExprKind::ReleaseFieldLoad(_) => {}
             ExprKind::MethodCall {
                 receiver,
@@ -294,7 +343,9 @@ impl Lowerer {
                 if let Some(target) = callee.declared_callable(&self.bound_callable_refs) {
                     self.check_no_gc_call_target(target, span, out);
                 } else if let hir::MethodCallee::ImportedDerivedEquality { owner, .. } = callee {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1104,
+                        self.current_text_file(),
                         span,
                         format!(
                             "`@NoGC` code may not call managed function `{}.equals`",
@@ -314,7 +365,9 @@ impl Lowerer {
                 }
             }
             ExprKind::Box(operand) | ExprKind::Unbox(operand) => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "boxing and unboxing are not allowed in `@NoGC` code".to_string(),
                 ));
@@ -324,7 +377,9 @@ impl Lowerer {
                 self.collect_no_gc_expr_violations(operand, out, requirements);
             }
             ExprKind::IsInstance { operand, .. } | ExprKind::Cast { operand, .. } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "runtime type checks are not allowed in `@NoGC` code".to_string(),
                 ));
@@ -333,7 +388,9 @@ impl Lowerer {
             ExprKind::Index {
                 receiver, index, ..
             } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "array indexing is not allowed in `@NoGC` code".to_string(),
                 ));
@@ -346,7 +403,9 @@ impl Lowerer {
                 value,
                 ..
             } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "array operations are not allowed in `@NoGC` code".to_string(),
                 ));
@@ -355,14 +414,18 @@ impl Lowerer {
                 self.collect_no_gc_expr_violations(value, out, requirements);
             }
             ExprKind::ArrayLen(operand) | ExprKind::ArrayClone(operand) => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "array operations are not allowed in `@NoGC` code".to_string(),
                 ));
                 self.collect_no_gc_expr_violations(operand, out, requirements);
             }
             ExprKind::AtomicNew(initial) => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1105,
+                    self.current_text_file(),
                     expr.span,
                     "atomic allocation is not allowed in `@NoGC` code".to_string(),
                 ));
@@ -382,7 +445,20 @@ impl Lowerer {
                 ..
             } => {
                 if *call_mode == hir::CAbiCallMode::NativeSafe {
-                    out.push((expr.span, "NativeSafe function pointer calls are not allowed in `@NoGC` code; use a GCLeafFunPtr with a valid leaf contract".into()));
+                    out.push(
+                        scoop_ast::Diagnostic::at_file(
+                            scoop_source::DiagnosticCode::E1104,
+                            self.current_text_file(),
+                            expr.span,
+                            "NativeSafe function pointer calls are not allowed in `@NoGC` code",
+                        )
+                        .with_note(
+                            scoop_ast::DiagnosticNote::without_location(
+                                scoop_source::DiagnosticCode::H1201,
+                                "use a GCLeafFunPtr with a valid leaf contract",
+                            ),
+                        ),
+                    );
                 }
                 self.collect_no_gc_expr_violations(callee, out, requirements);
                 for arg in args {
@@ -390,7 +466,9 @@ impl Lowerer {
                 }
             }
             ExprKind::CallableCall { callee, args, .. } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1104,
+                    self.current_text_file(),
                     expr.span,
                     "managed function-value calls are not allowed in `@NoGC` code".to_string(),
                 ));
@@ -400,14 +478,18 @@ impl Lowerer {
                 }
             }
             ExprKind::ForeignCallbackRegister { closure, .. } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1104,
+                    self.current_text_file(),
                     expr.span,
                     "managed callback registration is not allowed in `@NoGC` code".to_string(),
                 ));
                 self.collect_no_gc_expr_violations(closure, out, requirements);
             }
             ExprKind::ForeignCallbackOperation { callback, .. } => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1104,
+                    self.current_text_file(),
                     expr.span,
                     "managed callback token operations are not allowed in `@NoGC` code".to_string(),
                 ));
@@ -415,7 +497,9 @@ impl Lowerer {
             }
             ExprKind::PrimitiveBinary { kind, lhs, rhs } => {
                 if *kind == hir::PrimitiveBinaryKind::StringConcat {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         expr.span,
                         "string concatenation is not allowed in `@NoGC` code".to_string(),
                     ));
@@ -429,7 +513,9 @@ impl Lowerer {
             }
             ExprKind::IntegerOperation(arguments) => {
                 if arguments.is_managed() {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         expr.span,
                         "integer division is not allowed in `@NoGC` code because it may throw"
                             .to_string(),
@@ -494,7 +580,9 @@ impl Lowerer {
                 trap_on_none,
             } => {
                 if *trap_on_none {
-                    out.push((
+                    out.push(scoop_ast::Diagnostic::at_file(
+                        scoop_source::DiagnosticCode::E1105,
+                        self.current_text_file(),
                         expr.span,
                         "`!!` is not allowed in `@NoGC` code because it may throw".to_string(),
                     ));
@@ -508,13 +596,15 @@ impl Lowerer {
         &self,
         ty: hir::TypeId,
         span: Span,
-        out: &mut Vec<(Span, String)>,
+        out: &mut Vec<scoop_ast::Diagnostic>,
         requirements: &mut HashSet<hir::TypeParamId>,
     ) {
         match self.gc_free_requirements(ty) {
             Some(required) => requirements.extend(required),
             None => {
-                out.push((
+                out.push(scoop_ast::Diagnostic::at_file(
+                    scoop_source::DiagnosticCode::E1106,
+                    self.current_text_file(),
                     span,
                     format!(
                         "value of non-GC-free type {} is not allowed in `@NoGC` code",

@@ -32,7 +32,8 @@ pub(super) fn run(args: CheckArgs) -> ExitCode {
     let request = match request {
         Ok(request) => request,
         Err(error) => {
-            eprintln!("error: {error}");
+            eprintln!("error[{}]: {error}", error.code());
+            super::print_notes(&error.notes());
             return ExitCode::FAILURE;
         }
     };
@@ -47,7 +48,8 @@ pub(super) fn run(args: CheckArgs) -> ExitCode {
             if let Some(warnings) = error.warnings().filter(|warnings| !warnings.is_empty()) {
                 eprintln!("{}", warnings.render_human());
             }
-            eprintln!("error: {error}");
+            eprintln!("error[{}]: {error}", error.code());
+            super::print_notes(&error.notes());
             ExitCode::FAILURE
         }
     }

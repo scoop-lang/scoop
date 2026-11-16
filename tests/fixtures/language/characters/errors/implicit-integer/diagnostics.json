@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "initializer of `value` must be of type Int, found Char",
     "notes": [],
     "origin": {

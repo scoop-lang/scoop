@@ -12,6 +12,7 @@ impl Lowerer {
                 Type::Integer(kind) => {
                     if self.enums[id].representation.integer_kind().is_some() {
                         self.error(
+                            scoop_source::DiagnosticCode::E1004,
                             source.span,
                             "an enum may have only one integer parent".into(),
                         );
@@ -30,6 +31,7 @@ impl Lowerer {
                     }
                 }
                 _ => self.error(
+                    scoop_source::DiagnosticCode::E1004,
                     source.span,
                     format!(
                         "enum parent must be a primitive integer or an interface, found {}",
@@ -76,6 +78,7 @@ impl Lowerer {
                     )
                 {
                     self.error(
+                        scoop_source::DiagnosticCode::E1523,
                         method.name.span,
                         "integral enums use the integer parent's operators".into(),
                     );

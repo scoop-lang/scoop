@@ -35,9 +35,11 @@ pub(crate) fn read(
     profile: &ValidatedFinalLinkProfile,
     system: bool,
 ) -> Result<NativeFile, LinkError> {
-    let bytes = std::fs::read(path).map_err(error)?;
+    let bytes =
+        std::fs::read(path).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     read_bytes(
-        std::fs::canonicalize(path).map_err(error)?,
+        std::fs::canonicalize(path)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
         bytes,
         kind,
         profile,
@@ -95,7 +97,10 @@ fn read_bytes(
                 system,
             )?;
             if records.is_empty() {
-                return Err(error("native dynamic input has no install-name records"));
+                return Err(error(
+                    scoop_source::DiagnosticCode::E2305,
+                    "native dynamic input has no install-name records",
+                ));
             }
             NativeContent::Dynamic(records)
         }

@@ -18,6 +18,7 @@ impl Lowerer {
             && signature.is_suspend != is_suspend
         {
             self.error(
+                scoop_source::DiagnosticCode::E0504,
                 span,
                 "ordinary and suspend function types are incompatible".to_string(),
             );
@@ -29,7 +30,7 @@ impl Lowerer {
                 Some(signature) if signature.parameter_types.len() == 1 => vec![None],
                 Some(signature) if signature.parameter_types.is_empty() => Vec::new(),
                 Some(signature) => {
-                    self.error(
+                    self.error(scoop_source::DiagnosticCode::E0503,
                         span,
                         format!(
                             "lambda omits its parameter list, but the expected type has {} parameters",
@@ -45,6 +46,7 @@ impl Lowerer {
             && source_parameters.len() != signature.parameter_types.len()
         {
             self.error(
+                scoop_source::DiagnosticCode::E0503,
                 span,
                 format!(
                     "lambda has {} parameter(s), but the expected function type has {}",
@@ -81,7 +83,7 @@ impl Lowerer {
                         let at = parameter
                             .expect("an explicit type belongs to a parameter")
                             .span;
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E0501,
                             at,
                             format!(
                                 "lambda parameter type is {found}, but the expected type is {expected}"
@@ -96,6 +98,7 @@ impl Lowerer {
                 (None, None) => {
                     let at = parameter.map_or(span, |parameter| parameter.span);
                     self.error(
+                        scoop_source::DiagnosticCode::E0607,
                         at,
                         "lambda parameter requires a type when there is no expected function type"
                             .to_string(),
@@ -116,6 +119,7 @@ impl Lowerer {
             if let Some(name) = binding_name {
                 if self.scopes.is_declared_here(&name.text) {
                     self.error(
+                        scoop_source::DiagnosticCode::E0301,
                         name.span,
                         format!("`{}` is already declared in this scope", name.text),
                     );

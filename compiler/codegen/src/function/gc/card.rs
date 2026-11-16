@@ -133,4 +133,5 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
 
 fn card_error(error: inkwell::builder::BuilderError) -> CodegenError {
     CodegenError::internal(format!("card mark: {error}"))
+        .with_code(scoop_source::DiagnosticCode::ICE1101)
 }

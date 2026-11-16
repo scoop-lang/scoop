@@ -50,6 +50,7 @@ impl Lowerer {
         };
         if !self.access_domain_is_subset(&access.lookup.0, &property_access.lookup.0) {
             self.error(
+                scoop_source::DiagnosticCode::E1512,
                 span,
                 format!(
                     "setter of property `{}` cannot be more visible than the property",

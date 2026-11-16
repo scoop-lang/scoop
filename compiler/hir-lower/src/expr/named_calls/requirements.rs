@@ -1,6 +1,7 @@
 //! Typed capability queries share the ordinary callable and constructor probes.
 
 use super::*;
+use crate::call_resolution::constraints::MemberRequirementFailure as RequirementFailure;
 use hir::{MemberRequirementBindingValue as Binding, MemberRequirementContract as Contract};
 
 mod calls;
@@ -13,9 +14,12 @@ impl Lowerer {
         &mut self,
         id: hir::MemberRequirementId,
         contract: &Contract,
-    ) -> Result<Binding, String> {
+    ) -> Result<Binding, RequirementFailure> {
         if self.active_member_requirements.contains(&id) {
-            return Err("recursive member-requirement predicate".into());
+            return Err(RequirementFailure::new(
+                scoop_source::DiagnosticCode::E0620,
+                "recursive member-requirement predicate",
+            ));
         }
         let key = contract.key(Ok::<_, std::convert::Infallible>).unwrap();
         if let Some(binding) = self.checked_member_requirements.get(&key) {
@@ -32,9 +36,12 @@ impl Lowerer {
                 .find(|requirement| requirement.contract == *contract)
                 .map(|requirement| Binding::Forwarded(requirement.id))
                 .ok_or_else(|| {
-                    format!(
-                        "type `{}` does not provide the exact member requirement",
-                        self.type_name(contract.subject)
+                    RequirementFailure::new(
+                        scoop_source::DiagnosticCode::E0621,
+                        format!(
+                            "type `{}` does not provide the exact member requirement",
+                            self.type_name(contract.subject)
+                        ),
                     )
                 })?;
             self.checked_member_requirements
@@ -66,7 +73,7 @@ impl Lowerer {
         arguments: &[ast::CallArgument],
         span: Span,
         sink: &mut Vec<hir::Statement>,
-    ) -> Result<hir::Expr, String> {
+    ) -> Result<hir::Expr, RequirementFailure> {
         let (name, applicable) = match &contract.call {
             hir::RequiredCallKind::Method {
                 name,
@@ -92,14 +99,23 @@ impl Lowerer {
             .map(|value| (value.probe, value.commit))
             .unzip();
         if probes.is_empty() {
-            return Err(format!(
-                "type `{}` has no applicable public member `{name}`",
-                self.type_name(contract.subject)
+            return Err(RequirementFailure::new(
+                scoop_source::DiagnosticCode::E0621,
+                format!(
+                    "type `{}` has no applicable public member `{name}`",
+                    self.type_name(contract.subject)
+                ),
             ));
         }
         let winner = self
             .select_named_function_like(&name, "required member", &probes, arguments, span)
-            .ok_or_else(|| self.requirement_failure("ambiguous required member"))?;
+            .ok_or_else(|| {
+                RequirementFailure::new(
+                    scoop_source::DiagnosticCode::E0622,
+                    self.requirement_failure("ambiguous required member")
+                        .message,
+                )
+            })?;
         let probe = probes.swap_remove(winner);
         let commit = commits.swap_remove(winner);
         let effects = match &probe {
@@ -127,8 +143,9 @@ impl Lowerer {
             || effects.gc_effect == hir::GcEffect::Managed
                 && contract.effects.gc_effect == hir::GcEffect::NoGc
         {
-            return Err(format!(
-                "selected member `{name}` does not satisfy the required effects"
+            return Err(RequirementFailure::new(
+                scoop_source::DiagnosticCode::E0621,
+                format!("selected member `{name}` does not satisfy the required effects"),
             ));
         }
         let expression = match probe {
@@ -154,18 +171,26 @@ impl Lowerer {
         }
         .ok_or_else(|| self.requirement_failure("required member call is invalid"))?;
         if !self.is_subtype(expression.ty, contract.result) {
-            return Err(format!(
-                "selected member `{name}` returns `{}`, required `{}`",
-                self.type_name(expression.ty),
-                self.type_name(contract.result)
+            return Err(RequirementFailure::new(
+                scoop_source::DiagnosticCode::E0501,
+                format!(
+                    "selected member `{name}` returns `{}`, required `{}`",
+                    self.type_name(expression.ty),
+                    self.type_name(contract.result)
+                ),
             ));
         }
         Ok(self.adapt_to(expression, contract.result))
     }
 
-    fn requirement_failure(&self, fallback: &str) -> String {
-        self.diagnostics
-            .last()
-            .map_or_else(|| fallback.into(), |diagnostic| diagnostic.message.clone())
+    fn requirement_failure(&self, fallback: &str) -> RequirementFailure {
+        self.diagnostics.last().map_or_else(
+            || RequirementFailure::new(scoop_source::DiagnosticCode::E0621, fallback),
+            |diagnostic| RequirementFailure {
+                code: diagnostic.code.clone(),
+                message: diagnostic.message.clone(),
+                notes: diagnostic.notes.clone(),
+            },
+        )
     }
 }

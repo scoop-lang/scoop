@@ -63,7 +63,7 @@ impl Lowerer {
                 })
         };
         if binding.is_none() {
-            self.error(span, format!("test execution requires the ordinary `scoop.test.execution.{name}` declaration from `scoop:scoop.test:0.1.0`"));
+            self.error(scoop_source::DiagnosticCode::E1404, span, format!("test execution requires the ordinary `scoop.test.execution.{name}` declaration from `scoop:scoop.test:0.1.0`"));
         }
         binding
     }
@@ -89,6 +89,7 @@ impl Lowerer {
             }
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1403,
                     span,
                     format!("test execution requires `{name}` to be a type"),
                 );

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1018",
     "message": "open function `id` is only allowed in class declarations",
     "notes": [],
     "origin": {

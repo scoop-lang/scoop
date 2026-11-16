@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "array literal element must be of type I, found S",
     "notes": [],
     "origin": {

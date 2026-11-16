@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "class `LocalReader` does not implement interface method `LocalChoice.choose`",
     "notes": [],
     "origin": {

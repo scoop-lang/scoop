@@ -138,7 +138,11 @@ impl Lowerer {
         match target {
             Ok(target) => Some(target),
             Err(error) => {
-                self.error(span, format!("invalid interface delegate target: {error}"));
+                self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
+                    span,
+                    format!("invalid interface delegate target: {error}"),
+                );
                 None
             }
         }

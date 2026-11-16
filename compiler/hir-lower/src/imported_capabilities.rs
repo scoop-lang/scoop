@@ -14,15 +14,6 @@ pub(crate) enum ImportedCapabilityRequirement {
 }
 
 impl ImportedCapabilityRequirement {
-    pub(crate) const fn code(self) -> &'static str {
-        match self {
-            Self::Layout => "SCOOP_HIR_CROSS_CONE_LAYOUT_REQUIRED",
-            Self::Dispatch => "SCOOP_HIR_CROSS_CONE_DISPATCH_REQUIRED",
-            Self::Generic => "SCOOP_HIR_CROSS_CONE_GENERIC_REQUIRED",
-            Self::Native => "SCOOP_HIR_CROSS_CONE_NATIVE_REQUIRED",
-        }
-    }
-
     const fn description(self) -> &'static str {
         match self {
             Self::Layout => "layout/ABI capability from M23-6",
@@ -33,7 +24,7 @@ impl ImportedCapabilityRequirement {
     }
 
     pub(crate) fn diagnostic(self, subject: &str) -> String {
-        format!("{}: {subject} requires {}", self.code(), self.description())
+        format!("{subject} requires {}", self.description())
     }
 }
 
@@ -71,6 +62,10 @@ impl Lowerer {
         span: scoop_ast::Span,
     ) {
         let requirement = callable_requirement(candidate, has_vararg);
-        self.error(span, requirement.diagnostic(subject));
+        self.error(
+            scoop_source::DiagnosticCode::E2411,
+            span,
+            requirement.diagnostic(subject),
+        );
     }
 }

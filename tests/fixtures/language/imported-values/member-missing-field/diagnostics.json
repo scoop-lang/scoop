@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "struct `Wide` has no field `missing`",
     "notes": [],
     "origin": {

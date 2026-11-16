@@ -52,6 +52,7 @@ impl PendingDocumentation {
             .map(|warning| {
                 let (file, source) = &sources[&warning.location.source];
                 let mut diagnostic = scoop_ast::Diagnostic::warning_at_file(
+                    &warning.code,
                     *file,
                     span(warning.location.range),
                     &warning.message,
@@ -60,17 +61,7 @@ impl PendingDocumentation {
                 diagnostic.notes = warning
                     .notes
                     .iter()
-                    .map(|note| {
-                        let (_, source) = &sources[&note.location.source];
-                        scoop_ast::DiagnosticNote {
-                            source: scoop_source::LocalDiagnosticSource::Bound(Box::new(
-                                source.clone(),
-                            )),
-                            span: span(note.location.range),
-                            message: note.message.clone(),
-                            import_path: Vec::new(),
-                        }
-                    })
+                    .map(|note| warning_note(note, &sources))
                     .collect();
                 diagnostic
             })
@@ -128,4 +119,26 @@ impl PendingDocumentation {
 
 fn span(range: scoop_doc::TextRange) -> scoop_ast::Span {
     scoop_ast::Span::new(range.start, range.end)
+}
+
+fn warning_note(
+    note: &scoop_doc::DocWarningNote,
+    sources: &HashMap<scoop_doc::SourceKey, (usize, scoop_identity::SourceIdentity)>,
+) -> scoop_ast::DiagnosticNote {
+    let mut result = match &note.location {
+        Some(location) => scoop_ast::DiagnosticNote::at_source(
+            &note.code,
+            sources[&location.source].1.clone(),
+            span(location.range),
+            note.message.clone(),
+        ),
+        None => scoop_ast::DiagnosticNote::without_location(&note.code, note.message.clone()),
+    };
+    result.import_path = note.import_path.clone();
+    result.notes = note
+        .notes
+        .iter()
+        .map(|note| warning_note(note, sources))
+        .collect();
+    result
 }

@@ -23,6 +23,7 @@ impl Lowerer {
         if !self.is_subtype(value.ty, throwable) {
             let found = self.type_name(value.ty);
             self.error(
+                scoop_source::DiagnosticCode::E0808,
                 expr.span(),
                 format!("cannot throw value of type {found}: not a subtype of Throwable"),
             );

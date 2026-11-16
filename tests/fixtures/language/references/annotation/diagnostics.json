@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0713",
     "message": "no declaration candidate has a permitted form for callable reference `::Tag`",
     "notes": [],
     "origin": {

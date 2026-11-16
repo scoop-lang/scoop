@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0510",
     "message": "annotation class `Label` has no runtime constructor",
     "notes": [],
     "origin": {

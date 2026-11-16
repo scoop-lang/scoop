@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1001",
     "message": "a class with a primary constructor requires every secondary constructor to declare `this(...)` delegation",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1001",
     "message": "a class with a primary constructor requires every secondary constructor to delegate with `this(...)`, not `super(...)`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1001",
     "message": "a class without a primary constructor cannot pass base arguments in its header",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1002",
     "message": "constructor delegation cycle: Cycle(Int) -> Cycle(String) -> Cycle(Int)",
     "notes": [],
     "origin": {
@@ -52,7 +52,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1001",
     "message": "a struct secondary constructor must declare `this(...)` delegation",
     "notes": [],
     "origin": {
@@ -65,7 +65,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1001",
     "message": "a struct secondary constructor cannot use `super(...)`; it must delegate with `this(...)`",
     "notes": [],
     "origin": {

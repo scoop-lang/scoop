@@ -6,20 +6,26 @@ pub(super) fn read(
     bytes: &[u8],
     target: scoop_lir::TargetProfileId,
 ) -> Result<NativeObjectInfo, LinkError> {
-    let machine = scoop_slib::ElfArchitecture::for_target(target).map_err(error)?;
-    let file: ElfFile64<'_> = ElfFile64::parse(bytes).map_err(error)?;
+    let machine = scoop_slib::ElfArchitecture::for_target(target)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?;
+    let file: ElfFile64<'_> = ElfFile64::parse(bytes)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     if file.architecture() != machine.object_architecture()
         || !file.is_little_endian()
         || file.kind() != ObjectKind::Relocatable
     {
         return Err(error(
+            scoop_source::DiagnosticCode::E2305,
             "native input must be a little-endian ELF64 object for the selected target",
         ));
     }
     let mut definitions = BTreeMap::new();
     let mut requirements = BTreeSet::new();
     for symbol in file.symbols().filter(|symbol| symbol.is_global()) {
-        let name = symbol.name().map_err(error)?.to_owned();
+        let name = symbol
+            .name()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+            .to_owned();
         if symbol.is_common() {
             definitions.insert(
                 name,
@@ -44,10 +50,15 @@ pub(super) fn read(
         };
         let read_only = match symbol.section_index() {
             Some(index) => {
-                let section = file.section_by_index(index).map_err(error)?;
+                let section = file
+                    .section_by_index(index)
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
                 section.elf_section_header().sh_flags(file.endian()) & u64::from(elf::SHF_WRITE)
                     == 0
-                    || section.name().map_err(error)?.starts_with(".data.rel.ro")
+                    || section
+                        .name()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                        .starts_with(".data.rel.ro")
             }
             None => true,
         };
@@ -64,7 +75,10 @@ pub(super) fn read(
             )
             .is_some()
         {
-            return Err(error(format!("duplicate native definition {name}")));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2306,
+                format!("duplicate native definition {name}"),
+            ));
         }
     }
     Ok(NativeObjectInfo {

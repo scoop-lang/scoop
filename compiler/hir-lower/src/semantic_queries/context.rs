@@ -6,6 +6,7 @@ pub(crate) fn imported_location(
     let span = origin.span();
     let invalid = |_| {
         let mut diagnostic = Diagnostic::at(
+            scoop_source::DiagnosticCode::E2505,
             Span::new(0, 0),
             "queried dependency source range exceeds the supported byte range",
         );

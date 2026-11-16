@@ -57,7 +57,8 @@ pub(in crate::native) fn transform(
                     end += 1;
                 }
             }
-            let name = std::str::from_utf8(&name).map_err(super::super::error)?;
+            let name = std::str::from_utf8(&name)
+                .map_err(|cause| super::super::error(scoop_source::DiagnosticCode::E2303, cause))?;
             source = root.join(name);
             if let Some(mut logical) = remap(Path::new(name)) {
                 if name.ends_with("//") {

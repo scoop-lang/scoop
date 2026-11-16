@@ -169,8 +169,8 @@ fn unbound_type_argument_is_an_error() {
     let errors = lower_user(file).expect_err("unbound type argument must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f<T>(x: Int): Int — cannot infer a unique type argument for `T`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `f` in current-unit top-level candidate layer; fun f<T>(x: Int): Int; cannot infer a unique type argument for `T`"
     );
 }
 
@@ -192,8 +192,8 @@ fn conflicting_type_arguments_are_an_error() {
     let errors = lower_user(file).expect_err("conflicting bindings must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f<T>(a: T, b: T): T — conflicting types for `T`: String and Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `f` in current-unit top-level candidate layer; fun f<T>(a: T, b: T): T; conflicting types for `T`: String and Int"
     );
 }
 
@@ -212,8 +212,8 @@ fn argument_type_mismatch_is_an_error() {
     let errors = lower_user(file).expect_err("argument mismatch must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `f` in current-unit top-level candidate layer:\n  - fun f(x: Int): Int — argument for `x` has type String, which is not a subtype of Int"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `f` in current-unit top-level candidate layer; fun f(x: Int): Int; argument for `x` has type String, which is not a subtype of Int"
     );
 }
 
@@ -307,8 +307,8 @@ fn none_without_expected_type_is_an_error() {
         let errors = lower_user(file).expect_err("untyped `None` must fail");
         assert_eq!(errors.len(), 1);
         assert_eq!(
-            errors[0].message,
-            "no applicable candidate for constructor `Option.None` in nominal constructor candidate layer:\n  - variant Option<T>.None() — cannot infer a unique type argument for `T`"
+            crate::tests::diagnostic_text(&errors[0]),
+            "no applicable candidate for constructor `Option.None` in nominal constructor candidate layer; variant Option<T>.None(); cannot infer a unique type argument for `T`"
         );
     }
 }
@@ -319,8 +319,8 @@ fn some_arity_is_an_error() {
     let errors = lower_user(file).expect_err("`Some` arity must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for constructor `Option.Some` in nominal constructor candidate layer:\n  - variant Option<T>.Some(_1: T) — expects 1 argument(s), but 0 were supplied"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for constructor `Option.Some` in nominal constructor candidate layer; variant Option<T>.Some(_1: T); expects 1 argument(s), but 0 were supplied"
     );
 }
 

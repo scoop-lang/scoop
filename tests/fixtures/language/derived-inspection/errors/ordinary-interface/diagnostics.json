@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1008",
     "message": "object `Record.Companion` does not implement interface method `ValueInspector<Record>.inspect`",
     "notes": [],
     "origin": {

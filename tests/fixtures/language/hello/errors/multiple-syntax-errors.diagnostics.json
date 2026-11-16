@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected pattern, found `=`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected expression, found `}`",
     "notes": [],
     "origin": {
@@ -26,7 +26,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected parameter name, found `:`",
     "notes": [],
     "origin": {
@@ -39,7 +39,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "expected pattern, found `=`",
     "notes": [],
     "origin": {

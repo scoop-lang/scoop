@@ -23,7 +23,7 @@ impl Lowerer {
         &self,
         body: &hir::Body,
         result: &hir::Expr,
-    ) -> Result<(), String> {
+    ) -> Result<(), crate::call_resolution::constraints::MemberRequirementFailure> {
         let mut violations = Vec::new();
         let mut requirements = HashSet::new();
         self.collect_no_gc_statement_violations(
@@ -34,14 +34,25 @@ impl Lowerer {
         self.collect_no_gc_expr_violations(result, &mut violations, &mut requirements);
         for local in body.locals.values() {
             if !self.is_gc_free(local.ty) {
-                return Err(format!(
-                    "required NoGC call uses a value of non-GC-free type {}",
-                    self.type_name(local.ty)
-                ));
+                return Err(
+                    crate::call_resolution::constraints::MemberRequirementFailure::new(
+                        scoop_source::DiagnosticCode::E1106,
+                        format!(
+                            "required NoGC call uses a value of non-GC-free type {}",
+                            self.type_name(local.ty)
+                        ),
+                    ),
+                );
             }
         }
         match violations.into_iter().next() {
-            Some((_, message)) => Err(format!("required NoGC call: {message}")),
+            Some(diagnostic) => Err(
+                crate::call_resolution::constraints::MemberRequirementFailure {
+                    code: diagnostic.code,
+                    message: format!("required NoGC call: {}", diagnostic.message),
+                    notes: diagnostic.notes,
+                },
+            ),
             None => Ok(()),
         }
     }
@@ -79,7 +90,7 @@ impl Lowerer {
                 }
                 for (index, ty) in extern_.params.into_iter().enumerate() {
                     if !self.is_gc_free(ty) {
-                        self.error(
+                        self.error(scoop_source::DiagnosticCode::E1106,
                             function.span,
                             format!(
                                 "`@NoGC` extern function `{}` has non-GC-free parameter {} of type {}",
@@ -92,6 +103,7 @@ impl Lowerer {
                 }
                 if !self.is_gc_free(*extern_.result.scoop_type()) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1106,
                         function.span,
                         format!(
                             "`@NoGC` extern function `{}` has non-GC-free return type {}",
@@ -107,6 +119,7 @@ impl Lowerer {
                     Some(required) => requirements.extend(required),
                     None => {
                         self.error(
+                            scoop_source::DiagnosticCode::E1106,
                             function.span,
                             format!(
                                 "`@NoGC` function `{}` has non-GC-free parameter `{}` of type {}",
@@ -122,6 +135,7 @@ impl Lowerer {
                 Some(required) => requirements.extend(required),
                 None => {
                     self.error(
+                        scoop_source::DiagnosticCode::E1106,
                         function.span,
                         format!(
                             "`@NoGC` function `{}` has non-GC-free return type {}",
@@ -144,6 +158,7 @@ impl Lowerer {
                     Some(required) => requirements.extend(required),
                     None => {
                         self.error(
+                            scoop_source::DiagnosticCode::E1106,
                             function.span,
                             format!(
                                 "`@NoGC` function `{}` has local `{}` of non-GC-free type {}",
@@ -161,9 +176,7 @@ impl Lowerer {
                 &mut violations,
                 &mut requirements,
             );
-            for (span, message) in violations {
-                self.error(span, message);
-            }
+            self.diagnostics.extend(violations);
             let mut requirements: Vec<_> = requirements.into_iter().collect();
             requirements.sort_by_key(|parameter| parameter.into_raw());
             self.set_function_no_gc_requirements(id, requirements);
@@ -191,6 +204,7 @@ impl Lowerer {
                 for (index, ty) in extern_.params.into_iter().enumerate() {
                     if self.requires_unsafe_use(ty) {
                         self.error(
+                            scoop_source::DiagnosticCode::E1108,
                             function.span,
                             format!(
                                 "safe extern function `{}` exposes `@InteriorMutable` parameter {}",
@@ -202,6 +216,7 @@ impl Lowerer {
                 }
                 if self.requires_unsafe_use(*extern_.result.scoop_type()) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1108,
                         function.span,
                         format!(
                             "safe extern function `{}` exposes an `@InteriorMutable` return type",
@@ -214,6 +229,7 @@ impl Lowerer {
             for param in &function.params {
                 if self.requires_unsafe_use(param.ty) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1108,
                         function.span,
                         format!(
                             "safe function `{}` exposes `@InteriorMutable` parameter `{}`",
@@ -224,6 +240,7 @@ impl Lowerer {
             }
             if self.requires_unsafe_use(function.return_ty) {
                 self.error(
+                    scoop_source::DiagnosticCode::E1108,
                     function.span,
                     format!(
                         "safe function `{}` exposes an `@InteriorMutable` return type",

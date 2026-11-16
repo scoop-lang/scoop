@@ -12,7 +12,7 @@ impl Lowerer {
             let next = self.interfaces[iterator].methods.as_slice();
             let [next] = next else {
                 self.current_file = self.interface_files[&iterator];
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1403,
                     self.interfaces[iterator].span,
                     "interface `Iterator<T>` in scoop.core must declare exactly `public fun next(): Option<T>`"
                         .to_string(),
@@ -35,7 +35,7 @@ impl Lowerer {
             );
             if checked.is_none() {
                 self.current_file = self.interface_files[&iterator];
-                self.error(
+                self.error(scoop_source::DiagnosticCode::E1403,
                     self.interfaces[iterator].span,
                     "interface `Iterator<T>` in scoop.core must declare exactly `public fun next(): Option<T>`"
                         .to_string(),
@@ -54,7 +54,7 @@ impl Lowerer {
         self.current_file = self.interface_files[&iterable];
         if !self.iterable_contract_is_valid(iterable, core) {
             let span = self.interfaces[iterable].span;
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 span,
                 "interface `Iterable<T>` in scoop.core must declare exactly `public operator fun iterator(): Iterator<T>`"
                     .to_string(),

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0101",
     "message": "unexpected character `́`",
     "notes": [],
     "origin": {

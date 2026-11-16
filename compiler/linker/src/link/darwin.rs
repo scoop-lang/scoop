@@ -10,7 +10,7 @@ pub(super) fn link(
 ) -> Result<(), LinkError> {
     let namespace = inputs.namespace.darwin()?;
     let sdk = directory.join("sdk");
-    std::fs::create_dir(&sdk).map_err(error)?;
+    std::fs::create_dir(&sdk).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut stubs = std::collections::BTreeMap::new();
     for (id, bytes) in &namespace.providers.stubs {
         let path = directory.join(format!("dynamic-{id}.tbd"));
@@ -18,9 +18,14 @@ pub(super) fn link(
         stubs.insert(path, namespace.providers.providers[id].install_name.clone());
     }
     let ValidatedFinalLinkProfile::Darwin(darwin) = profile else {
-        return Err(error("Darwin linking requires its selected target profile"));
+        return Err(error(
+            scoop_source::DiagnosticCode::ICE2201,
+            "Darwin linking requires its selected target profile",
+        ));
     };
-    let mut command = darwin.command(&sdk, directory, candidate).map_err(error)?;
+    let mut command = darwin
+        .command(&sdk, directory, candidate)
+        .map_err(|cause| error(cause.code(), cause))?;
     if !keep_symbols {
         darwin.linker_argument(&mut command, "-x");
         darwin.linker_argument(&mut command, "-S");
@@ -38,14 +43,20 @@ pub(super) fn link(
         darwin.linker_argument(&mut command, path);
     }
     command.args(stubs.keys());
-    let result = command
-        .scoop_output()
-        .map_err(|err| error(format!("cannot start Mach-O LLD: {err}")))?;
+    let result = command.scoop_output().map_err(|err| {
+        error(
+            scoop_source::DiagnosticCode::E2202,
+            format!("cannot start Mach-O LLD: {err}"),
+        )
+    })?;
     if !result.status.success() {
-        return Err(error(format!(
-            "Mach-O LLD failed: {}",
-            String::from_utf8_lossy(&result.stderr)
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2304,
+            format!(
+                "Mach-O LLD failed: {}",
+                String::from_utf8_lossy(&result.stderr)
+            ),
+        ));
     }
     Ok(())
 }

@@ -280,6 +280,7 @@ fn duplicate_and_misplaced_headers_have_stable_priority() {
     assert_eq!(
         duplicate[0].notes,
         [scoop_ast::DiagnosticNote::at(
+            scoop_source::DiagnosticCode::N0001,
             0,
             Span::new(0, 7),
             "first `package` header is here",

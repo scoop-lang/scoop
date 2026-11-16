@@ -55,7 +55,8 @@ pub(super) fn execute(
     reporter: &Reporter,
 ) -> scoop::BuildResult<()> {
     let cwd = std::env::current_dir().map_err(config)?;
-    let selection = scoop_toolchain::select_target(&target(args.target)?).map_err(config)?;
+    let selection = scoop_toolchain::select_target(&target(args.target)?)
+        .map_err(crate::cli::commands::toolchain)?;
     let profile = args.profile.unwrap_or(if args.release {
         BuildProfile::Release
     } else {
@@ -68,7 +69,8 @@ pub(super) fn execute(
     };
     let sysroot = absolute(
         &cwd,
-        scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
+        scoop_toolchain::configured_sysroot_root(sysroot)
+            .map_err(crate::cli::commands::toolchain)?,
     )?;
     let search = paths(&cwd, args.cone_path)?;
     let inputs = super::package_manager::prepare(super::package_manager::PrepareInput {
@@ -107,14 +109,15 @@ pub(super) fn execute(
             .transpose()?,
     }
     .request(selection.target().contract().canonical_triple().into())
-    .map_err(config)?;
+    .map_err(crate::cli::commands::toolchain)?;
     let compiler = match args.scoopc {
         Some(path) => absolute(&cwd, path)?,
-        None => scoop_toolchain::installed_host_tool("scoopc").map_err(config)?,
+        None => scoop_toolchain::installed_host_tool("scoopc")
+            .map_err(crate::cli::commands::toolchain)?,
     };
     let compiler = PairedScoopcLocator::new(compiler).map_err(config)?;
-    let generators =
-        scoop_toolchain::GeneratorPrograms::from_cli(&args.generators, &cwd).map_err(config)?;
+    let generators = scoop_toolchain::GeneratorPrograms::from_cli(&args.generators, &cwd)
+        .map_err(crate::cli::commands::toolchain)?;
     let graphs = inputs.graphs(BuildContext {
         artifact_search_roots: search
             .into_iter()

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0105",
     "message": "binary integer prefix must be followed by a valid digit",
     "notes": [],
     "origin": {

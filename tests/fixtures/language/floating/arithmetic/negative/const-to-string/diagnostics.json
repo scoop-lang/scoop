@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1518",
     "message": "const initializer did not resolve to an exact typed core floating intrinsic",
     "notes": [],
     "origin": {

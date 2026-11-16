@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1301",
     "message": "annotation use-site `param` has no target on this declaration",
     "notes": [],
     "origin": {

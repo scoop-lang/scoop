@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0602",
     "message": "type argument `Managed` for `T` of struct `Ptr` must satisfy `value`",
     "notes": [],
     "origin": {

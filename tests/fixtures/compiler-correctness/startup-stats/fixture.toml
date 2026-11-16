@@ -80,7 +80,7 @@ name = "reject_missing_support"
 argv = ["${scoop-link}", "--enable-startup-stats", "--root-slib", "${ordinary.result.root.path}", {each = "${ordinary.result.dependencies}", field = "path", prefix = "--dep-slib"}, {each = "${link_args}"}, "--sysroot", "${sysroot}", "--runtime-objects", "${ordinary.result.runtime_index}", "--cache-dir", "${cache}", "-o", "${work}/rejected"]
 exit = 1
 stdout = ""
-stderr = "scoop-link: runtime startup statistics support is false, but --enable-startup-stats is true\n"
+stderr = "error[E2307]: runtime startup statistics support is false, but --enable-startup-stats is true\n"
 checks = [{file = "${work}/rejected", exists = false}]
 
 [[steps]]
@@ -88,7 +88,7 @@ name = "reject_unrequested_support"
 argv = ["${scoop-link}", "--root-slib", "${ordinary.result.root.path}", {each = "${ordinary.result.dependencies}", field = "path", prefix = "--dep-slib"}, {each = "${link_args}"}, "--sysroot", "${sysroot}", "--runtime-objects", "${stats.result.runtime_index}", "--cache-dir", "${cache}", "-o", "${work}/rejected"]
 exit = 1
 stdout = ""
-stderr = "scoop-link: runtime startup statistics support is true, but --enable-startup-stats is false\n"
+stderr = "error[E2307]: runtime startup statistics support is true, but --enable-startup-stats is false\n"
 checks = [{file = "${work}/rejected", exists = false}]
 
 [[steps]]

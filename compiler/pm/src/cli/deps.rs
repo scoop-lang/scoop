@@ -29,22 +29,27 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
     if let Some(key) = args.why.clone() {
         return why::execute(args, key);
     }
-    let cwd = std::env::current_dir().map_err(|error| PmError::new(error.to_string()))?;
+    let cwd = std::env::current_dir()
+        .map_err(|error| PmError::new(scoop_source::DiagnosticCode::E2201, error.to_string()))?;
     let workspace = Workspace::discover(&cwd, args.members.input.as_deref())?;
     let path = args
         .lockfile
         .map(|path| cwd.join(path))
         .unwrap_or_else(|| workspace.root.join("Cone.lock"));
     let lock = Lockfile::read(&path)?.ok_or_else(|| {
-        PmError::new(format!(
-            "{} does not exist; resolve dependencies first",
-            path.display()
-        ))
+        PmError::new(
+            scoop_source::DiagnosticCode::E2111,
+            format!("{} does not exist", path.display()),
+        )
+        .with_help(
+            scoop_source::DiagnosticCode::H2101,
+            "resolve dependencies first".to_string(),
+        )
     })?;
     let target = match args.target {
         Some(target) => target,
         None => scoop_toolchain::host_target_triple()
-            .map_err(|error| PmError::new(error.to_string()))?
+            .map_err(|error| PmError::new(error.code(), error.to_string()))?
             .into(),
     };
     let selection = if args.members.workspace {
@@ -61,10 +66,17 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
             lock.resolution(&member.relative_path, args.purpose, &target)
                 .cloned()
                 .ok_or_else(|| {
-                    PmError::new(format!(
-                        "no locked resolution for {} / {} / {target}; resolve dependencies first",
-                        member.cone.coordinate, args.purpose
-                    ))
+                    PmError::new(
+                        scoop_source::DiagnosticCode::E2111,
+                        format!(
+                            "no locked resolution for {} / {} / {target}",
+                            member.cone.coordinate, args.purpose
+                        ),
+                    )
+                    .with_help(
+                        scoop_source::DiagnosticCode::H2101,
+                        "resolve dependencies first",
+                    )
                 })
         })
         .collect::<PmResult<Vec<_>>>()?;
@@ -75,7 +87,10 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
                 format: 1,
                 resolutions
             })
-            .map_err(|error| PmError::new(error.to_string()))?
+            .map_err(|error| PmError::new(
+                scoop_source::DiagnosticCode::ICE2501,
+                error.to_string()
+            ))?
         );
     } else {
         for resolution in resolutions {

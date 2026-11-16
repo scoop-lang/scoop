@@ -45,7 +45,7 @@ name = "producer"
 argv = ["${scoopc}", "build", "--profile", "release", "${work}/main.scoop", "--sysroot", "${work}/producer-sysroot", {"each" = "${compile_args}"}, "--out-slib", "${work}/producer.slib"]
 exit = 1
 stdout = ""
-stderr = "error: invalid single-file input ${work}/main.scoop: source file is not valid UTF-8\n"
+stderr = "error[E2003]: invalid single-file input ${work}/main.scoop: source file is not valid UTF-8\n"
 checks = [
   {"file" = "${work}/producer.slib", "exists" = false},
 ]
@@ -55,7 +55,7 @@ name = "human"
 argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${work}/main.scoop", "-o", "${work}/previous.slib", {"each" = "${human_options}"}]
 exit = 1
 stdout = ""
-stderr = "${work}/main.scoop: error[SCOOP_BUILD_FAILED]: invalid single-file input ${work}/main.scoop: source file is not valid UTF-8\n"
+stderr = "${work}/main.scoop: error[E2003]: invalid single-file input ${work}/main.scoop: source file is not valid UTF-8\n"
 checks = [
   {"file" = "${work}/previous.slib", "equals" = "previous output\n"},
 ]

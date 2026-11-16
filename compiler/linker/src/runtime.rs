@@ -92,10 +92,14 @@ impl RuntimeObjectSet {
         directory: &Path,
     ) -> Result<Self, LinkError> {
         if objects.is_empty() {
-            return Err(error("runtime requires a nonempty object collection"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2307,
+                "runtime requires a nonempty object collection",
+            ));
         }
         if toolchain.contract().target() != &target.wire_id() {
             return Err(error(
+                scoop_source::DiagnosticCode::E2307,
                 "runtime C toolchain and selected target do not match",
             ));
         }
@@ -103,7 +107,10 @@ impl RuntimeObjectSet {
         for path in objects {
             let bytes = crate::native_archive::prepare_object(
                 target,
-                std::borrow::Cow::Owned(std::fs::read(&path).map_err(error)?),
+                std::borrow::Cow::Owned(
+                    std::fs::read(&path)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+                ),
             )?;
             let info = NativeObjectInfo::read_with_toolchain(&bytes, toolchain)?;
             let digest = sha256(&bytes);
@@ -115,13 +122,14 @@ impl RuntimeObjectSet {
                         info: &info,
                     },
                 )
-                .map_err(error)?,
+                .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?,
             );
             inputs.push((RuntimeObject { id, digest, info }, bytes));
         }
         inputs.sort_by_key(|(object, _)| object.id);
         let (objects, bytes): (Vec<_>, Vec<_>) = inputs.into_iter().unzip();
-        let directory = std::path::absolute(directory).map_err(error)?;
+        let directory = std::path::absolute(directory)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let (kind, extension) = crate::native_archive::format(target);
         let paths = [
             directory.join("index.cbor"),
@@ -135,7 +143,8 @@ impl RuntimeObjectSet {
                 NewArchiveMember::new(bytes.as_ref(), &DEFAULT_OBJECT_READER, format!("{index}.o"))
             })
             .collect();
-        std::fs::create_dir_all(directory).map_err(error)?;
+        std::fs::create_dir_all(directory)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         crate::native_archive::write(runtime.archive_path(), kind, &members)?;
         runtime.write_index()?;
         Ok(runtime)
@@ -149,9 +158,11 @@ impl RuntimeObjectSet {
         input_paths: [PathBuf; 2],
     ) -> Result<Self, LinkError> {
         let deployment = deployment::RuntimeDeployment::for_toolchain(toolchain);
-        let toolchain = encode(toolchain.contract()).map_err(error)?;
+        let toolchain = encode(toolchain.contract())
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
         if objects.is_empty() || objects.windows(2).any(|pair| pair[0].id == pair[1].id) {
             return Err(error(
+                scoop_source::DiagnosticCode::E2307,
                 "runtime object collection is empty or has duplicate object IDs",
             ));
         }
@@ -161,7 +172,12 @@ impl RuntimeObjectSet {
         };
         let definition = scoop_target_data::definition(target.id())
             .filter(|definition| definition.selection.target() == target)
-            .ok_or_else(|| error("runtime object collection requires a registered target"))?;
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2307,
+                    "runtime object collection requires a registered target",
+                )
+            })?;
         let normalization = target.contract().native_symbol_normalization();
         let native_name = |name| normalization.compiler_generated_object_symbol(name);
         let program_entry = native_name(if definition.os == scoop_target_data::TargetOs::Windows {
@@ -177,10 +193,13 @@ impl RuntimeObjectSet {
                     || symbol == &string_descriptor
                     || symbol.starts_with(&generated_prefix)
                 {
-                    return Err(error(format!(
-                        "runtime object {} defines program-owned symbol {symbol}",
-                        object.id
-                    )));
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2307,
+                        format!(
+                            "runtime object {} defines program-owned symbol {symbol}",
+                            object.id
+                        ),
+                    ));
                 }
                 match merged.definitions.entry(symbol.clone()) {
                     std::collections::btree_map::Entry::Vacant(entry) => {
@@ -197,9 +216,10 @@ impl RuntimeObjectSet {
                         continue;
                     }
                     _ => {
-                        return Err(error(format!(
-                            "runtime has multiple definitions of {symbol}"
-                        )));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2307,
+                            format!("runtime has multiple definitions of {symbol}"),
+                        ));
                     }
                 }
             }
@@ -219,7 +239,7 @@ impl RuntimeObjectSet {
                     merged: &merged,
                 },
             )
-            .map_err(error)?,
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?,
         );
         Ok(Self {
             target,
@@ -252,19 +272,25 @@ impl RuntimeObjectSet {
 
     pub fn require_gc_stress(&self, enabled: bool) -> Result<(), LinkError> {
         if self.configuration.enable_gc_stress != enabled {
-            return Err(error(format!(
-                "runtime GC stress support is {}, but --enable-gc-stress is {}",
-                self.configuration.enable_gc_stress, enabled
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2307,
+                format!(
+                    "runtime GC stress support is {}, but --enable-gc-stress is {}",
+                    self.configuration.enable_gc_stress, enabled
+                ),
+            ));
         }
         Ok(())
     }
     pub fn require_startup_stats(&self, enabled: bool) -> Result<(), LinkError> {
         if self.configuration.enable_startup_stats != enabled {
-            return Err(error(format!(
-                "runtime startup statistics support is {}, but --enable-startup-stats is {}",
-                self.configuration.enable_startup_stats, enabled
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2307,
+                format!(
+                    "runtime startup statistics support is {}, but --enable-startup-stats is {}",
+                    self.configuration.enable_startup_stats, enabled
+                ),
+            ));
         }
         Ok(())
     }
@@ -280,9 +306,11 @@ impl RuntimeObjectSet {
 }
 
 fn check_exports(target: LirTargetProfile, merged: &NativeObjectInfo) -> Result<(), LinkError> {
-    let registry = RuntimeSymbolContractRegistryV1::current(target).map_err(error)?;
+    let registry = RuntimeSymbolContractRegistryV1::current(target)
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE1201, cause))?;
     for contract in registry.contracts() {
-        let symbol = String::from_utf8(contract.object_symbol(target)).map_err(error)?;
+        let symbol = String::from_utf8(contract.object_symbol(target))
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
         if contract.symbol() == RuntimeAbiSymbolV1::CoreStringTypeDescriptor {
             continue;
         }
@@ -299,9 +327,10 @@ fn check_exports(target: LirTargetProfile, merged: &NativeObjectInfo) -> Result<
         if !merged.definitions.get(&symbol).is_some_and(|definition| {
             definition.kind == expected && definition.binding == crate::NativeSymbolBinding::Strong
         }) {
-            return Err(error(format!(
-                "runtime is missing the {expected:?} ABI definition {symbol}"
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2307,
+                format!("runtime is missing the {expected:?} ABI definition {symbol}"),
+            ));
         }
     }
     let startup = target
@@ -312,9 +341,10 @@ fn check_exports(target: LirTargetProfile, merged: &NativeObjectInfo) -> Result<
         definition.kind == NativeSymbolKind::Function
             && definition.binding == crate::NativeSymbolBinding::Strong
     }) {
-        return Err(error(format!(
-            "runtime is missing the program startup entry {startup}"
-        )));
+        return Err(error(
+            scoop_source::DiagnosticCode::E2307,
+            format!("runtime is missing the program startup entry {startup}"),
+        ));
     }
     Ok(())
 }

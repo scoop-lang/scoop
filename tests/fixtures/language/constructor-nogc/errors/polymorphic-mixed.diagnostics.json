@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0610",
     "message": "polymorphic recursion is not supported: generic callable cycle `grow -> Spiral` changes its complete type-argument mapping",
     "notes": [],
     "origin": {

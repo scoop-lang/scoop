@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0201",
     "message": "receiver function type requires `->` and a result type",
     "notes": [],
     "origin": {

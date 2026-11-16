@@ -1,8 +1,55 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `Array` in core prelude layer:\n  - lambda result must be of type Int, found String\n  - no applicable candidate for constructor `Array` in nominal constructor candidate layer:\n  - class Array<T>(source: MutableArray<T>) — parameter `source` is supplied more than once",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `Array` in core prelude layer",
+    "notes": [
+      {
+        "code": "E0501",
+        "kind": "cause",
+        "message": "lambda result must be of type Int, found String",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 57,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 41
+        }
+      },
+      {
+        "code": "E0711",
+        "kind": "cause",
+        "message": "no applicable candidate for constructor `Array` in nominal constructor candidate layer",
+        "notes": [
+          {
+            "code": "N0002",
+            "kind": "note",
+            "message": "class Array<T>(source: MutableArray<T>)",
+            "notes": [
+              {
+                "code": "E0703",
+                "kind": "cause",
+                "message": "parameter `source` is supplied more than once",
+                "notes": [],
+                "origin": {
+                  "kind": "none"
+                }
+              }
+            ],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 57,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 26
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 57,

@@ -51,21 +51,26 @@ pub(crate) struct ElfDynamic {
 
 impl ElfDynamic {
     pub fn read(bytes: &[u8], target: scoop_lir::TargetProfileId) -> Result<Self, LinkError> {
-        let file: ElfFile64<'_> = ElfFile64::parse(bytes).map_err(error)?;
+        let file: ElfFile64<'_> = ElfFile64::parse(bytes)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         let architecture = scoop_slib::ElfArchitecture::for_target(target)
-            .map_err(error)?
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?
             .object_architecture();
         if file.architecture() != architecture
             || !file.is_little_endian()
             || file.kind() != ObjectKind::Dynamic
         {
             return Err(error(
+                scoop_source::DiagnosticCode::E2305,
                 "native shared library must be an ELF64 DSO for the selected target",
             ));
         }
         let mut has_dynamic = false;
         for segment in file.elf_program_headers() {
-            if let Some(entries) = segment.dynamic(file.endian(), bytes).map_err(error)? {
+            if let Some(entries) = segment
+                .dynamic(file.endian(), bytes)
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+            {
                 has_dynamic = true;
                 for entry in entries {
                     let tag = entry.d_tag(file.endian());
@@ -75,13 +80,19 @@ impl ElfDynamic {
                     if tag == u64::from(elf::DT_FLAGS_1)
                         && entry.d_val(file.endian()) & u64::from(elf::DF_1_PIE) != 0
                     {
-                        return Err(error("native shared library is a PIE executable"));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2305,
+                            "native shared library is a PIE executable",
+                        ));
                     }
                 }
             }
         }
         if !has_dynamic {
-            return Err(error("native ELF DSO has no dynamic table"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2305,
+                "native ELF DSO has no dynamic table",
+            ));
         }
         let mut result = Self {
             soname: None,
@@ -95,12 +106,18 @@ impl ElfDynamic {
             match tag {
                 elf::DT_SONAME => {
                     if value.is_empty() || result.soname.replace(value).is_some() {
-                        return Err(error("empty or duplicate ELF SONAME"));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2305,
+                            "empty or duplicate ELF SONAME",
+                        ));
                     }
                 }
                 elf::DT_NEEDED => {
                     if value.is_empty() || result.needed.contains(&value) {
-                        return Err(error("empty or duplicate ELF dependency"));
+                        return Err(error(
+                            scoop_source::DiagnosticCode::E2305,
+                            "empty or duplicate ELF dependency",
+                        ));
                     }
                     result.needed.push(value);
                 }
@@ -117,7 +134,10 @@ impl ElfDynamic {
 pub(crate) fn dynamic_strings(file: &ElfFile64<'_>) -> Result<Vec<(u32, String)>, LinkError> {
     let mut values = Vec::new();
     for segment in file.elf_program_headers() {
-        if let Some(entries) = segment.dynamic(file.endian(), file.data()).map_err(error)? {
+        if let Some(entries) = segment
+            .dynamic(file.endian(), file.data())
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+        {
             for entry in entries {
                 let tag = entry.d_tag(file.endian());
                 if tag == u64::from(elf::DT_NULL) {
@@ -125,15 +145,23 @@ pub(crate) fn dynamic_strings(file: &ElfFile64<'_>) -> Result<Vec<(u32, String)>
                 }
                 if matches!(tag, value if value == u64::from(elf::DT_SONAME) || value == u64::from(elf::DT_NEEDED) || value == u64::from(elf::DT_RPATH) || value == u64::from(elf::DT_RUNPATH))
                 {
-                    let offset = u32::try_from(entry.d_val(file.endian())).map_err(error)?;
+                    let offset = u32::try_from(entry.d_val(file.endian()))
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
                     let value = file
                         .elf_dynamic_symbol_table()
                         .strings()
                         .get(offset)
-                        .map_err(|_| error("ELF dynamic string exceeds its table"))?;
+                        .map_err(|_| {
+                            error(
+                                scoop_source::DiagnosticCode::E2305,
+                                "ELF dynamic string exceeds its table",
+                            )
+                        })?;
                     values.push((
                         tag as u32,
-                        std::str::from_utf8(value).map_err(error)?.to_owned(),
+                        std::str::from_utf8(value)
+                            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
+                            .to_owned(),
                     ));
                 }
             }

@@ -7,11 +7,14 @@ use crate::{Lowerer, NominalTarget, namespace::TopLevelTypeTarget};
 pub(super) fn sort_candidate_notes(notes: &mut [ast::DiagnosticNote]) {
     // Presentation order never chooses a semantic winner.
     notes.sort_by(|left, right| {
-        (&left.source, left.span.start, left.span.end).cmp(&(
-            &right.source,
-            right.span.start,
-            right.span.end,
-        ))
+        (
+            left.source(),
+            left.span().map(|span| (span.start, span.end)),
+        )
+            .cmp(&(
+                right.source(),
+                right.span().map(|span| (span.start, span.end)),
+            ))
     });
 }
 
@@ -32,10 +35,16 @@ impl Lowerer {
             .map_err(|_| "imported declaration span exceeds compiler source offsets".to_owned())?;
         let end = u32::try_from(span.end_byte())
             .map_err(|_| "imported declaration span exceeds compiler source offsets".to_owned())?;
-        let mut note =
-            ast::DiagnosticNote::at(0, ast::Span::new(start, end), "candidate declared here");
+        let mut note = ast::DiagnosticNote::at(
+            scoop_source::DiagnosticCode::N0002,
+            0,
+            ast::Span::new(start, end),
+            "candidate declared here",
+        );
         // A canonical source supersedes the stage-local file index.
-        note.source = scoop_source::LocalDiagnosticSource::Bound(Box::new(origin.source().clone()));
+        note.set_source(scoop_source::LocalDiagnosticSource::Bound(Box::new(
+            origin.source().clone(),
+        )));
         Ok(note)
     }
 
@@ -92,6 +101,7 @@ impl Lowerer {
             }
         };
         Ok(ast::DiagnosticNote::at(
+            scoop_source::DiagnosticCode::N0002,
             file,
             span,
             "candidate declared here",

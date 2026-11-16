@@ -85,7 +85,9 @@ fn m57_block_facts_do_not_escape_into_ordinary_members() {
     )
     .unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains("read")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains("read")),
         "{errors:#?}"
     );
 }
@@ -107,7 +109,7 @@ fn m57_overlap_is_rejected_even_for_empty_interfaces_and_stronger_conditions() {
         assert!(
             errors
                 .iter()
-                .any(|error| error.message.contains("may overlap")),
+                .any(|error| crate::tests::diagnostic_text(error).contains("may overlap")),
             "{errors:#?}"
         );
     }
@@ -124,7 +126,9 @@ fn m57_potential_conformance_cannot_be_used_as_a_negative_bound() {
     ))
     .unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains("Read")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains("Read")),
         "{errors:#?}"
     );
     check(&format!(
@@ -185,7 +189,9 @@ fn m57_queries_reject_circular_proofs_but_allow_nested_descent() {
     ] {
         let errors = check(source).unwrap_err();
         assert!(
-            errors.iter().any(|error| error.message.contains(message)),
+            errors
+                .iter()
+                .any(|error| crate::tests::diagnostic_text(error).contains(message)),
             "{errors:#?}"
         );
     }
@@ -231,7 +237,9 @@ fn m57_ordinary_override_can_serve_independent_conditional_slots() {
     )
     .unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains("read")),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains("read")),
         "{errors:#?}"
     );
 }
@@ -285,7 +293,7 @@ fn m57_block_member_must_implement_its_own_target() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("implementation's target")),
+            .any(|error| crate::tests::diagnostic_text(error).contains("implementation's target")),
         "{errors:#?}"
     );
 }

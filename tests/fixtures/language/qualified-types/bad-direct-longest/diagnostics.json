@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0402",
     "message": "package `dev.example.dependency.paths.Outer` has no accessible type `Nested`",
     "notes": [],
     "origin": {

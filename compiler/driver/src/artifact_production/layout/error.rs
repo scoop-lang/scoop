@@ -38,3 +38,15 @@ impl std::error::Error for LayoutArtifactProductionError {
         }
     }
 }
+
+impl LayoutArtifactProductionError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::Objects(e) => e.code(),
+            Self::Layout(_) | Self::Code(_) | Self::Assembly(_) | Self::LinkSupport(_) => {
+                C::ICE2401
+            }
+        }
+    }
+}

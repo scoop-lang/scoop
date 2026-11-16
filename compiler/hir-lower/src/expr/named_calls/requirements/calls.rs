@@ -64,8 +64,10 @@ impl Lowerer {
         let winners = match self.most_specific_declarations(&pool) {
             Ok(pool) => pool,
             Err(error) => {
-                self.diagnostics
-                    .push(scoop_ast::Diagnostic::internal(error));
+                self.diagnostics.push(scoop_ast::Diagnostic::internal(
+                    scoop_source::DiagnosticCode::ICE0601,
+                    error,
+                ));
                 return Some(None);
             }
         };
@@ -109,7 +111,11 @@ impl Lowerer {
             .collect::<Vec<_>>();
         let winners = self.prefer_ordinary_lambdas(&winners, &effects);
         if winners.len() != 1 {
-            self.error(call.span, "ambiguous member requirement invocation".into());
+            self.error(
+                scoop_source::DiagnosticCode::E0622,
+                call.span,
+                "ambiguous member requirement invocation".into(),
+            );
             return Some(None);
         }
         let (requirement, layer) = candidates.swap_remove(winners[0]);

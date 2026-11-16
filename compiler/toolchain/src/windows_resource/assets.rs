@@ -18,17 +18,22 @@ pub(super) fn observe(
             .chain(includes.iter().map(PathBuf::as_path))
         {
             let candidate = directory.join(&path);
-            found = candidate.try_exists().map_err(error)?;
+            found = candidate
+                .try_exists()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
             inputs.insert(candidate);
             if found {
                 break;
             }
         }
         if !found {
-            return Err(error(format!(
-                "resource input disappeared during compilation: {}",
-                path.display()
-            )));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2206,
+                format!(
+                    "resource input disappeared during compilation: {}",
+                    path.display()
+                ),
+            ));
         }
     }
     Ok(())
@@ -56,7 +61,12 @@ fn files(output: &str) -> Result<Vec<PathBuf>, ToolchainError> {
                 break;
             }
         }
-        let mut value = tail.ok_or_else(|| error("invalid LLVM RC resource node output"))?;
+        let mut value = tail.ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2303,
+                "invalid LLVM RC resource node output",
+            )
+        })?;
         if value.starts_with("data = ") {
             continue;
         }
@@ -67,7 +77,12 @@ fn files(output: &str) -> Result<Vec<PathBuf>, ToolchainError> {
             value = value
                 .strip_prefix('"')
                 .and_then(|value| value.strip_suffix('"'))
-                .ok_or_else(|| error("invalid LLVM RC resource filename"))?;
+                .ok_or_else(|| {
+                    error(
+                        scoop_source::DiagnosticCode::E2303,
+                        "invalid LLVM RC resource filename",
+                    )
+                })?;
         }
         files.push(PathBuf::from(value));
     }

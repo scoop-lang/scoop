@@ -39,7 +39,12 @@ impl NativeDebugTools {
     pub fn resolve(target: scoop_lir::LirTargetProfile) -> Result<Self, ToolchainError> {
         let definition = scoop_target_data::definition(target.id())
             .filter(|definition| definition.selection.target() == target)
-            .ok_or_else(|| ToolchainError("a registered debug target is required".into()))?;
+            .ok_or_else(|| {
+                ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2301,
+                    "a registered debug target is required".into(),
+                )
+            })?;
         match target.native_object_format() {
             scoop_lir::NativeObjectFormat::MachO64
                 if definition.os == scoop_target_data::TargetOs::Darwin =>
@@ -61,10 +66,10 @@ impl NativeDebugTools {
             {
                 Ok(Self::Windows)
             }
-            format => Err(ToolchainError(format!(
-                "no native debug tools for {:?}/{format:?}",
-                definition.os
-            ))),
+            format => Err(ToolchainError::new(
+                scoop_source::DiagnosticCode::E2301,
+                format!("no native debug tools for {:?}/{format:?}", definition.os),
+            )),
         }
     }
 
@@ -87,14 +92,23 @@ fn llvm_tool(name: &str) -> Result<PathBuf, ToolchainError> {
         candidates.extend(std::env::split_paths(&path).map(|root| root.join(name)));
     }
     for candidate in candidates {
-        let candidate = std::path::absolute(candidate)
-            .map_err(|error| ToolchainError(format!("debug tool path: {error}")))?;
+        let candidate = std::path::absolute(candidate).map_err(|error| {
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2201,
+                format!("debug tool path: {error}"),
+            )
+        })?;
         let exists = candidate.is_file();
         if exists {
             return Ok(candidate);
         }
     }
-    Err(ToolchainError(format!(
-        "debug tool {name} not found beside Scoop or on PATH; set LLVM_SYS_221_PREFIX to the LLVM 22.1 installation"
-    )))
+    Err(ToolchainError::new(
+        scoop_source::DiagnosticCode::E2302,
+        format!("debug tool {name} not found beside Scoop or on PATH"),
+    )
+    .with_help(
+        scoop_source::DiagnosticCode::H2301,
+        "set LLVM_SYS_221_PREFIX to the LLVM 22.1 installation",
+    ))
 }

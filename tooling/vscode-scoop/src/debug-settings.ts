@@ -180,7 +180,7 @@ export function buildProgram(
       try {
         const record = JSON.parse(line);
         if (
-          record.schema === 1 &&
+          record.schema === 2 &&
           record.kind === "executable" &&
           typeof record.output === "string"
         ) {

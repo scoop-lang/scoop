@@ -1,8 +1,28 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "`return` value of `result` must be of type Option<Int>, found Option<Option<Int>>; nominal application `Option` is invariant: first differing type argument 1 (`T`) is `Option<Int>` in `Option<Option<Int>>`, but `Int` in `Option<Int>`; construct the target application directly or convert explicitly",
-    "notes": [],
+    "code": "E0501",
+    "message": "`return` value of `result` must be of type Option<Int>, found Option<Option<Int>>",
+    "notes": [
+      {
+        "code": "N0501",
+        "kind": "note",
+        "message": "nominal application `Option` is invariant: first differing type argument 1 (`T`) is `Option<Int>` in `Option<Option<Int>>`, but `Int` in `Option<Int>`",
+        "notes": [
+          {
+            "code": "H0501",
+            "kind": "help",
+            "message": "construct the target application directly or convert explicitly",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "6c7762101104fc9459af47c39c4c2017260189a733535ea7efe64d2da7beb3a8",
       "end": 118,

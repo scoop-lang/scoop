@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0502",
     "message": "value of type Box is not callable",
     "notes": [],
     "origin": {

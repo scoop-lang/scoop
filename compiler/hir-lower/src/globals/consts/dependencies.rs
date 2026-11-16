@@ -49,6 +49,7 @@ impl Lowerer {
         for (source, span, path, members) in cycles {
             self.current_file = source;
             self.error(
+                scoop_source::DiagnosticCode::E1517,
                 span,
                 format!("const dependency cycle: {}", path.join(" -> ")),
             );

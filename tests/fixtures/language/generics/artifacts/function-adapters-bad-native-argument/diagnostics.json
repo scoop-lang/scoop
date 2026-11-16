@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0501",
     "message": "body of `broken` must be of type (FunPtr<(Long) -> Long>) -> Any, found (FunPtr<(Int) -> Int>) -> Int",
     "notes": [],
     "origin": {

@@ -61,14 +61,14 @@ fn prepare(
     let graph = request.graph;
     if request.require_executable && graph.root_kind() == RequestedConeKind::Library {
         return Err(BuildFailure::tool(
-            "SCOOP_RUN_LIBRARY",
+            scoop_source::DiagnosticCode::E2001,
             BuildFailurePhase::Request,
             "run requires an executable Cone; the root is a library",
         ));
     }
     if request.require_executable && graph.root_kind() == RequestedConeKind::NativeApp {
         return Err(BuildFailure::tool(
-            "SCOOP_RUN_NATIVE_APP",
+            scoop_source::DiagnosticCode::E2001,
             BuildFailurePhase::Request,
             "native-app requires a native host; run accepts executable Cones",
         ));
@@ -187,12 +187,12 @@ fn runtime_input(
     enable_gc_stress: bool,
     enable_startup_stats: bool,
 ) -> BuildResult<(RuntimeObjectSet, PathBuf, Vec<PathBuf>)> {
-    let failure = |error| {
-        BuildFailure::tool(
-            "SCOOP_RUNTIME_BUILD",
-            BuildFailurePhase::RuntimeBuild,
-            error,
-        )
+    let failure =
+        |code, message: String| BuildFailure::tool(code, BuildFailurePhase::RuntimeBuild, message);
+    let link_failure = |error| {
+        let mut failure = BuildFailure::link(error);
+        failure.phase = BuildFailurePhase::RuntimeBuild;
+        failure
     };
     match input {
         RuntimeInput::ObjectIndex(index) => {
@@ -201,13 +201,13 @@ fn runtime_input(
                 target.lir_target(),
                 target.c_bridge_toolchain().profile(),
             )
-            .map_err(|error| failure(error.to_string()).at_host(index))?;
+            .map_err(|error| link_failure(error).at_host(index))?;
             objects
                 .require_gc_stress(enable_gc_stress)
-                .map_err(|error| failure(error.to_string()))?;
+                .map_err(link_failure)?;
             objects
                 .require_startup_stats(enable_startup_stats)
-                .map_err(|error| failure(error.to_string()))?;
+                .map_err(link_failure)?;
             let mut paths = objects.input_paths().to_vec();
             paths.push(index.clone());
             Ok((objects, index.clone(), paths))
@@ -223,7 +223,7 @@ fn runtime_input(
                             final_link.sysroot.as_deref(),
                             final_link.unwind_prefix.as_deref(),
                         )
-                        .map_err(|error| failure(error.to_string()))?,
+                        .map_err(|error| failure(error.code(), error.to_string()))?,
                     )
                 };
             let runtime = build_runtime(RuntimeBuildRequest {
@@ -236,7 +236,7 @@ fn runtime_input(
                 enable_startup_stats,
                 unwind_prefix: unwind.as_deref(),
             })
-            .map_err(|error| failure(error.to_string()))?;
+            .map_err(|error| failure(error.code(), error.to_string()))?;
             let index = runtime.index().to_owned();
             let paths = runtime.input_paths().to_vec();
             Ok((runtime.into_objects(), index, paths))
@@ -276,7 +276,7 @@ fn output_path(
     } else {
         let manifest = graph.source_input(graph.root_identity()).ok_or_else(|| {
             BuildFailure::tool(
-                "SCOOP_OUTPUT_LAYOUT",
+                scoop_source::DiagnosticCode::ICE2201,
                 BuildFailurePhase::Publication,
                 "manifest root has no captured manifest",
             )
@@ -286,7 +286,7 @@ fn output_path(
             .parent()
             .ok_or_else(|| {
                 BuildFailure::tool(
-                    "SCOOP_OUTPUT_LAYOUT",
+                    scoop_source::DiagnosticCode::ICE2201,
                     BuildFailurePhase::Publication,
                     "manifest has no parent directory",
                 )
@@ -345,5 +345,9 @@ fn sanitized_stem(path: &Path) -> String {
 }
 
 fn output_error(error: impl std::fmt::Display) -> Box<BuildFailure> {
-    BuildFailure::tool("SCOOP_OUTPUT_WRITE", BuildFailurePhase::Publication, error)
+    BuildFailure::tool(
+        scoop_source::DiagnosticCode::E2201,
+        BuildFailurePhase::Publication,
+        error,
+    )
 }

@@ -28,10 +28,17 @@ impl Catalog<'_> {
                 _ => None,
             });
         if self.policy.strict && pinned.is_none() {
-            return Err(PmError::new(format!(
-                "Cone.lock does not record {reference} for {}; resolve without --locked",
-                requirement.key
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2111,
+                format!(
+                    "Cone.lock does not record {reference} for {__diagnostic_arg0}",
+                    __diagnostic_arg0 = requirement.key
+                ),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2101,
+                "resolve without --locked".to_owned(),
+            ));
         }
         let precise = self
             .policy
@@ -46,6 +53,7 @@ impl Catalog<'_> {
                     .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
         {
             return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2115,
                 "Git --precise requires a full lowercase commit ID",
             ));
         }
@@ -68,12 +76,24 @@ impl Catalog<'_> {
             None => {
                 let checkout = if self.options.local_sources_only {
                     let commit = pinned.as_deref().ok_or_else(|| {
-                        PmError::new("metadata requires a locked Git commit; run scoop pm resolve")
+                        PmError::new(
+                            scoop_source::DiagnosticCode::E2111,
+                            "metadata requires a locked Git commit".to_owned(),
+                        )
+                        .with_help(
+                            scoop_source::DiagnosticCode::H2101,
+                            "run scoop pm resolve".to_owned(),
+                        )
                     })?;
                     git::cached_checkout(self.cache, &repository, commit)?.ok_or_else(|| {
-                        PmError::new(format!(
-                            "Git checkout {repository}#{commit} is not cached; run scoop pm fetch"
-                        ))
+                        PmError::new(
+                            scoop_source::DiagnosticCode::E2112,
+                            format!("Git checkout {repository}#{commit} is not cached"),
+                        )
+                        .with_help(
+                            scoop_source::DiagnosticCode::H2102,
+                            "run scoop pm fetch".to_owned(),
+                        )
                     })?
                 } else {
                     git::checkout(
@@ -103,10 +123,17 @@ impl Catalog<'_> {
             matches!(&node.source, LockedSource::Registry { registry: locked, .. } if locked == registry)
         });
         if self.policy.strict && !locked_source {
-            return Err(PmError::new(format!(
-                "Cone.lock does not record registry {registry} for {}; resolve without --locked",
-                requirement.key
-            )));
+            return Err(PmError::new(
+                scoop_source::DiagnosticCode::E2111,
+                format!(
+                    "Cone.lock does not record registry {registry} for {}",
+                    requirement.key
+                ),
+            )
+            .with_help(
+                scoop_source::DiagnosticCode::H2101,
+                "resolve without --locked".to_string(),
+            ));
         }
         let key = (registry.to_string(), requirement.key.clone());
         if !self.indexes.contains_key(&key) {
@@ -120,10 +147,17 @@ impl Catalog<'_> {
                 .try_exists()
                 .map_err(|error| PmError::io(&cache_path, error))?;
             if self.options.local_sources_only && !was_cached {
-                return Err(PmError::new(format!(
-                    "registry metadata for {} is not cached; run scoop pm fetch",
-                    requirement.key
-                )));
+                return Err(PmError::new(
+                    scoop_source::DiagnosticCode::E2112,
+                    format!(
+                        "registry metadata for {__diagnostic_arg0} is not cached",
+                        __diagnostic_arg0 = requirement.key
+                    ),
+                )
+                .with_help(
+                    scoop_source::DiagnosticCode::H2102,
+                    "run scoop pm fetch".to_owned(),
+                ));
             }
             let index = registry::load_index(
                 &self.http,
@@ -148,7 +182,9 @@ impl Catalog<'_> {
                 requirement.key.name(),
                 &version.version,
             )
-            .map_err(|error| PmError::new(error.to_string()))?;
+            .map_err(|error| {
+                PmError::new(scoop_source::DiagnosticCode::E2010, error.to_string())
+            })?;
             let candidate = Candidate {
                 coordinate,
                 kind: version.kind,

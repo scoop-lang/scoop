@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1115",
     "message": "context key must be a non-null managed reference type, found Option<String>",
     "notes": [],
     "origin": {

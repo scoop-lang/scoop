@@ -53,6 +53,7 @@ impl Lowerer {
                 let found = self.type_name(value.ty);
                 let expected_name = self.type_name(expected);
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     initializer.span(),
                     format!(
                         "when subject initializer must be of type {expected_name}, found {found}"

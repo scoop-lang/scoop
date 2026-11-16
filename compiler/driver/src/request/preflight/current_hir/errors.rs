@@ -54,3 +54,22 @@ impl std::error::Error for CurrentConeHirStageError {
         }
     }
 }
+
+impl CurrentConeHirStageError {
+    pub fn code(&self) -> scoop_source::DiagnosticIdentifier {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::SemanticWorld(_) | Self::NominalClassifier(_) => C::ICE0501.into(),
+            Self::Input(_) => C::ICE0301.into(),
+            Self::Lowering(ds) => ds
+                .diagnostics()
+                .first()
+                .map(|d| d.code.clone())
+                .unwrap_or(C::ICE2501.into()),
+            Self::Diagnostics(_) => C::ICE0401.into(),
+            Self::Foundation(_) | Self::ProductionSection(_) | Self::CrossConeSection(_) => {
+                C::ICE2401.into()
+            }
+        }
+    }
+}

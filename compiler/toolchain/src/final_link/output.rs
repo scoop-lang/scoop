@@ -27,6 +27,7 @@ impl OutputConfiguration {
                 || format != scoop_lir::NativeObjectFormat::MachO64)
         {
             return Err(error(
+                scoop_source::DiagnosticCode::E2001,
                 "install name requires a Darwin shared library output",
             ));
         }
@@ -34,7 +35,10 @@ impl OutputConfiguration {
             && (options.output_kind != FinalOutputKind::SharedLibrary
                 || format != scoop_lir::NativeObjectFormat::Elf64)
         {
-            return Err(error("SONAME requires an ELF shared library output"));
+            return Err(error(
+                scoop_source::DiagnosticCode::E2001,
+                "SONAME requires an ELF shared library output",
+            ));
         }
         match options.output_kind {
             FinalOutputKind::Executable => Ok(Self::Executable),
@@ -42,6 +46,7 @@ impl OutputConfiguration {
                 let loader_name = options.install_name.as_ref().or(options.soname.as_ref());
                 if loader_name.is_some_and(|name| name.is_empty() || name.contains('\0')) {
                     return Err(error(
+                        scoop_source::DiagnosticCode::E2001,
                         "shared library loader name must be nonempty and contain no NUL",
                     ));
                 }
@@ -65,17 +70,21 @@ impl OutputConfiguration {
         prefix: &str,
     ) -> Result<OsString, ToolchainError> {
         let Self::SharedLibrary { loader_name } = self else {
-            return Err(error("executable output has no shared library loader name"));
+            return Err(error(
+                scoop_source::DiagnosticCode::ICE2201,
+                "executable output has no shared library loader name",
+            ));
         };
         if let Some(name) = loader_name {
             return Ok(name.into());
         }
         let mut name = OsString::from(prefix);
-        name.push(
-            output
-                .file_name()
-                .ok_or_else(|| error("shared library output has no basename"))?,
-        );
+        name.push(output.file_name().ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::ICE2201,
+                "shared library output has no basename",
+            )
+        })?);
         Ok(name)
     }
 }

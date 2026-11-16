@@ -1,4 +1,6 @@
 //! Shared Cone bounds for direct files and every directory entry.
+use scoop_hir::CompileTimeInputError as InputError;
+use scoop_source::DiagnosticCode as C;
 
 use scoop_protocol::HostPathCarrier;
 use std::path::{Component, Path, PathBuf};
@@ -10,7 +12,7 @@ pub(super) struct Scope {
 }
 
 impl Scope {
-    pub fn new(root: &Path) -> Result<Self, String> {
+    pub fn new(root: &Path) -> Result<Self, InputError> {
         let real_root = std::fs::canonicalize(root).map_err(|error| io_error(root, error))?;
         Ok(Self {
             root: root.to_owned(),
@@ -18,24 +20,30 @@ impl Scope {
         })
     }
 
-    pub fn resolve(&self, locator: &Path) -> Result<PathBuf, String> {
+    pub fn resolve(&self, locator: &Path) -> Result<PathBuf, InputError> {
         let normalized = normalize(locator);
         if !normalized.starts_with(normalize(&self.root))
             && !normalized.starts_with(&self.real_root)
         {
-            return Err(format!(
-                "include path `{}` is outside the defining Cone directory `{}`",
-                locator.display(),
-                self.root.display()
+            return Err(InputError::new(
+                C::E1605,
+                format!(
+                    "include path `{}` is outside the defining Cone directory `{}`",
+                    locator.display(),
+                    self.root.display()
+                ),
             ));
         }
         // Open the original spelling: link/.. follows the filesystem, not lexical cleanup.
         let resolved = std::fs::canonicalize(locator).map_err(|error| io_error(locator, error))?;
         if !resolved.starts_with(&self.real_root) {
-            return Err(format!(
-                "include symlink target `{}` is outside the defining Cone directory `{}`",
-                resolved.display(),
-                self.real_root.display()
+            return Err(InputError::new(
+                C::E1605,
+                format!(
+                    "include symlink target `{}` is outside the defining Cone directory `{}`",
+                    resolved.display(),
+                    self.real_root.display()
+                ),
             ));
         }
         Ok(resolved)
@@ -45,7 +53,7 @@ impl Scope {
 pub(super) fn modified(
     path: &Path,
     metadata: &std::fs::Metadata,
-) -> Result<(bool, u64, u32), String> {
+) -> Result<(bool, u64, u32), InputError> {
     let modified = metadata.modified().map_err(|error| io_error(path, error))?;
     let (negative, elapsed) = match modified.duration_since(UNIX_EPOCH) {
         Ok(value) => (false, value),
@@ -54,8 +62,8 @@ pub(super) fn modified(
     Ok((negative, elapsed.as_secs(), elapsed.subsec_nanos()))
 }
 
-pub(super) fn carrier(value: &Path) -> Result<HostPathCarrier, String> {
-    HostPathCarrier::from_path(value).map_err(|error| error.to_string())
+pub(super) fn carrier(value: &Path) -> Result<HostPathCarrier, InputError> {
+    HostPathCarrier::from_path(value).map_err(|error| InputError::new(C::ICE2501, error))
 }
 
 fn normalize(path: &Path) -> PathBuf {
@@ -72,6 +80,9 @@ fn normalize(path: &Path) -> PathBuf {
     result
 }
 
-pub(super) fn io_error(path: &Path, error: std::io::Error) -> String {
-    format!("cannot read include input `{}`: {error}", path.display())
+pub(super) fn io_error(path: &Path, error: std::io::Error) -> InputError {
+    InputError::new(
+        C::E2201,
+        format!("cannot read include input `{}`: {error}", path.display()),
+    )
 }

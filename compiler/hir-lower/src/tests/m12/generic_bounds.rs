@@ -288,8 +288,8 @@ fn explicit_type_arguments_filter_overloads_and_report_complete_list_errors() {
         ),
     ]);
     assert_eq!(errors.len(), 1);
-    assert!(errors[0].contains("fun pick<T>(value: T): T — expects 1 explicit type argument(s)"));
-    assert!(errors[0].contains("fun pick(value: Int): Int — expects 0 explicit type argument(s)"));
+    assert!(errors[0].contains("fun pick<T>(value: T): T; expects 1 explicit type argument(s)"));
+    assert!(errors[0].contains("fun pick(value: Int): Int; expects 0 explicit type argument(s)"));
 }
 
 #[test]
@@ -378,7 +378,7 @@ fn overloaded_kind_failure_keeps_the_precise_bound_diagnostic() {
     ]);
     assert_eq!(errors.len(), 1);
     assert!(errors[0].contains(
-        "fun choose<T : ref>(value: T): T — type argument `Int` for `T` must satisfy `ref`"
+        "fun choose<T : ref>(value: T): T; type argument `Int` for `T` must satisfy `ref`"
     ));
-    assert!(errors[0].contains("fun choose(left: Int, right: Int): Int — expects 2 argument(s)"));
+    assert!(errors[0].contains("fun choose(left: Int, right: Int): Int; expects 2 argument(s)"));
 }

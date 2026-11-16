@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1706",
     "message": "a test or lifecycle method must be declared directly in a `@Test` class",
     "notes": [],
     "origin": {

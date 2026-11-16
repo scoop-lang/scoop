@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E2201",
     "message": "cannot read include input `${work}/cone/src/../linked.txt`: No such file or directory (os error 2)",
     "notes": [],
     "origin": {

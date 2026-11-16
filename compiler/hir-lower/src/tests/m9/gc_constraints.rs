@@ -11,8 +11,8 @@ fn pin_rejects_an_int_argument() {
     let errors = lower_user_with_gc(file).expect_err("pinning a value type must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `pin` in implicit-import candidate layer:\n  - fun pin<T : ref>(v: T): PinnedPtr<T> — type argument `Int` for `T` must satisfy `ref`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `pin` in implicit-import candidate layer; fun pin<T : ref>(v: T): PinnedPtr<T>; type argument `Int` for `T` must satisfy `ref`"
     );
     // The diagnostic retains the user source despite two preceding core sources.
     assert_eq!(
@@ -36,8 +36,8 @@ fn pin_rejects_a_struct_argument() {
     let errors = lower_user_with_gc(file).expect_err("pinning a struct must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `pin` in implicit-import candidate layer:\n  - fun pin<T : ref>(v: T): PinnedPtr<T> — type argument `Point` for `T` must satisfy `ref`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `pin` in implicit-import candidate layer; fun pin<T : ref>(v: T): PinnedPtr<T>; type argument `Point` for `T` must satisfy `ref`"
     );
 }
 
@@ -50,8 +50,8 @@ fn get_gc_handle_rejects_a_value_argument() {
     let errors = lower_user_with_gc(file).expect_err("a handle of a value type must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `getGcHandle` in implicit-import candidate layer:\n  - fun getGcHandle<T : ref>(v: T): GcHandle<T> — type argument `Int` for `T` must satisfy `ref`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `getGcHandle` in implicit-import candidate layer; fun getGcHandle<T : ref>(v: T): GcHandle<T>; type argument `Int` for `T` must satisfy `ref`"
     );
 }
 
@@ -106,8 +106,8 @@ fn pin_rejects_an_unconstrained_type_parameter() {
     let errors = lower_user_with_gc(file).expect_err("pinning an unconstrained T must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(
-        errors[0].message,
-        "no applicable candidate for `pin` in implicit-import candidate layer:\n  - fun pin<T : ref>(v: T): PinnedPtr<T> — type argument `U` for `T` must satisfy `ref`"
+        crate::tests::diagnostic_text(&errors[0]),
+        "no applicable candidate for `pin` in implicit-import candidate layer; fun pin<T : ref>(v: T): PinnedPtr<T>; type argument `U` for `T` must satisfy `ref`"
     );
 }
 

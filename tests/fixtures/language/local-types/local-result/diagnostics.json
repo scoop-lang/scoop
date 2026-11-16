@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0410",
     "message": "local type `Local` cannot escape its lexical scope through an inferred result",
     "notes": [],
     "origin": {

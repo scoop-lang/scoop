@@ -54,7 +54,11 @@ impl Lowerer {
     ) -> Option<hir::Expr> {
         let plan = self.resolve_place_plan(place, sink)?;
         if matches!(&plan.write, WriteCapability::ReadOnly) {
-            self.error(span, "update operand is not writable".to_string());
+            self.error(
+                scoop_source::DiagnosticCode::E1506,
+                span,
+                "update operand is not writable".to_string(),
+            );
             return None;
         }
         let old = self.materialize_place_expr(plan.read, "old", span, sink);
@@ -83,7 +87,7 @@ impl Lowerer {
             },
         )?;
         if !self.is_subtype(value.ty, plan.ty) {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "operator `{name}` returns {}, which cannot be assigned to update operand of type {}",
@@ -236,13 +240,18 @@ impl Lowerer {
                     crate::properties::ExtensionPropertyResolution::NoCandidate => {
                         if self.is_value_ty(receiver.ty) {
                             self.error(
+                                scoop_source::DiagnosticCode::E1501,
                                 name.span,
                                 "field assignment is not supported (value types are immutable)"
                                     .to_string(),
                             );
                         } else {
                             let found = self.type_name(receiver.ty);
-                            self.error(name.span, format!("type `{found}` has no fields"));
+                            self.error(
+                                scoop_source::DiagnosticCode::E0402,
+                                name.span,
+                                format!("type `{found}` has no fields"),
+                            );
                         }
                         None
                     }
@@ -303,6 +312,7 @@ impl Lowerer {
         match write {
             WriteCapability::ReadOnly => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1506,
                     span,
                     "compound-assignment fallback is not writable".to_string(),
                 );

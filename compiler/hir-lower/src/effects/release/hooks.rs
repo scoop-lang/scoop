@@ -39,7 +39,7 @@ impl Lowerer {
             }
             self.current_file = self.class_files[&class];
             let Some(required) = facts.requirements else {
-                self.error(facts.violation.unwrap_or(hook.origin.span),
+                self.error(scoop_source::DiagnosticCode::E1114, facts.violation.unwrap_or(hook.origin.span),
                     "`release` requires ReleaseValue values and direct NoTransition calls; allocation, managed access, transitions and trapping operations are forbidden".into());
                 continue;
             };
@@ -49,6 +49,7 @@ impl Lowerer {
             for parameter in parameters {
                 if required.contains(&parameter.id) && ref_bound(&parameter.bounds) {
                     self.error(
+                        scoop_source::DiagnosticCode::E1114,
                         parameter.span,
                         format!(
                             "release requirement for `{}` contradicts its reference bound",

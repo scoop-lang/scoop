@@ -104,28 +104,41 @@ impl Lowerer {
                 if let Some(application) = self.named_enum_variant(matched_ty, &name.text) {
                     return self.bare_variant_pattern(name, application, ctx);
                 }
-                let message = if matches!(self.types[matched_ty], Type::Enum(_)) {
-                    format!(
-                        "enum `{}` has no variant `{}`; use `val {}` to bind the matched value",
-                        self.type_name(matched_ty),
-                        name.text,
-                        name.text,
+                let (code, message) = if matches!(self.types[matched_ty], Type::Enum(_)) {
+                    (
+                        scoop_source::DiagnosticCode::E0402,
+                        format!(
+                            "enum `{}` has no variant `{}`",
+                            self.type_name(matched_ty),
+                            name.text,
+                        ),
                     )
                 } else {
-                    format!(
-                        "bare pattern `{}` cannot match {}; use `val {}` to bind the matched value",
-                        name.text,
-                        self.type_name(matched_ty),
-                        name.text,
+                    (
+                        scoop_source::DiagnosticCode::E0901,
+                        format!(
+                            "bare pattern `{}` cannot match {}",
+                            name.text,
+                            self.type_name(matched_ty),
+                        ),
                     )
                 };
-                self.error(name.span, message);
+                self.error_with_note(
+                    code,
+                    name.span,
+                    message,
+                    ast::DiagnosticNote::without_location(
+                        scoop_source::DiagnosticCode::H0901,
+                        format!("use `val {}` to bind the matched value", name.text),
+                    ),
+                );
                 None
             }
             ast::Pattern::Wildcard { .. } => Some(hir::Pattern::Wildcard),
             ast::Pattern::Literal { value, span } => {
                 if !ctx.in_when {
                     self.error(
+                        scoop_source::DiagnosticCode::E0902,
                         *span,
                         "refutable patterns are only allowed in `when`".to_string(),
                     );
@@ -154,6 +167,7 @@ impl Lowerer {
                     let intrinsic = hir::IntegerIntrinsicKind::NoGcOperation { kind, operation };
                     if !self.const_integer_operation_available(intrinsic) {
                         self.error(
+                            scoop_source::DiagnosticCode::E1404,
                             *span,
                             format!(
                                 "type `{}` has no typed core `unaryMinus` intrinsic",
@@ -177,6 +191,7 @@ impl Lowerer {
                     let expected = self.type_name(matched_ty);
                     let found = self.type_name(literal.ty);
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         *span,
                         format!("literal pattern of type {found} cannot match {expected}"),
                     );
@@ -232,6 +247,7 @@ impl Lowerer {
                 _ => {
                     let found = self.type_name(matched_ty);
                     self.error(
+                        scoop_source::DiagnosticCode::E0501,
                         *span,
                         format!("tuple pattern does not match a subject of type {found}"),
                     );
@@ -286,6 +302,7 @@ impl Lowerer {
     ) -> Option<hir::LocalId> {
         if self.scopes.is_declared_here(&name.text) {
             self.error(
+                scoop_source::DiagnosticCode::E0301,
                 name.span,
                 format!("`{}` is already declared in this scope", name.text),
             );

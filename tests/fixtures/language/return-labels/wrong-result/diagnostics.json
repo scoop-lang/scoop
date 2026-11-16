@@ -1,8 +1,49 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "no applicable candidate for `consume` in current-unit top-level candidate layer:\n  - fun consume(block: () -> String): Unit — argument for `block` (expected () -> String): `return` value of `$lambda.0` must be of type String, found Int, lambda result must be of type String, found Unit",
-    "notes": [],
+    "code": "E0711",
+    "message": "no applicable candidate for `consume` in current-unit top-level candidate layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "fun consume(block: () -> String): Unit",
+        "notes": [
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "argument for `block` (expected () -> String): `return` value of `$lambda.0` must be of type String, found Int",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 75,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 74
+            }
+          },
+          {
+            "code": "E0501",
+            "kind": "cause",
+            "message": "argument for `block` (expected () -> String): lambda result must be of type String, found Unit",
+            "notes": [],
+            "origin": {
+              "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+              "end": 77,
+              "kind": "source",
+              "path": "main.scoop",
+              "start": 57
+            }
+          }
+        ],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 35,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 0
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 75,

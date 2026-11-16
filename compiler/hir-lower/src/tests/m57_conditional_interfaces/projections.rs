@@ -66,7 +66,7 @@ fun main() {{}}
         assert!(
             errors
                 .iter()
-                .any(|error| error.message.contains("companion")),
+                .any(|error| crate::tests::diagnostic_text(error).contains("companion")),
             "{errors:#?}"
         );
     }

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_PARSE_ERROR",
+    "code": "E0305",
     "message": "class modality is not allowed on a `release` block declaration",
     "notes": [],
     "origin": {

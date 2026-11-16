@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0727",
     "message": "property delegate operator `getValue` requires required, non-vararg parameters",
     "notes": [],
     "origin": {

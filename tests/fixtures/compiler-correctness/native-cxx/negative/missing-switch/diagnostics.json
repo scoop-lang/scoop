@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOP_BUILD_FAILED",
+    "code": "E2017",
     "message": "native compilation: bad.cpp requires native.cxx = true",
     "notes": [],
     "origin": {

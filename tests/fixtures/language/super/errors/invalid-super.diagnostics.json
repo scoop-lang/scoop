@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0716",
     "message": "class `Root` has no direct base for `super.value`",
     "notes": [],
     "origin": {
@@ -13,7 +13,7 @@
     "severity": "error"
   },
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1025",
     "message": "abstract base method `value` cannot be called with `super`",
     "notes": [],
     "origin": {

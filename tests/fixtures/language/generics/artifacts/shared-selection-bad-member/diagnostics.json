@@ -1,8 +1,47 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "call to `ambiguous` is ambiguous in member layer:\n  - ambiguous(first: Int, second: Any, extra: Int): Int — applicable; tied by MSC\n  - ambiguous(first: Any, second: Int): Int — applicable; tied by MSC",
-    "notes": [],
+    "code": "E0712",
+    "message": "call to `ambiguous` is ambiguous in member layer",
+    "notes": [
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "ambiguous(first: Int, second: Any, extra: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      },
+      {
+        "code": "N0002",
+        "kind": "note",
+        "message": "ambiguous(first: Any, second: Int): Int",
+        "notes": [
+          {
+            "code": "N0703",
+            "kind": "note",
+            "message": "applicable; tied by MSC",
+            "notes": [],
+            "origin": {
+              "kind": "none"
+            }
+          }
+        ],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "c31f9fd44cbea44fa33c1dd58d4558611cea89efb30bac4598a14d5c9939094d",
       "end": 117,

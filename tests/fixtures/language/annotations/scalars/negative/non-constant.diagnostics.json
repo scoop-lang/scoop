@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1304",
     "message": "annotation arguments must refer to a const val",
     "notes": [],
     "origin": {

@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1114",
     "message": "release requirement for `T` contradicts its reference bound",
     "notes": [],
     "origin": {

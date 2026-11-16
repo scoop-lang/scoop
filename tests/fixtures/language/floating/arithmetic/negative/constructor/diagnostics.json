@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E0510",
     "message": "type `Float` does not name a constructible type",
     "notes": [],
     "origin": {

@@ -87,6 +87,7 @@ fn emit_registration<'ctx>(
         CodegenError::internal(format!(
             "immortal object `{object_symbol}` is not defined in the LLVM module"
         ))
+        .with_code(scoop_source::DiagnosticCode::ICE2302)
     })?;
     let type_registration = llvm
         .get_global(plan.type_registration_symbol().symbol().as_str())

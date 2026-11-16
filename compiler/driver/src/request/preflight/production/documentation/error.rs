@@ -39,3 +39,15 @@ impl std::error::Error for DocumentationProductionError {
         }
     }
 }
+
+impl DocumentationProductionError {
+    pub fn code(&self) -> scoop_source::DiagnosticCode {
+        use scoop_source::DiagnosticCode as C;
+        match self {
+            Self::Projection(_) => C::ICE0501,
+            Self::Identity(_) => C::ICE0401,
+            Self::Encoding(_) | Self::Diagnostics(_) => C::ICE2501,
+            Self::Publication { .. } => C::E2201,
+        }
+    }
+}

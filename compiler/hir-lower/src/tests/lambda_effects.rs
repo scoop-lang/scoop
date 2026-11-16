@@ -196,7 +196,9 @@ fn member_and_constructor_overloads_share_effect_defaults() {
 fn rejects(source: &str, message: &str) {
     let errors = lower_user(scoop_parser::parse(source).unwrap()).unwrap_err();
     assert!(
-        errors.iter().any(|error| error.message.contains(message)),
+        errors
+            .iter()
+            .any(|error| crate::tests::diagnostic_text(error).contains(message)),
         "{errors:#?}"
     );
 }

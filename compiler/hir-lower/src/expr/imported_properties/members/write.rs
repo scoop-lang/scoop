@@ -31,13 +31,16 @@ impl Lowerer {
     ) -> Option<hir::StatementKind> {
         let Some(setter) = property.accessors.setter() else {
             self.error(
+                scoop_source::DiagnosticCode::E1501,
                 name.span,
                 format!("cannot assign to immutable property `{}`", name.text),
             );
             return None;
         };
         if !self.is_subtype(value.ty, property.value_type) {
-            let message = self.with_nominal_invariance_detail(
+            self.error_with_invariance(
+                scoop_source::DiagnosticCode::E0501,
+                value.span,
                 format!(
                     "cannot assign value of type {} to property `{}` of type {}",
                     self.type_name(value.ty),
@@ -47,7 +50,6 @@ impl Lowerer {
                 value.ty,
                 property.value_type,
             );
-            self.error(value.span, message);
             return None;
         }
         let candidate = self
@@ -57,6 +59,7 @@ impl Lowerer {
             .callable_declaration(scoop_identity::CallableTemplateOrigin::Accessor(setter))
             .map_err(|error| {
                 self.error(
+                    scoop_source::DiagnosticCode::ICE0501,
                     name.span,
                     format!("invalid dependency property setter: {error}"),
                 );
@@ -64,6 +67,7 @@ impl Lowerer {
             .ok()?;
         if !self.imported_callable_is_accessible(candidate.interface(), Some(receiver.ty)) {
             self.error(
+                scoop_source::DiagnosticCode::E0403,
                 name.span,
                 format!("setter of property `{}` is not accessible", name.text),
             );

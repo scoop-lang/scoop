@@ -28,6 +28,7 @@ impl Lowerer {
         let value = match value {
             ast::AnnotationLiteral::Application(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     span,
                     "a nested application is not a scalar annotation value".into(),
                 );
@@ -35,6 +36,7 @@ impl Lowerer {
             }
             ast::AnnotationLiteral::Array(_) => {
                 self.error(
+                    scoop_source::DiagnosticCode::E0501,
                     span,
                     format!(
                         "annotation argument must be a scalar {}, found an array",
@@ -60,6 +62,7 @@ impl Lowerer {
                 let value = self.lower_expr(source, &mut statements, Some(ty))?;
                 if !statements.is_empty() {
                     self.error(
+                        scoop_source::DiagnosticCode::E1304,
                         span,
                         "annotation arguments must refer to a const val".into(),
                     );
@@ -93,6 +96,7 @@ impl Lowerer {
         }
         if !self.types_equal(value.ty, ty) {
             self.error(
+                scoop_source::DiagnosticCode::E0501,
                 span,
                 format!(
                     "annotation argument must be {}, found {}",
@@ -110,6 +114,7 @@ impl Lowerer {
             hir::ExprKind::StringLiteral { value, .. } => hir::ConstPropertyValue::String(value),
             _ => {
                 self.error(
+                    scoop_source::DiagnosticCode::E1304,
                     span,
                     "annotation arguments must refer to a const val".into(),
                 );

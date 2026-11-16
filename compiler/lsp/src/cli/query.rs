@@ -1,3 +1,5 @@
+use super::error::{QueryError, QueryResult};
+use scoop_source::DiagnosticCode as C;
 use std::{
     io::{self, Read},
     path::{Path, PathBuf},
@@ -23,7 +25,7 @@ pub(super) struct Output {
     pub messages: Vec<LogMessageParams>,
 }
 
-pub(super) fn execute(query: &Query) -> io::Result<Output> {
+pub(super) fn execute(query: &Query) -> QueryResult<Output> {
     let capabilities = matches!(query.kind, QueryKind::Capabilities);
     let root = if capabilities {
         None
@@ -34,11 +36,9 @@ pub(super) fn execute(query: &Query) -> io::Result<Output> {
         .kind
         .document()
         .map(|document| {
-            read_document(document).map_err(|error| {
-                io::Error::new(
-                    error.kind(),
-                    format!("{}: {error}", document.file.display()),
-                )
+            read_document(document).map_err(|error| QueryError {
+                code: error.code,
+                message: format!("{}: {}", document.file.display(), error.message),
             })
         })
         .transpose()?;
@@ -68,10 +68,13 @@ pub(super) fn execute(query: &Query) -> io::Result<Output> {
         .as_str()
         .unwrap_or("utf-16");
     if negotiated != query.position_encoding.name() {
-        return Err(io::Error::other(format!(
-            "server selected {negotiated} instead of {}",
-            query.position_encoding.name()
-        )));
+        return Err(QueryError::new(
+            C::ICE2501,
+            format!(
+                "server selected {negotiated} instead of {}",
+                query.position_encoding.name()
+            ),
+        ));
     }
     client.notify("initialized", json!({}))?;
     let mut result = if capabilities {
@@ -97,7 +100,7 @@ pub(super) fn execute(query: &Query) -> io::Result<Output> {
     } else if let QueryKind::WorkspaceSymbols { name } = &query.kind {
         client.request("workspace/symbol", json!({"query": name}))?
     } else {
-        return Err(io::Error::other("query requires a document"));
+        return Err(QueryError::new(C::ICE2502, "query requires a document"));
     };
     // Read notifications preceding the shutdown response before publishing the complete result.
     client.finish()?;
@@ -128,7 +131,7 @@ pub(super) fn execute(query: &Query) -> io::Result<Output> {
                 .is_some_and(Vec::is_empty)
     };
     Ok(Output {
-        schema: 1,
+        schema: 2,
         kind: "query",
         query: query.kind.name(),
         status: if partial {
@@ -146,63 +149,72 @@ pub(super) fn execute(query: &Query) -> io::Result<Output> {
     })
 }
 
-fn project_root(path: &Path) -> io::Result<PathBuf> {
+fn project_root(path: &Path) -> QueryResult<PathBuf> {
     let path = path
         .canonicalize()
         .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))?;
     let root = if path.file_name().is_some_and(|name| name == "Cone.toml") {
         path.parent()
-            .ok_or_else(|| io::Error::other("Cone.toml has no parent directory"))?
+            .ok_or_else(|| QueryError::new(C::E2503, "Cone.toml has no parent directory"))?
             .to_owned()
     } else {
         path
     };
     if !root.join("Cone.toml").is_file() {
-        return Err(io::Error::other(format!(
-            "{} has no Cone.toml; select a Cone project with --project",
-            root.display()
-        )));
+        return Err(QueryError::new(
+            C::E2503,
+            format!(
+                "{} has no Cone.toml; select a Cone project with --project",
+                root.display()
+            ),
+        ));
     }
     Ok(root)
 }
 
-fn read_document(document: &Document) -> io::Result<(String, String)> {
+fn read_document(document: &Document) -> QueryResult<(String, String)> {
     let mut text = String::new();
-    let path = if document.stdin {
-        io::stdin().read_to_string(&mut text)?;
-        // A new buffer may not exist yet; resolve its existing parent in the same way as disk files.
-        match document.file.canonicalize() {
-            Ok(path) => path,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let path = std::path::absolute(&document.file)?;
-                let parent = path
-                    .parent()
-                    .ok_or_else(|| io::Error::other("document has no parent directory"))?;
-                parent.canonicalize()?.join(
-                    path.file_name()
-                        .ok_or_else(|| io::Error::other("document requires a file name"))?,
-                )
+    let path =
+        if document.stdin {
+            io::stdin().read_to_string(&mut text)?;
+            // A new buffer may not exist yet; resolve its existing parent in the same way as disk files.
+            match document.file.canonicalize() {
+                Ok(path) => path,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    let path = std::path::absolute(&document.file)?;
+                    let parent = path.parent().ok_or_else(|| {
+                        QueryError::new(C::E2503, "document has no parent directory")
+                    })?;
+                    parent.canonicalize()?.join(path.file_name().ok_or_else(|| {
+                        QueryError::new(C::E2503, "document requires a file name")
+                    })?)
+                }
+                Err(error) => return Err(error.into()),
             }
-            Err(error) => return Err(error),
-        }
-    } else {
-        let path = document.file.canonicalize()?;
-        text = std::fs::read_to_string(&path)?;
-        path
-    };
+        } else {
+            let path = document.file.canonicalize()?;
+            text = std::fs::read_to_string(&path)?;
+            path
+        };
     Ok((file_uri(&path)?, text))
 }
 
-fn file_uri(path: &Path) -> io::Result<String> {
+fn file_uri(path: &Path) -> QueryResult<String> {
     url::Url::from_file_path(path)
         .map(String::from)
         .map_err(|()| {
-            io::Error::other(format!("cannot represent {} as a file URI", path.display()))
+            QueryError::new(
+                C::E2503,
+                format!("cannot represent {} as a file URI", path.display()),
+            )
         })
 }
 
-fn absolute_option(path: &Option<PathBuf>) -> io::Result<Option<PathBuf>> {
-    path.as_ref().map(std::path::absolute).transpose()
+fn absolute_option(path: &Option<PathBuf>) -> QueryResult<Option<PathBuf>> {
+    path.as_ref()
+        .map(std::path::absolute)
+        .transpose()
+        .map_err(Into::into)
 }
 
 impl QueryKind {

@@ -109,7 +109,10 @@ pub fn analyze_declarations_with_inputs(
     check().map_err(|_| EditingAnalysisError::Cancelled)?;
     let Some(first) = sources.first() else {
         return Err(EditingAnalysisError::Input(vec![
-            ast::SourceDiagnostic::internal("no source files to analyze"),
+            ast::SourceDiagnostic::internal(
+                scoop_source::DiagnosticCode::ICE0401,
+                "no source files to analyze",
+            ),
         ]));
     };
     let current = first.identity.cone();
@@ -174,6 +177,7 @@ pub fn analyze_declarations_with_inputs(
         check().map_err(|_| EditingAnalysisError::Cancelled)?;
         if source.header.complete().is_none() {
             analysis.lowerer.diagnostics.push(ast::Diagnostic::at_file(
+                scoop_source::DiagnosticCode::E2505,
                 file,
                 source.header.span,
                 "the source package or imports are incomplete",
@@ -258,5 +262,10 @@ impl DeclarationAnalysis {
 }
 
 fn input_error(file: usize, message: impl Into<String>) -> ast::Diagnostic {
-    ast::Diagnostic::without_span(ast::DiagnosticSeverity::Error, file, message)
+    ast::Diagnostic::without_span(
+        scoop_source::DiagnosticCode::E2505,
+        ast::DiagnosticSeverity::Error,
+        file,
+        message,
+    )
 }

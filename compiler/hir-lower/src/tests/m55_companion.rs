@@ -53,7 +53,9 @@ fn m55_companion_bound_checks_existence_and_has_no_inverse_inference() {
     ] {
         let errors = check(source).unwrap_err();
         assert!(
-            errors.iter().any(|e| e.message.contains(message)),
+            errors
+                .iter()
+                .any(|e| crate::tests::diagnostic_text(e).contains(message)),
             "{source}\n{errors:#?}"
         );
     }

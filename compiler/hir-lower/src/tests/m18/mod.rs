@@ -344,7 +344,8 @@ fn callable_local_binding_hard_shadows_but_plain_binding_does_not() {
     ]))
     .expect_err("an inapplicable callable binding must not fall through by name");
     assert!(errors.iter().any(|error| {
-        error.message.contains("Handler.invoke") && error.message.contains("String")
+        crate::tests::diagnostic_text(error).contains("Handler.invoke")
+            && crate::tests::diagnostic_text(error).contains("String")
     }));
 
     let module = lower_user(file(vec![
@@ -1604,7 +1605,7 @@ fn class_binding_plan_checks_suspend_components_in_the_lambda_context() {
     ]))
     .expect_err("an ordinary lambda cannot invoke a suspend component");
     assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(errors[0].message.contains(
+    assert!(crate::tests::diagnostic_text(&errors[0]).contains(
         "suspend function `AsyncValue.component1` cannot be called from non-suspend function `$lambda.0`"
     ));
 
@@ -2192,11 +2193,9 @@ fn infix_resolution_requires_the_typed_modifier() {
         ),
     ]))
     .expect_err("an ordinary same-name method must not acquire infix capability");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("has no infix callable `merge`"))
-    );
+    assert!(errors.iter().any(|error| {
+        crate::tests::diagnostic_text(error).contains("has no infix callable `merge`")
+    }));
 }
 
 fn function_body<'module>(module: &'module hir::Module, name: &str) -> &'module hir::Body {

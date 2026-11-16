@@ -55,7 +55,10 @@ impl Lowerer {
                     Some(bound)
                 }
                 Err(error) => {
-                    self.diagnostics.push(ast::Diagnostic::internal(error));
+                    self.diagnostics.push(ast::Diagnostic::internal(
+                        scoop_source::DiagnosticCode::ICE0601,
+                        error,
+                    ));
                     None
                 }
             })

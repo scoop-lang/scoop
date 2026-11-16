@@ -1,6 +1,6 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
+    "code": "E1506",
     "message": "update operand is not writable",
     "notes": [],
     "origin": {

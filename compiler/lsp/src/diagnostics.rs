@@ -22,9 +22,12 @@ pub(crate) fn collect(
     for diagnostic in parsed.diagnostics() {
         if let Some(diagnostic) =
             convert::diagnostic(&source.text, diagnostic, settings.encoding, |note| {
+                let Some(span) = note.span() else {
+                    return Ok(None);
+                };
                 Ok(Some(Location {
                     uri: uri.clone(),
-                    range: convert::range(&source.text, note.span, settings.encoding)?,
+                    range: convert::range(&source.text, span, settings.encoding)?,
                 }))
             })?
         {
@@ -35,6 +38,9 @@ pub(crate) fn collect(
     for diagnostic in &semantic {
         if let Some(diagnostic) =
             convert::diagnostic(&source.text, diagnostic, settings.encoding, |note| {
+                let Some((note_source, note_span)) = note.source().zip(note.span()) else {
+                    return Ok(None);
+                };
                 let Some(project) = snapshot.workspace.project_for_source(source_id) else {
                     return Ok(None);
                 };
@@ -42,8 +48,8 @@ pub(crate) fn collect(
                     snapshot,
                     project,
                     &scoop_hir::SemanticSourceLocation {
-                        source: note.source.clone(),
-                        span: note.span,
+                        source: note_source.clone(),
+                        span: note_span,
                     },
                     settings,
                 )

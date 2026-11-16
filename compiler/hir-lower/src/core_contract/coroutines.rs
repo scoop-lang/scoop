@@ -15,6 +15,7 @@ impl Lowerer {
         let work_run = self.require_coroutine_drive_method(work, "run", &[])?;
         if self.interface_methods[&work].len() != 1 {
             self.error(
+                scoop_source::DiagnosticCode::E1403,
                 self.interfaces[work].span,
                 "interface `CoroutineWork` in scoop.core must declare exactly `fun run()`"
                     .to_string(),
@@ -120,7 +121,7 @@ impl Lowerer {
                         .eq(params.iter().copied())
             });
         if !valid {
-            self.error(self.interfaces[interface].span, format!(
+            self.error(scoop_source::DiagnosticCode::E1403, self.interfaces[interface].span, format!(
                 "core coroutine interface `{}` must declare ordinary method `{name}` with its required parameter types and Unit result",
                 self.interfaces[interface].name
             ));
@@ -144,6 +145,7 @@ impl Lowerer {
             let core_diagnostic_file = self.core_diagnostic_file();
             self.current_file = core_diagnostic_file;
             self.error(
+                scoop_source::DiagnosticCode::E1404,
                 files[core_diagnostic_file],
                 format!("scoop.core must define interface `{name}`"),
             );
@@ -184,7 +186,7 @@ impl Lowerer {
                 && resume_exception.return_ty == self.unit
         });
         if !valid_type_param || !valid_methods {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 interface.span,
                 "interface `Continuation<T>` in scoop.core must declare exactly `fun resume(value: T)` and `fun resumeWithException(exception: Throwable)`"
                     .to_string(),
@@ -210,7 +212,7 @@ impl Lowerer {
             _ => false,
         };
         if !valid_type_param || !valid_method {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 interface.span,
                 "interface `SuspendTask<T>` in scoop.core must declare exactly `suspend fun run(): T`"
                     .to_string(),
@@ -239,7 +241,7 @@ impl Lowerer {
             _ => false,
         };
         if !valid_type_param || !valid_method {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 interface.span,
                 "interface `SuspendRegistration<T>` in scoop.core must declare exactly `fun register(continuation: Continuation<T>)`"
                     .to_string(),
@@ -269,7 +271,7 @@ impl Lowerer {
             && self.is_interface_param(sig.params[3].ty, continuation, 0)
             && sig.return_ty == self.unit;
         if !valid {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 function.span,
                 "intrinsic `coroutine_start` must have signature `fun <T> startCoroutineExecution(execution: CoroutineExecutionDriver, dispatched: Boolean, task: SuspendTask<T>, completion: Continuation<T>): Unit`"
                     .to_string(),
@@ -292,7 +294,7 @@ impl Lowerer {
             && self.is_interface_param(sig.params[0].ty, suspend_registration, 0)
             && self.is_type_param(sig.return_ty, 0);
         if !valid {
-            self.error(
+            self.error(scoop_source::DiagnosticCode::E1403,
                 function.span,
                 "intrinsic `coroutine_suspend` must have signature `suspend fun <T> suspendCoroutine(registration: SuspendRegistration<T>): T`"
                     .to_string(),

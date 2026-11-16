@@ -1,8 +1,18 @@
 [
   {
-    "code": "SCOOPC_HIR_ERROR",
-    "message": "cannot capture mutable local `changing`; bind its current value to a `val` snapshot or capture explicit reference state",
-    "notes": [],
+    "code": "E1502",
+    "message": "cannot capture mutable local `changing`",
+    "notes": [
+      {
+        "code": "H1501",
+        "kind": "help",
+        "message": "bind its current value to a `val` snapshot or capture explicit reference state",
+        "notes": [],
+        "origin": {
+          "kind": "none"
+        }
+      }
+    ],
     "origin": {
       "cone": "afad2384348491e71fc9bb65ef9d52a933be97ec68274dc7bc90f7e06c7a6807",
       "end": 191,

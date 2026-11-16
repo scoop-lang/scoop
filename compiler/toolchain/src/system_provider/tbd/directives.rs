@@ -117,5 +117,8 @@ fn parse_compatibility(value: &str) -> Result<u32, ToolchainError> {
 }
 
 fn invalid(value: &str) -> ToolchainError {
-    ToolchainError(format!("invalid SDK linker directive {value}"))
+    ToolchainError::new(
+        scoop_source::DiagnosticCode::E2303,
+        format!("invalid SDK linker directive {value}"),
+    )
 }
