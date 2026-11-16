@@ -1,6 +1,6 @@
 # scoop.graphics
 
-普通 Scoop Cone，提供与窗口无关的 Skia 2D 绘图。共享接口使用左上原点的 Double 逻辑坐标；目标资源覆盖 macOS ARM64／x86_64、Linux GNU x86_64，以及 Windows x64 的 Microsoft UCRT、LLVM-MinGW UCRT／MSVCRT。CPU 离屏使用不要求启动 Application。
+普通 Scoop Cone，提供与窗口无关的 Skia 2D 绘图。共享接口使用左上原点的 Double 逻辑坐标；目标资源覆盖 macOS ARM64／x86_64、Linux GNU x86_64，以及 Windows x64 的 Microsoft UCRT、LLVM-MinGW UCRT／MSVCRT。CPU 离屏使用不要求启动 Application。返回的矩形从原生四条边计算 Double 宽高，保留分数位置下的右／下端点；裁剪范围与完整范围不会因尺寸再次舍入而互相越界。
 
 ```toml
 [dependencies]
