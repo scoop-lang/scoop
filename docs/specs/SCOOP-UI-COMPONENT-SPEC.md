@@ -461,7 +461,7 @@ InputProps／TextareaProps／InputOtpProps 及其 builder 提供 `contextMenu: T
 
 两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
 
-projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。内置遮罩默认禁用 Copy／Cut，明确 Allow 时复制原文；切换显隐保留模型、历史与 IME 连接，控件不创建另一份显示文档。
+projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。InputProps／TextareaProps／InputOtpProps 及各自 builder 另提供 `protectedText: Boolean = false`，独立于视觉显隐。受保护用途或内置遮罩默认禁用 Copy／Cut，Input／Textarea 明确 Copy Allow 时复制原文；允许复制不解除用途标记。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 原样透传。切换显隐或保护标记保留模型、选择、历史与 IME 连接，控件不创建另一份显示文档；密码显隐示例必须始终设置 protectedText=true。
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
 

@@ -140,7 +140,7 @@ public class TextEditHost public constructor(
     }
     internal val copyAllowed: Boolean get() =
         when (options.copy) {
-            case Default -> !options.projection.masked
+            case Default -> !options.protectedText && !options.projection.masked
             case Allow -> true
             case Deny -> false
         }

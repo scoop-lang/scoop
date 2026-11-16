@@ -15,7 +15,7 @@
 | S0 | 进行中 | 已核对本地工具链、AppKit 偏好与通知、NSTextView 默认菜单模板；AppKit 基础语义查询／动作原型通过，外部 AX 窗口枚举异常待桌面恢复后复验；系统文本服务、拖放与其他平台验证待继续 |
 | S1 | 进行中 | Window 偏好快照／观察 API 与三个 native 后端已实现，macOS 定向测试通过；UI 根覆盖／通知、caret 与主题消费已接入；四套主题的离屏测试通过，新增实窗热切换因本机锁屏待验；Windows／GTK 点击计数已修正，算法测试通过，平台输入及其余输入细节待验 |
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定和 Accepted 场景接入已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、关系／内容合并、精确命中和外部客户端仍待完成 |
-| S3 | 进行中 | DeleteSelection 角色／命令、三种文本菜单模式、宿主与模型绑定、选区策略、键盘入口和各输入控件透传已实现；AppKit 菜单与 UI 定向测试通过，真实编辑菜单因锁屏待验；受保护用途、多击组合、系统文本服务和其他平台仍待继续 |
+| S3 | 进行中 | DeleteSelection、三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实编辑菜单因锁屏待验；只读选择宿主菜单、多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
 | S5～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
@@ -122,3 +122,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - 独立场景测试的源码检查与 release 可执行文件构建通过，覆盖目标为缓存重放后的祖先变换／裁剪、零透明度、未放置、名称变更、原生焦点及目标退休、Accepted／Discarded。本机仍为 ScreenIsLocked=true，实际呈现及焦点验证尚未运行；没有据构建结果声明通过，也没有将进程内方法调用记为外部 AX／VoiceOver 通过。
 
 已同步正式 UI 无障碍 spec、Window／UI 引用、设计状态、README 与编程库导航。README 的自定义 Element 示例实际检查通过；UI API 已生成并用 search／show 核对工厂的目标与默认值、SemanticsHandle 只读属性和方法、子项路由、场景入口与 import。临时示例和站点已清理，保留开发产物、共享缓存与待实窗执行的程序。内置控件默认语义、关系／内容合并、完整文本／集合、精确命中和其他平台仍按 S2 及后续批次推进。
+
+### 受保护文本用途与显隐分离
+
+- TextEditOptions 的 protectedText 明确声明受保护用途，默认 false，与显示 projection、只读状态及复制策略分别保存。Default 在受保护用途或内置遮罩时禁用 Copy／Cut，显式 Allow／Deny 保留原意；显示明文不会通过投影隐式开放复制。Paste、DeleteSelection、编辑策略和撤销沿现有事务，不增加文档或 IME 宿主。
+- Input／Textarea／InputOtp 及 builder 提供同一标记，InputGroup、ButtonGroup、Command、Combobox、SidebarInput 完整透传。已有密码示例始终声明 protectedText=true，只切换显示投影。用途或复制策略改变后沿原菜单能力刷新，迟到命令继续检查当前资格；完整文本 provider、拖放和系统服务随所属批次消费此事实，没有因添加标记而声明这些能力完成。
+- 20 个变更的 Scoop 文件格式检查通过；UI 和 Component 的生产／测试源码检查、release 生产构建及密码示例检查通过。公开接口变化涉及的 Style／四套主题产物已按顺序更新。复用同一组件测试程序，6 项 receiver DSL、3 项 ButtonGroup、4 项 InputGroup 测试全部通过，覆盖标记透传与快照保留。
+- 既有编辑器组合用例增加受保护文本的明文显示、默认复制／剪切拒绝、显式允许、IME 连接及模型保持；原生菜单增加 Copy／Cut 禁用、Paste／Delete 可用、撤销和选中菜单项后的策略变化。源码检查与 release 可执行文件构建通过，桌面仍未恢复，未据构建结果声明这些前台交互通过。
+
+同步 UI／Component／原生菜单 spec、accessibility 与交互设计、README 和编程库导航。两份 API 站点已生成并核对 protectedText 的类型、默认值、只读 Props 与可写 builder、导入路径；临时站点已清理。保留开发产物、共享缓存和待实窗执行的程序，其他平台继续留到集中验证阶段。

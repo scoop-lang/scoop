@@ -181,6 +181,8 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。
 
+密码等受保护用途在 `TextEditOptions(protectedText = true)` 中明确声明；显示明文时继续保留这个标记。`TextCopyPolicy.Default` 在受保护用途或内置遮罩时禁止 Copy／Cut，Allow 明确允许复制原文，Deny 始终禁止；Paste、选择、删除和撤销仍按通常的编辑策略执行。更换 projection 或 protectedText 不更换模型／IME 连接，菜单立即更新可用性，迟到动作读取当前策略。该标记独立于视觉效果；完整 accessibility 文本、拖放和系统文本服务的接入仍按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)推进。
+
 需要菜单“删除”行为时使用 `host.execute(TextEditCommand.DeleteSelection)`：只删除非空选区，不影响剪贴板，遵守当前只读／禁用、焦点、编辑策略与撤销。空选区不调用策略、不结束组合；`Delete(TextDeletion.Forward)` 仍是键盘向前删除行为。宿主按当前状态自动发布对应菜单可用性；只读选择宿主不提供删除命令。
 
 `TextEditOptions.contextMenu` 默认使用 `TextContextMenuMode.PreferSystem`；可设 StandardNative 或 Disabled。`textContextMenu { selection = TextContextMenuSelection.Preserve }` 保留选区外右击时的选择，Platform 则遵循当前平台惯例；选区内点击始终保留方向选择。右键、AppKit Control+左键和 ContextMenu／Shift+F10 使用同一菜单入口，`host.showContextMenu()` 可从有效 caret／选区锚点发起请求。它依赖 Accepted 文本几何，未聚焦、禁用或已有菜单时返回 false；已关闭宿主仍报告状态错误。

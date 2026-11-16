@@ -33,7 +33,8 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
             field.labelTarget,
             field.group,
             field.chrome,
-            field.contextMenu
+            field.contextMenu,
+            field.protectedText
         )
     val addons = ArrayList<InputGroupAddon>()
     if (input.showSearchIcon)

@@ -14,7 +14,10 @@ private class InputGroupTest {
         val builder = InputGroupBuilder()
         assertFailsWith<IllegalArgumentException> { builder.snapshot() }
         val state = TextEditorState("draft")
-        builder.input(state) { this.readOnly = true }
+        builder.input(state) {
+            this.readOnly = true
+            this.protectedText = true
+        }
         assertFailsWith<IllegalArgumentException> { builder.textarea(state) }
         assertFailsWith<IllegalArgumentException> { builder.control(empty(), FocusHandle()) }
         builder.addon { this.text("https://") }
@@ -30,6 +33,7 @@ private class InputGroupTest {
             case Input(val value) -> {
                 assertSame(state, value.state)
                 assertTrue(value.readOnly)
+                assertTrue(value.protectedText)
             }
             else -> fail(Some("expected the original input"))
         }

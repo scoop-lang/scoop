@@ -59,6 +59,7 @@ internal fun inputGroupControlView(
                 policy = value.policy,
                 projection = value.projection,
                 copy = value.copy,
+                protectedText = value.protectedText,
                 labelTarget = value.labelTarget,
                 chrome = TextFieldChrome.Bare,
                 contextMenu = value.contextMenu
@@ -100,6 +101,7 @@ internal fun inputGroupControlView(
                 policy = value.policy,
                 projection = value.projection,
                 copy = value.copy,
+                protectedText = value.protectedText,
                 labelTarget = value.labelTarget,
                 chrome = TextFieldChrome.Bare,
                 contextMenu = value.contextMenu

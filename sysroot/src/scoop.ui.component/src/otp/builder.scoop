@@ -19,6 +19,7 @@ public class InputOtpBuilder internal constructor() {
     public var pattern: InputOtpPattern = InputOtpPattern.Digits
     public var enabled: Boolean = true
     public var readOnly: Boolean = false
+    public var protectedText: Boolean = false
     public var invalid: Boolean = false
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
@@ -73,7 +74,8 @@ public class InputOtpBuilder internal constructor() {
             caretBlink,
             onEdited,
             onComplete,
-            contextMenu
+            contextMenu,
+            protectedText
         )
 }
 

@@ -287,5 +287,6 @@ internal fun groupInputProps(
         input.labelTarget,
         group,
         input.chrome,
-        input.contextMenu
+        input.contextMenu,
+        input.protectedText
     )

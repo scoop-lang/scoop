@@ -182,6 +182,7 @@ private class ButtonGroupTest {
         builder.input(editor) {
             this.theme = Some(alternate)
             this.readOnly = true
+            this.protectedText = true
             contextMenu { mode = TextContextMenuMode.Disabled }
             this.labelTarget = Some(target)
         }
@@ -220,6 +221,7 @@ private class ButtonGroupTest {
                 assertSame(alternate, grouped.theme!!)
                 assertSame(target, grouped.labelTarget!!)
                 assertTrue(grouped.readOnly)
+                assertTrue(grouped.protectedText)
                 assertEquals(input.contextMenu, grouped.contextMenu)
                 assertEquals(TextContextMenuMode.Disabled, grouped.contextMenu.mode)
                 assertEquals(position, grouped.group)

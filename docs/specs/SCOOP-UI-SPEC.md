@@ -582,7 +582,9 @@ caretBlink 缺省跟随根的系统偏好；显式 Some(duration) 为非负时�
 
 `textMask(glyph = "•")` 对每个原文 grapheme 生成一个显示单元并保留换行；glyph 必须是一个不含换行的 grapheme。`projectText(snapshot, projection)` 返回不可变 TextDisplay，含 source、text、toDisplay(TextPosition)、toDocument(TextPosition) 和 displayRange(Utf8Range)。公共位置使用 UTF-8 标量边界，保留 affinity；被替换片段内部落到对应边缘，不建立逐字节位置表。选区范围排除两端仅用于显示的分隔符，包含内部显示内容。
 
-TextEditOptions 的 projection 缺省恒等投影，copy 为 TextCopyPolicy.Default／Allow／Deny。Default 在内置遮罩时禁止 Copy／Cut，其他投影允许；Allow 明确允许复制原文，Deny 消费命令但不改剪贴板或文档。Paste 与正常编辑不受复制策略影响，允许的 Cut 继续遵守第 7.5.2 节发布原子性。显示开关只更新 projection，不替换 TextEditorState、不追加历史、不重建 IME 连接，也不声称提供平台 secure-input 能力。
+TextEditOptions 的 projection 缺省恒等投影，`protectedText: Boolean = false` 明确声明受保护用途，copy 为 TextCopyPolicy.Default／Allow／Deny。Default 在 protectedText 为 true 或使用内置遮罩时禁止 Copy／Cut，其他情况允许；Allow 明确允许复制原文，Deny 消费命令但不改剪贴板或文档。Paste、DeleteSelection 与正常编辑不受复制策略影响，允许的 Cut 继续遵守第 7.5.2 节发布原子性。显示开关只更新 projection，不能更改 protectedText；保护标记更新立即刷新菜单可用性，迟到命令仍检查当前策略。两种更新均不替换 TextEditorState、不追加历史、不重建 IME 连接，也不声称提供平台 secure-input 能力。
+
+protectedText 是独立的用途事实，不由投影、主题、只读状态或 Copy Allow 推断。后续文本 accessibility、拖出和系统文本服务消费同一标记；允许复制不解除原生文本读取保护。当前已接入编辑命令与菜单，完整 provider 文本／范围及拖放按统一计划继续，不能据标记存在声明这些入口已完成。原生输入法仍按下述正文合同工作。
 
 TextEditHost.layout 与 display 是最近成功测量的同一借用组合；caret(position)／selectionBounds(range) 把原文范围投影到该布局的内容坐标，供 OTP 等后续控件绘制。Accepted 帧另行保留自己的布局和投影，命中、拖选、视觉移动、选择背景及 marked 装饰必须使用同一快照。原文未变的新字体／宽度／投影失败时继续使用旧 Accepted 组合；原文变化后的即时导航沿既有最后成功视口规则排版新文档。公共逆映射保持标量位置，用户指针选择收敛到原文 grapheme 边界；逻辑逐字移动及逐字删除使用原文 grapheme，纯显示分隔符不会成为不可越过的光标停点。普通段落的 RTL 视觉次序由 TextLayout 决定；固定槽按第 7.5.3.1 节的明确方向排列。
 

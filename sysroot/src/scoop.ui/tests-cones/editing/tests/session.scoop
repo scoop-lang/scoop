@@ -162,7 +162,8 @@ internal class EditProbe(val fonts: FontCollection) {
             policy = policy,
             projection = displayTest.projection,
             copy = displayTest.copy,
-            contextMenu = contextMenus.options
+            contextMenu = contextMenus.options,
+            protectedText = displayTest.protectedText
         )
     fun model(index: Long): TextEditorState =
         if (index == 1L)

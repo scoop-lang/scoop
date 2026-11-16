@@ -28,7 +28,9 @@ public class TextEditOptions public constructor(
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
-    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions()
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
+    /** A protected purpose remains set when its display projection becomes plain text. */
+    public val protectedText: Boolean = false
 ) {
     internal fun check() {
         when (caretBlink) {

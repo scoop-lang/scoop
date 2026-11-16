@@ -136,5 +136,6 @@ internal fun otpOptions(input: InputOtpProps): TextEditOptions =
         submit = TextSubmitKeys.None,
         caretBlink = input.caretBlink,
         policy = otpPolicy(input.pattern, input.length),
-        contextMenu = input.contextMenu
+        contextMenu = input.contextMenu,
+        protectedText = input.protectedText
     )

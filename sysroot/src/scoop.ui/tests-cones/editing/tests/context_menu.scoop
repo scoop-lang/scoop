@@ -42,6 +42,7 @@ internal class EditorContextMenuProbe {
         probe.readonly = false
         probe.displayTest.projection = textProjection()
         probe.displayTest.copy = TextCopyPolicy.Default
+        probe.displayTest.protectedText = false
         probe.primaryWidth = 240.0
         assertTrue(probe.focus[0L].requestFocus())
         probe.change()
@@ -202,11 +203,44 @@ internal class EditorContextMenuProbe {
                 assertEquals("replacement", state.text)
                 assertFalse(field.showContextMenu())
                 enabled = true
+                probe.displayTest.protectedText = true
                 update(probe)
                 assertTrue(probe.focus[0L].requestFocus())
                 changed(probe)
             }
             case 19 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                assertEquals(0, menuEnabled("Menu Cut"))
+                assertEquals(0, menuEnabled("Menu Copy"))
+                assertEquals(1, menuEnabled("Menu Paste"))
+                assertEquals(1, menuEnabled("Menu Delete"))
+                window.clipboard.writeText("permitted")
+                choose("Menu Paste")
+            }
+            case 20 -> {
+                assertEquals("permitted", state.text)
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("replacement", state.text)
+                state.setSelection(Utf8Selection(0L, state.text.byteLength))
+                probe.displayTest.copy = TextCopyPolicy.Allow
+                changed(probe)
+            }
+            case 21 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                assertEquals(1, menuEnabled("Menu Copy"))
+                choose("Menu Copy")
+                probe.displayTest.copy = TextCopyPolicy.Default
+                update(probe)
+                probe.change()
+            }
+            case 22 -> {
+                assertEquals(Some("permitted"), window.clipboard.readText())
+                assertEquals("replacement", state.text)
+                assertTrue(field.execute(TextEditCommand.DeleteSelection))
+                assertEquals("", state.text)
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("replacement", state.text)
+                changed(probe)
+            }
+            case 23 -> open(probe, { assertTrue(field.showContextMenu()) }) {
                 choose("Menu Delete")
                 complete = true
                 window.requestDestroy()
