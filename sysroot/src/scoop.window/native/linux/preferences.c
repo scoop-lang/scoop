@@ -50,7 +50,7 @@ static void preferences_changed(GObject *object, GParamSpec *spec,
       sw_fail(app, ENOMEM);
       return;
     }
-    event->data.kind = 102;
+    event->header.kind = 102;
     sw_enqueue(app, event);
     return;
   }

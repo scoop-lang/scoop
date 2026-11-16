@@ -6,8 +6,8 @@ void sw_menu_event(SWMenu *menu, int kind, int64_t item, int64_t window) {
     sw_fail(menu->application, ENOMEM);
     return;
   }
-  event->data.kind = kind;
-  sw_stamp_input(&event->data);
+  event->header.kind = kind;
+  sw_stamp_event(&event->header);
   event->data.a = menu->identity;
   event->data.b = item;
   event->data.c = menu->serial;
@@ -58,7 +58,7 @@ bool sw_menu_activate(SWMenuEntry *entry) {
   } else if (entry->role == 1) {
     SWEvent *event = calloc(1, sizeof(*event));
     if (event) {
-      event->data.kind = 101;
+      event->header.kind = 101;
       event->data.flags = 1;
       sw_enqueue(menu->application, event);
     } else

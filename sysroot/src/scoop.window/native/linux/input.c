@@ -32,9 +32,9 @@ void sw_update_modifiers(SWWindow *window) {
   if (window->modifiers == value)
     return;
   window->modifiers = value;
-  SWEvent *event = sw_event(window, 11);
+  SWEvent *event = sw_event(window, SWModifiers);
   if (event) {
-    event->data.a = value;
+    event->modifiers = value;
     sw_enqueue(window->application, event);
   }
 }
@@ -47,35 +47,36 @@ static void key_event(SWWindow *window, guint symbol, guint keycode,
   if (!down && (!tracked || !window->key_down[code]))
     return;
   bool repeat = tracked && window->key_down[code];
-  SWEvent *event = sw_event(window, 10);
+  SWEvent *event = sw_event(window, SWKeyboard);
   if (!event)
     return;
-  event->data.a = code;
-  event->data.b = window->modifiers;
-  event->data.c = symbol;
-  event->data.flags = (down ? 1 : 0) | (down && repeat ? 2 : 0);
-  if (symbol >= XKB_KEY_dead_grave && symbol <= XKB_KEY_dead_greek)
-    event->data.flags |= 8;
+  SWKeyboardData *keyboard = &event->keyboard;
+  keyboard->physical_code = code;
+  keyboard->modifiers = window->modifiers;
+  keyboard->logical_code = symbol;
+  keyboard->pressed = down;
+  keyboard->repeat = down && repeat;
+  keyboard->dead = symbol >= XKB_KEY_dead_grave && symbol <= XKB_KEY_dead_greek;
   char value[64];
   int size = xkb_keysym_to_utf8(symbol, value, sizeof(value));
   if (size > 1 && (uint8_t)value[0] >= 32 && (uint8_t)value[0] != 127) {
-    event->data.text = (uint8_t *)strndup(value, size - 1);
-    if (!event->data.text) {
+    keyboard->text = (uint8_t *)strndup(value, size - 1);
+    if (!keyboard->text) {
       sw_free_event(event);
       sw_fail(window->application, ENOMEM);
       return;
     }
-    event->data.text_length = size - 1;
+    keyboard->text_length = size - 1;
   }
   if (tracked) {
     free((void *)window->pressed[code].text);
-    window->pressed[code] = event->data;
+    window->pressed[code] = *keyboard;
     window->pressed[code].text =
-        event->data.text ? (uint8_t *)strndup((const char *)event->data.text,
-                                              event->data.text_length)
-                         : NULL;
-    if (event->data.text && !window->pressed[code].text) {
-      window->pressed[code] = (SWEventData){0};
+        keyboard->text ? (uint8_t *)strndup((const char *)keyboard->text,
+                                            keyboard->text_length)
+                       : NULL;
+    if (keyboard->text && !window->pressed[code].text) {
+      window->pressed[code] = (SWKeyboardData){0};
       sw_free_event(event);
       sw_fail(window->application, ENOMEM);
       return;
@@ -150,16 +151,16 @@ static void pointer_enter(GtkEventControllerMotion *controller, double x,
                           double y, gpointer data) {
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
-  sw_pointer(window, 0, 0, 0, 0, 0);
+  sw_pointer(window, (SWPointerData){.kind = SWPointerEntered});
 }
 static void pointer_motion(GtkEventControllerMotion *controller, double x,
                            double y, gpointer data) {
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
-  sw_pointer(window, 2, 0, 0, 0, 0);
+  sw_pointer(window, (SWPointerData){.kind = SWPointerMoved});
 }
 static void pointer_leave(GtkEventControllerMotion *controller, gpointer data) {
-  sw_pointer(data, 1, 0, 0, 0, 0);
+  sw_pointer(data, (SWPointerData){.kind = SWPointerLeft});
 }
 static int pointer_button(guint button) {
   return button == 1 ? 0 : button == 3 ? 1 : button == 2 ? 2 : (int)button;
@@ -176,10 +177,11 @@ static void pointer_pressed(GtkGestureClick *gesture, int count, double x,
   gtk_widget_grab_focus(window->view);
   pointer_state(window, GTK_EVENT_CONTROLLER(gesture), x, y);
   window->current_event = event;
-  sw_pointer(window, 3,
-             pointer_button(gtk_gesture_single_get_current_button(
-                 GTK_GESTURE_SINGLE(gesture))),
-             0, 0, count);
+  sw_pointer(window, (SWPointerData){.kind = SWPointerPressed,
+                                     .button = pointer_button(
+                                         gtk_gesture_single_get_current_button(
+                                             GTK_GESTURE_SINGLE(gesture))),
+                                     .click_count = count});
   window->current_event = NULL;
   gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 }
@@ -187,17 +189,18 @@ static void pointer_released(GtkGestureClick *gesture, int count, double x,
                              double y, gpointer data) {
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(gesture), x, y);
-  sw_pointer(window, 4,
-             pointer_button(gtk_gesture_single_get_current_button(
-                 GTK_GESTURE_SINGLE(gesture))),
-             0, 0, count);
+  sw_pointer(window, (SWPointerData){.kind = SWPointerReleased,
+                                     .button = pointer_button(
+                                         gtk_gesture_single_get_current_button(
+                                             GTK_GESTURE_SINGLE(gesture))),
+                                     .click_count = count});
 }
 static void pointer_cancel(GtkGesture *gesture, GdkEventSequence *sequence,
                            gpointer data) {
   SWWindow *window = data;
   bool resetting = window->resetting_click;
   window->resetting_click = true;
-  sw_cancel_pointer(window, 1);
+  sw_cancel_pointer(window, SWPointerCaptureLost);
   window->resetting_click = resetting;
 }
 static gboolean scroll(GtkEventControllerScroll *controller, double dx,
@@ -206,19 +209,28 @@ static gboolean scroll(GtkEventControllerScroll *controller, double dx,
   window->application->gdk_modifiers =
       gtk_event_controller_get_current_event_state(
           GTK_EVENT_CONTROLLER(controller));
-  sw_pointer(window,
-             gtk_event_controller_scroll_get_unit(controller) ==
-                     GDK_SCROLL_UNIT_WHEEL
-                 ? 5
-                 : 6,
-             0, -dx, -dy, 1);
+  SWPointerData pointer = {.scale = window->snapshot.scale};
+  sw_pointer_scroll(
+      &pointer,
+      gtk_event_controller_scroll_get_unit(controller) != GDK_SCROLL_UNIT_WHEEL,
+      -dx, -dy, window->scroll_active ? SWScrollChanged : SWScrollNone,
+      SWScrollNone);
+  sw_pointer(window, pointer);
   return TRUE;
 }
 static void scroll_begin(GtkEventControllerScroll *controller, gpointer data) {
-  sw_pointer(data, 6, 0, 0, 0, 0);
+  SWWindow *window = data;
+  window->scroll_active = true;
+  sw_pointer(window, (SWPointerData){.kind = SWPointerPixelWheel,
+                                     .phase = SWScrollBegan});
 }
 static void scroll_end(GtkEventControllerScroll *controller, gpointer data) {
-  sw_pointer(data, 6, 0, 0, 0, 2);
+  SWWindow *window = data;
+  if (!window->scroll_active)
+    return;
+  window->scroll_active = false;
+  sw_pointer(window, (SWPointerData){.kind = SWPointerPixelWheel,
+                                     .phase = SWScrollEnded});
 }
 static void focus_enter(GtkEventControllerFocus *controller, gpointer data) {
   sw_ime_update(data);
@@ -263,12 +275,17 @@ void sw_cancel_pointer(SWWindow *window, int reason) {
   window->pressed_buttons = 0;
   memset(window->pressed_clicks, 0, sizeof(window->pressed_clicks));
   if (pressed) {
-    SWEvent *event = sw_event(window, 12);
+    SWEvent *event = sw_event(window, SWPointer);
     if (event) {
-      event->data.flags = 7;
-      event->data.a = reason;
+      event->pointer.kind = SWPointerCancelled;
+      event->pointer.cancel_reason = reason;
       sw_enqueue(window->application, event);
     }
+  }
+  if (window->scroll_active) {
+    window->scroll_active = false;
+    sw_pointer(window, (SWPointerData){.kind = SWPointerPixelWheel,
+                                       .phase = SWScrollCancelled});
   }
   if (window->click_controller && !window->resetting_click) {
     window->resetting_click = true;
@@ -278,7 +295,7 @@ void sw_cancel_pointer(SWWindow *window, int reason) {
 }
 
 void sw_reset_input(SWWindow *window) {
-  sw_cancel_pointer(window, 0);
+  sw_cancel_pointer(window, SWPointerFocusLost);
   sw_cancel_composition(window);
   uint64_t locks = window->modifiers & (SW_CAPS | SW_NUM | SW_SCROLL |
                                         (1u << 16) | SW_ALT_GRAPH_KNOWN);
@@ -287,21 +304,22 @@ void sw_reset_input(SWWindow *window) {
     if (!window->key_down[code])
       continue;
     window->key_down[code] = false;
-    SWEvent *event = sw_event(window, 10);
+    SWEvent *event = sw_event(window, SWKeyboard);
     if (!event)
       continue;
-    event->data = window->pressed[code];
+    event->keyboard = window->pressed[code];
     window->pressed[code].text = NULL;
-    event->data.flags = 4;
-    event->data.b = locks;
-    sw_stamp_input(&event->data);
+    event->keyboard.pressed = 0;
+    event->keyboard.repeat = 0;
+    event->keyboard.synthetic = 1;
+    event->keyboard.modifiers = locks;
     sw_enqueue(window->application, event);
   }
   if (window->modifiers != locks) {
     window->modifiers = locks;
-    SWEvent *event = sw_event(window, 11);
+    SWEvent *event = sw_event(window, SWModifiers);
     if (event) {
-      event->data.a = locks;
+      event->modifiers = locks;
       sw_enqueue(window->application, event);
     }
   }
@@ -321,49 +339,42 @@ void sw_focus(SWWindow *window, bool focused) {
     sw_emit(window, 4);
 }
 
-void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
-                double dy, int detail) {
-  if (kind == 4 && button >= 0 && button < 32 &&
+void sw_pointer(SWWindow *window, SWPointerData data) {
+  int kind = data.kind;
+  int button = data.button;
+  if (kind == SWPointerReleased && button >= 0 && button < 32 &&
       !(window->pressed_buttons & (1u << button)))
     return;
-  SWEvent *event = sw_event(window, 12);
+  SWEvent *event = sw_event(window, SWPointer);
   if (!event)
     return;
-  SWEventData *data = &event->data;
-  data->flags = kind;
-  data->x = window->pointer_x;
-  data->y = window->pointer_y;
-  data->scale = window->snapshot.scale;
-  data->z = data->x * data->scale;
-  data->w = data->y * data->scale;
-  data->b = sw_modifiers(window->application);
-  data->a = button;
-  data->dx = dx;
-  data->dy = dy;
-  if (kind == 0)
+  data.x = window->pointer_x;
+  data.y = window->pointer_y;
+  data.scale = window->snapshot.scale;
+  data.physical_x = data.x * data.scale;
+  data.physical_y = data.y * data.scale;
+  data.modifiers = sw_modifiers(window->application);
+  if (kind == SWPointerEntered)
     window->pointer_inside = true;
-  if (kind == 1)
+  if (kind == SWPointerLeft)
     window->pointer_inside = false;
-  if (kind == 3) {
+  if (kind == SWPointerPressed) {
     if (window->current_event)
       event->native_input = gdk_event_ref(window->current_event);
-    data->c = detail > 0 ? detail : 1;
+    data.click_count = data.click_count > 0 ? data.click_count : 1;
     if (button >= 0 && button < 32) {
-      window->pressed_clicks[button] = (int)data->c;
+      window->pressed_clicks[button] = data.click_count;
       window->pressed_buttons |= 1u << button;
     }
   }
-  if (kind == 4) {
-    data->c = detail > 0 ? detail : 1;
+  if (kind == SWPointerReleased) {
+    data.click_count = data.click_count > 0 ? data.click_count : 1;
     if (button >= 0 && button < 32) {
-      data->c = window->pressed_clicks[button];
+      data.click_count = window->pressed_clicks[button];
       window->pressed_clicks[button] = 0;
       window->pressed_buttons &= ~(1u << button);
     }
   }
-  if (kind == 5 || kind == 6) {
-    data->a = detail;
-    data->c = 0;
-  }
+  event->pointer = data;
   sw_enqueue(window->application, event);
 }

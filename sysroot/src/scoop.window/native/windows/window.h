@@ -22,23 +22,7 @@ extern "C" {
 #endif
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
-typedef struct {
-  int64_t window;
-  int32_t kind, flags;
-  int64_t a, b, c, d;
-  double x, y, z, w, scale, dx, dy;
-  const uint8_t *text;
-  int64_t text_length;
-  int64_t time_seconds, time_nanoseconds;
-} SWEventData;
-typedef struct {
-  int32_t kind;
-  int64_t anchor, cursor;
-  const uint8_t *text;
-  int64_t text_length;
-  int32_t has_replacement;
-  int64_t replacement_start, replacement_end;
-} SWTextEditData;
+#include "../events.h"
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
@@ -54,7 +38,13 @@ typedef struct {
   int64_t length, anchor, cursor, marked_start, marked_end;
 } SWTextSnapshotData;
 typedef struct SWEvent {
-  SWEventData data;
+  SWEventHeader header;
+  union {
+    SWEventData data;
+    SWKeyboardData keyboard;
+    SWPointerData pointer;
+    int64_t modifiers;
+  };
   bool native_input;
   POINT input_position;
   SWTextEditData *edits;
@@ -103,7 +93,7 @@ typedef struct SWWindow {
   double caret_x, caret_y, caret_width, caret_height;
   WCHAR surrogate;
   uint64_t modifiers;
-  SWEventData pressed[512];
+  SWKeyboardData pressed[512];
   bool key_down[512];
   uint32_t pressed_buttons;
   int pressed_clicks[32];
@@ -134,7 +124,7 @@ void sw_wake(SWApplication *application);
 void sw_fail(SWApplication *application, DWORD error);
 void sw_enqueue(SWApplication *application, SWEvent *event);
 SWEvent *sw_event(SWWindow *window, int32_t kind);
-void sw_stamp_input(SWEventData *data);
+void sw_stamp_event(SWEventHeader *data);
 void sw_emit(SWWindow *window, int32_t kind);
 void sw_free_event(SWEvent *event);
 void sw_watch_message(SWApplication *application, int64_t identity);

@@ -141,3 +141,6 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/dialog_paths.c"
+
+[[native.sources]]
+path = "native/input_values.c"

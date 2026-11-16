@@ -74,7 +74,7 @@ internal fun ApplicationOwner.closeWindowMenus(window: WindowOwner) {
     }
 }
 
-internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): ApplicationEvent? {
+internal fun ApplicationOwner.copyMenuActivation(event: NativeWindowEventData): ApplicationEvent? {
     val menu = findMenu(event.a) ?: return None
     val use = menu.use ?: return None
     if (use.serial() != event.c)
@@ -109,7 +109,7 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
     )
 }
 
-internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): ApplicationEvent? {
+internal fun ApplicationOwner.copyPopupCompletion(event: NativeWindowEventData): ApplicationEvent? {
     val menu = findMenu(event.a) ?: return None
     when (menu.use) {
         case Some(MenuUse.Popup(val session)) -> {

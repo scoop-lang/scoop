@@ -27,8 +27,8 @@ static void observe(SWApplication *application, NSNotificationCenter *center,
                                if (!owner.preferenceObservers)
                                  return;
                                SWEvent *event = [SWEvent new];
+                               event.header = (SWEventHeader){.kind = 102};
                                SWEventData data = {0};
-                               data.kind = 102;
                                event.data = data;
                                [owner enqueue:event];
                              }];

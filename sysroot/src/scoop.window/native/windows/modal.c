@@ -32,7 +32,7 @@ void scoop_window_input_blocked(SWWindow *window, int32_t blocked) {
   window->input_blocked = blocked != 0;
   if (blocked) {
     window->saved_enabled = IsWindowEnabled(window->hwnd);
-    sw_cancel_pointer(window, 3);
+    sw_cancel_pointer(window, SWPointerModal);
     sw_reset_input(window);
     sw_text_focus(window, false);
     EnableWindow(window->hwnd, FALSE);

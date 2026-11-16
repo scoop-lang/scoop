@@ -1,6 +1,6 @@
 # Window 输入事件边界调研与重构方案
 
-日期：2026-11-17。状态：方案选定，尚未实施。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
+日期：2026-11-17。状态：首批事件头、输入载荷与公共解码已实施，平台模块和状态寿命继续整理。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
 
 ## 1. 结论
 
@@ -31,7 +31,7 @@ flowchart LR
 | [frame/operations.scoop](../../../sysroot/src/scoop.window/src/frame/operations.scoop) | 同时保存系统窗口操作和 NativeInputDelivery 的寿命 | 原生输入附件移入 input 内部；窗口移动、resize 和数据拖放继续消费同一附件 |
 | [Surface InputRouter](../../../sysroot/src/scoop.surface/src/shared/input/router.scoop) | 当前只有一份 pointer／pressed／pointerClaim | 鼠标聚合模型之外，需要按触点分别保存接触路径和归属 |
 
-相位转换已有一个可从源码确认的不一致。GTK 回调把 begin／scroll／end 分别写成 detail 0／1／2，`sw_pointer` 原样写入 `data.a`；公共 `scrollPhase` 却把它当 NSEventPhase 位值：
+调研时相位转换存在一个可从源码确认的不一致。GTK 回调把 begin／scroll／end 分别写成 detail 0／1／2，`sw_pointer` 原样写入 `data.a`；公共 `scrollPhase` 却把它当 NSEventPhase 位值：
 
 | GTK 路径 | 当前写入 | 公共层读出的结果 | 应表达 |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ flowchart LR
 | scroll-end | 2 | Stationary | Ended |
 | 传统 wheel 的 scroll | 1 | Began | 无原生相位时为 None |
 
-第一批应修复这种转换约定问题，增加实际生产转换函数的定向覆盖。源码核对不代替 GTK 实际输入验收，也不把本地计数测试视作 Windows 输入链已经通过。
+第一批已修复该转换问题，并增加实际生产转换函数的定向覆盖。GTK 连续滚动的相位独立于行／表面像素单位；逻辑表面像素在平台边界转为 Window 约定的物理像素。源码核对和共享转换测试不代替 GTK 实际输入验收，也不把本地计数测试视作 Windows 输入链已经通过。
 
 ## 3. 方案比较
 
@@ -80,6 +80,14 @@ Surface 延续最近 Accepted 几何、Capture／Target／Bubble、模态边界�
 
 UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等实际需要的识别。滚动、按压、文本选区和 Slider 对同一接触的竞争在这里协调；Window 不决定哪个控件赢得手势。原生 gesture 与从原始触摸识别的 gesture 进入相同的控件行为入口，并保留来源，防止重复消费。
 
+### 自定义手势的后续接入
+
+本轮保留自定义手势的接入边界，具体公共 API 随实际消费者再设计。Window 交付的原始 contact 序列不被内建手势枚举替代；开始、更新、结束／取消、稳定的接触标识、时间、坐标与来源保留到 Surface 路由。系统只提供已识别手势时如实转交，不承诺取得 OS 没有暴露的原始触点。
+
+识别逻辑属于 UI 的输入消费层。内建识别器通过同一条 contact 路由和归属规则工作，未来应用定义的识别器可接到该边界，无需修改平台采集或在 Window 增加每种自定义手势的枚举。接管、失败／取消及明确允许的同时识别属于共享的路由约束；接管后不会让其他候选继续触发点击或拖放。多触点关联使用实际接触标识，不能依赖全局单指针槽位。
+
+手势识别与最终操作分离，操作仍进入控件现有命令和语义动作，保留键盘／accessibility 等价入口。当前不增加空的识别器接口、注册中心、优先级插件或预留载荷字段；S8 实现内建手势时检查上述边界，避免把识别写死在平台 switch 或具体控件中。
+
 ## 5. 各平台接入选择
 
 | 平台 | 选择 | 需要守住的边界 |
@@ -95,7 +103,7 @@ Windows 当前来源可通过 GetCurrentInputMessageSource 查询，但不可用
 1. **先规范与输入编码。** 更新 Window spec 的内部转换边界；统一输入枚举／载荷，修正 GTK 相位转换。保留现有公共鼠标 API，增加生产转换代码的定向测试。
 2. **整理平台输入状态与寿命。** 按实际职责拆分 Windows／GTK 输入模块，协调 Darwin 的已有 pointer／keyboard 入口；迁移 NativeInputDelivery 归属。复用已有点击、按键、IME、取消、模态、窗口操作和文本拖放回归。
 3. **再增加 contact 与原生 gesture。** 先定义真实能力、参数单位、source、结束／取消及兼容鼠标规则，再实现平台接入与公共事件。macOS 验证触控板；Windows／Linux 的直接触摸按原计划在相应设备集中验收。
-4. **完成 Surface 路由与 UI 识别。** 按 contact 维护路径和 claim，再接入触摸滚动、长按菜单、文本端点、缩放／旋转等 S8 消费者。S9 只在缺少原生 momentum 的直接触摸路径增加需要的软件惯性。
+4. **完成 Surface 路由与 UI 识别。** 按 contact 维护路径和 claim，再接入触摸滚动、长按菜单、文本端点、缩放／旋转等 S8 消费者；检查自定义识别器可沿同一输入／归属边界后续接入。S9 只在缺少原生 momentum 的直接触摸路径增加需要的软件惯性。
 
 测试保持现有层次：纯转换与计数使用必要的 Cone 测试；真实平台输入使用原生入口；多击选择、滚动、拖放和 IME 使用既有消费者回归。真实触屏、触控板与鼠标分别记录，跨平台结果不互相代替。无需为整理代码建立完整 OS API 模拟层或逐批执行全仓／远程测试。
 
@@ -106,4 +114,4 @@ Windows 当前来源可通过 GetCurrentInputMessageSource 查询，但不可用
 - Microsoft [WM_POINTERDOWN](https://learn.microsoft.com/en-us/windows/win32/inputmsg/wm-pointerdown)、[GetCurrentInputMessageSource](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getcurrentinputmessagesource) 和 [DoDragDrop](https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-dodragdrop)：指针接触／捕获、来源读取和触摸／笔的 OLE 启动限制。
 - GTK [GdkTouchEvent](https://docs.gtk.org/gdk4/class.TouchEvent.html)、[GdkTouchpadEvent](https://docs.gtk.org/gdk4/class.TouchpadEvent.html) 和 [GtkGesture](https://docs.gtk.org/gtk4/class.Gesture.html)：接触 sequence、兼容指针信息、系统识别的触控板手势及传播／claim 规则。
 
-本次完成源码和官方文档调研，未实施重构，也未新增设备验收结果。
+首批重构与本地回归结果见 [PROGRESS](PROGRESS.md#平台输入边界与载荷)。触摸、自定义手势 API 及其他平台的真实设备验收仍按对应批次推进。

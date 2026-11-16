@@ -24,7 +24,7 @@ SWResult scoop_window_system_operation_prepare(void *pointer, void *input,
     return (SWResult){NULL, -1};
   SWWindow *owner = (__bridge SWWindow *)pointer;
   SWEvent *event = (__bridge SWEvent *)input;
-  if (event.data.window != owner.identity ||
+  if (event.header.window != owner.identity ||
       event.nativeInput.type != NSEventTypeLeftMouseDown ||
       event.nativeInput.window != owner.window ||
       owner.window.ignoresMouseEvents)

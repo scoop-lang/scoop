@@ -1,45 +1,63 @@
 #import "window.h"
+#include <limits.h>
 
-static void pointer(SWView *view, NSEvent *native, int32_t kind) {
+static SWScrollPhase scrollPhase(NSEventPhase phase) {
+  if (phase & NSEventPhaseCancelled)
+    return SWScrollCancelled;
+  if (phase & NSEventPhaseEnded)
+    return SWScrollEnded;
+  if (phase & NSEventPhaseBegan)
+    return SWScrollBegan;
+  if (phase & NSEventPhaseMayBegin)
+    return SWScrollMayBegin;
+  if (phase & NSEventPhaseChanged)
+    return SWScrollChanged;
+  if (phase & NSEventPhaseStationary)
+    return SWScrollStationary;
+  return SWScrollNone;
+}
+
+static void pointer(SWView *view, NSEvent *native, SWPointerKind kind) {
   sw_modifiers(view, native.modifierFlags);
-  if (kind == 3 || kind == 4) {
+  if (kind == SWPointerPressed || kind == SWPointerReleased) {
     NSNumber *button = @(native.buttonNumber);
-    if (kind == 4 && ![view.pressedButtons containsObject:button])
+    if (kind == SWPointerReleased &&
+        ![view.pressedButtons containsObject:button])
       return;
-    if (kind == 3)
+    if (kind == SWPointerPressed)
       [view.pressedButtons addObject:button];
     else
       [view.pressedButtons removeObject:button];
   }
   SWEvent *event = sw_event(view.owner, SWPointer);
-  SWEventData data = event.data;
+  SWPointerData data = {.kind = kind};
   NSPoint logical = [view convertPoint:native.locationInWindow fromView:nil];
-  data.flags = kind;
   data.x = logical.x;
   data.y = logical.y;
   data.scale = view.window.backingScaleFactor;
   // Backing surface points may use a different origin; both payload positions
   // use the content view's top-left origin and the scale from this event.
-  data.z = logical.x * data.scale;
-  data.w = logical.y * data.scale;
-  if (kind == 2) {
+  data.physical_x = logical.x * data.scale;
+  data.physical_y = logical.y * data.scale;
+  if (kind == SWPointerMoved) {
     view.pointerInside = NSMouseInRect(logical, view.bounds, view.flipped);
     [view updateCursor];
   }
-  data.b = (int64_t)sw_input_modifiers(view, native.modifierFlags);
-  if (kind == 3 || kind == 4) {
-    data.a = native.buttonNumber;
-    data.c = native.clickCount;
+  data.modifiers = (int64_t)sw_input_modifiers(view, native.modifierFlags);
+  if (kind == SWPointerPressed || kind == SWPointerReleased) {
+    data.button = (int32_t)native.buttonNumber;
+    data.click_count = (int32_t)MAX(1, MIN(INT_MAX, native.clickCount));
   }
-  if (kind == 5 || kind == 6) {
-    data.a = (int64_t)native.phase;
-    data.c = (int64_t)native.momentumPhase;
-    data.dx = native.scrollingDeltaX * (kind == 6 ? data.scale : 1);
-    data.dy = native.scrollingDeltaY * (kind == 6 ? data.scale : 1);
+  if (kind == SWPointerLineWheel || kind == SWPointerPixelWheel) {
+    sw_pointer_scroll(&data, kind == SWPointerPixelWheel,
+                      native.scrollingDeltaX, native.scrollingDeltaY,
+                      scrollPhase(native.phase),
+                      scrollPhase(native.momentumPhase));
   }
-  event.data = data;
-  if (kind == 3 || (kind == 2 && native.type == NSEventTypeLeftMouseDragged &&
-                    [view.pressedButtons containsObject:@0]))
+  event.pointer = data;
+  if (kind == SWPointerPressed ||
+      (kind == SWPointerMoved && native.type == NSEventTypeLeftMouseDragged &&
+       [view.pressedButtons containsObject:@0]))
     event.nativeInput = native;
   [view.owner.application enqueue:event];
 }
@@ -50,10 +68,8 @@ static void pointer(SWView *view, NSEvent *native, int32_t kind) {
     return;
   [self.pressedButtons removeAllObjects];
   SWEvent *event = sw_event(self.owner, SWPointer);
-  SWEventData data = event.data;
-  data.flags = 7;
-  data.a = reason;
-  event.data = data;
+  event.pointer =
+      (SWPointerData){.kind = SWPointerCancelled, .cancel_reason = reason};
   [self.owner.application enqueue:event];
 }
 - (void)updateTrackingAreas {
@@ -91,47 +107,49 @@ static void pointer(SWView *view, NSEvent *native, int32_t kind) {
 - (void)mouseEntered:(NSEvent *)event {
   self.pointerInside = YES;
   [self updateCursor];
-  pointer(self, event, 0);
+  pointer(self, event, SWPointerEntered);
 }
 - (void)mouseExited:(NSEvent *)event {
   self.pointerInside = NO;
   [self updateCursor];
-  pointer(self, event, 1);
+  pointer(self, event, SWPointerLeft);
 }
 - (void)mouseMoved:(NSEvent *)event {
-  pointer(self, event, 2);
+  pointer(self, event, SWPointerMoved);
 }
 - (void)mouseDragged:(NSEvent *)event {
-  pointer(self, event, 2);
+  pointer(self, event, SWPointerMoved);
 }
 - (void)rightMouseDragged:(NSEvent *)event {
-  pointer(self, event, 2);
+  pointer(self, event, SWPointerMoved);
 }
 - (void)otherMouseDragged:(NSEvent *)event {
-  pointer(self, event, 2);
+  pointer(self, event, SWPointerMoved);
 }
 - (void)mouseDown:(NSEvent *)event {
   if (sw_frame_pointer(self, event))
     return;
-  pointer(self, event, 3);
+  pointer(self, event, SWPointerPressed);
 }
 - (void)rightMouseDown:(NSEvent *)event {
-  pointer(self, event, 3);
+  pointer(self, event, SWPointerPressed);
 }
 - (void)otherMouseDown:(NSEvent *)event {
-  pointer(self, event, 3);
+  pointer(self, event, SWPointerPressed);
 }
 - (void)mouseUp:(NSEvent *)event {
-  pointer(self, event, 4);
+  pointer(self, event, SWPointerReleased);
 }
 - (void)rightMouseUp:(NSEvent *)event {
-  pointer(self, event, 4);
+  pointer(self, event, SWPointerReleased);
 }
 - (void)otherMouseUp:(NSEvent *)event {
-  pointer(self, event, 4);
+  pointer(self, event, SWPointerReleased);
 }
 - (void)scrollWheel:(NSEvent *)event {
-  pointer(self, event, event.hasPreciseScrollingDeltas ? 6 : 5);
+  pointer(self, event,
+          event.hasPreciseScrollingDeltas ? SWPointerPixelWheel
+                                          : SWPointerLineWheel);
 }
 @end
 

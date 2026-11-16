@@ -23,10 +23,13 @@
 
 ## 已交付变更
 
-### 平台输入边界调研
+### 平台输入边界与载荷
 
 - 依用户建议完成 `window-clicks` 与三平台输入路径、公共解码、NativeInputDelivery、Surface claim 的源码核对，并查阅 Apple／Microsoft／GTK 官方输入资料。选用 Window 内部的平台输入子系统，统一载荷与寿命，保留平台原生入口；Surface 负责接触路由，UI 负责原始触摸手势识别。
-- 调研确认 `window-clicks` 当前是计数测试 Cone；另发现 GTK begin／scroll／end 的 0／1／2 与公共 AppKit 位值解码不一致。该修复和输入状态整理已加入 S1，作为 S8 的前置工作；具体范围与验收见[输入边界方案](INPUT-BOUNDARY.md)。本次仅完成调研和选型，尚未改变运行时实现或新增平台设备通过记录。
+- 调研确认 `window-clicks` 当前是计数测试 Cone；另发现 GTK begin／scroll／end 的 0／1／2 与公共 AppKit 位值解码不一致。三平台现在共用事件头与有名的键盘／鼠标载荷，公共解码不再解释 AppKit 位值；GTK 连续滚动显式转换为 Began／Changed／Ended，取消终止活动阶段，普通 wheel 保持 None。行单位不缩放，表面像素按事件 scale 转为物理像素。
+- NativeInputDelivery 的 Scoop 实现迁到 input 内部，原生附件与窗口操作／拖放时序保持。后续自定义手势的接入边界已加入设计和 S8：保留原始 contact 路由，内建与未来识别逻辑共享归属／取消规则，最终操作沿命令与 accessibility 入口执行；本轮未增加自定义识别器 API。
+- aarch64-apple-darwin release 的 6 项生产点击计数测试、4 项输入值／native 载荷测试通过；后者覆盖七种独立相位及分数 DPI 的像素／行单位。4 个使用 Application 的回归分别在独立进程通过：AppKit 原生输入与 IME／取消、文本命令顺序、真实输入附件与拖放来源退休、文档快照与范围事务。原生输入回归新增 5 种 contact 阶段及 3 种 momentum 阶段。Scoop 检查、Objective-C／C 严格语法和警告检查通过。
+- 平台采集模块和状态寿命继续整理；Window 的依赖产物待本次输入重构稳定后统一重建，再补窗口操作／模态与上层消费者回归。Windows／GTK 真实输入结果未新增，具体范围见[输入边界方案](INPUT-BOUNDARY.md)。
 
 ### 文本范围查询所需的底层接入
 

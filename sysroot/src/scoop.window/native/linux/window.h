@@ -26,22 +26,7 @@
 #include <xkbcommon/xkbcommon.h>
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
-typedef struct {
-  int64_t window;
-  int32_t kind, flags;
-  int64_t a, b, c, d;
-  double x, y, z, w, scale, dx, dy;
-  const uint8_t *text;
-  int64_t text_length, time_seconds, time_nanoseconds;
-} SWEventData;
-typedef struct {
-  int32_t kind;
-  int64_t anchor, cursor;
-  const uint8_t *text;
-  int64_t text_length;
-  int32_t has_replacement;
-  int64_t replacement_start, replacement_end;
-} SWTextEditData;
+#include "../events.h"
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
@@ -72,7 +57,13 @@ typedef struct {
   int64_t length, anchor, cursor, marked_start, marked_end;
 } SWTextSnapshotData;
 typedef struct SWEvent {
-  SWEventData data;
+  SWEventHeader header;
+  union {
+    SWEventData data;
+    SWKeyboardData keyboard;
+    SWPointerData pointer;
+    int64_t modifiers;
+  };
   GdkEvent *native_input;
   SWTextEditData *edits;
   size_t edit_count;
@@ -133,11 +124,11 @@ struct SWWindow {
   double caret_x, caret_y, caret_width, caret_height;
   double pointer_x, pointer_y;
   GtkEventController *click_controller;
-  bool resetting_click;
+  bool resetting_click, scroll_active;
   int pressed_clicks[32];
   uint64_t modifiers;
   uint32_t pressed_buttons;
-  SWEventData pressed[768];
+  SWKeyboardData pressed[768];
   bool key_down[768];
   char *preedit;
   SWTextSnapshotData document;
@@ -166,7 +157,7 @@ SWEvent *sw_event(SWWindow *window, int kind);
 void sw_enqueue(SWApplication *app, SWEvent *event);
 void sw_free_event(SWEvent *event);
 void sw_emit(SWWindow *window, int kind);
-void sw_stamp_input(SWEventData *event);
+void sw_stamp_event(SWEventHeader *event);
 void sw_watch_dispatch(SWApplication *app, struct pollfd *fds, size_t count,
                        SWWatch **watches);
 void sw_watch_retire(SWApplication *app);
@@ -194,8 +185,7 @@ int64_t sw_request_size(SWWindow *window, double width, double height);
 GdkSurface *sw_surface(SWWindow *window);
 void sw_reset_input(SWWindow *window);
 void sw_focus(SWWindow *window, bool focused);
-void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
-                double dy, int detail);
+void sw_pointer(SWWindow *window, SWPointerData data);
 void sw_cancel_pointer(SWWindow *window, int reason);
 void sw_cancel_composition(SWWindow *window);
 SWEvent *sw_text_batch(SWWindow *window);

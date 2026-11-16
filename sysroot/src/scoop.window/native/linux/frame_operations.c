@@ -17,7 +17,7 @@ SWResult scoop_window_input_copy(SWEvent *event) {
   if (!input)
     return (SWResult){NULL, ENOMEM};
   *input =
-      (SWFrameInput){event->data.window, gdk_event_ref(event->native_input)};
+      (SWFrameInput){event->header.window, gdk_event_ref(event->native_input)};
   return (SWResult){input, 0};
 }
 void scoop_window_input_release(SWFrameInput *input) {

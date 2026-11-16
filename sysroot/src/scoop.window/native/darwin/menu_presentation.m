@@ -2,8 +2,8 @@
 
 void sw_menu_event(SWMenu *menu, int32_t kind, int64_t item, int64_t window) {
   SWEvent *event = [SWEvent new];
+  event.header = (SWEventHeader){.kind = kind};
   SWEventData data = {0};
-  data.kind = kind;
   data.flags = menu.binding;
   data.a = menu.identity;
   data.b = item;

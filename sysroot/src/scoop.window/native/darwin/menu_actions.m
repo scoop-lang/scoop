@@ -79,8 +79,8 @@ BOOL sw_menu_activate(SWMenu *menu, SWMenuEntry *entry) {
     sw_menu_event(menu, 110, entry.identity, window ? window.identity : 0);
   } else if (entry.role == 1) {
     SWEvent *event = [SWEvent new];
+    event.header = (SWEventHeader){.kind = 101};
     SWEventData data = {0};
-    data.kind = 101;
     data.flags = 1;
     event.data = data;
     [menu.application enqueue:event];

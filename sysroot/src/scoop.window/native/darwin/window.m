@@ -71,7 +71,7 @@ SWSnapshot sw_snapshot(SWWindow *owner) {
   return result;
 }
 
-void sw_stamp_input(SWEventData *data) {
+void sw_stamp_event(SWEventHeader *data) {
   struct timespec time;
   if (clock_gettime(CLOCK_MONOTONIC, &time) != 0) {
     data->time_seconds = 0;
@@ -84,12 +84,10 @@ void sw_stamp_input(SWEventData *data) {
 
 SWEvent *sw_event(SWWindow *window, int32_t kind) {
   SWEvent *event = [SWEvent new];
-  SWEventData data = {0};
-  data.window = window.identity;
-  data.kind = kind;
+  SWEventHeader header = {.window = window.identity, .kind = kind};
   if (kind == SWKeyboard || kind == SWPointer)
-    sw_stamp_input(&data);
-  event.data = data;
+    sw_stamp_event(&header);
+  event.header = header;
   return event;
 }
 

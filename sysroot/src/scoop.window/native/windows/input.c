@@ -28,9 +28,9 @@ static void modifiers(SWWindow *window, uint64_t value) {
   if (value == window->modifiers)
     return;
   window->modifiers = value;
-  SWEvent *event = sw_event(window, 11);
+  SWEvent *event = sw_event(window, SWModifiers);
   if (event) {
-    event->data.a = (int64_t)value;
+    event->modifiers = (int64_t)value;
     sw_enqueue(window->application, event);
   }
 }
@@ -45,13 +45,15 @@ static void key(SWWindow *window, UINT msg, WPARAM vk, LPARAM lp) {
     return;
   if (!down && !window->key_down[code])
     return;
-  SWEvent *event = sw_event(window, 10);
+  SWEvent *event = sw_event(window, SWKeyboard);
   if (!event)
     return;
-  event->data.a = code;
-  event->data.b = (int64_t)mods;
-  event->data.c = (int64_t)vk;
-  event->data.flags = (down ? 1 : 0) | (down && (lp & (1LL << 30)) ? 2 : 0);
+  SWKeyboardData *data = &event->keyboard;
+  data->physical_code = code;
+  data->modifiers = (int64_t)mods;
+  data->logical_code = (int64_t)vk;
+  data->pressed = down;
+  data->repeat = down && (lp & (1LL << 30));
   if (down) {
     BYTE state[256];
     WCHAR text[8];
@@ -63,30 +65,30 @@ static void key(SWWindow *window, UINT msg, WPARAM vk, LPARAM lp) {
     int count =
         ToUnicodeEx((UINT)vk, scan, state, text, 8, 4, GetKeyboardLayout(0));
     if (count < 0) {
-      event->data.flags |= 8;
+      data->dead = 1;
       count = -count;
     }
     if (count > 0 && text[0] >= 0x20)
-      event->data.text = sw_utf8(text, count, &event->data.text_length);
+      data->text = sw_utf8(text, count, &data->text_length);
     free((void *)window->pressed[code].text);
-    window->pressed[code] = event->data;
-    if (event->data.text) {
-      uint8_t *copy = malloc((size_t)event->data.text_length + 1);
+    window->pressed[code] = *data;
+    if (data->text) {
+      uint8_t *copy = malloc((size_t)data->text_length + 1);
       if (!copy) {
         sw_free_event(event);
         window->pressed[code].text = NULL;
         sw_fail(window->application, ERROR_NOT_ENOUGH_MEMORY);
         return;
       }
-      memcpy(copy, event->data.text, (size_t)event->data.text_length + 1);
+      memcpy(copy, data->text, (size_t)data->text_length + 1);
       window->pressed[code].text = copy;
     }
     window->key_down[code] = true;
   } else {
-    event->data = window->pressed[code];
-    sw_stamp_input(&event->data);
-    event->data.flags &= 8;
-    event->data.b = (int64_t)mods;
+    *data = window->pressed[code];
+    data->pressed = 0;
+    data->repeat = 0;
+    data->modifiers = (int64_t)mods;
     window->pressed[code].text = NULL;
     window->key_down[code] = false;
   }
@@ -103,10 +105,10 @@ void sw_cancel_pointer(SWWindow *window, int reason) {
   if (!window->pressed_buttons)
     return;
   window->pressed_buttons = 0;
-  SWEvent *event = sw_event(window, 12);
+  SWEvent *event = sw_event(window, SWPointer);
   if (event) {
-    event->data.flags = 7;
-    event->data.a = reason;
+    event->pointer.kind = SWPointerCancelled;
+    event->pointer.cancel_reason = reason;
     sw_enqueue(window->application, event);
   }
   if (GetCapture() == window->hwnd)
@@ -114,18 +116,19 @@ void sw_cancel_pointer(SWWindow *window, int reason) {
 }
 
 void sw_reset_input(SWWindow *window) {
-  sw_cancel_pointer(window, 0);
+  sw_cancel_pointer(window, SWPointerFocusLost);
   sw_cancel_composition(window);
   uint64_t locks = sw_modifiers() & 112;
   for (int n = 0; n < 512; ++n) {
     if (!window->key_down[n])
       continue;
-    SWEvent *event = sw_event(window, 10);
+    SWEvent *event = sw_event(window, SWKeyboard);
     if (event) {
-      event->data = window->pressed[n];
-      sw_stamp_input(&event->data);
-      event->data.flags = (event->data.flags & 8) | 4;
-      event->data.b = (int64_t)locks;
+      event->keyboard = window->pressed[n];
+      event->keyboard.pressed = 0;
+      event->keyboard.repeat = 0;
+      event->keyboard.synthetic = 1;
+      event->keyboard.modifiers = (int64_t)locks;
       window->pressed[n].text = NULL;
       sw_enqueue(window->application, event);
     }
@@ -135,23 +138,24 @@ void sw_reset_input(SWWindow *window) {
   window->surrogate = 0;
 }
 
-static void pointer(SWWindow *window, int kind, POINT position, int64_t button,
-                    int clicks, double dx, double dy) {
-  SWEvent *event = sw_event(window, 12);
+static void pointer(SWWindow *window, SWPointerKind kind, POINT position,
+                    int32_t button, int clicks, double dx, double dy) {
+  SWEvent *event = sw_event(window, SWPointer);
   if (!event)
     return;
-  event->data.flags = kind;
-  event->data.a = button;
-  event->data.c = clicks;
-  event->data.b = (int64_t)sw_modifiers();
-  event->data.scale = GetDpiForWindow(window->hwnd) / 96.0;
-  event->data.z = position.x;
-  event->data.w = position.y;
-  event->data.x = position.x / event->data.scale;
-  event->data.y = position.y / event->data.scale;
-  event->data.dx = dx;
-  event->data.dy = dy;
-  if (kind == 3) {
+  SWPointerData *data = &event->pointer;
+  data->kind = kind;
+  data->button = button;
+  data->click_count = clicks;
+  data->modifiers = (int64_t)sw_modifiers();
+  data->scale = GetDpiForWindow(window->hwnd) / 96.0;
+  data->physical_x = position.x;
+  data->physical_y = position.y;
+  data->x = position.x / data->scale;
+  data->y = position.y / data->scale;
+  if (kind == SWPointerLineWheel)
+    sw_pointer_scroll(data, false, dx, dy, SWScrollNone, SWScrollNone);
+  if (kind == SWPointerPressed) {
     event->native_input = true;
     event->input_position = position;
     ClientToScreen(window->hwnd, &event->input_position);
@@ -166,10 +170,10 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
   switch (msg) {
   case WM_CAPTURECHANGED:
     if (window->pressed_buttons)
-      sw_cancel_pointer(window, 1);
+      sw_cancel_pointer(window, SWPointerCaptureLost);
     return false;
   case WM_CANCELMODE:
-    sw_cancel_pointer(window, 1);
+    sw_cancel_pointer(window, SWPointerCaptureLost);
     return false;
   case WM_KEYDOWN:
   case WM_KEYUP:
@@ -202,15 +206,15 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
                                .hwndTrack = window->hwnd};
       if (!TrackMouseEvent(&track))
         sw_fail(window->application, GetLastError());
-      pointer(window, 0, position, 0, 0, 0, 0);
+      pointer(window, SWPointerEntered, position, 0, 0, 0, 0);
     }
-    pointer(window, 2, position, 0, 0, 0, 0);
+    pointer(window, SWPointerMoved, position, 0, 0, 0, 0);
     return true;
   case WM_MOUSELEAVE:
     window->pointer_inside = false;
     GetCursorPos(&position);
     ScreenToClient(window->hwnd, &position);
-    pointer(window, 1, position, 0, 0, 0, 0);
+    pointer(window, SWPointerLeft, position, 0, 0, 0, 0);
     return true;
   case WM_LBUTTONDOWN:
   case WM_RBUTTONDOWN:
@@ -254,7 +258,7 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
         SetCapture(window->hwnd);
     } else
       window->pressed_buttons &= ~mask;
-    pointer(window, up ? 4 : 3, position, button,
+    pointer(window, up ? SWPointerReleased : SWPointerPressed, position, button,
             window->pressed_clicks[button], 0, 0);
     if (up)
       window->pressed_clicks[button] = 0;
@@ -267,7 +271,8 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
   case WM_MOUSEHWHEEL: {
     ScreenToClient(window->hwnd, &position);
     double delta = GET_WHEEL_DELTA_WPARAM(wp) / (double)WHEEL_DELTA;
-    pointer(window, 5, position, 0, 0, msg == WM_MOUSEHWHEEL ? -delta : 0,
+    pointer(window, SWPointerLineWheel, position, 0, 0,
+            msg == WM_MOUSEHWHEEL ? -delta : 0,
             msg == WM_MOUSEWHEEL ? delta : 0);
     return true;
   }

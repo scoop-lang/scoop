@@ -79,7 +79,11 @@ internal fun nativeTextCount(event: Ptr<Unit>): Long
 internal fun nativeTextEdit(event: Ptr<Unit>, index: Long): NativeTextEdit
 
 /** Copies native-owned strings before releasing the enclosing event. */
-internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextInputBatch {
+internal fun copyNativeTextBatch(
+    pointer: Ptr<Unit>,
+    window: Long,
+    event: NativeWindowEventData
+): TextInputBatch {
     @Unsafe
     {
         val count = nativeTextCount(pointer)
@@ -122,7 +126,7 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextIn
             else
                 None,
             operations,
-            when (platformTextConnection(event)) {
+            when (platformTextConnection(window, event)) {
                 case Some(val connection) -> Some(TextInputOrigin(connection, event.c))
                 case None -> None
             }

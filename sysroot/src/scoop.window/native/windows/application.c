@@ -80,7 +80,7 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (!event)
       sw_fail(app, ERROR_NOT_ENOUGH_MEMORY);
     else {
-      event->data.kind = 102;
+      event->header.kind = 102;
       sw_enqueue(app, event);
     }
     return 0;
@@ -104,7 +104,7 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (!event)
       sw_fail(app, ERROR_NOT_ENOUGH_MEMORY);
     else {
-      event->data.kind = msg == WM_DISPLAYCHANGE ? 100 : 101;
+      event->header.kind = msg == WM_DISPLAYCHANGE ? 100 : 101;
       sw_enqueue(app, event);
     }
     // A shutdown request is delivered as an intent; forced termination is an OS
@@ -262,7 +262,7 @@ void sw_enqueue(SWApplication *app, SWEvent *event) {
   app->tail = event;
   sw_wake(app);
 }
-void sw_stamp_input(SWEventData *data) {
+void sw_stamp_event(SWEventHeader *data) {
   LARGE_INTEGER counter, frequency;
   if (!QueryPerformanceFrequency(&frequency) ||
       !QueryPerformanceCounter(&counter)) {
@@ -282,10 +282,10 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
     sw_fail(window->application, ERROR_NOT_ENOUGH_MEMORY);
     return NULL;
   }
-  event->data.window = window->identity;
-  event->data.kind = kind;
-  if (kind == 10 || kind == 12)
-    sw_stamp_input(&event->data);
+  event->header.window = window->identity;
+  event->header.kind = kind;
+  if (kind == SWKeyboard || kind == SWPointer)
+    sw_stamp_event(&event->header);
   return event;
 }
 void *scoop_window_next_event(SWApplication *app) {
@@ -297,9 +297,22 @@ void *scoop_window_next_event(SWApplication *app) {
   }
   return event;
 }
+SWEventHeader scoop_window_event_header(SWEvent *event) {
+  return event->header;
+}
 SWEventData scoop_window_event_data(SWEvent *event) { return event->data; }
+SWKeyboardData scoop_window_event_keyboard(SWEvent *event) {
+  return event->keyboard;
+}
+SWPointerData scoop_window_event_pointer(SWEvent *event) {
+  return event->pointer;
+}
+int64_t scoop_window_event_modifiers(SWEvent *event) {
+  return event->modifiers;
+}
 void sw_free_event(SWEvent *event) {
-  free((void *)event->data.text);
+  if (event->header.kind == SWKeyboard)
+    free((void *)event->keyboard.text);
   for (int64_t n = 0; n < event->edit_count; ++n)
     free((void *)event->edits[n].text);
   free(event->edits);

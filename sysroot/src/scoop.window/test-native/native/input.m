@@ -71,6 +71,33 @@ static void cancelled_sequences(SWView *view) {
                     object:[NSMenu new]];
 }
 
+static bool scroll_phases(SWView *view) {
+  const struct {
+    CGScrollPhase contact;
+    CGMomentumScrollPhase momentum;
+  } phases[] = {{kCGScrollPhaseMayBegin, kCGMomentumScrollPhaseNone},
+                {kCGScrollPhaseBegan, kCGMomentumScrollPhaseNone},
+                {kCGScrollPhaseChanged, kCGMomentumScrollPhaseNone},
+                {kCGScrollPhaseEnded, kCGMomentumScrollPhaseNone},
+                {kCGScrollPhaseCancelled, kCGMomentumScrollPhaseNone},
+                {0, kCGMomentumScrollPhaseBegin},
+                {0, kCGMomentumScrollPhaseContinue},
+                {0, kCGMomentumScrollPhaseEnd}};
+  for (size_t index = 0; index < sizeof(phases) / sizeof(phases[0]); ++index) {
+    CGEventRef scroll = CGEventCreateScrollWheelEvent2(
+        NULL, kCGScrollEventUnitPixel, 2, 11, 7, 0);
+    if (!scroll)
+      return false;
+    CGEventSetIntegerValueField(scroll, kCGScrollWheelEventScrollPhase,
+                                phases[index].contact);
+    CGEventSetIntegerValueField(scroll, kCGScrollWheelEventMomentumPhase,
+                                phases[index].momentum);
+    [view scrollWheel:[NSEvent eventWithCGEvent:scroll]];
+    CFRelease(scroll);
+  }
+  return true;
+}
+
 int32_t scoop_window_test_input(void *pointer) {
   SWView *view = (__bridge SWView *)pointer;
   [view keyDown:key_event(view, NSEventTypeKeyDown, 0, @"a", 0, NO)];
@@ -152,6 +179,8 @@ int32_t scoop_window_test_input(void *pointer) {
     [view scrollWheel:[NSEvent eventWithCGEvent:scroll]];
     CFRelease(scroll);
   }
+  if (!scroll_phases(view))
+    return -1;
   NSEvent *exit = [NSEvent enterExitEventWithType:NSEventTypeMouseExited
                                          location:point
                                     modifierFlags:0

@@ -231,7 +231,7 @@ int64_t scoop_window_ignore_mouse(SWWindow *window, int32_t enabled) {
     return enabled ? -1 : 0;
   window->ignore_mouse = enabled != 0;
   if (enabled) {
-    sw_cancel_pointer(window, 1);
+    sw_cancel_pointer(window, SWPointerCaptureLost);
     apply_input(window);
   } else
     restore_input(window);
@@ -268,7 +268,7 @@ bool sw_frame_pointer(SWWindow *window, GdkEvent *event, double x, double y) {
   if (role == 0 ||
       (role >= 2 && (!window->resizable || window->snapshot.maximized)))
     return false;
-  sw_cancel_pointer(window, 2);
+  sw_cancel_pointer(window, SWPointerSystemOperation);
   double native_x, native_y;
   gdk_event_get_position(event, &native_x, &native_y);
   if (role == 1)

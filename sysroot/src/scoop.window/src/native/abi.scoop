@@ -1,9 +1,15 @@
 package scoop.window
 
 @CLayout
-internal struct NativeEvent(
+internal struct NativeEventHeader(
     val window: Long,
     val kind: Int,
+    val timeSeconds: Long,
+    val timeNanoseconds: Long
+)
+
+@CLayout
+internal struct NativeWindowEventData(
     val flags: Int,
     val a: Long,
     val b: Long,
@@ -13,13 +19,7 @@ internal struct NativeEvent(
     val y: Double,
     val z: Double,
     val w: Double,
-    val scale: Double,
-    val dx: Double,
-    val dy: Double,
-    val text: Ptr<UInt8>?,
-    val textLength: Long,
-    val timeSeconds: Long,
-    val timeNanoseconds: Long
+    val scale: Double
 )
 
 @CLayout
@@ -78,8 +78,11 @@ internal fun nativeApplicationDestroy(application: Ptr<Unit>)
 @Extern(name = "scoop_window_next_event")
 internal fun nativeNextEvent(application: Ptr<Unit>): Ptr<Unit>?
 
+@Extern(name = "scoop_window_event_header")
+internal fun nativeEventHeader(event: Ptr<Unit>): NativeEventHeader
+
 @Extern(name = "scoop_window_event_data")
-internal fun nativeEventData(event: Ptr<Unit>): NativeEvent
+internal fun nativeEventData(event: Ptr<Unit>): NativeWindowEventData
 
 @Extern(name = "scoop_window_event_release")
 internal fun nativeEventRelease(event: Ptr<Unit>)

@@ -15,7 +15,7 @@ public fun InputTime.mark(): TimeMark =
         case Observed(val value) -> value
     }
 
-internal fun copyInputTime(event: NativeEvent): InputTime {
+internal fun copyInputTime(event: NativeEventHeader): InputTime {
     if (event.timeNanoseconds < 0L || event.timeNanoseconds >= 1000000000L)
         throw WindowException("native input clock failed", WindowErrorKind.NativeFailure)
     return InputTime.Observed(

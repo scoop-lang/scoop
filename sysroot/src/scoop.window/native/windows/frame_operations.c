@@ -17,8 +17,11 @@ SWResult scoop_window_input_copy(SWEvent *event) {
   SWFrameInput *input = malloc(sizeof(*input));
   if (!input)
     return (SWResult){NULL, ERROR_NOT_ENOUGH_MEMORY};
-  *input = (SWFrameInput){event->data.window, event->data.kind,
-                          (int32_t)event->data.a, event->input_position};
+  int32_t code = event->header.kind == SWKeyboard
+                     ? (int32_t)event->keyboard.physical_code
+                     : event->pointer.button;
+  *input = (SWFrameInput){event->header.window, event->header.kind, code,
+                          event->input_position};
   return (SWResult){input, 0};
 }
 void scoop_window_input_release(void *input) { free(input); }
@@ -27,7 +30,7 @@ SWResult scoop_window_system_operation_prepare(SWWindow *window,
                                                SWFrameInput *input,
                                                int32_t kind, int32_t edge) {
   if (input->window != window->identity ||
-      (kind != 2 && (input->kind != 12 || input->button != 0)) ||
+      (kind != 2 && (input->kind != SWPointer || input->button != 0)) ||
       (kind == 1 && (!window->resizable || IsZoomed(window->hwnd) ||
                      IsIconic(window->hwnd))))
     return (SWResult){NULL, -4};

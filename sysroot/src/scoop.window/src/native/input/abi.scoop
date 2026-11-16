@@ -1,0 +1,41 @@
+package scoop.window
+
+@CLayout
+internal struct NativeKeyboardData(
+    val physicalCode: Long,
+    val logicalCode: Long,
+    val modifiers: Long,
+    val pressed: Int,
+    val repeat: Int,
+    val synthetic: Int,
+    val dead: Int,
+    val text: Ptr<UInt8>?,
+    val textLength: Long
+)
+
+@CLayout
+internal struct NativePointerData(
+    val kind: Int,
+    val button: Int,
+    val clickCount: Int,
+    val phase: Int,
+    val momentumPhase: Int,
+    val cancelReason: Int,
+    val modifiers: Long,
+    val x: Double,
+    val y: Double,
+    val physicalX: Double,
+    val physicalY: Double,
+    val scale: Double,
+    val deltaX: Double,
+    val deltaY: Double
+)
+
+@Extern(name = "scoop_window_event_keyboard")
+internal fun nativeEventKeyboard(event: Ptr<Unit>): NativeKeyboardData
+
+@Extern(name = "scoop_window_event_pointer")
+internal fun nativeEventPointer(event: Ptr<Unit>): NativePointerData
+
+@Extern(name = "scoop_window_event_modifiers")
+internal fun nativeEventModifiers(event: Ptr<Unit>): Long

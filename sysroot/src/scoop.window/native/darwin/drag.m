@@ -84,7 +84,7 @@ SWResult scoop_window_drag_create(void *pointer, void *input, int32_t effects,
   NSEvent *event = delivery.nativeInput;
   if (!callback || effects <= 0 || effects > 7)
     return (SWResult){NULL, -8};
-  if (!event || delivery.data.window != owner.identity ||
+  if (!event || delivery.header.window != owner.identity ||
       event.window != owner.window ||
       (event.type != NSEventTypeLeftMouseDown &&
        event.type != NSEventTypeLeftMouseDragged) ||

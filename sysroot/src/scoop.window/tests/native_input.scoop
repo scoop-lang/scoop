@@ -1,0 +1,68 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.collections.listOf
+
+@Extern(name = "scoop_window_test_scroll_data")
+private fun nativeScrollData(pixels: Int, scale: Double, phaseIndex: Int): NativePointerData
+
+@Test
+private class NativeInputDataTest {
+    @Test
+    fun `native scroll payload preserves independent phases through the C ABI`() {
+        val phases =
+            listOf(
+                ScrollPhase.None,
+                ScrollPhase.MayBegin,
+                ScrollPhase.Began,
+                ScrollPhase.Stationary,
+                ScrollPhase.Changed,
+                ScrollPhase.Ended,
+                ScrollPhase.Cancelled
+            )
+        @Unsafe
+        {
+            for (index in 0L ..< phases.size) {
+                val event =
+                    copyPointerEvent(
+                        NativeEventHeader(17L, 12, 1L, 250L),
+                        nativeScrollData(1, 1.5, index.toInt())
+                    )
+                when (event) {
+                    case Wheel(val state, val delta, val phase, val momentum) -> {
+                        assertEquals(LogicalPosition(12.5, 9.25), state.logicalPosition)
+                        assertEquals(PhysicalPosition(18.75, 13.875), state.physicalPosition)
+                        assertEquals(1.5, state.scaleFactor)
+                        assertEquals(ScrollDelta.PixelDelta(-6.0, 3.0), delta)
+                        assertEquals(phases[index], phase)
+                        assertEquals(phases[6L - index], momentum)
+                    }
+                    else -> fail(Some("native scroll payload did not decode as a wheel"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `native line deltas keep their unit at fractional and integer display scales`() {
+        @Unsafe
+        {
+            for (scale in listOf(1.0, 1.25, 2.0)) {
+                val event =
+                    copyPointerEvent(
+                        NativeEventHeader(17L, 12, 1L, 250L),
+                        nativeScrollData(0, scale, 4)
+                    )
+                when (event) {
+                    case Wheel(val state, val delta, val phase, val momentum) -> {
+                        assertEquals(scale, state.scaleFactor)
+                        assertEquals(ScrollDelta.LineDelta(-4.0, 2.0), delta)
+                        assertEquals(ScrollPhase.Changed, phase)
+                        assertEquals(ScrollPhase.Began, momentum)
+                    }
+                    else -> fail(Some("native line input did not decode as a wheel"))
+                }
+            }
+        }
+    }
+}

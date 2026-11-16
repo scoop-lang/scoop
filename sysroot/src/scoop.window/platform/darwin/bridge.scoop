@@ -4,9 +4,12 @@ import scoop.window.native.NativeWindowHandle
 
 internal fun platformBackend(): WindowBackend = WindowBackend.AppKit
 
-internal fun platformTextConnection(event: NativeEvent): TextInputConnection? =
+internal fun platformTextConnection(
+    window: Long,
+    event: NativeWindowEventData
+): TextInputConnection? =
     if (event.a > 0L)
-        Some(TextInputConnection(WindowId(event.window), event.a))
+        Some(TextInputConnection(WindowId(window), event.a))
     else
         None
 

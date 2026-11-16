@@ -61,55 +61,6 @@ private fun Window.requestSystemOperation(kind: Int, edge: Int): RequestStatus {
     return RequestStatus.Requested
 }
 
-/** Accepted attachment work can be discarded on shutdown; the application owns that cleanup. */
-internal class NativeInputDelivery(
-    val application: ApplicationOwner,
-    native: Ptr<Unit>,
-    val time: InputTime
-) {
-    var pointer: Ptr<Unit>? = Some(native)
-    fun close() {
-        val value = pointer ?: return
-        pointer = None
-        @Unsafe
-        {
-            nativeInputRelease(value)
-        }
-        for (index in 0L ..< application.pendingInputs.size)
-            if (application.pendingInputs[index] === this) {
-                application.pendingInputs.removeAt(index)
-                return
-            }
-    }
-}
-
-internal struct NativeDelivery(val event: ApplicationEvent, val input: NativeInputDelivery?)
-
-internal fun ApplicationOwner.copyNativeInput(event: Ptr<Unit>): NativeInputDelivery? {
-    if (exiting)
-        return None
-    @Unsafe
-    {
-        val result = nativeInputCopy(event)
-        checkNativeStatus(result.error, "copy native window input")
-        when (result.pointer) {
-            case Some(val pointer) -> {
-                val input =
-                    NativeInputDelivery(this, pointer, copyInputTime(nativeEventData(event)))
-                pendingInputs.add(input)
-                return Some(input)
-            }
-            case None -> return None
-        }
-    }
-}
-
-@Extern(name = "scoop_window_input_copy")
-private fun nativeInputCopy(event: Ptr<Unit>): NativeCreateResult
-
-@Extern(name = "scoop_window_input_release")
-private fun nativeInputRelease(input: Ptr<Unit>)
-
 @Extern(name = "scoop_window_system_operation_prepare")
 private fun nativeSystemOperationPrepare(
     window: Ptr<Unit>,

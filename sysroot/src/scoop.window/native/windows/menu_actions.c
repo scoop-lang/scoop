@@ -23,12 +23,12 @@ void sw_menu_event(SWMenu *menu, int kind, int64_t item, int64_t window) {
     sw_fail(menu->application, ERROR_NOT_ENOUGH_MEMORY);
     return;
   }
-  event->data.kind = kind;
+  event->header.kind = kind;
   event->data.a = menu->identity;
   event->data.b = item;
   event->data.c = menu->serial;
   event->data.d = window;
-  sw_stamp_input(&event->data);
+  sw_stamp_event(&event->header);
   sw_enqueue(menu->application, event);
 }
 
@@ -106,7 +106,7 @@ bool sw_menu_activate(SWMenuEntry *entry) {
     if (!event)
       sw_fail(menu->application, ERROR_NOT_ENOUGH_MEMORY);
     else {
-      event->data.kind = 101;
+      event->header.kind = 101;
       event->data.flags = 1;
       sw_enqueue(menu->application, event);
     }

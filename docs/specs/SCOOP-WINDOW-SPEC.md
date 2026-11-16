@@ -179,6 +179,10 @@ AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选
 
 Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力，Gesture 只报告原生手势；这些扩展不是当前交付接口。
 
+平台输入沿原 Application 队列与 owner 交付。native 事件头保存窗口、种类和观察时间；载荷按窗口事件、键盘、修饰键与鼠标种类分别保存，不把键盘和鼠标字段叠加到一份无名参数表。三平台共用 native 输入结构和对应的 Scoop CLayout 声明；公共解码只处理 Scoop 的输入种类与相位，平台键码和修饰位通过各自的既有适配函数解释。原生输入附件由输入模块管理，复制、交付及释放仍遵守原系统窗口操作／拖放的时序。
+
+滚动相位使用 Window 自己的 None／MayBegin／Began／Stationary／Changed／Ended／Cancelled 编码。AppKit 在平台入口显式转换 NSEventPhase；GTK 的连续滚动开始、更新和结束分别转换为 Began／Changed／Ended，传统 wheel 或没有原生阶段的事件保持 None。PixelDelta 使用当前事件 scale 对应的物理像素；AppKit／GTK 的逻辑表面像素只在平台入口乘一次 scale，Surface 转为局部逻辑像素时再除一次，LineDelta 不随 DPI 缩放。contact 与 momentum 相位独立，不把 begin／end 合并成一个普通滚动更新。
+
 PointerEvent.Button 的 clicks 是本次按下的连续点击次数，至少为 1；与该按下配对的释放沿用同一次数，不因其间的移动、其他按钮或下一次计数变化而改写。不同窗口各自记录；按钮变化、失焦、系统操作／捕获取消、超时、超出点击距离或实际拖动结束旧多击序列。四次及更多点击保留实际次数，上层编辑器可统一按三击选择单位处理。
 
 AppKit 继续使用 NSEvent.clickCount；GTK 使用 GtkGestureClick 的 pressed／released 次数，不在 Window 重算固定 0.5 秒／5 像素阈值。GTK 4.18 自身按 gtk-double-click-time、gtk-double-click-distance、gtk-dnd-drag-threshold 及设备／按钮变化结束计数；显式 Window 输入取消还重置该控制器，普通 Left 不取消按下，拖动后的 Up 保留原次数。

@@ -7,23 +7,7 @@
 #include <stdint.h>
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
-typedef struct {
-  int64_t window;
-  int32_t kind, flags;
-  int64_t a, b, c, d;
-  double x, y, z, w, scale, dx, dy;
-  const uint8_t *text;
-  int64_t text_length;
-  int64_t time_seconds, time_nanoseconds;
-} SWEventData;
-typedef struct {
-  int32_t kind;
-  int64_t anchor, cursor;
-  const uint8_t *text;
-  int64_t text_length;
-  int32_t has_replacement;
-  int64_t replacement_start, replacement_end;
-} SWTextEditData;
+#include "../events.h"
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
@@ -49,8 +33,14 @@ typedef struct {
 @property(nonatomic, strong) NSData *text;
 @end
 
-@interface SWEvent : NSObject
+@interface SWEvent : NSObject {
+  SWEventPayload _payload;
+}
+@property(nonatomic) SWEventHeader header;
 @property(nonatomic) SWEventData data;
+@property(nonatomic) SWKeyboardData keyboard;
+@property(nonatomic) SWPointerData pointer;
+@property(nonatomic) int64_t modifiers;
 @property(nonatomic, strong) NSEvent *nativeInput;
 @property(nonatomic, strong) NSData *text;
 @property(nonatomic, strong) NSArray<SWTextEdit *> *edits;
@@ -119,13 +109,7 @@ NSEventModifierFlags sw_input_modifiers(SWView *view,
 - (void)cancelComposition;
 @end
 
-enum {
-  SWKeyboard = 10,
-  SWModifiers = 11,
-  SWPointer = 12,
-  SWTextBatch = 13,
-  SWImeState = 14
-};
+enum { SWTextBatch = 13, SWImeState = 14 };
 void sw_commit(SWView *view, NSString *text);
 void sw_modifiers(SWView *view, NSEventModifierFlags flags);
 int32_t sw_text_command(SEL selector);
@@ -163,7 +147,7 @@ void sw_preferences_start(SWApplication *application);
 void sw_preferences_stop(SWApplication *application);
 BOOL sw_menu_key_equivalent(SWApplication *application, NSEvent *event);
 SWEvent *sw_event(SWWindow *window, int32_t kind);
-void sw_stamp_input(SWEventData *data);
+void sw_stamp_event(SWEventHeader *data);
 SWSnapshot sw_snapshot(SWWindow *window);
 double sw_desktop_top(void);
 void sw_frame_invalidate(SWWindow *owner);

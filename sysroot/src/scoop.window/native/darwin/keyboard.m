@@ -46,9 +46,7 @@ void sw_modifiers(SWView *view, NSEventModifierFlags flags) {
     return;
   view.modifiers = flags;
   SWEvent *event = sw_event(view.owner, SWModifiers);
-  SWEventData data = event.data;
-  data.a = (int64_t)flags;
-  event.data = data;
+  event.modifiers = (int64_t)flags;
   [view.owner.application enqueue:event];
 }
 
@@ -57,12 +55,13 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   if (!down && !view.pressedKeys[code])
     return;
   SWEvent *event = sw_event(view.owner, SWKeyboard);
-  SWEventData data = event.data;
-  data.a = native.keyCode;
-  data.b = (int64_t)sw_input_modifiers(view, native.modifierFlags);
+  SWKeyboardData data = {
+      .physical_code = native.keyCode,
+      .modifiers = (int64_t)sw_input_modifiers(view, native.modifierFlags),
+      .pressed = down};
   BOOL keyEvent =
       native.type == NSEventTypeKeyDown || native.type == NSEventTypeKeyUp;
-  data.flags = down ? 1 | (keyEvent && native.isARepeat ? 2 : 0) : 0;
+  data.repeat = down && keyEvent && native.isARepeat;
   if (keyEvent) {
     NSString *text = native.characters;
     if (!text.length || (native.modifierFlags & (NSEventModifierFlagControl |
@@ -72,11 +71,11 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
                                                 ~(NSEventModifierFlagControl |
                                                   NSEventModifierFlagCommand)];
     if (!native.characters.length && text.length)
-      data.flags |= 8;
+      data.dead = 1;
     event.text = [(text ?: native.charactersIgnoringModifiers)
         dataUsingEncoding:NSUTF8StringEncoding];
   }
-  event.data = data;
+  event.keyboard = data;
   if (down && keyEvent)
     event.nativeInput = native;
   if (down && keyEvent)
@@ -185,7 +184,7 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
     key(self, event, down);
 }
 - (void)resetInput {
-  [self cancelPointer:0];
+  [self cancelPointer:SWPointerFocusLost];
   [self cancelComposition];
   self.functionHeld = NO;
   NSEventModifierFlags locks = self.modifiers & NSEventModifierFlagCapsLock;
@@ -193,11 +192,12 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
            sortedArrayUsingSelector:@selector(compare:)]) {
     SWEvent *original = self.pressedKeys[code];
     SWEvent *event = sw_event(self.owner, SWKeyboard);
-    SWEventData data = original.data;
-    sw_stamp_input(&data);
-    data.flags = 4;
-    data.b = (int64_t)locks;
-    event.data = data;
+    SWKeyboardData data = original.keyboard;
+    data.pressed = 0;
+    data.repeat = 0;
+    data.synthetic = 1;
+    data.modifiers = (int64_t)locks;
+    event.keyboard = data;
     event.text = original.text;
     [self.owner.application enqueue:event];
   }

@@ -71,7 +71,7 @@ void sw_monitors_changed(GListModel *model, guint position, guint removed,
     sw_fail(app, ENOMEM);
     return;
   }
-  event->data.kind = 100;
+  event->header.kind = 100;
   sw_enqueue(app, event);
 }
 void *scoop_window_monitors(void) {
