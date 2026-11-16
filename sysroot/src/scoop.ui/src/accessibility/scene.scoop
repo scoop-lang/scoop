@@ -13,7 +13,7 @@ private class SemanticPlacement(
     val generation: ULong,
     private val geometry: SemanticGeometry,
     private val order: Long,
-    private val hit: NativeGeometryHitTest,
+    private val hit: NativeGeometry,
     val reveal: SemanticRevealPlacement
 ): Closeable {
     private var closed = false
@@ -83,7 +83,7 @@ internal class SemanticScene: Closeable {
             }
         @Unsafe
         {
-            shape.withNativeHitTest {
+            shape.withNativeGeometry {
                 hit ->
                 val placement =
                     SemanticPlacement(

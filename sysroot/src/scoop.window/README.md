@@ -68,7 +68,7 @@ Text／TextField 的已知非保护 value 同时提供纯文本正文；`selecti
 
 更新后调用 `publish()`，原生 getter 仅读取已发布状态。`node.geometry` 是可选的已接受布局几何，使用窗口内容逻辑坐标；可选 visibleBounds 描述自身裁剪，零面积不算可见。名称／值改变会清除旧几何，匹配布局可用后再设置；不能以外接矩形中心代替精确可点击点。发布不触发绘制，无变化不重复通知。
 
-自绘宿主可用 `@Unsafe node.setGeometry(geometry, hitTest, order = 0L)` 同时提供匹配的原生命中快照与场景顺序。`scoop.window.accessibility.native.NativeSemanticHitTest` 包含 context、retain、release 和 contains；函数必须是配套的原生只读实现，不进入 Scoop 或 UI 状态。节点和已发布投影分别保留引用，替换、内容失效及关闭时释放。普通 geometry 赋值只保留矩形并清除旧命中。AppKit 按场景顺序查询，支持路径孔洞、裁剪、ignored 祖先映射和独立后代；阅读顺序保持不变。UI 已使用 graphics 的 withNativeHitTest 接入这条路径，普通 UI Element 直接使用 SceneContext.semantics。
+自绘宿主可用 `@Unsafe node.setGeometry(geometry, hitTest, order = 0L)` 同时提供匹配的原生命中快照与场景顺序。`scoop.window.accessibility.native.NativeSemanticHitTest` 包含 context、retain、release 和 contains；函数必须是配套的原生只读实现，不进入 Scoop 或 UI 状态。节点和已发布投影分别保留引用，替换、内容失效及关闭时释放。普通 geometry 赋值只保留矩形并清除旧命中。AppKit 按场景顺序查询，支持路径孔洞、裁剪、ignored 祖先映射和独立后代；阅读顺序保持不变。UI 已使用 graphics 的 withNativeGeometry 接入这条路径，普通 UI Element 直接使用 SceneContext.semantics。
 
 `SemanticRelations(labelledBy = [label.id], describedBy = [hint.id], errorMessages = [error.id], controls = [target.id])` 使用同一 provider 的活动节点，保持数组顺序，替换时拒绝重复与自身引用。显式 name／description／error（包括空字符串）优先，否则由对应标签文字解析；静态 Text 的非受保护 value 可以被用作标签文字，未知与已知空文字分开。实际采用的名称依赖环在 publish 时拒绝，保留之前的原生投影，可修正后重试；显式名称已覆盖的依赖不构成实际名称环。目标改名更新依赖者，关闭目标清理引用；`node.relations` 返回清理后的关系。名称依赖变化同样清除旧几何并递增 `contentRevision`，调用方不能用旧版本场景重新发布位置。hidden 标签可贡献显式引用的文字，但不恢复到导航树中。
 

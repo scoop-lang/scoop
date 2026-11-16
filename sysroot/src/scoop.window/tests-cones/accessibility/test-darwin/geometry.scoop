@@ -158,7 +158,7 @@ private fun install(node: AccessibilityNode, shape: CanvasGeometry, order: Long)
     val geometry = SemanticGeometry(hitRect(shape.bounds), visible)
     @Unsafe
     {
-        shape.withNativeHitTest {
+        shape.withNativeGeometry {
             hit -> @Unsafe
             {
                 node.setGeometry(

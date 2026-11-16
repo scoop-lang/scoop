@@ -23,6 +23,12 @@
 
 ## 已交付变更
 
+### 文本范围查询所需的底层接入
+
+- 原生文本与几何查询已独立通过 [PR #144](https://github.com/scoop-lang/scoop/pull/144) 合入 main；本地 main、工作分支和开发 graphics／text 产物已更新。TextLayout.withNativeLayout 保留同一排版的 native 查询，普通资源关闭后仍可使用；绘制与并发查询共用排版缓存的串行访问边界，没有额外 shaping 或逐字符矩形副本。
+- 几何借用统一为 withNativeGeometry／NativeGeometry，包含原 contains 与新增 toLocal／完整或精确可见 mapRect。现有 UI 场景和 Window 测试调用同步迁移；Window 的独立 NativeSemanticHitTest 合同保持。
+- 底层 aarch64-apple-darwin release 的几何 3 项、文本库 66 项，以及格式、C++20 严格编译、Scoop 检查、生成 API／import 核对均通过。上层文本范围几何与单位导航仍需接入 S5 的 Accepted 场景并实际验证，不以此底层交付声明完成。
+
 ### 系统交互偏好的 Window 接口
 
 - `InteractionPreferences` 区分未知值与明确关闭，覆盖滚动条、运动、对比度、透明度、文字缩放、caret 和双击间隔；保留物理宽度、宽高比和时间单位的差异。
