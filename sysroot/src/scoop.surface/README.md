@@ -72,7 +72,9 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 事件处理器接收 `(RoutedEventContext, InputEvent)`，返回 Unit。InputScope 的 captureHandler、handler 和 defaultAction 分别接收 capture、target／bubble 和默认动作。`stopPropagation()` 只停止传播，`preventDefault()` 只取消默认动作，`consume()` 同时执行两者。默认阶段从目标向根执行；主按钮按下的聚焦也在这一阶段，可由父级取消。窗口有 OS 焦点而没有区域焦点时，键盘事件从根 scope 开始。
 
-上下文的 target／currentTarget 是逻辑 scope，localPosition 只在带几何的区域指针事件中存在，窗口位置保留在 InputPointer.state；上下文随同步回调结束而失效。Enter／Leave、焦点、修饰键与取消是不可取消的通知，文本只给对应 IME 会话。首次按钮按下固定整次多按钮序列的路径，空白区域按下固定根路径；拖出窗口仍可继续，取消向旧路径完整交付，剩余按钮事件不会改投其他区域。滚轮区分行与逻辑像素。`onEventFinished(InputEvent)` 在每次可路由输入之后通知原路径内仍有效节点，即使传播或默认行为被取消；控件用它结束释放序列，不执行被取消的激活。
+上下文的 target／currentTarget 是逻辑 scope，localPosition 在带几何的区域指针或原生手势事件中存在，窗口位置保留在 InputPointer.state 或 GestureEvent.state；上下文随同步回调结束而失效。Enter／Leave、焦点、修饰键与取消是不可取消的通知，文本只给对应 IME 会话。首次按钮按下固定整次多按钮序列的路径，空白区域按下固定根路径；拖出窗口仍可继续，取消向旧路径完整交付，剩余按钮事件不会改投其他区域。滚轮区分行与逻辑像素。`onEventFinished(InputEvent)` 在每次可路由输入之后通知原路径内仍有效节点，即使传播或默认行为被取消；控件用它结束释放序列，不执行被取消的激活。
+
+`InputEvent.Gesture` 保留原生识别结果；Magnify／Rotate 的 Began 各自固定起始命中路径，后续更新使用当前 Accepted 坐标，None 相位与 Swipe 独立命中。禁用、卸载、模态、失焦或关闭取消活动路由，迟到更新不会转交兄弟区域。手势不移动鼠标 hover 或焦点；普通 Capture／Target／Bubble／Default 与完成通知仍适用。具体单位见 Window README，公共内容变换见 [UI 手势示例](../scoop.ui/examples/gestures/README.md)。
 
 `InputBoundary(scope)` 将输入限制到该 scope 的逻辑后代，命中、焦点、capture／bubble／default 和空白处的缺省目标都停在当前域。边界按建立顺序叠放，`isCurrent` 与 `SurfaceWindow.inputBoundary` 查询当前屏障；关闭恢复前一域。域改变会完整取消原来的按下路径，剩余按钮事件保持空路径。域外的区域不必有场景几何，但逻辑祖先的禁用／关闭仍然生效；`scope.isInputAllowed` 可在首次放置前判断准入。上层通过 `SurfaceWindow.reserveFocusRequest()` 为待处理或被拒绝的显式焦点意图推进同一个 focusRevision，不改变当前焦点，也不改写 InputArea 的成功历史。
 

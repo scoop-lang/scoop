@@ -1,0 +1,221 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+/** Reports a content transform without changing application geometry or business state. */
+public class TransformGesture internal constructor(
+    private val area: InputArea,
+    initial: TransformGestureOptions,
+    handler: (TransformGestureEvent) -> Unit
+): Closeable {
+    private var options = initial
+    private var receive = handler
+    private var closed = false
+    private var magnifying = false
+    private var rotating = false
+    private var latest: TransformGestureSample? = None
+    private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
+    private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
+    private val finished = area.scope.addEventFinished { event -> finish(event) }
+
+    public val isTransforming: Boolean get() {
+        area.isClosed
+        return magnifying || rotating
+    }
+    public val isClosed: Boolean get() {
+        area.isClosed
+        return closed
+    }
+
+    public fun update(value: TransformGestureOptions, handler: (TransformGestureEvent) -> Unit) {
+        requireUi(!closed && !area.isClosed, "transform gesture is closed")
+        val changed = value.magnify != options.magnify || value.rotate != options.rotate
+        options = value
+        receive = handler
+        if (!value.enabled)
+            cancel(TransformGestureCancelReason.Disabled)
+        else
+            if (changed)
+                cancel(TransformGestureCancelReason.ConfigurationChanged)
+    }
+
+    private fun active(kind: GestureKind): Boolean =
+        when (kind) {
+            case Magnify -> magnifying
+            case Rotate -> rotating
+            case Swipe -> false
+        }
+
+    private fun setActive(kind: GestureKind, value: Boolean) {
+        when (kind) {
+            case Magnify -> magnifying = value
+            case Rotate -> rotating = value
+            case Swipe -> {}
+        }
+    }
+
+    private fun observe(context: RoutedEventContext, event: InputEvent) {
+        if (closed || context.phase != RoutedPhase.Notification)
+            return
+        when (event) {
+            case Gesture(InputGestureEvent.Cancelled(val kind, val reason, _)) -> {
+                if (active(kind))
+                    cancel(TransformGestureCancelReason.Input(reason))
+            }
+            else -> {}
+        }
+    }
+
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (closed || !options.enabled)
+            return
+        val native =
+            when (event) {
+                case Gesture(InputGestureEvent.Native(val value)) -> value
+                else -> return
+            }
+        val(scaleDelta, rotationDelta) =
+            when (native) {
+                case Magnify(_, _, val value) -> {
+                    if (!options.magnify)
+                        return
+                    (1.0 + value, 0.0)
+                }
+                case Rotate(_, _, val value) -> {
+                    if (!options.rotate)
+                        return
+                    (1.0, value)
+                }
+                case Swipe(_, _, _) -> return
+            }
+        val kind = native.kind
+        val phase = native.phase
+        if (phase == GesturePhase.Cancelled) {
+            if (active(kind)) {
+                context.consume()
+                cancel(TransformGestureCancelReason.Native)
+            }
+            return
+        }
+        if (phase == GesturePhase.None) {
+            cancel(TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted))
+            if (closed || area.isClosed || !options.enabled)
+                return
+        } else
+            if (phase != GesturePhase.Began && !active(kind)) {
+                return
+            }
+        val starting = !magnifying && !rotating
+        if (phase == GesturePhase.Began)
+            setActive(kind, true)
+        val position = context.localPosition
+        if (position == None) {
+            cancel(TransformGestureCancelReason.GeometryUnavailable)
+            return
+        }
+        val previous = latest
+        val scale = (previous?.scale ?: 1.0) * scaleDelta
+        val rotation = (previous?.rotation ?: 0.0) + rotationDelta
+        if (
+            !scale.isFinite() ||
+                scale <=
+                0.0 ||
+                !rotation.isFinite() ||
+                !scaleDelta.isFinite() ||
+                scaleDelta <=
+                0.0 ||
+                !rotationDelta.isFinite()
+        ) {
+            cancel(TransformGestureCancelReason.InvalidTransform)
+            return
+        }
+        val sample =
+            TransformGestureSample(
+                position!!,
+                scale,
+                rotation,
+                scaleDelta,
+                rotationDelta,
+                native.state.time
+            )
+        latest = Some(sample)
+        context.consume()
+        when (phase) {
+            case None -> {
+                clear()
+                receive(TransformGestureEvent.Discrete(sample))
+            }
+            case Ended -> {
+                setActive(kind, false)
+                if (!magnifying && !rotating) {
+                    clear()
+                    receive(TransformGestureEvent.Ended(sample))
+                } else {
+                    receive(TransformGestureEvent.Changed(sample))
+                }
+            }
+            else -> if (starting)
+                receive(TransformGestureEvent.Started(sample))
+            else
+                receive(TransformGestureEvent.Changed(sample))
+        }
+    }
+
+    private fun finish(event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Gesture(InputGestureEvent.Native(val value)) -> {
+                if (
+                    (value.phase == GesturePhase.Ended || value.phase == GesturePhase.Cancelled) &&
+                        active(value.kind)
+                )
+                    cancel(TransformGestureCancelReason.PreventedEnd)
+            }
+            else -> {}
+        }
+    }
+
+    private fun clear() {
+        magnifying = false
+        rotating = false
+        latest = None
+    }
+
+    public fun cancel() {
+        area.isClosed
+        if (!closed)
+            cancel(TransformGestureCancelReason.Explicit)
+    }
+
+    private fun cancel(reason: TransformGestureCancelReason) {
+        val snapshot = latest
+        clear()
+        when (snapshot) {
+            case Some(val value) -> receive(TransformGestureEvent.Cancelled(value, reason))
+            case None -> {}
+        }
+    }
+
+    public override fun close() {
+        area.isClosed
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupUi(None) { cancel(TransformGestureCancelReason.Closed) }
+        failure = cleanupUi(failure) { events.close() }
+        failure = cleanupUi(failure) { defaults.close() }
+        failure = cleanupUi(failure) { finished.close() }
+        throwUi(failure)
+    }
+}
+
+public fun ComponentScope.transformGesture(
+    area: InputArea,
+    options: TransformGestureOptions = TransformGestureOptions(),
+    handler: (TransformGestureEvent) -> Unit
+): TransformGesture {
+    requireBehaviorArea(area)
+    return resource { TransformGesture(area, options, handler) }
+}

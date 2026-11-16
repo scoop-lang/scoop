@@ -20,6 +20,7 @@ typedef union {
   SWEventData window;
   SWKeyboardData keyboard;
   SWPointerData pointer;
+  SWGestureData gesture;
   int64_t modifiers;
 } SWEventPayload;
 

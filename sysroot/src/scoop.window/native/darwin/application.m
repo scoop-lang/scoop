@@ -19,6 +19,12 @@
 - (void)setPointer:(SWPointerData)value {
   _payload.pointer = value;
 }
+- (SWGestureData)gesture {
+  return _payload.gesture;
+}
+- (void)setGesture:(SWGestureData)value {
+  _payload.gesture = value;
+}
 - (int64_t)modifiers {
   return _payload.modifiers;
 }
@@ -224,6 +230,9 @@ SWKeyboardData scoop_window_event_keyboard(void *pointer) {
 }
 SWPointerData scoop_window_event_pointer(void *pointer) {
   return [(__bridge SWEvent *)pointer pointer];
+}
+SWGestureData scoop_window_event_gesture(void *pointer) {
+  return [(__bridge SWEvent *)pointer gesture];
 }
 int64_t scoop_window_event_modifiers(void *pointer) {
   return [(__bridge SWEvent *)pointer modifiers];

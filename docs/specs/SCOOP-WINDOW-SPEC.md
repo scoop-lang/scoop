@@ -70,7 +70,7 @@ AppKit 读取 NSScroller.preferredScrollerStyle、NSWorkspace 的减少动画／
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、InteractionPreferencesChanged(InteractionPreferences)、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
 
-WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。触摸、手势、文件拖放和平台专有激活结果随对应能力后续增加。
+WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、Gesture(GestureEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。原始触摸和平台专有激活结果随对应能力后续增加；数据拖放使用独立会话合同。
 
 NewEvents 原因区分 Init、Poll、Wake 与 Deadline；平台没有信息时不伪造输入硬件时间。允许合并 redraw、连续 geometry 和 pointer move，但不得跨过按键／按钮、IME 编辑、焦点、close 等顺序边界；Commit、drop、button、touch 的开始／结束及 lifecycle 不得丢弃。
 
@@ -177,7 +177,11 @@ AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选
 
 `TextInputState.apply(batch)` 提供上述字节编辑规则的纯值实现，供输入归一和应用同步快照使用，不承担文档布局。CurrentSelection 在存在 marked range 时替换组合文本，否则替换 selection；ClearPreedit 只清除 marked 标记。Preedit 插入后设置 marked range，并把相对 selection 平移到新文本；Commit 清除组合，光标落在插入末尾。DeleteSurrounding 删除 selection 之前／之后指定字节，保留选区正文与活动端方向，清除组合标记。成功批次统一使 revision 加一，空批次保持原值；过期 revision 报 IllegalStateException，非法范围、尺寸或 revision 溢出报 IllegalArgumentException，原快照保持不变。
 
-Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力，Gesture 只报告原生手势；这些扩展不是当前交付接口。
+Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力；原始接触不被已识别手势替代。
+
+WindowEvent.Gesture(GestureEvent) 交付系统已经识别的手势。GestureEvent.Magnify(PointerState, GesturePhase, Double) 的值为相对缩放增量，当前事件的缩放倍率是 1 + delta；Rotate 的同形载荷使用顺时针为正的弧度增量。两者的 GesturePhase 为 None／Began／Changed／Ended／Cancelled；None 表示系统未提供序列相位，该事件独立消费。GestureEvent.Swipe(PointerState, Double, Double) 是离散方向动作，x 向右、y 向下；方向值不冒充像素位移、速度或接触轨迹。PointerState 在此只保存位置、DPI、修饰键、时间和可得设备身份，不修改鼠标按钮状态或伪造触点。
+
+AppKit 的 magnifyWithEvent／rotateWithEvent／swipeWithEvent 在 Window input 内转换；旋转角度和 swipe 的坐标方向只在平台边界转换一次。连续缩放／旋转分别维护实际活动状态；失焦、模态、菜单跟踪或系统窗口操作取消仍活动的序列，重复取消不再发事件，结束／取消后的迟到更新不重启序列。无原生独立手势流的平台继续报告实际取得的滚轮／接触事实，不从普通滚轮合成缩放或 swipe。直接触摸识别及自定义手势仍属于 Surface／UI 的后续接入。
 
 平台输入沿原 Application 队列与 owner 交付。native 事件头保存窗口、种类和观察时间；载荷按窗口事件、键盘、修饰键与鼠标种类分别保存，不把键盘和鼠标字段叠加到一份无名参数表。三平台共用 native 输入结构和对应的 Scoop CLayout 声明；公共解码只处理 Scoop 的输入种类与相位，平台键码和修饰位通过各自的既有适配函数解释。原生输入附件由输入模块管理，复制、交付及释放仍遵守原系统窗口操作／拖放的时序。
 

@@ -1,6 +1,6 @@
 # Window 输入事件边界调研与重构方案
 
-日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，contact／原生 gesture 按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
+日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，AppKit 原生 gesture、Surface 路由与 UI 内容变换已接入；原始 contact 按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
 
 ## 1. 结论
 
@@ -29,7 +29,7 @@ flowchart LR
 | [native/input.h](../../../sysroot/src/scoop.window/native/input.h) 与 [input/abi.scoop](../../../sysroot/src/scoop.window/src/native/input/abi.scoop) | 共享输入种类、相位、有名载荷和对应 CLayout | 窗口／时间放在事件头，避免输入继续复用无名参数槽 |
 | [input/events.scoop](../../../sysroot/src/scoop.window/src/native/input/events.scoop) | 把 typed native 载荷转换为公共事件 | 公共解码只解释 Window 相位；AppKit 位值在平台入口转换 |
 | [input/delivery.scoop](../../../sysroot/src/scoop.window/src/native/input/delivery.scoop) 与各平台 `input/delivery` | 复制、保留和释放原生输入附件 | 窗口移动、resize 和数据拖放继续消费同一附件，不新增交付队列 |
-| [Surface InputRouter](../../../sysroot/src/scoop.surface/src/shared/input/router.scoop) | 当前只有一份 pointer／pressed／pointerClaim | 鼠标聚合模型之外，需要按触点分别保存接触路径和归属 |
+| [Surface InputRouter](../../../sysroot/src/scoop.surface/src/shared/input/router.scoop) | 鼠标使用一份 pointer／pressed／pointerClaim；原生 Magnify／Rotate 已有独立序列路由 | 鼠标聚合模型之外，需要按触点分别保存接触路径和归属 |
 
 调研时相位转换存在一个可从源码确认的不一致。GTK 回调把 begin／scroll／end 分别写成 detail 0／1／2，`sw_pointer` 原样写入 `data.a`；公共 `scrollPhase` 却把它当 NSEventPhase 位值：
 
@@ -92,7 +92,7 @@ UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等
 
 | 平台 | 选择 | 需要守住的边界 |
 | --- | --- | --- |
-| macOS | 保留鼠标／键盘 NSResponder 回调；增加 magnifyWithEvent／rotateWithEvent／swipeWithEvent 等实际原生手势入口 | 触控板手势与直接触屏不同；滚动 phase 与 momentumPhase 分开。原始 NSTouch 的设备位置不能冒充窗口内容中的触摸坐标 |
+| macOS | 保留鼠标／键盘 NSResponder 回调；已接入 magnifyWithEvent／rotateWithEvent／swipeWithEvent 原生手势入口 | 触控板手势与直接触屏不同；滚动 phase 与 momentumPhase 分开。原始 NSTouch 的设备位置不能冒充窗口内容中的触摸坐标 |
 | Windows | 普通鼠标保留现有 WM_MOUSE*；触摸／笔沿 WM_POINTER* 及对应查询取得信息，处理每个 pointer 的捕获与取消 | 明确处理与默认处理的边界；关联兼容鼠标消息，既避免重复点击，又保留 OLE 从合成鼠标消息启动拖放所需的原生上下文 |
 | GTK 4 | 鼠标继续使用 GtkGestureClick 的计数；直接触摸沿 GdkTouchEvent／GdkEventSequence；原生触控板使用 GdkTouchpadEvent 的 phase／delta | GtkGestureClick 本身也可能处理触摸，需在输入适配边界确定单一交付路径。GTK 原生 sequence 的传播与 UI 控件间的 claim 分层处理 |
 

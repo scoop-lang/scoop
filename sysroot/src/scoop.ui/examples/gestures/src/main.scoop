@@ -1,0 +1,123 @@
+package scoop.examples.ui.gestures
+
+import scoop.graphics.*
+import scoop.math.round
+import scoop.ui.*
+
+internal struct CardInput(
+    val scale: Double,
+    val rotation: Double,
+    val card: Int,
+    val transform: (Double, Double) -> Unit,
+    val switchCard: (Int) -> Unit
+)
+
+internal struct ButtonInput(val text: String, val action: () -> Unit)
+
+private class GestureDemo(scope: ComponentScope): Component(scope) {
+    private var zoom: Double by state(1.0)
+    private var angle: Double by state(0.0)
+    private var card: Int by state(0)
+
+    private fun transform(scaleDelta: Double, rotationDelta: Double) {
+        val next = zoom * scaleDelta
+        zoom =
+            if (next < 0.25)
+                0.25
+            else
+                if (next > 4.0)
+                    4.0
+                else
+                    next
+        angle = (angle + rotationDelta) % 6.283185307179586
+    }
+    private fun switchCard(direction: Int) {
+        card = (card + direction + 3) % 3
+    }
+    private fun button(text: String, action: () -> Unit): View =
+        element(ButtonInput(text, action), { props, mount -> GestureButton(props, scope = mount) })
+
+    public override fun render(): View {
+        val message =
+            "Pinch to zoom, rotate with two fingers, or swipe to change the card.\n" +
+                "Tab selects an action; Enter or Space activates it.\n" +
+                f"Card ${card + 1}  ·  Zoom ${round(zoom * 100.0)}%  ·  Rotation ${
+                    round(angle * 57.29577951308232)
+                }°"
+        val input =
+            CardInput(
+                zoom,
+                angle,
+                card,
+                { scale, rotation -> transform(scale, rotation) },
+                { step -> switchCard(step) }
+            )
+        return element(
+            { mount -> GestureLayout(scope = mount) },
+            [
+                element(message, { props, mount -> GestureLabel(props, scope = mount) }),
+                element(input, { props, mount -> GestureCard(props, scope = mount) }),
+                button("Zoom out", { transform(1.0 / 1.2, 0.0) }),
+                button("Zoom in", { transform(1.2, 0.0) }),
+                button("Rotate left", { transform(1.0, -0.2617993877991494) }),
+                button("Rotate right", { transform(1.0, 0.2617993877991494) }),
+                button(
+                    "Reset",
+                    {
+                        zoom = 1.0;
+                        angle = 0.0
+                    }
+                ),
+                button("Previous card", { switchCard(-1) }),
+                button("Next card", { switchCard(1) })
+            ]
+        )
+    }
+}
+
+private class GestureLayout(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(760.0, 560.0))
+        val width =
+            if (size.width > 48.0)
+                size.width - 48.0
+            else
+                0.0
+        val header = context.measureChild(0L, Constraints(maxWidth = Some(width)))
+        context.placeChild(0L, Point(24.0, 20.0))
+        val top = header.size.height + 36.0
+        val height =
+            if (size.height > top + 140.0)
+                size.height - top - 140.0
+            else
+                0.0
+        context.measureChild(1L, Constraints.tight(Size(width, height)))
+        context.placeChild(1L, Point(24.0, top))
+        val cell =
+            if (width > 24.0)
+                (width - 24.0) / 4.0
+            else
+                0.0
+        for (index in 0L ..< 7L) {
+            context.measureChild(index + 2L, Constraints.tight(Size(cell, 44.0)))
+            context.placeChild(
+                index + 2L,
+                Point(
+                    24.0 + (index % 4L).toDouble() * (cell + 8.0),
+                    top + height + 16.0 + (index / 4L).toDouble() * 52.0
+                )
+            )
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color(0.95, 0.97, 0.99)) }
+        context.children()
+    }
+}
+
+fun main() {
+    runUiApplication("Scoop — native gestures", { mount -> GestureDemo(scope = mount) })
+}

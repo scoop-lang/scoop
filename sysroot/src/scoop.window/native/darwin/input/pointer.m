@@ -64,6 +64,7 @@ static void pointer(SWView *view, NSEvent *native, SWPointerKind kind) {
 
 @implementation SWView (Pointer)
 - (void)cancelPointer:(int32_t)reason {
+  [self cancelGestures];
   if (!self.pressedButtons.count)
     return;
   [self.pressedButtons removeAllObjects];

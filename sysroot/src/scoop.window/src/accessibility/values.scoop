@@ -20,7 +20,7 @@ public class SemanticNodeId internal constructor(
 
 /** Roles implemented by the initial native content provider. */
 public enum SemanticRole {
-    Group, Text, Button, Checkbox, TextField, ScrollArea, ScrollBar, Switch, ToggleButton, RadioButton, RadioGroup
+    Group, Text, Button, Checkbox, TextField, ScrollArea, ScrollBar, Switch, ToggleButton, RadioButton, RadioGroup, Image
 }
 
 public enum SemanticChecked {

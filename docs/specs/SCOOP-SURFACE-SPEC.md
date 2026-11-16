@@ -292,6 +292,14 @@ Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines
 
 派发前冻结观察登记，期间新建者不接收当前事件，已关闭者跳过；关闭只移除自己的登记，scope 退休自动清理，窗口／router 关闭对仍在登记的观察者交付一次终端 Closed。观察回调失败不跳过其余必要清理，最终传播错误。该接口服务有实际活动会话的 hover、typeahead 等组合，不要求每个 scope 常驻观察。
 
+### 6.7 原生手势路由
+
+InputEvent.Gesture(InputGestureEvent) 沿既有 Capture／Target／Bubble／Default 阶段交付，Native(GestureEvent) 保留 Window 的系统识别结果。GestureKind 区分 Magnify／Rotate／Swipe；Cancelled(kind, reason, time) 是 Surface 对活动序列的终止通知。取消通知不可消费，不触发默认业务操作。
+
+Magnify 与 Rotate 在 Began 时分别记录最近 Accepted 几何中的命中路径及当前边界；后续 Changed／Ended／Cancelled 沿该路径交付，不因鼠标移动重新命中。两类序列可由同一消费者明确组合。无 Began 的更新不新建路由，None 相位和离散 Swipe 只按本次位置路由。手势不改变鼠标 hover、按下集合、焦点或滚轮 momentum。
+
+目标卸载、禁用、路径或模态边界变化、窗口失焦／关闭时取消并移除活动路由；无新的 Began 不恢复，迟到事件不能转交另一目标。路由处理中的逻辑变化同样停止余下失效交付。位置按各接收区域当前 Accepted 变换转换；缩放倍率和旋转弧度保持原单位，不作为滚轮残量消费。Surface 不在此识别直接触摸，也不把自定义手势写入平台枚举。
+
 ## 7. 原生资源与错误
 
 GPU context、窗口 surface、字体／图像／Path／文本的原生持有对象使用显式 Closeable／use 生命周期。托管包装的 GC release 只允许既有 runtime 合同许可的叶子释放；不借它调用 UI、等待 GPU、注销宿主回调或投递托管闭包。

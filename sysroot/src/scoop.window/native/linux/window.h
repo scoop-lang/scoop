@@ -63,6 +63,7 @@ typedef struct SWEvent {
     SWEventData data;
     SWKeyboardData keyboard;
     SWPointerData pointer;
+    SWGestureData gesture;
     int64_t modifiers;
   };
   GdkEvent *native_input;

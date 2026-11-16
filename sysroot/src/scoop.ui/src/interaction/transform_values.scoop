@@ -1,0 +1,34 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.InputCancelReason
+import scoop.window.InputTime
+
+/** Explicitly combines native magnification and rotation on one content area. */
+public class TransformGestureOptions public constructor(
+    public val enabled: Boolean = true,
+    public val magnify: Boolean = true,
+    public val rotate: Boolean = true
+)
+
+/** Scale deltas multiply; clockwise rotation deltas add. Position is local. */
+public struct TransformGestureSample(
+    val position: Point,
+    val scale: Double,
+    val rotation: Double,
+    val scaleDelta: Double,
+    val rotationDelta: Double,
+    val time: InputTime
+)
+
+public enum TransformGestureCancelReason {
+    Input(InputCancelReason), Native, Disabled, ConfigurationChanged,
+    GeometryUnavailable, InvalidTransform, PreventedEnd, Explicit, Closed
+}
+
+public enum TransformGestureEvent {
+    Started(TransformGestureSample), Changed(TransformGestureSample), Ended(TransformGestureSample),
+    Cancelled(TransformGestureSample, TransformGestureCancelReason), Discrete(
+        TransformGestureSample
+    )
+}

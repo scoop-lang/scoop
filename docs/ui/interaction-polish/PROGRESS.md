@@ -19,9 +19,19 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S7～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
+| S8 | 进行中 | AppKit 原生 Magnify／Rotate／Swipe、Surface 起始路由与 UI transformGesture 已接入；本地事件／路由／组合回归通过；示例、Image 语义与按钮／键盘等价操作已验证，用户已确认真实触控板缩放／旋转正常；原始 contact、直接触摸识别、控件与文本触摸接入及其余设备矩阵仍待完成 |
+| S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
+
+### 原生手势与内容变换
+
+- AppKit 的 Magnify／Rotate／Swipe 沿 Window input 和原队列交付；倍率增量、顺时针弧度、向右／向下的离散方向在平台边界明确转换。连续缩放与旋转分别维护活动状态，失焦、模态及原生接管沿已有取消入口终止，迟到更新不重启。原生手势不伪造触点或修改鼠标按钮。
+- Surface 在 Began 时记录最近 Accepted 几何的目标路径；后续交付沿该路径，目标／边界失效、失焦和关闭显式取消。短暂打开又关闭边界也终止原序列，不因最终路径相同而继续默认行为。局部位置随当前 Accepted 几何转换，倍率与角度保持原单位；滚轮残量和 momentum 路由不参与手势消费。
+- UI 的 `ComponentScope.transformGesture` 明确组合缩放与旋转，报告累计值、本次增量和完整结束／取消。选项变更、无效累计变换、阻止结束事件和处理器内关闭均清理会话；关闭只注销自己的登记。后续原始 contact 与自定义识别继续沿统一输入和归属边界接入，未提前加入识别器插件或占位 API。
+- [可运行示例](../../../sysroot/src/scoop.ui/examples/gestures/README.md)使用同一业务操作处理卡片缩放、旋转、恢复和切换；按钮提供 Tab、Enter／Space 与语义 Invoke。已用真实应用检查画面、焦点边框、按钮／键盘结果和原生语义树更新，修正了角度显示截断。补充 `SemanticRole.Image` 与 AppKit 图像角色映射，图像名称和几何沿现有合同发布，不隐含点击或焦点动作。
+- aarch64-apple-darwin release 共 21 项定向回归通过：Window 原生手势与既有 AppKit 输入各 1 项、Surface 手势路由 7 项及滚动回归 10 项、UI 组合手势实窗 1 项、含 Image 的 Window accessibility 原生方法 1 项。4 个 GUI 场景分别在独立进程执行。手势用例通过受控 NSEvent 属性进入生产 responder／队列，验证单位、相位、取消和组合。用户另在示例中确认真实触控板捏合与双指旋转正常，卡片和数值同步、松手后停止；原生 Swipe 的真实设备输入及读屏器验收仍待完成。
+- Scoop 格式与检查、Darwin 生产输入和新增原生测试的严格语法／警告检查通过。Window、Surface、UI 规范、accessibility 设计、README、示例与编程材料同步，三库生成 API 的导入路径和签名已核对；Window、Window.asyncio、Surface、UI、Style、四套主题与 Component 共 10 个开发产物已更新。Windows／GTK 手势采集、直接触屏与完整设备矩阵仍按 S8 推进。
 
 ### 平台输入边界与载荷
 

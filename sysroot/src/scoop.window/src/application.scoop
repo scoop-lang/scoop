@@ -38,7 +38,7 @@ public enum WindowEvent {
     ), ThemeChanged(Theme?),
     Keyboard(KeyEvent), TextCommand(TextEditCommand), ModifiersChanged(Modifiers), Pointer(
         PointerEvent
-    ), TextInput(TextInputEvent)
+    ), Gesture(GestureEvent), TextInput(TextInputEvent)
 }
 
 /** Receives serial application events on the native owner thread. */

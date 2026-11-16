@@ -34,6 +34,7 @@ internal class InputRouter(
     internal var pressed: Array<InputScope>? = None
     internal var pointerClaim: InputScope? = None
     internal var scrollRoute: InputScrollRoute? = None
+    internal val gestureRoutes = ArrayList<InputGestureRoute>()
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
@@ -168,6 +169,11 @@ internal class InputRouter(
                 dispatch {
                     when (event) {
                         case Pointer(val value) -> pointerEvent(value)
+                        case Gesture(val value) -> gestureEvent(value)
+                        case InputBlockedChanged(true) -> cancelGestures(
+                            InputCancelReason.Window(PointerCancelReason.Modal),
+                            inputObservation()
+                        )
                         case Focused(val value) -> {
                             osFocused = value
                             pending = true
@@ -230,6 +236,9 @@ internal class InputRouter(
                     if (closed)
                         continue
                     reconcileScroll()
+                    if (closed)
+                        continue
+                    reconcileGestures()
                     if (closed)
                         continue
                     reconcileFocus()

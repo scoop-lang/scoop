@@ -1,6 +1,6 @@
 # UI 交互打磨与 accessibility 实施计划
 
-日期：2026-11-16。状态：S0～S6 进行中，S7～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
+日期：2026-11-16。状态：S0～S6、S8 进行中，S7、S9～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
 
 本计划统一安排[交互打磨设计](DESIGN.md)与[accessibility 设计](../accessibility/DESIGN.md)的实现、消费者迁移和验收。两份设计规定行为与技术边界，本文规定任务拆分、依赖、交付顺序和完成条件；设计中的 U0～U5、P0～P5 仅作为来源分组对照，后续按本文记录实施状态。
 
@@ -198,6 +198,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 **主要范围：** Window touch／原生 gesture、Surface contact 路由、UI 公共行为、文本宿主及现有交互控件。先改 Window、Surface、UI、Component spec。
 
+- [x] 接通 AppKit 原生 Magnify／Rotate／Swipe、Surface 连续手势路由和 UI 内容变换行为；原生边界／路由／消费者的本地回归与示例见实施记录。用户已确认真实触控板捏合／旋转及松手停止正常，Swipe 和其余设备矩阵继续单独验收。
 - [ ] 提供 contact 生命周期、设备来源、时间、位置及真实可得的压力等字段；区分鼠标、直接触摸、笔和触控板原生 gesture，不伪造缺失设备事实。
 - [ ] 按接触序列或相关 contact 组扩展归属／取消；支持 tap／多击、long press、pan、pinch、rotate、swipe，保留明确的同时识别组合和失败候选取消。
 - [ ] 为后续自定义手势保留同一输入与归属边界：原始 contact 可在 UI 消费，内建识别器与平台采集／具体控件解耦；新识别逻辑无需新增 Window 手势枚举，仍遵守取消、同时识别及命令／accessibility 规则。本轮不提前增加空 API 或插件框架。

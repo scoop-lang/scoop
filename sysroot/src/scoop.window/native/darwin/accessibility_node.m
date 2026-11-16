@@ -31,12 +31,12 @@
   if (!state)
     return nil;
   NSAccessibilityRole roles[] = {
-      NSAccessibilityGroupRole,     NSAccessibilityStaticTextRole,
-      NSAccessibilityButtonRole,    NSAccessibilityCheckBoxRole,
-      NSAccessibilityTextFieldRole, NSAccessibilityScrollAreaRole,
-      NSAccessibilityScrollBarRole, NSAccessibilityButtonRole,
-      NSAccessibilityButtonRole,    NSAccessibilityRadioButtonRole,
-      NSAccessibilityRadioGroupRole};
+      NSAccessibilityGroupRole,      NSAccessibilityStaticTextRole,
+      NSAccessibilityButtonRole,     NSAccessibilityCheckBoxRole,
+      NSAccessibilityTextFieldRole,  NSAccessibilityScrollAreaRole,
+      NSAccessibilityScrollBarRole,  NSAccessibilityButtonRole,
+      NSAccessibilityButtonRole,     NSAccessibilityRadioButtonRole,
+      NSAccessibilityRadioGroupRole, NSAccessibilityImageRole};
   return roles[state.data.role];
 }
 - (NSString *)accessibilitySubrole {

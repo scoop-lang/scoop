@@ -435,7 +435,7 @@ Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handl
 
 ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 的 parent: InputArea? 缺省 None，连接本挂载的 input；显式父区域须属于同一挂载，允许通过该挂载自己的区域嵌套，不能穿过另一个挂载的 InputScope。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
 
-容器可以用 `scope.routeChildren(area)` 将同一挂载拥有的区域作为直接子挂载的输入父节点；缺省为自身 input。该选择属于挂载逻辑，与当前布局、clip 和显示层无关。更新此选择时重新连接已经存在的直接子 scope，后续创建的子 scope 使用同一选择。createArea、routeChildren、focusTarget 和 Press／Drag 使用同一归属检查：沿区域父链可到本挂载 input，中间不得经过其他挂载作用域，因此不能借此把后代挂载节点变成本挂载子项的共同父节点。
+容器可以用 `scope.routeChildren(area)` 将同一挂载拥有的区域作为直接子挂载的输入父节点；缺省为自身 input。该选择属于挂载逻辑，与当前布局、clip 和显示层无关。更新此选择时重新连接已经存在的直接子 scope，后续创建的子 scope 使用同一选择。createArea、routeChildren、focusTarget 和 Press／Drag／TransformGesture 使用同一归属检查：沿区域父链可到本挂载 input，中间不得经过其他挂载作用域，因此不能借此把后代挂载节点变成本挂载子项的共同父节点。
 
 UI 管理的 scope.parent 由挂载和 routeChildren 维护，调用方通过这两个入口改变关系，不在框架外手工重接这些 scope。
 
@@ -803,6 +803,16 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 ### 7.15 语义登记与场景
 
 `ComponentScope.semantics`、`SemanticsHandle`、子挂载语义路由与 `SceneContext.semantics` 的接口、发布和寿命见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。语义节点使用 Window 的公共角色、属性、动作与身份；不要求 InputArea，不从绘图或控件类名推断。逻辑属性更新沿已有根更新队列发布，几何沿 Accepted 场景发布；登记命令参与场景缓存，不增加逐控件完成回调或持续帧。
+
+### 7.16 内容缩放与旋转手势
+
+`ComponentScope.transformGesture(area, options = TransformGestureOptions(), handler)` 为指定区域登记普通事件、默认行为与完成处理器，返回随 scope 关闭的 TransformGesture。当前消费 Window 的原生 Magnify／Rotate，沿 Surface 的起始路径交付；直接接触识别随后接入同一行为，不能通过另一条绕过归属的输入流驱动控件。
+
+TransformGestureOptions 的 enabled、magnify、rotate 缺省为 true。两个识别种类由调用方通过同一行为明确组合，活动期间至少一个种类未结束即保持同一会话；全部正常结束才发送 Ended。取消其中一个种类、目标失效或关闭结束整个会话，迟到更新不恢复。新 Began 可以开始新会话。update 更新选项和 handler；禁用或改变启用的种类取消正在进行的会话。cancel 显式取消，close 注销本行为的登记而不关闭 area。
+
+TransformGestureSample 保存本次 localPosition、从会话开始累计的 scale／rotation、本次 scaleDelta／rotationDelta 与 InputTime。scale 初始 1，倍率相乘；rotation 初始 0，顺时针弧度相加；增量缺省为 1／0。倍率／弧度沿 Window 单位，位置使用当前交付冻结的局部几何。事件为 Started／Changed／Ended／Cancelled(sample, reason)／Discrete；没有原生相位的单次事件发送 Discrete，不保留活动状态。无效或溢出的累计值终止会话，不向绘图传播非有限变换。原生 Ended／Cancelled 被传播或默认取消阻止时，完成处理器仍收尾并报告 PreventedEnd。
+
+该行为只识别和报告变换，不隐式修改根缩放、滚动或业务状态；调用方通过同一业务命令提供缩放、旋转与恢复的键盘／菜单／语义替代入口。减少动画不禁止直接手势变换。识别进度不自动创建语义节点或逐帧播报。
 
 ## 8. 挂载与资源生命周期
 

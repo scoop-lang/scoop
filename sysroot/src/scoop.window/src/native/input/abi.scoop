@@ -39,3 +39,20 @@ internal fun nativeEventPointer(event: Ptr<Unit>): NativePointerData
 
 @Extern(name = "scoop_window_event_modifiers")
 internal fun nativeEventModifiers(event: Ptr<Unit>): Long
+
+@CLayout
+internal struct NativeGestureData(
+    val kind: Int,
+    val phase: Int,
+    val modifiers: Long,
+    val x: Double,
+    val y: Double,
+    val physicalX: Double,
+    val physicalY: Double,
+    val scale: Double,
+    val deltaX: Double,
+    val deltaY: Double
+)
+
+@Extern(name = "scoop_window_event_gesture")
+internal fun nativeEventGesture(event: Ptr<Unit>): NativeGestureData

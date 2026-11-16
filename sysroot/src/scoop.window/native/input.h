@@ -4,7 +4,32 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum { SWKeyboard = 10, SWModifiers = 11, SWPointer = 12 };
+enum { SWKeyboard = 10, SWModifiers = 11, SWPointer = 12, SWGesture = 20 };
+
+typedef enum {
+  SWGestureMagnify,
+  SWGestureRotate,
+  SWGestureSwipe
+} SWGestureKind;
+
+typedef enum {
+  SWGestureNone,
+  SWGestureBegan,
+  SWGestureChanged,
+  SWGestureEnded,
+  SWGestureCancelled
+} SWGesturePhase;
+
+typedef struct {
+  int32_t kind, phase;
+  int64_t modifiers;
+  double x, y, physical_x, physical_y, scale, delta_x, delta_y;
+} SWGestureData;
+
+typedef struct {
+  bool active;
+  SWGestureData latest;
+} SWGestureSequence;
 
 typedef enum {
   SWPointerEntered,

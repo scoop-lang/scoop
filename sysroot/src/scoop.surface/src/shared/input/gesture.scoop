@@ -1,0 +1,177 @@
+package scoop.surface
+
+import scoop.graphics.Point
+import scoop.window.*
+
+internal class InputGestureRoute(
+    val kind: GestureKind,
+    val scopes: Array<InputScope>,
+    val boundaryRevision: ULong,
+    var position: Point
+) {
+    var cancelled = false
+}
+
+private fun InputRouter.findGesture(kind: GestureKind): InputGestureRoute? {
+    for (route in gestureRoutes)
+        if (route.kind == kind)
+            return Some(route)
+    return None
+}
+
+private fun InputRouter.removeGesture(route: InputGestureRoute) {
+    for (index in 0L ..< gestureRoutes.size)
+        if (gestureRoutes[index] === route) {
+            gestureRoutes.removeAt(index)
+            return
+        }
+}
+
+private fun InputRouter.gestureAllowed(route: InputGestureRoute): Boolean =
+    !route.cancelled &&
+        route.boundaryRevision ==
+        boundaryRevision &&
+        route.scopes.size >
+        0L &&
+        samePath(route.scopes, path(route.scopes[0L]))
+
+internal fun InputRouter.gestureDeliveryAllowed(route: InputGestureRoute?): Boolean =
+    when (route) {
+        case Some(val value) -> gestureAllowed(value)
+        case None -> true
+    }
+
+internal fun InputRouter.gestureEvent(event: GestureEvent) {
+    val state = event.state
+    val point = Point(state.logicalPosition.x, state.logicalPosition.y)
+    val phase = event.phase
+    if (phase == GesturePhase.Began || phase == GesturePhase.None) {
+        when (findGesture(event.kind)) {
+            case Some(val old) -> cancelGesture(
+                old,
+                InputCancelReason.GestureInterrupted,
+                state.time
+            )
+            case None -> {}
+        }
+    }
+    if (closed)
+        return
+    val selected: InputGestureRoute? =
+        when (phase) {
+            case Began -> {
+                val target = hit(point)
+                val scopes =
+                    if (target.size > 0L)
+                        target
+                    else
+                        path(inputRoot)
+                if (scopes.size == 0L)
+                    return
+                val next = InputGestureRoute(event.kind, scopes, boundaryRevision, point)
+                gestureRoutes.add(next)
+                Some(next)
+            }
+            case None -> None
+            else -> Some(findGesture(event.kind) ?: return)
+        }
+    val scopes =
+        when (selected) {
+            case Some(val current) -> {
+                current.position = point
+                if (!gestureAllowed(current)) {
+                    reconcileGestures()
+                    return
+                }
+                current.scopes
+            }
+            case None -> {
+                val target = hit(point)
+                if (target.size > 0L)
+                    target
+                else
+                    path(inputRoot)
+            }
+        }
+    val chain = deliveries(scopes, Some(point))
+    if (chain.size == 0L) {
+        when (selected) {
+            case Some(val current) -> cancelGesture(
+                current,
+                InputCancelReason.AreaChanged,
+                state.time
+            )
+            case None -> {}
+        }
+        return
+    }
+    try {
+        route(
+            chain,
+            InputEvent.Gesture(InputGestureEvent.Native(event)),
+            state.time,
+            gesture = selected
+        )
+    } finally {
+        if (phase == GesturePhase.Ended || phase == GesturePhase.Cancelled) {
+            when (selected) {
+                case Some(val current) -> removeGesture(current)
+                case None -> {}
+            }
+        }
+    }
+}
+
+internal fun InputRouter.reconcileGestures() {
+    var failure: Throwable? = None
+    for (current in gestureRoutes.toArray()) {
+        if (
+            !gestureAllowed(current) ||
+                deliveries(current.scopes, Some(current.position)).size !=
+                current.scopes.size
+        )
+            failure =
+                cleanupFailure(failure) {
+                    cancelGesture(
+                        current,
+                        if (current.boundaryRevision != boundaryRevision)
+                            InputCancelReason.BoundaryChanged
+                        else
+                            InputCancelReason.AreaChanged,
+                        inputObservation()
+                    )
+                }
+    }
+    throwFailure(failure)
+}
+
+private fun InputRouter.cancelGesture(
+    current: InputGestureRoute,
+    reason: InputCancelReason,
+    time: InputTime
+) {
+    if (current.cancelled)
+        return
+    current.cancelled = true
+    removeGesture(current)
+    var failure: Throwable? = None
+    for (scope in current.scopes)
+        failure =
+            cleanupFailure(failure) {
+                notify(
+                    scope,
+                    InputEvent.Gesture(InputGestureEvent.Cancelled(current.kind, reason, time)),
+                    time,
+                    Some(current.scopes[0L]),
+                    terminal = true
+                )
+            }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.cancelGestures(reason: InputCancelReason, time: InputTime) {
+    var failure: Throwable? = None
+    for (current in gestureRoutes.toArray())
+        failure = cleanupFailure(failure) { cancelGesture(current, reason, time) }
+    throwFailure(failure)
+}

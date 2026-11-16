@@ -6,6 +6,12 @@
 
 当前提供 macOS aarch64／x86_64 与 Linux GNU x86_64 实现，包含独立自绘闭环及公共文本子包；基础控件由独立的 `scoop.ui.component` 提供。公开合同见 [UI 规范](../../../docs/specs/SCOOP-UI-SPEC.md)，macOS 验证见 [实施记录](../../../docs/ui/PROGRESS.md)，Linux 验证见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
 
+## 内容缩放与旋转
+
+`scope.transformGesture(area, TransformGestureOptions()) { event -> ... }` 将 macOS 的原生缩放／旋转沿同一 InputArea 组合，返回随挂载关闭的行为。`enabled`、`magnify`、`rotate` 可分别配置；`update` 替换配置和回调，`cancel` 结束当前会话，`isTransforming` 查询是否仍活动。Started／Changed／Ended／Cancelled／Discrete 提供局部位置、累计 scale／rotation 与本次 scaleDelta／rotationDelta；倍率相乘，旋转为顺时针弧度相加。结束或取消被其他处理器阻止时也会收尾，晚到更新不会重启。
+
+行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，AppKit 离散 swipe 沿 Surface 的普通 Gesture 事件消费。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。原始触点、直接触摸识别和自定义识别器继续按交互计划实现，不能把原生手势回归当作触屏验收。
+
 ## 组合与状态
 
 - `component(create, key)`／`component(props, create, key)` 在挂载时创建组件；`element` 以相同方式创建自绘元素，并接收显式 children。

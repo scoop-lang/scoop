@@ -1,0 +1,17 @@
+package scoop.tests.window
+
+/** Uses a controlled NSEvent subclass through the production gesture responder. */
+@Extern(name = "scoop_window_test_gesture")
+public fun sendNativeGesture(
+    view: Ptr<Unit>,
+    kind: Int,
+    phase: Int,
+    x: Double,
+    y: Double,
+    deltaX: Double,
+    deltaY: Double
+)
+
+/** Exercises the same cancellation entry used for native tracking loss. */
+@Extern(name = "scoop_window_test_cancel_gestures")
+public fun cancelNativeGestures(view: Ptr<Unit>)

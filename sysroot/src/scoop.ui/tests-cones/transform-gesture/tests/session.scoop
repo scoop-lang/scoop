@@ -1,0 +1,202 @@
+package scoop.tests.ui.transform
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.window.sendNativeGesture
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class TransformGestureUiTest {
+    @Test
+    fun `native transforms combine until both end and always retire prevented or cancelled sessions`() {
+        val probe = TransformProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application(
+                applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+            ).run(host)
+        }
+        assertTrue(probe.finished)
+        assertTrue(probe.gesture!!.isClosed)
+        assertTrue(probe.area!!.isClosed)
+        assertEquals(4, probe.starts)
+        assertEquals(1, probe.ends)
+        assertEquals(1, probe.discrete)
+        assertEquals(3L, probe.reasons.size)
+    }
+}
+
+internal class TransformProbe {
+    var window: Window? = None
+    var area: InputArea? = None
+    var gesture: TransformGesture? = None
+    var accepted = false
+    var finished = false
+    var preventEnd = false
+    var closeOnStart = false
+    var starts = 0
+    var ends = 0
+    var discrete = 0
+    var last: TransformGestureSample? = None
+    val reasons = ArrayList<TransformGestureCancelReason>()
+    private var stage = 0
+    private var expected = 0
+    private var received = 0
+    private var pending = false
+
+    fun transformed(event: TransformGestureEvent) {
+        when (event) {
+            case Started(val sample) -> {
+                starts += 1
+                last = Some(sample)
+                if (closeOnStart)
+                    gesture!!.close()
+            }
+            case Changed(val sample) -> last = Some(sample)
+            case Ended(val sample) -> {
+                ends += 1
+                last = Some(sample)
+            }
+            case Cancelled(val sample, val reason) -> {
+                reasons.add(reason)
+                last = Some(sample)
+            }
+            case Discrete(val sample) -> {
+                discrete += 1
+                last = Some(sample)
+            }
+        }
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop transform gestures"
+                            size = LogicalSize(300.0, 200.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { mount -> TransformRoot(this, scope = mount) })
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case Window(_, WindowEvent.Gesture(_)) -> received += 1
+            case AboutToWait -> if (accepted && !finished && !pending && received >= expected) {
+                pending = true
+                active.proxy().post {
+                    application ->
+                    pending = false
+                    if (!finished)
+                        advance(application)
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"transform timeout at ${stage}, input ${received}/${expected}")
+            )
+            else -> {}
+        }
+    }
+
+    private fun send(kind: Int, phase: Int, value: Double = 0.0) {
+        expected += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeGesture(
+                        view,
+                        kind,
+                        phase,
+                        60.0,
+                        50.0,
+                        value,
+                        0.0
+                    )
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (stage) {
+            0 -> {
+                send(0, 1, 0.1)
+                send(1, 1, 90.0)
+                send(0, 2, 0.25)
+                send(1, 2, -45.0)
+                send(0, 3)
+            }
+            1 -> {
+                assertTrue(gesture!!.isTransforming)
+                assertEquals(1, starts)
+                assertEquals(0, ends)
+                assertEquals(1.375, last!!.scale)
+                assertEquals(-0.7853981633974483, last!!.rotation)
+                assertEquals(Point(20.0, 15.0), last!!.position)
+                send(1, 3)
+            }
+            2 -> {
+                assertFalse(gesture!!.isTransforming)
+                assertEquals(1, ends)
+                preventEnd = true
+                send(0, 1)
+                send(0, 3)
+            }
+            3 -> {
+                assertFalse(gesture!!.isTransforming)
+                assertEquals(TransformGestureCancelReason.PreventedEnd, reasons[0L])
+                preventEnd = false
+                send(0, 1)
+            }
+            4 -> {
+                assertTrue(gesture!!.isTransforming)
+                gesture!!.update(
+                    TransformGestureOptions(enabled = false),
+                    { value -> transformed(value) }
+                )
+                assertFalse(gesture!!.isTransforming)
+                send(0, 2, 0.5)
+                send(0, 3)
+            }
+            5 -> {
+                assertEquals(TransformGestureCancelReason.Disabled, reasons[1L])
+                assertEquals(3, starts)
+                gesture!!.update(TransformGestureOptions(), { value -> transformed(value) })
+                send(0, 0, 0.5)
+            }
+            6 -> {
+                assertEquals(1, discrete)
+                assertFalse(gesture!!.isTransforming)
+                assertEquals(1.5, last!!.scale)
+                assertEquals(0.0, last!!.rotation)
+                closeOnStart = true
+                send(1, 1)
+            }
+            7 -> {
+                assertTrue(gesture!!.isClosed)
+                assertFalse(gesture!!.isTransforming)
+                assertEquals(TransformGestureCancelReason.Closed, reasons[2L])
+                assertEquals(4, starts)
+                finished = true
+                window!!.requestDestroy()
+                active.requestExit()
+            }
+            else -> fail(Some("unexpected transform test stage"))
+        }
+        stage += 1
+    }
+}

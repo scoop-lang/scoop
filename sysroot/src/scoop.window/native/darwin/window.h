@@ -40,6 +40,7 @@ typedef struct {
 @property(nonatomic) SWEventData data;
 @property(nonatomic) SWKeyboardData keyboard;
 @property(nonatomic) SWPointerData pointer;
+@property(nonatomic) SWGestureData gesture;
 @property(nonatomic) int64_t modifiers;
 @property(nonatomic, strong) NSEvent *nativeInput;
 @property(nonatomic, strong) NSData *text;
@@ -74,6 +75,7 @@ typedef struct {
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *pressedButtons;
 @property(nonatomic) NSEventModifierFlags modifiers;
 @property(nonatomic) BOOL functionHeld;
+@property(nonatomic) SWGestureSequence magnifyInput, rotateInput;
 @property(nonatomic, strong) NSTrackingArea *tracking;
 @property(nonatomic, strong) NSCursor *cursor;
 @property(nonatomic) BOOL pointerInside, cursorVisible, cursorHidden;
@@ -105,6 +107,9 @@ NSEventModifierFlags sw_input_modifiers(SWView *view,
 @interface SWView (Pointer)
 - (void)updateCursor;
 - (void)cancelPointer:(int32_t)reason;
+@end
+@interface SWView (Gesture)
+- (void)cancelGestures;
 @end
 @interface SWView (Text) <NSTextInputClient>
 - (void)beginTextBatch;

@@ -50,7 +50,9 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 滚轮的 `PixelDelta` 使用事件 scale 对应的物理像素，`LineDelta` 不随 DPI 缩放；滚动与 momentum 各自保留开始、更新、结束或取消阶段。没有原生阶段的普通 wheel 使用 `ScrollPhase.None`。平台适配在 `native/<platform>/input/` 内完成转换、采集和资源管理，公共层只解码 Window 自己的载荷。后续触摸和自定义手势的分层接入见[输入边界方案](../../../docs/ui/interaction-polish/INPUT-BOUNDARY.md)，当前未新增自定义手势 API。
 
-全屏控制／显示模式切换、全局 raw device、触摸／高级手势、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收与 Window 拖出接口，UI source、文本事务和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+`WindowEvent.Gesture` 提供 AppKit 已识别的 Magnify／Rotate／Swipe。前两者保留独立开始、更新、结束／取消相位，None 是单次事件；Magnify 的实际倍率为 `1 + delta`，Rotate 为顺时针弧度。Swipe 是向右／下为正的离散方向，不能当作像素位移。位置复用 PointerState，手势不改变鼠标按钮或伪造接触身份。焦点、模态及系统操作中断后不会因迟到 Changed 恢复；示例与上层组合见 [UI 手势示例](../scoop.ui/examples/gestures/README.md)。
+
+全屏控制／显示模式切换、全局 raw device、直接触摸／应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收与 Window 拖出接口，UI source、文本事务和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
 
 ## 系统交互偏好
 
@@ -64,7 +66,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 在 macOS 导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。
 
-本批角色包括 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar、Switch、ToggleButton、RadioButton 与 RadioGroup。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 用于 Checkbox／Switch／ToggleButton／RadioButton，Mixed 仅用于 Checkbox；protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
+本批角色包括 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar、Switch、ToggleButton、RadioButton、RadioGroup 与 Image。Image 使用原生图像角色、替代名称与实际几何，不隐含点击或焦点动作。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 用于 Checkbox／Switch／ToggleButton／RadioButton，Mixed 仅用于 Checkbox；protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
 Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。`cursorAffinity: SemanticTextAffinity` 默认 Downstream，保留活动 cursor 在软换行边界的实际偏向；AppKit 光标行号读取该偏向，按 index 请求则默认 Downstream。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 

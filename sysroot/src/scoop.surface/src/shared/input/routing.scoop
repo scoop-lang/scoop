@@ -57,6 +57,8 @@ private fun InputRouter.invoke(
     }
     if (!terminal && !scrollDeliveryAllowed(flags.scroll))
         return
+    if (!terminal && !gestureDeliveryAllowed(flags.gesture))
+        return
     val context =
         RoutedEventContext(
             this,
@@ -86,9 +88,10 @@ internal fun InputRouter.route(
     chain: Array<RouteDelivery>,
     event: InputEvent,
     time: InputTime,
-    scroll: InputScrollRoute? = None
+    scroll: InputScrollRoute? = None,
+    gesture: InputGestureRoute? = None
 ) {
-    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll) }
+    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll, gesture) }
     for (delivery in chain) {
         val scope = delivery.scope
         if (!closed && !scope.closed && path(scope).size > 0L)
@@ -101,12 +104,13 @@ private fun InputRouter.routeStages(
     chain: Array<RouteDelivery>,
     event: InputEvent,
     time: InputTime,
-    scroll: InputScrollRoute?
+    scroll: InputScrollRoute?,
+    gesture: InputGestureRoute?
 ) {
     if (chain.size == 0L)
         return
     val target = chain[0L].scope
-    val flags = RouteFlags(true, scrollConsumption(event, scroll))
+    val flags = RouteFlags(true, scrollConsumption(event, scroll), gesture)
     var index = chain.size
     while (index > 1L && !flags.stopped) {
         index -= 1L

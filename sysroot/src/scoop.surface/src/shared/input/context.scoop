@@ -4,7 +4,11 @@ import scoop.graphics.Point
 import scoop.graphics.native.CanvasGeometry
 import scoop.window.InputTime
 
-internal class RouteFlags(val cancelable: Boolean, val scroll: ScrollConsumption? = None) {
+internal class RouteFlags(
+    val cancelable: Boolean,
+    val scroll: ScrollConsumption? = None,
+    val gesture: InputGestureRoute? = None
+) {
     var stopped = false
     var prevented = false
 }

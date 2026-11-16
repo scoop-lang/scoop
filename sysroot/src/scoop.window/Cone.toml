@@ -135,6 +135,10 @@ path = "native/darwin/input/pointer.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/input/gesture.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/text.m"
 when = { os = "darwin" }
 

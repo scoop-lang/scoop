@@ -241,6 +241,7 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             case ToggleButton -> 8
             case RadioButton -> 9
             case RadioGroup -> 10
+            case Image -> 11
         },
         flag(value.enabled) +
             2 *

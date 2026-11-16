@@ -37,6 +37,7 @@ internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEv
                 )
                 11 -> WindowEvent.ModifiersChanged(platformModifiers(nativeEventModifiers(pointer)))
                 12 -> WindowEvent.Pointer(copyPointerEvent(header, nativeEventPointer(pointer)))
+                20 -> WindowEvent.Gesture(copyGestureEvent(header, nativeEventGesture(pointer)))
                 else -> copyWindowEvent(pointer, header)
             }
         return Some(ApplicationEvent.Window(WindowId(header.window), value))

@@ -89,6 +89,9 @@ SWKeyboardData scoop_window_event_keyboard(SWEvent *event) {
 SWPointerData scoop_window_event_pointer(SWEvent *event) {
   return event->pointer;
 }
+SWGestureData scoop_window_event_gesture(SWEvent *event) {
+  return event->gesture;
+}
 int64_t scoop_window_event_modifiers(SWEvent *event) {
   return event->modifiers;
 }

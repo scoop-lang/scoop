@@ -1,8 +1,8 @@
 # winit 能力映射与分阶段范围
 
-状态：macOS／Windows 骨架与 Linux GNU 的 GTK4／libadwaita Wayland／X11 后端已实现；更新于 2026-11-07，同步 Linux 设计基线，未新增实现。与 [DESIGN.md](DESIGN.md) 和[规范](../specs/SCOOP-WINDOW-SPEC.md)一起阅读。基线为 winit 0.30.13；实际交付与验收边界见 [PROGRESS.md](PROGRESS.md)和 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。
+状态：macOS／Windows 骨架与 Linux GNU 的 GTK4／libadwaita Wayland／X11 后端已实现；更新于 2026-11-17，补充 AppKit 原生手势映射。与 [DESIGN.md](DESIGN.md) 和[规范](../specs/SCOOP-WINDOW-SPEC.md)一起阅读。基线为 winit 0.30.13；实际交付与验收边界见 [PROGRESS.md](PROGRESS.md)、[交互打磨实施记录](../ui/interaction-polish/PROGRESS.md)和 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。
 
-当前阶段交付 macOS／Windows／Linux GNU GUI 基础：应用／窗口、proxy／关闭／lease、基础属性、显示器与 DPI、键盘／鼠标／滚轮／IME、renderer 与 asyncio 接入。Linux 使用 GTK/GDK 与 GtkGLArea，各操作仍按实际显示协议提供能力。全屏、显示模式、raw device、触摸／高级手势、光标捕获、文件拖放等继续按各自范围补充。
+当前阶段交付 macOS／Windows／Linux GNU GUI 基础：应用／窗口、proxy／关闭／lease、基础属性、显示器与 DPI、键盘／鼠标／滚轮／IME、renderer 与 asyncio 接入；AppKit 已接入原生 Magnify／Rotate／Swipe。Linux 使用 GTK/GDK 与 GtkGLArea，各操作仍按实际显示协议提供能力。直接触摸与更多原生手势，以及全屏、显示模式、raw device、光标捕获等能力继续按各自范围补充。
 
 范围分为：本期通用、本期按平台能力、平台扩展、后续／范围外。不承诺逐字复制 Rust API、trait、Drop 或所有平台扩展。Scoop 尚未发布；本表随实际实现直接修订，不保留旧草案签名兼容层，也不为未来平台穷举无实现的变体。窗口后端使用原生系统／协议库；全项目 Rust 依赖汇总和统一 staticlib 构建属于独立流水线工作，不在本表范围内。
 
@@ -54,7 +54,9 @@
 | MouseWheel | LineDelta／PixelDelta、phase／momentumPhase | 本期；行数与物理像素分开，保留原生滚动方向 |
 | DeviceEvent、AxisMotion、raw motion 与监听策略 | 后续设备事件扩展 | 后续；不隐式打开全局监听，设备单位不冒充像素 |
 | Touch／pressure | 后续 TouchEvent／可选 pressure | 后续；macOS 无触摸屏事件时不伪造 |
-| Pinch／Pan／Rotation／DoubleTap／TouchpadPressure | 后续 NativeGestureEvent | 后续；不增加通用手势识别器 |
+| Pinch／Rotation | WindowEvent.Gesture 的 Magnify／Rotate | AppKit 已接入；保留独立相位，倍率与顺时针弧度增量由平台转换 |
+| Native swipe | GestureEvent.Swipe | AppKit 离散方向动作；不伪装成距离或触点轨迹 |
+| Pan／DoubleTap／TouchpadPressure | 随实际平台能力接入 | 后续；原始接触及应用识别沿 S8，不增加通用插件框架 |
 | cursor icon／visibility | CursorIcon／setCursorIcon／setCursorVisible | 本期；原生基础图标，隐藏状态在离开窗口和销毁时恢复 |
 | custom cursor | 后续 CustomCursor | 后续；自定义 RGBA 图像／hotspot 需复制并明确寿命 |
 | cursor grab／warp／hittest | 后续捕获与定位接口 | 后续；按平台实际约束实施 |

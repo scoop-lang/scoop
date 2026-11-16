@@ -33,6 +33,10 @@ path = "native/geometry.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/image.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/scroll.m"
 when = { os = "darwin" }
 

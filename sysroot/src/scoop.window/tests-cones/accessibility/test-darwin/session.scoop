@@ -146,6 +146,7 @@ private class AccessibilityHandler: ApplicationHandler {
         assertFailsWith<IllegalStateException> { window!!.createAccessibilityProvider() }
         checkRelations(tree, view)
         checkHitGeometry(tree, view)
+        checkImage(tree, view)
         val parent = tree.createNode(SemanticRole.Group)
         group = Some(parent)
         parent.update(SemanticProperties(automationId = Some("group")))

@@ -8,7 +8,7 @@ public struct InputPointer(val state: PointerState, val time: InputTime)
 public enum InputCancelReason {
     Window(
         PointerCancelReason
-    ), AreaChanged, BoundaryChanged, ScrollInterrupted, Claimed, ClaimCancelled, Closed
+    ), AreaChanged, BoundaryChanged, ScrollInterrupted, GestureInterrupted, Claimed, ClaimCancelled, Closed
 }
 
 /** Pixel distances are logical; line distances retain their native unit. */
@@ -23,6 +23,11 @@ public enum InputPointerEvent {
     Cancelled(InputCancelReason, InputTime), ScrollCancelled(InputCancelReason, InputTime)
 }
 
+/** Native recognition and route cancellation share the ordinary input path. */
+public enum InputGestureEvent {
+    Native(GestureEvent), Cancelled(GestureKind, InputCancelReason, InputTime)
+}
+
 /** Snapshot for the current input domain's first-button decision, before route delivery. */
 public struct InputPress(
     val target: InputScope,
@@ -33,9 +38,9 @@ public struct InputPress(
 
 /** Text transactions and focus/hover transitions are delivered directly to their owner. */
 public enum InputEvent {
-    Pointer(InputPointerEvent), Keyboard(KeyEvent), TextCommand(TextEditCommand), ModifiersChanged(
-        Modifiers
-    ),
+    Pointer(InputPointerEvent), Gesture(InputGestureEvent), Keyboard(KeyEvent), TextCommand(
+        TextEditCommand
+    ), ModifiersChanged(Modifiers),
     TextInput(TextInputEvent), FocusChanged(Boolean), FocusVisibilityChanged(Boolean)
 }
 

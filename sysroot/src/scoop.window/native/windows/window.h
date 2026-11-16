@@ -43,6 +43,7 @@ typedef struct SWEvent {
     SWEventData data;
     SWKeyboardData keyboard;
     SWPointerData pointer;
+    SWGestureData gesture;
     int64_t modifiers;
   };
   bool native_input;
