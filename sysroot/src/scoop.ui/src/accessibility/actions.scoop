@@ -1,6 +1,8 @@
 package scoop.ui
 
 import scoop.window.accessibility.*
+import scoop.window.Utf8Range
+import scoop.window.Utf8Selection
 
 /** Capabilities follow actual handlers; every native entry shares the root boundary. */
 internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions): SemanticActions {
@@ -33,7 +35,22 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
                 case None -> None
             }
         }
-    return SemanticActions(invoke, toggle, setValue, focus)
+    val setSelection: ((Utf8Selection) -> SemanticActionResult)? =
+        when (actions.setSelection) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> None
+        }
+    val replaceText: ((Utf8Range, String) -> SemanticActionResult)? =
+        when (actions.replaceText) {
+            case Some(val action) -> Some {
+                range,
+                text -> handle.controller.perform(handle) { action(range, text) }
+            }
+            case None -> None
+        }
+    return SemanticActions(invoke, toggle, setValue, focus, setSelection, replaceText)
 }
 
 private fun semanticFocus(handle: SemanticsHandle, focused: Boolean): SemanticActionResult {

@@ -1,6 +1,6 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并／忽略及精确命中已接入，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、复杂控件关系、文本范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
+日期：2026-11-09；2026-11-16 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2／S5 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并／忽略、精确命中及纯文本选区／编辑已接入，正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。内置控件、复杂控件关系、文本范围几何／单位导航／保留范围、虚拟集合和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
 
 完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 
@@ -273,6 +273,8 @@ Realize 增加不抢焦点的按 key 准备入口，复用现有 LazyChildren �
 ## 8. 文本访问与编辑
 
 文本语义复用 `TextEditorState`、`TextEditHost` 和 `TextLayout`，不建立另一份可写字符串、选区或撤销历史。静态文本、只读可选择文本和可编辑文本分别公布能力。
+
+S5 已接入 `SemanticsHandle.updateTextEditor`：普通 update 从同一挂载的 TextEditHost 发布正文、选区和实际焦点，保留调用方的名称／说明／错误与关系。AppKit 提供纯文本范围读取和单选区，原生写入使用 Accessibility 来源及同一外来文本清洗、过滤和历史；单纯选择结束 composition 使用 EditCommand。正文或模型版本尚未重新发布时拒绝旧目标写入，受保护用途不发布正文／长度／选区，即使显式允许复制或显示明文也保持该边界。文本几何、单位导航、retained range 与其他 provider 仍按下述完整合同继续。
 
 内部位置沿现有 UTF-8 字节偏移与合法边界合同。AppKit 和 Windows 接口在需要时转换为 UTF-16；AT-SPI 按对应接口转换为 Unicode 字符偏移。转换与同一文本 revision 绑定，不用“一个字符等于一个字节／UTF-16 单元”近似。文字单位移动继续复用现有 grapheme、word、line 与布局能力。
 

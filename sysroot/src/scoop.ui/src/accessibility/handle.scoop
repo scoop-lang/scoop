@@ -36,10 +36,27 @@ public class SemanticsHandle internal constructor(
     }
 
     internal val mergeCandidate: Boolean get() {
-        if (role != SemanticRole.Text || merging || properties.protectedText)
+        if (
+            role !=
+                SemanticRole.Text ||
+                merging ||
+                properties.protectedText ||
+                properties.selection !=
+                None
+        )
             return false
-        return when ((actions.invoke, actions.toggle, actions.setValue, actions.focus, focus)) {
-            case(None, None, None, None, None) -> true
+        return when (
+            (
+                actions.invoke,
+                actions.toggle,
+                actions.setValue,
+                actions.focus,
+                actions.setSelection,
+                actions.replaceText,
+                focus
+            )
+        ) {
+            case(None, None, None, None, None, None, None) -> true
             else -> false
         }
     }

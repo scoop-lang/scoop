@@ -129,6 +129,7 @@ void sw_modifiers(SWView *view, NSEventModifierFlags flags);
 int32_t sw_text_command(SEL selector);
 BOOL sw_text_boundary(NSString *text, NSUInteger offset);
 BOOL sw_text_range(NSString *text, NSRange range);
+NSUInteger sw_text_utf16_offset(const uint8_t *text, int64_t length);
 void sw_append_text(SWView *view, int32_t kind, NSString *text,
                     NSRange selection);
 BOOL sw_document_edit(SWView *view, int32_t kind, NSString *text,

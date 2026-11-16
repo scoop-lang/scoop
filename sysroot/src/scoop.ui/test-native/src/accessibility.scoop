@@ -81,6 +81,46 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeHit(pointer, view, x, y, expected?.pointer) != 0
         }
     }
+    public val characterCount: Long get() {
+        @Unsafe
+        {
+            return nativeTextCount(pointer)
+        }
+    }
+    public fun selection(start: Long, length: Long): Boolean {
+        @Unsafe
+        {
+            return nativeSelection(pointer, start, length) != 0
+        }
+    }
+    public fun range(
+        start: Long,
+        length: Long,
+        expected: String?,
+        attributed: Boolean = false
+    ): Boolean {
+        @Unsafe
+        {
+            return when (expected) {
+                case Some(val value) -> value.withUtf8Bytes {
+                    bytes,
+                    count -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeTextRange(
+                            pointer,
+                            start,
+                            length,
+                            Some(bytes),
+                            count,
+                            attributed
+                        ) !=
+                            0
+                    }
+                }
+                case None -> nativeTextRange(pointer, start, length, None, -1L, attributed) != 0
+            }
+        }
+    }
     public override fun close() {
         @Unsafe
         {
@@ -96,7 +136,14 @@ public class NativeCalls public constructor(
 ): Closeable {
     private val callback = actionCallback(proxy, completed, nativeReturned)
     private val pointer = openCalls()
-    public fun post(node: NativeNode, tag: Int, action: Int = 0, value: String = "") {
+    public fun post(
+        node: NativeNode,
+        tag: Int,
+        action: Int = 0,
+        value: String = "",
+        selectionStart: Long = 0L,
+        selectionLength: Long = 0L
+    ) {
         @Unsafe
         {
             value.withUtf8Bytes {
@@ -110,6 +157,8 @@ public class NativeCalls public constructor(
                         action,
                         bytes,
                         length,
+                        selectionStart,
+                        selectionLength,
                         callback.function,
                         callback.context
                     )
@@ -201,6 +250,22 @@ private fun nativeHit(
     expected: Ptr<Unit>?
 ): Int
 
+@Extern(name = "scoop_ui_ax_text_count")
+private fun nativeTextCount(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_selection")
+private fun nativeSelection(node: Ptr<Unit>, start: Long, length: Long): Int
+
+@Extern(name = "scoop_ui_ax_text_range")
+private fun nativeTextRange(
+    node: Ptr<Unit>,
+    start: Long,
+    length: Long,
+    bytes: Ptr<UInt8>?,
+    count: Long,
+    attributed: Boolean
+): Int
+
 @Extern(name = "scoop_ui_ax_release")
 private fun nativeRelease(node: Ptr<Unit>)
 
@@ -215,6 +280,8 @@ private fun nativePost(
     action: Int,
     text: Ptr<UInt8>,
     length: Long,
+    selectionStart: Long,
+    selectionLength: Long,
     callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
     context: Ptr<Unit>
 )

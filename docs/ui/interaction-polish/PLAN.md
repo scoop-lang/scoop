@@ -1,6 +1,6 @@
 # UI 交互打磨与 accessibility 实施计划
 
-日期：2026-11-16。状态：S0～S4 进行中，S5～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
+日期：2026-11-16。状态：S0～S5 进行中，S6～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
 
 本计划统一安排[交互打磨设计](DESIGN.md)与[accessibility 设计](../accessibility/DESIGN.md)的实现、消费者迁移和验收。两份设计规定行为与技术边界，本文规定任务拆分、依赖、交付顺序和完成条件；设计中的 U0～U5、P0～P5 仅作为来源分组对照，后续按本文记录实施状态。
 
@@ -143,6 +143,8 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 **通过条件：** 效果分别开关／定制、系统常显／减少动画热切换、零范围／窄视口、嵌套和编辑器均正确；没有 hover 的使用方式仍可滚动，静止隐藏后无连续帧或周期轮询。
 
 ### S5 accessibility 文本、表单、焦点与模态
+
+当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区与实际写入，UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史。实际通过范围见[实施记录](PROGRESS.md)；文本范围几何／单位导航／保留范围、内置表单、复杂焦点与模态仍待继续。
 
 **主要范围：** 共享语义模型、TextEditorState／TextEditHost／TextLayout、focus／overlay、Field 与选择类控件、已接通的 provider。先改 UI／Component／Window 与实际受影响的文本 spec。
 

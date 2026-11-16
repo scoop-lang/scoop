@@ -40,7 +40,7 @@ internal fun filterEditorCandidate(
         val result = EditorPolicyResult(proposed, spans)
         if (singleLine || policy.singleLine)
             result.replace(editorNewlineEdits(proposed.input.surroundingText))
-        if (source == TextEditSource.Paste) {
+        if (source == TextEditSource.Paste || source == TextEditSource.Accessibility) {
             when (policy.paste) {
                 case Some(val callback) -> if (
                     !applyEditorDecision(result, callback(result.candidate(before, source)))

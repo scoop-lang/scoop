@@ -8,6 +8,50 @@ import scoop.window.*
 @Test
 private class TextEditPolicyTest {
     @Test
+    fun `accessibility imports use paste cleanup and retain source and undo semantics`() {
+        val editor = TextEditorState("A")
+        val imported = ArrayList<TextEditSource>()
+        val policy =
+            textEditPolicy {
+                this.singleLine = true
+                this.maxLength = Some(3L)
+                paste {
+                    candidate ->
+                    assertEquals(TextEditSource.Accessibility, candidate.source)
+                    imported.add(candidate.source)
+                    if (candidate.after.text == "deny")
+                        TextEditDecision.Reject
+                    else {
+                        assertEquals("A😀 X", candidate.after.text)
+                        TextEditDecision.Transform([TextEditReplacement(Utf8Range(5L, 6L), "")])
+                    }
+                }
+            }
+        assertTrue(
+            editor.applyEdit(Utf8Range(1L, 1L), "😀\nX", policy, TextEditSource.Accessibility)
+        )
+        assertEquals("A😀X", editor.text)
+        assertEquals(1L, imported.size)
+        val revision = editor.revision
+        assertFalse(
+            editor.applyEdit(
+                Utf8Range(0L, editor.text.byteLength),
+                "deny",
+                policy,
+                TextEditSource.Accessibility
+            )
+        )
+        assertEquals(revision, editor.revision)
+        assertEquals("A😀X", editor.text)
+        assertEquals(2L, imported.size)
+        assertTrue(editor.undo())
+        assertEquals("A", editor.text)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("A😀X", editor.text)
+    }
+
+    @Test
     fun `paste transformation acceptance and grapheme limits publish one history entry`() {
         val editor = TextEditorState()
         val policy =

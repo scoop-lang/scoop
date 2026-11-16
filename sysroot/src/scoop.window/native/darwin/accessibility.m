@@ -104,6 +104,7 @@ int64_t scoop_window_accessibility_put(void *pointer,
         return -4;
       SWAccessibilityState *state = [SWAccessibilityState new];
       state.data = data;
+      state.selection = NSMakeRange(NSNotFound, 0);
       state.labels = [NSMutableArray new];
       state.controls = [NSMutableArray new];
       state.titleFor = [NSMutableArray new];
@@ -159,6 +160,12 @@ int64_t scoop_window_accessibility_text(void *pointer, int64_t number,
         break;
       case 3:
         state.value = value;
+        if (value && state.data.anchor >= 0 && state.data.cursor >= 0) {
+          NSUInteger anchor = sw_text_utf16_offset(bytes, state.data.anchor);
+          NSUInteger cursor = sw_text_utf16_offset(bytes, state.data.cursor);
+          state.selection = NSMakeRange(
+              MIN(anchor, cursor), MAX(anchor, cursor) - MIN(anchor, cursor));
+        }
         break;
       case 4:
         state.error = value;
@@ -260,6 +267,12 @@ static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
       old.data.flags != next.data.flags)
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityValueChangedNotification);
+  if ((next.data.role == 1 || next.data.role == 4) &&
+      !(next.data.flags & SWAXProtected) &&
+      (!NSEqualRanges(old.selection, next.selection) ||
+       (next.selection.location != NSNotFound && !same(old.value, next.value))))
+    NSAccessibilityPostNotification(
+        node, NSAccessibilitySelectedTextChangedNotification);
   if (old.data.geometry != next.data.geometry ||
       old.data.visible != next.data.visible)
     NSAccessibilityPostNotification(node,

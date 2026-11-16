@@ -17,7 +17,8 @@
 | S2 | 进行中 | Window／AppKit 基础投影及 UI scope、逻辑发布、焦点绑定、名称／说明／错误／controls 关系、内容合并／忽略、Accepted 场景与精确命中已实现；原生逻辑测试通过，场景构建通过但实窗待验；内置控件、复杂控件关系、激活点和外部客户端仍待完成 |
 | S3 | 进行中 | DeleteSelection、两类文本宿主的三种菜单模式、目标绑定、选区策略、键盘入口和独立 protectedText 用途已接入；AppKit 菜单与定向测试通过，真实文本菜单因锁屏待验；多击组合、文本 provider／系统服务和其他平台仍待继续 |
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作已接入；统一 Gutter／Overlay 与边缘显露已接入，本批 43 项定向测试及四个原生场景的源码检查／构建通过；滚动语义和实窗／平台验收待继续 |
-| S5～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
+| S5 | 进行中 | 纯文本正文、选区与编辑宿主已接入，macOS 原生方法与编辑策略定向测试通过；范围几何／单位导航／保留范围、内置表单、复杂焦点与模态待继续 |
+| S6～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
 
@@ -168,3 +169,12 @@ UI／Component API 已生成并核对 ScrollPadding、ScrollSnapshot 的 padding
 - UI 场景程序新增重叠矩形与带孔 Path、屏幕坐标查询、祖先裁剪、缓存重放、未放置、内容失效、层叠重排和 Accepted／Discarded 组合；源码检查与 release 可执行文件构建通过。桌面仍为 ScreenIsLocked=true，实际呈现及焦点场景未运行；进程内 NSAccessibility 方法结果不代替外部 AX、VoiceOver 或其他平台验收。ActivationPoint 的真实输入资格与可点击位置仍待接入。
 
 正式规范、两份设计、计划、README、测试说明与编程导航已同步；Window／UI API 已生成并查询 setGeometry、NativeSemanticHitTest 的字段和 import，以及 SceneContext 的 Rect／Path 重载。临时 API 站点已清理，保留共享开发产物与待实窗运行的程序。内置控件、完整文本／集合、其余平台和本轮交互能力继续按统一计划推进。
+
+### 纯文本正文、选区与真实编辑事务
+
+- Window 的 Text／TextField 以已知非保护 value 提供正文，selection 保留公共 UTF-8 方向选区；AppKit 复用原文本偏移转换，提供长度、选中文本、UTF-16 单范围和纯文本 attributed string。范围端点不得切断 surrogate；选择可用于只读文本，选区替换检查实际正文版本与当前选区，拒绝禁用／只读写入。选区变化只更新逻辑事实与通知，不清除节点几何。原生发布使用已持有的内部版本，修复了发布过程中访问公共 contentRevision 被重入保护拒绝的问题，没有放宽公共边界。
+- UI 的 updateTextEditor 借用同一挂载的 TextEditHost，发布现有模型、选区和真实焦点，保留名称、说明、错误与关系；捕获模型及版本，拒绝旧目标写入。Accessibility 来源与 Paste 共用外来文本清洗，再执行同一单行、字符／长度、Reject／Transform 和 undo 事务；纯选区结束 composition 沿 EditCommand，不重复清洗正文，也不抢焦点。公开选区使 Text 保持独立语义节点。protectedText 与复制开关／显示投影独立，禁止正文、长度和选区读取，保留实际允许的全文替换。
+- 16 个 Scoop 文件与 7 个 native 文件格式检查、生产／测试 Objective-C 严格编译检查、Window／UI 及定向 Cone 源码检查通过；Window→Surface→UI 的 release 产物已更新。TextEditPolicyTest 的 9 个值测试实际通过，覆盖新来源、清洗、拒绝与 undo／redo。Window 原生回归、UI 逻辑动作、内容合并和新增文本编辑四个 Cone 实际通过；新用例覆盖 Unicode 范围、单选区／多选区拒绝、只读／禁用、策略、composition、受保护读写、无 drawable 发布和关闭后旧对象。
+- 受共用 native 测试接口变化影响的 UI 场景程序已重新构建成功；需要真实呈现／焦点的场景及既有 IME 快照实窗回归仍待桌面恢复后验收，未把进程内方法结果记为外部 AX／VoiceOver 通过。本批复用的 UTF-8→UTF-16 转换算法没有改变；范围几何、单位导航、retained range、内置表单和其他平台继续按 S5／S10 推进。
+
+已同步正式规范、设计、计划、库与测试 README、编程导航及原文本策略设计。Window／UI API 通过 search／show 核对 selection、setSelection、replaceText、updateTextEditor 的签名／默认值／import 与 Accessibility 来源；临时站点在核对后清理，保留开发产物、共享缓存与待实窗运行的程序。

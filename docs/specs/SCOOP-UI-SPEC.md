@@ -536,7 +536,7 @@ ParagraphMeasurement.layout 借出该测量持有的 TextLayout，供自绘控�
 
 `applyEdit(range, text, policy, source = Programmatic)` 是显式遵循输入策略的程序编辑入口。普通 replace／replaceAll／setSelection 继续表示明确的模型操作，不读取活动宿主的 policy；宿主发起的粘贴、删除、换行、制表符和结束组合的选择操作统一走策略事务。
 
-`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
+`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic／Accessibility。顺序为单行换行处理、Paste 与 Accessibility 外来文本来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段；无障碍选区操作沿 EditCommand 的组合结束事务，不把纯选择当成外来文字导入。语义宿主入口见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
 
 paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文、anchor／cursor TextPosition 及可选 markedRange）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
 

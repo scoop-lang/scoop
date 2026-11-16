@@ -30,7 +30,7 @@
 
 SemanticProperties.ignored 仅忽略当前语义节点，hidden 排除其语义子树；它们不修改真实布局、输入或键盘焦点。忽略的包装保留后代的身份和阅读顺序，祖先禁用／隐藏仍约束后代动作。没有语义资源的布局继续默认透明，不需要为透明布局额外创建节点。
 
-handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，根沿该容器的语义阅读顺序吸收纯 Text 叶子的内容，并把这些叶子标为 ignored；它们继续保留资源身份和标签依赖。只有没有动作、没有绑定焦点、非受保护且没有语义子节点的 Text 才能合并。显式 ignored 包装允许继续查找其后代，但不贡献包装自身的文字；hidden 子树不贡献内容。普通 Group、其他角色、带动作／焦点／子控件的文本及嵌套合并容器保持独立，不遍历任意 Custom View 猜测内容。
+handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，根沿该容器的语义阅读顺序吸收纯 Text 叶子的内容，并把这些叶子标为 ignored；它们继续保留资源身份和标签依赖。只有没有动作、没有绑定焦点、没有公开选区、非受保护且没有语义子节点的 Text 才能合并。显式 ignored 包装允许继续查找其后代，但不贡献包装自身的文字；hidden 子树不贡献内容。普通 Group、其他角色、带动作／焦点／选区／子控件的文本及嵌套合并容器保持独立，不遍历任意 Custom View 猜测内容。
 
 合并名称采用显式 name、有效 labelledBy、已知内容文字的顺序，空字符串与未知分开。即使有显式名称覆盖，已经声明合并的静态标签仍避免重复进入导航。由内容声明产生的 fallback 引用不混入 handle.relations；根借用 Window contentLabels 发布并随结构、动作、焦点绑定和隐藏策略变化更新。合并、忽略和恢复均不退休节点，不请求 drawable；纯标签文字变化沿既有名称依赖更新，不重走挂载树。
 
@@ -46,7 +46,15 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 候选场景持有自己的 native 引用，Accepted 时仅把内容版本仍匹配的几何与命中一起发布；Discarded、版本不匹配、场景失败及根关闭均释放候选引用。已发布 Window 节点和原生投影各自保留所需快照，候选释放不使当前命中悬空；纯属性发布不重新捕获几何。未放置与名称／值失效同时撤下位置和命中，旧 native 对象不能继续按过期形状命中。
 
-## 5. 验证边界
+## 5. 文本编辑宿主
+
+`scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations())` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。
+
+动作捕获该次模型身份与 revision；模型替换、正文或选区发生尚未发布的修改时返回 Unavailable，不能修改新的焦点文档。同一模型实际获得新状态后沿正常更新发布，再返回结果。SetValue／ReplaceText 使用 TextEditSource.Accessibility，经过单行归一化、外来文本清洗、transform、accepts、长度与组合事务，并形成独立 undo 项；Reject 返回 Rejected，Transform 返回实际结果。选区修改通过同一 composition 结束与策略事务，普通只读选择允许，disabled 或输入边界不允许时拒绝。辅助技术动作不隐式抢焦点，Focus 仍走绑定的真实 FocusTarget。
+
+正文与选区可在无 drawable 时发布；场景只负责当前节点的 Accepted 位置和命中。完整范围几何、文字单位、保留范围及只读富文本宿主后续接入，同步见 Window 文本合同。
+
+## 6. 验证边界
 
 用真实第三方 Element 验证无 InputArea 的文本、多节点、透明挂载、子项路由、重排／角色替换、最新 handler、禁用／隐藏／模态限制、自删与关根、跨根错误和旧对象退休。无 drawable 的属性更新必须独立验证；场景缓存命中、Accepted／Discarded、裁剪、未放置和属性与候选帧不匹配必须通过实际场景验证。
 

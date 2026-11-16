@@ -4,10 +4,13 @@
 #import "window.h"
 
 typedef int32_t (*SWAccessibilityCallback)(void *, int64_t, int32_t,
-                                           const uint8_t *, int64_t);
+                                           const uint8_t *, int64_t, int64_t,
+                                           int64_t, uint64_t);
 
 typedef struct {
   int64_t number, parent, order, scene_order;
+  uint64_t content_revision;
+  int64_t anchor, cursor;
   int32_t role, flags, actions, checked, geometry, visible;
   double x, y, width, height;
   double visible_x, visible_y, visible_width, visible_height;
@@ -38,6 +41,7 @@ enum {
 
 @interface SWAccessibilityState : NSObject
 @property(nonatomic) SWAccessibilityData data;
+@property(nonatomic) NSRange selection;
 @property(nonatomic, copy) NSString *name, *help, *error, *identifier, *value;
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *labels, *controls,
     *titleFor;
@@ -49,6 +53,11 @@ enum {
 @property(nonatomic) int64_t number;
 @property(nonatomic) BOOL retired;
 - (SWAccessibilityState *)state;
+- (int32_t)perform:(int32_t)action text:(NSString *)text range:(NSRange)range;
+@end
+
+@interface SWAccessibilityNode (Text)
+- (NSString *)accessibleText;
 @end
 
 @interface SWAccessibilityTree : NSObject

@@ -67,6 +67,9 @@ int32_t scoop_ui_ax_text(void *pointer, int32_t field, const uint8_t *bytes,
   case 3:
     value = [node accessibilityIdentifier];
     break;
+  case 4:
+    value = [node accessibilitySelectedText];
+    break;
   default:
     return 0;
   }
@@ -88,6 +91,18 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
         isAccessibilitySelectorAllowed:@selector(accessibilityPerformPress)];
   case 4:
     return [node isAccessibilityFocused];
+  case 5:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(
+                                           accessibilityNumberOfCharacters)];
+  case 6:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(
+                                           setAccessibilitySelectedTextRange:)];
+  case 7:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(
+                                           setAccessibilitySelectedText:)];
   default:
     return 0;
   }
@@ -113,6 +128,34 @@ int32_t scoop_ui_ax_press(void *pointer) {
   return [(__bridge id)pointer accessibilityPerformPress];
 }
 
+int64_t scoop_ui_ax_text_count(void *pointer) {
+  return [(__bridge id)pointer accessibilityNumberOfCharacters];
+}
+
+int32_t scoop_ui_ax_selection(void *pointer, int64_t start, int64_t length) {
+  id node = (__bridge id)pointer;
+  NSRange expected = NSMakeRange(start < 0 ? NSNotFound : (NSUInteger)start,
+                                 (NSUInteger)length);
+  NSArray *ranges = [node accessibilitySelectedTextRanges];
+  return NSEqualRanges([node accessibilitySelectedTextRange], expected) &&
+         (start < 0 ? ranges.count == 0
+                    : ranges.count == 1 &&
+                          NSEqualRanges([ranges[0] rangeValue], expected));
+}
+
+int32_t scoop_ui_ax_text_range(void *pointer, int64_t start, int64_t length,
+                               const uint8_t *bytes, int64_t count,
+                               bool attributed) {
+  NSRange range = NSMakeRange(start < 0 ? NSNotFound : (NSUInteger)start,
+                              (NSUInteger)length);
+  id value = attributed
+                 ? [[(__bridge id)pointer
+                       accessibilityAttributedStringForRange:range] string]
+                 : [(__bridge id)pointer accessibilityStringForRange:range];
+  NSString *expected = text(bytes, count);
+  return value == expected || [value isEqual:expected];
+}
+
 void scoop_ui_ax_release(void *pointer) { (void)CFBridgingRelease(pointer); }
 
 void *scoop_ui_ax_calls(void) {
@@ -121,6 +164,7 @@ void *scoop_ui_ax_calls(void) {
 
 void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
                       const uint8_t *bytes, int64_t length,
+                      int64_t selectionStart, int64_t selectionLength,
                       int32_t (*callback)(void *, int32_t, int32_t),
                       void *context) {
   SWUiAccessibilityCalls *calls = (__bridge SWUiAccessibilityCalls *)pointer;
@@ -145,6 +189,31 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
         break;
       case 3:
         [node setAccessibilityFocused:NO];
+        result = 1;
+        break;
+      case 4:
+        [node
+            setAccessibilitySelectedTextRange:NSMakeRange(
+                                                  (NSUInteger)selectionStart,
+                                                  (NSUInteger)selectionLength)];
+        result = 1;
+        break;
+      case 5:
+        [node setAccessibilitySelectedText:value];
+        result = 1;
+        break;
+      case 6:
+        [node setAccessibilitySelectedTextRanges:@[
+          [NSValue valueWithRange:NSMakeRange((NSUInteger)selectionStart,
+                                              (NSUInteger)selectionLength)]
+        ]];
+        result = 1;
+        break;
+      case 7:
+        [node setAccessibilitySelectedTextRanges:@[
+          [NSValue valueWithRange:NSMakeRange(0, 1)],
+          [NSValue valueWithRange:NSMakeRange(1, 1)]
+        ]];
         result = 1;
         break;
       default:

@@ -24,7 +24,7 @@ public class AccessibilityNode internal constructor(
     internal var resolvedName: String? = None
     internal var resolvedDescription: String? = None
     internal var resolvedError: String? = None
-    private var revision = 0UL
+    internal var revision = 0UL
     internal var placement: SemanticGeometry? = None
     internal var order = 0L
     internal var hit: SemanticHitSnapshot? = None
@@ -113,6 +113,15 @@ public class AccessibilityNode internal constructor(
         requireWindow(
             properties.checked == None || role == SemanticRole.Checkbox,
             "checked state requires the checkbox role"
+        )
+        requireWindow(
+            properties.selection ==
+                None ||
+                role ==
+                SemanticRole.Text ||
+                role ==
+                SemanticRole.TextField,
+            "text selection requires a text role"
         )
         if (
             this.properties ==

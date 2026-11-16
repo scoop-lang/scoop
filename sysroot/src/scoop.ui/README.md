@@ -75,9 +75,13 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 `handle.update(properties, actions, relations = SemanticRelations(labelledBy = [label.id]))` 可引用同一活动根内的标签；同一值还提供 describedBy、errorMessages 和 controls。显式名称／说明／错误（包括空串）优先于关系，标签修改只更新实际依赖者，不必重新 render 控件。handle.relations 返回清理后的当前引用，目标关闭不会将关系转接到相同位置的新节点；bindFocus 保留该当前值。标签名称变化也使旧几何失效，Accepted 场景使用底层内容版本核对，避免迟到场景恢复不匹配的位置。
 
-`handle.mergeLabels = true` 按语义阅读顺序合并容器内的纯 Text 叶子，默认 false。只有无动作、无焦点绑定、无语义子项且非受保护的文本参与合并；普通分组、链接、可聚焦文本与嵌套合并容器保持独立。显式 ignored 包装允许继续合并后代，hidden 子树不参与。名称按显式 name、labelledBy、内容文字依次回退；显式空串也保留优先级，合并引用不混入 handle.relations。动态增添动作或焦点后，同一次逻辑发布恢复文本自身的导航和操作，重排／合并／恢复不更换身份，也不要求 drawable。
+`handle.mergeLabels = true` 按语义阅读顺序合并容器内的纯 Text 叶子，默认 false。只有无动作、无焦点绑定、无公开选区、无语义子项且非受保护的文本参与合并；普通分组、链接、可聚焦或可选择文本与嵌套合并容器保持独立。显式 ignored 包装允许继续合并后代，hidden 子树不参与。名称按显式 name、labelledBy、内容文字依次回退；显式空串也保留优先级，合并引用不混入 handle.relations。动态增添动作、焦点或选区后，同一次逻辑发布恢复文本自身的导航和操作，重排／合并／恢复不更换身份，也不要求 drawable。
 
-当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、复杂控件关系、全文本、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
+自定义编辑 Element 可在正常 update 中调用 `semantic.updateTextEditor(host, properties, relations)`，扩展函数从 `scoop.ui.text` 导入。semantic 必须是同一挂载的 TextField；host 仍由原作用域管理。名称、说明、错误和关系来自参数，正文、方向选区与实际焦点来自现有 TextEditHost。禁用、只读和 protectedText 使用两者共同施加的限制；受保护用途即使明文显示或显式允许复制，也不向原生查询发布正文／长度／选区。调用方沿原 State 依赖更新控件；仅修改选区不要求新的几何。
+
+原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。正文范围几何、按点／词行查询和 retained range 继续随 S5 接入。
+
+当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、复杂控件关系、完整文本查询、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
 ## 自绘与资源
 

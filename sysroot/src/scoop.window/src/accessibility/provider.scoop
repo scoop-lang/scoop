@@ -163,7 +163,13 @@ public class AccessibilityProvider internal constructor(
         }
     }
 
-    internal fun perform(number: Long, action: Int, value: String?): SemanticActionResult {
+    internal fun perform(
+        number: Long,
+        action: Int,
+        value: String?,
+        selection: Utf8Selection,
+        revision: ULong
+    ): SemanticActionResult {
         if (closed || owner.phase != WindowState.Open || owner.application.exiting)
             return SemanticActionResult.Unavailable
         if (owner.inputBlocked)
@@ -173,6 +179,19 @@ public class AccessibilityProvider internal constructor(
         val node = nodes[number] ?: return SemanticActionResult.Unavailable
         if (!node.canAct())
             return SemanticActionResult.Rejected
+        if (action == 5 || action == 6) {
+            if (node.contentRevision != revision)
+                return SemanticActionResult.Unavailable
+            if (node.properties.protectedText || node.properties.value == None)
+                return SemanticActionResult.Unsupported
+            try {
+                checkTextRange(node.properties.value!!.toByteArray(), selection.range)
+            } catch (error: IllegalArgumentException) {
+                return SemanticActionResult.InvalidArgument
+            }
+            if (action == 6 && node.properties.selection?.range != Some(selection.range))
+                return SemanticActionResult.Unavailable
+        }
         val actions = node.actions
         val result =
             when (action) {
@@ -191,6 +210,16 @@ public class AccessibilityProvider internal constructor(
                     }
                 case 3 -> actions.focus?.invoke(true) ?: SemanticActionResult.Unsupported
                 case 4 -> actions.focus?.invoke(false) ?: SemanticActionResult.Unsupported
+                case 5 -> actions.setSelection?.invoke(selection) ?:
+                    SemanticActionResult.Unsupported
+                case 6 -> if (node.properties.readOnly)
+                    SemanticActionResult.Rejected
+                else
+                    when (value) {
+                        case Some(val text) -> actions.replaceText?.invoke(selection.range, text) ?:
+                            SemanticActionResult.Unsupported
+                        case None -> SemanticActionResult.InvalidArgument
+                    }
                 else -> SemanticActionResult.Unsupported
             }
         if (!closed && owner.phase == WindowState.Open)

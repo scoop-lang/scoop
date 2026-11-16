@@ -226,18 +226,33 @@
   return self.state ? sw_accessibility_focused(self.tree.view) : nil;
 }
 - (int32_t)perform:(int32_t)action text:(NSString *)text {
+  return [self perform:action text:text range:NSMakeRange(NSNotFound, 0)];
+}
+- (int32_t)perform:(int32_t)action text:(NSString *)text range:(NSRange)range {
   SWAccessibilityTree *tree = self.tree;
-  if (!self.state || tree.closed || !tree.callback)
+  SWAccessibilityState *state = self.state;
+  if (!state || tree.closed || !tree.callback)
     return 4;
   if (!self.isAccessibilityEnabled)
     return 5;
   NSData *bytes = text ? [text dataUsingEncoding:NSUTF8StringEncoding] : nil;
   if (text && !bytes)
     return 2;
+  int64_t anchor = -1, cursor = -1;
+  if (action == 5 || action == 6) {
+    NSString *body = self.accessibleText;
+    if (!body || !sw_text_range(body, range))
+      return 2;
+    anchor = (int64_t)[[body substringToIndex:range.location]
+        lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    cursor = (int64_t)[[body substringToIndex:NSMaxRange(range)]
+        lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+  }
   SWAccessibilityCallback callback = tree.callback;
   void *context = tree.context;
   return callback(context, self.number, action, bytes.bytes,
-                  text ? (int64_t)bytes.length : -1);
+                  text ? (int64_t)bytes.length : -1, anchor, cursor,
+                  state.data.content_revision);
 }
 - (BOOL)accessibilityPerformPress {
   SWAccessibilityState *state = self.state;
@@ -278,6 +293,22 @@
     return NO;
   if (selector == @selector(accessibilityHitTest:))
     return [self participatesInAccessibility];
+  if (selector == @selector(accessibilityNumberOfCharacters) ||
+      selector == @selector(accessibilityStringForRange:) ||
+      selector == @selector(accessibilityAttributedStringForRange:))
+    return self.accessibleText != nil;
+  if (selector == @selector(accessibilitySelectedText) ||
+      selector == @selector(accessibilitySelectedTextRange) ||
+      selector == @selector(accessibilitySelectedTextRanges))
+    return self.accessibleText && state.selection.location != NSNotFound;
+  if (selector == @selector(setAccessibilitySelectedTextRange:) ||
+      selector == @selector(setAccessibilitySelectedTextRanges:))
+    return self.isAccessibilityEnabled && self.accessibleText &&
+           (state.data.actions & 16);
+  if (selector == @selector(setAccessibilitySelectedText:))
+    return self.isAccessibilityEnabled && self.accessibleText &&
+           state.selection.location != NSNotFound &&
+           !(state.data.flags & SWAXReadOnly) && (state.data.actions & 32);
   NSString *name = NSStringFromSelector(selector);
   if ([name hasPrefix:@"accessibilityPerform"] ||
       [name hasPrefix:@"setAccessibility"])

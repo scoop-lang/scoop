@@ -42,6 +42,16 @@ AppKit getter 不进入 managed 代码。同步动作使用创建 provider 时�
 
 NSAccessibility 的 performPress 等 BOOL 动作仅在 Completed 时返回 YES。setAccessibilityValue 与 setAccessibilityFocused 为无返回值 setter：只在实际回调中改变业务状态，失败时保持旧值；调用方必须读取结果，不能把 setter 返回解释为写入成功。原生注册在释放 callback 前撤销；动作中关闭时，callback ownership 经现有 owner control 队列在调用退栈后释放。客户端晚到查询／动作不会访问已释放 context。
 
+### 3.1 纯文本正文与选区
+
+Text／TextField 的已知、非受保护 value 同时是其纯文本正文，不再保存另一份可写文档。SemanticProperties.selection: Utf8Selection? 默认 None；Some 只适用于这两个角色，要求 value 已知、protectedText=false，端点必须是正文范围内的 UTF-8 标量边界。None 表示没有公开选区，不能与零长度 caret 混淆；原生单选区协议返回排序后的范围，公共值保留 anchor／cursor 方向。仅选区变化不使节点边界或精确命中失效。
+
+SemanticActions 增加 setSelection(Utf8Selection) 与 replaceText(Utf8Range, String)，返回同一 SemanticActionResult。前者允许只读的可选择文本；后者以及 setValue 遵守 readOnly／enabled。原生选区修改进入实际 handler，文本替换不直接修改投影。AppKit 的 SelectedText 写入使用已发布选区，选区或正文已变化时拒绝旧请求；范围动作携带当前投影的内容版本，不能把旧 UTF-8 偏移应用到新正文。普通全文 setValue 继续使用实际控件的值替换入口。
+
+AppKit 在发布时将合法 UTF-8 选区转换为同一 NSString 的 UTF-16 范围；正文长度、选中文本、SelectedTextRange(s)、StringForRange 和纯文本 AttributedStringForRange 只查询已发布副本。参数越界或切断 surrogate 时返回 unavailable，不夹取到别的文本。SelectedTextRanges setter 只接受一个合法 NSValue 范围，不伪造多选区能力。值和实际选区发布后发送适用 ValueChanged／SelectedTextChanged 通知，getter 不回调 Scoop、不触发布局。
+
+受保护文本不发布正文或选区，不提供上述范围／长度查询；显式可用的全文替换仍可进入真实编辑器。完整文本几何、按点定位、词／行单位、retained range、密码平台专有能力和其他 provider 按 S5 后续合同接入，不以正文与单选区接口声明它们已完成。
+
 ## 4. AppKit 投影与验证
 
 使用 NSAccessibilityElement 与正式 NSAccessibility protocol，连接到现有内容 NSView。原生 Window、菜单和对话框继续提供自己的树；内容 view 不重复导出同一组节点。角色、名称、说明、identifier、值、enabled、checked、protected、焦点与实际动作由已发布节点决定。窗口逻辑矩形通过 AppKit 的 view／window 转换为屏幕坐标，窗口移动无需重写所有节点几何。

@@ -39,10 +39,21 @@ public struct SemanticProperties(
     val checked: SemanticChecked? = None,
     val hidden: Boolean = false,
     val error: String? = None,
-    val ignored: Boolean = false
+    val ignored: Boolean = false,
+    val selection: Utf8Selection? = None
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")
+        when (selection) {
+            case Some(val selected) -> {
+                requireWindow(
+                    !protectedText && value != None,
+                    "text selection requires public text"
+                )
+                checkTextRange(value!!.toByteArray(), selected.range)
+            }
+            case None -> {}
+        }
     }
 }
 
@@ -121,7 +132,9 @@ public struct SemanticActions(
     val invoke: (() -> SemanticActionResult)? = None,
     val toggle: (() -> SemanticActionResult)? = None,
     val setValue: ((String) -> SemanticActionResult)? = None,
-    val focus: ((Boolean) -> SemanticActionResult)? = None
+    val focus: ((Boolean) -> SemanticActionResult)? = None,
+    val setSelection: ((Utf8Selection) -> SemanticActionResult)? = None,
+    val replaceText: ((Utf8Range, String) -> SemanticActionResult)? = None
 ) {
     internal val capabilities: Int get() {
         var result = 0
@@ -139,6 +152,14 @@ public struct SemanticActions(
         }
         when (focus) {
             case Some(_) -> result += 8;
+            case None -> {}
+        }
+        when (setSelection) {
+            case Some(_) -> result += 16;
+            case None -> {}
+        }
+        when (replaceText) {
+            case Some(_) -> result += 32;
             case None -> {}
         }
         return result
