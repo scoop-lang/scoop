@@ -62,8 +62,13 @@ public class Press internal constructor(
         if (closed || !options.enabled)
             return
         when (event) {
-            case Pointer(InputPointerEvent.Button(_, MouseButton.Left, val status, _)) -> {
+            case Pointer(InputPointerEvent.Button(val input, MouseButton.Left, val status, _)) -> {
                 if (status == ElementState.Pressed) {
+                    if (isContextMenuClick(MouseButton.Left, input.state.modifiers)) {
+                        pointer = false
+                        publish()
+                        return
+                    }
                     if (key == None && area.scope.isHovered)
                         pointer = true
                     publish()

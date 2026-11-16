@@ -16,6 +16,7 @@ private class TextContextMenuTest {
             }
         val changed = original.copy { mode = TextContextMenuMode.Disabled }
         assertEquals(TextContextMenuMode.PreferSystem, TextEditOptions().contextMenu.mode)
+        assertEquals(TextContextMenuMode.PreferSystem, SelectableTextOptions().contextMenu.mode)
         assertEquals(TextContextMenuMode.StandardNative, original.mode)
         assertEquals(TextContextMenuMode.Disabled, changed.mode)
         assertEquals(original.selection, changed.selection)
@@ -24,19 +25,19 @@ private class TextContextMenuTest {
 
     @Test
     fun `menu keys require one real press and do not steal modified shortcuts`() {
-        assertTrue(editorMenuKey(contextKey(NamedKey.ContextMenu)))
-        assertTrue(editorMenuKey(contextKey(NamedKey.F10, shift = true)))
-        assertFalse(editorMenuKey(contextKey(NamedKey.F10)))
-        assertFalse(editorMenuKey(contextKey(NamedKey.ContextMenu, shift = true)))
+        assertTrue(textMenuKey(contextKey(NamedKey.ContextMenu)))
+        assertTrue(textMenuKey(contextKey(NamedKey.F10, shift = true)))
+        assertFalse(textMenuKey(contextKey(NamedKey.F10)))
+        assertFalse(textMenuKey(contextKey(NamedKey.ContextMenu, shift = true)))
         for (key in [NamedKey.ContextMenu, NamedKey.F10]) {
             val shift = key == NamedKey.F10
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, control = true)))
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, alt = true)))
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, superKey = true)))
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, altGraph = Some(true))))
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, repeat = true)))
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, synthetic = true)))
-            assertFalse(editorMenuKey(contextKey(key, shift = shift, pressed = false)))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, control = true)))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, alt = true)))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, superKey = true)))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, altGraph = Some(true))))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, repeat = true)))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, synthetic = true)))
+            assertFalse(textMenuKey(contextKey(key, shift = shift, pressed = false)))
         }
     }
 }

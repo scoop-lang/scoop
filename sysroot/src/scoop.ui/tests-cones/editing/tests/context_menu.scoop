@@ -291,7 +291,7 @@ internal class EditorContextMenuProbe {
     }
 }
 
-private fun choose(title: String) {
+internal fun choose(title: String) {
     @Unsafe
     {
         assertEquals(
@@ -307,7 +307,7 @@ private fun choose(title: String) {
     }
 }
 
-private fun menuEnabled(title: String): Int {
+internal fun menuEnabled(title: String): Int {
     @Unsafe
     {
         return title.withUtf8Bytes {
@@ -321,16 +321,16 @@ private fun menuEnabled(title: String): Int {
 }
 
 @Extern(name = "scoop_test_menu_observe")
-private fun observeMenus()
+internal fun observeMenus()
 
 @Extern(name = "scoop_test_menu_tracking")
-private fun trackingMenu(): Int
+internal fun trackingMenu(): Int
 
 @Extern(name = "scoop_test_menu_end")
-private fun endMenus()
+internal fun endMenus()
 
 @Extern(name = "scoop_test_popup_cancel")
-private fun cancelMenu()
+internal fun cancelMenu()
 
 @Extern(name = "scoop_test_popup_action")
 private fun popupAction(bytes: Ptr<UInt8>, length: Long): Int

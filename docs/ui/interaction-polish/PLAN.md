@@ -113,7 +113,7 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S3 文本选择与原生上下文菜单
 
-当前进展：标准编辑命令、三种菜单模式、目标会话与 protectedText 用途已接入共享宿主和输入控件；原生菜单及编辑组合的实窗结果仍按[实施记录](PROGRESS.md)跟踪。多击组合、SelectableTextHost 的内建菜单、完整文本 provider、拖放和系统文本服务继续推进。
+当前进展：标准编辑命令、三种菜单模式、目标会话与 protectedText 用途已接入共享宿主和输入控件；SelectableTextHost 也已接入 Copy／SelectAll 菜单。原生菜单及编辑组合的实窗结果仍按[实施记录](PROGRESS.md)跟踪，多击组合、完整文本 provider、拖放和系统文本服务继续推进。
 
 **主要范围：** UI editor／selectable、Window 文本命令／菜单、原生菜单包装、Input／Textarea／OTP／InputGroup 等消费者。先改 UI 文本章节、Component、Window 菜单和 UI 原生菜单 spec。
 

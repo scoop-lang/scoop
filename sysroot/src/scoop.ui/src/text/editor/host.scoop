@@ -49,7 +49,6 @@ public class TextEditHost public constructor(
     internal var revealRevision = 0UL
     internal var caretVisible = true
     internal var drag: EditorDrag? = None
-    internal val contextMenu = EditorContextMenu(this)
     public val scroll = ScrollState()
     internal val viewport = scope.scrollViewport(scroll)
     public val area =
@@ -58,6 +57,15 @@ public class TextEditHost public constructor(
             textInput = initialOptions.enabled && !initialOptions.readOnly
         ) { context, event -> editorHandle(this, context, event) }
     public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
+    internal val contextMenu =
+        TextContextMenu(
+            scope,
+            area,
+            { options.contextMenu },
+            { !closed && options.enabled && area.isFocusActive },
+            { command -> execute(command) },
+            true
+        )
     internal val blink = scope.createDeadline { editorBlink(this) }
     internal val dragTimer = scope.createDeadline { editorDragTick(this) }
     internal var caretPreferences = scope.interactionPreferences
@@ -228,6 +236,8 @@ public class TextEditHost public constructor(
             if (rebound)
                 current.detachHost(this)
         }
+        if (rebound)
+            contextMenu.cancel()
         current = state
         this.appearance = appearance
         this.options = options

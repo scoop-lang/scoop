@@ -1,0 +1,114 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.window.*
+
+internal fun selectableMenuReady(host: SelectableTextHost): Boolean {
+    if (
+        host.closed ||
+            !host.scope.isMounted ||
+            !host.options.enabled ||
+            !host.scope.nativeWindow.isFocused ||
+            !host.area.scope.activity.hasFocus
+    )
+        return false
+    return when (host.inputFrame()) {
+        case Some(_) -> true
+        case None -> false
+    }
+}
+
+internal fun selectableContextMenu(
+    host: SelectableTextHost,
+    pointer: InputPointer?,
+    local: Point?
+): Boolean {
+    if (
+        host.closed ||
+            !host.scope.isMounted ||
+            !host.options.enabled ||
+            host.options.contextMenu.mode ==
+            TextContextMenuMode.Disabled ||
+            host.contextMenu.pending ||
+            !host.area.scope.isInputAllowed ||
+            host.scope.nativeWindow.state !=
+            WindowState.Open ||
+            host.scope.nativeWindow.isInputBlocked
+    )
+        return false
+    val frame = host.inputFrame() ?: return false
+    val document = host.content
+    val bounds = host.area.visibleBounds ?: return false
+    if (bounds.width <= 0.0 || bounds.height <= 0.0)
+        return false
+    when (pointer) {
+        case Some(_) -> if (!host.area.requestFocus(FocusOrigin.Pointer))
+            return false
+        case None -> {}
+    }
+    if (!host.contextMenu.eligible() || !sameMenuText(document, host.content))
+        return false
+    val options = host.options.contextMenu
+    val template =
+        host.scope.application.textContextMenuTemplate(
+            options.mode == TextContextMenuMode.PreferSystem,
+            options.labels
+        )
+    selectableStopDrag(host)
+    val placement =
+        when (pointer) {
+            case Some(val value) -> {
+                val point = local ?: return false
+                val range = host.selection.range
+                var inside = false
+                for (box in frame.layout.selection(TextRange(range.start, range.end)))
+                    if (textMenuContains(box.rect, point))
+                        inside = true
+                if (!inside && options.selection != TextContextMenuSelection.Preserve) {
+                    val position = frame.layout.hitTest(point)
+                    if (textMenuSelectsWord(options, template)) {
+                        val word = frame.layout.wordRange(position)
+                        host.setSelection(
+                            TextPosition(word.start),
+                            TextPosition(word.end, TextAffinity.Upstream)
+                        )
+                    } else
+                        host.setSelection(position, position)
+                }
+                PopupPlacement.Pointer(value.state.logicalPosition)
+            }
+            case None -> {
+                val anchor = selectableMenuAnchor(host, frame, bounds) ?: return false
+                PopupPlacement.Anchor(
+                    LogicalRect(
+                        LogicalPosition(anchor.x, anchor.y),
+                        LogicalSize(anchor.width, anchor.height)
+                    )
+                )
+            }
+        }
+    if (host.closed || !host.scope.isMounted || !sameMenuText(document, host.content))
+        return false
+    return host.contextMenu.open(template, placement)
+}
+
+private fun sameMenuText(before: StyledText, after: StyledText): Boolean =
+    before === after || (before.text == after.text && before.toPlainText() == after.toPlainText())
+
+private fun selectableMenuAnchor(
+    host: SelectableTextHost,
+    frame: SelectableFrame,
+    bounds: Rect
+): Rect? {
+    val range = host.selection.range
+    for (box in frame.layout.selection(TextRange(range.start, range.end))) {
+        when (val anchor = textMenuAnchor(host.area, box.rect, bounds)) {
+            case Some(val rect) -> return Some(rect)
+            case None -> {}
+        }
+    }
+    val caret = frame.layout.caret(host.cursor) ?: return None
+    return textMenuAnchor(host.area, caret, bounds)
+}

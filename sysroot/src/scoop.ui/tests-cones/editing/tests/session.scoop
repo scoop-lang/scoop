@@ -34,6 +34,7 @@ private class PublicTextEditHostTest {
                         assertTrue(probe.finished)
                         assertTrue(probe.systemIme.complete)
                         assertTrue(probe.contextMenus.complete)
+                        assertTrue(probe.selectableMenus.complete)
                         assertEquals("replacement", probe.primary.text)
                         assertEquals(3, probe.mounts)
                         assertEquals(probe.mounts, probe.unmounts)
@@ -63,6 +64,7 @@ private class PublicTextEditHostTest {
                         throw error
                     } finally {
                         probe.contextMenus.close()
+                        probe.selectableMenus.close()
                         try {
                             probe.frames?.close()
                         }
@@ -81,6 +83,7 @@ private class PublicTextEditHostTest {
 internal class EditProbe(val fonts: FontCollection) {
     val systemIme = SystemImeProbe()
     val contextMenus = EditorContextMenuProbe()
+    val selectableMenus = SelectableMenuProbe()
     val displayTest = DisplayProbe()
     var primary = TextEditorState("A😀éZ")
     val multiline = TextEditorState("one two\nthree")

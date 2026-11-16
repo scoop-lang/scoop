@@ -58,10 +58,14 @@ DeleteSelection 仅删除当前非空选区，不等价于向前删除。TextEdi
 
 `TextEditOptions.contextMenu` 为 TextContextMenuOptions，默认 mode=PreferSystem、selection=Platform、labels=None。TextContextMenuMode 提供 Disabled、StandardNative、PreferSystem；TextContextMenuSelection 提供 Platform、Preserve、PlaceCaret、SelectWord。`textContextMenu { ... }` 和 copy builder 构造该不可变值，labels 使用 Window 的 TextContextMenuLabels。Input／Textarea／InputOtp 及组合入口透传此选项；禁用内建菜单时保留自定义包装的正常输入路由。
 
+SelectableTextOptions 提供相同的 contextMenu 及默认值，SelectableTextHost.showContextMenu() 使用当前 Accepted 段落中的选区或插入位置作为键盘锚点；它不创建可写编辑宿主。菜单只保留 Copy／SelectAll 及二者之间的有效分隔线，复制使用 Accepted StyledText 的 alternateText；copy=false 禁用复制，disabled 不打开菜单。只读选择与可编辑宿主共用原生会话、最新可用性、标签和选区外点击策略。
+
 TextEditHost 的 `showContextMenu(): Boolean` 从当前有效可见 caret／选区锚点请求键盘式菜单；没有可用 Accepted 几何、活动宿主未聚焦／禁用或已有 pending 菜单时返回 false。已经关闭或卸载时与其他宿主方法一样报告 IllegalStateException。右键和平台辅助点击在默认动作阶段进入同一路径，键盘入口为非重复的 ContextMenu 或 Shift+F10。已消费或 preventDefault 的请求不执行默认菜单。布局未提交时不以原点代替锚点；只读取匹配的已接受文本布局进行指针命中。
 
 点击当前选择绘制区域时保持方向选区；选区外按 selection 处理。Preserve 完全保留，PlaceCaret 定位，SelectWord 使用既有 graphics.text 分词，Platform 使用模板的提示。先按普通输入规则取得目标焦点；打开菜单结束当前拖选并取消越界自动滚动，定位与结束 composition 沿现有编辑合同执行。不创建另一份文本模型或历史；菜单展示保留当前文档的 native 文本连接与实际选择。
 
-每次请求保存发起宿主、模型身份和 PopupSessionId。菜单使用明确的 Action 项，激活时验证来源、宿主／模型仍匹配、实际焦点、输入边界和该命令的最新可用性，然后执行原 TextEditHost.execute；一个激活只执行一次。PopupCompleted 不再次执行编辑，Selected 与 MenuActivation 的到达顺序均可处理。只读与编辑能力变化更新菜单可用性；禁用、模型替换、菜单配置变化、焦点离开、窗口关闭或宿主卸载及时取消旧请求，失效的晚到动作不能修改新目标。菜单能力更新不请求绘制，Paste 在执行时读取当前剪贴板。
+每次请求绑定发起宿主及当时文档，以 PopupSessionId 匹配来源。菜单使用明确的 Action 项，激活时验证来源、宿主／文档绑定仍有效、实际焦点、输入边界和该命令的最新可用性，然后执行对应宿主的 execute；一个激活只执行一次。PopupCompleted 不再次执行编辑，Selected 与 MenuActivation 的到达顺序均可处理。只读与编辑能力变化更新菜单可用性；禁用、模型替换、菜单配置变化、焦点离开、窗口关闭或宿主卸载及时取消旧请求，失效的晚到动作不能修改新目标。菜单能力更新不请求绘制，Paste 在执行时读取当前剪贴板。
+
+共享会话在更换编辑模型前失效；只读宿主在正文或行内替代文字变化时失效，单纯字体／颜色变化不取消菜单。打开过程中的焦点或选择回调若关闭宿主或替换文档，该次请求停止。两个宿主的菜单动作分别回到自己的 execute，不能落到当前任意焦点控件。辅助点击不启动文本拖选；公共 Press 对平台认可的辅助按下不建立主按钮激活候选，让正常菜单路由继续。
 
 菜单资源在首次使用时创建；没有请求不分配 OS 菜单。关闭先停止动作及观察，再取消 session／关闭 Menu，原生 tracking 与 Window lease 继续使用既有收尾。菜单创建／显示失败走所属根错误边界。没有后台轮询、额外事件循环或新增编译器机制。实际系统模板复用与回退遵守 Window 菜单规范第 6 节，不能把模板存在当作全部系统文本服务已支持。

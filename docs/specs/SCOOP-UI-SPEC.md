@@ -608,6 +608,8 @@ count 是配置的可见槽数，不是模型修改入口。原始 preedit 或�
 
 SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活动／非活动选择颜色，默认启用选择、复制和裁剪。字符／词／逻辑行选择、Shift 扩展及方向移动复用公共文本导航；键盘只消费 Move、SelectAll、Copy，其他编辑命令留给外层。Copy 使用 Accepted StyledText.toPlainText(range)，包括行内对象 alternateText，不丢失原始逻辑范围。选择活动状态包括自身范围动作的焦点。
 
+SelectableTextOptions.contextMenu 默认为 TextContextMenuOptions()，与编辑宿主共用 Disabled／StandardNative／PreferSystem、选区策略及标准标签。showContextMenu()、右键／平台辅助点击和菜单键／Shift+F10 进入同一原生菜单，提供 Copy／SelectAll；要求匹配正文的 Accepted 几何和合法焦点／输入边界。选区内点击保留方向，选区外按配置保留、放置插入点或选词。打开停止拖选，不触发行内主按钮；会话、正文更新、关闭及迟到动作遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。
+
 `TextRangeAction(key, range, onActivate, enabled, focus)` 按稳定 key 保留嵌套区域、FocusTarget 和 Press；缺省焦点顺序跟随动作数组，显式 FocusOptions 独立。范围可以跨行，由布局 selection 返回的矩形合成一个 Path 命中区域，支持显式激活且不自行调用 URL 或 OS 服务。`TextRangeDecoration(range, background, underline)` 只画范围装饰，不创建交互区域。范围均为原始 StyledText 的合法 UTF-8 标量区间，动作非空且 key 唯一。
 
 文本区域在捕获阶段准备拖选候选，不提前吞掉范围动作的点击；达到阈值后通过同一 Surface 指针序列认领取消 Press，转为文本拖选。失焦、取消、被阻止的释放及卸载均收尾。行内子挂载通过 routeChildren 接到文本区域，继续使用普通输入协议。
@@ -746,7 +748,7 @@ ParagraphHost.measure 的 settings 为 `ParagraphStyle? = None`；缺省时以�
 
 `InteractionState(hovered=false, pressed=false, focused=false, focusVisible=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
 
-Press 通过 Surface 的独立事件／默认动作／完成登记组合，不替换调用方原 handler。鼠标主按钮在已提交 hover 路径内按下建立候选，移出暂停 pressed、移回恢复；同一有效序列在区域内释放后激活。取消、禁用、失焦和卸载立即清理。传播中止或默认行为取消时，完成通知仍清除已经结束的序列，不补做激活。
+Press 通过 Surface 的独立事件／默认动作／完成登记组合，不替换调用方原 handler。鼠标主按钮在已提交 hover 路径内按下建立候选，移出暂停 pressed、移回恢复；同一有效序列在区域内释放后激活。平台认定为上下文菜单的辅助按下（如 AppKit Control+左键）不建立候选、不消费该次按下，让祖先菜单正常处理；释放不补做主动作。取消、禁用、失焦和卸载立即清理。传播中止或默认行为取消时，完成通知仍清除已经结束的序列，不补做激活。
 
 键盘使用 window 的精确 ShortcutChord：普通 Space 在真实 key-up 激活，Enter 在真实 key-down 激活，acceptsEnter=false 时忽略 Enter；额外修饰键不匹配。重复按下不追加激活，synthetic 不激活，释放必须对应先前物理键。Enter 已触发的按键只等待释放收尾，Space 候选在释放前失焦／禁用即失效。指针与键盘候选互斥。
 

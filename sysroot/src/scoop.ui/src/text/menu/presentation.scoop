@@ -1,21 +1,21 @@
 package scoop.ui.text
 
 import scoop.ui.*
+import scoop.surface.InputArea
 import scoop.window.*
 
-private struct EditorMenuItem(
+private struct TextMenuItem(
     val id: MenuItemId,
     val command: TextEditCommand,
     val label: String,
     val shortcut: ShortcutChord?
 )
 
-private class EditorMenuSession(
+private class TextMenuSession(
     val menu: Menu,
     val popup: PopupSession,
-    val document: TextEditorState,
     val options: TextContextMenuOptions,
-    val items: Array<EditorMenuItem>
+    val items: Array<TextMenuItem>
 ) {
     var valid = true
     var invoked = false
@@ -25,9 +25,23 @@ private class EditorMenuSession(
 }
 
 /** Owns one bound text target; popup completion never performs an edit. */
-internal class EditorContextMenu(private val host: TextEditHost): Closeable {
-    private var current: EditorMenuSession? = None
+internal class TextContextMenu(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    private val configuration: () -> TextContextMenuOptions,
+    private val canUse: () -> Boolean,
+    private val perform: (TextEditCommand) -> Boolean,
+    private val editing: Boolean
+): Closeable {
+    private val window = scope.nativeWindow
+    private var current: TextMenuSession? = None
     private var closed = false
+
+    val hasTarget: Boolean get() =
+        when (val value = current) {
+            case Some(val session) -> session.valid
+            case None -> false
+        }
 
     val pending: Boolean get() =
         when (val value = current) {
@@ -40,31 +54,34 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
 
     fun eligible(): Boolean =
         !closed &&
-            !host.closed &&
-            host.scope.isMounted &&
-            host.options.enabled &&
-            host.options.contextMenu.mode !=
+            scope.isMounted &&
+            !area.isClosed &&
+            canUse() &&
+            configuration().mode !=
             TextContextMenuMode.Disabled &&
-            host.window.state ==
+            window.state ==
             WindowState.Open &&
-            !host.window.isInputBlocked &&
-            host.area.isFocusActive &&
-            host.area.scope.isInputAllowed
+            !window.isInputBlocked &&
+            area.scope.isInputAllowed
 
     fun open(template: TextContextMenuTemplate, placement: PopupPlacement): Boolean {
         if (pending || !eligible())
             return false
         releaseCurrent()
-        val menu = host.scope.application.createMenu()
+        val menu = scope.application.createMenu()
         try {
-            val items = ArrayList<EditorMenuItem>()
-            val availability = host.area.scope.textCommandAvailability ?: TextCommandAvailability()
+            val items = ArrayList<TextMenuItem>()
+            val availability = area.scope.textCommandAvailability ?: TextCommandAvailability()
+            var separator = false
             for (entry in template.entries)
                 when (entry) {
-                    case Separator -> menu.insert(
-                        MenuItemDescription(kind = MenuItemKind.Separator)
-                    )
+                    case Separator -> separator = items.size > 0L
                     case Command(val command, val label, val shortcut) -> {
+                        if (!textMenuSupports(command, editing))
+                            continue
+                        if (separator)
+                            menu.insert(MenuItemDescription(kind = MenuItemKind.Separator))
+                        separator = false
                         val id =
                             menu.insert(
                                 MenuItemDescription(
@@ -73,24 +90,16 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
                                     shortcut = shortcut
                                 )
                             )
-                        items.add(EditorMenuItem(id, command, label, shortcut))
+                        items.add(TextMenuItem(id, command, label, shortcut))
                     }
                 }
-            val popup = host.window.showPopup(menu, placement)
-            val session =
-                EditorMenuSession(
-                    menu,
-                    popup,
-                    host.current,
-                    host.options.contextMenu,
-                    items.toArray()
-                )
+            val popup = window.showPopup(menu, placement)
+            val session = TextMenuSession(menu, popup, configuration(), items.toArray())
             current = Some(session)
-            session.actions =
-                Some(host.scope.observeMenu(menu) { event -> activate(session, event) })
+            session.actions = Some(scope.observeMenu(menu) { event -> activate(session, event) })
             session.completion =
                 Some(
-                    host.scope.observePopup(popup) {
+                    scope.observePopup(popup) {
                         result ->
                         session.completed = true
                         when (result) {
@@ -114,21 +123,19 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
         }
     }
 
-    private fun activate(session: EditorMenuSession, event: MenuActivation) {
+    private fun activate(session: TextMenuSession, event: MenuActivation) {
         if (
             closed ||
                 !session.valid ||
                 session.invoked ||
                 !eligible() ||
-                host.current !==
-                session.document ||
-                host.options.contextMenu !=
+                configuration() !=
                 session.options
         )
             return
         when (event.source) {
             case Popup(val popup, val window) -> {
-                if (popup != session.popup.id || window != host.window.id)
+                if (popup != session.popup.id || window != this.window.id)
                     return
             }
             else -> return
@@ -136,10 +143,10 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
         for (item in session.items)
             if (item.id == event.item) {
                 session.invoked = true
-                val available = host.area.scope.textCommandAvailability ?: TextCommandAvailability()
+                val available = area.scope.textCommandAvailability ?: TextCommandAvailability()
                 try {
                     if (textMenuAvailable(available, item.command))
-                        host.execute(item.command)
+                        perform(item.command)
                 } finally {
                     if (session.completed)
                         finish(session)
@@ -152,17 +159,11 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
         val session = current ?: return
         if (!session.valid)
             return
-        if (
-            !eligible() ||
-                host.current !==
-                session.document ||
-                host.options.contextMenu !=
-                session.options
-        ) {
+        if (!eligible() || configuration() != session.options) {
             cancel()
             return
         }
-        val available = host.area.scope.textCommandAvailability ?: TextCommandAvailability()
+        val available = area.scope.textCommandAvailability ?: TextCommandAvailability()
         for (item in session.items) {
             val enabled = textMenuAvailable(available, item.command)
             if (session.menu.description(item.id).enabled != enabled)
@@ -189,7 +190,7 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
         throwUi(failure)
     }
 
-    private fun finish(session: EditorMenuSession) {
+    private fun finish(session: TextMenuSession) {
         session.valid = false
         val actions = session.actions
         val completion = session.completion
@@ -223,6 +224,18 @@ internal class EditorContextMenu(private val host: TextEditHost): Closeable {
         releaseCurrent()
     }
 }
+
+internal fun textMenuSupports(command: TextEditCommand, editing: Boolean): Boolean =
+    when (command) {
+        case Copy -> true
+        case SelectAll -> true
+        case Undo -> editing
+        case Redo -> editing
+        case Cut -> editing
+        case Paste -> editing
+        case DeleteSelection -> editing
+        else -> false
+    }
 
 internal fun textMenuAvailable(value: TextCommandAvailability, command: TextEditCommand): Boolean =
     when (command) {

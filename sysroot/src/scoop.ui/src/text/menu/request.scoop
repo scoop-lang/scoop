@@ -21,6 +21,7 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
     )
         return false
     val frame = host.accepted ?: return false
+    val document = host.current
     if (frame.display.source.text != host.current.text)
         return false
     val bounds = host.area.visibleBounds ?: return false
@@ -31,7 +32,13 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
             return false
         case None -> {}
     }
-    if (!host.contextMenu.eligible() || frame.display.source.text != host.current.text)
+    if (
+        !host.contextMenu.eligible() ||
+            host.current !==
+            document ||
+            frame.display.source.text !=
+            host.current.text
+    )
         return false
     val options = host.options.contextMenu
     val template =
@@ -53,16 +60,8 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
                         inside = true
                 if (!inside && options.selection != TextContextMenuSelection.Preserve) {
                     val displayed = frame.layout.hitTest(point)
-                    val words =
-                        options.selection ==
-                            TextContextMenuSelection.SelectWord ||
-                            (
-                                options.selection ==
-                                    TextContextMenuSelection.Platform &&
-                                    template.selectWordOutsideSelection
-                            )
                     val selection =
-                        if (words) {
+                        if (textMenuSelectsWord(options, template)) {
                             val range =
                                 editorProjectedRange(input, frame.layout.wordRange(displayed))
                             EditorSelection(
@@ -90,6 +89,8 @@ internal fun editorContextMenu(host: TextEditHost, pointer: InputPointer?, local
                 )
             }
         }
+    if (host.closed || !host.scope.isMounted || host.current !== document)
+        return false
     return host.contextMenu.open(template, placement)
 }
 
@@ -100,34 +101,15 @@ private fun editorMenuAnchor(host: TextEditHost, frame: EditorFrame, bounds: Rec
         case None -> {}
     }
     for (box in frame.layout.selection(frame.display.displayRange(host.current.selection.range))) {
-        val rect = host.area.toWindow(box.rect) ?: continue
-        val left =
-            if (rect.x > bounds.x)
-                rect.x
-            else
-                bounds.x
-        val top =
-            if (rect.y > bounds.y)
-                rect.y
-            else
-                bounds.y
-        val right =
-            if (rect.x + rect.width < bounds.x + bounds.width)
-                rect.x + rect.width
-            else
-                bounds.x + bounds.width
-        val bottom =
-            if (rect.y + rect.height < bounds.y + bounds.height)
-                rect.y + rect.height
-            else
-                bounds.y + bounds.height
-        if (right > left && bottom > top)
-            return Some(Rect(left, top, right - left, bottom - top))
+        when (val anchor = textMenuAnchor(host.area, box.rect, bounds)) {
+            case Some(val rect) -> return Some(rect)
+            case None -> {}
+        }
     }
     return None
 }
 
-private fun textMenuContains(rect: Rect, point: Point): Boolean =
+internal fun textMenuContains(rect: Rect, point: Point): Boolean =
     rect.width >
         0.0 &&
         rect.height >
@@ -143,7 +125,7 @@ private fun textMenuContains(rect: Rect, point: Point): Boolean =
         rect.y +
         rect.height
 
-internal fun editorMenuKey(key: KeyEvent): Boolean =
+internal fun textMenuKey(key: KeyEvent): Boolean =
     key.state ==
         ElementState.Pressed &&
         !key.synthetic &&
@@ -157,3 +139,43 @@ internal fun editorMenuKey(key: KeyEvent): Boolean =
             (key.logicalKey == LogicalKey.Named(NamedKey.ContextMenu) && !key.modifiers.shift) ||
                 (key.logicalKey == LogicalKey.Named(NamedKey.F10) && key.modifiers.shift)
         )
+
+internal fun textMenuSelectsWord(
+    options: TextContextMenuOptions,
+    template: TextContextMenuTemplate
+): Boolean =
+    options.selection ==
+        TextContextMenuSelection.SelectWord ||
+        (
+            options.selection ==
+                TextContextMenuSelection.Platform &&
+                template.selectWordOutsideSelection
+        )
+
+internal fun textMenuAnchor(area: InputArea, local: Rect, bounds: Rect): Rect? {
+    val rect = area.toWindow(local) ?: return None
+    val left =
+        if (rect.x > bounds.x)
+            rect.x
+        else
+            bounds.x
+    val top =
+        if (rect.y > bounds.y)
+            rect.y
+        else
+            bounds.y
+    val right =
+        if (rect.x + rect.width < bounds.x + bounds.width)
+            rect.x + rect.width
+        else
+            bounds.x + bounds.width
+    val bottom =
+        if (rect.y + rect.height < bounds.y + bounds.height)
+            rect.y + rect.height
+        else
+            bounds.y + bounds.height
+    return if (right > left && bottom > top)
+        Some(Rect(left, top, right - left, bottom - top))
+    else
+        None
+}

@@ -35,11 +35,21 @@ public class SelectableTextHost public constructor(
             event -> selectableHandle(this, context, event)
         }
     public val focus = scope.focusTarget(area)
+    internal val contextMenu =
+        TextContextMenu(
+            scope,
+            area,
+            { options.contextMenu },
+            { selectableMenuReady(this) },
+            { command -> execute(command) },
+            false
+        )
     private val activity =
         area.scope.observeActivity {
             if (!closed && scope.isMounted) {
                 if (!area.scope.activity.hasFocus)
                     selectableStopDrag(this)
+                contextMenu.refresh()
                 scope.requestFrame()
             }
         }
@@ -132,6 +142,11 @@ public class SelectableTextHost public constructor(
         }
         this.focus.options = focus
         val textChanged = this.content.text != content.text
+        if (
+            textChanged ||
+                (contextMenu.hasTarget && this.content.toPlainText() != content.toPlainText())
+        )
+            contextMenu.cancel()
         this.fonts = fonts
         this.content = content
         this.options = options
@@ -204,6 +219,12 @@ public class SelectableTextHost public constructor(
         selectableStopDrag(this)
         return selectableCommand(this, command)
     }
+    /** Opens Copy and Select All at the current accepted selection or insertion position. */
+    public fun showContextMenu(): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        return selectableContextMenu(this, None, None)
+    }
     public fun measure(
         context: MeasureContext,
         constraints: Constraints,
@@ -225,6 +246,7 @@ public class SelectableTextHost public constructor(
         closed = true
         selectableStopDrag(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { contextMenu.close() }
         failure = cleanupUi(failure) { activity.close() }
         for (action in actions)
             failure = cleanupUi(failure) { action.close() }

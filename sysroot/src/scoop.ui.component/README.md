@@ -63,6 +63,8 @@ Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate�
 
 Input／Textarea／InputOtp 默认提供原生文本菜单。使用 `contextMenu { mode = TextContextMenuMode.StandardNative; selection = TextContextMenuSelection.Preserve }` 可选择标准菜单并保留选区外点击的选择；Disabled 关闭内建入口，PreferSystem 尽量复用可执行的系统模板。相关类型位于 `scoop.ui.text`，可选标签覆盖使用 `scoop.window.TextContextMenuLabels`。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传当前配置；需要应用自定义菜单时先关闭内建入口，再使用现有菜单包装。编辑动作始终进入同一个 TextEditorState，OTP 的长度与模式限制仍然有效。
 
+SelectableStyledText 的 `options = SelectableTextOptions(contextMenu = textContextMenu { selection = TextContextMenuSelection.Preserve })` 配置只读 Copy／SelectAll 菜单，默认也使用 PreferSystem。Typography 的 selection 接收同一 SelectableTextOptions。正文与行内替代文字来自共享只读宿主，辅助点击不触发行内主按钮，键盘菜单沿现有焦点与 Accepted 选区定位。
+
 密码输入使用 `input(editor) { protectedText = true; projection = textMask() }`；显示密码时只把 projection 换成 textProjection()，继续保留 protectedText=true。Input／Textarea／InputOtp 及组合输入都提供这个独立标记，默认 false。受保护用途或内置遮罩默认禁止 Copy／Cut；Input／Textarea 可用 `copy = TextCopyPolicy.Allow` 明确允许复制原文，该选择不清除保护标记。显隐与用途更新保留模型、选区、撤销和 IME；粘贴及普通编辑继续使用原策略。
 
 两个输入控件在有界父容器中占满宽度，可用 Frame 指定尺寸；Textarea 的 rows 决定建议高度，默认内缩按 body 字号／14 缩放为横向 10、纵向 8。description 放在边框外，invalid 使用当前主题的错误色，业务自行决定验证结果。TextFieldStyle 可覆盖表面、字体、选择及光标颜色；caretBlink 缺省跟随系统，显式 `caretBlink = Some(Duration.ZERO)` 保持光标可见；光标宽度也默认跟随根系统偏好。Textarea 的 Auto／Always 滚动条预留稳定空间，Hidden 不预留；paintCache 独立控制正文像素缓存。`tests-cones/editing` 覆盖实际控件、三套主题、模态 IME、滚动条和虚拟编辑项的保留／卸载。

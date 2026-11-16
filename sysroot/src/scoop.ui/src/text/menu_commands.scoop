@@ -38,4 +38,5 @@ internal fun SelectableTextHost.refreshMenuCommands() {
                 selectAll = available && content.text.byteLength > 0L
             )
         )
+    contextMenu.refresh()
 }
