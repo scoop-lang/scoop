@@ -1,6 +1,6 @@
 # M47：同步 generator 协议与语义查询
 
-状态：通用查询与同步协议已实现，codec 迁移待实施。初稿：2026-10-15；公共基础修订：2026-10-21。本文配套[主设计](DESIGN.md)及[可恢复语法／LSP 公共基础](../language-service/DESIGN.md)，只定义通用 HIR 查询与独立 generator 的同步交互。计划中的首个生产调用方为承接 M46 的 codec generator；消息和查询本身不含序列化策略。generator 返回可读的方法体源码文本，driver 使用同一 parser 的严格片段适配和正常 HIR lowering 填充指定 interface 的缺失实现，不扩展 AST 的绑定能力或编译器语义。真实 generator 的协议与产物闭环验证见[公共基础验收](../language-service/PROGRESS.md)。
+本文定义通用 HIR 查询与独立生成器之间的同步协议。`scoop.codec` 和 `scoop.cli` 都使用该协议查询模型并返回 Scoop 方法体源码。driver 将源码交给普通 parser，HIR lowering 在对应接口实现的定义环境中检查方法体。两个库各自决定字段与构造策略。[M47 主设计](DESIGN.md) · [codec 与 CLI 迁移及验收](CODEC-CLI-MIGRATION.md) · [公共基础验收](../language-service/PROGRESS.md)
 
 ## 1. 一条线性会话
 

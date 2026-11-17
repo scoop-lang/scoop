@@ -1,6 +1,8 @@
 # 用 `@GenerateWith` 生成 codec 和命令行参数解析器
 
-本方案把现有 HIR 补写的 `encode`、`decode` 移入 `scoop.codec` 生成器，同时为 `scoop.cli` 设计独立的参数解析接口和生成器。编译器负责在 `@GenerateWith` 选中的接口条件下检查生成的方法体。生成器负责模型约束，使用现有 Scoop 语法调用主构造器。需要其他构造方式时，模型作者在 companion 上定义具名工厂。[M47 总体设计](DESIGN.md)
+`scoop.codec` 通过 `@GenerateWith` 生成 `ValueEncoder.encode` 和 `ValueDecoder.decode`，取代 HIR 中这两个方法的专用合成。`scoop.cli` 用独立的 `CliArguments<T>` 绑定整组参数，用 `CliValueParser<T>` 解析自定义字段。编译器在每个接口实现自己的 `where` 条件下检查生成的方法体。
+
+两个生成器构造模型时都使用普通具名调用。生成方法所在的作用域必须只能看到目标类型的主构造器。模型需要其他构造入口时，在 `companion object` 上定义具名工厂。需要在解码或绑定过程中调用工厂时，只手写对应方法即可。详见[构造示例](#4-自动构造的约定与-companion-工厂)和 [M47 总体设计](DESIGN.md)。
 
 ## 1. 应用如何使用
 
@@ -148,3 +150,9 @@ public struct Port(val value: Int) {
 | 5. 工具链交付 | 两个程序均为 Rust 宿主工具，复用 `scoop-generator-protocol` 的同步协议，与 `scoopc` 一同构建并安装。复用现有 `scoop.codec` 映射，增加 `scoop.cli`，沿用 `--generator NAME=PATH`。发布脚本先准备宿主工具再构建目标 sysroot，生成正文随 `.slib` 导出。用真实 `scoop build` 验证冷构建、未变命中、实际使用的生成器更新、消费依赖不重跑上游生成，以及缺少宿主程序的诊断。 |
 
 普通行为覆盖放入各自的 Cone 测试，编译失败／诊断位置、宿主进程及跨产物行为用对应 fixture。回归可从 [条件 codec](../../sysroot/src/scoop.json/tests/consumer/conditional-derived-codecs)、[继承的条件 codec](../../sysroot/src/scoop.json/tests/consumer/conditional-inherited-codecs)、[CLI 基本行为与数值用例](../../sysroot/src/scoop.cli/tests/cli) 开始。规范改动对应[语言规范](../specs/SCOOP-SPEC.md)、[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md)及[编程材料更新工作流](../scoop-programming/UPDATE-WORKFLOW.md)。
+
+## 7. 本机验收结果
+
+- JSON 的 107 个、CLI 的 6 个、URL 的 22 个和 HTTP 服务端的 177 个 Cone 测试全部通过。额外验证了只生成 `encode` 或 `entries` 时，模型可以保留可见的次构造器。HTTP 客户端的 `post_json` 和服务端的 `json` 示例均通过 `scoop check --release`。
+- 133 个相关 fixture 均通过，含修复后复验的 4 个。覆盖条件接口、生成诊断位置、独立宿主进程及下游读取 `.slib`。用真实工具链冷构建时两个生成器各运行一次，立即重建及另一个 Cone 消费预编译产物时调用次数都未增加。更新已使用的 CLI 生成器后，构建重新执行。
+- 实测一个含 6 个可独立缺省字段的 CLI 模型，生成的 `bind` 正文为 13,276 字节，包含 64 种普通构造调用。混合传入与省略字段时只执行匹配的一次调用，结果符合模型声明的默认值。

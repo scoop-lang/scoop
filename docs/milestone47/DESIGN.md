@@ -1,10 +1,10 @@
 # M47 设计：HIR 查询与接口实现生成器
 
-状态：通用机制已实现，codec 迁移待实施。初稿：2026-10-15；公共基础修订：2026-10-21。原调研基线：`e548b9ebe`；本次公共基础核对基线：`4de3ae9e8`。M46 已完成；本文以 [M46 主设计](../milestone46/DESIGN.md)、[Serialize／Option 合同](../milestone46/SERIALIZE.md)及其完成后的实现为迁移基线，不实施或重新安排 M46。
+通用机制、条件接口以及 codec 和 CLI 两个生成器均已实现。初稿：2026-10-15；公共基础修订：2026-10-21。原调研基线：`e548b9ebe`；本次公共基础核对基线：`4de3ae9e8`。M46 已完成；本文以 [M46 主设计](../milestone46/DESIGN.md)、[Serialize／Option 合同](../milestone46/SERIALIZE.md)及其完成后的实现为迁移基线，不实施或重新安排 M46。
 
 条件接口的选择规则、codec 与 CLI 的库接口、模型构造约定和验收顺序见[完整迁移方案](CODEC-CLI-MIGRATION.md)。
 
-依据：[语言规范](../specs/SCOOP-SPEC.md) 8.5、9.4～9.6、11.13，[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) 2.1、2.2、2.7、2.11、2.17、2.20，以及[路线图](../ROADMAP.md)。本文规定功能边界、编译编排、试点迁移和验收；[同步协议与语义查询](PROTOCOL.md)规定进程交互、HIR 查询与方法体源码片段。通用查询、同步协议与方法体填充已随公共基础实现，实际范围见[实施与验收](../language-service/PROGRESS.md)；codec 迁移仍按本文推进，各批行为变更先同步相应 spec。
+依据：[语言规范](../specs/SCOOP-SPEC.md) 8.5、9.4～9.6、11.13，[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) 2.1、2.2、2.7、2.11、2.17、2.20，以及[路线图](../ROADMAP.md)。本文规定功能边界、编译编排、试点迁移和验收；[同步协议与语义查询](PROTOCOL.md)规定进程交互、HIR 查询与方法体源码片段。通用查询、同步协议与方法体填充已随公共基础实现，实际范围见[实施与验收](../language-service/PROGRESS.md)。两个内置生成器的实现与验收见[联合迁移方案](CODEC-CLI-MIGRATION.md)。
 
 ## 1. 本期交付与边界
 
@@ -128,9 +128,7 @@ hir-lower 按原声明上下文检查并 lower 生成正文
 已有完整性、effect 等检查 → 完整 HIR → MIR／LIR／codegen
 ```
 
-生成钩子放在现有 encode／decode 正文合成的位置附近：普通源码正文已处理，必要声明与注解已按原规则绑定，最终 HIR 尚未封装。普通继承处理建立既有方法签名并记录仍缺失的实现；driver 到生成点才读取 GenerateWith，将配置匹配到其中的实际 interface application。未被填充的必要方法在最终完整性检查中诊断。不能为解析这个注解另设提前绑定流程，也不能为读取注解反复绑定同一应用。
-
-当前实现的定位点是 `hir-lower/src/pipeline/run.rs` 中的 `check_inheritance`、`lower_derived_encoding_bodies` 和 `lower_derived_decoding_bodies`，以及 `driver/src/request/preflight/current_hir.rs` 的 current-Cone lowering 调用。M46 可能调整这些目录和函数；实施按职责接入，不要求 M46 保持调研时的函数名。
+普通继承检查建立方法签名并记录缺失的实现。`lower_source_bodies_with_cancellation` 处理用户正文后，`generate_method_bodies` 调用 driver 提供的生成钩子。此时注解已绑定，driver 可以匹配 `@GenerateWith` 选中的完整接口，并在对应条件下请求正文。最终完整性检查报告仍缺少实现的必要方法。[HIR 流水线](../../compiler/hir-lower/src/pipeline/run.rs) · [接口与方法选择](../../compiler/driver/src/generation/plan.rs)
 
 这是 HIR lowering 内部的正常合成步骤，不发布一个供下游消费的“半成品 HIR”阶段。待生成正文只属于前端正在构建的状态；成功返回的 HIR 必须保存全部必要的完整 typed body。
 
@@ -337,4 +335,4 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 
 先执行变更语言对应的格式化和 lint，再执行相关 Rust 测试、fixture runner 规则测试及正式 CLI fixture。将 generator binary 纳入 fixture 的正式工具准备，不能用内存测试后端代替端到端验证。按实际变更选择 Darwin 与 Linux 的适用组合；未涉及 LIR、codegen 或目标 ABI 时，Linux GNU 与 musl 选择一组完整验证。只有实际影响共享 ABI、GC 或产物基础时才据此扩大回归。
 
-M47 完成的判据是：保持 M46 编解码行为的真实程序经独立 generator 编译运行；编译器中已无 Serialize 专用解释和 encode／decode 策略合成；普通用户 interface 也能通过同一同步协议补充方法实现。codec 迁移的上述完成条件尚未闭合；已交付通用机制的验证见[公共基础验收](../language-service/PROGRESS.md)。
+codec 和 CLI 已用独立宿主程序完成库测试、条件接口和预编译产物消费验证。普通用户接口也通过相同协议生成方法。[codec 与 CLI 本机验收](CODEC-CLI-MIGRATION.md#7-本机验收结果) · [公共基础验收](../language-service/PROGRESS.md)
