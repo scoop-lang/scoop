@@ -1,6 +1,6 @@
 # 用 `@GenerateWith` 生成 codec 和命令行参数解析器
 
-本次迁移同时交付两个生成器。`scoop.codec` 接管 HIR 中自动补 `encode` 和 `decode` 的职责，`scoop.cli` 根据参数类型生成专用命令行解析器。两者通过同一个 `@GenerateWith` 入口选择普通或带 `where` 的接口实现。构造对象时，生成器调用模型的主构造器，额外构造入口由作者在 companion 上提供具名工厂。所有用法采用现有 Scoop 语法。[M47 总体设计](DESIGN.md)
+本方案把现有 HIR 补写的 `encode`、`decode` 移入 `scoop.codec` 生成器，同时为 `scoop.cli` 设计独立的参数解析接口和生成器。编译器负责在 `@GenerateWith` 选中的接口条件下检查生成的方法体。生成器负责模型约束，使用现有 Scoop 语法调用主构造器。需要其他构造方式时，模型作者在 companion 上定义具名工厂。[M47 总体设计](DESIGN.md)
 
 ## 1. 应用如何使用
 
@@ -96,7 +96,7 @@ return when (suppliedBias) {
 
 ## 5. `scoop.cli` 的独立接口
 
-现有 `Cli.schema(typeInfo<T>(), config)` 在运行时扫描字段，`CliParser(schema, codec)` 将 argv 转成 `CliDecoder` 后调用 `ValueDecoder<T>.decode`。迁移后，参数类型通过 `CliArguments<T>` 提供布局和构造逻辑，自定义字段通过 `CliValueParser<T>` 提供转换。argv 语法与 help 由 `scoop.cli` 库统一处理。[现有公开入口](../../sysroot/src/scoop.cli/src/cli.scoop) · [schema 推导](../../sysroot/src/scoop.cli/src/schema_model.scoop) · [argv 处理](../../sysroot/src/scoop.cli/src/tokens.scoop)
+迁移前，`Cli.schema(typeInfo<T>(), config)` 在运行时扫描字段，`CliParser(schema, codec)` 把 argv 包装成 `CliDecoder` 交给 `ValueDecoder<T>.decode`。迁移后，参数类型通过 `CliArguments<T>` 提供布局和构造逻辑，自定义字段通过 `CliValueParser<T>` 提供转换。token 如何消费、何时返回 help，由 `scoop.cli` 在一处处理。[CLI 入口](../../sysroot/src/scoop.cli/src/cli.scoop) · [argv 处理](../../sysroot/src/scoop.cli/src/tokens.scoop)
 
 ```scoop
 public interface CliArguments<T> {
@@ -114,6 +114,19 @@ public interface CliValueParser<T> {
 - `CliValueParser<F>` 用于 `Port` 之类的自定义字段或有约束的泛型字段，方法同时说明一个字段怎样收集及转换。生成器优先选择 parser 主构造器上唯一匹配的显式 `val`，否则使用内置标量、容器组合或满足 `CliValueParser<F>` 的可见 companion。依赖歧义或开放参数缺少条件在定义处报错。应用也可手写整份 `entries` 和 `bind`，覆盖现有显式 schema、只读取部分输入等用法。
 - `CliValues` 提供按 `sourceName` 的 `required`／`optional` 只读查询。`CliFieldValues` 保留本字段各次出现顺序、文本或 flag 的布尔值、原始 token 及下标。库向跨 Cone 的生成正文和手写 parser 公开必要的读取与转换方法，统一处理整数宽度、Float／Double 精度、Char 和 Boolean。库在一次 argv 扫描中收集数据，命中 help 即在进入 `bind` 前返回。
 - `CliParser<T>(config, arguments: CliArguments<T>)` 在建立时取一次 entries 并建立布局，提供 `parse`、`parseCommandLine`、`help`、`writeHelp`。`parse` 接收纯参数，`parseCommandLine` 跳过程序名，空完整 argv 报错。`CliResult.Parsed` 和 `HelpRequested` 保留。生成器能确定的注解冲突在编译期诊断。手写或取决于用户 `shape()` 的布局在创建时检查一次，后续解析、help 共用该布局。
+
+例如，若第 1 节的 `port` 改为 `val port: Port = Port(8080)`，只需在字段类型上实现文本转换。
+
+```scoop
+public struct Port(val value: Int) {
+    public companion object : CliValueParser<Port> {
+        public override fun shape(): CliValueShape = CliValueShape.Text
+        public override fun parseValue(values: CliFieldValues): Port = Port(values.readInt())
+    }
+}
+```
+
+传入 `--port 9000` 时，生成的 `bind` 用 `Port.Companion` 将该字段转为 `Port(9000)`。省略 `--port` 时，`bind` 调用 `Options` 时省略该实参，得到模型声明的 `Port(8080)`。
 
 | 现有用法 | 迁移后的 CLI 行为 |
 | --- | --- |
