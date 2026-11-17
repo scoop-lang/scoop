@@ -99,6 +99,7 @@ public class DropdownMenuBuilder internal constructor(): MenuRootBuilder() {
 
 public class ContextMenuBuilder internal constructor(): MenuRootBuilder() {
     public var open: Binding<Boolean>? = None
+    public var longPress: LongPressOptions = LongPressOptions()
     internal fun snapshot(content: View, menu: MenuContent): ContextMenuProps =
         ContextMenuProps(
             content,
@@ -111,7 +112,8 @@ public class ContextMenuBuilder internal constructor(): MenuRootBuilder() {
             dismiss,
             onOpenChange,
             onCloseRequest,
-            onClosed
+            onClosed,
+            longPress
         )
 }
 

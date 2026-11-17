@@ -58,7 +58,8 @@ public class NativeContextMenuProps public constructor(
     public val menu: NativeMenuContent,
     public val enabled: Boolean = true,
     public val handle: NativePopupHandle? = None,
-    public val onClosed: (PopupResult) -> Unit = {}
+    public val onClosed: (PopupResult) -> Unit = {},
+    public val longPress: LongPressOptions = LongPressOptions()
 )
 
 public class NativeContextMenu public constructor(
@@ -74,7 +75,8 @@ public class NativeContextMenu public constructor(
                 input.enabled,
                 true,
                 input.handle ?: local,
-                input.onClosed
+                input.onClosed,
+                input.longPress
             ),
             { current, mount -> NativePopupLayout(current, scope = mount) },
             [input.content]

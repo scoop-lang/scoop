@@ -1,0 +1,310 @@
+package scoop.tests.ui.gestures
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class LongPressUiTest {
+    @Test
+    fun `long presses share contact ownership preserve short taps and retire deadlines`() {
+        val scenario = LongPressScenario()
+        val probe = GestureProbe(Some({ value, active -> scenario.advance(value, active) }))
+        probe.longPress = Some(scenario)
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(1, probe.unmounts)
+            assertTrue(scenario.parent!!.isClosed)
+            assertTrue(scenario.child!!.isClosed)
+            assertTrue(probe.press!!.isClosed)
+            assertTrue(probe.view!!.restored())
+            assertFailsWith<IllegalArgumentException> {
+                scenario.parent!!.update(LongPressOptions()) { _ -> fail() }
+            }
+        } catch (error: Throwable) {
+            println(
+                f"long press stage=${scenario.stage}, holds=${scenario.holds}, clicks=${
+                    probe.clicks
+                }"
+            )
+            reportGestureFailure(error)
+            throw error
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal class LongPressScenario {
+    var parent: LongPress? = None
+    var child: LongPress? = None
+    var stage = 0
+    var holds = 0
+    private var childHolds = 0
+    private var updatedHolds = 0
+    private var sample: LongPressSample? = None
+    private var clock: WindowDeadline? = None
+    private var later: () -> Unit = {}
+    private var baseline = 0
+
+    private fun options(enabled: Boolean = true, delay: Long = 40L): LongPressOptions =
+        LongPressOptions(enabled, Duration.milliseconds(delay))
+
+    fun mount(probe: GestureProbe, scope: ComponentScope, area: InputArea, outer: Boolean) {
+        if (outer)
+            parent = Some(scope.longPress(area, options()) { value -> held(value) })
+        else {
+            child = Some(scope.longPress(area, options(false)) { value -> childHeld(value) })
+            clock =
+                Some(
+                    scope.createDeadline {
+                        val action = later
+                        later = {}
+                        action()
+                        probe.waiting = false
+                    }
+                )
+        }
+    }
+    private fun held(value: LongPressSample) {
+        holds += 1
+        sample = Some(value)
+    }
+    private fun childHeld(value: LongPressSample) {
+        childHolds += 1
+        held(value)
+    }
+    private fun pause(probe: GestureProbe, milliseconds: Long = 140L, action: () -> Unit = {}) {
+        probe.waiting = true
+        later = action
+        clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+
+    fun advance(probe: GestureProbe, active: ActiveApplication) {
+        when (stage) {
+            0 -> {
+                probe.contact(1L, 0)
+                probe.contact(1L, 2)
+                pause(probe)
+            }
+            1 -> {
+                assertEquals(1, probe.clicks)
+                assertEquals(0, holds)
+                probe.contact(2L, 0)
+                pause(probe)
+            }
+            2 -> {
+                assertEquals(1, holds)
+                assertEquals(ContactId(2L), sample!!.contact.id)
+                assertEquals(Point(30.0, 30.0), sample!!.position)
+                assertFalse(probe.press!!.interaction.pressed)
+                pause(probe)
+            }
+            3 -> {
+                assertEquals(1, holds)
+                probe.contact(2L, 2)
+            }
+            4 -> {
+                assertEquals(1, probe.clicks)
+                probe.contact(3L, 0, pen = true)
+                pause(probe)
+            }
+            5 -> {
+                assertEquals(2, holds)
+                assertEquals(ContactKind.Pen, sample!!.contact.kind)
+                probe.contact(3L, 2, pen = true)
+                child!!.update(options()) { value -> childHeld(value) }
+                probe.contact(4L, 0)
+                pause(probe)
+            }
+            6 -> {
+                assertEquals(3, holds)
+                assertEquals(1, childHolds)
+                assertEquals(Point(10.0, 10.0), sample!!.position)
+                probe.contact(4L, 2)
+            }
+            7 -> {
+                assertEquals(1, probe.clicks)
+                child!!.update(options(false)) { value -> childHeld(value) }
+                probe.contact(5L, 0)
+                probe.contact(5L, 1, 50.0)
+                probe.contact(5L, 1)
+                probe.contact(5L, 2)
+                pause(probe)
+            }
+            8 -> {
+                assertEquals(3, holds)
+                assertEquals(1, probe.clicks)
+                probe.contact(6L, 0)
+                probe.contact(7L, 0, 35.0)
+                pause(probe)
+            }
+            9 -> {
+                assertEquals(3, holds)
+                probe.contact(6L, 2)
+                probe.contact(7L, 2, 35.0)
+                parent!!.update(options(delay = 250L)) { value -> held(value) }
+                probe.contact(8L, 0)
+            }
+            10 -> {
+                parent!!.cancel()
+                probe.contact(8L, 2)
+                pause(probe, 300L)
+            }
+            11 -> {
+                assertEquals(3, holds)
+                assertEquals(2, probe.clicks)
+                probe.contact(9L, 0)
+            }
+            12 -> {
+                parent!!.update(options(false)) { value -> held(value) }
+                probe.contact(9L, 2)
+                pause(probe, 300L)
+            }
+            13 -> {
+                assertEquals(3, holds)
+                assertEquals(3, probe.clicks)
+                parent!!.update(options(delay = 250L)) { value -> held(value) }
+                probe.contact(10L, 0)
+            }
+            14 -> {
+                parent!!.update(options(delay = 20L)) { value -> held(value) }
+                pause(probe, 300L)
+            }
+            15 -> {
+                assertEquals(3, holds)
+                probe.contact(10L, 2)
+            }
+            16 -> {
+                assertEquals(4, probe.clicks)
+                parent!!.update(options(delay = 250L)) { value -> held(value) }
+                probe.contact(11L, 0)
+            }
+            17 -> {
+                parent!!.update(options(delay = 250L)) {
+                    value ->
+                    updatedHolds += 1
+                    held(value)
+                }
+                pause(probe, 330L)
+            }
+            18 -> {
+                assertEquals(4, holds)
+                assertEquals(1, updatedHolds)
+                probe.contact(11L, 2)
+                parent!!.update(options()) { value -> held(value) }
+                probe.contact(12L, 0)
+            }
+            19 -> {
+                probe.preventMovement = true
+                probe.contact(12L, 1, 31.0)
+                pause(probe)
+            }
+            20 -> {
+                assertEquals(4, holds)
+                probe.preventMovement = false
+                probe.contact(12L, 2)
+                probe.preventRelease = true
+                probe.contact(13L, 0)
+                probe.contact(13L, 2)
+                pause(probe)
+            }
+            21 -> {
+                assertEquals(4, holds)
+                assertFalse(probe.press!!.interaction.pressed)
+                probe.preventRelease = false
+                probe.contact(14L, 0)
+                probe.contact(14L, 3)
+                pause(probe)
+            }
+            22 -> {
+                assertEquals(4, holds)
+                parent!!.update(options(delay = 250L)) { value -> held(value) }
+                probe.contact(15L, 0)
+            }
+            23 -> {
+                probe.shift.value = 20.0
+                pause(probe, 330L)
+            }
+            24 -> {
+                assertEquals(Some(20.0), probe.committedShift)
+                assertEquals(4, holds)
+                probe.contact(15L, 2)
+                probe.shift.value = 0.0
+                pause(probe)
+            }
+            25 -> {
+                probe.contact(16L, 0)
+            }
+            26 -> {
+                probe.window!!.setVisible(false)
+                pause(probe, 330L) {
+                    probe.window!!.setVisible(true)
+                    probe.window!!.requestFocus()
+                }
+            }
+            27 -> {
+                assertEquals(4, holds)
+                probe.contact(16L, 2)
+                parent!!.update(options()) { value -> held(value) }
+                probe.dragEnabled(true)
+                probe.contact(17L, 0)
+                probe.contact(17L, 1, 50.0)
+                pause(probe)
+            }
+            28 -> {
+                assertEquals(1, probe.starts)
+                assertEquals(4, holds)
+                probe.contact(17L, 2, 50.0)
+                probe.dragEnabled(false)
+                parent!!.update(options(delay = 0L)) { value -> held(value) }
+                probe.contact(18L, 0)
+                pause(probe)
+            }
+            29 -> {
+                assertEquals(5, holds)
+                probe.contact(18L, 2)
+                parent!!.update(options(false)) { value -> held(value) }
+                child!!.update(options()) {
+                    value ->
+                    childHeld(value)
+                    child!!.close()
+                }
+                baseline = probe.clicks
+                probe.contact(19L, 0)
+                pause(probe)
+            }
+            30 -> {
+                assertEquals(6, holds)
+                assertTrue(child!!.isClosed)
+                probe.contact(19L, 2)
+                pause(probe)
+            }
+            31 -> {
+                assertEquals(baseline, probe.clicks)
+                parent!!.update(options()) { value -> held(value) }
+                probe.contact(20L, 0)
+            }
+            32 -> {
+                parent!!.close()
+                probe.contact(20L, 2)
+                pause(probe)
+            }
+            33 -> {
+                assertEquals(6, holds)
+                assertEquals(baseline + 1, probe.clicks)
+                probe.finished = true
+                probe.window!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected long press stage"))
+        }
+        stage += 1
+    }
+}

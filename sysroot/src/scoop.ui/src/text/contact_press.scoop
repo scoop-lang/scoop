@@ -14,7 +14,7 @@ internal fun createEditorContactPress(host: TextEditHost): ContactPress =
         host.options.touch.multiTap,
         host.options.touch.multiTapInterval,
         { editorTouchReady(host) },
-        { sample -> editorTouchTap(host, sample) },
+        Some({ sample -> editorTouchTap(host, sample) }),
         { sample -> editorTouchHold(host, sample) }
     )
 
@@ -80,7 +80,7 @@ internal fun createSelectableContactPress(host: SelectableTextHost): ContactPres
         host.options.touch.multiTap,
         host.options.touch.multiTapInterval,
         { selectableTouchReady(host) },
-        { sample -> selectableTouchTap(host, sample) },
+        Some({ sample -> selectableTouchTap(host, sample) }),
         { sample -> selectableTouchHold(host, sample) }
     )
 

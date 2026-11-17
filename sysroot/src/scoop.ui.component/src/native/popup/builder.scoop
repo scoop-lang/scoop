@@ -56,6 +56,7 @@ public fun nativeMenuButton(
 
 public class NativeContextMenuBuilder internal constructor() {
     public var enabled: Boolean = true
+    public var longPress: LongPressOptions = LongPressOptions()
     public var handle: NativePopupHandle? = None
     public var onClosed: (PopupResult) -> Unit = {}
     public var key: ViewKey = ViewKey.Position
@@ -69,7 +70,14 @@ public fun nativeContextMenu(
     val builder = NativeContextMenuBuilder()
     builder.configure()
     return component(
-        NativeContextMenuProps(content, menu, builder.enabled, builder.handle, builder.onClosed),
+        NativeContextMenuProps(
+            content,
+            menu,
+            builder.enabled,
+            builder.handle,
+            builder.onClosed,
+            builder.longPress
+        ),
         { current, mount -> NativeContextMenu(current, scope = mount) },
         builder.key
     )

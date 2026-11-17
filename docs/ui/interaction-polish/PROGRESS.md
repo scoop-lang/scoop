@@ -463,3 +463,13 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI／Component 规范、accessibility 设计、计划、库／测试 README 及编程导航已同步；生成 UI API 并完成 3 组构造器／属性／导入查询，7 份 UI／Style／主题／Component 开发产物更新。21 个 Scoop 文件格式、生产与实际消费者检查、release 构建及本地文档链接检查通过。临时应用包、截图工具及逐次报告清理，保留开发产物、API 文档和共享缓存。
 
 文本触摸数据拖放、通用 long press／swipe、软键盘、滚动物理与其余 accessibility 及跨平台计划继续推进；S8 和完整计划仍未结束。
+
+
+### 公共长按与两类上下文菜单
+
+- 新增 `scope.longPress`、LongPressOptions 和 LongPressSample，配置 enabled、500 ms 默认 delay 与 8 个窗口逻辑单位的 threshold；样本保留真实 ContactState 与 Accepted 局部位置。文本宿主和公共行为共用 ContactPress 的候选、归属和一次性 deadline，无短按回调的行为不消费普通 Ended。配置变化取消旧候选，只换动作使用最新回调；零延迟、第二触点、失效几何、被阻止的输入、失焦／隐藏与关闭都有收尾。
+- ContextMenu／NativeContextMenu 的 Props 与 builder 提供 longPress。普通按钮短按、内层文本长按、滚动、右键及 Shift+F10 沿原路径组合；成功长按按真实接触位置打开同一菜单。原生 popup 的临时 pending 不写入持久启用状态，菜单显示期间更新属性后，关闭后的长按仍按最新配置识别。accessibility 设计同步说明键盘与既有文本 ShowContextMenu 独立，原生条目不复制到另一棵语义树。
+- aarch64-apple-darwin release 的 34 步公共长按、两组各 29 步自绘／原生菜单、原 72 步菜单家族、两项 Press／Drag 及五项文本窗口回归全部通过，共 11 个独立进程用例，均取得无失败的 end 和 complete。原生菜单在真实 tracking 中更新参数、确认逻辑 render、取消并等待实际关闭，再验证下一次长按。文本回归包含 66 步触摸菜单、69 步多击、73 步把手、35 步 RTL／取消及键盘／鼠标／系统 IME。1 项普通配置测试覆盖默认值和非法时长／距离。
+- UI／Component 规范、输入边界、accessibility 设计、计划、库／测试 README 与编程导航同步；两库 API 文档生成并通过 8 组查询核对工厂、样本、参数、导入和两种菜单配置。7 份 UI／Style／主题／Component 开发产物更新，18 个 Scoop 文件格式、源码检查、release 构建及本地文档链接检查通过。临时应用与逐次 GUI 报告清理，保留开发产物、API 文档和共享缓存。
+
+本批触点经受控 native 队列进入 macOS 实窗，真实触屏／笔及 Windows／GTK 仍按集中轮次验收。触摸数据拖放仍依赖 S6 的原生来源接入：当前 AppKit 只接受真实左键来源，不以伪造事件宣称支持。通用 swipe、软键盘、滚动物理与其余 accessibility 计划继续推进，S8 和完整目标尚未结束。

@@ -94,6 +94,22 @@ private class InteractionFoundationsTest {
             portalOptions { atPoint(Point(0.0 / 0.0, 1.0)) }
         }
     }
+    @Test
+    fun `long press settings validate delay and contact tolerance independently`() {
+        val defaults = LongPressOptions()
+        assertTrue(defaults.enabled)
+        assertEquals(Duration.milliseconds(500L), defaults.delay)
+        assertEquals(8.0, defaults.threshold)
+        val immediate = LongPressOptions(false, Duration.ZERO, 0.0)
+        assertFalse(immediate.enabled)
+        assertEquals(Duration.ZERO, immediate.delay)
+        assertEquals(0.0, immediate.threshold)
+        assertFailsWith<IllegalArgumentException> {
+            LongPressOptions(delay = Duration.nanoseconds(-1L))
+        }
+        for (value in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> { LongPressOptions(threshold = value) }
+    }
 }
 
 private class SearchSource(private val texts: Array<String>): NavigationSource {

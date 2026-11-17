@@ -1,6 +1,6 @@
 # Window 输入事件边界调研与重构方案
 
-日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，AppKit 原生 gesture、Surface 路由与 UI 内容变换已接入；原始 contact、成组归属、Press／Drag 和直接滚动已接入，长按及多指识别按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
+日期：2026-11-17。状态：事件头、输入载荷、公共解码与平台 input 模块已重构，AppKit 原生 gesture、Surface 路由与 UI 内容变换已接入；原始 contact、成组归属、Press／Drag、直接滚动、双指变换及公共长按菜单已接入，其余控件与设备组合按 S8 继续。属于 S1 的输入边界整理和 S8 的前置工作；沿原计划先在本地实现与验证，再集中验收其他平台。
 
 ## 1. 结论
 
@@ -81,6 +81,8 @@ Surface 延续最近 Accepted 几何、Capture／Target／Bubble、模态边界�
 UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等实际需要的识别。滚动、按压、文本选区和 Slider 对同一接触的竞争在这里协调；Window 不决定哪个控件赢得手势。原生 gesture 与从原始触摸识别的 gesture 进入相同的控件行为入口，并保留来源，防止重复消费。
 
 当前入口为 `InputEvent.Contact`、`InputScope.claimContacts(ids)` 和 `cancelContactClaim(id)`。组归属先整体发布，再取消原后代；失败仅回退本次新取得的触点。`beforePress` 将鼠标和触点的域外按下放入同一决策，source 保留真实来源。`InputActivity.hasContact` 跟踪当前归属；接触留在虚拟条目时保持该条目，父滚动接管并取消原后代后恢复正常回收。Press、Drag、ScrollPan、双指 TransformGesture 与两个文本宿主共用的内部 ContactPress 已作为实际消费者，后续识别器复用这些入口。TransformGesture 的直接接触计算位于 UI，与原生手势共享事件及变换样本，保留两个身份／种类，不向平台采集层增加新的识别分支。
+
+公共 LongPress 与两个文本宿主复用 ContactPress 的一次性 deadline、Accepted 几何和取消规则；其无短按回调的使用方式不消费普通 Ended。ContextMenu／NativeContextMenu 是公共长按的实际消费者，默认阶段按目标到祖先登记期限，成功后沿原 contact 取得归属，不另建平台识别分支或优先级框架。
 
 文本的连续短按也由 ContactPress 处理，消费既有 InputTime 和系统 doubleClickInterval；同一宿主中相同 ContactKind 的成功序列用于词／逻辑行选择。Window 继续交付原始接触和真实鼠标点击计数；触摸计数、取消和具体选择属于 UI，域外接触或其他输入会打断旧序列。
 

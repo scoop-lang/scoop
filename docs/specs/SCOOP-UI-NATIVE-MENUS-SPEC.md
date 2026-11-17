@@ -32,6 +32,8 @@ activate 只接受自己的 MenuId、仍存在且祖先均启用的条目；Role
 
 `nativeContextMenu(content, menu, configure = {})` 透传正文布局，`NativeContextMenuProps` 与 builder 另保存 enabled = true、handle = None、onClosed = {}；builder 的 key 默认 Position。右键按下、菜单键或 Shift+F10 发起原生展示。已有正文焦点保留；正文没有焦点时使用不进入 Tab 顺序的包装焦点作为后备。后代已消费的键盘默认动作不再重复打开菜单。
 
+NativeContextMenuProps 与 builder 的 longPress 默认为 LongPressOptions()，使用公共 LongPress 识别直接触摸／笔尖，可独立配置开关、延迟和移动容差。成功取得原 contact 后按真实窗口逻辑坐标调用同一原生 popup 请求，保留正文焦点与包装退路；短按、内层文本长按和滚动依照原接触归属竞争。已有 pending session 不重复打开，禁用或卸载继续取消原 session。 菜单显示期间更新参数或描述后，关闭后的新长按仍按最新 enabled／longPress 配置识别，不保留临时 pending 导致的禁用状态。关闭长按不影响右键和键盘菜单。原生菜单条目继续由系统 accessibility provider 暴露，不创建重复子树。
+
 `NativePopupHandle()` 可选地关联一个已挂载触发器。`isPending` 可被 render 观察；`requestOpen(): Boolean` 从当前已提交锚点发起一次请求，`cancel()` 取消当前 session。一个 handle 不能同时绑定两个触发器，移除或替换 handle 后旧 handle 不再控制该触发器。没有有效提交区域、触发器不可用／不在当前输入范围、已存在 pending session 或 handle 未挂载时，requestOpen 返回 false；系统拒绝展示仍报告真实 Window 错误。
 
 按钮和键盘请求用 InputArea.visibleBounds 的客户区逻辑矩形，右键使用真实事件的窗口坐标。布局中的未提交位置不用于原生展示。打开前同时检查 Window.state 和 isInputBlocked，避免模态限制已同步生效、输入通知尚未交付时继续打开。正在显示时描述更新复用同一菜单树；禁用或卸载触发器取消 session。onClosed 接收真实 PopupResult，完成后先清除 pending，再执行当前回调；回调可发起下一次明确请求。卸载停止所属回调，关闭 session 后释放菜单，不保留独立的受控 open 值，也没有关闭否决或自绘退出动画。

@@ -89,6 +89,8 @@ internal class GestureProbe(
     var preventRelease = false
     var preventMovement = false
     var finished = false
+    var waiting = false
+    var longPress: LongPressScenario? = None
     var phase = 0
     private var runtime: UiHost? = None
     private var expected = 0
@@ -155,6 +157,7 @@ internal class GestureProbe(
                 }
                 if (
                     !pending &&
+                        !waiting &&
                         native.isFocused &&
                         completed >=
                         expected &&

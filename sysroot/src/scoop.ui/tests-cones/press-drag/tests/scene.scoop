@@ -35,6 +35,7 @@ private class GesturePanel(
                 )
             )
         scope.routeChildren(area)
+        probe.longPress?.mount(probe, scope, area, true)
         scope.resource { scope.input.addEventFinished { _ -> probe.completed += 1 } }
         scope.input.captureHandler =
             {
@@ -107,6 +108,7 @@ private class GestureChild(private val probe: GestureProbe, scope: ComponentScop
                 }
             }
         probe.press = Some(scope.press(probe.area!!) { probe.clicks += 1 })
+        probe.longPress?.mount(probe, scope, probe.area!!, false)
         probe.mounts += 1
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

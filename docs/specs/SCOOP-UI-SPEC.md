@@ -792,6 +792,14 @@ Press 通过 Surface 的独立事件／默认动作／完成登记组合，不�
 
 触发动作前先收束本次激活资格并发布状态，再调用最新动作；动作可同步替换 Props、移除自身或关闭根，返回后不得继续假定原 area 存活。enabled=false 是行为输入，不替调用方决定整个 area 子树的可用性；控件自身仍显式设置 area.scope.enabled。
 
+### 7.10.1 公共 LongPress
+
+`ComponentScope.longPress(area, options=LongPressOptions(), onLongPress)` 借用当前 mount 的 InputArea，创建随 scope 关闭的 LongPress。`LongPressOptions(enabled=true, delay=500 ms, threshold=8)` 配置直接触摸／笔尖的单次长按；delay 非负，threshold 为有限非负的窗口逻辑距离。`LongPressSample(contact, position)` 保留最新真实 ContactState 与识别时最近 Accepted 的区域局部位置。`update(options, onLongPress)` 替换配置与当前动作，实际配置变化取消候选；只替换回调保留期限并使用最新动作。`cancel()` 取消当前候选或归属，`close()` 注销资源，均不关闭借用的区域。
+
+LongPress 与文本宿主复用 ContactPress 的接触、几何、deadline 和取消机制。有效 Began 的默认阶段只登记候选，不消费普通短按；期限到达且接触仍有效时取得原 contact 归属，只执行一次动作，并阻止同序列再产生点击。零时长仍使用 owner 的一次性 deadline，不在 Began 回调中内联执行。默认行为从目标到祖先登记期限，相同延迟先尝试内层；其他延迟由实际期限决定，任何已成功的 claim 阻止其他识别器接管，不新增优先级或 gesture arena。
+
+移动超阈值、旧落点的 Accepted 变换改变超过阈值、失去精确命中、第二触点、归属被接管、被阻止的移动／结束、其他键盘／鼠标／原生手势输入、禁用、失焦、隐藏／遮挡、显式取消和卸载均收尾。取消后同一接触不恢复候选；动作可替换配置、关闭自身或根，错误沿现有 UI 错误路径传播并清理归属。没有候选时不保留活动 deadline，也不为等待长按请求动画帧。长按只触发业务操作，键盘／菜单／accessibility 等价入口继续调用同一操作，不合成鼠标事件。
+
 ### 7.11 公共轴向 Drag
 
 `ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left, contacts=true)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。button 选择鼠标按钮，contacts 独立控制直接触摸／笔尖。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。

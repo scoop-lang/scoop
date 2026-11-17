@@ -229,7 +229,7 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 
 `dialog(open, content)`、`alertDialog(open, content)` 与 `sheet(open, content)` 提供同一 Portal 模态域中的表单、确认和四边侧板。共同配置保存在 ModalOptions，DSL 展开配置成员；支持原生输入、固定 header／footer、可借用 ScrollState 的滚动正文、嵌套焦点恢复、veto 与拒绝绑定。DialogFooter 在窄宽反向纵排；AlertDialog 默认聚焦取消，action 不替应用关闭；Sheet 的 Start／End 随 RTL 变化。`tests-cones/modal-family` 定向覆盖这些真实窗口行为。
 
-`menu { ... }` 构建显式 key 的 MenuContent，支持动作、勾选、类型化单选、嵌套子菜单、标签、分隔线和快捷键标签。`dropdownMenu(open, content)` 使用普通 trigger 或外部 anchor；`contextMenu(content, menu)` 包装原内容并提供右键／Shift+F10；`menubar(open) { menu(key, text, content) }` 提供横向入口导航。三者共用真实焦点、Unicode typeahead、Hover 通路及 Portal 生命周期，支持受控拒绝、关闭 veto、Tab 续行、RTL 和长菜单滚动。`tests-cones/menus` 覆盖原生窗口输入及保留行为。
+`menu { ... }` 构建显式 key 的 MenuContent，支持动作、勾选、类型化单选、嵌套子菜单、标签、分隔线和快捷键标签。`dropdownMenu(open, content)` 使用普通 trigger 或外部 anchor；`contextMenu(content, menu)` 包装原内容并提供右键、Shift+F10 与直接触摸／笔尖长按；`menubar(open) { menu(key, text, content) }` 提供横向入口导航。三者共用真实焦点、Unicode typeahead、Hover 通路及 Portal 生命周期，支持受控拒绝、关闭 veto、Tab 续行、RTL 和长菜单滚动。`tests-cones/menus` 覆盖原生窗口输入及保留行为。
 
 Command 用 `command(source, query)` 构建带真实编辑器的命令搜索。`source` 可以是 `commandItems { group(key, "Actions") { item(key, "Save", onSave) }; separator(key) }` 的快照，或提供稳定索引的 CommandSource。默认按 cmdk 的模糊评分搜索标题和 keywords；`filter = CommandFilter.Provided` 保留调用方结果，`Custom` 替换评分。方向键只更新 active，焦点留在输入；输入法预编辑不参加搜索，Enter 只执行当前可用候选。列表按需挂载并滚动显露活动项，custom content／icon、disabled、ShortcutChord 标签、空结果、受控 active、样式／字体／RTL 都可组合；Dialog 示例直接复用现有 dialog 和输入 FocusHandle。评分代码的归属见 [LICENSE-CMDK](LICENSE-CMDK)。
 
@@ -250,6 +250,8 @@ Resizable 的 `handle(key) { hitWidth = 32.0 }` 可扩大实际命中带，默�
 
 
 `questionnaire(state, onSubmit)` 以应用持有的 QuestionnaireState 组合单选、多选与 freeform。QuestionKey／QuestionChoiceKey、类型化结果、显式 Skip、条件题、外部错误和快照恢复按当前定义处理；每份文字草稿只有一个 TextEditorState。Next／Submit 可触发校验，busy 明确阻止重复提交，Primary+Enter 与固定选项快捷键尊重编辑和 IME；部件包装、文案、焦点环和主题均可配置。`tests-cones/questionnaire` 覆盖真实窗口中的导航、编辑、取消和布局生命周期。
+
+`contextMenu` 与 `nativeContextMenu` 的 Props 和 builder 都用 `longPress = LongPressOptions(enabled = true, delay = Duration.milliseconds(500L), threshold = 8.0)` 配置长按；LongPressOptions 从 `scoop.ui` 导入，Duration 从 `scoop.time` 导入。关闭长按保留右键与键盘入口，普通短按继续激活正文，内层文本长按或滚动成功接管后不再打开外层菜单。真实原生 tracking、热更新与文本组合的回归见 [菜单测试](tests-cones/menus/README.md)。
 
 ## Linux GNU
 

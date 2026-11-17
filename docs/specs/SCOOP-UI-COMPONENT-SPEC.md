@@ -978,6 +978,8 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 
 `contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {})` 构造 ContextMenuProps／ContextMenu；open 可选，缺省为该挂载的本地 State，其他菜单选项及回调同上。右键 Press 使用原生事件的窗口逻辑坐标打开 AtPoint，消费此右键动作而不触发原内容主动作；没有有效已提交区域时不打开。Menu 键或 Shift+F10 在焦点所属内容的作用域打开，以已提交内容矩形逻辑起侧下角定位，不猜测未放置几何。包装区域提供 tabStop=false 的焦点退路，原内容的按钮／选择／编辑保留各自输入所有权；键盘打开不覆盖原后代焦点。
 
+ContextMenuProps 与 ContextMenuBuilder 的 longPress 默认为 LongPressOptions()，通过公共 LongPress 接入 Touch／Pen；可单独关闭或配置延迟、移动容差。成功后以真实接触的窗口逻辑位置打开同一菜单，正文已有焦点保留，无焦点时沿同一包装退路。普通短按仍交给正文，内层文本长按或滚动已接管时不再打开外层菜单；菜单已经打开、触发器禁用或失效时不另建候选。关闭触摸长按不改变右键、Menu 键和 Shift+F10。
+
 `menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、8 圆角；trigger 为 24 高、6／2 padding、4 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
 
 验收覆盖动作／勾选／单选、快捷键标签、重复 key 错误、类型化 DSL、真实 typeahead／roving／Tab 续行、右键及键盘菜单、多根切换、嵌套／悬浮通路、拒绝绑定／veto／最新回调、禁用／零尺寸／重排／卸载、长菜单滚动、主题／RTL、退出重开与静止停帧；Breadcrumb、InputGroup、ButtonGroup 和 Dialog 组合复用同一实现。

@@ -14,7 +14,7 @@ private class ContactPressCandidate(val start: ContactPressSample, val interval:
     var claimed = false
 }
 
-/** Text hosts share admission, tap completion and a single optional hold deadline. */
+/** Text and public hold behaviors share admission and one optional hold deadline. */
 internal class ContactPress(
     private val scope: ComponentScope,
     private val area: InputArea,
@@ -24,7 +24,7 @@ internal class ContactPress(
     private var multiTap: Boolean,
     private var interval: Duration?,
     private val ready: () -> Boolean,
-    private val tap: (ContactPressSample) -> Boolean,
+    private val tap: ((ContactPressSample) -> Boolean)?,
     private val hold: (ContactPressSample) -> Unit
 ): Closeable {
     private var closed = false
@@ -189,12 +189,13 @@ internal class ContactPress(
                     return
                 val result = sample(current, value)
                 clear(false)
+                val action = tap ?: return
                 when (result) {
                     case Some(val value) -> {
                         context.consume()
                         if (multiTap)
                             taps = Some(ContactTapSequence(current.start, current.interval))
-                        if (!tap(value))
+                        if (!action(value))
                             taps = None
                     }
                     case None -> {}

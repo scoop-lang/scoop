@@ -9,7 +9,8 @@ internal class NativePopupInput(
     val enabled: Boolean,
     val contextMenu: Boolean,
     val handle: NativePopupHandle,
-    val onClosed: (PopupResult) -> Unit
+    val onClosed: (PopupResult) -> Unit,
+    val longPress: LongPressOptions = LongPressOptions(enabled = false)
 )
 
 internal class NativePopupPresentation(

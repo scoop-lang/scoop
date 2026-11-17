@@ -10,6 +10,8 @@ internal class MenuRootLayoutProps(
     val link: HoverPopupLink,
     val contextMenu: Boolean,
     val enabled: Boolean,
+    val open: Boolean,
+    val longPress: LongPressOptions,
     val show: (Point?, Boolean) -> Unit,
     val hovered: () -> Unit,
     val updated: () -> Unit
@@ -21,11 +23,14 @@ internal class MenuRootLayout(
 ): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var fallback: FocusTarget? = None
+    private var hold: LongPress? = None
     public override fun onMount() {
         val target = scope.createArea(focusable = props.value.contextMenu)
         area = Some(target)
-        if (props.value.contextMenu)
+        if (props.value.contextMenu) {
             fallback = Some(scope.focusTarget(target, FocusOptions(tabStop = false)))
+            hold = Some(scope.longPress(target, holdOptions()) { value -> held(value) })
+        }
         scope.routeChildren(target)
         scope.layoutAnchor(props.value.anchor)
         target.scope.captureHandler =
@@ -119,7 +124,28 @@ internal class MenuRootLayout(
                 }
         }
     }
+    private fun holdOptions(): LongPressOptions {
+        val input = props.value
+        return LongPressOptions(
+            input.enabled && !input.open && input.longPress.enabled,
+            input.longPress.delay,
+            input.longPress.threshold
+        )
+    }
+    private fun held(value: LongPressSample) {
+        val input = props.value
+        if (!input.enabled || input.open)
+            return
+        val target = area!!
+        if (!target.scope.activity.hasFocus)
+            fallback!!.handle.requestFocus(FocusOrigin.Pointer)
+        if (!scope.isMounted || target.isClosed || !target.scope.isInputAllowed)
+            return
+        val point = value.contact.pointer.logicalPosition
+        input.show(Some(Point(point.x, point.y)), false)
+    }
     public override fun update(): UiInvalidation {
+        hold?.update(holdOptions()) { value -> held(value) }
         props.value.updated()
         return UiInvalidation.Layout
     }

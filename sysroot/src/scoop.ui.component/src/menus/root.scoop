@@ -38,7 +38,8 @@ public class ContextMenu public constructor(
                     dismiss = value.dismiss,
                     onOpenChange = value.onOpenChange,
                     onCloseRequest = value.onCloseRequest,
-                    onClosed = value.onClosed
+                    onClosed = value.onClosed,
+                    longPress = value.longPress
                 )
             }
         )
@@ -216,6 +217,8 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
                 link,
                 contextMenu,
                 input.options.enabled,
+                open.value,
+                input.longPress,
                 { at, backwards -> show(at, backwards) },
                 { read().hovered() },
                 {

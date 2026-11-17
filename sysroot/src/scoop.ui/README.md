@@ -16,6 +16,8 @@
 
 `scope.press` 从 Surface 的 Contact 路由处理单接触 tap，`PressOptions.touchThreshold` 默认 8 个窗口逻辑单位，可配置为有限非负值。接触不产生 hover；移动超阈值后移回不会恢复点击，第二触点、取消或被拦截的结束也不会补触发。鼠标、触点和键盘候选互斥，原来的键盘及语义动作继续使用相同业务入口。
 
+`scope.longPress(area, LongPressOptions()) { sample -> ... }` 提供单次长按，enabled 默认 true，delay 默认 500 ms，threshold 默认 8 个窗口逻辑单位；可独立配置。sample 保留真实 ContactState 与 Accepted 局部 position。update 替换配置及动作，cancel 取消候选／归属，scope 卸载自动关闭。普通短按不被消费，达到期限并取得原接触归属才执行一次；零延迟也经一次性 deadline，移动超限、第二触点、失焦、配置变化及关闭都会收尾。行为与文本触摸共用识别逻辑，实际菜单消费者与窗口覆盖见 [Press／Drag／LongPress 测试](tests-cones/press-drag/README.md)。
+
 `scope.drag` 默认接受直接触摸／笔尖；`DragOptions.contacts=false` 单独关闭此来源，`button` 仍只选择鼠标按钮。达到轴向阈值后接管原触点路径，取消后代点击候选；`DragSample.input` 保留 `DragInput.Mouse(button)` 或 `Contact(id, kind)`。第二触点使单接触拖动以 AdditionalContact 取消，不重新猜选主指。已有 Slider、滚动条 thumb 等使用该公共行为的消费者沿同一路径接入。
 
 应用需要自己的识别逻辑时，可从 `InputEvent.Contact` 读取原始触点，沿 `scope.claimContacts(ids)` 成组接管，并处理不可取消的 Cancelled 和事件完成通知；不需要向 Window 增加手势枚举。`InputActivity.hasContact` 让活动触点所属的虚拟条目保持。真实触屏与其他平台仍按设备矩阵验收；受控队列组合验证见 [Press／Drag 测试](tests-cones/press-drag/tests/contact.scoop)。

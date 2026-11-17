@@ -1,0 +1,341 @@
+package scoop.tests.ui.menus
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class MenuTouchTest {
+    @Test
+    fun `context menus combine long press options with child text and ordinary activation`() {
+        runTouchMenu(false)
+    }
+    @Test
+    fun `native context menus enter real tracking from long presses and preserve alternatives`() {
+        runTouchMenu(true)
+    }
+}
+
+private fun runTouchMenu(native: Boolean) {
+    val scenario = MenuTouchScenario(native)
+    val p = MenuProbe(Some(scenario))
+    val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+    try {
+        context(p.theme) {
+            host.use { owner -> Application().run(owner) }
+        }
+        assertTrue(p.finished)
+        assertEquals(5, scenario.opened)
+        assertFalse(scenario.popup.isPending)
+        assertFalse(p.contextFocus.isAttached)
+        assertFalse(p.frames!!.snapshot().attached)
+    } catch (error: Throwable) {
+        println(f"touch menu phase=${p.phase}, native=${native}, opened=${scenario.opened}")
+        menuFailure(error)
+        throw error
+    } finally {
+        host.close()
+        p.view?.close()
+        p.frames?.close()
+        p.fonts.close()
+    }
+}
+
+internal class MenuTouchScenario(private val native: Boolean) {
+    val steps = 29
+    val popup = NativePopupHandle()
+    val model = TextEditorState("one two three")
+    var opened = 0
+    private var closed = 0
+    private var waiting = false
+    private var later: () -> Unit = {}
+    private var clock: WindowDeadline? = None
+    private var options = LongPressOptions(delay = Duration.milliseconds(40L))
+    private var enabled = true
+    private var text = false
+    private var gone = false
+    private var version = 1
+    private var lastVersion = 0
+    private var renderedVersion = 0
+    val ready: Boolean get() = !waiting && !popup.isPending
+
+    fun mount(scope: ComponentScope) {
+        clock =
+            Some(
+                scope.createDeadline {
+                    val action = later
+                    later = {}
+                    action()
+                    waiting = false
+                }
+            )
+    }
+    fun content(p: MenuProbe): View {
+        val scenario = this
+        renderedVersion = version
+        if (gone)
+            return empty()
+        val child =
+            if (text)
+                input(model) {
+                    fonts = Some(p.fonts)
+                    focus = FocusOptions(Some(p.contextFocus))
+                    caretBlink = Some(Duration.ZERO)
+                    contextMenu = textContextMenu { mode = TextContextMenuMode.Disabled }
+                    touch = TextTouchOptions(longPressDelay = Some(Duration.milliseconds(40L)))
+                }
+            else
+                button("Context", { p.contextClicks += 1 }) {
+                    fonts = Some(p.fonts)
+                    focus = FocusOptions(Some(p.contextFocus))
+                }
+        val current = version
+        return if (native)
+            nativeContextMenu(
+                child,
+                nativeMenu { item(ViewKey.Text("action"), "Touch menu action", { p.actions += 1 }) }
+            ) {
+                longPress = scenario.options
+                enabled = scenario.enabled
+                handle = Some(scenario.popup)
+                onClosed =
+                    {
+                        _ ->
+                        scenario.closed += 1;
+                        scenario.lastVersion = current
+                    }
+            }
+        else
+            contextMenu(
+                child,
+                menu {
+                    item(ViewKey.Text("action"), "Touch menu action", { p.actions += 1 }) {
+                        focus = FocusOptions(Some(p.contextItem))
+                    }
+                }
+            ) {
+                longPress = scenario.options
+                enabled = scenario.enabled
+                open = Some(p.contextOpen.binding())
+                fonts = Some(p.fonts)
+                onOpenChange =
+                    {
+                        value -> if (value)
+                            scenario.opened += 1
+                    }
+                onClosed =
+                    {
+                        _ ->
+                        scenario.closed += 1;
+                        scenario.lastVersion = current
+                    }
+            }
+    }
+    private fun contact(
+        p: MenuProbe,
+        id: Long,
+        phase: Int,
+        x: Double = 50.0,
+        pen: Boolean = false
+    ) {
+        @Unsafe
+        {
+            p.native!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, val view) -> sendNativeContact(
+                            view,
+                            id,
+                            if (pen)
+                                1
+                            else
+                                0,
+                            phase,
+                            x,
+                            155.0
+                        )
+                    }
+                }
+            }
+        }
+    }
+    private fun nativeCompletion(p: MenuProbe) {
+        if (!native)
+            return
+        waiting = true
+        later =
+            {
+                @Unsafe
+                {
+                    assertEquals(1, isNativeMenuTracking())
+                }
+                assertTrue(popup.isPending)
+                if (opened == 0) {
+                    version = 2
+                    p.changed()
+                    later =
+                        {
+                            assertEquals(version, renderedVersion)
+                            finishNative()
+                        }
+                    clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(160L))
+                } else
+                    finishNative()
+            }
+        clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(160L))
+    }
+    private fun finishNative() {
+        @Unsafe
+        {
+            assertEquals(1, isNativeMenuTracking())
+        }
+        assertTrue(popup.isPending)
+        opened += 1
+        popup.cancel()
+    }
+    private fun completed(p: MenuProbe, count: Int) {
+        assertEquals(count, opened)
+        if (native)
+            assertEquals(count, closed)
+        else {
+            assertTrue(p.contextOpen.value)
+            assertTrue(p.contextItem.hasFocus)
+            p.key(53)
+        }
+    }
+    private fun noMenu(p: MenuProbe, count: Int) {
+        assertFalse(p.contextOpen.value)
+        assertFalse(popup.isPending)
+        assertEquals(count, opened)
+    }
+    fun advance(p: MenuProbe) {
+        when (p.phase) {
+            0 -> {
+                contact(p, 1L, 0)
+                contact(p, 1L, 2)
+            }
+            1 -> {
+                noMenu(p, 0)
+                assertEquals(1, p.contextClicks)
+                nativeCompletion(p)
+                contact(p, 2L, 0)
+            }
+            2 -> {
+                completed(p, 1)
+                contact(p, 2L, 2)
+            }
+            3 -> {
+                noMenu(p, 1)
+                assertEquals(1, p.contextClicks)
+                nativeCompletion(p)
+                contact(p, 3L, 0, pen = true)
+            }
+            4 -> {
+                completed(p, 2)
+                contact(p, 3L, 2, pen = true)
+            }
+            5 -> {
+                noMenu(p, 2)
+                contact(p, 4L, 0)
+                contact(p, 4L, 1, 75.0)
+                contact(p, 4L, 1)
+                contact(p, 4L, 2)
+            }
+            6 -> {
+                noMenu(p, 2)
+                contact(p, 5L, 0)
+                contact(p, 6L, 0, 60.0)
+            }
+            7 -> {
+                noMenu(p, 2)
+                contact(p, 5L, 2)
+                contact(p, 6L, 2, 60.0)
+                options = LongPressOptions(enabled = false)
+                p.changed()
+            }
+            8 -> contact(p, 7L, 0)
+            9 -> {
+                noMenu(p, 2)
+                contact(p, 7L, 2)
+            }
+            10 -> {
+                assertEquals(2, p.contextClicks)
+                assertTrue(p.contextFocus.requestFocus(FocusOrigin.Keyboard))
+                nativeCompletion(p)
+                p.key(109, "", 1)
+            }
+            11 -> completed(p, 3)
+            12 -> {
+                noMenu(p, 3)
+                nativeCompletion(p)
+                assertEquals(0, menuRightClick(p.native!!, 50.0, 155.0))
+            }
+            13 -> {
+                completed(p, 4)
+                options = LongPressOptions(delay = Duration.milliseconds(650L))
+                p.changed()
+            }
+            14 -> contact(p, 8L, 0)
+            15 -> {
+                enabled = false
+                p.changed()
+            }
+            16 -> {
+                contact(p, 8L, 2)
+                enabled = true
+                options = LongPressOptions(delay = Duration.milliseconds(40L))
+                text = true
+                p.changed()
+            }
+            17 -> {
+                noMenu(p, 4)
+                contact(p, 9L, 0)
+            }
+            18 -> {
+                noMenu(p, 4)
+                assertTrue(model.selection.anchor != model.selection.cursor)
+                contact(p, 9L, 2)
+                text = false
+                version = 2
+                p.changed()
+            }
+            19 -> {
+                nativeCompletion(p)
+                contact(p, 10L, 0)
+            }
+            20 -> {
+                completed(p, 5)
+                contact(p, 10L, 2)
+            }
+            21 -> {
+                noMenu(p, 5)
+                assertEquals(2, lastVersion)
+                options = LongPressOptions(delay = Duration.milliseconds(650L))
+                p.changed()
+            }
+            22 -> contact(p, 11L, 0)
+            23 -> {
+                gone = true
+                p.changed()
+            }
+            24 -> contact(p, 11L, 2)
+            25 -> noMenu(p, 5)
+            26 -> {
+                assertFalse(p.contextFocus.isAttached)
+                assertFalse(p.frames!!.snapshot().required)
+            }
+            27 -> noMenu(p, 5)
+            28 -> p.native!!.requestDestroy()
+            else -> fail(Some("unexpected touch menu stage"))
+        }
+    }
+}
