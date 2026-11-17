@@ -1,0 +1,225 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.*
+
+@Test
+private class TextSelectionInkTest {
+    @Test
+    fun `selection masks preserve glyph alpha and merge overlapping rectangles`() {
+        RasterSurface(96, 40).use {
+            surface ->
+            val boxes =
+                [
+                    TextBox(Rect(20.0, 0.0, 30.0, 40.0), TextDirection.Ltr),
+                    TextBox(Rect(40.0, 0.0, 30.0, 40.0), TextDirection.Rtl)
+                ]
+            surface.draw {
+                canvas ->
+                canvas.clear(Color.White)
+                drawSelectionText(
+                    canvas,
+                    Rect(8.0, 8.0, 80.0, 20.0),
+                    boxes,
+                    Some(TextSelectionInk(TextRange(0L, 2L), Color(0.0, 0.0, 1.0, 0.5)))
+                ) {
+                    glyphs -> glyphs.drawRect(
+                        Rect(8.0, 8.0, 80.0, 20.0),
+                        Paint(Color(1.0, 0.0, 0.0, 0.5))
+                    )
+                }
+            }
+            val pixels = surface.readPixels()
+            selectionPixel(pixels, 96, 0, 0, [255, 255, 255, 255])
+            selectionPixel(pixels, 96, 15, 15, [255, 127, 127, 255])
+            selectionPixel(pixels, 96, 25, 15, [191, 191, 255, 255])
+            selectionPixel(pixels, 96, 45, 15, [191, 191, 255, 255])
+            selectionPixel(pixels, 96, 65, 15, [191, 191, 255, 255])
+            selectionPixel(pixels, 96, 75, 15, [255, 127, 127, 255])
+        }
+    }
+
+    @Test
+    fun `cached shaped text changes selected foreground and range without stale glyph colors`() {
+        FontCollection().use {
+            fonts ->
+            fonts.register(testSansBytes, "Selection Test")
+            Paragraph(fonts, selectionContent(Color(1.0, 0.0, 0.0))).use {
+                paragraph -> paragraph.layout(192.0).use {
+                    layout ->
+                    val red = selectionGlyphs(layout, None, None, PaintKey(), 1L)
+                    val version = TextInkVersion()
+                    val key = PaintKey()
+                    PaintLayers().use {
+                        layers ->
+                        for (range in [TextRange(0L, 4L), TextRange(5L, 9L)]) {
+                            for (color in [Color(0.0, 0.0, 1.0), Color(0.0, 1.0, 0.0)]) {
+                                val ink = Some(TextSelectionInk(range, color))
+                                val selected =
+                                    selectionGlyphs(
+                                        layout,
+                                        ink,
+                                        Some(layers),
+                                        key,
+                                        version.update(1L, ink)
+                                    )
+                                selectionGlyphMatch(red, color, selected, layout.selection(range))
+                                val repeated =
+                                    selectionGlyphs(
+                                        layout,
+                                        ink,
+                                        Some(layers),
+                                        key,
+                                        version.update(1L, ink)
+                                    )
+                                assertPaintPixels(selected, repeated, 192, 48, 0)
+                            }
+                        }
+                        val restored =
+                            selectionGlyphs(
+                                layout,
+                                None,
+                                Some(layers),
+                                key,
+                                version.update(1L, None)
+                            )
+                        assertPaintPixels(red, restored, 192, 48, 1)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `nonfinite optional selected foregrounds fail normal appearance validation`() {
+        FontCollection().use {
+            fonts -> for (value in [0.0 / 0.0, 1.0 / 0.0]) {
+                val color = Some(Color(value, 0.0, 0.0))
+                assertFailsWith<IllegalArgumentException> {
+                    TextEditAppearance(fonts, selectionTextColor = color).check()
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    TextEditAppearance(fonts, inactiveSelectionTextColor = color).check()
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    SelectableTextOptions(selectionTextColor = color).check()
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    SelectableTextOptions(inactiveSelectionTextColor = color).check()
+                }
+            }
+        }
+    }
+}
+
+private fun selectionContent(color: Color): StyledText =
+    styledText {
+        style {
+            this.families = ["Selection Test"]
+            this.fontSize = 24.0
+            this.color = color
+        }
+        text("MMMM MMMM")
+    }
+
+private fun selectionGlyphs(
+    layout: TextLayout,
+    ink: TextSelectionInk?,
+    layers: PaintLayers?,
+    key: PaintKey,
+    version: Long
+): Array<Byte> {
+    val boxes =
+        when (ink) {
+            case Some(val value) -> layout.selection(value.range)
+            case None -> []
+        }
+    val bounds = Rect(0.0, 0.0, 192.0, 48.0)
+    return RasterSurface(192, 48).use {
+        surface ->
+        surface.draw {
+            canvas ->
+            canvas.clear(Color.Transparent)
+            val draw =
+                {
+                    target: Canvas -> drawSelectionText(target, bounds, boxes, ink) {
+                        glyphs -> glyphs.drawText(layout)
+                    }
+                }
+            when (layers) {
+                case Some(val cache) -> cache.draw(
+                    canvas,
+                    key,
+                    PaintLayerInput(
+                        Size(192.0, 48.0),
+                        bounds,
+                        version,
+                        1.0,
+                        PaintComposition.SourceOver
+                    ),
+                    PaintCachePolicy.Tiles(32, 0),
+                    block = draw
+                )
+                case None -> draw(canvas)
+            }
+        }
+        surface.readPixels()
+    }
+}
+
+private fun selectionGlyphMatch(
+    original: Array<Byte>,
+    color: Color,
+    actual: Array<Byte>,
+    boxes: Array<TextBox>
+) {
+    var changed = 0
+    // Independently rasterized colors can have different glyph gamma. Preserve source coverage.
+    val expected = MutableArray<Byte>(original.size) { index -> actual[index] }
+    val channels = [color.red, color.green, color.blue]
+    for (y in 0 ..< 48)
+        for (x in 0 ..< 192) {
+            val point = Point(x.toDouble() + 0.5, y.toDouble() + 0.5)
+            var selected = false
+            var edge = false
+            for (box in boxes) {
+                selected = selected || box.rect.contains(point)
+                edge =
+                    edge ||
+                        abs(point.x - box.rect.x) <
+                        1.0 ||
+                        abs(point.x - box.rect.x - box.rect.width) <
+                        1.0
+            }
+            if (!edge) {
+                val offset = (y.toLong() * 192L + x.toLong()) * 4L
+                if (selected && original[offset + 3L].toUByte().toInt() > 0)
+                    changed += 1
+                for (channel in 0L ..< 4L)
+                    expected[offset + channel] =
+                        if (selected && channel < 3L)
+                            (channels[channel] * 255.0).toInt().toByte()
+                        else
+                            original[offset + channel]
+            }
+        }
+    assertTrue(changed > 20)
+    assertPaintPixels(
+        Array<Byte>(expected.size) { index -> expected[index] },
+        actual,
+        192,
+        48,
+        2,
+        "selection foreground preserves the source glyph coverage"
+    )
+}
+
+private fun selectionPixel(pixels: Array<Byte>, width: Int, x: Int, y: Int, expected: Array<Int>) {
+    val offset = (y.toLong() * width.toLong() + x.toLong()) * 4L
+    for (channel in 0L ..< 4L)
+        assertTrue(abs(expected[channel] - pixels[offset + channel].toUByte().toInt()) <= 1)
+}

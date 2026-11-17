@@ -576,6 +576,10 @@ TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=tr
 
 TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 的显式值为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 
+TextEditAppearance 与 SelectableTextOptions 另提供 `selectionTextColor: Color? = None`、`inactiveSelectionTextColor: Color? = None`，分别覆盖活动／非活动选区内的文字颜色；None 保留原文字样式。背景与文字颜色须有限，覆盖复用同一排版和选区矩形，不重新 shaping，不影响 caret、标记、内联子视图或 accessibility 几何。文字绘制缓存的版本包括有效覆盖颜色与选区范围；无文字覆盖时，选择变化继续复用原正文绘制。掩码按矩形并集处理，重叠选区片段不能重复合成或产生孔洞。
+
+窗口失去活动焦点时，两个文本宿主都显示非活动选区，重新激活后恢复活动颜色。可选正文中的行内动作仍属于同一选区宿主；其逻辑焦点保留不能把非活动窗口当作活动窗口。活动焦点通知请求所需的一帧，不清除逻辑选择、焦点位置或编辑历史，静止后不持续请求帧。
+
 update 最后可传 `onCommitted: (TextEditorState) -> Unit = {}`，只在宿主接受的操作改变已提交正文且本次结束后没有活动 preedit 时调用；选择、临时 preedit、取消／拒绝后恢复原基线及外部模型更新不触发。它在 onEdited 之后执行；若前一个回调已关闭宿主、替换绑定或改写该次结果，则不回放过期完成通知。该入口供 OTP 的完整长度通知使用，不另建完成状态镜像。
 
 组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
@@ -965,7 +969,7 @@ macOS 与 Linux 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding
 
 底层 scoop.window 已支持同一 Application 的多个独立非模态窗口，见[窗口规范第 4.1 节](SCOOP-WINDOW-SPEC.md#41-多窗口)。一个 UiHost 可对不同 Window 分别 attach，每个窗口拥有独立根、挂载树、布局与区域场景；单窗口便利入口不限制框架只能管理一个窗口。普通关闭只卸载相应窗口的根，显式应用退出或宿主失败继续沿既有整体收尾；同一 owner 上可共享业务 State，不能共享组件实例、InputArea 或跨窗口转移挂载。
 
-原生模态对话框与完整自绘窗框依赖[窗口规范第 4.3 节](SCOOP-WINDOW-SPEC.md#43-模态与自绘窗框的待补能力)的待补接口。窗口归属、窗口模态／应用模态、输入限制、关闭与焦点恢复、系统拖移／缩放属于 window；UI 负责内容、控件和结果交付。当前设计不把置顶或临时屏蔽组件事件当成原生模态，也不因装饰开关已实现就声称已具备完整自绘窗框操作。
+原生模态对话框与完整自绘窗框依赖[窗口规范第 4.3 节](SCOOP-WINDOW-SPEC.md#43-模态与系统窗框操作)的待补接口。窗口归属、窗口模态／应用模态、输入限制、关闭与焦点恢复、系统拖移／缩放属于 window；UI 负责内容、控件和结果交付。当前设计不把置顶或临时屏蔽组件事件当成原生模态，也不因装饰开关已实现就声称已具备完整自绘窗框操作。
 
 资源管理在最外层保留明确的 use 作用域。显式创建 UiHost 的调用方以 `host.use { ... }` 包住事件循环；`runUiApplication` 在内部建立并关闭相同的宿主作用域。所有权由宿主经 SurfaceWindow 的 content 传到 UI 根及各挂载节点，普通组件不再逐个 use。单个窗口关闭时立即收尾它的内容，不等整个应用离开最外层 use；最后的宿主 close 幂等地释放仍然存在的窗口。
 

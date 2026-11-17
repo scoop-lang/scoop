@@ -6,6 +6,8 @@ import scoop.ui.LayoutDirection
 /** Resource-free theme data and geometry. Implementations do not access UI or business state. */
 public interface Theme {
     public val tokens: ThemeTokens
+    /** Preferences already applied to this immutable theme, including component defaults. */
+    public val preferences: ThemePreferences
     /** Resolves all theme data from its base; repeated application must not compound text scale. */
     public fun withPreferences(preferences: ThemePreferences): Theme
     public fun surfaceMetrics(

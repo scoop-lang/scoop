@@ -127,15 +127,24 @@ internal fun textFieldAppearance(
 ): TextEditAppearance {
     val style = input.style
     val palette = theme.tokens.palette
+    val selection = themeTextSelection(theme)
     return TextEditAppearance(
         fonts,
         text,
         placeholder,
-        style.selectionColor ?: palette.primary.background.withAlpha(0.30),
-        style.inactiveSelectionColor ?: palette.muted.foreground.withAlpha(0.20),
+        style.selectionColor ?: selection.background,
+        style.inactiveSelectionColor ?: selection.inactiveBackground,
         style.caretColor ?: palette.primary.background,
         style.markedColor ?: palette.primary.background,
         style.caretWidth,
-        theme.tokens.motion.preference == MotionPreference.Reduced
+        theme.tokens.motion.preference == MotionPreference.Reduced,
+        selectionTextColor =
+            selectionTextColor(style.selectionTextColor, style.selectionColor, selection.text),
+        inactiveSelectionTextColor =
+            selectionTextColor(
+                style.inactiveSelectionTextColor,
+                style.inactiveSelectionColor,
+                selection.inactiveText
+            )
     )
 }

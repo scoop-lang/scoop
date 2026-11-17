@@ -36,6 +36,8 @@ internal class ThemePreferenceProbe {
     val explicit = state<ThemeSource?>(None)
     val alternative = preferenceAlternative()
     val model = TextEditorState("alpha beta")
+    val multiline = TextEditorState("line one\nline two")
+    val otp = TextEditorState("1234")
     val focus = FocusHandle()
     val roots = ArrayList<UiWindow>()
     val windows = ArrayList<Window>()
@@ -55,6 +57,8 @@ internal class ThemePreferenceProbe {
     var beforeMeasures: Array<Int> = []
     var beforeScenes: Array<Int> = []
     var revision = 0L
+    var multilineRevision = 0L
+    var otpRevision = 0L
     var phase = 0
     var mounts = 0
     var unmounts = 0
@@ -70,12 +74,18 @@ internal class ThemePreferenceProbe {
                 model.replace(Utf8Range(0L, 5L), "ALPHA")
                 model.setSelection(Utf8Selection(5L, 0L))
                 revision = model.revision
+                multiline.replace(Utf8Range(0L, 4L), "LINE")
+                multiline.setSelection(Utf8Selection(4L, 0L))
+                multilineRevision = multiline.revision
+                otp.replace(Utf8Range(0L, 1L), "9")
+                otp.setSelection(Utf8Selection(3L, 1L))
+                otpRevision = otp.revision
                 for (index in 0L ..< 2L) {
                     val window =
                         application.createWindow(
                             windowAttributes {
                                 title = f"Scoop theme preferences ${index}"
-                                size = LogicalSize(320.0, 340.0)
+                                size = LogicalSize(320.0, 580.0)
                                 position =
                                     Some(DesktopPosition(80.0 + index.toDouble() * 360.0, 120.0))
                                 requestActivation = index == 0L
@@ -148,6 +158,14 @@ internal class ThemePreferenceProbe {
         assertEquals("ALPHA beta", model.text)
         assertEquals(Utf8Selection(5L, 0L), model.selection)
         assertTrue(model.canUndo)
+        assertEquals(multilineRevision, multiline.revision)
+        assertEquals("LINE one\nline two", multiline.text)
+        assertEquals(Utf8Selection(4L, 0L), multiline.selection)
+        assertTrue(multiline.canUndo)
+        assertEquals(otpRevision, otp.revision)
+        assertEquals("9234", otp.text)
+        assertEquals(Utf8Selection(3L, 1L), otp.selection)
+        assertTrue(otp.canUndo)
         assertTrue(focus.isFocusActive)
         assertEquals(2, mounts)
         assertEquals(0, unmounts)
@@ -207,6 +225,14 @@ internal class ThemePreferenceProbe {
                     sizes[0L][3L].height > initial[3L].height * 1.5,
                     Some("input did not remeasure scaled typography")
                 )
+                assertTrue(
+                    sizes[0L][4L].height > initial[4L].height * 1.5,
+                    Some("textarea did not remeasure scaled typography")
+                )
+                assertTrue(
+                    sizes[0L][5L].height > initial[5L].height * 1.5,
+                    Some("OTP slots did not remeasure scaled typography")
+                )
                 for (index in 0L ..< other.size)
                     assertEquals(other[index], sizes[1L][index])
                 assertEquals(beforeFrames[1L], frames[1L])
@@ -229,6 +255,8 @@ internal class ThemePreferenceProbe {
                 retained()
                 assertEquals(initial[0L], sizes[0L][0L])
                 assertEquals(initial[3L], sizes[0L][3L])
+                assertEquals(initial[4L], sizes[0L][4L])
+                assertEquals(initial[5L], sizes[0L][5L])
                 source.current.value = shadcnTheme(ThemeMode.Dark)
                 phase = 6
                 later()

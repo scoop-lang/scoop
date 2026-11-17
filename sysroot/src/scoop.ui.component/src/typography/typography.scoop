@@ -19,7 +19,8 @@ public class TypographyProps public constructor(
     public val style: StyleOverride = styleOverride(),
     public val settings: ParagraphStyle? = None,
     public val selectable: Boolean = true,
-    public val selection: SelectableTextOptions = SelectableTextOptions(),
+    /** None resolves selection colors from the current theme and root preferences. */
+    public val selection: SelectableTextOptions? = None,
     public val focus: FocusOptions = FocusOptions(),
     public val actions: Array<TextRangeAction> = [],
     public val decorations: Array<TextRangeDecoration> = [],
@@ -47,7 +48,7 @@ public class Typography public constructor(
                     this.fonts = input.fonts
                     this.settings = input.settings
                     this.inlines = input.inlines
-                    this.options = input.selection
+                    this.options = input.selection ?: themeSelectionOptions(theme)
                     this.focus = input.focus
                     this.actions = input.actions
                     this.decorations = input.decorations

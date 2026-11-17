@@ -118,16 +118,25 @@ internal fun otpAppearance(
 ): TextEditAppearance {
     val style = input.style
     val colors = theme.tokens.palette
+    val selection = themeTextSelection(theme)
     return TextEditAppearance(
         fonts,
         text,
         text,
-        style.selectionColor ?: colors.primary.background.withAlpha(0.30),
-        style.inactiveSelectionColor ?: colors.muted.foreground.withAlpha(0.20),
+        style.selectionColor ?: selection.background,
+        style.inactiveSelectionColor ?: selection.inactiveBackground,
         style.caretColor ?: colors.background.foreground,
         style.markedColor ?: colors.primary.background,
         style.caretWidth,
-        theme.tokens.motion.preference == MotionPreference.Reduced
+        theme.tokens.motion.preference == MotionPreference.Reduced,
+        selectionTextColor =
+            selectionTextColor(style.selectionTextColor, style.selectionColor, selection.text),
+        inactiveSelectionTextColor =
+            selectionTextColor(
+                style.inactiveSelectionTextColor,
+                style.inactiveSelectionColor,
+                selection.inactiveText
+            )
     )
 }
 

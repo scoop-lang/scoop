@@ -37,11 +37,25 @@ internal fun selectableScene(
     val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
     val selected = host.selection.range
     val boxes = frame.layout.selection(TextRange(selected.start, selected.end))
+    val active = host.scope.nativeWindow.isFocused && host.area.scope.activity.hasFocus
     val color =
-        if (host.area.scope.activity.hasFocus)
+        if (active)
             host.options.selectionColor
         else
             host.options.inactiveSelectionColor
+    val textColor =
+        if (active)
+            host.options.selectionTextColor
+        else
+            host.options.inactiveSelectionTextColor
+    val ink =
+        when (textColor) {
+            case Some(val value) -> if (boxes.size > 0L)
+                Some(TextSelectionInk(TextRange(selected.start, selected.end), value))
+            else
+                None
+            case None -> None
+        }
     context.withState {
         scene ->
         if (host.options.clip)
@@ -72,7 +86,7 @@ internal fun selectableScene(
             frame.paths.add(shape)
             scene.place(action.area, shape)
         }
-        host.paragraph.scene(scene, measurement)
+        host.paragraph.scene(scene, measurement, ink, boxes)
         for (decoration in host.decorations) {
             val regions = frame.layout.selection(decoration.range)
             when (decoration.underline) {

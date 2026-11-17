@@ -15,7 +15,10 @@ public class InputOtpStyle internal constructor(
     public val inactiveSelectionColor: Color? = None,
     public val caretColor: Color? = None,
     public val markedColor: Color? = None,
-    public val caretWidth: Double? = None
+    public val caretWidth: Double? = None,
+    /** Uses the theme pair by default; a local selection background keeps original glyph colors. */
+    public val selectionTextColor: Color? = None,
+    public val inactiveSelectionTextColor: Color? = None
 ) {
     init {
         nonnegative(gap, "invalid OTP gap")
@@ -58,6 +61,8 @@ public class InputOtpStyleBuilder internal constructor(initial: InputOtpStyle) {
     public var validation: OutlineStyle? = initial.validation
     public var selectionColor: Color? = initial.selectionColor
     public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
+    public var selectionTextColor: Color? = initial.selectionTextColor
+    public var inactiveSelectionTextColor: Color? = initial.inactiveSelectionTextColor
     public var caretColor: Color? = initial.caretColor
     public var markedColor: Color? = initial.markedColor
     public var caretWidth: Double? = initial.caretWidth
@@ -79,7 +84,9 @@ public class InputOtpStyleBuilder internal constructor(initial: InputOtpStyle) {
             inactiveSelectionColor,
             caretColor,
             markedColor,
-            caretWidth
+            caretWidth,
+            selectionTextColor,
+            inactiveSelectionTextColor
         )
 }
 
@@ -99,12 +106,15 @@ internal fun otpOptions(
             this.background(
                 Some(
                     Paint(
-                        if (theme.tokens.mode == ThemeMode.Dark)
-                            theme.tokens.palette.input.withAlpha(
-                                theme.tokens.palette.input.alpha * 0.3
-                            )
+                        if (theme.preferences.highContrast || theme.preferences.reduceTransparency)
+                            theme.tokens.palette.background.background
                         else
-                            Color.Transparent
+                            if (theme.tokens.mode == ThemeMode.Dark)
+                                theme.tokens.palette.input.withAlpha(
+                                    theme.tokens.palette.input.alpha * 0.3
+                                )
+                            else
+                                Color.Transparent
                     )
                 )
             )

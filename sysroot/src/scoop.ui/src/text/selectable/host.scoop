@@ -50,17 +50,28 @@ public class SelectableTextHost public constructor(
         )
     internal val touchPress = createSelectableContactPress(this)
     internal val touchHandles = createSelectableSelectionHandles(this)
-    private val activity =
-        area.scope.observeActivity {
-            if (!closed && scope.isMounted) {
-                if (!area.scope.activity.hasFocus) {
-                    dataSource?.cancelCandidate()
-                    selectableStopDrag(this)
+    private val activity = area.scope.observeActivity { activityChanged() }
+    private val windowFocus =
+        scope.observeWindow(scope.nativeWindow) {
+            event -> when (event) {
+                case Focused(_) -> {
+                    if (!closed && scope.isMounted && area.scope.activity.hasFocus)
+                        activityChanged()
                 }
-                contextMenu.refresh()
-                scope.requestFrame()
+                else -> {}
             }
         }
+
+    private fun activityChanged() {
+        if (closed || !scope.isMounted)
+            return
+        if (!scope.nativeWindow.isFocused || !area.scope.activity.hasFocus) {
+            dataSource?.cancelCandidate()
+            selectableStopDrag(this)
+        }
+        contextMenu.refresh()
+        scope.requestFrame()
+    }
 
     init {
         options.check()
@@ -283,6 +294,7 @@ public class SelectableTextHost public constructor(
         failure = cleanupUi(failure) { touchPress.close() }
         failure = cleanupUi(failure) { touchHandles.close() }
         failure = cleanupUi(failure) { dataSource?.close() }
+        failure = cleanupUi(failure) { windowFocus.close() }
         failure = cleanupUi(failure) { activity.close() }
         for (action in actions)
             failure = cleanupUi(failure) { action.close() }

@@ -1,0 +1,366 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class SelectionAppearanceTest {
+    @Test
+    fun `selected glyph colors follow window activity child focus and cached selection changes`() {
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(testSansBytes, "Selection Window")
+            val p = SelectionAppearanceProbe(fonts)
+            try {
+                UiHost { host, active, event -> p.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+                assertTrue(p.finished)
+                assertTrue(p.editor!!.isClosed)
+                assertTrue(p.display!!.isClosed)
+                assertFalse(p.actionFocus.isAttached)
+            } catch (error: Throwable) {
+                println(
+                    f"selection appearance phase=${p.phase}, focus=${p.wanted}, frames=${
+                        p.counts[0L]
+                    }/${p.counts[1L]}"
+                )
+                throw error
+            } finally {
+                p.timer?.close()
+                for (frame in p.frames)
+                    frame.close()
+            }
+        }
+    }
+}
+
+internal class SelectionAppearanceProbe(val fonts: FontCollection) {
+    val model = TextEditorState("---- MMMM")
+    val text =
+        textStyle {
+            families = ["Selection Window"];
+            fontSize = 32.0;
+            color = Color(1.0, 0.0, 0.0)
+        }
+    val content =
+        styledText {
+            style = this @SelectionAppearanceProbe.text;
+            text("MMMM MMMM")
+        }
+    val generation = state(0)
+    val windows = ArrayList<Window>()
+    val frames = ArrayList<FrameProbe>()
+    val counts = MutableArray<Int>(2L) { _ -> 0 }
+    val presented = MutableArray<Int>(2L) { _ -> -1 }
+    val pixels = MutableArray<Array<Long>>(2L) { _ -> [-1L, -1L, -1L] }
+    val actionFocus = FocusHandle()
+    val points = selectionWindowPoints(fonts, content)
+    var editor: TextEditHost? = None
+    var display: SelectableTextHost? = None
+    var timer: WindowDeadline? = None
+    var activeColor = Color(0.0, 0.0, 1.0)
+    var inactiveColor = Color(1.0, 1.0, 0.0)
+    var tinted = true
+    var shown = true
+    var phase = 0
+    var wanted = 0L
+    var pending = false
+    var allow = true
+    var before: Array<Int> = []
+    var revision = 0L
+    var destroyed = 0
+    var finished = false
+
+    fun appearance(): TextEditAppearance =
+        TextEditAppearance(
+            fonts,
+            text,
+            text,
+            selectionColor = Color(0.0, 1.0, 0.0),
+            inactiveSelectionColor = Color(0.5, 0.5, 0.5),
+            selectionTextColor =
+                if (tinted)
+                    Some(activeColor)
+                else
+                    None,
+            inactiveSelectionTextColor =
+                if (tinted)
+                    Some(inactiveColor)
+                else
+                    None
+        )
+
+    fun options(): SelectableTextOptions =
+        SelectableTextOptions(
+            selectionColor = Color(0.0, 1.0, 0.0),
+            inactiveSelectionColor = Color(0.5, 0.5, 0.5),
+            selectionTextColor =
+                if (tinted)
+                    Some(activeColor)
+                else
+                    None,
+            inactiveSelectionTextColor =
+                if (tinted)
+                    Some(inactiveColor)
+                else
+                    None
+        )
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                model.replace(Utf8Range(0L, 4L), "MMMM")
+                revision = model.revision
+                for (index in 0L ..< 2L) {
+                    val window =
+                        active.createWindow(
+                            windowAttributes {
+                                title = f"Scoop selection appearance ${index}"
+                                size = LogicalSize(340.0, 120.0)
+                                position =
+                                    Some(DesktopPosition(80.0 + index.toDouble() * 370.0, 140.0))
+                                requestActivation = index == 0L
+                                level = WindowLevel.AlwaysOnTop
+                            }
+                        )
+                    windows.add(window)
+                    frames.add(observeFrames(window))
+                    host.attach(
+                        window,
+                        { scope -> SelectionAppearanceScene(this, index, scope) },
+                        fonts = Some(fonts)
+                    )
+                }
+                timer = Some(windows[0L].createDeadline { allow = true })
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(300L))
+                )
+            }
+            case AboutToWait -> if (!pending && allow && settled()) {
+                pending = true
+                assertTrue(
+                    active.proxy().post {
+                        _ ->
+                        pending = false
+                        if (allow && settled())
+                            advance()
+                    }
+                )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                destroyed += 1
+                if (destroyed == 2) {
+                    finished = phase == 16
+                    active.requestExit()
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"selection appearance timeout at ${phase}, focused=${windows[0L].isFocused}/${
+                        windows[1L].isFocused
+                    }, required=${frames[0L].snapshot().required}/${
+                        frames[1L].snapshot().required
+                    }, presented=${presented[0L]}/${presented[1L]}, pending=${
+                        actionFocus.isPending
+                    }"
+                )
+            )
+            else -> {}
+        }
+    }
+
+    private fun settled(): Boolean {
+        if (phase >= 16)
+            return false
+        if (windows.size != 2L || (phase > 0 && !windows[wanted].isFocused))
+            return false
+        for (index in 0L ..< 2L)
+            if (presented[index] != generation.value || frames[index].snapshot().required)
+                return false
+        return !actionFocus.isPending
+    }
+
+    private fun retained() {
+        assertEquals("MMMM MMMM", model.text)
+        assertEquals(revision, model.revision)
+        assertTrue(model.canUndo)
+    }
+
+    private fun colors(index: Long, first: Long, last: Long, background: Long) {
+        assertEquals(first, pixels[index][0L], Some(f"first glyph in window ${index}"))
+        assertEquals(last, pixels[index][1L], Some(f"last glyph in window ${index}"))
+        assertEquals(background, pixels[index][2L], Some(f"selection fill in window ${index}"))
+    }
+
+    private fun activate(index: Long) {
+        wanted = index
+        windows[index].requestFocus()
+    }
+
+    private fun advance() {
+        when (phase) {
+            0 -> {
+                model.setSelection(Utf8Selection(0L, 4L))
+                revision = model.revision
+                assertTrue(display!!.setSelection(TextPosition(0L), TextPosition(4L)))
+                assertTrue(editor!!.focus.handle.requestFocus())
+                activate(0L)
+            }
+            1 -> {
+                retained()
+                colors(0L, 16711680L, 255L, 65280L)
+                assertTrue(display!!.focus.handle.requestFocus())
+                activate(1L)
+            }
+            2 -> {
+                assertTrue(editor!!.area.hasFocus)
+                assertFalse(editor!!.area.isFocusActive)
+                colors(0L, 65535L, 255L, 8421504L)
+                colors(1L, 16711680L, 255L, 65280L)
+                activate(0L)
+            }
+            3 -> {
+                colors(0L, 16711680L, 255L, 65280L)
+                colors(1L, 65535L, 255L, 8421504L)
+                assertEquals(Utf8Selection(0L, 4L), display!!.selection)
+                assertTrue(actionFocus.requestFocus())
+                activate(1L)
+            }
+            4 -> {
+                assertTrue(actionFocus.isFocusActive)
+                assertFalse(display!!.area.isFocusActive)
+                colors(1L, 16711680L, 255L, 65280L)
+                activate(0L)
+            }
+            5 -> {
+                assertTrue(actionFocus.hasFocus)
+                assertFalse(actionFocus.isFocusActive)
+                colors(1L, 65535L, 255L, 8421504L)
+                model.setSelection(Utf8Selection(5L, 9L))
+                revision = model.revision
+                assertTrue(display!!.setSelection(TextPosition(5L), TextPosition(9L)))
+            }
+            6 -> {
+                retained()
+                colors(0L, 255L, 16711680L, 16777215L)
+                colors(1L, 255L, 65535L, 16777215L)
+                activeColor = Color(0.0, 1.0, 1.0)
+                inactiveColor = Color(1.0, 0.0, 1.0)
+                generation.value += 1
+            }
+            7 -> {
+                colors(0L, 255L, 16776960L, 16777215L)
+                colors(1L, 255L, 16711935L, 16777215L)
+                tinted = false
+                generation.value += 1
+            }
+            8 -> {
+                colors(0L, 255L, 255L, 16777215L)
+                colors(1L, 255L, 255L, 16777215L)
+                model.setSelection(Utf8Selection(0L, 0L))
+                revision = model.revision
+                assertTrue(display!!.setSelection(TextPosition(0L), TextPosition(0L)))
+            }
+            9 -> {
+                retained()
+                colors(0L, 255L, 255L, 16777215L)
+                colors(1L, 255L, 255L, 16777215L)
+                allow = false
+                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+            }
+            10 -> {
+                before = Array<Int>(2L) { index -> counts[index] }
+                allow = false
+                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+            }
+            11 -> {
+                for (index in 0L ..< 2L)
+                    assertEquals(before[index], counts[index])
+                shown = false
+                generation.value += 1
+            }
+            12 -> {
+                assertTrue(editor!!.isClosed)
+                assertTrue(display!!.isClosed)
+                allow = false
+                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+            }
+            13 -> {
+                before = Array<Int>(2L) { index -> counts[index] }
+                allow = false
+                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+            }
+            14 -> {
+                for (index in 0L ..< 2L)
+                    assertEquals(before[index], counts[index])
+            }
+            15 -> for (window in windows)
+                window.requestDestroy()
+            else -> fail(Some("unexpected selection appearance step"))
+        }
+        phase += 1
+    }
+}
+
+private fun selectionWindowPoints(fonts: FontCollection, content: StyledText): Array<Point> =
+    Paragraph(fonts, content).use {
+        paragraph -> paragraph.layout(300.0).use {
+            layout -> RasterSurface(300, 60).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent);
+                    canvas.drawText(layout)
+                }
+                val pixels = surface.readPixels()
+                [
+                    selectionWindowPoint(layout, pixels, TextRange(0L, 4L), true),
+                    selectionWindowPoint(layout, pixels, TextRange(5L, 9L), true),
+                    selectionWindowPoint(layout, pixels, TextRange(0L, 4L), false)
+                ]
+            }
+        }
+    }
+
+private fun selectionWindowPoint(
+    layout: TextLayout,
+    pixels: Array<Byte>,
+    range: TextRange,
+    filled: Boolean
+): Point {
+    val boxes = layout.selection(range)
+    for (y in 2 ..< 45)
+        for (x in 2 ..< 295) {
+            val point = Point(x.toDouble() + 0.5, y.toDouble() + 0.5)
+            var inside = false
+            for (box in boxes)
+                inside = inside || box.rect.contains(point)
+            if (inside) {
+                var matches = true
+                for (delta in -1 ..< 2) {
+                    val alpha =
+                        pixels[
+                            ((y + delta).toLong() * 300L + x.toLong()) * 4L + 3L
+                        ].toUByte().toInt()
+                    matches =
+                        matches &&
+                            if (filled)
+                                alpha == 255
+                            else
+                                alpha == 0
+                }
+                if (matches)
+                    return point
+            }
+        }
+    throw IllegalStateException(Some("no stable selection pixel sample"))
+}

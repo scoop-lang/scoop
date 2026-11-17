@@ -12,6 +12,7 @@ public class ParagraphHost public constructor(): Closeable {
     private val thread = currentThreadId()
     private val cache = ParagraphCache()
     private val paintKey = PaintKey()
+    private val inkVersion = TextInkVersion()
     private var closed = false
 
     public val isClosed: Boolean get() {
@@ -73,9 +74,29 @@ public class ParagraphHost public constructor(): Closeable {
     }
 
     public fun scene(context: SceneContext, measurement: ParagraphMeasurement) {
+        scene(context, measurement, None, [])
+    }
+
+    internal fun scene(
+        context: SceneContext,
+        measurement: ParagraphMeasurement,
+        ink: TextSelectionInk?,
+        boxes: Array<TextBox>
+    ) {
         checkOpen()
         val layout = measurement.layout
-        context.drawTextLayout(paintKey, layout, measurement.generation)
+        val bounds = layout.paintBounds
+        val paintBounds =
+            Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0)
+        context.drawTextLayer(
+            paintKey,
+            paintBounds,
+            inkVersion.update(measurement.generation, ink)
+        ) {
+            paint -> drawSelectionText(paint.canvas, paintBounds, boxes, ink) {
+                canvas -> canvas.drawText(layout)
+            }
+        }
         context.children()
     }
 

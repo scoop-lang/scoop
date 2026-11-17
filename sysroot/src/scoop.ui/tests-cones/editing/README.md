@@ -8,6 +8,8 @@ scoop test sysroot/src/scoop.ui/tests-cones/editing --release
 
 macOS 实窗用例复用多个 TextEditHost 和一个 SelectableTextHost，覆盖实际键盘／指针、选择、组合输入、显示投影、滚动、原生菜单和生命周期。需要可以呈现和聚焦窗口的桌面会话；编译通过不代表运行通过。
 
+`--filter 'selected glyph colors follow window activity'` 在两个真实窗口中取样编辑器与只读正文的选区背景、选中字形和未选文字。场景覆盖窗口切换、行内动作持有逻辑焦点、范围与前景热更新、关闭文字覆盖、折叠选区、静止停帧和卸载；实际字形取样位置来自同一固定字体的排版。外观切换保留编辑正文、撤销历史和未显式修改的修订，显式选择操作仍正常推进输入修订。
+
 独立的文本触摸场景从 native 队列发送 Touch／Pen contacts，覆盖短按 grapheme 落点、长按选词和真实原生菜单命令、方向选区、内层／外层滚动及行内链接竞争。触摸开关、None 长按、菜单关闭、受保护投影、只读、缩放、阻止输入、第二触点、重绑、失焦和重入卸载均沿正常宿主验证；另从 accessibility 请求菜单，确认触摸配置不关闭语义动作。该受控事件测试不代替真实触屏设备验收。
 
 多击场景在另一个独立窗口进程中运行，69 步覆盖编辑／只读宿主的词和逻辑行选择、第四次短按、Touch／Pen 来源切换、组合字符与 emoji、间隔／距离、显式关闭、失败或域外接触、Accepted 缩放、长按、区间投影和受保护遮罩。行内链接连续短按只激活动作；外部选区修改及选择回调中的修改／关闭会打断旧计数。可用 `--filter 'touch multi taps select'` 单独执行；原 66 步触摸场景使用 `--filter 'native contacts select text'`，键盘／鼠标／IME 组合使用 `--filter 'native editing system IME'`。

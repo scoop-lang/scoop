@@ -25,6 +25,8 @@ internal class ThemePreferenceScene(
         val source = probe.explicit.value
         val model = probe.model
         val focus = probe.focus
+        val multiline = probe.multiline
+        val otp = probe.otp
         val children =
             [
                 label("Preference text") { this.theme = source },
@@ -33,7 +35,15 @@ internal class ThemePreferenceScene(
                 if (index == 0L)
                     input(model) { this.focus = FocusOptions(handle = Some(focus)) }
                 else
-                    label("Independent window")
+                    label("Independent window"),
+                if (index == 0L)
+                    textarea(multiline) { this.rows = 2L }
+                else
+                    label("Independent multiline text"),
+                if (index == 0L)
+                    inputOtp(otp, 4L)
+                else
+                    label("Independent OTP")
             ]
         return cachedScene(
             element(
@@ -61,14 +71,14 @@ private class ThemePreferencePanel(
             val metrics =
                 context.measureChild(
                     child,
-                    Constraints(maxWidth = Some(280.0), maxHeight = Some(90.0))
+                    Constraints(maxWidth = Some(280.0), maxHeight = Some(180.0))
                 )
             context.placeChild(child, Point(15.0, top))
             measured.add(metrics.size)
             top += metrics.size.height + 15.0
         }
         return LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(320.0, 340.0))),
+            LayoutMetrics(constraints.constrain(Size(320.0, 580.0))),
             measured.toArray()
         )
     }

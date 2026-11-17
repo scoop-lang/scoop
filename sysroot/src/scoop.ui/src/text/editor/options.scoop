@@ -60,7 +60,11 @@ public class TextEditAppearance public constructor(
     public val caretColor: Color = Color.Black,
     public val markedColor: Color = Color.Black,
     public val caretWidth: Double? = None,
-    public val reduceMotion: Boolean = false
+    public val reduceMotion: Boolean = false,
+    /** None preserves the original selected glyph colors in the active window. */
+    public val selectionTextColor: Color? = None,
+    /** None preserves the original selected glyph colors in an inactive window. */
+    public val inactiveSelectionTextColor: Color? = None
 ) {
     internal fun check() {
         when (caretWidth) {
@@ -78,6 +82,11 @@ public class TextEditAppearance public constructor(
                     color.alpha.isFinite(),
                 "non-finite editor color"
             )
+        for (color in [selectionTextColor, inactiveSelectionTextColor])
+            when (color) {
+                case Some(val value) -> checkSelectableColor(value)
+                case None -> {}
+            }
         requireUi(!fonts.isClosed, "editor fonts are closed")
     }
 }

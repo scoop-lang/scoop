@@ -38,6 +38,7 @@ public class TextEditHost public constructor(
     internal var geometryGeneration = 0L
     internal val hint = ParagraphCache()
     internal val bodyKey = PaintKey()
+    internal val bodyInk = TextInkVersion()
     internal val hintKey = PaintKey()
     internal var currentDisplay: TextDisplay? = None
     internal var currentProjection = initialOptions.projection

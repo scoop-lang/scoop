@@ -27,6 +27,7 @@ when = { os = "darwin" }
 "scoop.tests:text-fonts" = { version = "0.1.0", path = "../../../scoop.graphics.text/tests/data" }
 "scoop.tests:surface-native" = { version = "0.1.0", path = "../../../scoop.surface/test-native" }
 "scoop.tests:window-native" = { version = "0.1.0", path = "../../../scoop.window/test-native" }
+"scoop.tests:graphics-native" = { version = "0.1.0", path = "../../../scoop.graphics/test-native" }
 
 [native]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]

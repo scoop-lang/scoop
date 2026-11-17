@@ -1,0 +1,147 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.graphics.text.*
+import scoop.surface.FrameSubmission
+import scoop.tests.graphics.readNativePixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+
+internal class SelectionAppearanceScene(
+    private val p: SelectionAppearanceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val generation = p.generation.value
+        val child =
+            if (!p.shown)
+                empty()
+            else
+                if (index == 0L)
+                    element(generation, { _, mount -> SelectionAppearanceEditor(p, mount) })
+                else
+                    element(generation, { _, mount -> SelectionAppearanceDisplay(p, mount) })
+        return cachedScene(
+            element(
+                generation,
+                { props, mount -> SelectionAppearancePanel(p, index, props, mount) },
+                [child]
+            )
+        )
+    }
+}
+
+private class SelectionAppearancePanel(
+    private val p: SelectionAppearanceProbe,
+    private val index: Long,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(300.0, 60.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(340.0, 120.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> p.pixels[index] =
+                        Array<Long>(p.points.size) {
+                            at -> selectionAppearancePixel(native, p.points[at])
+                        }
+                }
+            }
+        }
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.presented[index] = generation
+                p.counts[index] += 1
+            }
+        }
+    }
+}
+
+private fun selectionAppearancePixel(native: Ptr<Unit>, point: Point): Long {
+    @Unsafe
+    {
+        return readNativePixel(native, 20.0 + point.x, 20.0 + point.y)
+    }
+}
+
+private class SelectionAppearanceEditor(
+    private val p: SelectionAppearanceProbe,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val host = scope.resource { TextEditHost(scope, p.model, p.appearance()) }
+    public override fun onMount() {
+        p.editor = Some(host)
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(
+            p.model,
+            p.appearance(),
+            TextEditOptions(
+                caretBlink = Some(Duration.ZERO),
+                paintCache = PaintCachePolicy.Tiles(32, 0)
+            )
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        host.scene(context, measured)
+    }
+}
+
+private class SelectionAppearanceDisplay(
+    private val p: SelectionAppearanceProbe,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
+    private val host = scope.resource { SelectableTextHost(scope, p.fonts, p.content) }
+    public override fun onMount() {
+        p.display = Some(host)
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(
+            p.fonts,
+            p.content,
+            p.options(),
+            actions =
+                [
+                    TextRangeAction(
+                        "link",
+                        TextRange(5L, 9L),
+                        {},
+                        focus = Some(FocusOptions(Some(p.actionFocus)))
+                    )
+                ]
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val measured = host.measure(context, constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        host.scene(context, measured)
+    }
+}

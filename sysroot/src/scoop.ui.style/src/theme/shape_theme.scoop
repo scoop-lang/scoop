@@ -11,14 +11,14 @@ public class ShapeTheme internal constructor(
     public val radio: RadioPart,
     public val scrollbar: ScrollbarPart,
     internal val preferenceBase: ShapeTheme? = None,
-    internal val appliedPreferences: ThemePreferences = ThemePreferences()
+    public override val preferences: ThemePreferences = ThemePreferences()
 ): Theme {
     public fun copy(configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme =
         configureShapeTheme(this, configure)
 
     public override fun withPreferences(preferences: ThemePreferences): Theme {
         preferences.check()
-        if (preferences == appliedPreferences)
+        if (preferences == this.preferences)
             return this
         return resolveShapePreferences(preferenceBase ?: this, preferences)
     }

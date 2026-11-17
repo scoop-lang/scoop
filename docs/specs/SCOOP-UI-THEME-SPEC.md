@@ -199,6 +199,8 @@ Component 的挂载工厂在该入口构造实例，因此可以在构造阶段�
 
 `ThemePreferences(reduceMotion=false, highContrast=false, reduceTransparency=false, textScaleFactor=1.0)` 是纯值输入，文字缩放须为有限正数。`Theme.withPreferences(preferences): Theme` 返回采用这些偏好的不可变主题，必须同时更新实际使用的 tokens、部件及绘图数据；第三方主题也实现这一入口，不能只替换 tokens 而继续绘制旧的部件颜色。重复应用相同偏好不叠加字号；ShapeTheme 从保留的基础描述解析，恢复默认偏好得到原基础主题。对解析结果显式 copy 会建立新的基础描述，应用通常修改 ThemeSource.current 中的基础主题。
 
+`Theme.preferences: ThemePreferences` 公开当前主题已经应用的偏好，基础主题为默认值，包装主题转交所包装结果。控件用它解析自身产生的默认选区和底色，不能在主题解析后重新引入被关闭的透明外观；局部明确的颜色与样式仍优先。它是主题值的一部分，不重新查询系统或订阅窗口。
+
 `ThemeSource.resolve(preferences)` 读取当前 State 并复用最近一次相同基础主题／偏好的结果；不拥有 painter 或窗口资源。`ThemeSource.read(scope)` 从 ComponentScope.interactionPreferences 取得根已合并的设置，未知布尔值使用 false、未知文字缩放使用 1.0，再调用 resolve。内置控件和自绘示例通过 read 消费；current.value 保留未经根解析的基础值，供应用修改或纯数据检查。同一来源可供不同根使用，根的偏好不写回共享 State。
 
 内置 ShapeTheme 的具体规则如下：

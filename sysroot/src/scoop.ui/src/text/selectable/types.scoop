@@ -13,7 +13,11 @@ public class SelectableTextOptions public constructor(
     public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
     public val drag: TextDragOptions = TextDragOptions(),
-    public val touch: TextTouchOptions = TextTouchOptions()
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    /** None preserves the original selected glyph colors in the active window. */
+    public val selectionTextColor: Color? = None,
+    /** None preserves the original selected glyph colors in an inactive window. */
+    public val inactiveSelectionTextColor: Color? = None
 ) {
     internal fun check() {
         drag.check()
@@ -23,6 +27,11 @@ public class SelectableTextOptions public constructor(
         )
         for (value in [selectionColor, inactiveSelectionColor])
             checkSelectableColor(value)
+        for (color in [selectionTextColor, inactiveSelectionTextColor])
+            when (color) {
+                case Some(val value) -> checkSelectableColor(value)
+                case None -> {}
+            }
     }
 }
 

@@ -87,7 +87,7 @@ val geometry = theme.checkboxGeometry(bounds, options = changed)
 
 应用持有稳定 ThemeSource，使用 `context(source) { ... }` 包围实际 Application.run／runWithAsyncio 及挂载入口。Component 可在挂载工厂的构造阶段保存来源，在 render 中调用 `source.read(scope)`；首轮 render 早于 onMount，不应等到 onMount 才初始化这个引用。更新主题 State 通知实际订阅者。局部主题通过明确 Props 传入，临时 Context 不会自动成为挂载树 Provider。三套主题、公共绘图部件和实际控件的完整用法见[主题展示](../scoop.ui.component/examples/themes/README.md)。
 
-`ThemeSource.read(scope)` 自动跟随 UI 根合并后的减少动画、高对比度、减少透明度和文字缩放；`source.current.value` 仍是应用提供的基础主题。两个窗口可以共享来源并使用不同的 `UiPreferences`，不会重复放大字号或改写共享 State。自绘组件也应使用 read；纯数据处理可调用 `source.resolve(ThemePreferences(...))` 或 `theme.withPreferences(...)`。第三方 Theme 必须实现 withPreferences，并同时调整实际部件和 tokens。
+`ThemeSource.read(scope)` 自动跟随 UI 根合并后的减少动画、高对比度、减少透明度和文字缩放；`source.current.value` 仍是应用提供的基础主题。两个窗口可以共享来源并使用不同的 `UiPreferences`，不会重复放大字号或改写共享 State。自绘组件也应使用 read；纯数据处理可调用 `source.resolve(ThemePreferences(...))` 或 `theme.withPreferences(...)`。第三方 Theme 必须实现 withPreferences，并同时调整实际部件和 tokens；只读 `Theme.preferences` 返回当前已经应用的偏好，包装主题转交所包装结果。控件用该值解析自己产生的默认选区和底色，不重新读取系统设置。
 
 内置主题在高对比度下使用不透明配色，强化文字、边界与焦点，取消整体禁用透明度；减少透明度会将默认填充合成到背景并移除默认阴影／辉光。文字缩放改变字体度量，不改变窗口 DPI。应用的显式文字、颜色和效果覆盖仍由应用决定。减少动画通过有效 ThemeMotion 关闭过渡与连续加载动效，不建立额外时钟。详细规则与对比度阈值见主题规范第 6.1 节。
 

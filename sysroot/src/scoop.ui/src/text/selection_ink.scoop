@@ -1,0 +1,82 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+
+internal struct TextSelectionInk(val range: TextRange, val color: Color)
+
+/** Selection affects cached glyph paint only when it overrides the original foreground. */
+internal class TextInkVersion {
+    private var initialized = false
+    private var source = 0L
+    private var selection: TextSelectionInk? = None
+    private var revision = 0L
+
+    fun update(generation: Long, ink: TextSelectionInk?): Long {
+        if (!initialized || source != generation || selection != ink) {
+            initialized = true
+            source = generation
+            selection = ink
+            revision += 1L
+        }
+        return revision
+    }
+}
+
+internal fun drawSelectionText(
+    canvas: Canvas,
+    bounds: Rect,
+    boxes: Array<TextBox>,
+    ink: TextSelectionInk?,
+    draw: (Canvas) -> Unit
+) {
+    val selected =
+        when (ink) {
+            case Some(val value) -> value
+            case None -> {
+                draw(canvas)
+                return
+            }
+        }
+    canvas.saveLayer(bounds = Some(bounds))
+    try {
+        draw(canvas)
+        selectionMask(canvas, bounds, boxes, true)
+    } finally {
+        canvas.restore()
+    }
+    // A zero-radius alpha tint preserves the already shaped glyph coverage.
+    ImageFilter.dropShadowOnly(Point(0.0, 0.0), 0.0, 0.0, selected.color).use {
+        filter ->
+        canvas.saveLayer(filter = Some(filter), bounds = Some(bounds))
+        try {
+            draw(canvas)
+            selectionMask(canvas, bounds, boxes, false)
+        } finally {
+            canvas.restore()
+        }
+    }
+}
+
+private fun selectionMask(canvas: Canvas, bounds: Rect, boxes: Array<TextBox>, inverse: Boolean) {
+    canvas.saveLayer(blendMode = BlendMode.DstIn, bounds = Some(bounds))
+    try {
+        if (inverse) {
+            canvas.clear(Color.White)
+            for (box in boxes) {
+                canvas.save()
+                try {
+                    canvas.clipRect(box.rect)
+                    canvas.clear(Color.Transparent)
+                } finally {
+                    canvas.restore()
+                }
+            }
+        } else {
+            for (box in boxes)
+                canvas.drawRect(box.rect, Paint(Color.White))
+        }
+    } finally {
+        canvas.restore()
+    }
+}

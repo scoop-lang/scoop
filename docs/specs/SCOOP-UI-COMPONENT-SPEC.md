@@ -450,7 +450,7 @@ interactionStyles(configure: InteractionStylesBuilder.() -> Unit = {}): Interact
 | InteractionStylesBuilder | hovered／pressed／focused／disabled: StyleOverride，分别默认 styleOverride() |
 | ButtonStyleBuilder | kind: SurfaceKind = Action；surface: SurfaceOptions = surfaceOptions()；text: SpanStyle? = None；states: InteractionStyles = interactionStyles()；transition: StyleValue<AnimationSpec?> = Inherit |
 | CheckboxStyleBuilder | marker: CheckboxOptions = checkboxOptions()；padding: Insets? = None；states: InteractionStyles = interactionStyles()；transition／selectionTransition: StyleValue<AnimationSpec?> = Inherit |
-| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／caretColor／markedColor: Color? = None；caretWidth: Double? = None；scrollbar: ScrollbarOptions = scrollbarOptions() |
+| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／selectionTextColor／inactiveSelectionTextColor／caretColor／markedColor: Color? = None；caretWidth: Double? = None；scrollbar: ScrollbarOptions = scrollbarOptions() |
 
 嵌套配置使用真实同名成员：InteractionStylesBuilder 的四种状态接收 StyleOverrideBuilder；surface／marker／scrollbar 接收对应部件 OptionsBuilder；states 接收 InteractionStylesBuilder；text／placeholder／description 接收 SpanStyleBuilder。这些成员均返回 Unit、基于当前值修改，重复块累积，空块保留已有字段。可选文字覆盖尚为 None 时，文字配置块从全部继承的 spanStyle() 开始；直接给属性赋入完整值表示替换，赋入 None 移除该文字覆盖。
 
@@ -513,6 +513,10 @@ Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默
 绘制 Element 在构造时通过自己的 ComponentScope 创建 TextEditHost，保证编辑输入、滚动视口、布局失效和 scene 属于同一次挂载。组合组件在 render 中读取 model.inputState 与用于外观的交互 State；后者由宿主的真实 onInteractionChanged 通知更新，默认值不触发补渲染，也不发布宿主或作用域引用。默认字体在 render 中以显式 fonts 优先，否则读取 scope.defaultFonts；默认集合更换保留组件、宿主和编辑模型，再由 Element.update 更新外观。宿主、段落度量缓存及主题 painter 沿各自作用域释放，控件不关闭借用字体。OTP 采用相同的构造与借用合同。
 
 TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 SpanStyle、InteractionStyles、可选选择／非活动选择／caret／marked 颜色、caretWidth 和 ScrollbarOptions。表面使用 Theme 的 Plain 几何和 Background／Foreground 绘制阶段，padding、边框内缩及显式内容效果沿公共 Style 处理。默认选择取强调色的半透明值，caret／marked 取强调色。invalid 仅改变外观，正文合法性由业务决定：默认错误边框和状态环来自 tokens.validation，即使未聚焦也显示；description 使用 palette.destructive.background。明确的局部表面与 validation 覆盖仍优先，focus 只覆盖正常焦点外观，禁用说明使用 disabledText。没有内置验证器或提交阻断。正文区域（背景、文字、边框和状态环）整体应用 SurfaceGeometry.opacity，description 在此层之外。placeholder 始终使用 muted.foreground，再随正文区域合成；局部 placeholder 覆盖仍优先。
+
+TextFieldStyle／InputOtpStyle 及 builder 的 selectionTextColor／inactiveSelectionTextColor 是可选的选区文字覆盖，默认沿主题解析：普通偏好保留原文字，减少透明度把默认选区背景合成到主题背景，高对比度分别采用 primary 与 secondary 的完整背景／文字配对。显式选区背景保留原文字，除非同时明确指定文字覆盖；不替应用的局部配色推导对比度。Input／Textarea／OTP 共用此规则；高对比度或减少透明度时，OTP 的默认槽底色使用不透明主题背景，明确的 surface 覆盖仍优先。偏好和文字缩放热切换保留同一编辑模型、选择和撤销历史。
+
+TypographyProps 与 builder 的 `selection: SelectableTextOptions? = None` 表示从当前有效主题取得上述默认选区配色；Some 使用应用完整的选项。根偏好、显式主题和基础主题更新沿普通 render 依赖解析，公开选项仍转交同一 SelectableTextHost；不另建选择状态。
 
 有界宽度占满父约束，无界宽度使用显式 SurfaceOptions.suggestedSize.width，缺省 240，再满足主题 minimumSize。Input 一行、Textarea rows 行的建议高度使用同一字体与正文样式下真实空段落的行高，合并 padding、边框和主题建议／最小高度，再按父约束收敛；不以字符数估算布局。Host 每帧只按最终内视口测量一次，基线来自该布局并加实际内容偏移。description 作为普通 Label 在边框外下方按同宽约束测量，不作为输入正文或滚动内容。
 
@@ -659,7 +663,7 @@ Spinner、Skeleton 与 Progress 复用 scope-owned Animatable 的循环和可见
 
 H2 带底边 1 和底部留白 8；Blockquote 带逻辑起端边 2 和留白 24；InlineCode 使用 muted 背景、small 圆角、水平 4.8／垂直 3.2 留白。尺寸随正文密度缩放，H2 的细线保持 1；所有装饰可用 style 覆盖。InlineCode 先取自然宽，再在父约束内换行／收缩，不占满段落为行内对象提供的最大宽度；基线包含实际垂直留白。普通文字使用角色基础样式；StyledText 保留原基础样式与片段，显式 textStyle: TextStyle 覆盖最终基础样式，不重写嵌套 span。
 
-builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
+builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions? = None、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
 
 TypographyTextBuilder 另有 text、add(TextSpan)、span、code(String, InlineKey)、inline(InlineKey, View, alternateText, configure)。code 创建带真实大小、基线和圆角背景的非选择 InlineCode 子 View，作为原段落内的一个行内对象参与排版／选择，复制时使用原代码文字；不会给子 View 再创建选择宿主。明确 key 保持行内对象身份，默认 code key 按声明位置生成；重复 key 沿 StyledText 规则报错。其他行内 View 也通过现有 InlineView 测量、命中和替代文字合同处理。range action 的位置始终是 StyledText 的 UTF-8 字节位置，行内对象占 U+FFFC 的三个字节。
 
@@ -764,7 +768,7 @@ InputOtpPattern 为 Digits／Alphanumeric／Custom(TextEditPolicy)。前两者�
 
 onEdited 沿 TextEditHost 的正文通知；onComplete 只在宿主接受的操作改变已提交正文、组合已经结束且新正文恰为 length 个 grapheme 时调用。满长度下真正替换内容可再次完成；纯选择、主题／方向／分组变化、重复 render、取消或拒绝后恢复原基线不重复通知。回调读取最新 Props，允许调用方替换正文或移除控件，不自动提交表单或移走焦点。
 
-InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／caretColor／markedColor: Color?、caretWidth=1。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。Dark 底色为 input 的 0.3 倍 alpha；Light 透明。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
+InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／selectionTextColor／inactiveSelectionTextColor／caretColor／markedColor: Color?、caretWidth: Double? = None。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。普通偏好下 Dark 底色为 input 的 0.3 倍 alpha、Light 透明；高对比度或减少透明度时默认采用不透明主题背景。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
 
 槽位、间隙、鼠标命中、方向导航、选区、marked 装饰与原生 caret 共享 UI 规范第 7.5.3.1 节的 TextEditLayout。空槽中的可见 caret 居中，已有字符处使用真实插入边缘；只在 caret 确实可见时闪烁。临时超长 preedit 或外部超长正文按同一槽几何向逻辑末尾扩展，延续末组边框并可滚动显露；不改写模型来凑固定槽数。测量为外侧焦点环预留空间；有限窄宽和零尺寸沿同一视口裁剪，主题／分组／方向变化保留输入宿主与选区；卸载释放排版、取消闪烁及输入连接，字体由调用方持有。
 

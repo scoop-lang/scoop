@@ -102,9 +102,11 @@ Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate�
 
 Input／Textarea／InputOtp 默认提供原生文本菜单。使用 `contextMenu { mode = TextContextMenuMode.StandardNative; selection = TextContextMenuSelection.Preserve }` 可选择标准菜单并保留选区外点击的选择；Disabled 关闭内建入口，PreferSystem 尽量复用可执行的系统模板。相关类型位于 `scoop.ui.text`，可选标签覆盖使用 `scoop.window.TextContextMenuLabels`。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传当前配置；需要应用自定义菜单时先关闭内建入口，再使用现有菜单包装。编辑动作始终进入同一个 TextEditorState，OTP 的长度与模式限制仍然有效。
 
-macOS 输入控件默认支持文本选区拖出及文本／URL 拖入。使用 `input(editor) { acceptDrops = false }` 关闭接收，使用 `drag = TextDragOptions(enabled = false)` 关闭导出；Textarea、InputOtp 与 Props 同名属性采用同样默认值，InputGroup、Command、Combobox、SidebarInput 等包装透传配置。drag 配置阈值、导出策略、Copy／Move 和完成通知，只读只能 Copy；SelectableStyledText.options.drag 与 Typography.selection.drag 使用同一只读来源。落点、临时 caret、边缘滚动、composition 与 undo 由原 TextEditHost 处理。拖入复用 paste 和通用 policy，OTP 的清洗／裁剪不能伪装成完整 Move；同文档移动一次撤销，SourceRetained 表示目标已接收但源未删除。受保护输入可以导入，默认不拖出原文。具体合同及平台范围见[统一计划](../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)。
+macOS 输入控件默认支持文本选区拖出及文本／URL 拖入。使用 `input(editor) { acceptDrops = false }` 关闭接收，使用 `drag = TextDragOptions(enabled = false)` 关闭导出；Textarea、InputOtp 与 Props 同名属性采用同样默认值，InputGroup、Command、Combobox、SidebarInput 等包装透传配置。drag 配置阈值、导出策略、Copy／Move 和完成通知，只读只能 Copy；SelectableStyledText.options.drag 与 Typography 的 `selection = Some(SelectableTextOptions(drag = ...))` 使用同一只读来源。落点、临时 caret、边缘滚动、composition 与 undo 由原 TextEditHost 处理。拖入复用 paste 和通用 policy，OTP 的清洗／裁剪不能伪装成完整 Move；同文档移动一次撤销，SourceRetained 表示目标已接收但源未删除。受保护输入可以导入，默认不拖出原文。具体合同及平台范围见[统一计划](../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)。
 
-SelectableStyledText 的 `options = SelectableTextOptions(contextMenu = textContextMenu { selection = TextContextMenuSelection.Preserve })` 配置只读 Copy／SelectAll 菜单，默认也使用 PreferSystem。Typography 的 selection 接收同一 SelectableTextOptions。正文与行内替代文字来自共享只读宿主，辅助点击不触发行内主按钮，键盘菜单沿现有焦点与 Accepted 选区定位。
+SelectableStyledText 的 `options = SelectableTextOptions(contextMenu = textContextMenu { selection = TextContextMenuSelection.Preserve })` 配置只读 Copy／SelectAll 菜单，默认也使用 PreferSystem。Typography 的 `selection = Some(SelectableTextOptions(...))` 使用应用完整的选项；默认 `None` 从当前主题解析选区外观。正文与行内替代文字来自共享只读宿主，辅助点击不触发行内主按钮，键盘菜单沿现有焦点与 Accepted 选区定位。
+
+Input／Textarea 的 TextFieldStyle、InputOtpStyle 及其 builder 提供 `selectionTextColor`／`inactiveSelectionTextColor`，默认与选区背景一起跟随主题。高对比度使用成对的不透明背景与文字；减少透明度把默认选区底色合成到主题背景，OTP 默认槽底色也保持不透明。普通偏好保留原文字颜色。显式选区背景不会自动推导新的前景；需要时同时指定文字覆盖。主题和文字缩放热切换保留模型、方向选区、撤销历史及逻辑焦点。
 
 SelectableStyledText 默认发布共享宿主的正文、选区和只读菜单动作；`onSelectionChanged` 在语义刷新后仍调用一次最新业务回调。选择部分行内替代文字会覆盖整个对象，禁用选择立即撤下对应能力，不提供文本写入。Typography 的两种 selectable 分支都保留 `semantics` 配置，切换分支后旧原生对象退休。标题级别、范围几何及行内范围动作的专门语义继续按计划接入。
 

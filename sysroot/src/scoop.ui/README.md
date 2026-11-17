@@ -290,6 +290,8 @@ macOS 的 TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`Te
 
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。
 
+`TextEditAppearance` 和 `SelectableTextOptions` 的 `selectionTextColor`／`inactiveSelectionTextColor` 可覆盖活动／非活动选区的文字颜色，默认 `None` 保留原文字。覆盖使用同一排版和选区矩形，保留字形覆盖率、行内布局和 accessibility 几何；范围或颜色变化会更新绘制缓存，取消覆盖后恢复原样式。窗口失焦只切换到非活动外观，保留逻辑焦点、选择和编辑历史；只读正文内的行内动作同样遵守窗口活动状态。
+
 密码等受保护用途在 `TextEditOptions(protectedText = true)` 中明确声明；显示明文时继续保留这个标记。`TextCopyPolicy.Default` 在受保护用途或内置遮罩时禁止 Copy／Cut，Allow 明确允许复制原文，Deny 始终禁止；Paste、选择、删除和撤销仍按通常的编辑策略执行。更换 projection 或 protectedText 不更换模型／IME 连接，菜单立即更新可用性，迟到动作读取当前策略。该标记独立于视觉效果；完整 accessibility 文本、拖放和系统文本服务的接入仍按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)推进。
 
 需要菜单“删除”行为时使用 `host.execute(TextEditCommand.DeleteSelection)`：只删除非空选区，不影响剪贴板，遵守当前只读／禁用、焦点、编辑策略与撤销。空选区不调用策略、不结束组合；`Delete(TextDeletion.Forward)` 仍是键盘向前删除行为。宿主按当前状态自动发布对应菜单可用性；只读选择宿主不提供删除命令。

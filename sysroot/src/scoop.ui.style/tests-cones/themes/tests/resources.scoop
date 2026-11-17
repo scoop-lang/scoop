@@ -110,6 +110,7 @@ private class ThemeResourceTest {
 /** A third-party Theme uses the same public protocol and can fail when acquiring its painter. */
 private class FailingTheme(private val base: Theme): Theme {
     public override val tokens: ThemeTokens get() = base.tokens
+    public override val preferences: ThemePreferences get() = base.preferences
     public override fun withPreferences(preferences: ThemePreferences): Theme {
         val next = base.withPreferences(preferences)
         return if (next === base)

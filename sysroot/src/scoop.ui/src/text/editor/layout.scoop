@@ -239,7 +239,8 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             case Some(val target) -> target.caret(frame)
             case None -> None
         }
-    val selection = layout.selection(frame.display.displayRange(input.selection.range))
+    val selectedRange = frame.display.displayRange(input.selection.range)
+    val selection = layout.selection(selectedRange)
     val marked =
         when (input.markedRange) {
             case Some(val range) -> layout.selection(frame.display.displayRange(range))
@@ -251,6 +252,20 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             appearance.selectionColor
         else
             appearance.inactiveSelectionColor
+    val textColor =
+        if (active)
+            appearance.selectionTextColor
+        else
+            appearance.inactiveSelectionTextColor
+    val ink =
+        when (textColor) {
+            case Some(val value) -> if (selection.size > 0L)
+                Some(TextSelectionInk(selectedRange, value))
+            else
+                None
+            case None -> None
+        }
+    val bodyRevision = host.bodyInk.update(layout.generation, ink)
     host.viewport.present(
         context,
         measure.scroll,
@@ -272,8 +287,10 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                     paint.canvas.drawRect(box.rect, Paint(color))
             }
             val bounds = layout.paintBounds
-            content.drawTextLayer(host.bodyKey, editorInkBounds(bounds), layout.generation) {
-                paint -> paint.canvas.drawText(layout)
+            content.drawTextLayer(host.bodyKey, editorInkBounds(bounds), bodyRevision) {
+                paint -> drawSelectionText(paint.canvas, editorInkBounds(bounds), selection, ink) {
+                    canvas -> canvas.drawText(layout)
+                }
             }
             if (
                 frame.layout.cellRects.size ==
