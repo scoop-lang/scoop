@@ -13,6 +13,7 @@ internal class PanScene(private val probe: PanProbe, scope: ComponentScope): Com
             probe.outer.observeIntent {
                 value -> when (value) {
                     case User(_) -> probe.userIntents += 1
+                    case LayoutCorrection(_) -> probe.corrections += 1
                     else -> {}
                 }
             }

@@ -24,6 +24,7 @@ private class ScrollViewportTest {
             assertFalse(probe.first.isAttached)
             assertFalse(probe.second.isAttached)
             assertFalse(probe.first.isAnimating)
+            assertFalse(probe.first.hasPositionAnimation)
             assertTrue(probe.view!!.restored())
             assertEquals(1, probe.discarded)
             assertTrue(probe.ignoredBinding)
@@ -48,6 +49,7 @@ internal class ScrollProbe {
     var frames: FrameProbe? = None
     var ui: UiWindow? = None
     var scope: ComponentScope? = None
+    var secondScope: ComponentScope? = None
     var viewport: ScrollViewport? = None
     var renders = 0
     var observations = 0
@@ -75,6 +77,8 @@ internal class ScrollProbe {
     var edgeArea: InputArea? = None
     var beforePadding = Rect(0.0, 0.0, 0.0, 0.0)
     var beforeCorrections = 0
+    var correctionFrame = -1
+    var correctionCount = 0
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -141,6 +145,7 @@ internal class ScrollProbe {
                     AnimationSpec.Tween(Duration.milliseconds(120L))
                 )
                 assertTrue(first.isAnimating)
+                assertTrue(first.hasPositionAnimation)
                 phase = 1
             }
             case 1 -> if (!first.isAnimating && shown == first.offset) {
@@ -151,6 +156,7 @@ internal class ScrollProbe {
                 first.cancelAnimation()
                 assertEquals(Point(80.0, 300.0), first.offset)
                 assertFalse(first.isAnimating)
+                assertFalse(first.hasPositionAnimation)
                 discardNext = true
                 generation.value = 1
                 phase = 2
@@ -204,6 +210,15 @@ internal class ScrollProbe {
             case 8 -> {
                 assertEquals(Point(35.0, 160.0), second.offset)
                 assertEquals(second.offset, secondShown)
+                if (correctionFrame < 0) {
+                    correctionFrame = passes
+                    correctionCount = corrections
+                    secondScope!!.requestFrame()
+                    return
+                }
+                if (passes == correctionFrame || frames!!.snapshot().required)
+                    return
+                assertEquals(correctionCount, corrections)
                 adjustment = Some(ScrollAdjustment(second.requestRevision, Point(0.0, 0.0)))
                 second.scrollTo(Point(40.0, 180.0))
                 generation.value = 7

@@ -388,6 +388,8 @@ ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，�
 
 KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。VirtualReadingSnapshot.endPadding 记录同一 Accepted 布局的实际末端留白。
 
+惯性和回弹不关闭上述锚点规则；只用 ScrollState.hasPositionAnimation 区分显式平滑定位的优先级。惯性采样保留原定位意图序号，列表给出 Accepted 锚点对应的新逻辑位置，未发布的正常位移由 ScrollViewport.layout 按 UI 规范 §7.7 合并。prepend、行高、视口或末端留白尺寸变化时，锚点／FollowEnd 先保持阅读位置，再停止旧物理运动；None 保留数值位置并按新范围收敛。按 key 显露或恢复先结束旧运动，正常显式 animateTo 仍到达自己的数值目标。
+
 VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest, margin = 0, previousItemPeek = 0)。margin 与 previousItemPeek 是有限非负逻辑长度；Start 定位减去 margin 及不超过上一项实际长度的 peek，首项的 peek 为零；End／Nearest 使用 margin 扩张目标范围，Center 保持中心。带 peek 的请求按需测量紧前一项，与目标共用本帧结果。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
@@ -1191,6 +1193,8 @@ MessageScrollState 持有一个 ScrollState、一个 VirtualListHandle、当前�
 Holding 使用既有 KeepVisible 保持当前 key／项内偏移。beginTurn(key) 接受应用的显式新回合请求，在下一次来源更新后解析一次，将回合放到 scrollMargin 加实际 previousItemPeek 的位置；它不从新增锚点自动推导发送行为。Anchoring 使用 endPadding=FillViewport，在当前实际布局中收敛为 `max(0, viewport - anchorInset - turnExtent)`，后续增高、缩短和窗口缩放沿同一阅读位置调整留白。Accepted 后记录实际留白，转入 Holding 时冻结该长度，避免继承自动填充策略。正文填满时，仅 autoScroll 开启才进入 Following 并定位实际末端；默认不制造滚动动画。Following 复用 VirtualList 的 FollowEnd，正常新增或流式更新保持末端。
 
 User 滚动意图（包括边界无位移）、正文指针操作、键盘及选择开始立即进入 Holding，停止较旧定位；不消费正文输入。释放选择不会自动拉回。用户随后主动滚回 edgeThreshold 内且没有活动指针选择时，autoScroll 可重新跟随；显式 hold、搜索、restore 或正文操作之后的普通数据更新不恢复旧策略。外部 Programmatic 意图也进入 Holding；内部定位识别自己同步产生的意图，LayoutCorrection 不改变阅读策略。preserveOnPrepend=false 只对来源在前方插入时保留数值偏移，普通正文增高仍沿 KeepVisible。
+
+同一次用户释放后的惯性仍可在后续 Accepted 帧实际进入末端阈值，不能在第一帧尚未到达末端时丢掉该意图。来源或正文／视口／留白范围变化结束这次自动恢复资格，不能把数据收缩造成的到达末端当作用户滚回。已经处于实际末端且没有回合留白时直接恢复 Following，不额外登记定位或取消回弹；仅接近末端或仍需清除回合留白时沿原 End 请求完成定位。
 
 scrollToMessage(key, alignment)、scrollToStart、scrollToEnd、restore(VirtualReadingAnchor) 和 hold 是应用动作。未知非空来源中的显式目标返回 false，不改变位置或策略；beginTurn 允许同一动作先替换来源再请求新 key，随后一次解析失败即结束。scrollToEnd 清理回合留白，并在 autoScroll 开启时重新跟随；其他显式定位进入 Holding。较新动作、真实来源替换期间的 restore、reset、宿主替换和卸载结束旧请求。reset 可指定新的初始位置，清理旧阅读事实与意图；卸载后的迟到动作不重新挂载宿主或预约帧。
 

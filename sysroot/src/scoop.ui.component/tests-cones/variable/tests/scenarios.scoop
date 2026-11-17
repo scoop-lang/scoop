@@ -7,6 +7,10 @@ import scoop.ui.component.*
 import scoop.window.ActiveApplication
 
 internal fun advanceVariable(probe: VariableProbe, active: ActiveApplication) {
+    if (probe.motion) {
+        advanceVariableMotion(probe)
+        return
+    }
     if (probe.phase >= 17) {
         advanceReading(probe, active)
         return
@@ -53,14 +57,16 @@ internal fun advanceVariable(probe: VariableProbe, active: ActiveApplication) {
         }
         case 6 -> {
             probe.assertTop(7L, 60.0)
-            assertEquals(probe.scroll.maximum, probe.scroll.offset)
+            assertEquals(probe.scroll.maximum.y, probe.scroll.offset.y)
+            assertEquals(0.0, probe.scroll.offset.x)
             probe.anchor.value = VirtualListAnchor.FollowEnd
             probe.changeSource([8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L])
             probe.next()
         }
         case 7 -> {
             probe.assertTop(9L, 60.0)
-            assertEquals(probe.scroll.maximum, probe.scroll.offset)
+            assertEquals(probe.scroll.maximum.y, probe.scroll.offset.y)
+            assertEquals(0.0, probe.scroll.offset.x)
             probe.scroll.scrollBy(Point(0.0, -30.0), ScrollOrigin.User)
             probe.next()
         }

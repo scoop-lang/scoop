@@ -36,15 +36,23 @@ internal fun panInertiaStep(p: PanProbe) {
         2 -> {
             assertTrue(p.inner.isAnimating)
             assertTrue(p.outer.isAnimating)
+            assertFalse(p.inner.hasPositionAnimation)
+            assertFalse(p.outer.hasPositionAnimation)
             assertFalse(p.innerPan!!.isPanning)
             assertFalse(p.innerArea!!.scope.activity.hasContact)
             p.beforeIntents = p.userIntents
+            p.beforeCorrections = p.corrections
+            p.innerRevision = p.inner.requestRevision
+            p.outerRevision = p.outer.requestRevision
             p.animatedSteps = false
         }
         3 -> {
             coastNear(40.0, p.inner.offset.y)
             coastNear(140.0, p.outer.offset.y)
             assertEquals(p.beforeIntents, p.userIntents)
+            assertEquals(p.beforeCorrections, p.corrections)
+            assertEquals(p.innerRevision, p.inner.requestRevision)
+            assertEquals(p.outerRevision, p.outer.requestRevision)
             assertFalse(p.bounced)
             assertFalse(p.inner.isAnimating)
             assertFalse(p.outer.isAnimating)

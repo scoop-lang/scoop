@@ -704,7 +704,9 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 `animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，按视口实际使用阶段采样、Accepted 发布；isAnimating 包括等待首布局的动画。首个 Accepted 后启动、重新定向或终止滚动动画时，按已登记的视口用途请求布局或场景，使未读过动画值的初始结果也能失效。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
-布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。`ScrollState.beginLayoutRequest(origin = Programmatic): ULong` 为这些尚需布局解析的主动定位登记一次新意图，停止旧动画并保留 Accepted 位置作为基点，返回该请求的序号；调用方在通知返回后检查它仍为最新，再保存待解析目标。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、beginLayoutRequest、动画定位及取消活动动画推进序号，范围发布不推进。hasPositionRequest 查询是否已经登记构造或主动位置请求，同样不建立订阅；默认零构造位置尚未登记显式请求，非零构造位置已登记请求。不得依赖序号的具体数值或增量。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
+布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。`ScrollState.beginLayoutRequest(origin = Programmatic): ULong` 为这些尚需布局解析的主动定位登记一次新意图，停止旧动画并保留 Accepted 位置作为基点，返回该请求的序号；调用方在通知返回后检查它仍为最新，再保存待解析目标。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、beginLayoutRequest、动画定位及取消活动动画推进序号，范围发布及惯性采样不推进。hasPositionRequest 查询是否已经登记构造或主动位置请求，同样不建立订阅；默认零构造位置尚未登记显式请求，非零构造位置已登记请求。不得依赖序号的具体数值或增量。adjustment 只在序号仍匹配且没有活动平滑定位时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
+
+`ScrollState.hasPositionAnimation: Boolean` 是可观察查询，仅表示显式 animateTo 的等待或播放，回弹和直接接触惯性不计入；isAnimating 仍包含全部滚动运动。自动阅读锚点以最近 Accepted 位置为基点计算 adjustment.offset。在没有尺寸变化的惯性帧，视口将尚未发布的惯性位移叠加到该基点修正上，避免锚点把正常续滑固定在原处；正文、视口或留白尺寸改变时不附加旧运动的未发布增量，先以同一基点完成锚点或范围修正，Accepted 后停止惯性。显式平滑定位仍使用其目标，不被旧阅读锚点覆盖。
 
 上述位置写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用；present 仍只用于当前场景登记。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项与实例保留见第 7.8 节，虚拟导航见第 7.8.2 节，绘制缓存按后续批次扩展。
 
@@ -742,7 +744,7 @@ ScrollPan 使用同一接触最近 100 ms 的真实位置和 InputTime.mark 估�
 
 一次释放只为实际参与该次 Default 消费的路径创建一段运动。最内层参与者决定是否启动和减速参数；祖先关闭 inertia 或要求减少动画时在其前截断惯性传递，不穿过它寻找更外层。速度向量 v 按固定减速度 a 保持方向减至零，停止时长 T=|v|/a、总位移 vT/2；在 [0,T] 内累计位移为 v(t−t²/(2T))，时长按纳秒向上取整。每帧按同一时间线解析采样，依原路径、局部坐标与轴从内到外分配本次位移；Contain 保留既有截断。路径不重新命中或投向新的兄弟，虚拟行退休不改变仍然挂载的视口身份。各轴独立在最终边界停止；弹性轴将剩余速度交给原有 spring，另一轴可继续减速。
 
-惯性复用源视口挂载的 AnimationGroup，在 UI 根开始本帧布局前准备位置请求，不从 measure／scene 或业务 render 修改状态；只有 Accepted 发布实际 ScrollSnapshot 与几何。跳帧直接采样解析轨迹，Discarded 保留未发布的请求，取消回到最近实际接受的位置。运动帧不制造新的 User／Programmatic 意图，参与视口的 isAnimating 包含该运动；动画结束或取消后移除登记并停帧。
+惯性复用源视口挂载的 AnimationGroup，在 UI 根开始本帧布局前准备位置请求，不从 measure／scene 或业务 render 修改状态；只有 Accepted 发布实际 ScrollSnapshot 与几何。跳帧直接采样解析轨迹，Discarded 保留未发布的请求，取消回到最近实际接受的位置。运动帧不推进定位意图序号，也不制造新的 User／Programmatic 意图或将纯运动报告为 LayoutCorrection；真实锚点及范围修正仍在 Accepted 后通知。最后一段位移在 Accepted 前保留其运动归属，不能在动画采样结束后被旧锚点覆盖；参与视口的 isAnimating 包含此等待。最终发布或取消后移除登记并停帧。
 
 路径中任一视口的新输入、显式定位、配置／轴／换绑变化、禁用、失焦、隐藏、离屏、卸载或关闭都会终止该段惯性。有效减少动画也立即停止；正文或视口尺寸变化采用新的合法布局修正并停止旧惯性，不回放旧位置。已释放的接触不继续持有 claim；后续输入与自定义手势仍使用同一原始输入和归属接口。
 

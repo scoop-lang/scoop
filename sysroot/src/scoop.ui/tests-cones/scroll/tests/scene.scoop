@@ -179,6 +179,7 @@ private class SecondViewport(
     private val edgeFocus = scope.focusTarget(edge, FocusOptions(Some(probe.edgeFocus)))
     public override fun onMount() {
         viewport = Some(scope.scrollViewport(probe.second))
+        probe.secondScope = Some(scope)
         probe.edgeArea = Some(edge)
         scope.resource {
             probe.second.observeIntent {

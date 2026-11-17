@@ -64,7 +64,7 @@ internal class VirtualListLayout(
                     input.orientation &&
                     value.revision ==
                     revision &&
-                    !state.isAnimating
+                    !state.hasPositionAnimation
                 case None -> false
             }
     private val followEnd =

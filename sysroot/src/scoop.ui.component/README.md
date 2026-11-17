@@ -156,7 +156,7 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 `scrollArea(content) { state = Some(scroll); height = Some(240.0) }` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。offset 只发布最近 Accepted 的画面位置，wheel、拖动及翻页通过 `scroll.observeIntent` 交付 User 来源；整个内容树保持挂载，滚动不重建其描述。
 
-ScrollArea／VirtualList 默认沿共享 ScrollControl 接入直接触摸和笔尖，可在 Props 或 builder 设置 `touchScroll = TouchScrollOptions(enabled = true, threshold = 8.0, lockAxis = true)`。TouchScrollOptions 和 ScrollChain 均从 `scoop.ui` 导入；后者由 UI 统一供滚轮与触摸滚动使用。短距离 tap 保留原动作，过阈值后取消子项点击候选，嵌套父视口只消费实际剩余位移。VirtualList 在归属移到容器后正常回收离屏子项，接触不会把已经取消的旧行固定在内存中。活动接触保持已显示的滚动条，抬起后按原 idleDelay 隐藏；停留不持续请求空帧。配置热切换、禁用、换绑和卸载取消旧接触，新的键盘、程序或语义定位优先。用法与受控 native 队列验证见 [touch-scroll](tests-cones/touch-scroll/README.md)；软件触摸惯性仍按接续批次实现。
+ScrollArea／VirtualList 默认沿共享 ScrollControl 接入直接触摸和笔尖，可在 Props 或 builder 设置 `touchScroll = TouchScrollOptions(enabled = true, threshold = 8.0, lockAxis = true)`。TouchScrollOptions 和 ScrollChain 均从 `scoop.ui` 导入；后者由 UI 统一供滚轮与触摸滚动使用。短距离 tap 保留原动作，过阈值后取消子项点击候选，嵌套父视口只消费实际剩余位移。VirtualList 在归属移到容器后正常回收离屏子项，接触不会把已经取消的旧行固定在内存中。活动接触保持已显示的滚动条，抬起后按原 idleDelay 隐藏；停留不持续请求空帧。配置热切换、禁用、换绑和卸载取消旧接触，新的键盘、程序或语义定位优先。用法与受控 native 队列验证见 [touch-scroll](tests-cones/touch-scroll/README.md)；释放惯性通过 scrollPhysics.inertia 配置。
 
 ScrollArea／VirtualList／MessageScroller、Input／Textarea／InputOtp 及对应 builder 使用 `scrollPhysics = ScrollPhysicsOptions(...)` 配置共享物理行为。`ScrollBoundary.Platform` 默认在 Darwin 回弹、Windows／Linux 硬边界；Hard 关闭回弹，Elastic 显式开启。resistance、maxOverscroll、shortContent、stiffness 和 dampingRatio 分别控制阻力、最大局部位移、短内容及释放 spring。inertia 接收 ScrollInertiaOptions，独立控制 Touch／Pen 的释放减速及速度范围；默认开启，硬边界仍可惯性滚动，系统 wheel／momentum 不另加模拟。嵌套沿实际参与路径共用一段轨迹，回弹不写入逻辑 offset 或虚拟索引；行回收不退休仍挂载的视口运动。正文、命中、文本 caret 与语义几何共同使用 Accepted 呈现位移；固定滚动条继续表示合法范围。根 reduceMotion 与主题 MotionPreference.Reduced 都会立即收束效果，普通触摸和系统 momentum 继续滚动。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 保留输入配置。公开类型从 `scoop.ui` 导入，参数单位及配置示例见 [UI README](../scoop.ui/README.md)。
 
@@ -205,6 +205,8 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `tests-cones/absolute` 验证显式子项呈现顺序、真实像素与命中、keyed 更新和 Tab。焦点、组内导航与新增基础容器的本期结果见 [基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)。
 
 `ItemExtent.Variable(estimate = 24.0)` 按视口逐项测量可变高度内容，允许实际高度为零。尺寸索引只保存访问过的 key，未知高度仍为估计；前方插入或测量变化时保留首个可见 key 和项内位置。`anchor = VirtualListAnchor.FollowEnd` 只在原先已到末端时跟随新增内容，向上阅读时保持阅读位置。
+
+KeepVisible 与 FollowEnd 在惯性和回弹期间仍生效。prepend、已实现项的行高变化或视口改变会先保持同一阅读基点，再收束旧物理运动；`anchor = VirtualListAnchor.None` 保留数值偏移并按新范围收敛。正常续滑不会被旧锚点固定，显式 animateTo 和 handle 的按 key 定位仍优先。MessageScroller 沿同一规则保持 Holding 的阅读位置，同一次用户滚动的惯性到达末端阈值后也可恢复允许的自动跟随；内容或范围变化不会替用户恢复策略。已经在实际末端且没有回合留白时直接跟随，不重复定位或提前取消回弹。组合验证见 [可变尺寸列表](tests-cones/variable/README.md)和[消息列表](tests-cones/message-scroller/README.md)。
 
 把稳定的 `VirtualListHandle` 传给 `handle`，挂载后可调用 `handle.scrollToItem(key, ScrollAlignment.Center)`。列表用实际测量修正位置，`isPending` 在成功帧后清除；更新的普通 ScrollState 定位优先。handle 不另存 offset，ScrollState 继续用于观察位置、滚轮和滚动条。
 

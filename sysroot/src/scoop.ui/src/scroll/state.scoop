@@ -71,6 +71,11 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         observeState();
         return viewportOwner?.moving ?: false
     }
+    /** An explicit animateTo request, including its wait for the first accepted layout. */
+    public val hasPositionAnimation: Boolean get() {
+        observeState()
+        return viewportOwner?.positioning ?: false
+    }
 
     public fun observeIntent(handler: (ScrollIntent) -> Unit): Closeable {
         checkMutation()
@@ -161,7 +166,8 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         if (!notify && bounded == base)
             return Point(0.0, 0.0)
         request = ScrollRequest.Position(bounded)
-        revision += 1UL
+        if (notify)
+            revision += 1UL
         val token = revision
         viewportOwner?.requestFrame()
         if (notify)

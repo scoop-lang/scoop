@@ -13,6 +13,7 @@ internal class ScrollInertia(
     private val animation: Animatable<Point>
 ) {
     private var closed = false
+    private var finishing = false
     private var previous = Point(0.0, 0.0)
     private var blockedHorizontal = false
     private var blockedVertical = false
@@ -73,7 +74,7 @@ internal class ScrollInertia(
                 stop()
                 return
             }
-        if (!applyStep())
+        if (!finishing && !applyStep())
             stop()
     }
 
@@ -112,9 +113,18 @@ internal class ScrollInertia(
         }
         val speed = animation.velocity
         val next = filter(Point(speed.x, speed.y)) ?: return false
-        if (next == Point(0.0, 0.0) || animation.state == AnimationState.Finished)
-            stop(true)
+        if (next == Point(0.0, 0.0) || animation.state == AnimationState.Finished) {
+            finishing = true
+            animation.cancel()
+            for (entry in entries)
+                entry.viewport.requestFrame()
+        }
         return true
+    }
+
+    fun complete() {
+        if (finishing)
+            stop(true)
     }
 
     fun stop(keepPending: Boolean = false) {

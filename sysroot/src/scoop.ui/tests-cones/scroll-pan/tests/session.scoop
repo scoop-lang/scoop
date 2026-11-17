@@ -101,6 +101,10 @@ internal class PanProbe(private val boundaries: Boolean = false, private val phy
     var animatedSteps = false
     var userIntents = 0
     var beforeIntents = 0
+    var corrections = 0
+    var beforeCorrections = 0
+    var innerRevision = 0UL
+    var outerRevision = 0UL
     var beforeBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var bounced = false
     var peakStretch = 0.0
@@ -286,6 +290,7 @@ internal class PanProbe(private val boundaries: Boolean = false, private val phy
     }
     fun intent(state: ScrollState, value: ScrollIntent) {
         when (value) {
+            case LayoutCorrection(_) -> corrections += 1
             case User(_) -> {
                 userIntents += 1
                 if (overridePosition) {

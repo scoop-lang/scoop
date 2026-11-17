@@ -8,7 +8,8 @@ public class ScrollLayout internal constructor(
     internal val binding: ULong,
     internal val revision: ULong,
     public val snapshot: ScrollSnapshot,
-    public val overscroll: Point
+    public val overscroll: Point,
+    internal val correction: Boolean
 ) {
     public val presentationOffset: Point get() =
         Point(snapshot.offset.x - overscroll.x, snapshot.offset.y - overscroll.y)
@@ -188,31 +189,61 @@ public class ScrollViewport internal constructor(
         checkLayoutSize(content)
         val margin = padding.extent()
         val extent = Size(content.width + margin.width, content.height + margin.height)
-        var result = sample(viewport, extent, padding)
+        val before = current.current
+        val coasting = hasInertia
+        val resized =
+            ready &&
+                (
+                    before.viewport !=
+                        viewport ||
+                        before.content !=
+                        extent ||
+                        before.padding !=
+                        padding
+                )
+        var result =
+            if (coasting && resized)
+                ScrollSnapshot(
+                    clampScroll(
+                        Point(
+                            before.offset.x + padding.left - before.padding.left,
+                            before.offset.y + padding.top - before.padding.top
+                        ),
+                        viewport,
+                        extent
+                    ),
+                    viewport,
+                    extent,
+                    padding
+                )
+            else
+                sample(viewport, extent, padding)
+        val pending =
+            if (coasting && !resized)
+                Point(result.offset.x - before.offset.x, result.offset.y - before.offset.y)
+            else
+                Point(0.0, 0.0)
+        var adjusted = false
         when (adjustment) {
             case Some(val value) -> {
                 checkScrollPoint(value.offset)
-                if (value.requestRevision == current.revision && !positioning)
+                if (value.requestRevision == current.revision && !positioning) {
+                    val next = Point(value.offset.x + pending.x, value.offset.y + pending.y)
+                    checkScrollPoint(next)
+                    adjusted = value.offset != before.offset
                     result =
                         ScrollSnapshot(
-                            clampScroll(value.offset, viewport, extent),
+                            clampScroll(next, viewport, extent),
                             viewport,
                             extent,
                             padding
                         )
+                }
             }
             case None -> {}
         }
-        val resized =
-            ready &&
-                (
-                    current.current.viewport !=
-                        result.viewport ||
-                        current.current.content !=
-                        result.content ||
-                        current.current.padding !=
-                        result.padding
-                )
+        val correction =
+            !positioning && before.offset != result.offset && (!coasting || resized || adjusted)
         return ScrollLayout(
             this,
             binding,
@@ -221,7 +252,8 @@ public class ScrollViewport internal constructor(
             if (resized)
                 Point(0.0, 0.0)
             else
-                edge.sample(result)
+                edge.sample(result),
+            correction
         )
     }
     public fun present(
@@ -265,14 +297,14 @@ public class ScrollViewport internal constructor(
         val state = current
         val superseded = layout.revision != state.revision
         val correction =
-            state.hasSnapshot &&
+            layout.correction &&
+                state.hasSnapshot &&
+                state.current.offset !=
+                offered.offset &&
                 layout.revision ==
                 state.revision &&
                 layout.revision ==
-                state.publishedRevision &&
-                !positioning &&
-                state.current.offset !=
-                offered.offset
+                state.publishedRevision
         ready = true
         if (
             state.hasSnapshot &&
@@ -290,6 +322,7 @@ public class ScrollViewport internal constructor(
             edge.stop()
         }
         edge.complete()
+        inertia?.complete()
         state.publish(offered, layout.revision == state.revision && !positioning, layout.revision)
         when (motion) {
             case Some(val value) -> {

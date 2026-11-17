@@ -183,6 +183,8 @@ open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHa
 
 `state.animateTo(offset, spec)` 使用视口所属 Surface 的时间轴，要求已绑定，可在首布局前排队；`cancelAnimation()` 在最后发布的位置停止。直接定位和 reveal 同样停止旧动画。实际 ScrollArea 和滚动条属于独立控件库，自绘容器可通过这组公开接口实现自己的布局，不需观察 offset 来重建内容树。滚动纯状态测试在本 Cone，成功／丢弃帧、动画、绑定替换和停帧在 `tests-cones/scroll` 验证。
 
+`state.hasPositionAnimation` 仅表示显式 animateTo 正在等待首布局或播放，`state.isAnimating` 还包含惯性与回弹。自定义可变内容容器可用前者维护主动定位的优先级，避免因回弹或续滑关闭自动阅读锚点。两项都是可观察查询。
+
 `viewport.physics = ScrollPhysicsOptions(...)` 配置边界效果，相关类型从 `scoop.ui` 导入：
 
 ```scoop
@@ -264,7 +266,9 @@ OverlayPlacementTest 检查有界定位、flip／shift 和参数错误；overlay
 
 UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；text Cone 通过框架公开 API 验证富文本、固定尺寸图片、自然尺寸交互子项、动画重排、截断／恢复、RTL 和内部 key 更换。固定字体由 [text-fonts 测试数据 Cone](../scoop.graphics.text/tests/data/FONTS.md) 提供，不加入生产默认字体。
 
-自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和活动动画优先。按 key 主动定位先用 `beginLayoutRequest()` 登记请求，通知返回后检查返回的 revision 仍为最新，再保存待布局解析的目标；数据变化后的自动修正沿用已有 revision。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。
+自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和显式平滑定位优先。按 key 主动定位先用 `beginLayoutRequest()` 登记请求，通知返回后检查返回的 revision 仍为最新，再保存待布局解析的目标；数据变化后的自动修正沿用已有 revision。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。
+
+自动 adjustment.offset 以最近 Accepted 位置对应的阅读锚点计算。惯性采样不推进 requestRevision；尺寸不变时，视口将本帧尚未发布的续滑位移加到修正后的基点，避免锚点阻止正常运动。正文、视口或留白尺寸变化时先保持阅读位置或收敛范围，不再附加旧运动增量，发布后停止惯性。最后一段惯性仍等待 Accepted，丢弃帧不提前替换阅读位置。只有实际布局修正发出 LayoutCorrection，纯续滑或重绘不会重复报告修正。
 
 `ScrollViewport.layout(viewport, content, adjustment=None, padding=ScrollPadding())` 接收不含留白的正文尺寸。ScrollPadding 的 left／top／right／bottom 同时扩展范围并排除显露边缘，供 Overlay 滚动条使用；snapshot.content 含留白，bodySize 不含留白，visibleSize 用于显露和翻页。`reveal` 的 Rect 仍是正文坐标，present 自动施加留白和平移，调用方不另加视觉 offset。无新定位请求时，左／上留白变化在 Accepted 后以 LayoutCorrection 保持正文位置；显式位置意图优先。TextEditHost.measure 的 scrollPadding 回调在一次排版后接收 viewport 与原始正文尺寸，默认返回零，可用于组合控件的遮挡计算。
 

@@ -74,6 +74,21 @@ internal fun messageAccepted(owner: MessageViewport, frame: MessageViewportInput
     // A hidden preparation frame can resolve a request, but is never published as read content.
     if (!frame.presentation.ready)
         return
+    val sameSource =
+        when (model.previousSource) {
+            case Some(val old) -> old === source
+            case None -> false
+        }
+    val sameGeometry =
+        when (model.lastScroll) {
+            case Some(val old) -> old.viewport ==
+                physical.viewport &&
+                old.content ==
+                physical.content &&
+                old.padding ==
+                physical.padding
+            case None -> false
+        }
     model.publish(source, reading, physical, frame.density)
     if (model.mode == MessageScrollMode.Anchoring) {
         val padding = reading.endPadding
@@ -91,16 +106,25 @@ internal fun messageAccepted(owner: MessageViewport, frame: MessageViewportInput
                 model.userRevision ==
                 Some(model.scroll.requestRevision)
         ) {
-            model.userRevision = None
-            if (
-                physical.maximum.y -
-                    physical.offset.y <=
-                    model.options.edgeThreshold *
-                    frame.density
-            ) {
-                model.request = Some(MessageRequest(MessageDestination.End))
-                messageIssue(owner, model.request!!)
-            }
+            if (!sameSource || !sameGeometry) {
+                model.userRevision = None
+            } else
+                if (
+                    physical.maximum.y -
+                        physical.offset.y <=
+                        model.options.edgeThreshold *
+                        frame.density
+                ) {
+                    model.userRevision = None
+                    if (physical.offset.y == physical.maximum.y && reading.endPadding == 0.0)
+                        model.present(MessageScrollMode.Following, 0.0, true)
+                    else {
+                        model.request = Some(MessageRequest(MessageDestination.End))
+                        messageIssue(owner, model.request!!)
+                    }
+                } else
+                    if (!model.scroll.isAnimating)
+                        model.userRevision = None
         }
 }
 

@@ -1,0 +1,197 @@
+package scoop.tests.ui.variable
+
+import scoop.graphics.Point
+import scoop.math.abs
+import scoop.surface.AnimationSpec
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+
+private fun motionNear(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 0.002, Some(f"expected ${expected}, got ${actual}"))
+}
+
+private fun captureReading(p: VariableProbe) {
+    p.checkpoint = p.handle.value.reading!!.anchor
+    p.savedOffset = p.scroll.offset
+    p.savedTop = p.row(p.readingId()).area!!.windowBounds!!.y
+    p.savedCorrections = p.corrections
+    p.savedUsers = p.userIntents
+}
+
+private fun keptReading(p: VariableProbe, shift: Double) {
+    val current = p.handle.value.reading!!.anchor!!
+    assertEquals(p.checkpoint!!.key, current.key)
+    motionNear(p.checkpoint!!.offset, current.offset)
+    motionNear(p.savedOffset.y + shift, p.scroll.offset.y)
+    motionNear(p.savedTop, p.row(p.readingId()).area!!.windowBounds!!.y)
+    assertFalse(p.scroll.isAnimating)
+    assertEquals(p.savedUsers, p.userIntents)
+}
+
+internal fun advanceVariableMotion(p: VariableProbe) {
+    when (p.phase) {
+        0 -> {
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.physics.value =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Hard,
+                    inertia = ScrollInertiaOptions(true, 300.0, 20.0, 300.0)
+                )
+            p.data!!.value = VariableSource(p, start = 100L, length = 100000L)
+            p.scroll.scrollTo(Point(0.0, 200.0))
+        }
+        1 -> {
+            p.animatedSteps = true
+            p.fling(801L)
+        }
+        2 -> {
+            assertTrue(p.scroll.isAnimating)
+            assertFalse(p.scroll.hasPositionAnimation)
+            captureReading(p)
+            p.discardNext = true
+            p.data!!.value = VariableSource(p, start = 90L, length = 100010L)
+            p.animatedSteps = false
+        }
+        3 -> {
+            keptReading(p, 200.0)
+            assertEquals(1, p.discarded)
+            assertEquals(p.savedCorrections + 1, p.corrections)
+            p.animatedSteps = true
+            p.fling(802L)
+        }
+        4 -> {
+            assertTrue(p.scroll.isAnimating)
+            captureReading(p)
+            p.row(p.readingId() - 1L).growth.value = 40.0
+            p.animatedSteps = false
+        }
+        5 -> {
+            keptReading(p, 40.0)
+            p.animatedSteps = true
+            p.fling(803L)
+        }
+        6 -> {
+            assertTrue(p.scroll.isAnimating)
+            captureReading(p)
+            p.height.value = 100.0
+            p.animatedSteps = false
+        }
+        7 -> {
+            keptReading(p, 0.0)
+            p.height.value = 60.0
+            assertTrue(p.handle.value.scrollToItem(ViewKey.Number(2000L), ScrollAlignment.Start))
+        }
+        8 -> {
+            p.assertTop(2000L, 20.0)
+            p.animatedSteps = true
+            p.fling(804L)
+        }
+        9 -> {
+            assertTrue(p.scroll.isAnimating)
+            assertTrue(p.handle.value.scrollToItem(ViewKey.Number(3000L), ScrollAlignment.Start))
+            p.animatedSteps = false
+        }
+        10 -> {
+            p.assertTop(3000L, 20.0)
+            assertFalse(p.scroll.isAnimating)
+            p.scroll.animateTo(Point(0.0, 4400.0), AnimationSpec.Tween(Duration.milliseconds(400L)))
+            p.animatedSteps = true
+        }
+        11 -> {
+            assertTrue(p.scroll.isAnimating)
+            assertTrue(p.scroll.hasPositionAnimation)
+            p.data!!.value = VariableSource(p, start = 80L, length = 100020L)
+            p.animatedSteps = false
+        }
+        12 -> {
+            motionNear(4400.0, p.scroll.offset.y)
+            assertFalse(p.scroll.isAnimating)
+            p.anchor.value = VirtualListAnchor.FollowEnd
+            p.scroll.scrollTo(p.scroll.maximum)
+        }
+        13 -> {
+            assertTrue(p.handle.value.reading!!.atEnd)
+            p.physics.value = ScrollPhysicsOptions(ScrollBoundary.Elastic, maxOverscroll = 40.0)
+        }
+        14 -> {
+            p.animatedSteps = true
+            p.fling(805L)
+        }
+        15 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.data!!.value = VariableSource(p, start = 80L, length = 100030L)
+            p.animatedSteps = false
+        }
+        16 -> {
+            assertTrue(p.handle.value.reading!!.atEnd)
+            motionNear(p.scroll.maximum.y, p.scroll.offset.y)
+            assertFalse(p.scroll.isAnimating)
+            p.animatedSteps = true
+            p.fling(806L)
+        }
+        17 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.row(100109L).growth.value = 40.0
+            p.animatedSteps = false
+        }
+        18 -> {
+            assertTrue(p.handle.value.reading!!.atEnd)
+            motionNear(p.scroll.maximum.y, p.scroll.offset.y)
+            assertFalse(p.scroll.isAnimating)
+            p.animatedSteps = true
+            p.fling(807L)
+        }
+        19 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.data!!.value = VariableSource(p, start = 80L, length = 2L)
+            p.animatedSteps = false
+        }
+        20 -> {
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            assertEquals(Point(0.0, 0.0), p.scroll.maximum)
+            assertFalse(p.scroll.isAnimating)
+            p.anchor.value = VirtualListAnchor.None
+            p.physics.value =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Hard,
+                    inertia = ScrollInertiaOptions(true, 300.0, 20.0, 300.0)
+                )
+            p.data!!.value = VariableSource(p, start = 100L, length = 100000L)
+            p.scroll.scrollTo(Point(0.0, 400.0))
+        }
+        21 -> {
+            p.animatedSteps = true
+            p.fling(808L)
+        }
+        22 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.savedOffset = p.scroll.offset
+            p.data!!.value = VariableSource(p, start = 90L, length = 100010L)
+            p.animatedSteps = false
+        }
+        23 -> {
+            motionNear(p.savedOffset.y, p.scroll.offset.y)
+            assertFalse(p.scroll.isAnimating)
+            p.data!!.value = VariableSource(p, start = 90L, length = 0L)
+        }
+        24 -> {
+            assertEquals(VirtualRange(0L, 0L), p.handle.value.reading!!.visible)
+            assertEquals(None, p.handle.value.reading!!.anchor)
+            assertFalse(p.scroll.isAnimating)
+            p.show.value = false
+        }
+        25 -> {
+            assertFalse(p.scroll.isAttached)
+            assertFalse(p.handle.value.isAttached)
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.ui!!.close()
+            p.window!!.requestDestroy()
+            return
+        }
+        else -> fail(Some("unexpected variable motion phase"))
+    }
+    p.next()
+}

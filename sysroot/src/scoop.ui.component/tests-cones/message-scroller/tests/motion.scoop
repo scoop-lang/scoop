@@ -1,0 +1,203 @@
+package scoop.tests.ui.messages
+
+import scoop.math.abs
+import scoop.test.*
+import scoop.tests.window.sendNativeContactTimed
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.native.*
+
+private fun messageMotionOrder(prepend: Boolean, append: Boolean = false): Array<Long> {
+    val lead =
+        if (prepend)
+            2L
+        else
+            0L
+    val count =
+        40L +
+            lead +
+            (
+                if (append)
+                    1L
+                else
+                    0L
+            )
+    return Array<Long>(count) {
+        at -> if (at < lead)
+            at - 2L
+        else
+            100L + at - lead
+    }
+}
+
+private fun messageFling(p: MessageProbe, id: Long, dy: Double) {
+    p.queued += 4
+    @Unsafe
+    {
+        val lease = p.native!!.acquireNativeWindow()
+        try {
+            when (lease.handle) {
+                case AppKit(_, val view) -> {
+                    sendNativeContactTimed(view, id, 0, 0, 80.0, 180.0, id * 1000L)
+                    sendNativeContactTimed(view, id, 0, 1, 80.0, 180.0 + dy / 2.0, id * 1000L + 20L)
+                    sendNativeContactTimed(view, id, 0, 1, 80.0, 180.0 + dy, id * 1000L + 40L)
+                    sendNativeContactTimed(view, id, 0, 2, 80.0, 180.0 + dy, id * 1000L + 40L)
+                }
+            }
+        } finally {
+            lease.close()
+        }
+    }
+}
+
+private fun captureMessage(p: MessageProbe) {
+    p.checkpoint = p.model.reading!!.anchor
+    p.savedOffset = p.model.scroll.offset.y
+    p.savedTop = p.top(p.checkpointId())
+}
+
+private fun messageNear(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 0.01, Some(f"expected ${expected}, got ${actual}"))
+}
+
+private fun keptMessage(p: MessageProbe, shift: Double) {
+    val reading = p.model.reading!!.anchor!!
+    assertEquals(p.checkpoint!!.key, reading.key)
+    messageNear(p.checkpoint!!.offset, reading.offset)
+    messageNear(p.savedOffset + shift, p.model.scroll.offset.y)
+    messageNear(p.savedTop, p.top(p.checkpointId()))
+    assertEquals(MessageScrollMode.Holding, p.model.mode)
+    assertFalse(p.model.scroll.isAnimating)
+}
+
+internal fun advanceMessageMotion(p: MessageProbe) {
+    val model = p.model
+    when (p.phase) {
+        0 -> {
+            p.physics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Hard,
+                    inertia = ScrollInertiaOptions(true, 150.0, 20.0, 300.0)
+                )
+            p.replace(messageMotionOrder(false))
+            p.auto(true)
+            assertTrue(model.scrollToEnd())
+        }
+        1 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            assertTrue(model.atEnd)
+            p.animatedSteps = true
+            messageFling(p, 901L, 30.0)
+        }
+        2 -> {
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertTrue(model.scroll.isAnimating)
+            assertFalse(model.scroll.hasPositionAnimation)
+            captureMessage(p)
+            p.discardNext = true
+            p.replace(messageMotionOrder(true))
+            p.animatedSteps = false
+        }
+        3 -> {
+            // The two offscreen rows still use the 60-unit extent estimate.
+            keptMessage(p, 120.0)
+            assertEquals(1, p.discarded)
+            p.animatedSteps = true
+            messageFling(p, 902L, 30.0)
+        }
+        4 -> {
+            assertTrue(model.scroll.isAnimating)
+            captureMessage(p)
+            p.row(p.checkpointId() - 1L).height.value += 80.0
+            p.animatedSteps = false
+        }
+        5 -> {
+            keptMessage(p, 80.0)
+            p.physics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    maxOverscroll = 40.0,
+                    stiffness = 30.0,
+                    dampingRatio = 0.6,
+                    inertia = ScrollInertiaOptions(true, 150.0, 20.0, 300.0)
+                )
+            p.changed()
+            assertTrue(model.scrollToEnd())
+        }
+        6 -> {
+            assertTrue(model.atEnd)
+            assertEquals(MessageScrollMode.Following, model.mode)
+            p.animatedSteps = true
+            messageFling(p, 903L, -30.0)
+        }
+        7 -> {
+            assertTrue(model.scroll.isAnimating)
+            assertEquals(MessageScrollMode.Following, model.mode)
+            p.row(140L).height.value = 180.0
+            p.replace(messageMotionOrder(true, true))
+            p.animatedSteps = false
+        }
+        8 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            assertTrue(model.atEnd)
+            assertFalse(model.scroll.isAnimating)
+            model.hold()
+            p.animatedSteps = true
+            messageFling(p, 904L, 30.0)
+        }
+        9 -> {
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertTrue(model.scroll.isAnimating)
+            captureMessage(p)
+            p.row(140L).height.value += 120.0
+            p.animatedSteps = false
+        }
+        10 -> {
+            keptMessage(p, 0.0)
+            assertFalse(model.atEnd)
+            messageFling(p, 905L, -30.0)
+        }
+        11 -> {
+            assertTrue(model.atEnd)
+            assertEquals(MessageScrollMode.Following, model.mode)
+            p.animatedSteps = true
+            messageFling(p, 906L, 30.0)
+        }
+        12 -> {
+            assertTrue(model.scroll.isAnimating)
+            assertTrue(model.scrollToMessage(ViewKey.Number(100L), ScrollAlignment.Start))
+            p.animatedSteps = false
+        }
+        13 -> {
+            assertFalse(model.scroll.isAnimating)
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            messageNear(78.0, p.top(100L))
+            assertTrue(model.scrollToEnd())
+        }
+        14 -> {
+            assertTrue(model.atEnd)
+            assertEquals(MessageScrollMode.Following, model.mode)
+            p.animatedSteps = true
+            messageFling(p, 907L, 30.0)
+        }
+        15 -> {
+            assertTrue(model.scroll.isAnimating)
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            p.replace([100L, 101L])
+            p.animatedSteps = false
+        }
+        16 -> {
+            assertTrue(model.atEnd)
+            assertFalse(model.scroll.isAnimating)
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            p.shown = false
+            p.changed()
+        }
+        17 -> {
+            assertFalse(model.isAttached)
+            assertFalse(p.frames!!.snapshot().required)
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected message motion phase"))
+    }
+}
