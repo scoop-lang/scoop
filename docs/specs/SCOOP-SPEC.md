@@ -1711,6 +1711,8 @@ DocHidden 从生成的 API 页面、成员目录和搜索中省略目标及其�
 
 core 提供普通 annotation class `GenerateWith`，带 `@Target([AnnotationTarget.Class])` 和 `@Repeatable`。两个参数分别为 `generator: String` 与 `interface: Array<String>`，均无默认值；interface 是关键字，声明及具名实参使用普通反引号转义。编译 driver 在注解绑定后按实际 core 声明读取配置；class／struct／enum／object 可以选择自己已继承的完整接口应用，interface 本体不能替实现者配置生成。类型字符串使用普通类型语法、import、alias 和 owner binder。空接口数组不产生任务；非空白 generator 名称、接口应用存在、重复绑定及重叠方法归属按 [M47 设计](../milestone47/DESIGN.md)2.1～2.3 检查。已有合法实现先排除，生成配置不继承、不增加接口或改变可见性。此注解不具有 compiler role，不改变 parser 或普通注解绑定规则。
 
+选择范围包括 9.1.8 中本类型声明的条件接口和沿基类实参继承的条件接口，以及这些接口的父接口。注解写在实际实现类型上，数组元素只写接口类型，如 `"I<T>"`。若类型实参使用实现块才允许的约束或 `T.Companion` 投影，该接口在自己的条件下匹配。生成器对每个待填方法的查询和生成正文沿用该方法的条件。调用方仍须证明原条件，泛型具体化直接使用定义处生成的正文。
+
 ### 9.5 companion 与普通 codec 的编码、解码接口
 
 两个方向都用显式目标类型参数表达，由companion或普通codec对象实现：

@@ -2,6 +2,8 @@
 
 状态：通用机制已实现，codec 迁移待实施。初稿：2026-10-15；公共基础修订：2026-10-21。原调研基线：`e548b9ebe`；本次公共基础核对基线：`4de3ae9e8`。M46 已完成；本文以 [M46 主设计](../milestone46/DESIGN.md)、[Serialize／Option 合同](../milestone46/SERIALIZE.md)及其完成后的实现为迁移基线，不实施或重新安排 M46。
 
+条件接口、codec 和命令行参数解析器的后续迁移见[联合设计草案](CODEC-CLI-MIGRATION.md)。
+
 依据：[语言规范](../specs/SCOOP-SPEC.md) 8.5、9.4～9.6、11.13，[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) 2.1、2.2、2.7、2.11、2.17、2.20，以及[路线图](../ROADMAP.md)。本文规定功能边界、编译编排、试点迁移和验收；[同步协议与语义查询](PROTOCOL.md)规定进程交互、HIR 查询与方法体源码片段。通用查询、同步协议与方法体填充已随公共基础实现，实际范围见[实施与验收](../language-service/PROGRESS.md)；codec 迁移仍按本文推进，各批行为变更先同步相应 spec。
 
 ## 1. 本期交付与边界
@@ -71,6 +73,8 @@ interface 数组中的每个字符串都是一个独立的类型选择配置。d
 空数组沿普通注解规则合法，表示这条配置没有选择接口，不建立生成任务；类型的接口实现完整性仍照常检查。数组自身保留顺序与重复元素，driver 再按 2.2 检查接口绑定是否重复或冲突。
 
 类型字符串的解释发生在普通注解绑定之后，不把它变成 annotation 类型实参，不新增 InterfaceRef 参数类别、专用 annotation AST 或 parser 分支。选定后的 typed 引用用于任务与后续查询；原注解仍保存普通 `String` 与 `Array<String>`，不改变其参数类型或普通 metadata。
+
+语言规范 9.1.8 的条件实现也可以由 owner 的注解选择。生成配置引用实现关系中的完整接口应用，方法查询及返回的正文各自使用原实现条件。基类条件随基类实参代入。
 
 ### 2.2 方法选择与部分实现
 
@@ -199,7 +203,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 | 字段 codec 的依赖、递归 this、companion、容器和 tuple 组合选择 | codec generator，使用普通类型关系与成员查询 |
 | Serialize 的 rename／required／emitNull／ignore 解释与策略诊断 | codec generator |
 | 字段读取、presence 分支、variant 分支、container 调用与返回 | codec generator 生成普通源码片段 |
-| 缺失值分支与构造调用的源码组织 | generator；以现有语法和普通库能力实现，默认值迁移缺口按 5.2 核对 |
+| 缺失值分支与构造调用的源码组织 | generator 按 5.2 的主构造器约定生成普通具名调用 |
 | 默认值定义处的绑定、普通调用默认参数、访问／类型／effect 检查与 HIR 构造 | 编译器的已有公共语义路径 |
 | Option 的 null 表示、各 container 的运行行为、JsonValue | M46 的普通 core／JSON 实现 |
 
@@ -207,7 +211,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 
 禁止把迁出改成“外部程序请求编译器生成 codec，再原样返回”：共享查询中没有 `selectFieldCodec`、`serializeOptions`、`planDecodeRecord` 或 `generateEncodeBody`。编译器返回字段类型、构造/default 引用、普通注解等事实，由 generator 作出相应决策。
 
-### 5.2 M46 行为与需要核对的迁移缺口
+### 5.2 M46 行为与生成器的主构造器约定
 
 | 行为 | generator 需要保留的事实与顺序 |
 | --- | --- |
@@ -223,9 +227,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 
 表中行为是 codec 试点的迁移目标，不意味着任意已绑定 HIR 都能直接打印为等价源码。默认值查询可以用于查看前参依赖、类型与直接 None 等事实；它不提供可写回的绑定引用，也不替 generator 生成正文。
 
-普通调用省略实参时，编译器已有默认参数机制保留定义处绑定。decoder 的运行时字段缺失、default 求值顺序及跨作用域引用，需要在 M46 完成后的真实用例上验证如何由普通源码表达。将 default 中的短名、重载调用或局部声明直接复制到 codec 作用域，不能视为语义已保持；可见性合法也不等于绑定相同。
-
-这属于试点需要核对的具体缺口。先使用现有调用规则、普通源码和库能力实现；确实无法完成时，明确失败用例及原有机制缺失之处，再作必要的最小修补。本设计不预设默认值反编译器、AST 绑定引用、绑定旁表或 default 展开 RPC；不能靠这些新增能力宣称迁移已经闭合，也不能静默放弃 M46 的原有行为。
+自动解码 record 要求主构造器是从生成方法作用域可见的唯一构造器。生成正文先读取字段、完成容器检查，再按字段是否出现使用普通具名实参调用主构造器。省略实参时由现有调用规则使用定义处绑定的默认值。额外构造入口使用 `companion object` 上的具名工厂，生成器在不满足约定时报告诊断。CLI 生成的 `bind` 共用该约定。具体示例和验收见[联合设计第 4 节](CODEC-CLI-MIGRATION.md#4-自动构造的约定与-companion-工厂)。
 
 Option、Array、MutableArray、ArrayList、Unit 和 tuple 所需普通 helper 的选择算法归 generator；这些数据类型自身的编译器表示职责保持原有归属。生成器也不得把可空字段改成绕过完整 Option codec、直接调用元素 codec 的专用路径。
 
@@ -299,7 +301,7 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 | --- | --- | --- |
 | M47-1 | 同步 spec；对齐公共源码／上下文，整理固定视图的通用 HIR 查询及已有实现，声明普通 GenerateWith，复用字符串数组参数与既有方法签名 | 普通数组注解绑定、显式继承、多接口任务合并、任务去重与冲突诊断；查询结果与原有语义一致，不依赖生成会话的数据模型 |
 | M47-2 | 同步协议、driver 查询循环、CLI 注册；返回源码文本，复用 parser 及正常正文 lowering，完成通用功能闭环 | 用户 interface 全部／部分生成；真实子进程查询后提交源码；语法与类型诊断定位到片段；错误 ID、EOF、失败退出与宿主／target 分离 |
-| M47-3 | 用 M46 encoder／decoder 做迁移试点；核对 5.2 的实际缺口并作必要修补，策略外移且 Serialize 只走普通注解绑定 | M46 合成回归、普通注解／跨 Cone 读取、default 定义处绑定与求值顺序；生成源码可检查，不依赖新增 AST 语义引用或隐式 fallback |
+| M47-3 | 用 M46 encoder／decoder 做迁移试点；按 5.2 的主构造器约定迁出策略，Serialize 只走普通注解绑定 | M46 合成回归、普通注解／跨 Cone 读取、default 定义处绑定与求值顺序；生成源码可检查，不依赖新增 AST 语义引用或隐式 fallback |
 | M47-4 | 工具分发／core bootstrap、实际工具输入缓存、泛型与 `.slib` 消费；清理只为旧合成存在的数据 | core 构建、工具变更失效、缓存命中不重跑、下游复用已有方法不调用上游 generator、三目标必要组合验收 |
 
 各批提交必须保持相应入口完整可用，不以空 body、返回未实现错误的占位分支或自动 fallback 作为交付。
@@ -327,7 +329,7 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 | 源码与调试 | 保存可读片段，诊断行列对应实际生成文本并关联 GenerateWith；参数、泛型名称与 import 沿原方法上下文工作；打印的 ID、注释或显示文件名不具有绑定语义 |
 | 同步协议 | 真实程序按“任务→多次查询／响应→源码结果”完成；中文、转义及较大片段的分段管道读写正确；stderr 日志不污染协议；协议版本／帧／退出错误可定位 |
 | Serialize 普通化 | 参数类型、target、重复仍走通用检查；策略错误来自实际 generator；手写 codec 不触发专用解释；同名不同 annotation、alias、re-export 与跨 Cone identity 正确 |
-| M46 语义保持 | rename／required／emitNull／ignore、None 省略、原声明 T／T?、直接 None default、带副作用及引用前参的 default、完整字段 codec 优先、全部合成形状及错误路径 |
+| M46 语义保持 | rename／required／emitNull／ignore、None 省略、原声明 T／T?、直接 None default、带副作用及引用前参的 default、完整字段 codec 优先、符合主构造器约定的合成形状及错误路径 |
 | 真实查询 | codec generator 自己作出字段配置、codec 和构造决策；查询提供原声明／应用类型、普通注解和 default 事实；同一内部查询接口可由进程适配层外的实际编译器调用使用，无 codec 计划或 default 展开入口 |
 | 构建与缓存 | core bootstrap、CLI 注册、修改 generator 后失效、缓存命中不调用、无任务不启动、程序缺失／失败不回退 |
 | 产物与运行 | 源码和工具保持存在，复用 DTO metadata 并生成本地 codec；再次构建／下游消费不重跑有效的上游生成任务；泛型、ZST／大值和托管引用按必要组合覆盖，不增加源码／工具隔离场景 |
