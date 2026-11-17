@@ -41,6 +41,7 @@ internal class ScrollbarFeedback(
     private val keys = ArrayList<NamedKey>()
     private var repeating: ScrollbarRepetition? = None
     private var scheduled: TimeMark? = None
+    private var windowActivity = scope.nativeWindow.activity
 
     init {
         probe.ignoreSelf = true
@@ -50,6 +51,20 @@ internal class ScrollbarFeedback(
         scope.resource { parent.scope.observeActivity { activityChanged() } }
         scope.resource { parent.scope.addEventFinished { event -> finished(event) } }
         scope.observeInteractionPreferences { _ -> update() }
+        scope.observeWindowActivity {
+            value ->
+            val previous = windowActivity
+            windowActivity = value
+            if (
+                previous.focused !=
+                    value.focused ||
+                    previous.visible !=
+                    value.visible ||
+                    previous.occluded !=
+                    value.occluded
+            )
+                activityChanged()
+        }
     }
 
     private fun resolve(): ResolvedScrollbarBehavior {
@@ -107,7 +122,19 @@ internal class ScrollbarFeedback(
             parent.scope.isInputAllowed &&
             scope.nativeWindow.state ==
             WindowState.Open &&
-            scope.nativeWindow.isFocused
+            scope.nativeWindow.isFocused &&
+            scope.nativeWindow.isVisible &&
+            !scope.nativeWindow.isOccluded
+
+    private fun presented(): Boolean =
+        !closed &&
+            scope.isMounted &&
+            scope.nativeWindow.state ==
+            WindowState.Open &&
+            scope.nativeWindow.isVisible &&
+            !scope.nativeWindow.isOccluded &&
+            probe.visibleBounds !=
+            None
 
     fun hover(orientation: Orientation, value: Boolean) {
         if (orientation == Orientation.Horizontal) {
@@ -246,7 +273,7 @@ internal class ScrollbarFeedback(
     }
     private fun configure() {
         idle.configure(
-            ready && (horizontal != None || vertical != None),
+            ready && (horizontal != None || vertical != None) && (!options.autoHide || presented()),
             options.autoHide,
             options.input.idleDelay,
             busy(),
@@ -267,7 +294,7 @@ internal class ScrollbarFeedback(
         changeProgress(
             opacity,
             target,
-            if (ready)
+            if (ready && presented())
                 options.transition(
                     if (idle.visible)
                         options.input.fadeIn

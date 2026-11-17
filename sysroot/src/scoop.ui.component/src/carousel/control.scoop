@@ -32,6 +32,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
     val focus = scope.focusTarget(area, read().props.viewport.focus)
     val motion = scope.animation(0.0)
     val timer = scope.createDeadline { autoplayTick() }
+    private val clock = CarouselClock()
     var geometry: CarouselGeometry? = None
     var gesture: CarouselGesture? = None
     private var handle: CarouselHandle? = None
@@ -73,6 +74,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                     refreshAutoplay()
             }
         }
+        scope.observeWindowActivity { _ -> refreshAutoplay() }
         scope.resource {
             area.scope.addDefaultAction {
                 context,
@@ -274,6 +276,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                     nearestPosition(shape.track, base)
             moveTo(target, animated)
         }
+        clock.cancel()
         timer.cancel();
         publish()
         if (before != accepted && accepted >= 0L)
@@ -410,6 +413,8 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                 !drag.isDragging &&
                 motion.state !=
                 AnimationState.Running &&
+                scope.nativeWindow.state ==
+                WindowState.Open &&
                 scope.nativeWindow.isFocused &&
                 scope.nativeWindow.isVisible &&
                 !scope.nativeWindow.isOccluded &&
@@ -421,17 +426,17 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                 !(options!!.pauseOnHover && read().owner.group!!.scope.isHovered) &&
                 carouselAdjacent(geometry!!.track, current(), true) !=
                 None
-        if (!allowed)
-            timer.cancel()
-        else
-            if (!timer.isScheduled)
-                timer.schedule(MonotonicTimeSource.markNow() + options!!.interval)
+        if (clock.configure(options?.interval, allowed, MonotonicTimeSource.markNow()))
+            when (clock.deadline) {
+                case Some(val due) -> timer.schedule(due)
+                case None -> timer.cancel()
+            }
     }
     private fun autoplayTick() {
         if (!active)
             return
         refreshAutoplay()
-        if (!timer.isScheduled)
+        if (!clock.take(MonotonicTimeSource.markNow()))
             return
         timer.cancel();
         step(true, true);
@@ -440,6 +445,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
     fun retire() {
         cancel(DragCancelReason.Closed)
         retired = true;
+        clock.cancel()
         timer.cancel();
         handle?.unbind(this)
         read().owner.control = None

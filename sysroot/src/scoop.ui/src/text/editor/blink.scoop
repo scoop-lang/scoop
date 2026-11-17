@@ -1,6 +1,22 @@
 package scoop.ui.text
 
 import scoop.platform.time.MonotonicTimeSource
+import scoop.window.WindowActivity
+
+internal fun editorWindowActivity(host: TextEditHost, activity: WindowActivity) {
+    if (host.closed)
+        return
+    if (!activity.focused || !activity.visible || activity.occluded) {
+        host.blink.cancel()
+        host.caretVisible = true
+        editorStopDrag(host, false)
+    } else
+        if (host.area.isFocusActive) {
+            host.blink.cancel()
+            host.caretVisible = true
+            host.scope.requestFrame()
+        }
+}
 
 private fun editorCanBlink(host: TextEditHost): Boolean {
     if (

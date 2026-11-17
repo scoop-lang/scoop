@@ -142,6 +142,8 @@ DragSource.update 替换下一次准备的配置／函数；每份数据的 onCo
 
 `HoverOptions.longPress` 默认关闭；启用后触摸／笔长按打开同一 Binding，释放后保持，组外按下或原关闭路径收束。Tooltip／HoverCard 默认启用此入口。它复用 LongPress 的取消与子内容优先规则，短按仍由原控件处理。完整消费者见[触摸输入示例](../scoop.ui.component/examples/touch-input/README.md)。
 
+窗口隐藏或遮挡会立即撤销 Hover 的延迟开关、Typeahead 的短期查询，以及文本编辑器的 caret 和边缘拖选预约；恢复后不会补发旧交互。caret 在下一次有效呈现后从可见阶段重新计时。文本拖放目标的边缘滚动只按显示状态取消，未聚焦的窗口仍可接收跨程序拖入。
+
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
 
 有限且有可靠内容版本的绘图使用 `context.drawLayer(key, bounds, revision, samplingOutset = 1.0) { paint -> ... }`。PaintKey 由元素持有；回调使用独立局部坐标，结果以 SrcOver 合成。ScrollViewport.paintCache 默认 None，Tiles 按设备像素块复用实际图像；场景、输入和 children 每帧照常装配。版本必须覆盖 State、时间、动画与资源变化，普通 draw 仍直接执行。ParagraphHost 的正文已接入此协议。

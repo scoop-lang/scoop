@@ -17,6 +17,8 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 现有控件使用 `ComponentScope.createDeadline` 接入 Hover、Typeahead、文本编辑、Select 滚动和 Carousel 自动播放的原生定时回调；错误按所属 UiHost 根隔离，时间源与调度仍由 window／surface 提供。示例普通 View 函数接收显示值、模型与动作，默认文字使用根字体；函数提取不增加挂载节点，不改变 key／子顺序或局部状态归属。
 
+控件定时行为直接监听已有窗口活动通知。Select 的悬停重复、滚动条的按住重复、Carousel 自动播放与附件滚轮的延迟吸附，在失活、隐藏或遮挡时立即取消旧预约；恢复后依据当前资格建立新的等待，不补做中断期间的操作。自动隐藏滚动条在窗口不可呈现时撤销 idle deadline 并收束隐藏过渡，常显条保持自己的显示策略；活动窗口中的可见淡出仍正常完成。Toast 继续保留未用完的展示时间，DatePicker 的一次逻辑失焦提交沿既有版本检查，不把这些业务截止点当作装饰动画取消。
+
 ## 1. 定位与依赖
 
 控件行为、布局与绘制使用共享 Scoop 源码，不包含 OS native 代码或运行时平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。accessibility 使用同一套 UI 语义资源，分别由下层 AppKit、Windows UIA 和 Linux AT-SPI provider 投影；未连接辅助技术服务不改变控件行为，也不伪造原生查询或动作成功。Darwin、Windows、Linux GNU 的具体构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
@@ -1091,7 +1093,7 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 
 鼠标、Touch／Pen 的 Drag 到达主轴阈值后认领原输入路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
 
-CarouselAutoplay(interval) 是显式配置，interval 必须大于零。轮播区域内有活动触点（含尚未达到拖动阈值的候选及导航按钮）时暂停，最后一个接触结束或取消后重新等待完整 interval，不依赖 hover 或焦点暂停开关。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
+CarouselAutoplay(interval) 是显式配置，interval 必须大于零。轮播区域内有活动触点（含尚未达到拖动阈值的候选及导航按钮）时暂停，最后一个接触结束或取消后重新等待完整 interval，不依赖 hover 或焦点暂停开关。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。待播放时 interval 改变从这次配置更新重新等待完整新间隔；相同间隔的重复刷新保留原截止点。一次迟到回调至多前进一项，完成后按当前状态预约下一次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
 
 CarouselProps／CarouselBuilder 的 nativeSwipe 默认 true，使用公共 SwipeGesture 接收系统已识别的有限方向动作。主轴按实际 LTR／RTL 映射到同一 previous／next 请求，复用现有绑定、循环和边界规则；识别时取消旧拖动与动画意图，不创建第二份选择或自动播放状态。关闭 nativeSwipe 保留直接 Drag、按钮和键盘操作，滚轮不转换为 swipe。
 

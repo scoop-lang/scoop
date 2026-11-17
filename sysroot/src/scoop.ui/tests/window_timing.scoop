@@ -1,0 +1,176 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class WindowTimingVisibilityTest {
+    @Test
+    fun `hiding cancels pending hover and typeahead work without replay on restore`() {
+        val probe = WindowTimingProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        assertEquals(2, probe.matches)
+    }
+}
+
+private class WindowTimingProbe {
+    val open = state(false)
+    val source = WindowTimingSource()
+    var hover: Hover? = None
+    var typeahead: Typeahead? = None
+    var matches = 0
+    var frames = 0
+    var ready = false
+    var finished = false
+    private var window: Window? = None
+    private var queued = false
+    private var stage = 0
+    private var idleFrames = 0
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val created =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop window timing visibility"
+                            size = LogicalSize(300.0, 180.0)
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                window = Some(created)
+                host.attach(created, { mount -> WindowTimingRoot(this, mount) })
+                created.setVisible(true)
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+            }
+            case AboutToWait -> if (ready && !queued && stage < 3) {
+                ready = false
+                queued = true
+                active.proxy().post {
+                    application ->
+                    queued = false
+                    advance(application)
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertEquals(3, stage)
+                assertEquals(idleFrames, frames)
+                finished = true
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun arm() {
+        open.value = true
+        hover!!.update(open.binding())
+        assertTrue(hover!!.isPending)
+        assertTrue(typeahead!!.push("a"))
+        assertEquals("a", typeahead!!.query)
+        assertTrue(typeahead!!.isPending)
+    }
+    private fun advance(active: ActiveApplication) {
+        assertTrue(frames < 12, Some("window timing did not settle"))
+        val current = window!!
+        if (stage == 0) {
+            arm()
+            current.setVisible(false)
+            assertFalse(hover!!.isPending)
+            assertFalse(hover!!.isOpen)
+            assertEquals("", typeahead!!.query)
+            assertFalse(typeahead!!.isPending)
+            stage = 1
+            current.setVisible(true)
+        } else
+            if (stage == 1) {
+                assertFalse(hover!!.isPending)
+                assertFalse(hover!!.isOpen)
+                assertEquals("", typeahead!!.query)
+                assertFalse(typeahead!!.isPending)
+                arm()
+                hover!!.close()
+                typeahead!!.close()
+                assertTrue(hover!!.isClosed)
+                assertTrue(typeahead!!.isClosed)
+                stage = 2
+                current.setVisible(false)
+                current.setVisible(true)
+            } else {
+                stage = 3
+                idleFrames = frames
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(
+                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                    )
+                )
+            }
+    }
+}
+
+private class WindowTimingRoot(
+    private val probe: WindowTimingProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View = element({ mount -> WindowTimingElement(probe, mount) })
+}
+
+private class WindowTimingElement(
+    private val probe: WindowTimingProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    init {
+        area.ignoreSelf = true
+        probe.hover =
+            Some(
+                scope.hover(
+                    area,
+                    probe.open.binding(),
+                    HoverOptions(closeDelay = Duration.seconds(5L), focus = false)
+                )
+            )
+        probe.typeahead =
+            Some(
+                scope.typeahead(
+                    probe.source,
+                    { None },
+                    { _ -> probe.matches += 1 },
+                    TypeaheadOptions(timeout = Duration.seconds(5L), keyboard = false)
+                )
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(Size(300.0, 180.0)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, 300.0, 180.0))
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                probe.frames += 1
+                probe.ready = true
+            }
+        }
+    }
+}
+
+private class WindowTimingSource: NavigationSource {
+    public override val count: Long get() = 1L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(0L) -> Some(0L)
+            else -> None
+        }
+    public override fun searchTextAt(index: Long): String = "alpha"
+}

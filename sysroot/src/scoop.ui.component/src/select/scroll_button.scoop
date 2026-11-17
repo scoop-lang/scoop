@@ -51,6 +51,7 @@ internal class SelectScrollButton(
     private var canScroll = false
     init {
         scope.resource { area.scope.observeActivity { refresh() } }
+        scope.observeWindowActivity { _ -> refresh() }
     }
     fun update() {
         press.update(PressOptions(read().popup.options.enabled, false)) { step() }
@@ -61,7 +62,11 @@ internal class SelectScrollButton(
         scope.isMounted &&
             read().popup.open.value &&
             read().popup.options.enabled &&
+            scope.nativeWindow.state ==
+            WindowState.Open &&
             scope.nativeWindow.isFocused &&
+            scope.nativeWindow.isVisible &&
+            !scope.nativeWindow.isOccluded &&
             area.scope.isInputAllowed &&
             area.visibleBounds !=
             None &&

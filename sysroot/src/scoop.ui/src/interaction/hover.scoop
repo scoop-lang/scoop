@@ -70,10 +70,21 @@ public class Hover internal constructor(
                 else -> {}
             }
         }
+    private var previousActivity = window.activity
     private val windowActivity =
         scope.observeWindowActivity {
-            value -> if (contactPinned && (!value.focused || !value.visible || value.occluded))
+            value ->
+            val previous = previousActivity
+            previousActivity = value
+            if (
+                (previous.focused && !value.focused) ||
+                    (previous.visible && !value.visible) ||
+                    (!previous.occluded && value.occluded)
+            )
                 dismiss()
+            else
+                if ((!previous.visible && value.visible) || (previous.occluded && !value.occluded))
+                    refresh()
         }
 
     init {
@@ -194,6 +205,11 @@ public class Hover internal constructor(
     private fun refresh(point: Point? = None) {
         if (isClosed || window.state != WindowState.Open)
             return
+        if (!window.isVisible || window.isOccluded) {
+            cancelWait()
+            stopObserving()
+            return
+        }
         if (!options.enabled || !trigger.scope.isInputAllowed) {
             dismiss();
             return
@@ -327,7 +343,7 @@ public class Hover internal constructor(
     private fun expired() {
         val next = pending ?: return
         pending = None
-        if (isClosed || window.state != WindowState.Open)
+        if (isClosed || window.state != WindowState.Open || !window.isVisible || window.isOccluded)
             return
         val opening = next == HoverWait.Open
         if (opening && (!options.enabled || (!within() && !focused()))) {

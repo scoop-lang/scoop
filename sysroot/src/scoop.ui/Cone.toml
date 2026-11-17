@@ -228,3 +228,11 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/text_input_purpose.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/window_timing.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/window_timing.scoop"
+when = { os = "linux", env = "gnu" }

@@ -322,6 +322,8 @@ UI 采用按需调度。一个根在逻辑工作队列为空、没有尚待呈�
 
 持有 Animatable 不代表动画正在运行。完成、暂停、取消和卸载应及时结束其持续帧需求；最终值及完成回调引起的必要变化完成呈现后停帧。运行中的显式重复动画可以持续请求帧，已完成动画不能因还保存在 scope 中而继续驱动时钟。
 
+短期交互的 deadline 同步响应 WindowActivity：窗口隐藏或遮挡时撤销 Hover 的等待、Typeahead 缓冲、caret 闪烁和文本边缘拖选；不等待旧 deadline 到期才发现窗口不可用。恢复不补发旧输入或延迟关闭／滚动；caret 从可见阶段开始，在下一次匹配的 Accepted 帧之后预约完整闪烁间隔。原生拖放目标的边缘滚动按显示状态取消，不把未聚焦当作拒绝跨程序拖入的条件。有限动画的逻辑完成回调仍沿 Surface 的必要截止点完成，停止绘制不丢弃业务完成。
+
 需求按根／窗口维护。一个窗口的动画不能使其他无变化窗口执行 render、布局或提交；没有有效 drawable 时保留失效并等待原生恢复，不通过循环 acquire 或逻辑任务自我投递重试。隐藏窗口的真实 State 更新和卸载仍按需处理，时间轴恢复语义沿 Surface 规范，不需要在隐藏期间持续采样。
 
 未来视频帧到期或 3D 场景的显式持续运动属于外部绘制需求，接入时同样必须能够撤销。暂停视频、静止场景以及外部宿主继续转动物体但 UI 纹理未变，都不能使 UI 自行维持无用帧。首期 Surface 的停帧合同见[第 4.1 节](SCOOP-SURFACE-SPEC.md#41-空闲帧需求与原生等待)。
@@ -870,9 +872,9 @@ NavigationSource 是调用方的有序元数据快照，提供 count、keyAt、i
 
 `ComponentScope.activeItems(source, active: Binding<ViewKey?>, options=ActiveItemOptions(), reveal={ _ -> Unit })` 返回 ActiveItems。options 为 layout=Vertical、direction=None（继承）、loop=true、enabled=true。activeKey 读取当前绑定，setActive(key) 验证并写入有效 key，move(NamedKey) 与 KeyNavigation 共用下一项查找，跳过 disabled。update 替换元数据及当前回调，options=None／reveal=None 保留当前配置／回调，保留仍有效 key，删除／禁用／过滤后没有该候选则写 None。方向键、Home／End 的默认动作先消费再更新，保持真实焦点不变；Enter／Space、hover 和选中值由控件决定。reveal 可连接 VirtualListHandle.scrollToItem，不能调用 focusItem 来实现活动项导航。公开 handle(context, event) 可从组合 owner 的现有 captureHandler 调用，在输入框自己的编辑默认动作之前处理导航；已经被阻止的默认动作不再认领。编辑组合是否暂交 IME 由拥有编辑模型的控件决定。
 
-`ComponentScope.typeahead(source, currentKey, onMatch, options=TypeaheadOptions())` 返回 Typeahead；options 为 timeout=700ms（正值）、enabled=true、keyboard=true、matches 为精确 Unicode startsWith。query 为短期缓冲，push(text) 追加有效文字，重复同一单字符输入可从活动项之后循环查找，clear／失焦／source 替换取消 deadline。update 中 options=None 保留当前配置。一次搜索最多遍历快照 count 次，匹配策略可显式替换以决定大小写、重音及归一化；默认不声称 Unicode case folding 或 fuzzy 匹配。
+`ComponentScope.typeahead(source, currentKey, onMatch, options=TypeaheadOptions())` 返回 Typeahead；options 为 timeout=700ms（正值）、enabled=true、keyboard=true、matches 为精确 Unicode startsWith。query 为短期缓冲，push(text) 追加有效文字，重复同一单字符输入可从活动项之后循环查找，clear／失焦／窗口隐藏或遮挡／source 替换取消 deadline。update 中 options=None 保留当前配置。一次搜索最多遍历快照 count 次，匹配策略可显式替换以决定大小写、重音及归一化；默认不声称 Unicode case folding 或 fuzzy 匹配。
 
-keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 window 已识别的 AltGr；应用修饰键不进入缓冲。它用于非编辑列表。Combobox／Command 的输入框直接使用编辑模型提交的查询，关闭该模式，不从 KeyEvent 重建文本，也不使用 IME preedit 作为已提交搜索词。行为只有缓冲活动时才保留一次性 timeout 和窗口失焦观察，scope 关闭后无迟到动作。
+keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 window 已识别的 AltGr；应用修饰键不进入缓冲。它用于非编辑列表。Combobox／Command 的输入框直接使用编辑模型提交的查询，关闭该模式，不从 KeyEvent 重建文本，也不使用 IME preedit 作为已提交搜索词。行为只有缓冲活动时才保留一次性 timeout；窗口活动订阅随挂载保留，关闭行为或 scope 后注销，不产生迟到动作。
 
 ### 7.14 Hover
 

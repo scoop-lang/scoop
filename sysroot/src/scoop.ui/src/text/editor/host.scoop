@@ -124,6 +124,9 @@ public class TextEditHost public constructor(
             }
         }
 
+    private val activityObserver =
+        scope.observeWindowActivity { value -> editorWindowActivity(this, value) }
+
     init {
         initialOptions.check()
         initialAppearance.check()
@@ -474,6 +477,7 @@ public class TextEditHost public constructor(
         failure = cleanupUi(failure) { touchScrollIntent.close() }
         failure = cleanupUi(failure) { preferenceObserver.close() }
         failure = cleanupUi(failure) { geometryObserver.close() }
+        failure = cleanupUi(failure) { activityObserver.close() }
         failure = cleanupUi(failure) { blink.close() }
         failure = cleanupUi(failure) { dragTimer.close() }
         failure = cleanupUi(failure) { dropTarget?.close() }

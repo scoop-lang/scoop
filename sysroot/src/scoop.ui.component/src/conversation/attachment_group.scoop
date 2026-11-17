@@ -122,12 +122,31 @@ internal class AttachmentGroupInk(
     private val area = scope.createArea()
     private val deadline = scope.createDeadline { finish() }
     private var previous: AttachmentGroupInkProps? = None
+    private var activity = scope.nativeWindow.activity
     init {
         scope.routeChildren(area)
         scope.resource { area.scope.addDefaultAction { context, event -> input(context, event) } }
+        scope.observeWindowActivity {
+            value ->
+            val previous = activity
+            activity = value
+            if (
+                (previous.focused && !value.focused) ||
+                    (previous.visible && !value.visible) ||
+                    (!previous.occluded && value.occluded)
+            )
+                deadline.cancel()
+        }
     }
     private fun finish() {
-        if (scope.isMounted && props.value.props.enabled)
+        if (
+            scope.isMounted &&
+                props.value.props.enabled &&
+                scope.nativeWindow.state ==
+                WindowState.Open &&
+                scope.nativeWindow.isVisible &&
+                !scope.nativeWindow.isOccluded
+        )
             props.value.handle.finishWheel()
     }
     public override fun update(): UiInvalidation {

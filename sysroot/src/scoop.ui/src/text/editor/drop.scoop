@@ -33,6 +33,11 @@ internal class EditorDropTarget(
             { clear() }
         )
     private val binding = create(handlers, enabled)
+    private val activity =
+        host.scope.observeWindowActivity {
+            value -> if (!closed && (!value.visible || value.occluded))
+                clear()
+        }
     private val enabled: Boolean get() =
         !closed &&
             !host.closed &&
@@ -221,7 +226,8 @@ internal class EditorDropTarget(
             return
         closed = true
         clear()
-        var failure = cleanupUi(None) { binding.close() }
+        var failure = cleanupUi(None) { activity.close() }
+        failure = cleanupUi(failure) { binding.close() }
         failure = cleanupUi(failure) { timer.close() }
         throwUi(failure)
     }

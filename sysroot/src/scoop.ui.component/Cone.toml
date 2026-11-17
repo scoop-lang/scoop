@@ -49,3 +49,7 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/scrollbar_placement.scoop"
 when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/carousel_clock.scoop"
+when = { os = "windows" }
