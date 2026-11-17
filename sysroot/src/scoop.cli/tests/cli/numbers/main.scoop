@@ -3,64 +3,64 @@ package scoop.cli.tests.cli.numbers
 import scoop.test.*
 import scoop.cli.*
 
+object NumberArguments : CliArguments<CliFieldValues> {
+    public override fun entries(): Array<CliEntry> = [CliEntry("value", CliRole.Option, CliValueShape.Text, ["--value"])]
+    public override fun bind(values: CliValues): CliFieldValues = values.required("value")
+}
 class Inputs {
-    val parser: CliParser<Decoder> = CliParser(
-        CliSchema(typeInfo<Decoder>(), CliConfig("numbers"), [
-            CliEntry("value", "value", CliRole.Option, CliValueShape.Text, ["--value"])
-        ]), ValueDecoderFunction<Decoder>({ decoder -> decoder })
-    )
-    fun value(text: String): Decoder = parsed(parser.parse(["--value=" + text])).keyed().required("value")
+    val parser = CliParser(CliConfig("numbers"), NumberArguments)
+    fun value(text: String): CliFieldValues = parsed(parser.parse(["--value=" + text]))
 }
 
 private fun exercise() {
     val inputs = Inputs()
-    check(inputs.value("-9223372036854775808").singleValue().readLong() == -9223372036854775808L)
-    check(inputs.value("+9223372036854775807").singleValue().readLong() == 9223372036854775807L)
-    check(inputs.value("18446744073709551615").singleValue().readULong() == 18446744073709551615uL)
-    check(inputs.value("+000123").singleValue().readULong() == 123uL)
-    check(inputs.value("-000").singleValue().readLong() == 0L)
+    check(inputs.value("-9223372036854775808").readLong() == -9223372036854775808L)
+    check(inputs.value("+9223372036854775807").readLong() == 9223372036854775807L)
+    check(inputs.value("18446744073709551615").readULong() == 18446744073709551615uL)
+    check(inputs.value("+000123").readULong() == 123uL)
+    check(inputs.value("-000").readLong() == 0L)
     for (text in ["", "+", "-", " 1", "1 ", "1_0", "0x10", "1.0", "1e2", "١", "1\u{0}", "--1", "9223372036854775808", "-9223372036854775809"]) {
         val value = inputs.value(text)
-        fails("/value", { value.singleValue().readLong() })
-        equal(value.singleValue().readString(), text)
+        fails("/value", { value.readLong() })
+        equal(value.readString(), text)
     }
     for (text in ["-0", "-1", "18446744073709551616", "", "+", "0xff", "1_0"]) {
-        fails("/value", { inputs.value(text).singleValue().readULong() })
+        fails("/value", { inputs.value(text).readULong() })
     }
-    check(Int8.decode(inputs.value("-128")) == -128 && UInt8.decode(inputs.value("255")) == 255u)
-    check(Int16.decode(inputs.value("32767")) == 32767 && UInt16.decode(inputs.value("65535")) == 65535u)
-    check(Int.decode(inputs.value("2147483647")) == 2147483647 && UInt.decode(inputs.value("4294967295")) == 4294967295u)
-    fails("/value", { Int8.decode(inputs.value("128")) })
-    fails("/value", { UInt8.decode(inputs.value("256")) })
-    fails("/value", { Int16.decode(inputs.value("32768")) })
-    fails("/value", { UInt16.decode(inputs.value("65536")) })
-    fails("/value", { Int.decode(inputs.value("2147483648")) })
-    fails("/value", { UInt.decode(inputs.value("4294967296")) })
-    check(inputs.value("1.000000059604644775390625000001").singleValue().readFloat() == 1.00000011920928955078125f)
-    check(inputs.value("-0.0").singleValue().readFloat().toBits() == -2147483648)
-    check(inputs.value("-0e9").singleValue().readDouble().toBits() == -9223372036854775808L)
-    check(inputs.value("+001.25e+2").singleValue().readDouble() == 125.0)
-    check(inputs.value("1e-45").singleValue().readFloat().toBits() == 1)
-    check(inputs.value("5e-324").singleValue().readDouble().toBits() == 1L)
-    check(inputs.value("-1e-9999").singleValue().readFloat().toBits() == -2147483648)
+    check(inputs.value("-128").readInt8() == -128 && inputs.value("255").readUInt8() == 255u)
+    check(inputs.value("32767").readInt16() == 32767 && inputs.value("65535").readUInt16() == 65535u)
+    check(inputs.value("2147483647").readInt() == 2147483647 && inputs.value("4294967295").readUInt() == 4294967295u)
+    fails("/value", { inputs.value("128").readInt8() })
+    fails("/value", { inputs.value("256").readUInt8() })
+    fails("/value", { inputs.value("32768").readInt16() })
+    fails("/value", { inputs.value("65536").readUInt16() })
+    fails("/value", { inputs.value("2147483648").readInt() })
+    fails("/value", { inputs.value("4294967296").readUInt() })
+    check(inputs.value("1.000000059604644775390625000001").readFloat() == 1.00000011920928955078125f)
+    check(inputs.value("-0.0").readFloat().toBits() == -2147483648)
+    check(inputs.value("-0e9").readDouble().toBits() == -9223372036854775808L)
+    check(inputs.value("+001.25e+2").readDouble() == 125.0)
+    check(inputs.value("1e-45").readFloat().toBits() == 1)
+    check(inputs.value("5e-324").readDouble().toBits() == 1L)
+    check(inputs.value("-1e-9999").readFloat().toBits() == -2147483648)
     for (length in [255L, 256L, 1024L]) {
         val text = "1." + String.fromChars(Array<Char>(length - 2L) { _ -> '0' })
-        check(inputs.value(text).singleValue().readFloat() == 1.0f)
-        check(inputs.value(text).singleValue().readDouble() == 1.0)
+        check(inputs.value(text).readFloat() == 1.0f)
+        check(inputs.value(text).readDouble() == 1.0)
     }
     for (text in ["", " ", "1 ", "NaN", "Infinity", "nan", "0x1p0", ".5", "1.", "1e", "1e+", "1_0", "1\u{0}", "1e9999"]) {
         val value = inputs.value(text)
-        fails("/value", { value.singleValue().readFloat() })
-        fails("/value", { value.singleValue().readDouble() })
-        equal(value.singleValue().readString(), text)
+        fails("/value", { value.readFloat() })
+        fails("/value", { value.readDouble() })
+        equal(value.readString(), text)
     }
-    check(inputs.value("true").singleValue().readBoolean() && !inputs.value("false").singleValue().readBoolean())
-    for (text in ["True", "FALSE", "1", "0", "", " true"]) { fails("/value", { inputs.value(text).singleValue().readBoolean() }) }
-    check(Char.decode(inputs.value("😀")) == '😀')
-    fails("/value", { Char.decode(inputs.value("")) })
-    fails("/value", { Char.decode(inputs.value("ab")) })
-    equal(String.decode(inputs.value("null")), "null")
-    equal(String.decode(inputs.value("")), "")
+    check(inputs.value("true").readBoolean() && !inputs.value("false").readBoolean())
+    for (text in ["True", "FALSE", "1", "0", "", " true"]) { fails("/value", { inputs.value(text).readBoolean() }) }
+    check(inputs.value("😀").readChar() == '😀')
+    fails("/value", { inputs.value("").readChar() })
+    fails("/value", { inputs.value("ab").readChar() })
+    equal(inputs.value("null").readString(), "null")
+    equal(inputs.value("").readString(), "")
 
 }
 

@@ -6,7 +6,7 @@ internal class CliTokens(
 ) {
     private var cursor: Long = start
     private var positional: Long = 0L
-    private val values: Array<ArrayList<CliInput>> = Array<ArrayList<CliInput>>(entries.size) { _ -> ArrayList<CliInput>() }
+    private val values: Array<ArrayList<CliOccurrence>> = Array<ArrayList<CliOccurrence>>(entries.size) { _ -> ArrayList<CliOccurrence>() }
 
     internal fun parse(): CliInputResult {
         var options = true
@@ -25,16 +25,15 @@ internal class CliTokens(
                 if (!isRepeated(entries[index].valueShape)) { positional = positional + 1L }
             }
         }
-        val members = ArrayList<CliMember>()
+        val fields = ArrayList<CliNamedField>()
         for (index in 0L until entries.size) {
             val items = values[index]
-            if (items.size == 0L) { continue }
-            val value = if (isRepeated(entries[index].valueShape)) {
-                CliInput(CliNode.Sequence(items.toArray()), items[0L].source)
-            } else { items[0L] }
-            members.add(CliMember(entries[index].wireKey, value))
+            if (items.size != 0L) {
+                val name = entries[index].sourceName
+                fields.add(CliNamedField(name, CliFieldValues(childPath("", name), items.toArray())))
+            }
         }
-        return CliInputResult.Value(CliInput(CliNode.Record(members.toArray()), None))
+        return CliInputResult.Value(CliValues(fields.toArray()))
     }
 
     private fun alias(name: String, source: CliSource): CliAlias = when (findAlias(entries, name)) {
@@ -42,20 +41,20 @@ internal class CliTokens(
         case None -> inputError("", Some(source), "unknown option " + name)
     }
 
-    private fun add(index: Long, value: CliInput, source: CliSource) {
+    private fun add(index: Long, value: CliOccurrence, source: CliSource) {
         if (!isRepeated(entries[index].valueShape) && values[index].size != 0L) {
-            inputError(childPath("", entries[index].wireKey), Some(source), "duplicate argument " + entries[index].sourceName)
+            inputError(childPath("", entries[index].sourceName), Some(source), "duplicate argument " + entries[index].sourceName)
         }
         values[index].add(value)
     }
 
-    private fun takeValue(index: Long, attached: Option<String>, source: CliSource): CliInput {
+    private fun takeValue(index: Long, attached: Option<String>, source: CliSource): CliOccurrence {
         when (attached) {
             case Some(val text) -> { return textInput(entries[index], text, source) }
             case None -> {}
         }
         if (cursor == arguments.size || optionToken(arguments[cursor])) {
-            inputError(childPath("", entries[index].wireKey), Some(source), "missing option value")
+            inputError(childPath("", entries[index].sourceName), Some(source), "missing option value")
         }
         val next = CliSource(cursor, arguments[cursor])
         cursor = cursor + 1L
@@ -74,8 +73,8 @@ internal class CliTokens(
         val selected = alias(name, source)
         when (entries[selected.index].role) {
             case CliRole.Flag -> {
-                if (split != text.charLength) { inputError(childPath("", entries[selected.index].wireKey), Some(source), "flag does not accept a value") }
-                add(selected.index, CliInput(CliNode.BooleanValue(!selected.negative), Some(source)), source)
+                if (split != text.charLength) { inputError(childPath("", entries[selected.index].sourceName), Some(source), "flag does not accept a value") }
+                add(selected.index, CliOccurrence(CliToken.Flag(!selected.negative), source), source)
             }
             else -> add(selected.index, takeValue(selected.index, attached, source), source)
         }
@@ -94,8 +93,8 @@ internal class CliTokens(
             val selected = alias(name, source)
             when (entries[selected.index].role) {
                 case CliRole.Flag -> {
-                    if (index < text.charLength && text.getCharAt(index) == '=') { inputError(childPath("", entries[selected.index].wireKey), Some(source), "flag does not accept a value") }
-                    add(selected.index, CliInput(CliNode.BooleanValue(!selected.negative), Some(source)), source)
+                    if (index < text.charLength && text.getCharAt(index) == '=') { inputError(childPath("", entries[selected.index].sourceName), Some(source), "flag does not accept a value") }
+                    add(selected.index, CliOccurrence(CliToken.Flag(!selected.negative), source), source)
                 }
                 else -> {
                     val attached = if (index == text.charLength) { None } else {

@@ -4,7 +4,6 @@ import scoop.cli.*
 
 enum Mode {
     Fast, Thorough
-    companion object : ValueDecoder<Mode>
 }
 
 struct Options(
@@ -13,14 +12,15 @@ struct Options(
     @CliOption(names = ["--mode"], defaultText = "Fast") val mode: Mode = Mode.Fast,
     @CliOption(names = ["--output", "-o"]) val output: String? = None
 ) {
-    companion object : ValueDecoder<Options>
+    @GenerateWith("scoop.cli", ["CliArguments<Options>"])
+    companion object : CliArguments<Options>
 }
 
 fun main(args: Array<String>): Int {
-    val schema = Cli.schema(typeInfo<Options>(), CliConfig("options", "Decode repeated and optional values"))
+    val parser = CliParser(CliConfig("options", "Decode repeated and optional values"), Options.Companion)
     try {
-        when (CliParser(schema, Options.Companion).parseCommandLine(args)) {
-            case CliResult.HelpRequested -> print(schema.help())
+        when (parser.parseCommandLine(args)) {
+            case CliResult.HelpRequested -> print(parser.help())
             case CliResult.Parsed(val options) -> {
                 for (directory in options.include) println(f"include=${directory}")
                 println(when (options.mode) {
@@ -30,7 +30,7 @@ fun main(args: Array<String>): Int {
                 println(f"output=${options.output ?: "stdout"}")
             }
         }
-    } catch (error: DecodingException) {
+    } catch (error: CliParseException) {
         println(error.message ?: "invalid arguments")
         return 2
     }

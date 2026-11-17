@@ -1,0 +1,70 @@
+package scoop.cli
+
+/** Occurrences of a supplied field. Reading or converting a value does not consume it. */
+public class CliFieldValues internal constructor(public val path: String, public val items: Array<CliOccurrence>) {
+    public fun fail(message: String): Nothing = inputError(path, Some(items[0L].source), message)
+    public fun element(index: Long): CliFieldValues =
+        CliFieldValues(childPath(path, index.toString()), [items[index]])
+    private fun single(): CliOccurrence {
+        if (items.size != 1L) { fail("expected a single argument") }
+        return items[0L]
+    }
+
+    public fun readString(): String = when (single().token) {
+        case CliToken.Text(val text) -> text
+        else -> fail("expected text")
+    }
+    public fun readBoolean(): Boolean = when (single().token) {
+        case CliToken.Flag(val result) -> result
+        case CliToken.Text(val text) -> {
+            if (text == "true") { true } else { if (text == "false") { false } else { fail("expected true or false") } }
+        }
+    }
+    public fun readLong(): Long = signedInteger(this, readString())
+    public fun readULong(): ULong = unsignedInteger(this, readString())
+    public fun readFloat(): Float {
+        val text = readString()
+        checkDecimal(this, text)
+        return when (parseFloat(text)) { case Some(val value) -> value; case None -> fail("Float is out of range") }
+    }
+    public fun readDouble(): Double {
+        val text = readString()
+        checkDecimal(this, text)
+        return when (parseDouble(text)) { case Some(val value) -> value; case None -> fail("Double is out of range") }
+    }
+    public fun readChar(): Char {
+        val text = readString()
+        if (text.charLength != 1L) { fail("expected one character") }
+        return text.getCharAt(0L)
+    }
+    public fun readInt8(): Int8 {
+        val value = readLong()
+        if (value < -128L || value > 127L) { fail("Int8 is out of range") }
+        return value.toByte()
+    }
+    public fun readUInt8(): UInt8 {
+        val value = readULong()
+        if (value > 255uL) { fail("UInt8 is out of range") }
+        return value.toUByte()
+    }
+    public fun readInt16(): Int16 {
+        val value = readLong()
+        if (value < -32768L || value > 32767L) { fail("Int16 is out of range") }
+        return value.toShort()
+    }
+    public fun readUInt16(): UInt16 {
+        val value = readULong()
+        if (value > 65535uL) { fail("UInt16 is out of range") }
+        return value.toUShort()
+    }
+    public fun readInt(): Int {
+        val value = readLong()
+        if (value < -2147483648L || value > 2147483647L) { fail("Int is out of range") }
+        return value.toInt()
+    }
+    public fun readUInt(): UInt {
+        val value = readULong()
+        if (value > 4294967295uL) { fail("UInt is out of range") }
+        return value.toUInt()
+    }
+}

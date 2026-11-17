@@ -2,12 +2,12 @@ package scoop.cli
 
 /**
  * Describes a named value option on a field or property. Help-related text only affects
- * presentation; decoding defaults remain the codec's responsibility.
+ * presentation; missing values use the model constructor's defaults.
  */
 @Target([AnnotationTarget.Field, AnnotationTarget.Property])
 public annotation class CliOption(
     val names: Array<String> = [], val help: String = "",
-    val valueName: String = "", val defaultText: String = ""
+    val valueName: String = "", val defaultText: String = "", val required: Boolean = false
 )
 
 /**
@@ -17,7 +17,7 @@ public annotation class CliOption(
 @Target([AnnotationTarget.Field, AnnotationTarget.Property])
 public annotation class CliFlag(
     val names: Array<String> = [], val negativeNames: Array<String> = [],
-    val help: String = "", val defaultText: String = ""
+    val help: String = "", val defaultText: String = "", val required: Boolean = false
 )
 
 /**
@@ -25,59 +25,11 @@ public annotation class CliFlag(
  */
 @Target([AnnotationTarget.Field, AnnotationTarget.Property])
 public annotation class CliArgument(
-    val position: Long, val help: String = "", val valueName: String = "", val defaultText: String = ""
+    val position: Long, val help: String = "", val valueName: String = "", val defaultText: String = "", val required: Boolean = false
 )
 
+/** Exclude this member from the generated argument layout. */
+@Target([AnnotationTarget.Field, AnnotationTarget.Property])
+public annotation class CliIgnore
+
 internal fun configuration(message: String): Nothing = throw IllegalArgumentException(Some(message))
-
-internal fun annotation(items: Array<AnnotationInfo>, key: AnnotationKey): Option<AnnotationInfo> {
-    for (item in items) { if (item.key == key) { return Some(item) } }
-    return None
-}
-
-internal fun argument(item: Option<AnnotationInfo>, name: String): Option<AnnotationValue> {
-    when (item) {
-        case Some(val info) -> {
-            for (value in info.arguments) { if (value.name == name) { return Some(value.value) } }
-        }
-        case None -> {}
-    }
-    return None
-}
-
-internal fun annotationText(item: Option<AnnotationInfo>, name: String): String =
-    when (argument(item, name)) {
-        case Some(AnnotationValue.String(val value)) -> value
-        case None -> ""
-        else -> configuration("expected String annotation argument " + name)
-    }
-
-internal fun annotationBoolean(item: Option<AnnotationInfo>, name: String): Boolean =
-    when (argument(item, name)) {
-        case Some(AnnotationValue.Boolean(val value)) -> value
-        case None -> false
-        else -> configuration("expected Boolean annotation argument " + name)
-    }
-
-internal fun annotationPosition(item: Option<AnnotationInfo>): Long =
-    when (argument(item, "position")) {
-        case Some(AnnotationValue.Integer(IntegerValue.Long(val value))) -> value
-        else -> configuration("CliArgument requires a Long position")
-    }
-
-internal fun annotationNames(item: Option<AnnotationInfo>, name: String): Array<String> {
-    val result = ArrayList<String>()
-    when (argument(item, name)) {
-        case Some(AnnotationValue.Array(_, val values)) -> {
-            for (value in values) {
-                result.add(when (value) {
-                    case AnnotationValue.String(val text) -> text
-                    else -> configuration("expected String array annotation argument " + name)
-                })
-            }
-        }
-        case None -> {}
-        else -> configuration("expected array annotation argument " + name)
-    }
-    return result.toArray()
-}

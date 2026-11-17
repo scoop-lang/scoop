@@ -1,0 +1,572 @@
+[
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic CLI arguments require a struct or final class without a class base",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 261,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 241
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 261,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 241
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "no CLI value parser for Payload; provide a CliValueParser dependency or a conforming companion",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 906,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 876
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 906,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 876
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 402,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 384
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "no CLI value parser for Number; provide a CliValueParser dependency or a conforming companion",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1022,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 998
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1022,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 998
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 437,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 420
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "nested sequences require an explicit CLI value parser",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1126,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1102
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1126,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1102
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 483,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 455
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "CliFlag requires exact Boolean",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1229,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1206
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1229,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1206
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 508,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 500
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "conflicting CLI annotations on `value`",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1331,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1307
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1331,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1307
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 554,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 546
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "CliIgnore requires a constructor default or a field declared as Option",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1434,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1411
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1434,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1411
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 626,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 612
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "invalid or duplicate CLI option name `-x`",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1535,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1512
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1535,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1512
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 728,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 713
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "positional indices must start at zero and be contiguous",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1639,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1613
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1639,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1613
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 790,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 776
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "CLI member `additional` requires ordinary primary constructor storage",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1744,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1723
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1744,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1723
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 845,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 822
+    },
+    "severity": "error"
+  },
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic construction requires the primary constructor to be the only visible constructor",
+    "notes": [
+      {
+        "code": "N0001",
+        "kind": "note",
+        "message": "move this construction entry to a named companion factory",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1887,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1849
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.cli`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 1944,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 1920
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1944,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1920
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `OpenArguments` does not implement interface method `CliArguments<Open>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 304,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 264
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `InvalidPayloadArguments` does not implement interface method `CliArguments<InvalidPayload>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 969,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 909
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `IntegralArguments` does not implement interface method `CliArguments<Integral>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1073,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1025
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `RepeatedArguments` does not implement interface method `CliArguments<Repeated>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1177,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1129
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `BadFlagArguments` does not implement interface method `CliArguments<BadFlag>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1278,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1232
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `ConflictArguments` does not implement interface method `CliArguments<Conflict>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1382,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1334
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `IgnoredArguments` does not implement interface method `CliArguments<Ignored>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1483,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1437
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `AliasesArguments` does not implement interface method `CliArguments<Aliases>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1584,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1538
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `PositionalArguments` does not implement interface method `CliArguments<Positional>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1694,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1642
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `ExtraArguments` does not implement interface method `CliArguments<Extra>.entries`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1789,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1747
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Multiple.Companion` does not implement interface method `CliArguments<Multiple>.bind`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 2060,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1951
+    },
+    "severity": "error"
+  }
+]

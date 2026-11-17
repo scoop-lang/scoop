@@ -1,0 +1,82 @@
+package scoop.cli.tests.cli.field_values
+
+import scoop.test.*
+import scoop.cli.*
+
+struct Port(val value: Int) {
+    public companion object : CliValueParser<Port> {
+        public override fun shape(): CliValueShape = CliValueShape.Text
+        public override fun parseValue(values: CliFieldValues): Port = Port(values.readInt())
+    }
+}
+struct Connection(val port: Port) {
+    @GenerateWith("scoop.cli", ["CliArguments<Connection>"])
+    companion object : CliArguments<Connection>
+}
+struct Argument<T>(val value: T) {
+    @GenerateWith("scoop.cli", ["CliArguments<Argument<T>>"])
+    public companion object {
+        override interface CliArguments<Argument<T>> where T.Companion : CliValueParser<T> {}
+    }
+}
+
+object Raw : CliArguments<CliValues> {
+    public override fun entries(): Array<CliEntry> = [
+        CliEntry("value", CliRole.Option, CliValueShape.Text, ["--value"]),
+        CliEntry("items", CliRole.Option, CliValueShape.Repeated(CliElementShape.Text), ["--items"]),
+        CliEntry("flag", CliRole.Flag, CliValueShape.Flag, ["--flag"], ["--no-flag"]),
+        CliEntry("choice", CliRole.Option, CliValueShape.Choice(["Hot", "Cold"]), ["--choice"]),
+        CliEntry("leftover", CliRole.Option, CliValueShape.Text, ["--leftover"]),
+        CliEntry("key/name~", CliRole.Option, CliValueShape.Text, ["--escaped"])
+    ]
+    public override fun bind(values: CliValues): CliValues = values
+}
+object Throwing : CliArguments<String> {
+    public override fun entries(): Array<CliEntry> = Raw.entries()
+    public override fun bind(values: CliValues): String = throw IllegalArgumentException(Some("binding failure"))
+}
+object Partial : CliArguments<String> {
+    public override fun entries(): Array<CliEntry> = Raw.entries()
+    public override fun bind(values: CliValues): String = values.required("value").readString()
+}
+
+@Test
+private class ApiTests {
+    @Test
+    fun stableFields() {
+        val parser = CliParser(CliConfig("raw"), Raw)
+        val fields = parsed(parser.parse(["--value=auto", "--items=bad", "--items=2", "--flag", "--choice=Hot", "--leftover=x", "--escaped=bad"]))
+        gcCollect()
+        val value = fields.required("value")
+        fails("/value", { value.readLong() })
+        equal(value.readString(), "auto")
+        equal(fields.required("value").readString(), "auto")
+        val items = fields.required("items")
+        check(items.items.size == 2L)
+        fails("/items/0", { items.element(0L).readInt() })
+        equal(items.element(0L).readString(), "bad")
+        check(items.element(1L).readInt() == 2)
+        equal(fields.required("choice").readString(), "Hot")
+        check(fields.required("flag").readBoolean())
+        try { fields.required("key/name~").readLong(); throw IllegalStateException() }
+        catch (error: CliParseException) {
+            equal(error.path, "/key~1name~0")
+            check(error.source!!.index == 6L)
+            equal(error.source!!.spelling, "--escaped=bad")
+        }
+        check(when (fields.optional("missing")) { case None -> true; else -> false })
+        equal(parsed(CliParser(CliConfig("partial"), Partial).parse(["--value=kept", "--leftover=unused"])), "kept")
+    }
+    @Test
+    fun customParserAndExceptions() {
+        val parser = CliParser(CliConfig("port"), Connection.Companion)
+        check(parsed(parser.parse(["--port=8080"])).port.value == 8080)
+        val arguments = CliParser(CliConfig("generic"), Argument<Port>.Companion)
+        check(parsed(arguments.parse(["--value=443"])).value.value == 443)
+        fails("/port", { parser.parse(["--port=oops"]) })
+        val throwing = CliParser(CliConfig("throwing"), Throwing)
+        check(when (throwing.parse(["--help"])) { case CliResult.HelpRequested -> true; else -> false })
+        try { throwing.parse([]); throw IllegalStateException() }
+        catch (error: IllegalArgumentException) { equal(error.message!!, "binding failure") }
+    }
+}

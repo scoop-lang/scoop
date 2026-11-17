@@ -10,14 +10,15 @@ struct Options(
     @CliOption(names = ["--count", "-n"], defaultText = "1") val count: Int = 1,
     @CliFlag(names = ["--excited", "-e"]) val excited: Boolean = false
 ) {
-    companion object: ValueDecoder<Options>
+    @GenerateWith("scoop.cli", ["CliArguments<Options>"])
+    companion object: CliArguments<Options>
 }
 
 fun main(args: Array<String>): Int {
-    val schema = Cli.schema(typeInfo<Options>(), CliConfig("greet", "Print a greeting"))
+    val parser = CliParser(CliConfig("greet", "Print a greeting"), Options.Companion)
     try {
-        when (CliParser(schema, Options.Companion).parseCommandLine(args)) {
-            case CliResult.HelpRequested -> print(schema.help())
+        when (parser.parseCommandLine(args)) {
+            case CliResult.HelpRequested -> print(parser.help())
             case CliResult.Parsed(val options) -> {
                 if (options.count < 1) {
                     standardError.writeLine("count must be positive")
@@ -33,7 +34,7 @@ fun main(args: Array<String>): Int {
                 }
             }
         }
-    } catch (error: DecodingException) {
+    } catch (error: CliParseException) {
         standardError.writeLine(error.message ?: "invalid arguments")
         return 2
     }

@@ -1,4 +1,4 @@
-package scoop.cli.tests.cli.stable_decoder
+package scoop.cli.tests.cli.field_values
 
 import scoop.test.*
 import scoop.cli.*
@@ -21,5 +21,5 @@ fun <T> parsed(value: CliResult<T>): T = when (value) {
 }
 fun fails(path: String, action: () -> Unit) {
     try { action(); throw IllegalStateException() }
-    catch (error: DecodingException) { equal(error.path, path) }
+    catch (error: CliParseException) { equal(error.path, path) }
 }

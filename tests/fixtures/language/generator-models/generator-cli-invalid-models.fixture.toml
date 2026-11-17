@@ -1,0 +1,15 @@
+schema = 1
+name = "generator-cli-invalid-models"
+root = "generator-cli-invalid-models.scoop"
+inputs = ["generator-cli-invalid-models.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["cli", "negative", "language", "expected-error"]
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "generator-cli-invalid-models.diagnostics.json"}
