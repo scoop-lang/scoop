@@ -9,19 +9,20 @@ private class ScrollSemanticsTest {
     @Test
     fun `axis projection uses the actual clamped range and viewport`() {
         val snapshot = ScrollSnapshot(Point(50.0, 60.0), Size(100.0, 80.0), Size(310.0, 260.0))
-        val horizontal = semanticScrollRange(snapshot, SemanticOrientation.Horizontal)
+        val horizontal = semanticScrollRange(snapshot, SemanticOrientation.Horizontal, 40.0)
         assertEquals(SemanticOrientation.Horizontal, horizontal.orientation)
         assertEquals(50.0, horizontal.offset)
         assertEquals(210.0, horizontal.maximum)
         assertEquals(100.0, horizontal.viewport)
-        val vertical = semanticScrollRange(snapshot, SemanticOrientation.Vertical)
+        val vertical = semanticScrollRange(snapshot, SemanticOrientation.Vertical, 40.0)
         assertEquals(SemanticOrientation.Vertical, vertical.orientation)
         assertEquals(60.0, vertical.offset)
         assertEquals(180.0, vertical.maximum)
         val empty =
             semanticScrollRange(
                 ScrollSnapshot(Point(0.0, 0.0), Size(100.0, 80.0), Size(20.0, 30.0)),
-                SemanticOrientation.Vertical
+                SemanticOrientation.Vertical,
+                40.0
             )
         assertEquals(0.0, empty.maximum)
     }

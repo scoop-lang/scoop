@@ -1,4 +1,5 @@
 #include "window.h"
+#include <ole2.h>
 #include <shobjidl.h>
 
 const WCHAR sw_window_class[] = L"Scoop.Window";
@@ -172,10 +173,14 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
       app->hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, host_class, L"", WS_POPUP,
                                   0, 0, 0, 0, NULL, NULL, instance, app);
     if (app->hwnd) {
-      error = (DWORD)sw_preferences_start(app);
+      HRESULT ole = OleInitialize(NULL);
+      app->ole_initialized = SUCCEEDED(ole);
+      error = FAILED(ole) ? (DWORD)ole : (DWORD)sw_preferences_start(app);
       if (!error)
         return (SWResult){app, 0};
       sw_preferences_stop(app);
+      if (app->ole_initialized)
+        OleUninitialize();
       DestroyWindow(app->hwnd);
     } else
       error = GetLastError();
@@ -241,6 +246,8 @@ void scoop_window_application_stop(SWApplication *app) {
 void scoop_window_application_destroy(SWApplication *app) {
   sw_preferences_stop(app);
   sw_text_application_destroy(app);
+  if (app->ole_initialized)
+    OleUninitialize();
   KillTimer(app->hwnd, 1);
   DestroyWindow(app->hwnd);
   CloseHandle(app->wake);
@@ -284,7 +291,8 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
   }
   event->header.window = window->identity;
   event->header.kind = kind;
-  if (kind == SWKeyboard || kind == SWPointer)
+  if (kind == SWKeyboard || kind == SWPointer || kind == SWContact ||
+      kind == SWGesture)
     sw_stamp_event(&event->header);
   return event;
 }

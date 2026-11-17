@@ -1,0 +1,21 @@
+package scoop.window
+
+import scoop.test.*
+
+@Test
+private class SoftwareKeyboardStateTest {
+    @Test
+    fun `unknown visibility and known nonoverlap are different from a real logical rectangle`() {
+        assertEquals(SoftwareKeyboardState.Unknown, copySoftwareKeyboard(0, 0.0, 0.0, 0.0, 0.0))
+        assertEquals(SoftwareKeyboardState.Hidden, copySoftwareKeyboard(1, 0.0, 0.0, 0.0, 0.0))
+        assertEquals(SoftwareKeyboardState.Shown(None), copySoftwareKeyboard(2, 0.0, 0.0, 0.0, 0.0))
+        assertEquals(
+            SoftwareKeyboardState.Shown(
+                Some(LogicalRect(LogicalPosition(10.5, 240.0), LogicalSize(300.0, 160.0)))
+            ),
+            copySoftwareKeyboard(3, 10.5, 240.0, 300.0, 160.0)
+        )
+        assertFailsWith<WindowException> { copySoftwareKeyboard(9, 0.0, 0.0, 0.0, 0.0) }
+        assertFailsWith<IllegalArgumentException> { copySoftwareKeyboard(3, 0.0, 0.0, -1.0, 4.0) }
+    }
+}

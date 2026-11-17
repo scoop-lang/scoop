@@ -6,7 +6,10 @@ import scoop.window.*
 internal fun InputRouter.pointerEvent(event: PointerEvent) {
     when (event) {
         case Cancelled(val reason, val time) -> {
-            cancelPointerInput(InputCancelReason.Window(reason), time)
+            if (reason == PointerCancelReason.SystemOperation)
+                cancelWindowInput(InputCancelReason.Window(reason), time)
+            else
+                cancelPointerInput(InputCancelReason.Window(reason), time)
             return
         }
         case Wheel(val state, _, val phase, val momentum) -> prepareScroll(

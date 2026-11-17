@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.*
+import scoop.math.max
 import scoop.surface.*
 
 public class ScrollLayout internal constructor(
@@ -9,7 +10,8 @@ public class ScrollLayout internal constructor(
     internal val revision: ULong,
     public val snapshot: ScrollSnapshot,
     public val overscroll: Point,
-    internal val correction: Boolean
+    internal val correction: Boolean,
+    internal val basePadding: ScrollPadding
 ) {
     public val presentationOffset: Point get() =
         Point(snapshot.offset.x - overscroll.x, snapshot.offset.y - overscroll.y)
@@ -34,6 +36,7 @@ public class ScrollViewport internal constructor(
     private var cachePolicy = PaintCachePolicy.None
     private var physicsOptions = ScrollPhysicsOptions()
     private var reduced = false
+    private var keyboardPadding = ScrollPadding()
     internal var inputRevision = 0UL
     internal val edge = ScrollEdge(this, edgeAnimation)
     internal var inertia: ScrollInertia? = None
@@ -99,6 +102,7 @@ public class ScrollViewport internal constructor(
         current = value
         binding += 1UL
         ready = false
+        keyboardPadding = ScrollPadding()
         current.attach(this)
         requestFrame()
     }
@@ -178,6 +182,14 @@ public class ScrollViewport internal constructor(
                     UiInvalidation.Scene
             )
     }
+    internal fun setKeyboardPadding(value: ScrollPadding): Boolean {
+        if (!active || keyboardPadding == value)
+            return false
+        keyboardPadding = value
+        cancelAnimation()
+        requestFrame()
+        return true
+    }
     public fun layout(
         viewport: Size,
         content: Size,
@@ -187,7 +199,15 @@ public class ScrollViewport internal constructor(
         checkOpen()
         observeScroll(this)
         checkLayoutSize(content)
-        val margin = padding.extent()
+        val basePadding = padding
+        val effective =
+            ScrollPadding(
+                max(padding.left, keyboardPadding.left),
+                max(padding.top, keyboardPadding.top),
+                max(padding.right, keyboardPadding.right),
+                max(padding.bottom, keyboardPadding.bottom)
+            )
+        val margin = effective.extent()
         val extent = Size(content.width + margin.width, content.height + margin.height)
         val before = current.current
         val coasting = hasInertia
@@ -199,25 +219,25 @@ public class ScrollViewport internal constructor(
                         before.content !=
                         extent ||
                         before.padding !=
-                        padding
+                        effective
                 )
         var result =
             if (coasting && resized)
                 ScrollSnapshot(
                     clampScroll(
                         Point(
-                            before.offset.x + padding.left - before.padding.left,
-                            before.offset.y + padding.top - before.padding.top
+                            before.offset.x + effective.left - before.padding.left,
+                            before.offset.y + effective.top - before.padding.top
                         ),
                         viewport,
                         extent
                     ),
                     viewport,
                     extent,
-                    padding
+                    effective
                 )
             else
-                sample(viewport, extent, padding)
+                sample(viewport, extent, effective)
         val pending =
             if (coasting && !resized)
                 Point(result.offset.x - before.offset.x, result.offset.y - before.offset.y)
@@ -236,7 +256,7 @@ public class ScrollViewport internal constructor(
                             clampScroll(next, viewport, extent),
                             viewport,
                             extent,
-                            padding
+                            effective
                         )
                 }
             }
@@ -253,7 +273,8 @@ public class ScrollViewport internal constructor(
                 Point(0.0, 0.0)
             else
                 edge.sample(result),
-            correction
+            correction,
+            basePadding
         )
     }
     public fun present(

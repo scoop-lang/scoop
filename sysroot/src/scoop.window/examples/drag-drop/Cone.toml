@@ -8,7 +8,7 @@ kind = "executable"
 
 [[sources]]
 path = "src"
-when = { os = "darwin" }
+when = { os = ["darwin", "windows", "linux"] }
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"

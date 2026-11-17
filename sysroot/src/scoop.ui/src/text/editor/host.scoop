@@ -62,6 +62,7 @@ public class TextEditHost public constructor(
             textInput = initialOptions.enabled && !initialOptions.readOnly
         ) { context, event -> editorHandle(this, context, event) }
     public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
+    internal val keyboard = EditorKeyboard(this)
     internal val contextMenu =
         TextContextMenu(
             scope,
@@ -89,6 +90,8 @@ public class TextEditHost public constructor(
             value -> when (value) {
                 case LayoutCorrection(_) -> {}
                 case User(_) -> {
+                    dataSource?.cancelCandidate()
+                    keyboard.cancelPending()
                     touchPress.cancel();
                     revealNeeded = false
                 }
@@ -103,6 +106,7 @@ public class TextEditHost public constructor(
         scope.observeWindow(window) {
             event -> when (event) {
                 case GeometryChanged(val metrics) -> {
+                    keyboard.changed(window.softwareKeyboard)
                     if (caretScale != Some(metrics.scaleFactor)) {
                         caretScale = Some(metrics.scaleFactor)
                         if (
@@ -115,6 +119,7 @@ public class TextEditHost public constructor(
                             scope.requestLayout()
                     }
                 }
+                case SoftwareKeyboardChanged(val state) -> keyboard.changed(state)
                 else -> {}
             }
         }
@@ -278,6 +283,7 @@ public class TextEditHost public constructor(
         current = state
         this.appearance = appearance
         this.options = options
+        keyboard.update(rebound)
         touchPress.update(
             options.enabled && options.touch.enabled,
             options.touch.threshold,
@@ -395,7 +401,10 @@ public class TextEditHost public constructor(
         )
             return
         when (connection) {
-            case Some(val value) -> window.publishTextInputState(value, current.inputState, after)
+            case Some(val value) -> if (
+                window.publishTextInputState(value, current.inputState, after)
+            )
+                keyboard.publish()
             case None -> {}
         }
     }
@@ -458,6 +467,7 @@ public class TextEditHost public constructor(
         failure = cleanupUi(failure) { retireSemanticDocument() }
         semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { keyboard.close() }
         failure = cleanupUi(failure) { touchPress.close() }
         failure = cleanupUi(failure) { touchPan.close() }
         failure = cleanupUi(failure) { touchHandles.close() }

@@ -1,6 +1,6 @@
 # UI 双窗口拖放示例
 
-macOS 的独立自绘应用，使用 ComponentScope.dragSource 启动原生来源，以及 Window → Surface Accepted 命中 → ComponentScope.dropTarget 接收通路。启动时创建同程序两个窗口。复用已准备的开发 sysroot，在仓库根执行：
+使用三平台公共接口的独立自绘应用，通过 ComponentScope.dragSource 启动原生来源，以及 Window → Surface Accepted 命中 → ComponentScope.dropTarget 接收通路。启动时创建同程序两个窗口。Touch／Pen 选区拖出在支持直接接触的后端使用相同阈值和事务；macOS 仍使用 AppKit 真实鼠标来源。复用已准备的开发 sysroot，在仓库根执行：
 
 ```sh
 scoop run sysroot/src/scoop.ui/examples/drop-target --release
@@ -12,7 +12,7 @@ scoop run sysroot/src/scoop.ui/examples/drop-target --release
 
 三个区域有语义名称，接收结果发布为文本节点；原生聚焦复用实际 FocusTarget，不创建第二份业务状态。该示例只提供文本和 URL 拖出，文件接收保留完整路径列表；没有把文件名文本当成文件拖出。
 
-下方多行编辑框使用 TextEditHost 的默认接收与选区拖出配置，可将左右区域的文字／URL 或外部文本拖到具体落点，也可将非空选区拖到同一框、另一窗口或外部程序。编辑器优先协商完整 Move，按住 Option 可复制；彩色区域只接受 Copy。上方显示 Selection copied.、Selection moved. 或源未删除的实际结果。选区内普通点击在释放时定位，双击／三击和选区外拖选继续使用普通选择行为。
+下方多行编辑框使用 TextEditHost 的默认接收与选区拖出配置，可将左右区域的文字／URL 或外部文本拖到具体落点，也可将非空选区拖到同一框、另一窗口或外部程序。编辑器优先协商完整 Move，macOS 按住 Option、Windows／Linux 按住 Control 可复制；彩色区域只接受 Copy。上方显示 Selection copied.、Selection moved. 或源未删除的实际结果。选区内普通点击在释放时定位，双击／三击和选区外拖选继续使用普通选择行为。
 
 编辑器继续支持普通输入、粘贴、菜单与撤销，并发布同一编辑宿主的文本语义；区域级 Command+C／V 只在两个来源区域内生效。检查拖动期间原选区保持、临时 caret 随落点和边缘滚动更新，释放后插入一次；同文档移动只需一次 Undo，跨文档两边有各自历史。文件列表不作为编辑文字导入；上方背景与两个彩色区域继续接收文件。
 

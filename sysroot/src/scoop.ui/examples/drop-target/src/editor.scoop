@@ -4,6 +4,8 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.surface.*
 import scoop.ui.*
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
 import scoop.ui.text.*
 import scoop.window.accessibility.*
 
@@ -37,7 +39,14 @@ internal class DropEditor(
                 name = Some("Text drop editor"),
                 description =
                     Some(
-                        "Drag selected text to move it, or hold Option to copy. Drop or paste text and URLs. Use the usual editing and undo commands."
+                        "Drag selected text to move it; hold " +
+                            (
+                                if (operatingSystem == OperatingSystem.Darwin)
+                                    "Option"
+                                else
+                                    "Control"
+                            ) +
+                            " to copy. Drop or paste text and URLs. Use the usual editing and undo commands."
                     )
             )
         )

@@ -1,0 +1,173 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class KeyboardViewportTest {
+    @Test
+    fun `accepted scroll paths reveal around actual keyboard rectangles and retire their insets`() {
+        val p = KeyboardViewportProbe()
+        UiHost { host, active, event -> p.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(p.finished)
+        assertTrue(p.frames < 14)
+    }
+}
+
+private class KeyboardViewportProbe {
+    val state = ScrollState()
+    var area: InputArea? = None
+    var viewport: ScrollViewport? = None
+    var frames = 0
+    var ready = false
+    var finished = false
+    private var queued = false
+    private var stage = 0
+    private var reveal = KeyboardReveal(Rect(0.0, 200.0, 400.0, 100.0))
+    private var attempt = RevealAttempt(Some(reveal))
+    private var caret = Rect(40.0, 250.0, 2.0, 20.0)
+    private var idleFrames = 0
+    private fun path(): Array<ScrollReveal> =
+        viewport!!.node.root.focus.textSelectionScrollPath(area!!)
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop keyboard reveal geometry"
+                            size = LogicalSize(400.0, 300.0)
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                host.attach(window, { mount -> KeyboardViewportRoot(this, mount) })
+                window.setVisible(true)
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+            }
+            case AboutToWait -> if (ready && !queued && stage < 5) {
+                ready = false
+                queued = true
+                active.proxy().post {
+                    application ->
+                    queued = false;
+                    advance(application)
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertEquals(5, stage)
+                assertEquals(idleFrames, frames)
+                assertFalse(state.isAnimating)
+                finished = true
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance(active: ActiveApplication) {
+        assertTrue(frames < 14, Some("keyboard reveal did not settle"))
+        if (stage == 0 || stage == 2) {
+            val windowCaret = area!!.toWindow(caret)!!
+            val result = attempt.advance(path(), windowCaret, true)
+            when (result) {
+                case Moved -> return
+                case Ready -> {
+                    assertEquals(None, intersectReveal(windowCaret, reveal.occlusion))
+                    assertEquals(
+                        if (stage == 0)
+                            ScrollPadding(bottom = 100.0)
+                        else
+                            ScrollPadding(right = 300.0),
+                        state.snapshot.padding
+                    )
+                    reveal.close()
+                    stage += 1
+                }
+                else -> fail(Some("keyboard reveal unexpectedly stopped"))
+            }
+        } else
+            if (stage == 1) {
+                assertEquals(ScrollPadding(), state.snapshot.padding)
+                assertEquals(Point(0.0, 0.0), state.snapshot.offset)
+                caret = Rect(101.0, 180.0, 2.0, 20.0)
+                reveal = KeyboardReveal(Rect(100.0, 120.0, 200.0, 140.0))
+                attempt = RevealAttempt(Some(reveal))
+                stage = 2
+                assertEquals(
+                    RevealProgress.Moved,
+                    attempt.advance(path(), area!!.toWindow(caret)!!, true)
+                )
+            } else
+                if (stage == 3) {
+                    assertEquals(ScrollPadding(), state.snapshot.padding)
+                    val cancellation = RevealAttempt()
+                    cancellation.watch(path())
+                    state.scrollTo(Point(0.0, 0.0))
+                    assertEquals(
+                        RevealProgress.Cancelled,
+                        cancellation.advance(path(), area!!.toWindow(caret)!!, true)
+                    )
+                    stage = 4
+                } else {
+                    stage = 5
+                    idleFrames = frames
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                        )
+                    )
+                }
+    }
+}
+
+private class KeyboardViewportRoot(
+    private val probe: KeyboardViewportProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View = element({ mount -> KeyboardViewportElement(probe, mount) })
+}
+
+private class KeyboardViewportElement(
+    private val probe: KeyboardViewportProbe,
+    scope: ComponentScope
+): Element<ScrollLayout>(scope) {
+    private val viewport = scope.scrollViewport(probe.state)
+    private val area = scope.createArea()
+    init {
+        probe.area = Some(area);
+        probe.viewport = Some(viewport)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > =
+        LayoutResult(
+            LayoutMetrics(Size(400.0, 300.0)),
+            viewport.layout(Size(400.0, 300.0), Size(400.0, 300.0))
+        )
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
+        viewport.present(
+            context,
+            measured,
+            Some {
+                content ->
+                content.place(area, Rect(0.0, 0.0, 400.0, 300.0))
+                content.draw { paint -> paint.canvas.clear(Color.White) }
+            }
+        )
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                probe.frames += 1
+                probe.ready = true
+            }
+        }
+    }
+}

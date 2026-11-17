@@ -4,8 +4,13 @@ static void enqueue_contact(SWWindow *window, SWContactData data) {
   SWEvent *event = sw_event(window, SWContact);
   if (event) {
     event->contact = data;
+    event->native_input = data.phase != SWContactCancelled;
+    event->input_position =
+        (POINT){(LONG)data.physical_x, (LONG)data.physical_y};
+    ClientToScreen(window->hwnd, &event->input_position);
     sw_enqueue(window->application, event);
   }
+  sw_drag_contact_changed(window);
 }
 
 static void cancel_contact(SWWindow *window, SWContactEntry *entry,

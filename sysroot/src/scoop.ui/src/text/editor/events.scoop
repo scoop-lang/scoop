@@ -41,6 +41,7 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                 host.dataSource?.cancelCandidate()
                 editorStopDrag(host, false)
             }
+            case Contact(InputContactEvent.Cancelled(_, _, _)) -> host.dataSource?.cancelCandidate()
             else -> {}
         }
         return
@@ -131,6 +132,7 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
         host.invalidate(cancelContacts = false)
         host.publishNative()
     } else {
+        host.keyboard.deactivate()
         host.dataSource?.cancelCandidate()
         host.contextMenu.cancel()
         host.retireConnection()
@@ -156,6 +158,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
             if (host.connection != None && host.connection != connection)
                 return
             host.connection = None
+            host.keyboard.connectionClosed()
             host.sessionEnabled = false
             host.retiring = false
             if (host.current.ownsHost(host))

@@ -20,6 +20,7 @@ public class DragSession internal constructor(
     private var native: NativeDragSource? = None
     private var completion: ((DragResult) -> Unit)? = Some(onCompleted)
     private var pending = true
+    private var requested = false
     private var started = false
     private var queued = false
     private var closed = false
@@ -85,7 +86,7 @@ public class DragSession internal constructor(
     }
 
     private fun start() {
-        if (closed || !pending)
+        if (closed || !pending || requested)
             return
         if (
             owner.phase !=
@@ -99,7 +100,7 @@ public class DragSession internal constructor(
             cancelPending()
             return
         }
-        pending = false
+        requested = true
         try {
             native!!.start()
         } catch (error: WindowException) {
@@ -108,9 +109,10 @@ public class DragSession internal constructor(
     }
 
     internal fun nativeEvent(phase: Int, effect: Int): Int {
-        if (!owner.application.isCurrentThread() || closed || pending || queued)
+        if (!owner.application.isCurrentThread() || closed || queued)
             return 0
         if (phase == 0) {
+            pending = false
             started = true
         } else
             if (phase == 1) {
@@ -122,7 +124,18 @@ public class DragSession internal constructor(
                         else -> DragResult.NotDropped
                     }
                 )
-            }
+            } else
+                if (phase == 2) {
+                    complete(
+                        DragResult.Failed(
+                            WindowException(
+                                "start data drag",
+                                WindowErrorKind.NativeFailure,
+                                nativeCode = Some(effect.toLong())
+                            )
+                        )
+                    )
+                }
         return 0
     }
 

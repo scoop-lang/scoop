@@ -75,6 +75,9 @@ private fun copyWindowEvent(pointer: Ptr<Unit>, header: NativeEventHeader): Wind
             15 -> WindowEvent.RedrawRequested
             17 -> WindowEvent.FrameChanged
             19 -> WindowEvent.InputBlockedChanged(event.flags != 0)
+            22 -> WindowEvent.SoftwareKeyboardChanged(
+                copySoftwareKeyboard(event.flags, event.x, event.y, event.z, event.w)
+            )
             18 -> WindowEvent.FrameButtonChanged(
                 systemButtonValue(event.a.toInt()),
                 event.flags.and(1) != 0,

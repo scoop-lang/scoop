@@ -62,7 +62,8 @@ public class TooltipProps public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val style: StyleOverride = styleOverride(),
-    public val semantics: ComponentSemantics = ComponentSemantics()
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val longPress: LongPressOptions = LongPressOptions()
 ) {
     internal val input =
         HoverPopupInput(
@@ -75,7 +76,15 @@ public class TooltipProps public constructor(
             gap,
             viewportPadding,
             maxWidth,
-            HoverOptions(openDelay, closeDelay, transitDelay, corridorPadding, focus, enabled),
+            HoverOptions(
+                openDelay,
+                closeDelay,
+                transitDelay,
+                corridorPadding,
+                focus,
+                enabled,
+                longPress
+            ),
             arrow,
             handle,
             transition,
@@ -111,7 +120,8 @@ public class HoverCardProps public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val style: StyleOverride = styleOverride(),
-    public val semantics: ComponentSemantics = ComponentSemantics()
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val longPress: LongPressOptions = LongPressOptions()
 ) {
     internal val input =
         HoverPopupInput(
@@ -124,7 +134,15 @@ public class HoverCardProps public constructor(
             gap,
             viewportPadding,
             width,
-            HoverOptions(openDelay, closeDelay, transitDelay, corridorPadding, focus, enabled),
+            HoverOptions(
+                openDelay,
+                closeDelay,
+                transitDelay,
+                corridorPadding,
+                focus,
+                enabled,
+                longPress
+            ),
             arrow,
             handle,
             transition,

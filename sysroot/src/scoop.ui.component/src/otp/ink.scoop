@@ -6,6 +6,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 import scoop.window.accessibility.*
 
 internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentScope): Element<
@@ -181,5 +182,12 @@ internal fun otpOptions(input: InputOtpProps, projection: TextProjection): TextE
         drag = input.drag,
         touch = input.touch,
         touchScroll = input.touchScroll,
-        scrollPhysics = input.scrollPhysics
+        scrollPhysics = input.scrollPhysics,
+        inputPurpose =
+            input.inputPurpose ?:
+                when (input.pattern) {
+                    case Digits -> TextInputPurpose.Digits
+                    else -> TextInputPurpose.Normal
+                },
+        softwareKeyboard = input.softwareKeyboard
     )

@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.window.TextInputPurpose
 
 public enum TextTabBehavior {
     Navigate, Insert
@@ -35,7 +36,9 @@ public class TextEditOptions public constructor(
     public val drag: TextDragOptions = TextDragOptions(),
     public val touch: TextTouchOptions = TextTouchOptions(),
     public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
-    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
+    public val softwareKeyboard: Boolean = true
 ) {
     internal fun check() {
         drag.check()

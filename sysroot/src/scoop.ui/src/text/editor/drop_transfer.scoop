@@ -1,6 +1,8 @@
 package scoop.ui.text
 
 import scoop.surface.FocusOrigin
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
 import scoop.window.*
 
 internal fun editorDropSource(data: Any?): EditorTextTransfer? =
@@ -23,7 +25,12 @@ internal fun editorDropEffect(offer: DropOffer, source: EditorTextTransfer?): Dr
                 case Some(val value) -> value.canMove
                 case None -> true
             }
-    if (moving && !(offer.modifiers.alt && offer.effects.copy))
+    val copyRequested =
+        if (operatingSystem == OperatingSystem.Darwin)
+            offer.modifiers.alt
+        else
+            offer.modifiers.control
+    if (moving && !(copyRequested && offer.effects.copy))
         return Some(DragEffect.Move)
     return if (offer.effects.copy)
         Some(DragEffect.Copy)

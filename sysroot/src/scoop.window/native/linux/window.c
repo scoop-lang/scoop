@@ -246,6 +246,8 @@ void scoop_window_destroy(SWWindow *window) {
     *link = window->next;
   sw_accessibility_destroy(window);
   window->destroying = true;
+  sw_drag_window_destroy(window);
+  sw_drop_window_destroy(window);
   if (window->frame_idle)
     g_source_remove(window->frame_idle);
   free(window->hit_rects);

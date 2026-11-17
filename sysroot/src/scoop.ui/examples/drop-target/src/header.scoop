@@ -3,6 +3,8 @@ package scoop.examples.ui.drop
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
 import scoop.ui.text.*
 
 internal class DropHeader(private val props: Props<String>, scope: ComponentScope): Element<
@@ -13,10 +15,24 @@ internal class DropHeader(private val props: Props<String>, scope: ComponentScop
         ParagraphMeasurement
     > {
         val message = props.value
+        val copy =
+            if (operatingSystem == OperatingSystem.Darwin)
+                "Option"
+            else
+                "Control"
+        val shortcut =
+            if (operatingSystem == OperatingSystem.Darwin)
+                "Command C"
+            else
+                "Control C"
         val content =
             styledText {
                 text(
-                    "Left: drag text; click to paste. Right: drag URL; click to copy.\nCommand C copies the focused region. Select text in the editor to move it; hold Option to copy.\n\n" +
+                    f"Left: drag text; click to paste. Right: drag URL; click to copy.\n${
+                        shortcut
+                    } copies the focused region. Select text in the editor to move it; hold ${
+                        copy
+                    } to copy.\n\n" +
                         message
                 )
                 style { fontSize = 18.0 }

@@ -552,6 +552,8 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 TextEditOptions.contextMenu 及 TextEditHost.showContextMenu 接入原生文本菜单，模式、选区、已接受锚点、目标绑定与收尾遵守[原生菜单规范第 6 节](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。默认 PreferSystem，无可复用系统项目时使用标准原生模板；Disabled 允许调用方完全接管上下文菜单。
 
+TextEditOptions.inputPurpose／softwareKeyboard、TextEditHost.requestSoftwareKeyboard 及基于真实遮挡的 caret 显露遵守[输入用途规范](SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md#3-ui-文本宿主)。用途是输入提示，合法性仍由编辑策略决定。
+
 TextEditOptions.touch 为 TextTouchOptions(enabled=true, threshold=8, longPressDelay=Some(500 ms), multiTap=true, multiTapInterval=None)，配置直接触摸／笔尖的点击、连续短按和长按；threshold 是有限非负的窗口逻辑距离，长按时长非负，None 只关闭长按。普通 tap 在合法结束时按匹配当前文档／投影的 Accepted 布局放置 caret；长按取得原接触归属后选词并进入同一上下文菜单，具体选区策略见原生菜单规范第 6 节。移动超阈值后不恢复候选；第二触点、滚动接管、被阻止的输入、正文或绑定变化、禁用、失焦、隐藏／遮挡和卸载取消候选及 deadline。长按只执行一次，之后不补 tap；零时长仍通过 owner 的一次性 deadline，在接触尚有效时交付，不在按下回调中内联执行。
 
 multiTap 启用时，同一宿主、相同 ContactKind 的连续成功短按按开始时刻的单调时间和 threshold 内的窗口距离计数；第二次选词，第三次及以上选逻辑行，继续复用鼠标选择的文本范围和投影映射。multiTapInterval 为显式非负间隔；None 读取当前系统 doubleClickInterval，未知时使用 500 ms，设置变化使旧序列失效。计数位于 UI 的共享 ContactPress，不伪造鼠标事件，也不改变 Window 的原生鼠标连续点击计数。失败／被阻止的接触、长按、其他输入、域外接触、外部选区／正文变化和前述取消条件都打断序列；触摸选择自身的正常选区发布保留序列。新按下仍须有匹配当前正文、修订和投影的 Accepted 布局；布局变换改变旧落点时不把它计为原位置的连续短按。关闭 multiTap 只使每次成功短按放置 caret，长按及键盘／语义选择入口独立。
@@ -874,7 +876,9 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 
 ### 7.14 Hover
 
-`ComponentScope.hover(trigger, open: Binding<Boolean>, options=HoverOptions())` 借用本挂载的 trigger，返回 Hover。setContent(areas) 接入同一逻辑 owner 后代的 portal 内容区域，形成悬浮组；update 接收当前 Binding 与配置，options=None 保留当前配置。选项为 openDelay=300ms、closeDelay=150ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true，时间非负、padding 有限且非负。
+`ComponentScope.hover(trigger, open: Binding<Boolean>, options=HoverOptions())` 借用本挂载的 trigger，返回 Hover。setContent(areas) 接入同一逻辑 owner 后代的 portal 内容区域，形成悬浮组；update 接收当前 Binding 与配置，options=None 保留当前配置。选项为 openDelay=300ms、closeDelay=150ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true、longPress=LongPressOptions(enabled=false)，时间非负、padding 有限且非负。
+
+启用 longPress 时，共用 LongPress 的 Touch／Pen 候选、阈值与取消规则；成功才领取接触序列并打开同一 Binding，短按、子内容长按与父级滚动保持原有行为。长按打开后松手保持显示，直到显式 dismiss、组外按下、窗口失活／隐藏、禁用或卸载；内容区域仍属于同一组。真实鼠标重新移动时恢复普通 hover 的开关与通路规则。更换长按配置取消未完成候选，关闭该入口收束由它保持的显示，不维护第二个打开模型。
 
 组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。离开点只由位于悬浮组内的真实指针位置建立；焦点保持期间的组外指针不形成通过区域，焦点随后离开时使用普通 closeDelay。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。如果 dismiss 时组内仍有 hover／有效焦点，则抑制再次打开，直到两者都离开；更新 Props、移动鼠标或卸载内容不解除仍在触发区的抑制。之后重新进入遵守当前延迟，避免 Escape 关闭后立即重开。普通离开延迟不设置此抑制。
 

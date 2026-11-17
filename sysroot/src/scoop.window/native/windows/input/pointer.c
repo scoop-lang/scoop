@@ -33,7 +33,8 @@ static void pointer(SWWindow *window, SWPointerKind kind, POINT position,
   data->y = position.y / data->scale;
   if (kind == SWPointerLineWheel)
     sw_pointer_scroll(data, false, dx, dy, SWScrollNone, SWScrollNone);
-  if (kind == SWPointerPressed) {
+  if (kind == SWPointerPressed ||
+      (kind == SWPointerMoved && (window->input.pressed_buttons & 1))) {
     event->native_input = true;
     event->input_position = position;
     ClientToScreen(window->hwnd, &event->input_position);
@@ -46,8 +47,10 @@ bool sw_pointer_message(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
   *result = 0;
   // Preserve the native compatibility-message path without duplicating UI
   // input.
-  if (sw_compat_mouse_message(msg))
-    return false;
+  if (sw_compat_mouse_message(msg)) {
+    sw_drag_promoted_mouse(window, msg, wp);
+    return true;
+  }
   POINT position = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
   switch (msg) {
   case WM_CAPTURECHANGED:

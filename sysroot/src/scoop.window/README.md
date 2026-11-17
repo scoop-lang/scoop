@@ -156,21 +156,23 @@ Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 
 
 `periodicUpdates` 默认 false；设为 true 后，AppKit 在活动拖放期间继续请求 draggingUpdated，使内容或 Accepted 场景变化可以更新静止指针下的选择。禁用或关闭目标时不请求；切换此选项本身不撤销当前协商，也不创建空闲轮询。
 
-正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。UI 已通过 scope.dropTarget 接到自己的 Accepted 输入路由，见 [UI 接收示例](../scoop.ui/examples/drop-target/README.md)。UI source、文本事务、Windows／Linux 和真实系统会话继续按交互打磨 S6 实现，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
+正式合同见[数据拖放规范](../../../docs/specs/SCOOP-WINDOW-DRAG-DROP-SPEC.md)，使用、协商与生命周期用例见[拖放测试 Cone](tests-cones/drag-drop/README.md)。UI 已通过 scope.dropTarget 接到自己的 Accepted 输入路由，见 [UI 接收示例](../scoop.ui/examples/drop-target/README.md)。UI source、文本事务与 Windows／Linux 公共后端已接入，目标平台与真实系统会话继续按交互打磨计划验收，进程内 NSDraggingDestination 方法测试不能代表跨程序拖放已通过。
 
 ## 发起原生数据拖放
 
-macOS 的 `window.beginDrag(content, effects = DragEffects(true, false, false), localData = None, onCompleted = {})` 只能在该窗口当前左键 Down 或 Dragged 的 owner 派发中调用，上层负责阈值。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。localData 用于同程序实际来源关联，保留普通引用，不编码或传给外部程序。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。
+`window.beginDrag(content, effects = DragEffects(true, false, false), localData = None, onCompleted = {})` 只在当前真实鼠标或支持的 Touch／Pen owner 派发中调用，上层负责阈值。Windows 的直接接触请求等真实系统兼容鼠标消息到达才启动，等待期间仍可取消；GTK 保留真实 GdkEvent／device，macOS 使用左键 Down／Dragged。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。localData 用于同程序实际来源关联，保留普通引用，不编码或传给外部程序。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。
 
 DragSession.effects 可以调整后续协商，只能使用创建时提供过的操作，允许暂时为空；已有结果或关闭后不能更新。正文变化后可撤销 Move 资格，native getter 不进入 Scoop。目标已经报告的 Move 不会被后来的 effects 更新改写成取消，来源仍须核对并报告删除结果。
 
-准备成功后取消普通鼠标序列，并在已有延迟原生操作边界启动系统会话。返回的 DragSession 提供 isStarted、result、isClosed；结果为 Dropped(effect)、NotDropped 或 Failed(error)。onCompleted 在普通 owner 队列交付一次，登记和原生回调先退休。Dropped(Move) 只表示目标接受 Move，Window 不删源；实际文档或文件业务必须独立确认自己的版本和完成条件。
+准备成功后结束普通鼠标和接触路由，并在已有延迟原生操作边界启动系统会话。返回的 DragSession 提供 isStarted、result、isClosed；结果为 Dropped(effect)、NotDropped 或 Failed(error)。onCompleted 在普通 owner 队列交付一次，登记和原生回调先退休。Dropped(Move) 只表示目标接受 Move，Window 不删源；实际文档或文件业务必须独立确认自己的版本和完成条件。
 
 `cancelPending()` 只取消未启动请求，返回 true 并产生 NotDropped；已启动返回 false。`close()` 撤销未来回调，关窗自动调用。AppKit 没有公开强制取消接口，关闭已启动资源时 native 继续持有系统使用的数据直到真实结束，清除 Scoop context；未知结果保持 None，也不会再触发来源删除。源窗口失活本身不取消跨程序拖放。
 
 完整两窗口消费者见 [drag-drop 示例](examples/drag-drop/README.md)，原生 item 与准备通路测试见 [drag_source.scoop](tests/drag_source.scoop)。完成状态机的替身测试单独标明；系统拖动、外部程序和关闭中继续拖放的实际结果仍需桌面验收。
 
 ## 文本输入
+
+`setTextInputPurpose(connection, TextInputPurpose.Email)` 等提示沿当前文本连接交给平台，不能替代应用字符策略；受保护编辑器应使用 Password。`requestSoftwareKeyboard(connection, visible = true)` 返回 Requested、Unavailable 或 Unsupported，不请求系统前台激活；Requested 仅表示平台接受请求。`softwareKeyboard` 和 `WindowEvent.SoftwareKeyboardChanged` 区分未知、隐藏、显示但未遮挡、实际窗口逻辑遮挡矩形。Windows 使用 InputScope／InputPane，GTK 使用 input-purpose／activate_osk（没有通用隐藏与遮挡查询），macOS 返回 Unsupported／Unknown。详见[输入用途规范](../../../docs/specs/SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md)。
 
 `ActiveApplication.clipboard`／`Window.clipboard` 提供系统文本剪贴板：`readText(mediaType = "text/plain")` 返回 `String?`，没有该格式为 None，已有空文本为 Some("")；`writeText(text)` 替换为标准纯文本。`writeTexts` 同时发布同一项内容的多个文本表示，例如所见文字和可继续编辑的 Markdown：
 

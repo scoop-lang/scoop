@@ -28,7 +28,11 @@ internal class SelectableDragSource(
             host.options.drag.effects.copy &&
             textDragAllowed(host.options.drag, host.options.copy)
     private fun options(): DragSourceOptions =
-        DragSourceOptions(host.options.drag.threshold, enabled)
+        DragSourceOptions(
+            host.options.drag.threshold,
+            enabled,
+            contacts = host.options.touch.enabled
+        )
 
     private fun valid(candidate: SelectableDragCandidate): Boolean =
         enabled && candidate.content === host.content && candidate.selection == host.selection
@@ -56,6 +60,53 @@ internal class SelectableDragSource(
         if (closed)
             return false
         when (event) {
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (context.phase != RoutedPhase.Default)
+                    return false
+                pending = None
+                if (
+                    !enabled ||
+                        !binding.hasContactCandidate(value.id) ||
+                        value.pointer.modifiers.shift ||
+                        host.touchHandles.contact?.start?.id ==
+                        Some(value.id)
+                )
+                    return false
+                val point = context.localPosition ?: return false
+                val frame = host.inputFrame() ?: return false
+                val range = host.selection.range
+                if (frame.content !== host.content || range.start == range.end)
+                    return false
+                var inside = false
+                for (box in frame.layout.selection(TextRange(range.start, range.end)))
+                    if (textMenuContains(box.rect, point)) {
+                        inside = true
+                        break
+                    }
+                if (!inside)
+                    return false
+                pending = Some(SelectableDragCandidate(host))
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (context.phase != RoutedPhase.Default)
+                    return false
+                val candidate = pending ?: return false
+                if (
+                    !valid(candidate) ||
+                        !binding.hasContactCandidate(value.id) ||
+                        host.touchHandles.contact?.start?.id !=
+                        None
+                ) {
+                    pending = None
+                    return false
+                }
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Ended(_)) -> {
+                pending = None
+                return false
+            }
             case Pointer(
                 InputPointerEvent.Button(
                     val pointer,
@@ -119,6 +170,15 @@ internal class SelectableDragSource(
         }
     }
 
+    private fun advanceContact(context: RoutedEventContext, event: InputEvent): Boolean {
+        binding.handle(context, event)
+        if (!binding.isDragging)
+            return false
+        host.touchPress.cancel()
+        host.touchHandles.hide()
+        return true
+    }
+
     private fun hasCandidate(): Boolean =
         when (pending) {
             case Some(_) -> true
@@ -128,7 +188,7 @@ internal class SelectableDragSource(
     private fun prepare(start: DragSourceStart): DragSourceData? {
         val candidate = pending ?: return None
         pending = None
-        if (!valid(candidate) || start.press.state.modifiers.shift)
+        if (!valid(candidate) || start.press.modifiers.shift)
             return None
         val frame = host.inputFrame() ?: return None
         if (!(frame.content === candidate.content))

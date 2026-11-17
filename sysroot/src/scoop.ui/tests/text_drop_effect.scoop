@@ -1,0 +1,65 @@
+package scoop.ui.text
+
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class TextDropEffectTest {
+    @Test
+    fun `text drop copy modifier follows the host and never selects an unavailable operation`() {
+        for (alt in [false, true])
+            for (control in [false, true]) {
+                val modifiers =
+                    Modifiers(
+                        false,
+                        control,
+                        alt,
+                        false,
+                        false,
+                        false,
+                        ModifierSides(None, None),
+                        ModifierSides(None, None),
+                        ModifierSides(None, None),
+                        ModifierSides(None, None)
+                    )
+                val copy =
+                    if (operatingSystem == OperatingSystem.Darwin)
+                        alt
+                    else
+                        control
+                val both = effectOffer(modifiers, DragEffects(true, true, false))
+                assertEquals(
+                    Some(
+                        if (copy)
+                            DragEffect.Copy
+                        else
+                            DragEffect.Move
+                    ),
+                    editorDropEffect(both, None)
+                )
+                assertEquals(
+                    Some(DragEffect.Copy),
+                    editorDropEffect(effectOffer(modifiers, DragEffects(true, false, false)), None)
+                )
+                assertEquals(
+                    Some(DragEffect.Move),
+                    editorDropEffect(effectOffer(modifiers, DragEffects(false, true, false)), None)
+                )
+                assertEquals(
+                    None,
+                    editorDropEffect(effectOffer(modifiers, DragEffects(false, false, true)), None)
+                )
+            }
+    }
+}
+
+private fun effectOffer(modifiers: Modifiers, effects: DragEffects): DropOffer =
+    DropOffer(
+        DragFormats(true, false, false),
+        effects,
+        LogicalPosition(10.0, 20.0),
+        modifiers,
+        false
+    )

@@ -20,18 +20,6 @@ path = "native/text_semantics_geometry.cpp"
 path = "src"
 when = { os = ["darwin", "windows"] }
 
-[[sources]]
-path = "platform/darwin"
-when = { os = "darwin" }
-
-[[sources]]
-path = "platform/without-drag"
-when = { os = "windows" }
-
-[[sources]]
-path = "platform/without-drag"
-when = { os = "linux", env = "gnu" }
-
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
@@ -216,3 +204,27 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/scroll_inertia.scoop"
 when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drop_effect.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drop_effect.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/keyboard_reveal.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/keyboard_reveal.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_input_purpose.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_input_purpose.scoop"
+when = { os = "linux", env = "gnu" }

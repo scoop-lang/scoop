@@ -31,6 +31,7 @@ internal fun createEditorSelectionHandles(host: TextEditHost): TextSelectionHand
         },
         {
             editorStopDrag(host, false)
+            host.keyboard.touch()
             host.touchPress.cancel()
             host.touchPan.cancel()
             host.focus.node.root.focus.cancel(host.focus)

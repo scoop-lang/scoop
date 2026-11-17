@@ -85,7 +85,9 @@ internal fun <T: Equals<T>> comboEditor(
                 field.scrollPhysics,
                 Some(
                     TextFieldExpansion(control.open.value, { value -> control.semanticOpen(value) })
-                )
+                ),
+                field.inputPurpose,
+                field.softwareKeyboard
             ),
             { current, mount -> Input(current, scope = mount) }
         )

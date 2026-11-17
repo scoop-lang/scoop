@@ -1,0 +1,108 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.math.max
+import scoop.math.min
+
+/** Retains only the scroll insets needed by one active editor and actual OS overlap. */
+internal class KeyboardReveal(val occlusion: Rect): Closeable {
+    private val viewports = ArrayList<ScrollViewport>()
+    private var live = true
+    val active: Boolean get() = live
+
+    fun prepare(boundary: ScrollReveal, caret: Rect): Boolean {
+        if (!active)
+            return false
+        if (intersectReveal(caret, occlusion) == None)
+            return false
+        val localCaret = localReveal(boundary.geometry, caret) ?: return false
+        val localKeyboard = localReveal(boundary.geometry, occlusion) ?: return false
+        val padding =
+            keyboardRevealPadding(
+                boundary.layout.snapshot.viewport,
+                boundary.layout.basePadding,
+                localCaret,
+                localKeyboard
+            ) ?:
+                return false
+        if (!boundary.viewport.setKeyboardPadding(padding))
+            return false
+        var present = false
+        for (viewport in viewports)
+            if (viewport === boundary.viewport)
+                present = true
+        if (!present)
+            viewports.add(boundary.viewport)
+        return true
+    }
+
+    public override fun close() {
+        live = false
+        for (viewport in viewports)
+            viewport.setKeyboardPadding(ScrollPadding())
+        viewports.clear()
+    }
+}
+
+/** Uses real free rectangles, including all four sides of a floating keyboard. */
+internal fun keyboardRevealPadding(
+    viewport: Size,
+    base: ScrollPadding,
+    caret: Rect,
+    keyboard: Rect
+): ScrollPadding? {
+    val bounds =
+        Rect(
+            base.left,
+            base.top,
+            max(0.0, viewport.width - base.left - base.right),
+            max(0.0, viewport.height - base.top - base.bottom)
+        )
+    val covered = intersectReveal(bounds, keyboard) ?: return None
+    if (intersectReveal(caret, covered) == None)
+        return None
+    val right = bounds.x + bounds.width
+    val bottom = bounds.y + bounds.height
+    val strips =
+        [
+            Rect(bounds.x, bounds.y, bounds.width, covered.y - bounds.y),
+            Rect(
+                bounds.x,
+                covered.y + covered.height,
+                bounds.width,
+                bottom - covered.y - covered.height
+            ),
+            Rect(bounds.x, bounds.y, covered.x - bounds.x, bounds.height),
+            Rect(
+                covered.x + covered.width,
+                bounds.y,
+                right - covered.x - covered.width,
+                bounds.height
+            )
+        ]
+    var selected: Rect? = None
+    var distance = 0.0
+    for (strip in strips) {
+        if (strip.width < caret.width || strip.height < caret.height)
+            continue
+        val x = min(max(caret.x, strip.x), strip.x + strip.width - caret.width)
+        val y = min(max(caret.y, strip.y), strip.y + strip.height - caret.height)
+        val moved = abs(x - caret.x) + abs(y - caret.y)
+        if (selected == None || moved < distance) {
+            selected = Some(strip)
+            distance = moved
+        }
+    }
+    return when (selected) {
+        case Some(val value) -> Some(
+            ScrollPadding(
+                value.x,
+                value.y,
+                max(0.0, viewport.width - value.x - value.width),
+                max(0.0, viewport.height - value.y - value.height)
+            )
+        )
+        case None -> None
+    }
+}

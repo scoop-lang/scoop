@@ -19,7 +19,7 @@ static inline SWContactEntry *sw_contact_find(SWContactEntry *head,
 
 static inline SWContactEntry *sw_contact_add(SWContactEntry **head,
                                              SWContactData data) {
-  SWContactEntry *entry = malloc(sizeof(*entry));
+  SWContactEntry *entry = (SWContactEntry *)malloc(sizeof(*entry));
   if (entry) {
     *entry = (SWContactEntry){data, *head};
     *head = entry;

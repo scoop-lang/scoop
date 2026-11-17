@@ -296,5 +296,7 @@ internal fun groupInputProps(
         input.drag,
         input.touch,
         input.touchScroll,
-        input.scrollPhysics
+        input.scrollPhysics,
+        inputPurpose = input.inputPurpose,
+        softwareKeyboard = input.softwareKeyboard
     )

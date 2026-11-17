@@ -368,7 +368,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             ) {
                 host.revealNeeded = false
                 when (caret) {
-                    case Some(val rect) -> host.focus.reveal(rect)
+                    case Some(val rect) -> host.keyboard.reveal(rect)
                     case None -> {}
                 }
             }

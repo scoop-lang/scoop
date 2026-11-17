@@ -32,6 +32,7 @@ internal fun selectableHandle(
                 host.dataSource?.cancelCandidate()
                 selectableStopDrag(host)
             }
+            case Contact(InputContactEvent.Cancelled(_, _, _)) -> host.dataSource?.cancelCandidate()
             else -> {}
         }
         return

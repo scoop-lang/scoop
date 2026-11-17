@@ -122,19 +122,25 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 ## 数据拖放
 
-macOS 的 `scope.dropTarget(area, DropAreaHandlers(offer, drop, leave), enabled = true)` 在当前挂载借用已有 InputArea，返回随 scope 关闭的 DropArea；同一区域同时只登记一个。offer／drop 的首参数复用 Window 的元数据／自有内容，第二参数为区域局部坐标。offer 只选择实际提供的格式与操作；drop 的 Boolean 表示已经实际接收，不能先排队再返回 true。
+本节公共接口适用于 macOS、Windows 和 Linux GNU，分别接入 AppKit、OLE 与 GTK。`DragSourceOptions(mouse = true, contacts = true)` 独立控制鼠标和 Touch／Pen；`DragSourceStart.press`／`pointer` 为原始与当前 PointerState，`input` 保留 Mouse 或 Contact 的真实身份。直接接触达到阈值才准备数据，第二触点或其他行为接管会取消候选。文本的选区拖出复用这一入口，端点把手、短按与滚动保持自己的归属。
+
+`scope.dropTarget(area, DropAreaHandlers(offer, drop, leave), enabled = true)` 在当前挂载借用已有 InputArea，返回随 scope 关闭的 DropArea；同一区域同时只登记一个。offer／drop 的首参数复用 Window 的元数据／自有内容，第二参数为区域局部坐标。offer 只选择实际提供的格式与操作；drop 的 Boolean 表示已经实际接收，不能先排队再返回 true。
 
 每个 UI 根只有一个原生接收资源，沿自己的 Accepted 命中路径由子目标向逻辑父目标协商；拒绝不穿透无关兄弟。Drop 再确认目标、处理器、格式和局部落点，只调用选中的一个处理器，拒收不再向父目标转交。`DropArea.update` 替换处理器和 enabled，读取期间变化使旧提案失效。关闭 DropArea 不关闭所借区域，卸载自动清理，退休处理器不再接收 leave。
 
 `hover: DropHover?` 提供当前接收格式、操作与局部位置，可以在 render 或 scene 读取来绘制反馈。目标变化和正常结束清除旧值并通知仍存活目标；禁用后的 leave 在正常 UI 收尾时执行。UI 使用 AppKit 的活动拖放更新重新查询几何；无活动会话时不为拖放建立 timer 或持续请求帧。
 
-macOS 的 `scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, localData = None, onCompleted = ...))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。localData 沿 Window 的真实来源关联供本进程接收者使用。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 InputPointer 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。
+`scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, localData = None, onCompleted = ...))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。localData 沿 Window 的真实来源关联供本进程接收者使用。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 PointerState 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。
 
 DragSource.update 替换下一次准备的配置／函数；每份数据的 onCompleted 保留自己的来源，先清除 isDragging 再回到本根业务派发。默认只提供 Copy；需要 Move 时在准备中捕获原模型及修订，收到 Dropped(Move) 后核对原内容仍可删除。库不替业务删除数据。isDragging 包含尚未启动的准备状态，cancelPending 只撤销候选或未启动请求；关闭行为撤销完成回调，AppKit 活动会话的数据按系统生命周期保留。
 
-接口及边界见[UI 数据拖放规范](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md)，完整消费者见[双窗口拖放示例](examples/drop-target/README.md)。示例把文本／URL 拖出、复制／粘贴、键盘／语义 Press 和接收写入同一状态。逻辑测试见 [drop_routing.scoop](tests/drop_routing.scoop) 和 [drag_source.scoop](tests/drag_source.scoop)，Accepted 来源接入见 [drag-source 测试](tests-cones/drag-source/README.md)。文本编辑事务、其他平台和三个范围的真实系统会话继续按 S6 推进，分层测试不能替代实窗验收。
+接口及边界见[UI 数据拖放规范](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md)，完整消费者见[双窗口拖放示例](examples/drop-target/README.md)。示例把文本／URL 拖出、复制／粘贴、键盘／语义 Press 和接收写入同一状态。逻辑测试见 [drop_routing.scoop](tests/drop_routing.scoop) 和 [drag_source.scoop](tests/drag_source.scoop)，Accepted 来源接入见 [drag-source 测试](tests-cones/drag-source/README.md)。三个范围的真实系统会话与目标平台验收继续按 S6 推进，分层测试不能替代实窗验收。
 
 ## 自绘与资源
+
+`TextEditOptions.inputPurpose` 使用 Window 的 Normal／Digits／Decimal／Email／Url／Telephone／Password／Search 提示；它不校验文本，受保护宿主始终发布 Password。`softwareKeyboard` 默认 true，成功触摸定位只请求一次键盘；`host.requestSoftwareKeyboard()` 可显式请求并区分 Requested／Unavailable／Unsupported。外侧命中区可用 `host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)`，连接尚未就绪时保留一次自动请求。Windows 的实际键盘遮挡沿原 Accepted 滚动路径显露 caret，浮动键盘选择最近可用侧；不猜测其他平台的遮挡。
+
+`HoverOptions.longPress` 默认关闭；启用后触摸／笔长按打开同一 Binding，释放后保持，组外按下或原关闭路径收束。Tooltip／HoverCard 默认启用此入口。它复用 LongPress 的取消与子内容优先规则，短按仍由原控件处理。完整消费者见[触摸输入示例](../scoop.ui.component/examples/touch-input/README.md)。
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
 
@@ -279,7 +285,7 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 
-macOS 的 TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOptions(acceptDrops = false)` 单独关闭接收。`drag = TextDragOptions(enabled = false)` 单独关闭选区拖出；该选项也配置阈值、Copy／Move、copyPolicy 和 onCompleted。默认导出遵守复制及 protectedText／遮罩限制，只读和 SelectableTextHost 仅导出 Copy。选区内按下延迟定位，阈值后才准备数据；普通拖选、多击和键盘路径继续可用。
+TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOptions(acceptDrops = false)` 单独关闭接收。`drag = TextDragOptions(enabled = false)` 单独关闭选区拖出；该选项也配置阈值、Copy／Move、copyPolicy 和 onCompleted。默认导出遵守复制及 protectedText／遮罩限制，只读和 SelectableTextHost 仅导出 Copy。选区内按下延迟定位，阈值后才准备数据；普通拖选、多击和键盘路径继续可用。
 
 `TextEditOptions.touch` 与 `SelectableTextOptions.touch` 接收 `scoop.ui.text.TextTouchOptions`，默认允许直接触摸／笔尖短按定位、连续二／三击选择和 500 ms 长按选词。`threshold` 使用窗口逻辑距离，默认 8；`longPressDelay = None` 只关闭长按，`enabled = false` 关闭文本触摸选择。长按进入同一个原生文本菜单，保留现有选区方向及复制／保护策略；菜单 mode=Disabled 时仍可选词。行内链接短按激活动作，长按选词，滚动接管后两者都不会补触发。
 

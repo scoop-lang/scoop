@@ -726,3 +726,51 @@ when = { os = "linux", env = "gnu" }
 [[native.sources]]
 path = "native/linux/accessibility/text_geometry.cpp"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/windows/drag_data.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/drag.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/drop.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/drag_data.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/drag.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/drop.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/software_keyboard.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/software_keyboard.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/text_purpose.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/software_keyboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/software_keyboard.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/software_keyboard.scoop"
+when = { os = "linux", env = "gnu" }

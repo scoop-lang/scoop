@@ -7,7 +7,9 @@ SWResult scoop_window_input_copy(SWEvent *event) {
   if (!input)
     return (SWResult){NULL, ENOMEM};
   *input =
-      (SWNativeInput){event->header.window, gdk_event_ref(event->native_input)};
+      (SWNativeInput){event->header.window, gdk_event_ref(event->native_input),
+                      event->header.kind,
+                      event->header.kind == SWContact ? event->contact.id : 0};
   return (SWResult){input, 0};
 }
 void scoop_window_input_release(SWNativeInput *input) {

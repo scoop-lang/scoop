@@ -1,10 +1,13 @@
 #include "../window.h"
 #include <math.h>
 
-static void enqueue_contact(SWWindow *window, SWContactData data) {
+static void enqueue_contact(SWWindow *window, SWContactData data,
+                            GdkEvent *native) {
   SWEvent *event = sw_event(window, SWContact);
   if (event) {
     event->contact = data;
+    if (native && data.phase != SWContactCancelled)
+      event->native_input = gdk_event_ref(native);
     sw_enqueue(window->application, event);
   }
 }
@@ -15,7 +18,7 @@ static void cancel_contact(SWWindow *window, SWContactEntry *entry,
   sw_contact_remove(&window->input.contacts, entry);
   data.phase = SWContactCancelled;
   data.cancel_reason = reason;
-  enqueue_contact(window, data);
+  enqueue_contact(window, data, NULL);
 }
 
 void sw_cancel_contacts(SWWindow *window, int reason) {
@@ -133,7 +136,7 @@ static gboolean contact_event(GtkEventControllerLegacy *controller,
     entry->data = data;
   if (ended)
     sw_contact_remove(&window->input.contacts, entry);
-  enqueue_contact(window, data);
+  enqueue_contact(window, data, event);
   return TRUE;
 }
 

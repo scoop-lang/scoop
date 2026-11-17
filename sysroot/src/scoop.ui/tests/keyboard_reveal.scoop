@@ -1,0 +1,105 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class KeyboardRevealTest {
+    @Test
+    fun `docked keyboards leave a reachable caret margin without changing the body`() {
+        val viewport = Size(400.0, 600.0)
+        val caret = Rect(40.0, 500.0, 2.0, 20.0)
+        val padding =
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(),
+                caret,
+                Rect(0.0, 350.0, 400.0, 250.0)
+            )!!
+        assertEquals(ScrollPadding(bottom = 250.0), padding)
+        val snapshot = ScrollSnapshot(Point(0.0, 0.0), viewport, Size(400.0, 850.0), padding)
+        assertEquals(Size(400.0, 600.0), snapshot.bodySize)
+        assertEquals(Point(0.0, 170.0), snapshot.revealedOffset(caret))
+        assertEquals(
+            None,
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(),
+                Rect(40.0, 280.0, 2.0, 20.0),
+                Rect(0.0, 350.0, 400.0, 250.0)
+            )
+        )
+    }
+    @Test
+    fun `floating keyboards select the nearest usable side and preserve existing insets`() {
+        val viewport = Size(400.0, 600.0)
+        val keyboard = Rect(100.0, 200.0, 200.0, 200.0)
+        assertEquals(
+            Some(ScrollPadding(right = 300.0)),
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(),
+                Rect(101.0, 280.0, 2.0, 20.0),
+                keyboard
+            )
+        )
+        assertEquals(
+            Some(ScrollPadding(left = 300.0)),
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(),
+                Rect(295.0, 280.0, 2.0, 20.0),
+                keyboard
+            )
+        )
+        assertEquals(
+            Some(ScrollPadding(bottom = 400.0)),
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(),
+                Rect(190.0, 201.0, 2.0, 20.0),
+                keyboard
+            )
+        )
+        assertEquals(
+            Some(ScrollPadding(top = 400.0)),
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(),
+                Rect(190.0, 385.0, 2.0, 20.0),
+                keyboard
+            )
+        )
+        assertEquals(
+            Some(ScrollPadding(left = 8.0, top = 6.0, right = 12.0, bottom = 250.0)),
+            keyboardRevealPadding(
+                viewport,
+                ScrollPadding(8.0, 6.0, 12.0, 14.0),
+                Rect(20.0, 500.0, 2.0, 20.0),
+                Rect(-20.0, 350.0, 440.0, 400.0)
+            )
+        )
+    }
+    @Test
+    fun `fully covered or disjoint viewports cannot create a repeated reveal`() {
+        val viewport = Size(100.0, 80.0)
+        val caret = Rect(30.0, 30.0, 2.0, 20.0)
+        assertEquals(
+            None,
+            keyboardRevealPadding(viewport, ScrollPadding(), caret, Rect(0.0, 0.0, 100.0, 80.0))
+        )
+        assertEquals(
+            None,
+            keyboardRevealPadding(viewport, ScrollPadding(), caret, Rect(110.0, 0.0, 80.0, 80.0))
+        )
+        assertEquals(
+            None,
+            keyboardRevealPadding(viewport, ScrollPadding(), caret, Rect(0.0, 10.0, 100.0, 65.0))
+        )
+        val reveal = KeyboardReveal(Rect(0.0, 0.0, 100.0, 80.0))
+        val attempt = RevealAttempt(Some(reveal))
+        reveal.close()
+        reveal.close()
+        assertEquals(RevealProgress.Cancelled, attempt.advance([], caret, true))
+    }
+}

@@ -1,0 +1,181 @@
+package scoop.tests.ui.chart
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.sendNativeContact
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ChartContactTest {
+    @Test
+    fun `touch and pen select chart data without hover and cancelled drags do not select`() {
+        val p = ChartContactProbe()
+        try {
+            context(p.theme) {
+                UiHost { host, active, event -> p.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(p.finished)
+        } finally {
+            p.fonts.close()
+        }
+    }
+}
+
+internal class ChartContactProbe {
+    val theme =
+        ThemeSource(shadcnTheme { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val selection = state<ChartSelection?>(None)
+    val model = ChartModel(chartData())
+    var ready = false
+    var finished = false
+    private var native: Window? = None
+    private var stage = 0
+    private var received = 0
+    private var expected = 0
+    private var queued = false
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    private fun send(id: Long, phase: Int, x: Double = 200.0, pen: Boolean = false) {
+        expected += 1
+        @Unsafe
+        {
+            native!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, val view) -> sendNativeContact(
+                            view,
+                            id,
+                            if (pen)
+                                1
+                            else
+                                0,
+                            phase,
+                            x,
+                            150.0
+                        )
+                    }
+                }
+            }
+        }
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop chart contact test"
+                            size = LogicalSize(420.0, 300.0)
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                native = Some(window)
+                host.attach(window, { scope -> ChartContactRoot(this, scope) })
+                window.setVisible(true)
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case AboutToWait -> if (ready && !finished && !queued && received >= expected) {
+                queued = true
+                active.proxy().post {
+                    application ->
+                    queued = false
+                    advance(application)
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"chart contact timeout at ${stage}"))
+            else -> {}
+        }
+    }
+    private fun advance(active: ActiveApplication) {
+        when (stage) {
+            case 0 -> {
+                send(1L, 0);
+                send(1L, 2)
+            }
+            case 1 -> {
+                assertTrue(selection.value != None);
+                selection.value = None
+            }
+            case 2 -> {
+                send(2L, 0);
+                send(2L, 1, 250.0);
+                send(2L, 2)
+            }
+            case 3 -> {
+                assertEquals(None, selection.value);
+                send(3L, 0, pen = true);
+                send(3L, 2, pen = true)
+            }
+            case 4 -> {
+                assertTrue(selection.value != None);
+                selection.value = None
+            }
+            case 5 -> {
+                send(4L, 0);
+                send(5L, 0, 202.0);
+                send(4L, 2);
+                send(5L, 2, 202.0)
+            }
+            else -> {
+                assertEquals(None, selection.value)
+                finished = true
+                active.requestExit()
+            }
+        }
+        stage += 1
+    }
+}
+
+private class ChartContactRoot(private val p: ChartContactProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val probe = p
+        val chart =
+            chart(probe.model) {
+                active = Some(probe.selection.binding())
+                fonts = Some(probe.fonts)
+                height = Some(300.0)
+            }
+        return element({ mount -> ChartContactFrame(p, mount) }, [chart])
+    }
+}
+
+private class ChartContactFrame(private val p: ChartContactProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.ready = true
+        }
+    }
+}

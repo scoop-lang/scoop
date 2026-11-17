@@ -1,10 +1,10 @@
 # Scoop UI 数据拖放
 
-本文为交互打磨 S6 的 UI 数据拖放合同，复用 [Window 数据拖放](SCOOP-WINDOW-DRAG-DROP-SPEC.md)与 [Surface 命中](SCOOP-SURFACE-SPEC.md#6-区域输入与焦点)。触摸来源和三平台系统会话继续按[统一计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)实现。
+本文为交互打磨 S6／S8 的 UI 数据拖放合同，复用 [Window 数据拖放](SCOOP-WINDOW-DRAG-DROP-SPEC.md)与 [Surface 命中](SCOOP-SURFACE-SPEC.md#6-区域输入与焦点)。三平台共用 UI source、target 和文本事务；实际系统会话与设备结果仍按[统一计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)分别记录。
 
 ## 1. 接收区域
 
-Darwin 的 `ComponentScope.dropTarget(area: InputArea, handlers: DropAreaHandlers, enabled: Boolean = true): DropArea` 在当前挂载登记接收行为。area 必须属于该挂载；同一区域同时只登记一个。借用已有 InputArea，不新增命中树、不取得焦点或普通鼠标 capture。scope 自动关闭行为，关闭行为不关闭借用的 area。每个 UI 根按需创建一个 Window DropTarget，根关闭时撤销原生登记。
+`ComponentScope.dropTarget(area: InputArea, handlers: DropAreaHandlers, enabled: Boolean = true): DropArea` 在当前挂载登记接收行为。area 必须属于该挂载；同一区域同时只登记一个。借用已有 InputArea，不新增命中树、不取得焦点或普通鼠标 capture。scope 自动关闭行为，关闭行为不关闭借用的 area。每个 UI 根按需创建一个 Window DropTarget，根关闭时撤销原生登记。
 
 DropAreaHandlers 保存 offer: (DropOffer, Point) -> DropDecision、drop: (DropRequest, Point) -> Boolean 和 leave: () -> Unit = {}。Window offer／request 的位置仍为窗口坐标；第二个参数为区域局部坐标。offer 仅协商元数据，不读取正文，不修改业务集合；drop 接收已复制的实际数据，true 只表示已实际接受。
 
@@ -20,13 +20,13 @@ offer 同步写入反馈值并安排后续 UI 更新，不在查询中重建控�
 
 Drop 重新确认实际命中、坐标、选中区域、处理器修订、格式和操作。读取期间更新处理器、关闭区域、改变落点或使其退出当前输入范围，均拒绝旧提案；不将旧落点应用到新目标。只有一个 drop 处理器接收数据，拒收不在 Drop 阶段改投父目标。接受后自身或根关闭仍保留 true 的实际结果。Root 的错误收尾和回调隔离复用 SurfaceWindow.dispatch，忙于 UI 派发／评估时拒绝同步原生进入，不 pump 或等待自身队列。
 
-UI 根请求 AppKit 的周期 draggingUpdated，在活动拖放期间继续使用当前 Accepted 路由／局部落点更新或撤下反馈；Discarded 不采用新几何。没有活动 offer 时不为拖放请求帧或 timer，没有登记区域时禁用原生接收。外部系统的光标与拖放图像仍由 OS 拥有，UI 不重复绘制原生光标。
+UI 根请求 Window 的周期拖放更新，在活动拖放期间继续使用当前 Accepted 路由／局部落点更新或撤下反馈；Discarded 不采用新几何。没有活动 offer 时不为拖放请求帧或 timer，没有登记区域时禁用原生接收。外部系统的光标与拖放图像仍由 OS 拥有，UI 不重复绘制原生光标。
 
 ## 3. 拖出区域
 
-Darwin 的 ComponentScope.dragSource(area, options = DragSourceOptions(), prepare): DragSource 借用本挂载的 InputArea，作用域退休时自动关闭；不创建第二份输入区域或路由。DragSourceOptions(threshold = 4.0, enabled = true) 的阈值为有限非负窗口逻辑距离，任一轴达到阈值即可开始，窗口缩放不重复应用。零阈值允许在按下的默认阶段开始。普通数据拖出只考虑非上下文菜单的左键单击；多击继续由文本选择等原行为处理。
+ComponentScope.dragSource(area, options = DragSourceOptions(), prepare): DragSource 借用本挂载的 InputArea，作用域退休时自动关闭；不创建第二份输入区域或路由。DragSourceOptions(threshold = 4.0, enabled = true) 的阈值为有限非负窗口逻辑距离，任一轴达到阈值即可开始，窗口缩放不重复应用。零阈值允许在按下的默认阶段开始。普通数据拖出只考虑非上下文菜单的左键单击；多击继续由文本选择等原行为处理。
 
-prepare: (DragSourceStart) -> DragSourceData? 只在达到阈值且默认动作仍有资格时调用一次。DragSourceStart 保存当前 Accepted 几何下的区域局部 start／position，以及原始 press 和当前 pointer 两个 InputPointer；正文准备可据此核对原按下位置、修饰键和当前业务状态。按下时只记录候选，不读取数据或消费点击。prepare 返回 None 时放弃该候选，不接管普通点击，祖先默认动作仍可继续；下一次按下可重新尝试。准备回调中更新、禁用或关闭该行为，会撤销本次准备。
+prepare: (DragSourceStart) -> DragSourceData? 只在达到阈值且默认动作仍有资格时调用一次。DragSourceStart 保存当前 Accepted 几何下的区域局部 start／position、原始 press 和当前 pointer 两个 PointerState，以及真实来源 input: DragInput。正文准备可据此核对原按下位置、时间、修饰键和当前业务状态。按下时只记录候选，不读取数据或消费点击。prepare 返回 None 时放弃该候选，不接管普通点击，祖先默认动作仍可继续；下一次按下可重新尝试。准备回调中更新、禁用或关闭该行为，会撤销本次准备。
 
 DragSourceData(content: DragContent, effects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}) 描述本次具体数据和结果处理。localData 沿 Window 的真实来源关联传给同程序接收端，不写入原生数据表示。普通属性更新为下一次准备替换闭包；已准备数据的 onCompleted 始终与该次来源配对，不被下一行、下一文档或下一次 render 的处理器替换。需要 Move 的消费者在准备时捕获来源及修订，并在 Dropped(Move) 后核对来源仍可删除，再提交一次删除；库不自动删除业务数据。
 
@@ -40,9 +40,15 @@ isDragging 是可追踪的 UI 状态，表示该行为当前持有准备中或�
 
 拖动不自动产生另一棵语义树。消费者仍应提供同一业务模型的复制／粘贴、菜单或键盘入口，并以已有 semantics 发布这些入口。拖放成功不能替代非拖动入口及辅助技术操作的验收。
 
+### 3.1 Touch／Pen 来源
+
+DragSourceOptions 增加 mouse=true、contacts=true 两个独立开关。直接接触保存 ContactId／ContactKind，达到阈值后沿 claimContacts 接管同一原始路径；鼠标继续 claimPointer。第二触点、被阻止的移动／结束、几何失效、配置改变和取消终止未识别候选。SystemOperation 结束普通输入路由而不撤销已准备的 Window 会话。平台原生来源要求及兼容鼠标去重见 Window 数据拖放规范第 5 节。
+
+文本拖出沿同一行为接入 Touch／Pen：仅在真实已选文字内部登记候选，端点把手仍由自己的输入区域取得归属；未拖出时交还原短按／多击／长按行为。选区内直接拖动使用 TextDragOptions.threshold，选区外仍可滚动和定位。候选期间第二触点、模型／选区变化或其他识别器接管使其失效；已开始会话继续使用捕获的正文修订和同一 Move／undo 合同。触摸开关关闭时不登记接触来源。三平台共用文本接收与复制策略，没有仅 macOS 分配编辑拖放资源的分支。
+
 ## 4. 文本 Copy 接收
 
-TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 builder 提供同名开关并透传到宿主。macOS 的 TextEditHost 在自己的区域接入 DropArea，接收 Text／Url；文件列表和只有 Link 的来源拒绝。Copy 的基础接收遵守本节，完整 Move 扩展见第 5 节。其他平台在 Window 接收后端具备后接入同一文本实现；当前没有原生接收后端的平台不分配接收资源，不影响已有键盘、粘贴或鼠标拖选。完整系统拖放仍按 S6 单独验收。
+TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 builder 提供同名开关并透传到宿主。TextEditHost 在自己的区域接入 DropArea，接收 Text／Url；文件列表和只有 Link 的来源拒绝。Copy 的基础接收遵守本节，完整 Move 扩展见第 5 节。三个桌面后端共用文本接收实现；完整系统拖放仍按 S6 单独验收。复制修饰键使用 macOS Option、Windows／Linux Control，操作必须同时得到来源和目标允许。
 
 接收资格同时要求宿主、挂载、区域有效，acceptDrops／enabled 为 true 且不是 readOnly。protectedText 和遮罩不禁止导入，但不因此开放任何导出能力。offer 只选择格式和当前落点；不读取正文、不改变文档选区、composition、焦点或历史。仅使用属于当前 TextEditorState、修订和投影的最近 Accepted 排版；重绑定、正文变化或投影变化后等待匹配的新帧，不能把旧视图的落点套在新文档上。空文本仍使用真实空段落的 caret。
 

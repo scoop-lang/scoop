@@ -48,6 +48,8 @@ void sw_emit(SWWindow *window, int32_t kind) {
   SWSnapshot snapshot = sw_snapshot(window);
   if (kind == 2)
     sw_frame_geometry(window, snapshot);
+  if (kind == 2 || kind == 3)
+    sw_keyboard_geometry(window);
   switch (kind) {
   case 2:
     event->data.x = snapshot.width;
@@ -92,6 +94,8 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   if (window->input_blocked && sw_modal_input_message(msg))
     return 0;
   LRESULT result;
+  if (sw_drop_message(window, msg, wp))
+    return 0;
   if (!window->destroying &&
       (sw_accessibility_message(window, msg, wp, lp, &result) ||
        sw_frame_message(window, msg, wp, lp, &result) ||
@@ -234,6 +238,9 @@ SWSnapshot scoop_window_snapshot(SWWindow *window) {
 }
 void scoop_window_destroy(SWWindow *window) {
   window->destroying = true;
+  sw_drag_window_destroy(window);
+  sw_drop_window_destroy(window);
+  sw_keyboard_destroy(window);
   sw_accessibility_destroy(window);
   sw_text_window_destroy(window);
   DestroyWindow(window->hwnd);

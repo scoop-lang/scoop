@@ -1,0 +1,128 @@
+package scoop.ui.text
+
+import scoop.graphics.Rect
+import scoop.surface.FocusOrigin
+import scoop.ui.*
+import scoop.window.*
+
+public fun TextEditHost.requestSoftwareKeyboard(visible: Boolean = true): SoftwareKeyboardRequest {
+    checkOpen()
+    return keyboard.request(visible)
+}
+
+/** Activates an editor through an outer control hit area without changing its selection. */
+public fun TextEditHost.requestFocus(
+    origin: FocusOrigin = FocusOrigin.Programmatic,
+    softwareKeyboard: Boolean = false
+): Boolean {
+    checkOpen()
+    if (!options.enabled || !focus.handle.requestFocus(origin))
+        return false
+    if (softwareKeyboard)
+        keyboard.touch()
+    return true
+}
+
+/** One request per explicit contact action, with no retry when the OS declines. */
+internal class EditorKeyboard(private val host: TextEditHost): Closeable {
+    private var connection: TextInputConnection? = None
+    private var purpose = TextInputPurpose.Normal
+    private var pending = false
+    private val activity =
+        host.scope.observeWindowActivity {
+            value -> if (!value.focused || !value.visible || value.occluded)
+                deactivate()
+        }
+
+    private val available: Boolean get() =
+        !host.closed &&
+            host.options.enabled &&
+            !host.options.readOnly &&
+            host.area.isFocusActive &&
+            host.area.scope.isInputAllowed
+
+    fun publish() {
+        if (!available)
+            return
+        val current = host.connection ?: return
+        val desired = editorInputPurpose(host.options)
+        if (connection != Some(current) || purpose != desired) {
+            host.window.setTextInputPurpose(current, desired)
+            connection = Some(current)
+            purpose = desired
+        }
+        if (pending && host.options.softwareKeyboard && !host.retiring) {
+            pending = false
+            request(true)
+        }
+    }
+    fun touch() {
+        if (!available || !host.options.softwareKeyboard)
+            return
+        pending = true
+        host.publishNative()
+    }
+    fun request(visible: Boolean): SoftwareKeyboardRequest {
+        pending = false
+        if (!available || !host.sessionEnabled || host.retiring)
+            return SoftwareKeyboardRequest.Unavailable
+        val current = host.connection ?: return SoftwareKeyboardRequest.Unavailable
+        return host.window.requestSoftwareKeyboard(current, visible)
+    }
+    fun cancelPending() {
+        pending = false
+    }
+    fun connectionClosed() {
+        connection = None
+    }
+    fun update(rebound: Boolean) {
+        if (
+            rebound ||
+                !host.options.enabled ||
+                host.options.readOnly ||
+                !host.options.softwareKeyboard
+        )
+            deactivate()
+    }
+    fun changed(state: SoftwareKeyboardState) {
+        host.focus.node.root.focus.clearKeyboard(Some(host.focus))
+        if (!available || !host.options.softwareKeyboard)
+            return
+        when (state) {
+            case Shown(Some(_)) -> {
+                host.revealNeeded = true
+                host.revealRevision = host.focus.node.root.surface.focusRevision
+                host.scope.requestFrame()
+            }
+            else -> {}
+        }
+    }
+    fun reveal(caret: Rect) {
+        val overlap =
+            if (host.options.softwareKeyboard)
+                when (host.window.softwareKeyboard) {
+                    case Shown(Some(val value)) -> Some(
+                        Rect(value.origin.x, value.origin.y, value.size.width, value.size.height)
+                    )
+                    else -> None
+                }
+            else
+                None
+        host.focus.node.root.focus.reveal(host.focus, caret, overlap)
+    }
+    fun deactivate() {
+        pending = false
+        connection = None
+        host.focus.node.root.focus.clearKeyboard(Some(host.focus))
+    }
+    public override fun close() {
+        deactivate()
+        activity.close()
+    }
+}
+
+internal fun editorInputPurpose(options: TextEditOptions): TextInputPurpose =
+    if (options.protectedText)
+        TextInputPurpose.Password
+    else
+        options.inputPurpose

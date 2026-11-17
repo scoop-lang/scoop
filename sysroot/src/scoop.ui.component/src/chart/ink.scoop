@@ -23,9 +23,11 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     private var drawn: ChartGeometry? = None
     private var accepted: ChartAccepted? = None
     private var pointer = false
+    private var activationPoint: Point? = None
     private val area =
         scope.createArea(focusable = true) { context, event -> notify(context, event) }
     private val focus = scope.focusTarget(area, props.value.input.focus)
+    private val press = scope.press(area, PressOptions(props.value.input.enabled)) { activate() }
     private val semantics = createComponentSemantics(scope, SemanticRole.Table)
     init {
         scope.routeChildren(area)
@@ -55,6 +57,17 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     private fun notify(context: RoutedEventContext, event: InputEvent) {
         if (!scope.isMounted)
             return
+        if (context.phase == RoutedPhase.Target) {
+            when (event) {
+                case Contact(InputContactEvent.Began(_)) -> activationPoint = context.localPosition
+                case Contact(InputContactEvent.Ended(_)) -> activationPoint = context.localPosition
+                case Pointer(
+                    InputPointerEvent.Button(_, MouseButton.Left, _, _)
+                ) -> activationPoint = context.localPosition
+                case Keyboard(_) -> activationPoint = None
+                else -> {}
+            }
+        }
         when (event) {
             case Pointer(InputPointerEvent.Moved(_)) -> hover(context)
             case Pointer(InputPointerEvent.Entered(_)) -> hover(context)
@@ -93,6 +106,34 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
                 props.value.input.orientation == Orientation.Horizontal,
                 props.value.active.value
             )
+        )
+    }
+    private fun activate() {
+        val geometry = valid() ?: return
+        val point = activationPoint
+        pointer = false
+        focus.handle.requestFocus(
+            if (point != None)
+                FocusOrigin.Pointer
+            else
+                FocusOrigin.Keyboard
+        )
+        select(
+            when (point) {
+                case Some(val value) -> chartHit(
+                    geometry,
+                    value,
+                    props.value.input.orientation == Orientation.Horizontal,
+                    props.value.active.value
+                )
+                case None -> when (props.value.active.value) {
+                    case Some(val current) -> when (geometry.find(current)) {
+                        case Some(_) -> Some(current)
+                        case None -> chartNavigate(geometry, None, edge = -1)
+                    }
+                    case None -> chartNavigate(geometry, None, edge = -1)
+                }
+            }
         )
     }
     private fun select(value: ChartSelection?) {
@@ -134,6 +175,7 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     }
     public override fun update(): UiInvalidation {
         area.scope.enabled = props.value.input.enabled
+        press.update(PressOptions(props.value.input.enabled)) { activate() }
         focus.options = props.value.input.focus
         val input = props.value.input
         val snapshot = input.model.snapshot

@@ -357,7 +357,8 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                     hover.transitDelay,
                     hover.corridorPadding,
                     (keyboard.value && input.open.value) || hover.focus,
-                    input.options.enabled && item.enabled && isSub && hover.enabled
+                    input.options.enabled && item.enabled && isSub && hover.enabled,
+                    hover.longPress
                 ),
                 {
                     value -> if (highlighted.value != value)

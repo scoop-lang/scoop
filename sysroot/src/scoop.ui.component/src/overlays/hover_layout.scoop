@@ -96,6 +96,7 @@ internal class HoverPopupLayout(
                                     _
                                 )
                             ) -> true
+                            case Contact(InputContactEvent.Began(_)) -> true
                             case Keyboard(val key) -> key.state ==
                                 ElementState.Pressed &&
                                 !key.synthetic &&

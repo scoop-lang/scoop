@@ -17,6 +17,7 @@ public open class HoverPopupBuilder internal constructor() {
     public var transitDelay: Duration = Duration.milliseconds(350L)
     public var corridorPadding: Double = 6.0
     public var focus: Boolean = true
+    public var longPress: LongPressOptions = LongPressOptions()
     public var enabled: Boolean = true
     public var arrow: PopupArrow? = Some(PopupArrow())
     public var handle: OverlayHandle? = None
@@ -62,7 +63,8 @@ public class TooltipBuilder internal constructor(): HoverPopupBuilder() {
             fonts,
             theme,
             style,
-            semantics
+            semantics,
+            longPress
         )
 }
 
@@ -98,7 +100,8 @@ public class HoverCardBuilder internal constructor(): HoverPopupBuilder() {
             fonts,
             theme,
             style,
-            semantics
+            semantics,
+            longPress
         )
 }
 

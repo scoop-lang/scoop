@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.surface.InputArea
 import scoop.window.*
 
-/** Prepares data after the ordinary left-button drag threshold has been reached. */
+/** Prepares data after the mouse or direct-contact drag threshold has been reached. */
 public fun ComponentScope.dragSource(
     area: InputArea,
     options: DragSourceOptions = DragSourceOptions(),

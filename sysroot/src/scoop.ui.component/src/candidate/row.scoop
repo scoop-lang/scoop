@@ -42,6 +42,7 @@ internal class CandidateRowInk(
                 case Pointer(
                     InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                 ) -> props.value.highlight(props.value.key)
+                case Contact(InputContactEvent.Began(_)) -> props.value.highlight(props.value.key)
                 else -> {}
             }
         }

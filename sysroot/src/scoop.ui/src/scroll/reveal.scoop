@@ -81,7 +81,7 @@ private class RevealMove(
 )
 
 /** Tracks the scroll bindings and position intents used by one reveal request. */
-internal class RevealAttempt {
+internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
     private val moves = ArrayList<RevealMove>()
     fun watch(path: Array<ScrollReveal>) {
         for (boundary in path)
@@ -143,6 +143,8 @@ internal class RevealAttempt {
         horizontal: ScrollAlignment = ScrollAlignment.Nearest,
         vertical: ScrollAlignment = ScrollAlignment.Nearest
     ): RevealProgress {
+        if (!(keyboard?.active ?: true))
+            return RevealProgress.Cancelled
         if (!isCurrent)
             return RevealProgress.Cancelled
         var rect = bounds
@@ -154,6 +156,10 @@ internal class RevealAttempt {
             val boundary = route[index]
             if (!boundary.active)
                 return RevealProgress.Unavailable
+            if (keyboard?.prepare(boundary, rect) ?: false) {
+                remember(boundary, boundary.state.requestRevision)
+                return RevealProgress.Moved
+            }
             val local = boundary.local(rect) ?: return RevealProgress.Unavailable
             if (!boundary.current)
                 return RevealProgress.Waiting

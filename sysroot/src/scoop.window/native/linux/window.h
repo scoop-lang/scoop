@@ -93,6 +93,7 @@ typedef struct {
   SWMenu *menus;
   SWWatch *watches;
   SWApplicationInputState input;
+  void *drag_source;
 } SWApplication;
 struct SWWindow {
   SWApplication *application;
@@ -101,6 +102,7 @@ struct SWWindow {
   SWWindow *next;
   GtkWidget *window, *view, *toolbar, *header;
   void *accessibility;
+  void *drop_target;
   GtkAccessible *accessibility_socket;
   SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
@@ -170,6 +172,8 @@ uint64_t sw_modifiers(SWApplication *app);
 void sw_update_modifiers(SWWindow *window);
 void sw_input_init(SWWindow *window);
 void sw_input_destroy(SWWindow *window);
+void sw_drag_window_destroy(SWWindow *window);
+void sw_drop_window_destroy(SWWindow *window);
 void sw_keyboard_install(SWWindow *window);
 void sw_pointer_install(SWWindow *window);
 bool sw_menu_key_equivalent(SWWindow *window, guint symbol);

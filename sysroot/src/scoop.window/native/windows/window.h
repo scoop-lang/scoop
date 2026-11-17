@@ -68,6 +68,9 @@ typedef struct SWApplication {
   SWWatch *watches;
   void *text_manager;
   void *preferences;
+  void *drag_source;
+  HWND promoted_drag_window;
+  bool ole_initialized, compat_delivery;
   SWMenu *translating_menu;
 } SWApplication;
 typedef struct SWWindow {
@@ -97,6 +100,8 @@ typedef struct SWWindow {
   int64_t text_connection;
   void *text;
   void *accessibility;
+  void *drop_target;
+  void *keyboard;
   SWMenu *menu_bar, *popup_menu;
 } SWWindow;
 
@@ -168,6 +173,14 @@ void sw_text_window_destroy(SWWindow *window);
 void sw_text_application_destroy(SWApplication *application);
 void sw_input_init(SWWindow *window);
 void sw_input_destroy(SWWindow *window);
+void sw_drag_promoted_mouse(SWWindow *window, UINT message, WPARAM keys);
+void sw_drag_contact_changed(SWWindow *window);
+void sw_drag_window_destroy(SWWindow *window);
+void sw_drop_window_destroy(SWWindow *window);
+bool sw_drop_message(SWWindow *window, UINT message, WPARAM key);
+int64_t sw_keyboard_start(SWWindow *window);
+void sw_keyboard_geometry(SWWindow *window);
+void sw_keyboard_destroy(SWWindow *window);
 void sw_key(SWWindow *window, UINT message, WPARAM vk, LPARAM lp);
 void sw_update_modifiers(SWWindow *window, uint64_t value);
 bool sw_pointer_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,

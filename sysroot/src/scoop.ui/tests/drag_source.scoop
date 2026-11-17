@@ -11,11 +11,19 @@ private class UiDragSourceTest {
     fun `data drag threshold uses either logical axis independently of display scale`() {
         for (scale in [1.0, 2.0, 1.5]) {
             val start = sourcePointer(40.0, 50.0, scale)
-            assertFalse(dragSourceThreshold(start, sourcePointer(43.9, 53.9, scale), 4.0))
-            assertTrue(dragSourceThreshold(start, sourcePointer(44.0, 50.0, scale), 4.0))
-            assertTrue(dragSourceThreshold(start, sourcePointer(40.0, 46.0, scale), 4.0))
-            assertTrue(dragSourceThreshold(start, start, 0.0))
-            assertFalse(dragSourceThreshold(start, sourcePointer(1.0 / 0.0, 50.0, scale), 4.0))
+            assertFalse(
+                dragSourceThreshold(start.state, sourcePointer(43.9, 53.9, scale).state, 4.0)
+            )
+            assertTrue(
+                dragSourceThreshold(start.state, sourcePointer(44.0, 50.0, scale).state, 4.0)
+            )
+            assertTrue(
+                dragSourceThreshold(start.state, sourcePointer(40.0, 46.0, scale).state, 4.0)
+            )
+            assertTrue(dragSourceThreshold(start.state, start.state, 0.0))
+            assertFalse(
+                dragSourceThreshold(start.state, sourcePointer(1.0 / 0.0, 50.0, scale).state, 4.0)
+            )
         }
         for (threshold in [-1.0, 0.0 / 0.0, 1.0 / 0.0])
             assertFailsWith<IllegalArgumentException> { DragSourceOptions(threshold) }

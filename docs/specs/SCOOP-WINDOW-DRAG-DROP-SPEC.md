@@ -1,6 +1,6 @@
 # Scoop Window 数据拖放规范
 
-本文规定普通 Window 的原生数据边界，当前提供 Darwin 的 destination 和 Window source 接口。UI source、文本事务、其他平台与设备验收仍按 [S6 计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)交付；接口、准备／收尾测试和实际系统会话的完成状态分别记录。
+本文规定普通 Window 的原生数据边界。Darwin、Windows 和 Linux GNU 提供同一 destination 和 source 接口，分别使用 AppKit、OLE、GDK／GTK 公共 API。接口、准备／收尾测试和实际系统会话的完成状态按 [S6 计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)分别记录。
 
 ## 1. 内容、协商与接收
 
@@ -16,13 +16,13 @@ DropRequest 保存 offer、effect 和 content。选定表示只在 Drop 时读�
 
 ## 2. Window 接收资源
 
-Darwin 提供 `Window.registerDropTarget(handlers: DropHandlers): DropTarget`。DropHandlers 保存 `offer: (DropOffer) -> DropDecision`、`drop: (DropRequest) -> Boolean` 与 `leave: () -> Unit = {}`。一个窗口同时注册一个接收资源；重复注册报告普通状态错误。它不创建输入区域、焦点或另一棵命中树，UI／其他 renderer 在 offer 中使用自己的已接受场景和逻辑路由。
+三个桌面后端提供 `Window.registerDropTarget(handlers: DropHandlers): DropTarget`。DropHandlers 保存 `offer: (DropOffer) -> DropDecision`、`drop: (DropRequest) -> Boolean` 与 `leave: () -> Unit = {}`。一个窗口同时注册一个接收资源；重复注册报告普通状态错误。它不创建输入区域、焦点或另一棵命中树，UI／其他 renderer 在 offer 中使用自己的已接受场景和逻辑路由。
 
 DropTarget 的 handlers 可在正常 owner 更新中替换，enabled 默认 true，close 可重复调用；修改及查询遵守 Window owner。替换或禁用使旧协商失效；原生下一次更新重新询问当前处理器。禁用后通过已有延迟原生操作通路结束尚在本目标内的 offer，清理通知不在 setter 或 render 栈内重入业务。close 立即撤销 native 登记和回调，关闭窗口先关闭该资源；关闭后的旧 native 引用不能调用已释放的 Scoop context。资源关闭不再调用业务 leave，拥有者在自己的收尾中释放高亮等 UI 状态。
 
 leave 在原生离开、结束或 Drop 收尾时至多一次地结束当前 offer；重新进入形成新的 offer。接收回调可关闭自身或窗口；已经实际接受的数据仍以回调的 true 表达，不能因随后关闭倒推为未接受。新的处理器或重新注册不接受上一份协商。
 
-`DropTarget.periodicUpdates` 默认 false；true 请求 AppKit 在活动拖放期间继续发送 draggingUpdated，使静止指针下的内容变化和自动滚动能重新协商。它只采用原生拖放更新，不安装空闲轮询 timer；禁用或关闭的目标不请求周期更新。切换该提示不改变已协商的格式与操作。
+`DropTarget.periodicUpdates` 默认 false；true 在活动拖放期间更新协商，使静止指针下的内容变化和自动滚动能重新路由。AppKit 使用原生 draggingUpdated；OLE／GTK 在持有当前活动 offer 时使用窗口 owner 的有限周期回调。没有活动 offer、正在接收数据、窗口不可用、禁用或关闭时停止周期回调，不安装空闲轮询。切换该提示不改变已协商的格式与操作。
 
 ## 3. 同步边界与 AppKit 映射
 
@@ -38,11 +38,11 @@ prepareForDragOperation 只复核元数据和已协商选择；performDragOperat
 
 ## 4. Window 拖出源
 
-Darwin 提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键按下或左键拖动事件的 owner 派发中调用；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
+三个桌面后端提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键或受支持的直接接触输入的 owner 派发中调用，平台来源限制见第 5 节；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
 
 数据在返回前复制给 native。Text 发布一个原值文本项；Url 要求绝对 URL，在同一项发布 URL 与其文本表示；Files 要求非空绝对本地路径列表，每个路径发布一个 FileURL 项，不读取文件内容、检查来源或创建文件承诺。格式无法表示、空操作集及无效数据为参数错误，失败不接管普通按下序列，也不留下半份来源。源不改系统普通剪贴板，拖放 pasteboard 归系统会话。
 
-准备成功后沿已有 SystemOperation 取消通知结束普通鼠标序列，再在 owner 的延迟原生操作边界调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。原生预览使用系统图标及实际项目数，光标和修饰键操作选择交给 AppKit。
+准备成功后沿已有 SystemOperation 取消通知结束普通鼠标与接触路由，再在 owner 的原生操作边界启动；Darwin 调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。原生预览使用系统图标及实际项目数，光标和修饰键操作选择交给 AppKit。
 
 DragSession 的 isStarted 表示原生已确认开始，result: DragResult? 保存终态，isClosed 可查询；所有访问要求 owner。DragResult 为 Dropped(DragEffect)、NotDropped 或 Failed(WindowException)。Dropped 仅表示系统报告目标接受了允许的操作，绝不隐含删除来源；NotDropped 合并系统未接受、拒收及用户取消，因为 AppKit 不区分其原因。Failed 表示实际启动失败。完成结果通过普通 owner 队列交付 onCompleted 一次，交付前释放源登记；处理器仍沿正常应用错误边界执行。Copy 不删源，Move 的文档版本确认与一次删除由实际 UI／业务实现；Window 不擅自删除文字或文件。
 
@@ -51,3 +51,15 @@ DragSession.effects 可在正常 owner 更新中改变后续协商允许的操�
 `cancelPending(): Boolean` 只取消尚未启动的请求，成功后产生 NotDropped；已启动、已有终态或已关闭返回 false。`close()` 幂等，撤销后续业务回调，关窗自动执行；尚未启动时撤销请求。AppKit 的公开 NSDraggingSession 没有强制取消方法，因此关闭已启动资源不宣称系统会话已取消，也不合成 Escape 或调用私有接口：native 保留系统仍在使用的数据与源对象直到真实 ended 回调，只清除 Scoop context。此时尚无实际终态的 result 保持 None；后续没有来源删除回调。已经保存的终态在关闭后保留。
 
 原生 sourceOperationMask 查询只读取复制后的允许操作，不进入 Scoop。系统实际结束才报告 Dropped／NotDropped；窗口失活或普通鼠标 capture 结束本身不结束跨程序会话。关闭期间的 native 引用不能保留业务 closure，待系统结束后释放剩余原生数据。实际会话、关闭中继续拖放、同程序接收与外部 Move 均须独立桌面验收，不能用协议方法测试替代。
+
+## 5. Windows／GTK 与直接接触
+
+以上公共入口在三个桌面后端具有相同的签名、完成、业务线程与关闭合同。Darwin 段落中的 pasteboard item 和 NSDraggingSession 限制是该后端的具体映射。Windows 使用 IDataObject／IDropSource／IDropTarget 和 DoDragDrop，应用 owner 初始化 OLE STA；GTK 使用 GdkContentProvider／GdkDrag 与 GtkDropTargetAsync，不建立第二个事件循环。
+
+Windows 的标准表示为 CF_UNICODETEXT、UniformResourceLocatorW 和 CF_HDROP；路径采用目标系统的原生字符串，不经 UTF-8 丢失文件名。GTK 使用 UTF-8 文本和 text/uri-list；URL 接收要求一个绝对 URI，Files 要求完整列表均为本地 file URI，不能只取可转换的部分。GTK 在 Drop 后异步读取完整表示，读取期间保留该次 GdkDrop 和登记代次；完成后在同一 owner 上重新核对目标、格式和操作，再执行一次实际 drop 并向 GDK 报告完成。旧登记、禁用、关闭或取消不得向新目标交付迟到数据。读取失败拒绝，不报告成功，也不建立轮询或嵌套等待。
+
+本进程来源关联使用真实 native 对象身份：Windows 比较当前 IDataObject 的 IUnknown 身份；GTK 比较 gdk_drop_get_drag 与当前 GdkDrag。不向外部格式添加进程对象标识。OLE／GTK 的周期目标更新只在已进入的活动拖放及 periodicUpdates=true 时使用 owner 原生定时源，离开、Drop、禁用或关闭立即撤销；不在空闲时轮询。
+
+beginDrag 除鼠标左键之外，也接受后端支持的当前真实 Touch／Pen Began 或 Moved。Linux 保留该输入的 GdkEvent 与设备，使用公开 GDK 拖放接口。Windows 保留真实 contact 身份，触摸或笔的 OLE 会话只从系统为该输入生成的鼠标消息处理栈启动；兼容鼠标不再交付 UI 点击。尚未抵达该入口的请求仍可 cancelPending；接触结束、设备取消或窗口退休后不补发拖动。不得合成鼠标消息、伪造事件或从 WM_POINTER 处理器直接调用 DoDragDrop。原生启动确认前 isStarted 保持 false。
+
+数据拖放准备成功后的 SystemOperation 取消同时结束当前 UI 鼠标和 contact 路由，防止系统接管后残留按压、滚动或选区把手；它不销毁原生拖放所借用的真实输入，也不把接触转换为鼠标。第二触点、几何失效或默认动作被阻止时，上层未识别候选按普通手势合同取消。AppKit 没有直接触屏 contact 来源；触控板系统手势不是数据拖出输入。

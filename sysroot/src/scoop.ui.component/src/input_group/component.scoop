@@ -104,6 +104,10 @@ internal class InputGroupInk(
                 }
             )
         scope.routeChildren(area!!)
+        scope.press(area!!, PressOptions()) {
+            if (props.value.enabled)
+                props.value.focus.requestFocus(FocusOrigin.Pointer)
+        }
         area!!.scope.defaultAction =
             {
                 context,

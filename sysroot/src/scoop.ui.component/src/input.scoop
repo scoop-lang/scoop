@@ -5,6 +5,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.ThemeSource
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 import scoop.window.accessibility.SemanticActionResult
 
 /** The actual accepted state and request entry point of an editor's candidate popup. */
@@ -44,7 +45,9 @@ public class InputProps public constructor(
     public val touch: TextTouchOptions = TextTouchOptions(),
     public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
     public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
-    public val expansion: TextFieldExpansion? = None
+    public val expansion: TextFieldExpansion? = None,
+    public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
+    public val softwareKeyboard: Boolean = true
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -82,7 +85,9 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             drag = input.drag,
             touch = input.touch,
             touchScroll = input.touchScroll,
-            scrollPhysics = input.scrollPhysics
+            scrollPhysics = input.scrollPhysics,
+            inputPurpose = input.inputPurpose,
+            softwareKeyboard = input.softwareKeyboard
         ),
         1L,
         ScrollbarVisibility.Hidden,

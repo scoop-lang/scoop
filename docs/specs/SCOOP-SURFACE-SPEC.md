@@ -198,6 +198,8 @@ InputArea.toLocal(windowPoint)／toWindow(localRect) 使用同一成功帧几何
 
 `SurfaceWindow.hitInput(windowPoint: Point): Array<InputHit>` 只查询当前已接受场景，按前景命中区域到当前 AllInput 边界根的顺序返回逻辑路径。InputHit 保存 scope: InputScope 与 localPosition: Point?；非区域 scope 的位置为 None，区域位置在返回前用同一份已接受几何换算。查询复用普通输入的路径、形状／裁剪、ignoreSelf、禁用、关闭和不可逆变换规则，不使用鼠标 capture，不修改 pointer／hover／焦点，不调用输入处理器；未命中、非有限坐标或 Surface 已关闭返回空数组。FocusOnly 不限制该路径。返回值不借出 CanvasGeometry，也不延长 scope 的活动资格。数据拖放可以沿该数组尝试逻辑父目标，某个接收处理器拒绝不触发对后方兄弟的第二次命中。
 
+Window 的 SystemOperation 取消通知表示原生窗口操作或数据拖放接管输入。Surface 沿既有窗口输入收尾同时结束普通鼠标、滚动、手势与全部直接接触路由，各原路径取消一次；迟到的接触移动／结束不能重新命中其他区域。其他 Pointer 取消原因仍只影响自己的鼠标路径，单个 Contact 取消仍保留其他触点；这里不清除 Window 为原生会话保留的真实设备附件。
+
 InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput、hasContact 及 isEmpty；分别查询逻辑焦点、鼠标按钮序列起点、尚保留的滚动路由起点、文本输入会话和活动原始触点的归属。hasContact 按每个触点的当前路由目标查询，claim 后从后代移到取得归属的祖先；观察者跟踪触点身份与所属 scope，单纯坐标移动不通知。虚拟条目因活动触点保持，直到正常结束、取消或归属移出。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
 InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的 AllInput／FocusOnly。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。

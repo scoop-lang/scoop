@@ -1,5 +1,7 @@
 # 自绘基础控件
 
+直接触摸的剩余入口共用 UI 行为：Tooltip／HoverCard 的 `longPress` 默认启用且可配置，图表短按选中数据，侧栏隐藏动作可长按显示，候选列表、输入外边距及组合输入保留普通点击与滚动竞争。Input／Textarea 的 `inputPurpose`、`softwareKeyboard` 同时提供 Props 与 builder；OTP 默认按 Digits 模式提示数字键盘。软键盘的实际遮挡由文本宿主沿原滚动路径处理，不改变选区。用法见[触摸输入示例](examples/touch-input/README.md)；实际设备行为仍需对应平台验收。
+
 基础输入、选择、数值、菜单、Tab、模态、日期、表格、虚拟集合及会话控件使用同一默认语义入口。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored、busy／live；角色、checked／selected／expanded、禁用、只读、正文与动作取实际控件。三个桌面平台共用组件声明，AppKit／UIA／AT-SPI 的实际验收范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。完整消费者见[无障碍设置示例](examples/accessibility/README.md)。
 
 已有覆盖值可用 `semantics.copy { busy = true }` 派生，receiver 为 ComponentSemanticsBuilder；未指定字段与原 reference 完整保留。复制不会创建节点或替控件执行业务动作。

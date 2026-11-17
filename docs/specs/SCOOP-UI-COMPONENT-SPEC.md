@@ -512,7 +512,9 @@ InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy
 
 InputProps／TextareaProps／InputOtpProps 及其 builder 提供 `contextMenu: TextContextMenuOptions = TextContextMenuOptions()`，默认优先使用平台可接入的系统文本菜单模板。builder 的 `contextMenu { ... }` 更新当前配置，可分别设置 Disabled／StandardNative／PreferSystem、选区外辅助点击的选择策略和标准命令标签。右键与平台辅助点击、菜单键／Shift+F10、只读和禁用状态、菜单目标与生命周期遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 直接透传同一输入配置，不创建第二个菜单或编辑模型；OTP 的整组输入共用一个菜单目标，编辑仍经过长度和模式策略。
 
-三类输入 Props／builder 也提供 acceptDrops=true，并由上述包装原样传给 TextEditOptions。macOS 的 TextEditHost 当前接收 Copy 或完整 Move 的文本／URL，在共享排版中显示临时落点并沿普通编辑策略提交；readOnly、enabled 与该开关共同决定资格，OTP 继续通过同一字符／长度策略。来源 DragDrop 与 Paste 共用导入清洗，原生系统会话、编辑事务与其他平台范围见[UI 数据拖放规范 §4、5](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。
+三类输入 Props／builder 提供 acceptDrops=true，并由上述包装原样传给 TextEditOptions。三平台 TextEditHost 共用 Copy 或完整 Move 的文本／URL 接收，在共享排版中显示临时落点并沿普通编辑策略提交；readOnly、enabled 与该开关共同决定资格，OTP 继续通过同一字符／长度策略。来源 DragDrop 与 Paste 共用导入清洗，原生系统会话和编辑事务见[UI 数据拖放规范 §4、5](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。
+
+InputProps／TextareaProps 及 builder 提供 inputPurpose=TextInputPurpose.Normal、softwareKeyboard=true，所有输入包装透传；OTP 的 inputPurpose: TextInputPurpose?=None 按 Digits pattern 选 Digits，其余 pattern 选 Normal，显式值覆盖缺省。保护、原生请求结果及真实遮挡显露见[输入用途规范](SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md#3-ui-文本宿主)。用途不替代 OTP 或普通编辑策略。
 
 三类输入 Props／builder 提供 drag=TextDragOptions()，上述包装透传同一不可变配置。共享宿主实现选区拖出、只读 Copy、受保护用途的默认导出限制、完整 Move 与 SourceRetained 通知；OTP 的清洗／裁剪仍属于同一策略，有损接收不能被报告为完整 Move。drag 与 acceptDrops 独立。
 
@@ -957,6 +959,8 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 
 默认 inverse 配色取 background.foreground／background.background；前景色先按其 alpha 与不透明 background.background 合成，作为不透明提示底色，避免系统半透明文字色透出后面的控件。12 字号、水平 padding=12、竖直=6、corner=6、自然宽度不超过 maxWidth，正文过长正常换行；自定义正文保留其样式。默认含箭头，100ms 淡入缩放位移，Reduced Motion 无动画。Portal 为 NonModal、focus=None、Escape／外部按下关闭且外部继续处理；退出重开保留正文实例。验收覆盖原触发动作只执行一次、延迟取消、Escape 抑制及重新进入、正文不可交互、拒绝绑定／换绑、定位／箭头翻转、禁用／失焦／卸载和静止停帧。
 
+TooltipProps／HoverCardProps 及共用 builder 提供 longPress: LongPressOptions=LongPressOptions()，透传公共 Hover 的直接触摸入口。长按显示同一提示／卡片，释放后保持；组外按下、Escape、禁用与窗口失活按原关闭路径收束。Tooltip 在新的触发器接触开始时关闭已有提示，但不消费普通短按。子内容已处理的文本长按、直接拖动或滚动不会同时触发外层提示。
+
 ## 30. HoverCard
 
 `hoverCard(trigger: View, content: View, configure: HoverCardBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 HoverCardProps／HoverCard。与 Tooltip 共用可选受控 open、定位、Hover 延迟／通路、回调、字体／主题／样式及生命周期规则；默认 side=Bottom、width=256、openDelay=600ms、closeDelay=300ms、transitDelay=350ms、corridorPadding=6、focus=true、arrow=None，其他默认与 Tooltip 相同，不提供 maxWidth。正文是完整 View，可选择文字、按按钮或编辑；悬浮打开不主动取走焦点，点击进入正文后普通焦点与 Hover 组内保持规则生效。没有模态屏障或自动焦点恢复。
@@ -1199,7 +1203,7 @@ ChartAxis 提供 Category／Linear、Auto／Fixed domain、includeZero、nice、
 
 Pie 按每个可见系列形成同心环，值非负，缺值和零值不占角度；总量为零时没有扇区和可命中项。startAngle／endAngle 为顺时针弧度，默认从顶部绘制一周；负跨度反向绘制，非零跨度的绝对值不超过一周。innerRadius 是 [0, 1) 内的外半径比例。扇区绘制与命中使用相同的内外半径和角度，活动扇区沿径向突出，命中也包含突出区域；可显示标签及普通 View 中心内容，中心内容只在内孔可容纳的正方形内布局。Radar 用 datum 分类作为等角极轴，可见系列共享数值域、网格和刻度；缺值断开相邻边。Radial 用同一数值域将各个 datum／可见系列的有效项分配到同心轨道，提供背景轨道和数值标签，负值从零点反向延展；零值保留轨道但没有可选择的数值条。极坐标图不使用 Cartesian mark／stack／orientation／xAxis，Radar 的分类标签来自 datum，Pie／Radial 的 datum 颜色覆盖系列颜色。
 
-ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始数值，默认提示列出该 datum 的可见有效系列；formatter、隐藏标题／指示及 Dot／Line／Dashed 指示可配置，并允许返回普通 View 的自定义 tooltip。Legend 使用真实按钮切换系列，可配置图标及标签格式。Legend 和 Tooltip 不解析字段路径，不依赖 Any、WebView 或浏览器渲染器。
+ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始数值，默认提示列出该 datum 的可见有效系列；formatter、隐藏标题／指示及 Dot／Line／Dashed 指示可配置，并允许返回普通 View 的自定义 tooltip。Touch／Pen 的成功短按以 Accepted 几何选取数据并保持提示；移动超过公共 Press 容差、第二触点或滚动接管后不产生选择。鼠标点击复用相同命中；Enter／Space 保持当前有效选择，无选择时选首个数据，方向键与语义集合动作继续可用。Legend 使用真实按钮切换系列，可配置图标及标签格式。Legend 和 Tooltip 不解析字段路径，不依赖 Any、WebView 或浏览器渲染器。
 
 图表自身是一个焦点目标，active 可用外部 `Binding<ChartSelection?>` 控制；默认由控件持有。指针用最近点／条形／扇区的实际几何选择数据，移出后关闭鼠标提示。键盘逻辑前后键逐 datum 导航，上下键切换可见系列，Home／End 定位边界，Escape 清空提示；缺值和无图形项跳过，普通 Tab 继续离开图表。拒绝 setter 保留调用方状态，禁用和卸载撤销输入；业务选择、取数与异步取消归应用。
 

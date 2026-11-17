@@ -30,6 +30,43 @@ internal class ContactTestCount(var value: Int = 0)
 @Test
 private class InputContactRouteTest {
     @Test
+    fun `a system data operation retires mouse and all contact routes exactly once`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("source")
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 90.0, 50.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.contact(ContactEvent.Began(contactInput(41L)))
+            rig.contact(ContactEvent.Began(contactInput(42L, 20.0, kind = ContactKind.Pen)))
+            rig.log.events.clear()
+            rig.pointer(
+                PointerEvent.Cancelled(PointerCancelReason.SystemOperation, inputObservation())
+            )
+            assertEquals(0L, rig.router.buttons.size)
+            assertEquals(0L, rig.router.contactRoutes.size)
+            val cancelled = contactRecords(rig.log)
+            assertEquals(2L, cancelled.size)
+            for (record in cancelled)
+                when (record.event) {
+                    case Contact(
+                        InputContactEvent.Cancelled(
+                            _,
+                            InputCancelReason.Window(PointerCancelReason.SystemOperation),
+                            _
+                        )
+                    ) -> {}
+                    else -> fail(Some("system operation must cancel each original contact"))
+                }
+            rig.contact(ContactEvent.Moved(contactInput(41L, 30.0)))
+            rig.contact(ContactEvent.Ended(contactInput(42L, 20.0)))
+            rig.pointer(
+                PointerEvent.Cancelled(PointerCancelReason.SystemOperation, inputObservation())
+            )
+            assertEquals(2L, contactRecords(rig.log).size)
+        }
+    }
+
+    @Test
     fun `contacts retain independent starting paths without changing mouse hover`() {
         InputRig().use {
             rig ->

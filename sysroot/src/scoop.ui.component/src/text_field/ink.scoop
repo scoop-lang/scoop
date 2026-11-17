@@ -28,6 +28,10 @@ internal class TextFieldInk(
     internal val lineHeight = TextFieldLineHeight()
     private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
     private val padding = scope.createArea()
+    private val paddingPress =
+        scope.press(padding, PressOptions(props.value.input.options.enabled)) {
+            host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
+        }
     private val field =
         scope.resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
     internal val scrollbarFeedback =
@@ -113,6 +117,9 @@ internal class TextFieldInk(
         )
     }
     public override fun update(): UiInvalidation {
+        paddingPress.update(PressOptions(props.value.input.options.enabled)) {
+            host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
+        }
         val value = props.value
         val input = value.input
         host.update(

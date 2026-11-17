@@ -32,7 +32,7 @@ private class DragSourceTest {
         assertEquals(4, probe.step)
         assertEquals(1, probe.nativeCompletions)
         assertTrue(probe.logic!!.finished)
-        assertEquals(8, probe.logic!!.completions)
+        assertEquals(11, probe.logic!!.completions)
         assertTrue(probe.logic!!.last!!.isClosed)
     }
 }

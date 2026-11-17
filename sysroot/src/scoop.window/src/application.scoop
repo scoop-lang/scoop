@@ -34,6 +34,7 @@ public enum WindowEvent {
     CloseRequested, Closing, Destroyed, RedrawRequested, FrameChanged,
     FrameButtonChanged(WindowSystemButton, Boolean, Boolean),
     InputBlockedChanged(Boolean),
+    SoftwareKeyboardChanged(SoftwareKeyboardState),
     GeometryChanged(WindowMetrics), Moved(DesktopPosition), Focused(Boolean), Occluded(
         Boolean
     ), ThemeChanged(Theme?),

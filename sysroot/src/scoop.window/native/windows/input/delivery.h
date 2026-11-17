@@ -7,6 +7,7 @@ typedef struct {
   int64_t window;
   int32_t kind, button;
   POINT position;
+  int64_t contact;
 } SWNativeInput;
 
 #endif

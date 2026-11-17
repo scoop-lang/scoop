@@ -53,8 +53,8 @@ internal class SourceSessionProbe {
         prepared += 1
         assertEquals(Point(10.0, 12.5), value.start)
         assertEquals(Point(16.0, 12.5), value.position)
-        assertEquals(LogicalPosition(40.0, 45.0), value.press.state.logicalPosition)
-        assertEquals(LogicalPosition(52.0, 45.0), value.pointer.state.logicalPosition)
+        assertEquals(LogicalPosition(40.0, 45.0), value.press.logicalPosition)
+        assertEquals(LogicalPosition(52.0, 45.0), value.pointer.logicalPosition)
         if (mode == 0)
             return None
         val preparedMode = mode

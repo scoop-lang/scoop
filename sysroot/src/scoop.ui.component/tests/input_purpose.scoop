@@ -1,0 +1,62 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.TextInputPurpose
+
+@Test
+private class ContactInputOptionsTest {
+    @Test
+    fun `text field builders preserve independent keyboard purpose and display policy snapshots`() {
+        val model = TextEditorState()
+        val input = InputBuilder()
+        input.inputPurpose = TextInputPurpose.Email
+        input.softwareKeyboard = false
+        val first = input.inputProps(model)
+        input.inputPurpose = TextInputPurpose.Search
+        input.softwareKeyboard = true
+        assertEquals(TextInputPurpose.Email, first.inputPurpose)
+        assertFalse(first.softwareKeyboard)
+        assertFalse(first.protectedText)
+        val multiline = TextareaBuilder()
+        multiline.inputPurpose = TextInputPurpose.Url
+        multiline.softwareKeyboard = false
+        val second = multiline.textareaProps(model)
+        assertEquals(TextInputPurpose.Url, second.inputPurpose)
+        assertFalse(second.softwareKeyboard)
+        val otp = InputOtpBuilder()
+        assertEquals(
+            TextInputPurpose.Digits,
+            otpOptions(otp.snapshot(model, 4L), textProjection()).inputPurpose
+        )
+        otp.pattern = InputOtpPattern.Alphanumeric
+        assertEquals(
+            TextInputPurpose.Normal,
+            otpOptions(otp.snapshot(model, 4L), textProjection()).inputPurpose
+        )
+        otp.inputPurpose = Some(TextInputPurpose.Decimal)
+        otp.softwareKeyboard = false
+        val pin = otpOptions(otp.snapshot(model, 4L), textProjection())
+        assertEquals(TextInputPurpose.Decimal, pin.inputPurpose)
+        assertFalse(pin.softwareKeyboard)
+    }
+    @Test
+    fun `hover popup touch configuration is independent from mouse delays and focus`() {
+        val tooltip = TooltipBuilder()
+        tooltip.longPress = LongPressOptions(delay = Duration.milliseconds(720L), threshold = 11.0)
+        val first = tooltip.snapshot(empty(), PanelContent.Custom(empty()))
+        tooltip.longPress = LongPressOptions(enabled = false)
+        assertTrue(first.longPress.enabled)
+        assertEquals(Duration.milliseconds(720L), first.input.hover.longPress.delay)
+        assertEquals(11.0, first.input.hover.longPress.threshold)
+        assertEquals(Duration.ZERO, first.openDelay)
+        assertTrue(first.focus)
+        assertFalse(
+            tooltip.snapshot(empty(), PanelContent.Custom(empty())).input.hover.longPress.enabled
+        )
+        assertTrue(HoverCardBuilder().snapshot(empty(), empty()).input.hover.longPress.enabled)
+        assertFalse(HoverOptions().longPress.enabled)
+    }
+}

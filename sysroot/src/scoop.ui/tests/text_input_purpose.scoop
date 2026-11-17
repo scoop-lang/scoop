@@ -1,0 +1,38 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.TextInputPurpose
+import scoop.window.Utf8Range
+
+@Test
+private class TextInputPurposeTest {
+    @Test
+    fun `purpose hints preserve editor policy while protection overrides the native hint`() {
+        assertEquals(TextInputPurpose.Normal, editorInputPurpose(TextEditOptions()))
+        assertTrue(TextEditOptions().softwareKeyboard)
+        for (
+            purpose in [
+                TextInputPurpose.Normal,
+                TextInputPurpose.Digits,
+                TextInputPurpose.Decimal,
+                TextInputPurpose.Email,
+                TextInputPurpose.Url,
+                TextInputPurpose.Telephone,
+                TextInputPurpose.Password,
+                TextInputPurpose.Search
+            ]
+        ) {
+            val ordinary = TextEditOptions(inputPurpose = purpose, softwareKeyboard = false)
+            assertEquals(purpose, editorInputPurpose(ordinary))
+            assertFalse(ordinary.protectedText)
+            assertFalse(ordinary.softwareKeyboard)
+            assertEquals(
+                TextInputPurpose.Password,
+                editorInputPurpose(TextEditOptions(inputPurpose = purpose, protectedText = true))
+            )
+            val state = TextEditorState()
+            assertTrue(state.applyEdit(Utf8Range(0L, 0L), "any text", ordinary.policy))
+            assertEquals("any text", state.text)
+        }
+    }
+}

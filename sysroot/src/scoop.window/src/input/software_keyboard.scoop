@@ -1,0 +1,129 @@
+package scoop.window
+
+/** Advisory native input layout; text validation belongs to the editor. */
+public enum TextInputPurpose {
+    Normal, Digits, Decimal, Email, Url, Telephone, Password, Search
+}
+
+/** A successful request does not imply that the platform displayed a keyboard. */
+public enum SoftwareKeyboardRequest {
+    Requested, Unavailable, Unsupported
+}
+
+/** Known visibility and the actual overlap with this window's logical content. */
+public enum SoftwareKeyboardState {
+    Unknown, Hidden, Shown(LogicalRect?)
+}
+
+public fun Window.setTextInputPurpose(
+    connection: TextInputConnection,
+    purpose: TextInputPurpose
+): RequestStatus {
+    checkTextConnection(connection)
+    val code =
+        when (purpose) {
+            case Normal -> 0
+            case Digits -> 1
+            case Decimal -> 2
+            case Email -> 3
+            case Url -> 4
+            case Telephone -> 5
+            case Password -> 6
+            case Search -> 7
+        }
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeTextPurpose(owner.pointer!!, connection.generation, code),
+            "set text input purpose"
+        )
+    }
+}
+
+public fun Window.requestSoftwareKeyboard(
+    connection: TextInputConnection,
+    visible: Boolean = true
+): SoftwareKeyboardRequest {
+    checkTextConnection(connection)
+    val input =
+        when (owner.currentInput) {
+            case Some(val current) -> current.pointer
+            case None -> None
+        }
+    @Unsafe
+    {
+        val code =
+            nativeRequestKeyboard(
+                owner.pointer!!,
+                connection.generation,
+                if (visible)
+                    1
+                else
+                    0,
+                input
+            )
+        return when (code) {
+            case 0L -> SoftwareKeyboardRequest.Requested
+            case 1L -> SoftwareKeyboardRequest.Unavailable
+            case - 1L -> SoftwareKeyboardRequest.Unsupported
+            else -> {
+                checkNativeStatus(code, "request software keyboard")
+                SoftwareKeyboardRequest.Unavailable
+            }
+        }
+    }
+}
+
+public val Window.softwareKeyboard: SoftwareKeyboardState get() {
+    owner.requireOpen()
+    @Unsafe
+    {
+        val value = nativeSoftwareKeyboard(owner.pointer!!)
+        return copySoftwareKeyboard(value.state, value.x, value.y, value.width, value.height)
+    }
+}
+
+internal fun copySoftwareKeyboard(
+    state: Int,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double
+): SoftwareKeyboardState =
+    when (state) {
+        case 0 -> SoftwareKeyboardState.Unknown
+        case 1 -> SoftwareKeyboardState.Hidden
+        case 2 -> SoftwareKeyboardState.Shown(None)
+        case 3 -> {
+            val rect = LogicalRect(LogicalPosition(x, y), LogicalSize(width, height))
+            checkImeCursorArea(rect)
+            SoftwareKeyboardState.Shown(Some(rect))
+        }
+        else -> throw WindowException(
+            "invalid software keyboard state",
+            WindowErrorKind.NativeFailure
+        )
+    }
+
+@CLayout
+private struct NativeSoftwareKeyboard(
+    val state: Int,
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val height: Double
+)
+
+@Extern(name = "scoop_window_text_purpose")
+private fun nativeTextPurpose(window: Ptr<Unit>, connection: Long, purpose: Int): Long
+
+@Extern(name = "scoop_window_keyboard_request")
+private fun nativeRequestKeyboard(
+    window: Ptr<Unit>,
+    connection: Long,
+    visible: Int,
+    input: Ptr<Unit>?
+): Long
+
+@Extern(name = "scoop_window_keyboard_state")
+private fun nativeSoftwareKeyboard(window: Ptr<Unit>): NativeSoftwareKeyboard

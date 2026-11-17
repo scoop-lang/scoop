@@ -70,7 +70,9 @@ public class SidebarInput public constructor(
                 input.drag,
                 input.touch,
                 input.touchScroll,
-                input.scrollPhysics
+                input.scrollPhysics,
+                inputPurpose = input.inputPurpose,
+                softwareKeyboard = input.softwareKeyboard
             ),
             { current, mount -> Input(current, scope = mount) }
         )

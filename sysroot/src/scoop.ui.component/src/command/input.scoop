@@ -47,7 +47,9 @@ internal fun commandInput(
             field.drag,
             field.touch,
             field.touchScroll,
-            field.scrollPhysics
+            field.scrollPhysics,
+            inputPurpose = field.inputPurpose,
+            softwareKeyboard = field.softwareKeyboard
         )
     val addons = ArrayList<InputGroupAddon>()
     if (input.showSearchIcon)

@@ -24,7 +24,12 @@ static void pointer_motion(GtkEventControllerMotion *controller, double x,
     return;
   SWWindow *window = data;
   pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
-  emit_pointer(window, (SWPointerData){.kind = SWPointerMoved}, NULL);
+  GdkEvent *event =
+      gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(controller));
+  emit_pointer(window, (SWPointerData){.kind = SWPointerMoved},
+               event && (gdk_event_get_modifier_state(event) & GDK_BUTTON1_MASK)
+                   ? event
+                   : NULL);
 }
 static void pointer_leave(GtkEventControllerMotion *controller, gpointer data) {
   emit_pointer(data, (SWPointerData){.kind = SWPointerLeft}, NULL);

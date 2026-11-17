@@ -1,6 +1,6 @@
 package scoop.window
 
-/** Begins native data dragging from the currently dispatched left-button input. */
+/** Begins native data dragging from the currently dispatched mouse or direct-contact input. */
 public fun Window.beginDrag(
     content: DragContent,
     effects: DragEffects = DragEffects(true, false, false),
@@ -97,7 +97,7 @@ private fun prepareDragSource(
                 }
             }
             checkNativeStatus(nativeDragReady(pointer), "prepare data drag")
-            return DarwinDragSource(owner.application, pointer, callback)
+            return PlatformDragSource(owner.application, pointer, callback)
         } catch (error: Throwable) {
             when (allocated) {
                 case Some(val value) -> nativeDragClose(value)
@@ -130,7 +130,7 @@ private fun checkDragContent(status: Long) {
     checkNativeStatus(status, "copy drag content")
 }
 
-private class DarwinDragSource(
+private class PlatformDragSource(
     private val application: ApplicationOwner,
     private val pointer: Ptr<Unit>,
     private val callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>

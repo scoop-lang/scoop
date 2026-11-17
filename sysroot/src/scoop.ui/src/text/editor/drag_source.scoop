@@ -35,7 +35,11 @@ internal class EditorDragSource(
             )
 
     private fun options(): DragSourceOptions =
-        DragSourceOptions(host.options.drag.threshold, enabled)
+        DragSourceOptions(
+            host.options.drag.threshold,
+            enabled,
+            contacts = host.options.touch.enabled
+        )
 
     private fun valid(candidate: EditorDragCandidate): Boolean =
         enabled &&
@@ -85,6 +89,59 @@ internal class EditorDragSource(
         if (closed)
             return false
         when (event) {
+            case Contact(InputContactEvent.Began(val value)) -> {
+                pending = None
+                if (
+                    !enabled ||
+                        !binding.hasContactCandidate(value.id) ||
+                        host.current.isComposing ||
+                        value.pointer.modifiers.shift ||
+                        host.touchHandles.contact?.start?.id ==
+                        Some(value.id)
+                )
+                    return false
+                val point = context.localPosition ?: return false
+                val frame = host.accepted ?: return false
+                if (
+                    frame.editor !==
+                        host.current ||
+                        frame.revision !=
+                        host.current.revision ||
+                        frame.projection !==
+                        host.options.projection
+                )
+                    return false
+                val range = host.current.selection.range
+                if (range.start == range.end)
+                    return false
+                var inside = false
+                for (box in frame.layout.selection(frame.display.displayRange(range)))
+                    if (textMenuContains(box.rect, point)) {
+                        inside = true
+                        break
+                    }
+                if (!inside)
+                    return false
+                pending = Some(EditorDragCandidate(host.current))
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                val candidate = pending ?: return false
+                if (
+                    !valid(candidate) ||
+                        !binding.hasContactCandidate(value.id) ||
+                        host.touchHandles.contact?.start?.id !=
+                        None
+                ) {
+                    cancelCandidate()
+                    return false
+                }
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Ended(_)) -> {
+                pending = None
+                return false
+            }
             case Pointer(
                 InputPointerEvent.Button(
                     val pointer,
@@ -155,10 +212,21 @@ internal class EditorDragSource(
         }
     }
 
+    private fun advanceContact(context: RoutedEventContext, event: InputEvent): Boolean {
+        binding.handle(context, event)
+        if (!binding.isDragging)
+            return false
+        host.keyboard.cancelPending()
+        host.touchPress.cancel()
+        host.touchPan.cancel()
+        host.touchHandles.hide()
+        return true
+    }
+
     private fun prepare(start: DragSourceStart): DragSourceData? {
         val candidate = pending ?: return None
         pending = None
-        if (!valid(candidate) || start.press.state.modifiers.shift)
+        if (!valid(candidate) || start.press.modifiers.shift)
             return None
         val editor = candidate.editor
         val config = host.options.drag

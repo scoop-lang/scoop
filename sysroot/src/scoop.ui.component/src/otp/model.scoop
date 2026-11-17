@@ -5,6 +5,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 
 public struct InputOtpSlot(val index: Long, val invalid: Boolean = false)
 
@@ -45,7 +46,9 @@ public class InputOtpProps public constructor(
     public val touch: TextTouchOptions = TextTouchOptions(),
     public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
     public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
-    public val semantics: ComponentSemantics = ComponentSemantics()
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val inputPurpose: TextInputPurpose? = None,
+    public val softwareKeyboard: Boolean = true
 ) {
     init {
         requireComponent(length > 0L, "OTP length must be positive")

@@ -6,6 +6,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 
 public class InputOtpGroupBuilder internal constructor() {
     private val slots = ArrayList<InputOtpSlot>()
@@ -20,6 +21,8 @@ public class InputOtpBuilder internal constructor() {
     public var enabled: Boolean = true
     public var readOnly: Boolean = false
     public var protectedText: Boolean = false
+    public var inputPurpose: TextInputPurpose? = None
+    public var softwareKeyboard: Boolean = true
     public var acceptDrops: Boolean = true
     public var drag: TextDragOptions = TextDragOptions()
     public var touch: TextTouchOptions = TextTouchOptions()
@@ -87,7 +90,9 @@ public class InputOtpBuilder internal constructor() {
             touch,
             touchScroll,
             scrollPhysics,
-            semantics
+            semantics,
+            inputPurpose,
+            softwareKeyboard
         )
 }
 

@@ -1,0 +1,107 @@
+package scoop.examples.touchinput
+
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as panelLabel
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+
+fun main() {
+    context(ThemeSource(shadcnTheme())) {
+        runUiApplication("Scoop - touch input", { scope -> TouchInputPanel(scope) })
+    }
+}
+
+private class TouchInputPanel(scope: ComponentScope): Component(scope) {
+    private val email = TextEditorState()
+    private val phone = TextEditorState()
+    private val password = TextEditorState()
+    private val notes = TextEditorState("Select text and drag it to another field or window.")
+    private val clicks = state(0)
+    private val keyboard = state("Keyboard status unavailable")
+    private val selection = state<ChartSelection?>(None)
+    private val scroll = ScrollState()
+    private val model =
+        ChartModel(
+            ChartData(
+                [ChartDatum(ChartDatumKey("one"), "One"), ChartDatum(ChartDatumKey("two"), "Two")],
+                [ChartSeries(ChartSeriesKey("value"), "Value", [Some(20.0), Some(35.0)])]
+            )
+        )
+    public override fun onMount() {
+        scope.observeWindow(scope.nativeWindow) {
+            event -> when (event) {
+                case SoftwareKeyboardChanged(val state) -> keyboard.value =
+                    when (state) {
+                        case Unknown -> "Keyboard status unavailable"
+                        case Hidden -> "Keyboard hidden"
+                        case Shown(_) -> "Keyboard visible"
+                    }
+                else -> {}
+            }
+        }
+    }
+    public override fun render(): View {
+        val panel = this
+        val hint = button(f"Tap action (${panel.clicks.value})", { panel.clicks.value += 1 })
+        val cardTrigger = button("Hold for details", {})
+        val details =
+            column {
+                this.add(panelLabel("This card stays open after release."))
+                this.button("Action inside the card", { panel.clicks.value += 1 })
+            }
+        val fields =
+            column {
+                this.add(panelLabel("Text input and direct touch"))
+                this.input(panel.email) {
+                    placeholder = "Email address"
+                    inputPurpose = TextInputPurpose.Email
+                    semantics = ComponentSemantics(name = Some("Email address"))
+                }
+                this.input(panel.phone) {
+                    placeholder = "Telephone number"
+                    inputPurpose = TextInputPurpose.Telephone
+                    semantics = ComponentSemantics(name = Some("Telephone number"))
+                }
+                this.input(panel.password) {
+                    placeholder = "Password"
+                    protectedText = true
+                    projection = textMask()
+                    semantics = ComponentSemantics(name = Some("Password"))
+                }
+                this.textarea(panel.notes) {
+                    rows = 5L
+                    semantics = ComponentSemantics(name = Some("Notes"))
+                }
+                this.add(panelLabel(panel.keyboard.value))
+                this.tooltip(hint, "Hold to read this hint. A short tap performs the action.") {
+                    longPress = LongPressOptions(delay = Duration.milliseconds(500L))
+                }
+                this.hoverCard(cardTrigger, details)
+                this.chart(panel.model) {
+                    active = Some(panel.selection.binding())
+                    height = Some(220.0)
+                    semantics = ComponentSemantics(name = Some("Touch-selectable values"))
+                }
+                this.add(
+                    panelLabel(
+                        when (val selected = panel.selection.value) {
+                            case Some(val value) -> "Selected: " + value.datum.value
+                            case None -> "Tap a value to show its details."
+                        }
+                    )
+                )
+                this.button(
+                    "Select the first value",
+                    {
+                        panel.selection.value =
+                            Some(ChartSelection(ChartSeriesKey("value"), ChartDatumKey("one")))
+                    }
+                )
+            }
+        return scrollArea(fields) { state = Some(panel.scroll) }
+    }
+}

@@ -132,6 +132,8 @@ showModal 从隐藏的既有窗口创建 ModalSession，区分 Owner／Applicati
 
 ## 5. 输入与文本
 
+文本连接的输入用途、软键盘请求与实际遮挡通知见[输入用途规范](SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md)。这些能力不改变系统激活策略或输入事务。
+
 KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（手工构造时缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。`Modifiers.altGraph: Boolean?` 保存已确定的文本修饰语义，None 表示未知，macOS 为 Some(false)；Linux 从当前 XKB 的 LevelThree／Mode_switch 文本修饰状态产生 Some(true) 或 Some(false)，缺少 keymap 时为 None。Super 始终是实际 Command／Win 键，不能用 Windows Control 冒充 Super。Function 表示实际 Fn 状态，不把 AppKit 为方向键等附加的功能键类别标志作为额外修饰键。
 
 TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
@@ -335,4 +337,4 @@ WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 cop
 
 ## 13. 数据拖放
 
-Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。Darwin 提供 registerDropTarget 和从当前左键输入启动的 beginDrag；源结果报告系统实际接受的操作，不自动删除来源。UI 接收沿 Accepted 路由，UI source、文本事务和三平台系统验收继续按交互打磨 S6 推进。
+Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。三个桌面后端提供 registerDropTarget 和从当前真实输入启动的 beginDrag；源结果报告系统实际接受的操作，不自动删除来源。UI 接收沿 Accepted 路由。Touch／Pen 来源沿各平台公开入口启动，Windows 等待真实的系统兼容鼠标入口；真实设备与跨程序验收继续按交互打磨计划集中执行。

@@ -5,6 +5,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.ThemeSource
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 
 public open class InputBuilder internal constructor() {
     public var placeholder: String = ""
@@ -27,6 +28,8 @@ public open class InputBuilder internal constructor() {
     public var projection: TextProjection = textProjection()
     public var copy: TextCopyPolicy = TextCopyPolicy.Default
     public var protectedText: Boolean = false
+    public var inputPurpose: TextInputPurpose = TextInputPurpose.Normal
+    public var softwareKeyboard: Boolean = true
     public var acceptDrops: Boolean = true
     public var drag: TextDragOptions = TextDragOptions()
     public var touch: TextTouchOptions = TextTouchOptions()
@@ -80,7 +83,9 @@ public open class InputBuilder internal constructor() {
             touch,
             touchScroll,
             scrollPhysics,
-            expansion
+            expansion,
+            inputPurpose,
+            softwareKeyboard
         )
 }
 
@@ -134,7 +139,9 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             drag,
             touch,
             touchScroll,
-            scrollPhysics
+            scrollPhysics,
+            inputPurpose,
+            softwareKeyboard
         )
 }
 

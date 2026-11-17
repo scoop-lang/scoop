@@ -6,6 +6,8 @@
 typedef struct {
   int64_t window;
   GdkEvent *event;
+  int32_t kind;
+  int64_t contact;
 } SWNativeInput;
 
 #endif

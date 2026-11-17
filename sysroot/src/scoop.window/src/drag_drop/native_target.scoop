@@ -2,7 +2,7 @@ package scoop.window
 
 import scoop.platform.fs.Path
 
-/** Registers the window's AppKit destination. Payloads are read only during drop. */
+/** Registers the window's native destination. Payloads are read only during drop. */
 public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
     owner.requireOpen()
     if (owner.phase != WindowState.Open)
@@ -76,7 +76,7 @@ public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
                     nativeDropCreate(owner.pointer!!, callback.function, callback.context),
                     "register drop target"
                 )
-            target.bind(DarwinDropTarget(owner.application, pointer, callback))
+            target.bind(PlatformDropTarget(owner.application, pointer, callback))
             owner.dropTarget = Some(target)
             return target
         } catch (error: Throwable) {
@@ -88,7 +88,7 @@ public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
 
 private fun bit(value: Int, mask: Int): Boolean = (value / mask) % 2 != 0
 
-private class DarwinDropTarget(
+private class PlatformDropTarget(
     private val application: ApplicationOwner,
     private val pointer: Ptr<Unit>,
     private val callback: ForeignCallback<

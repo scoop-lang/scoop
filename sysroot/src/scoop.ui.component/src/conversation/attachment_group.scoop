@@ -155,6 +155,7 @@ internal class AttachmentGroupInk(
                 InputPointerEvent.Button(_, _, ElementState.Pressed, _)
             ) -> deadline.cancel()
             case Keyboard(_) -> deadline.cancel()
+            case Contact(InputContactEvent.Began(_)) -> deadline.cancel()
             case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
                 context.consumeScroll(40.0 * props.value.density) {
                     amount ->

@@ -19,7 +19,11 @@ public class DragSource internal constructor(
     private var beginSession: ((DragSourceData, (DragResult) -> Unit) -> DragSession)? = Some(begin)
     private var session: DragSession? = None
     private var completion: ((DragResult) -> Unit)? = None
-    private var press: InputPointer? = None
+    private var press: PointerState? = None
+    private var input: DragInput? = None
+    private val contacts = ArrayList<ContactId>()
+    private var moved = false
+    private var began = false
     private var preparing = false
     private var closed = false
     private var revision = 0uL
@@ -37,8 +41,16 @@ public class DragSource internal constructor(
     public fun update(options: DragSourceOptions, prepare: (DragSourceStart) -> DragSourceData?) {
         checkDropMutation()
         requireUi(!isClosed, "drag source is no longer mounted")
-        if (options.threshold != this.options.threshold || !options.enabled)
-            press = None
+        if (
+            options.threshold !=
+                this.options.threshold ||
+                !options.enabled ||
+                options.mouse !=
+                this.options.mouse ||
+                options.contacts !=
+                this.options.contacts
+        )
+            clearCandidate()
         this.options = options
         prepareData = Some(prepare)
         revision += 1uL
@@ -51,7 +63,13 @@ public class DragSource internal constructor(
         if (context.phase == RoutedPhase.Notification) {
             when (event) {
                 case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
-                    press = None
+                    if (isMouse())
+                        clearCandidate()
+                }
+                case Contact(InputContactEvent.Cancelled(val id, _, _)) -> {
+                    forgetContact(contacts, id)
+                    if (isContact(id))
+                        clearCandidate()
                 }
                 else -> {}
             }
@@ -67,9 +85,12 @@ public class DragSource internal constructor(
                     val count
                 )
             ) -> {
-                press = None
+                clearCandidate()
                 if (
                     available &&
+                        options.mouse &&
+                        contacts.size ==
+                        0L &&
                         !visual.value &&
                         count ==
                         1 &&
@@ -77,7 +98,23 @@ public class DragSource internal constructor(
                         None &&
                         !isContextMenuClick(MouseButton.Left, pointer.state.modifiers)
                 )
-                    press = Some(pointer)
+                {
+                    press = Some(pointer.state)
+                    input = Some(DragInput.Mouse(MouseButton.Left))
+                }
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                rememberContact(contacts, value.id)
+                if (contacts.size > 1L) {
+                    clearCandidate()
+                    return
+                }
+                if (
+                    available && options.contacts && !visual.value && context.localPosition != None
+                ) {
+                    press = Some(value.pointer)
+                    input = Some(DragInput.Contact(value.id, value.kind))
+                }
             }
             else -> {}
         }
@@ -87,42 +124,63 @@ public class DragSource internal constructor(
         if (!available || visual.value || press == None)
             return
         when (event) {
-            case Pointer(InputPointerEvent.Moved(val pointer)) -> advance(context, pointer)
+            case Pointer(InputPointerEvent.Moved(val pointer)) -> if (isMouse()) {
+                moved = true
+                advance(context, pointer.state)
+            }
             case Pointer(
                 InputPointerEvent.Button(val pointer, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
-                if (options.threshold == 0.0)
-                    advance(context, pointer)
+                began = true
+                if (isMouse() && options.threshold == 0.0)
+                    advance(context, pointer.state)
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                began = true
+                if (isContact(value.id) && options.threshold == 0.0)
+                    advance(context, value.pointer)
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (isContact(value.id)) {
+                    moved = true
+                    advance(context, value.pointer)
+                }
             }
             else -> {}
         }
     }
 
-    private fun advance(context: RoutedEventContext, pointer: InputPointer) {
+    private fun advance(context: RoutedEventContext, pointer: PointerState) {
         val origin = press ?: return
+        val source = input ?: return
         if (!dragSourceThreshold(origin, pointer, options.threshold))
             return
         // A declined or invalidated preparation is not retried until the next press.
-        press = None
+        clearCandidate()
         val position = context.localPosition ?: return
         val start =
-            area.toLocal(Point(origin.state.logicalPosition.x, origin.state.logicalPosition.y)) ?:
-                return
+            area.toLocal(Point(origin.logicalPosition.x, origin.logicalPosition.y)) ?: return
         val version = revision
         preparing = true
         val data =
             try {
-                prepareData!!.invoke(DragSourceStart(start, position, origin, pointer)) ?: return
+                prepareData!!.invoke(DragSourceStart(start, position, origin, pointer, source)) ?:
+                    return
             } finally {
                 preparing = false
             }
         if (!available || revision != version || visual.value)
             return
-        if (!area.scope.claimPointer(MouseButton.Left))
+        val claimed =
+            when (source) {
+                case Mouse(val button) -> area.scope.claimPointer(button)
+                case Contact(val id, _) -> area.scope.claimContacts([id])
+            }
+        if (!claimed)
             return
         try {
             if (!available || revision != version) {
-                area.scope.cancelPointerClaim()
+                releaseClaim(source)
                 return
             }
             val value = beginSession!!.invoke(data) { result -> completed(result) }
@@ -133,17 +191,71 @@ public class DragSource internal constructor(
             context.consume()
         } catch (error: Throwable) {
             var failure = cleanupUi(Some(error)) { releaseSession() }
-            failure = cleanupUi(failure) { area.scope.cancelPointerClaim() }
+            failure = cleanupUi(failure) { releaseClaim(source) }
             throw failure!!
         }
     }
 
     private fun finish(event: InputEvent) {
         when (event) {
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (isContact(value.id) && !began)
+                    clearCandidate()
+                began = false
+            }
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+            ) -> {
+                if (isMouse() && !began)
+                    clearCandidate()
+                began = false
+            }
+            case Pointer(InputPointerEvent.Moved(_)) -> {
+                if (isMouse() && !moved)
+                    clearCandidate()
+                moved = false
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (isContact(value.id) && !moved)
+                    clearCandidate()
+                moved = false
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                forgetContact(contacts, value.id)
+                if (isContact(value.id))
+                    clearCandidate()
+            }
             case Pointer(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
-            ) -> press = None
+            ) -> {
+                if (isMouse())
+                    clearCandidate()
+            }
             else -> {}
+        }
+    }
+
+    private fun isMouse(): Boolean =
+        when (input) {
+            case Some(DragInput.Mouse(_)) -> true
+            else -> false
+        }
+    private fun isContact(id: ContactId): Boolean =
+        when (input) {
+            case Some(DragInput.Contact(val current, _)) -> current == id
+            else -> false
+        }
+    internal fun hasContactCandidate(id: ContactId): Boolean = press != None && isContact(id)
+    private fun clearCandidate() {
+        press = None
+        input = None
+    }
+    private fun releaseClaim(source: DragInput) {
+        if (area.isClosed)
+            return
+        when (source) {
+            case Mouse(_) -> area.scope.cancelPointerClaim()
+            case Contact(val id, _) -> area.scope.cancelContactClaim(id)
         }
     }
 
@@ -165,7 +277,7 @@ public class DragSource internal constructor(
 
     internal fun reconcile() {
         if (!available) {
-            press = None
+            clearCandidate()
             releaseSession()
         }
     }
@@ -186,7 +298,7 @@ public class DragSource internal constructor(
         if (closed)
             return false
         val candidate = press != None || preparing
-        press = None
+        clearCandidate()
         preparing = false
         revision += 1uL
         return when (val current = session) {
@@ -226,7 +338,8 @@ public class DragSource internal constructor(
             return
         closed = true
         revision += 1uL
-        press = None
+        clearCandidate()
+        contacts.clear()
         preparing = false
         prepareData = None
         beginSession = None
