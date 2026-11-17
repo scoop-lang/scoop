@@ -153,7 +153,7 @@ impl Lowerer {
         self.functions[id].params = params;
         let outer_capture_scope =
             owner.and_then(|owner| self.enter_local_type_captures(owner, capture_environment));
-        entry.extend(self.lower_context_entry(id));
+        entry.extend(self.lower_context_entry(id, implicit_parameter_span));
 
         let value = lower(self);
         self.pop_scope();

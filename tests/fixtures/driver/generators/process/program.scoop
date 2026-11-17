@@ -1,6 +1,6 @@
 interface Sum { fun add(left: Int, right: Int): Int }
 interface OtherSum { fun add(left: Int, right: Int): Int }
-interface Label { fun label(): String }
+interface Label { context(marker: LabelContext) fun label(): String }
 interface Echo<T> { fun guardedEcho(value: T): T }
 
 @GenerateWith("test.peer", ["Sum", "OtherSum", "Label"])
@@ -18,7 +18,9 @@ class Manual : Sum { override fun add(left: Int, right: Int): Int = left - right
 fun main() {
     val combined = Combined()
     println(combined.add(19, 23))
-    println(combined.label())
+    context(LabelContext()) { println(combined.label()) }
     println(Generic<Int>().guardedEcho(7))
     println(Manual().add(8, 3))
 }
+
+class LabelContext

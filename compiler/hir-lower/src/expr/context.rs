@@ -82,8 +82,17 @@ impl Lowerer {
         parameters
     }
 
-    pub(crate) fn lower_context_entry(&mut self, function: hir::FunctionId) -> Vec<hir::Statement> {
-        let parameters = self.functions[function].context_parameters.clone();
+    pub(crate) fn lower_context_entry(
+        &mut self,
+        function: hir::FunctionId,
+        implicit_parameter_span: Option<ast::Span>,
+    ) -> Vec<hir::Statement> {
+        let mut parameters = self.functions[function].context_parameters.clone();
+        if let Some(span) = implicit_parameter_span {
+            for parameter in &mut parameters {
+                parameter.span = span;
+            }
+        }
         if !parameters.is_empty() {
             if let Err(error) = self.prepare_missing_context_exception_type() {
                 self.error(
