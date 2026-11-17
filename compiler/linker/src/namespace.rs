@@ -72,6 +72,18 @@ impl NativeBinding {
 }
 
 impl NativeNamespace {
+    pub fn extend(
+        &mut self,
+        native: &mut NativeInputs,
+        roots: &[PathBuf],
+        profile: &ValidatedFinalLinkProfile,
+    ) -> Result<(), LinkError> {
+        match self {
+            Self::Darwin(namespace) => namespace.providers.extend(native, roots, profile),
+            Self::Elf(_) | Self::Coff(_) => Ok(()),
+        }
+    }
+
     pub fn read(
         native: &mut NativeInputs,
         roots: &[PathBuf],

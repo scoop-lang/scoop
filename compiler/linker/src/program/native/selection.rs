@@ -84,8 +84,13 @@ pub(super) fn resolve(
     inputs: &mut ProgramInputs<'_>,
     declarations: &BTreeMap<String, Declarations<'_>>,
     runtime: &RuntimeObjectSet,
+    profile: &ValidatedFinalLinkProfile,
+    roots: &[std::path::PathBuf],
 ) -> Result<(), LinkError> {
+    let mut processed = std::collections::BTreeSet::new();
+    add_autolinks(inputs, &mut processed, profile, roots)?;
     let mut pending = inputs.requirements.clone();
+    let mut unresolved = BTreeMap::new();
     while let Some(symbol) = pending.pop_first() {
         if inputs.linker_defined(&symbol) {
             continue;
@@ -128,18 +133,30 @@ pub(super) fn resolve(
             .get(&symbol)
             .map(|origins| origins.join(", "))
             .unwrap_or_else(|| "program startup/linker support".into());
-        let candidate = candidate(source_symbol, binding, inputs).map_err(|err| {
-            error(
-                err.code(),
-                format!("{err}; reference chain: {symbol} <- {origin}"),
-            )
-        })?;
+        let candidate = match candidate(source_symbol, binding, inputs) {
+            Ok(candidate) => candidate,
+            Err(err) => {
+                let err = error(
+                    err.code(),
+                    format!("{err}; reference chain: {symbol} <- {origin}"),
+                );
+                if err.code() != scoop_source::DiagnosticCode::E2308 {
+                    return Err(err);
+                }
+                // A later selected member may introduce this symbol's library.
+                unresolved.insert(symbol, err);
+                continue;
+            }
+        };
         match candidate {
             Candidate::Object(id) => {
                 if !inputs.native.selected.contains_key(&id) {
                     include(inputs, runtime, id, &format!("{symbol} <- {origin}"))?;
                     let (index, _) = inputs.native.object(id)?;
                     pending.extend(index.requirements.iter().cloned());
+                    add_autolinks(inputs, &mut processed, profile, roots)?;
+                    pending.extend(unresolved.keys().cloned());
+                    unresolved.clear();
                 }
             }
             Candidate::Definition => continue,
@@ -155,6 +172,9 @@ pub(super) fn resolve(
                 }
             }
         }
+    }
+    if let Some((_, error)) = unresolved.pop_first() {
+        return Err(error);
     }
     // A member selected for another symbol can add a definition after a
     // dynamic binding was chosen. Revisit only these changed resolutions.
@@ -181,6 +201,42 @@ pub(super) fn resolve(
             check_kind(&symbol, declaration.contract, index.definitions[&symbol])?;
         }
         inputs.namespace.unbind(&symbol);
+    }
+    Ok(())
+}
+
+fn add_autolinks(
+    inputs: &mut ProgramInputs<'_>,
+    processed: &mut std::collections::BTreeSet<NativeObjectId>,
+    profile: &ValidatedFinalLinkProfile,
+    roots: &[std::path::PathBuf],
+) -> Result<(), LinkError> {
+    let selected: Vec<_> = inputs
+        .native
+        .selected
+        .keys()
+        .filter(|id| !processed.contains(id))
+        .copied()
+        .collect();
+    let mut added = false;
+    for id in selected {
+        processed.insert(id);
+        let file = &inputs.native.files[&id.input()];
+        let (_, range) = inputs.native.object(id)?;
+        let requirements = crate::native_input::autolink::read(&file.bytes[range], profile)?;
+        for key in requirements {
+            added |= inputs.native.add(
+                key,
+                vec![format!("autolink from native object {id}")],
+                roots,
+                profile,
+            )?;
+        }
+    }
+    if added {
+        inputs
+            .namespace
+            .extend(&mut inputs.native, roots, profile)?;
     }
     Ok(())
 }

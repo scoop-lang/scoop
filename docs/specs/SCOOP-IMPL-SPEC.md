@@ -1433,7 +1433,7 @@ ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v7`，覆盖 root/依赖、Cod
 
 #### 2.8.1 Swift 原生库的链接与发布（设计合同）
 
-本节与 2.7.1 配套，尚未实现。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
+本节与 2.7.1 配套，实施中。已接入 source 构建的精确库绑定、选中成员 autolink、Swift 系统库解析及静态 framework 读取；配套目录、可重定位部署与完整动态依赖验收仍待完成。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
 
 **库与框架。** `.a` 使用 SwiftPM 实际完整 archive，不当作 `.o` 传给 scoopc，也不把所有 target 对象盲目拼接。静态 product 仍可依赖动态库、系统库和资源。`.dylib` 使用其普通 Mach-O 符号和装载依赖。
 

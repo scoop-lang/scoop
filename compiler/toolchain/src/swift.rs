@@ -19,7 +19,8 @@ mod package;
 mod plan;
 mod product;
 mod tool;
-pub use product::{SwiftLinkSettings, SwiftProduct};
+pub use product::SwiftProduct;
+pub(crate) use tool::toolchain_root;
 
 #[derive(Clone, Debug, Default)]
 pub struct SwiftBuildOptions {

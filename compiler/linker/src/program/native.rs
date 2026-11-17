@@ -87,7 +87,7 @@ pub(super) fn resolve(
             )
         })?;
     }
-    selection::resolve(inputs, declarations, runtime)?;
+    selection::resolve(inputs, declarations, runtime, profile, library_paths)?;
     inputs
         .namespace
         .project(&inputs.definitions, library_paths, profile)?;

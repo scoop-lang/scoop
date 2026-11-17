@@ -20,19 +20,7 @@ impl SwiftTools {
         request: &SwiftBuildRequest,
         target: &ResolvedTargetProfile,
     ) -> Result<Self, ToolchainError> {
-        let swift = match &request.options.toolchain {
-            Some(root) => root.join("usr/bin/swift"),
-            None => {
-                PathBuf::from(run(Command::new("/usr/bin/xcrun").args(["--find", "swift"]))?.trim())
-            }
-        };
-        let root = swift
-            .parent()
-            .and_then(Path::parent)
-            .and_then(Path::parent)
-            .ok_or_else(|| error(format!("invalid Swift toolchain path {}", swift.display())))?
-            .canonicalize()
-            .map_err(error)?;
+        let root = toolchain_root(request.options.toolchain.as_deref())?;
         // Swift dispatches by argv[0]; resolving its symlink selects swift-frontend.
         let swift = root.join("usr/bin/swift");
         let version = run(Command::new(&swift).arg("--version"))?;
@@ -150,6 +138,22 @@ impl SwiftTools {
     pub(super) fn is_tool_input(&self, path: &Path) -> bool {
         path.starts_with(&self.sdk) || path.starts_with(&self.root)
     }
+}
+
+pub(crate) fn toolchain_root(selected: Option<&Path>) -> Result<PathBuf, ToolchainError> {
+    let swift = match selected {
+        Some(root) => root.join("usr/bin/swift"),
+        None => {
+            PathBuf::from(run(Command::new("/usr/bin/xcrun").args(["--find", "swift"]))?.trim())
+        }
+    };
+    swift
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .ok_or_else(|| error(format!("invalid Swift toolchain path {}", swift.display())))?
+        .canonicalize()
+        .map_err(error)
 }
 
 pub(super) fn run(command: &mut Command) -> Result<String, ToolchainError> {

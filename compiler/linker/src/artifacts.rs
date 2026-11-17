@@ -62,6 +62,7 @@ impl ArtifactLinkRequest {
                 keep_symbols: self.final_link.keep_symbols,
                 emit_debug_file: self.final_link.emit_debug_file,
                 enable_stack_trace: self.final_link.enable_stack_trace.unwrap_or(false),
+                ..Default::default()
             },
             &self.library_paths,
             &self.output,

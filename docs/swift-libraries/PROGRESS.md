@@ -13,10 +13,13 @@
 - 2026-11-18：Swift product 加入 driver 的同一 jobs 调度，锁等待不占 worker；所有选定 product 完成后才生成 build outcome。PM 协议 10 携带共享源码标志，driver 将 CLI locked/offline/frozen 传给 Swift 生产。check/doc 保持前端职责。
 - 本项验证：定向 clippy 通过（新代码无警告）；7 项并发调度测试和 2 项 PM 来源测试通过；使用本地 LLVM 22.1.8 构建配套命令后，真实 CLI 的冷构建、命中和 Swift 源码修改三轮均成功。冷构建新增 1 次 scoopc 调用，后两轮均无新增调用且 `.slib` mtime 保持，Swift 修改产生新的原生库结果。最终链接与配套目录尚未接入，不能据此宣称完整 Swift 调用交付已完成。
 
+- 2026-11-18：接入 source 最终链接。生产结果直接绑定逻辑库，普通库搜索不替换它；选中 Mach-O 成员的 autolink 递归加入库要求，未选成员不引入依赖，LLD 使用同一输入且关闭再次自动搜库。SDK Swift stub 沿系统兼容路径解析；缺失的 Swift compatibility 库才查询所选工具链。静态 framework 按 archive 读取；最终缓存加入 Swift link key，生产记录与普通 native output 描述分开。
+- 本项验证：定向 clippy 通过（新代码无警告）；1 项真实链接测试覆盖精确绑定、静态 framework、后续成员引入库及未选依赖排除；2 项 Swift 生产缓存测试通过。真实 CLI 的 `.a`、`.dylib`、静态／动态 framework 均调用 `@c`，Swift 内部使用 String；静态 framework release 热构建与 Swift 修改两轮无新增 scoopc，修改后程序更新且返回新结果。并发测试共享记录造成的初次调用计数干扰已通过单独复核闭合。此时动态程序仍使用缓存库位置，不能据此宣称可重定位部署完成。
+
 ## 后续工作与验收
 
 1. 补齐真实宏／插件和二进制输入交付，并执行正式构建缓存与共享源码、锁定／离线验收。
-2. `.a`／`.dylib`／静态及动态 framework，autolink、Swift runtime、SDK 系统 stub 和精确库绑定。
+2. 补齐动态依赖的 weak-load、re-export／rpath 交付验收与 compatibility archive 组合覆盖；基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
 3. `.slib` 配套目录、artifact-only 链接、动态库／资源部署、bundle 和 JSON 交接。
 4. macOS 双架构正式 CLI fixture：真实 @c 调用、传递依赖变化、命中调用计数、并发与失败、资源读取和可重定位交付。
 5. 同步 CLI help、编程参考与可运行示例；完成最终合同审查。

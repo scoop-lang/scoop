@@ -52,7 +52,7 @@ fn darwin(
         library.join(format!("lib{name}.a")),
         NativeFileKind::Archive,
     );
-    let candidates: Vec<_> = match key.kind() {
+    let mut candidates: Vec<_> = match key.kind() {
         NativeLibraryKind::TargetDefault => dynamic
             .into_iter()
             .chain([archive])
@@ -62,6 +62,22 @@ fn darwin(
         NativeLibraryKind::StaticArchive => vec![archive],
         NativeLibraryKind::Framework => frameworks.into(),
     };
+    if name.starts_with("swift") && key.kind() != NativeLibraryKind::Framework {
+        let swift = sdk.join("usr/lib/swift");
+        if key.kind() != NativeLibraryKind::StaticArchive {
+            candidates.push((
+                swift.join(format!("lib{name}.tbd")),
+                NativeFileKind::TextStub,
+            ));
+            candidates.push((
+                swift.join(format!("lib{name}.dylib")),
+                NativeFileKind::Dylib,
+            ));
+        }
+        if key.kind() != NativeLibraryKind::Dynamic {
+            candidates.push((swift.join(format!("lib{name}.a")), NativeFileKind::Archive));
+        }
+    }
     for (path, kind) in candidates {
         observed.push(path.clone());
         match std::fs::symlink_metadata(&path) {
@@ -79,6 +95,21 @@ fn darwin(
             scripts: Vec::new(),
             system_alias: false,
         });
+    }
+    if name.starts_with("swift") && key.kind() != NativeLibraryKind::Framework {
+        let ValidatedFinalLinkProfile::Darwin(darwin) = profile else {
+            unreachable!()
+        };
+        // Compatibility archives are toolchain inputs, not SDK system stubs.
+        for root in darwin.swift_library_roots()? {
+            if let Some(file) = super::explicit::find(key, &[root], profile, observed)? {
+                return Ok(LibraryResolution {
+                    files: vec![file],
+                    scripts: Vec::new(),
+                    system_alias: false,
+                });
+            }
+        }
     }
     Err(missing(key, profile))
 }

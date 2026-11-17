@@ -16,6 +16,8 @@ mod elf;
 mod pe;
 mod response;
 
+#[cfg(all(test, target_os = "macos"))]
+mod swift_tests;
 #[cfg(all(test, unix))]
 mod tests;
 #[cfg(all(test, windows, target_arch = "x86_64"))]
@@ -38,7 +40,8 @@ impl std::fmt::Display for ResolvedLinkPlanFingerprint {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ProgramLinkOptions {
+pub struct ProgramLinkOptions<'a> {
+    pub native_outputs: &'a [scoop_toolchain::NativeLibraryOutput],
     pub keep_symbols: bool,
     pub emit_debug_file: bool,
     pub enable_stack_trace: bool,
@@ -59,12 +62,18 @@ pub fn link_program(
     closure: &ProgramLinkClosure,
     runtime: &RuntimeObjectSet,
     profile: &ValidatedFinalLinkProfile,
-    options: ProgramLinkOptions,
+    options: ProgramLinkOptions<'_>,
     library_paths: &[PathBuf],
     output: &Path,
     cache: &Path,
 ) -> Result<ProgramLinkOutput, LinkError> {
-    let inputs = ProgramInputs::new(closure, runtime, profile, library_paths)?;
+    let inputs = ProgramInputs::new(
+        closure,
+        runtime,
+        profile,
+        library_paths,
+        options.native_outputs,
+    )?;
     link_inputs(closure, runtime, profile, options, &inputs, output, cache)
 }
 
@@ -72,7 +81,7 @@ fn link_inputs(
     closure: &ProgramLinkClosure,
     runtime: &RuntimeObjectSet,
     profile: &ValidatedFinalLinkProfile,
-    options: ProgramLinkOptions,
+    options: ProgramLinkOptions<'_>,
     inputs: &ProgramInputs<'_>,
     output: &Path,
     cache: &Path,

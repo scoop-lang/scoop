@@ -1204,6 +1204,7 @@ dependencies = [
  "scoop",
  "scoop-identity",
  "scoop-lir",
+ "scoop-manifest",
  "scoop-process",
  "scoop-protocol",
  "scoop-slib",

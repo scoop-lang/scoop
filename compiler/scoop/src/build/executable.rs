@@ -47,6 +47,9 @@ pub(super) struct Executable {
 }
 
 pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
+    let native_outputs =
+        scoop_toolchain::swift::SwiftProduct::outputs(request.graph.swift_products())
+            .map_err(|error| failure(error.code(), error))?;
     let key = key::of(&request)?;
     let namespace = request.cache.join("final-products-v2");
     let entry = namespace.join(format!("{key}.json"));
@@ -90,6 +93,7 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
         &runtime,
         &profile,
         scoop_linker::ProgramLinkOptions {
+            native_outputs: &native_outputs,
             keep_symbols: request.keep_symbols(),
             emit_debug_file: request.emit_debug_file(),
             enable_stack_trace: request.enable_stack_trace(),

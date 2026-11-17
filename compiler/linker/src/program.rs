@@ -63,6 +63,7 @@ impl<'a> ProgramInputs<'a> {
         runtime: &'a RuntimeObjectSet,
         profile: &ValidatedFinalLinkProfile,
         library_paths: &[std::path::PathBuf],
+        outputs: &[scoop_toolchain::NativeLibraryOutput],
     ) -> Result<Self, LinkError> {
         if (closure.root_kind() == scoop_slib::ConeKind::NativeApp)
             != (profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary)
@@ -82,8 +83,25 @@ impl<'a> ProgramInputs<'a> {
             .filter(|definition| definition.selection.target() == profile.target())
             .expect("validated final-link target")
             .os;
+        let mut roots = library_paths.to_vec();
+        for output in outputs {
+            roots.extend(output.settings.library_paths.iter().cloned());
+            roots.extend(output.settings.framework_paths.iter().cloned());
+            if let Some(parent) = output.library.parent() {
+                roots.push(parent.to_owned());
+            }
+            roots.extend(
+                output
+                    .dependencies
+                    .iter()
+                    .filter_map(|p| p.parent().map(std::path::Path::to_owned)),
+            );
+        }
+        roots.sort();
+        roots.dedup();
+        let library_paths = roots.as_slice();
         let (declarations, libraries) = native::declarations::read(closure)?;
-        let mut native = NativeInputs::read(libraries, library_paths, profile)?;
+        let mut native = NativeInputs::read(libraries, library_paths, profile, outputs)?;
         native.include_embedded(closure, profile)?;
         let namespace =
             crate::namespace::NativeNamespace::read(&mut native, library_paths, profile)?;

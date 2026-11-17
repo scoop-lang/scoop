@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use super::inputs::{Rule, Selection, add_selection};
 use super::plan::BuildPlan;
-use super::product::SwiftLinkSettings;
 use super::tool::SwiftTools;
 use super::{Input, SwiftBuildRequest, SwiftLibraryFormat, SwiftLinkage, ToolchainError, error};
+use crate::NativeLinkSettings;
 
 #[derive(Deserialize)]
 struct Manifest {
@@ -179,13 +179,13 @@ impl Packages {
         tools: &SwiftTools,
         scratch: &Path,
         plan: &BuildPlan,
-    ) -> Result<(Vec<Input>, Vec<Selection>, SwiftLinkSettings), ToolchainError> {
+    ) -> Result<(Vec<Input>, Vec<Selection>, NativeLinkSettings), ToolchainError> {
         let mut files = BTreeSet::from([
             request.package.join("Package.resolved"),
             scratch.join("workspace-state.json"),
         ]);
         let mut selections = Vec::new();
-        let mut settings = SwiftLinkSettings::default();
+        let mut settings = NativeLinkSettings::default();
         for (path, manifest) in &self.manifests {
             add_selection(path.clone(), Rule::Manifests, &mut files, &mut selections)?;
             add_selection(

@@ -256,6 +256,7 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
         ]),
         &[scratch.to_owned()],
         profile,
+        &[],
     )
     .unwrap();
     let input = native.libraries[&id].inputs[0];

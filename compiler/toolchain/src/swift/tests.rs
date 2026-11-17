@@ -117,10 +117,10 @@ public func resource() -> URL { Bundle.module.bundleURL }
     };
     let request = request(false);
     let first = build(&request);
-    assert!(first.binary.is_file());
-    assert_eq!(first.resources.len(), 1);
-    assert!(first.settings.libraries.contains("z"));
-    assert!(first.settings.frameworks.contains("Foundation"));
+    assert!(first.output.binary.is_file());
+    assert_eq!(first.output.resources.len(), 1);
+    assert!(first.output.settings.libraries.contains("z"));
+    assert!(first.output.settings.frameworks.contains("Foundation"));
     assert!(matches!(
         request.prepare(false).unwrap(),
         PreparedSwiftBuild::Complete(_)
@@ -128,7 +128,7 @@ public func resource() -> URL { Bundle.module.bundleURL }
     std::fs::write(resource, "changed resource only").unwrap();
     let updated = build(&request);
     assert_eq!(first.link_key, updated.link_key);
-    assert_eq!(first.binary, updated.binary);
+    assert_eq!(first.output.binary, updated.output.binary);
     assert_ne!(first.deployment_key, updated.deployment_key);
     let framework_manifest = manifest(true);
     let framework_request = SwiftBuildRequest::new(
@@ -151,8 +151,20 @@ public func resource() -> URL { Bundle.module.bundleURL }
     )
     .unwrap();
     let framework = build(&framework_request);
-    assert!(framework.library.join("Resources/Info.plist").is_file());
-    assert!(framework.library.join("Modules/Probe.swiftmodule").is_dir());
+    assert!(
+        framework
+            .output
+            .library
+            .join("Resources/Info.plist")
+            .is_file()
+    );
+    assert!(
+        framework
+            .output
+            .library
+            .join("Modules/Probe.swiftmodule")
+            .is_dir()
+    );
     assert!(matches!(
         framework_request.prepare(false).unwrap(),
         PreparedSwiftBuild::Complete(_)

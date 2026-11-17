@@ -11,39 +11,44 @@ use super::{
     Input, Produced, Record, SwiftBuildRequest, SwiftLibraryFormat, SwiftLinkage, ToolchainError,
     build_record, error, outputs_exist, values,
 };
+use crate::NativeLinkSettings;
 use scoop_wire::Digest256;
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct SwiftLinkSettings {
-    pub libraries: BTreeSet<String>,
-    pub frameworks: BTreeSet<String>,
-    #[serde(with = "values::paths")]
-    pub library_paths: Vec<PathBuf>,
-    #[serde(with = "values::paths")]
-    pub framework_paths: Vec<PathBuf>,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SwiftProduct {
-    pub name: String,
-    pub linkage: SwiftLinkage,
-    pub format: SwiftLibraryFormat,
+    #[serde(flatten)]
+    pub output: crate::NativeLibraryOutput,
     #[serde(with = "values::digest")]
     pub producer_key: Digest256,
     #[serde(with = "values::digest")]
     pub link_key: Digest256,
     #[serde(with = "values::digest")]
     pub deployment_key: Digest256,
-    /// The library file or the enclosing framework directory.
-    #[serde(with = "values::path")]
-    pub library: PathBuf,
-    #[serde(with = "values::path")]
-    pub binary: PathBuf,
-    #[serde(with = "values::paths")]
-    pub dependencies: Vec<PathBuf>,
-    #[serde(with = "values::paths")]
-    pub resources: Vec<PathBuf>,
-    pub settings: SwiftLinkSettings,
+}
+
+impl SwiftProduct {
+    pub fn outputs(products: &[Self]) -> Result<Vec<crate::NativeLibraryOutput>, ToolchainError> {
+        let mut selected = std::collections::BTreeMap::new();
+        for product in products {
+            if let Some(previous) = selected.insert(&product.output.name, product)
+                && previous.producer_key != product.producer_key
+            {
+                return Err(ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2306,
+                    format!(
+                        "conflicting Swift producers for native library {}: {} and {}",
+                        product.output.name,
+                        previous.output.library.display(),
+                        product.output.library.display()
+                    ),
+                ));
+            }
+        }
+        Ok(selected
+            .into_values()
+            .map(|product| product.output.clone())
+            .collect())
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -61,7 +66,7 @@ pub(super) fn publish(
     bin: &Path,
     plan: &BuildPlan,
     selections: Vec<Selection>,
-    settings: SwiftLinkSettings,
+    settings: NativeLinkSettings,
     single_module: bool,
 ) -> Result<Produced, ToolchainError> {
     let bin = bin.canonicalize().map_err(error)?;
@@ -116,17 +121,19 @@ pub(super) fn publish(
     required.extend(resources.required);
     Ok(Produced {
         product: SwiftProduct {
-            name: request.product.clone(),
-            linkage: request.linkage,
-            format: SwiftLibraryFormat::Library,
             producer_key: request.key,
             link_key,
             deployment_key: resources.key,
-            library: binary.files[0].clone(),
-            binary: binary.files[0].clone(),
-            dependencies: binary.files[1..].to_vec(),
-            resources: resources.files,
-            settings,
+            output: crate::NativeLibraryOutput {
+                name: request.product.clone(),
+                linkage: request.linkage,
+                format: SwiftLibraryFormat::Library,
+                library: binary.files[0].clone(),
+                binary: binary.files[0].clone(),
+                dependencies: binary.files[1..].to_vec(),
+                resources: resources.files,
+                settings,
+            },
         },
         selections,
         required,
@@ -238,7 +245,7 @@ pub(super) fn layout(
         let version = framework.join("Versions/A");
         let binary = version.join(&request.product);
         let mut required = Vec::new();
-        copy(&result.product.binary, &binary, &mut required)?;
+        copy(&result.product.output.binary, &binary, &mut required)?;
         copy(module, &version.join("Modules").join(format!("{}.swiftmodule", request.product)), &mut required)?;
         let plist = version.join("Resources/Info.plist");
         std::fs::create_dir_all(plist.parent().expect("framework Resources")).map_err(error)?;
@@ -254,9 +261,10 @@ pub(super) fn layout(
         if request.linkage == SwiftLinkage::Dynamic {
             super::tool::run(std::process::Command::new("/usr/bin/install_name_tool").arg("-id").arg(format!("@rpath/{}.framework/Versions/A/{}", request.product, request.product)).arg(&binary))?;
             super::tool::run(std::process::Command::new("/usr/bin/codesign").args(["--force", "--sign", "-"]).arg(&framework))?;
+            required.extend(Selection::read(framework.clone(), Rule::All)?.files().iter().cloned());
         }
         let mut product = result.product.clone();
-        product.format = request.format.clone(); product.library = framework; product.binary = binary;
+        product.output.format = request.format.clone(); product.output.library = framework; product.output.binary = binary;
         product.producer_key = build_record::fingerprint(&(request.key.as_array(), &request.format))?;
         product.link_key = build_record::fingerprint(&(result.product.link_key.as_array(), &request.format))?;
         let _ = directory.keep();
@@ -312,7 +320,7 @@ fn xml_escape(text: &str) -> String {
         .replace('\'', "&apos;")
 }
 
-impl SwiftLinkSettings {
+impl NativeLinkSettings {
     pub(super) fn add_manifest_target(
         &mut self,
         target: &Value,

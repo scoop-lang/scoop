@@ -21,6 +21,7 @@ fn relocated_runtime_index_links_the_copied_archive() {
         &runtime,
         &fixture.profile,
         crate::ProgramLinkOptions {
+            native_outputs: &[],
             keep_symbols: true,
             emit_debug_file: false,
             enable_stack_trace: false,
@@ -50,6 +51,7 @@ fn native_alias_link_tracks_real_input_updates_and_missing_input() {
         &fixture.runtime,
         &fixture.profile,
         crate::ProgramLinkOptions {
+            native_outputs: &[],
             keep_symbols: true,
             emit_debug_file: false,
             enable_stack_trace: false,
@@ -76,6 +78,7 @@ fn native_alias_link_tracks_real_input_updates_and_missing_input() {
         &fixture.runtime,
         &fixture.profile,
         crate::ProgramLinkOptions {
+            native_outputs: &[],
             keep_symbols: true,
             emit_debug_file: false,
             enable_stack_trace: false,
@@ -95,6 +98,7 @@ fn native_alias_link_tracks_real_input_updates_and_missing_input() {
         &fixture.runtime,
         &fixture.profile,
         crate::ProgramLinkOptions {
+            native_outputs: &[],
             keep_symbols: true,
             emit_debug_file: false,
             enable_stack_trace: false,
@@ -130,6 +134,7 @@ fn final_link_strips_internal_names_and_keeps_runtime_data() {
         &fixture.runtime,
         &fixture.profile,
         crate::ProgramLinkOptions {
+            native_outputs: &[],
             keep_symbols: false,
             emit_debug_file: false,
             enable_stack_trace: false,
@@ -239,6 +244,7 @@ fn elf_shared_library_link_tracks_real_symbol_version_updates() {
             &fixture.runtime,
             &fixture.profile,
             crate::ProgramLinkOptions {
+                native_outputs: &[],
                 keep_symbols: true,
                 emit_debug_file: false,
                 enable_stack_trace: false,

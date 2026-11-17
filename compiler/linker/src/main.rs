@@ -42,6 +42,9 @@ struct Cli {
     sysroot: Option<PathBuf>,
     #[arg(long)]
     unwind_prefix: Option<PathBuf>,
+    /// Swift toolchain root used for required runtime and compatibility libraries.
+    #[arg(long)]
+    swift_toolchain: Option<PathBuf>,
     #[arg(long, value_enum)]
     link_mode: Option<LinkMode>,
     /// Darwin native-app install name.
@@ -121,6 +124,7 @@ fn main() -> ExitCode {
             soname: cli.soname,
             enable_stack_trace: cli.enable_stack_trace,
             unwind_prefix: cli.unwind_prefix,
+            swift_toolchain: cli.swift_toolchain,
             mode: cli.link_mode.map(|mode| match mode {
                 LinkMode::Static => scoop_toolchain::LinkMode::Static,
                 LinkMode::Dynamic => scoop_toolchain::LinkMode::Dynamic,
