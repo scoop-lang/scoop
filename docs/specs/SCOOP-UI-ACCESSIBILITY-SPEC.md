@@ -10,7 +10,7 @@
 
 一个挂载可以登记多个节点。缺省父节点来自最近祖先挂载的有效子项路由，最终落到 provider 根；本挂载的多个节点默认是兄弟，顺序为登记顺序。显式 parent 必须属于本挂载或其逻辑祖先、在同一活动根内；不允许指向后代挂载或其他根。自身内部嵌套通过同一挂载中先创建的父节点表达。
 
-`ComponentScope.routeSemanticsChildren(parent: SemanticsHandle?)` 指定普通子挂载使用的语义父节点；Some 要求资源属于本挂载，None 恢复从祖先继承。它不移动本挂载中其他节点。普通 Component、布局、方向包装与没有登记节点的 Element 默认透明；阅读顺序沿实际挂载子项／数据顺序，独立于场景层叠顺序。Lazy 仅处理已挂载条目，不为发布普通树枚举未实现的数据项；完整虚拟集合另按 S7 接入。
+`ComponentScope.routeSemanticsChildren(parent: SemanticsHandle?)` 指定普通子挂载使用的语义父节点；Some 要求资源属于本挂载，None 恢复从祖先继承。它不移动本挂载中其他节点。普通 Component、布局、方向包装与没有登记节点的 Element 默认透明；阅读顺序沿实际挂载子项／数据顺序，独立于场景层叠顺序。未登记集合的 Lazy 仅处理已挂载条目；已登记的集合按 §6.1 发布逻辑条目，普通树更新仍不枚举未实现的数据项。
 
 关闭单个 UI handle 只退休这个资源。框架先把仍由其他活动 scope／handle 拥有的直接语义子节点接到其原父级，清除已关闭的子项路由，然后按当前挂载关系重新发布；不会因替换父角色而误退役仍存活的子控件。显式子节点对已关闭父资源的引用同样移向原父级。真正卸载时，该挂载及其后代各自的资源全部退休。UI 不暴露底层 AccessibilityNode，避免绕过此归属规则。
 
@@ -87,6 +87,14 @@ grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从�
 调用方在正常 update 及视口的 Accepted 完成回调之后刷新。方向和有限正 lineStep 由当前控件提供，属性和关系保持调用方覆盖；scroll 由该视口的最后一次 Accepted 范围决定，尚无范围或该轴零范围时忽略条节点并撤下滚动能力。重新绑定清除原视口的就绪状态，Discarded 不发布候选范围。视觉透明度、hover 和自动隐藏不改变逻辑轴身份或动作；几何仍只来自 Scene 的真实条区域，未绘制的条不获得容器的点击点。
 
 位置写入采用 0～1 比例，经同一 ScrollState 登记 User 来源请求；保留另一轴尚未呈现的请求位置，连续改写同一轴按最新目标替换，不叠加为相对偏移。Increment／Decrement 使用 lineStep 与现有 scrollBy，沿原动画取消、范围夹取和意图通知；边界上没有实际位移时拒绝。回调检查视口绑定和挂载寿命，不把旧条转向另一状态。请求登记后返回 Completed，原生值等待真实 Accepted 范围更新；本接口不宣称完成 Reveal 或取得焦点。
+
+### 6.1 Lazy 集合的数据描述
+
+`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items)` 用于 LazyElement 自身的 List 节点；items 的 source 必须是相同对象。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
+
+查询通过只读 UI evaluation 执行 count／keyAt／indexOfKey／describe，不收集依赖，不调用 build；State、滚动、焦点和语义写入遵守现有 evaluation 禁止修改的合同。正常数据更新同时替换集合快照，不等下一次滚动。元数据与具体 View 寿命分离：仅已实现行有 Group 资源和真实子节点，回收时退休它们；逻辑条目代理由 Window 的集合投影持有。该 Group 的 Accepted 几何使用真实行布局及同一裁剪／滚动变换，未呈现行没有可点击坐标。
+
+VirtualList 增加可选 itemSemantics 配置并默认接入此集合路径；已有 ScrollArea、ScrollBar 和行内控件继续使用自身语义，不重复业务选择状态。普通元数据查询不会触发 Realize／Reveal／Focus。这三类动作的剩余接入仍按 S7 实施和验证。
 
 ## 7. 验证边界
 

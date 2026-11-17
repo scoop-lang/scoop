@@ -58,6 +58,9 @@ ApplicationScope 和 ComponentScope 均提供 application、uiHost、resource、
 
 ## 语义资源与原生 accessibility
 
+LazyElement 可为自己的 List 节点调用 `updateCollection(source, items)`，其中可选 `ItemSemantics(source, describe, search)` 必须绑定同一 ItemSource 快照。数据描述在只读 evaluation 内查询，不执行 build 或写入 UI State；未提供描述时名称未知，只公布实际身份与集合位置。框架只给已挂载行建立具体语义子树，行回收不删除数据级条目；实际几何沿同一 Accepted 场景发布。Component 的 VirtualList 已接入这一数据查询路径，完整按需实现与语义显露仍按 S7 继续。
+
+
 macOS 的 `ComponentScope.semantics` 在构造／挂载时登记 `SemanticsHandle`；角色、属性与动作从 `scoop.window.accessibility` 导入。一个挂载可以有多个节点，普通布局默认透明，`routeSemanticsChildren` 指定子挂载的语义父级。下面的包装不改变子项布局，也不为语义登记创建 InputArea：
 
 ```scoop

@@ -125,6 +125,8 @@ public class AccessibilityProvider internal constructor(
 
     internal fun retire(node: AccessibilityNode) {
         node.active = false
+        node.collectionValue = None
+        node.publishedCollection = None
         retireSemanticRelations(node)
         node.actions = SemanticActions()
         node.invalidateGeometry()
@@ -155,12 +157,31 @@ public class AccessibilityProvider internal constructor(
             for (node in pending.values)
                 resolveSemanticText(node)
             projection!!.publish(pending.values, removed.toArray(), focus?.id?.number ?: 0L)
+            for (node in pending.values)
+                node.publishedCollection = node.collectionValue
             pending.clear()
             removed.clear()
             focusChanged = false
         } finally {
             publishing = false
         }
+    }
+
+    internal fun collectionSource(number: Long, candidate: Boolean): SemanticCollectionSnapshot? {
+        if (closed || owner.phase != WindowState.Open || owner.application.exiting)
+            return None
+        val node = nodes[number] ?: return None
+        if (!node.active)
+            return None
+        if (candidate)
+            return if (publishing)
+                node.collectionValue
+            else
+                None
+        return if (publishing)
+            None
+        else
+            node.publishedCollection
     }
 
     internal fun perform(

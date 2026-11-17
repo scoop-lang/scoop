@@ -374,6 +374,8 @@ Overlay 使用本帧原始正文溢出和可见条件确定 ScrollPadding：竖�
 
 ### 6.3 VirtualList
 
+VirtualListProps／virtualList 另提供 `itemSemantics: ItemSemantics? = None`。有描述时必须引用相同 ItemSource 快照；无描述时只提供真实身份、集合位置和未知名称。列表在 ScrollArea 内发布 List 与按需逻辑条目，已挂载行提供真实子控件与 Accepted 几何，查询不调用 build、滚动或聚焦；数据描述合同见 [UI 无障碍规范 §6.1](SCOOP-UI-ACCESSIBILITY-SPEC.md#61-lazy-集合的数据描述)。
+
 VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（None／KeepVisible／FollowEnd，默认 KeepVisible），以及逻辑主轴末端的 endPadding（VirtualListEndPadding，默认 Fixed(0)）。Fixed(length) 为有限非负长度；FillViewport 按当前 Start 定位、恢复或 KeepVisible 的未截断逻辑起点，填充该点到视口末端缺少的空间。填充在本次测量中随实际条目尺寸更新，先于滚动范围收敛，避免视口增高或正文缩短时先把阅读位置截断。两者参与 content extent 和滚动范围，不对应数据 key 或可见项；水平 RTL 时留在物理左端。None 保持数值位置，仅按实际范围收敛。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
 
 retention 使用 UI 的 ItemRetention，缺省 Dispose，KeepAlive(maxOffscreenItems) 保留有限的离屏原实例；可见／overscan 选择与活动交互项不计入上限。它直接传给 lazyElement，不在控件中维护另一份挂载或回收池。绘制缓存独立，保留实例并不自动缓存像素。

@@ -6,6 +6,10 @@
 typedef int32_t (*SWAccessibilityCallback)(void *, int64_t, int32_t,
                                            const uint8_t *, int64_t, int64_t,
                                            int64_t, uint64_t, double);
+typedef int32_t (*SWAccessibilityCollectionCallback)(void *, int64_t, int32_t,
+                                                     int64_t, int32_t, int64_t,
+                                                     const uint8_t *, int64_t,
+                                                     void *);
 
 typedef struct {
   int64_t number, parent, order, scene_order;
@@ -67,6 +71,7 @@ enum {
 };
 
 @class SWAccessibilityTree;
+@class SWAccessibilityCollection;
 
 @interface SWAccessibilityState : NSObject
 @property(nonatomic) SWAccessibilityData data;
@@ -76,6 +81,9 @@ enum {
     *titleFor;
 @property(nonatomic, strong) SWAccessibilityHitGeometry *hit;
 @property(nonatomic, strong) SWAccessibilityTextGeometry *textGeometry;
+@property(nonatomic) int64_t itemCount;
+@property(nonatomic) uint64_t collectionRevision;
+@property(nonatomic, copy) id itemKey;
 @end
 
 @interface SWAccessibilityNode : NSAccessibilityElement
@@ -83,6 +91,8 @@ enum {
 @property(nonatomic) int64_t number;
 @property(nonatomic) BOOL retired;
 - (SWAccessibilityState *)state;
+- (BOOL)participatesInAccessibility;
+- (void)appendChildrenOf:(int64_t)parent to:(NSMutableArray *)children;
 - (int32_t)perform:(int32_t)action text:(NSString *)text range:(NSRange)range;
 - (int32_t)perform:(int32_t)action
               text:(NSString *)text
@@ -102,6 +112,10 @@ enum {
 @property(nonatomic, weak) SWView *view;
 @property(nonatomic) SWAccessibilityCallback callback;
 @property(nonatomic) void *context;
+@property(nonatomic) SWAccessibilityCollectionCallback collectionCallback;
+@property(nonatomic) void *collectionContext;
+@property(nonatomic, strong)
+    NSMutableDictionary<NSNumber *, SWAccessibilityCollection *> *collections;
 @property(nonatomic) BOOL closed;
 @property(nonatomic) int64_t focused;
 @property(nonatomic, strong) SWAccessibilityNode *root;
@@ -119,6 +133,27 @@ enum {
     NSMutableDictionary<NSNumber *, SWAccessibilityNode *> *elements;
 - (SWAccessibilityNode *)element:(int64_t)number;
 @end
+
+@interface SWAccessibilityTree (Collections)
+- (SWAccessibilityCollection *)collection:(int64_t)number;
+@end
+
+@interface SWAccessibilityCollection : NSObject
+@property(nonatomic, weak) SWAccessibilityTree *tree;
+@property(nonatomic) int64_t number;
+- (NSArray *)rowsFrom:(NSUInteger)index count:(NSUInteger)count;
+- (NSArray *)visibleRows;
+- (id)itemForKey:(id)key;
+- (id)cachedItemForKey:(id)key;
+- (void)refresh;
+- (void)retire;
+@end
+
+BOOL sw_accessibility_collections_commit(
+    SWAccessibilityTree *tree,
+    NSDictionary<NSNumber *, SWAccessibilityState *> *previous,
+    NSDictionary<NSNumber *, SWAccessibilityState *> *changes,
+    NSSet<NSNumber *> *removed);
 
 id sw_accessibility_focused(SWView *view);
 

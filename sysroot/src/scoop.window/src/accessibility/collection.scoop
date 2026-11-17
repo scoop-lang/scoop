@@ -1,0 +1,134 @@
+package scoop.window.accessibility
+
+import scoop.window.requireWindow
+
+/** Stable identity within one collection, independent of its current position. */
+public enum SemanticItemKey: Equals<SemanticItemKey>, Hash {
+    Number(Long), Text(String)
+    public override operator fun equals(other: SemanticItemKey): Boolean =
+        when ((this, other)) {
+            case(Number(val left), Number(val right)) -> left == right
+            case(Text(val left), Text(val right)) -> left == right
+            else -> false
+        }
+    public override fun hash(): Long =
+        when (this) {
+            case Number(val value) -> value.hash()
+            case Text(val value) -> value.hash()
+        }
+}
+
+/** Unknown text differs from known empty text; absent states are not advertised. */
+public struct SemanticItemProperties(
+    val name: String? = None,
+    val description: String? = None,
+    val automationId: String? = None,
+    val value: String? = None,
+    val enabled: Boolean = true,
+    val selected: Boolean? = None,
+    val expanded: Boolean? = None
+)
+
+public struct SemanticItemSearch(val name: Boolean = false, val automationId: Boolean = false)
+
+public enum SemanticItemQuery {
+    Name(String), AutomationId(String)
+}
+
+/** Reads a single immutable data snapshot without constructing controls. */
+public interface SemanticCollectionSource {
+    public val count: Long
+    public val search: SemanticItemSearch
+    public fun keyAt(index: Long): SemanticItemKey
+    public fun indexOfKey(key: SemanticItemKey): Long?
+    public fun describe(index: Long): SemanticItemProperties?
+}
+
+public struct SemanticItem(
+    val key: SemanticItemKey,
+    val index: Long,
+    val count: Long,
+    val properties: SemanticItemProperties
+)
+
+public enum SemanticItemResult {
+    Found(SemanticItem), NotFound, Unsupported, Unavailable
+}
+
+/** Retains only the source; explicit queries do not allocate an entire item tree. */
+public class SemanticCollectionSnapshot public constructor(
+    private val source: SemanticCollectionSource
+) {
+    public val count: Long = source.count
+    public val search: SemanticItemSearch = source.search
+    init {
+        requireWindow(count >= 0L, "negative semantic collection count")
+    }
+
+    public fun itemAt(index: Long): SemanticItemResult {
+        if (index < 0L || index >= count)
+            return SemanticItemResult.NotFound
+        val key = source.keyAt(index)
+        requireWindow(
+            source.indexOfKey(key) == Some(index),
+            "semantic item key mapping is inconsistent"
+        )
+        return described(key, index)
+    }
+
+    public fun itemForKey(key: SemanticItemKey): SemanticItemResult {
+        val index = indexOf(key) ?: return SemanticItemResult.NotFound
+        return described(key, index)
+    }
+
+    /** Revalidates identity without requiring a currently available description. */
+    internal fun contains(key: SemanticItemKey): Boolean = indexOf(key) != None
+
+    private fun indexOf(key: SemanticItemKey): Long? {
+        val index = source.indexOfKey(key) ?: return None
+        requireWindow(index >= 0L && index < count, "semantic item index is out of range")
+        requireWindow(source.keyAt(index) == key, "semantic item key mapping is inconsistent")
+        return Some(index)
+    }
+
+    private fun described(key: SemanticItemKey, index: Long): SemanticItemResult {
+        val properties = source.describe(index) ?: return SemanticItemResult.Unavailable
+        return SemanticItemResult.Found(SemanticItem(key, index, count, properties))
+    }
+
+    /** Searches after a key in this snapshot, without retaining a positional cursor. */
+    public fun find(query: SemanticItemQuery, after: SemanticItemKey? = None): SemanticItemResult {
+        val supported =
+            when (query) {
+                case Name(_) -> search.name
+                case AutomationId(_) -> search.automationId
+            }
+        if (!supported)
+            return SemanticItemResult.Unsupported
+        val start =
+            when (after) {
+                case None -> 0L
+                case Some(val key) -> (indexOf(key) ?: return SemanticItemResult.Unavailable) + 1L
+            }
+        for (index in start ..< count) {
+            val item =
+                when (itemAt(index)) {
+                    case Found(val value) -> value
+                    case NotFound -> return SemanticItemResult.NotFound
+                    case Unavailable -> return SemanticItemResult.Unavailable
+                    case Unsupported -> return SemanticItemResult.Unsupported
+                }
+            val matches =
+                when (query) {
+                    case Name(val expected) ->
+                    (item.properties.name ?: return SemanticItemResult.Unavailable) == expected
+                    case AutomationId(val expected) ->
+                    (item.properties.automationId ?: return SemanticItemResult.Unavailable) ==
+                        expected
+                }
+            if (matches)
+                return SemanticItemResult.Found(item)
+        }
+        return SemanticItemResult.NotFound
+    }
+}

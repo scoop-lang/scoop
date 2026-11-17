@@ -34,7 +34,7 @@ internal class ScrollControl(
 ) {
     private val painters = scope.resource { ThemePainterCache() }
     private val decoration = scope.resource { StylePainter() }
-    private val semantics = createComponentSemantics(scope, SemanticRole.ScrollArea)
+    val semantics = createComponentSemantics(scope, SemanticRole.ScrollArea)
     val viewport = scope.scrollViewport(props().state)
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }

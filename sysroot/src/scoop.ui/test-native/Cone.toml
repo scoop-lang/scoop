@@ -21,6 +21,10 @@ objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 path = "native/accessibility.m"
 when = { os = "darwin" }
 
+[[native.sources]]
+path = "native/collection.m"
+when = { os = "darwin" }
+
 [[native.libraries]]
 name = "AppKit"
 kind = "framework"

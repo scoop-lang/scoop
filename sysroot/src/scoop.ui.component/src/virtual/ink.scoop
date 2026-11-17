@@ -3,12 +3,14 @@ package scoop.ui.component
 import scoop.surface.FrameSubmission
 import scoop.ui.*
 import scoop.ui.style.Orientation
+import scoop.window.accessibility.*
 
 internal class VirtualListInk(
     private val props: Props<VirtualListInkProps>,
     scope: ComponentScope
 ): LazyElement<VirtualListFrame>(scope) {
     private var control: ScrollControl? = None
+    private var collection: SemanticsHandle? = None
     private var focus: LazyFocus? = None
     private var handle: VirtualListHandle? = None
     private var state: ScrollState? = None
@@ -65,6 +67,11 @@ internal class VirtualListInk(
     }
     public override fun onMount() {
         control = Some(ScrollControl(scope) { props.value.controls })
+        collection = createComponentSemantics(scope, SemanticRole.List, control!!.semantics)
+        when (collection) {
+            case Some(val value) -> scope.routeSemanticsChildren(Some(value))
+            case None -> {}
+        }
         focus = Some(scope.lazyFocus(control!!.viewport))
     }
     public override fun update(): UiInvalidation {
@@ -76,6 +83,13 @@ internal class VirtualListInk(
             case FillViewport -> {}
         }
         control!!.update()
+        when (collection) {
+            case Some(val value) -> {
+                value.update(SemanticProperties(enabled = input.input.enabled))
+                value.updateCollection(input.input.source, input.input.itemSemantics)
+            }
+            case None -> {}
+        }
         focus!!.options =
             LazyFocusOptions(
                 input.input.navigation,
@@ -152,6 +166,13 @@ internal class VirtualListInk(
     }
     public override fun scene(context: SceneContext, drawing: VirtualListFrame) {
         val frame = drawing
+        when (collection) {
+            case Some(val value) -> context.semantics(
+                value,
+                control!!.contentViewport(frame.size, context.layoutDirection)
+            )
+            case None -> {}
+        }
         control!!.scene(context, frame.layout, frame.snapshot.offset)
         context.onFrameComplete {
             result -> if (

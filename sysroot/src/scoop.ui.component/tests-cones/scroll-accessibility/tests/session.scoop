@@ -46,6 +46,7 @@ internal class ScrollProbe: Closeable {
     var finished = false
     private var phase = 0
     private var frames = 0
+    private var acceptedBars: Boolean? = None
     private var nextFrame = 1
     private var waiting = false
     private var firstFinal = Point(0.0, 0.0)
@@ -98,8 +99,9 @@ internal class ScrollProbe: Closeable {
         }
     }
 
-    fun accepted() {
+    fun accepted(showingBars: Boolean) {
         frames += 1
+        acceptedBars = Some(showingBars)
         assertTrue(application!!.proxy().post { _ -> check() })
     }
     private fun hold(node: NativeNode): NativeNode {
@@ -135,7 +137,15 @@ internal class ScrollProbe: Closeable {
         check()
     }
     private fun check() {
-        if (finished || waiting || frames < nextFrame || !current.hasSnapshot)
+        if (
+            finished ||
+                waiting ||
+                frames <
+                nextFrame ||
+                !current.hasSnapshot ||
+                acceptedBars !=
+                Some(showBars.value)
+        )
             return
         when (phase) {
             case 0 -> {
@@ -166,8 +176,9 @@ internal class ScrollProbe: Closeable {
                 nextFrame = frames + 1
             }
             case 3 -> {
-                assertTrue(horizontal!!.flag(2))
-                assertTrue(vertical!!.flag(2))
+                // Static bars still fade in after their first accepted bounds.
+                if (!horizontal!!.flag(2) || !vertical!!.flag(2))
+                    return
                 phase = 4
                 send(vertical!!, 2, 9, "0.75")
             }

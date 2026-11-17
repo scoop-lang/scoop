@@ -20,6 +20,11 @@
 @end
 
 @implementation SWAccessibilityState
+- (instancetype)init {
+  if ((self = [super init]))
+    _itemCount = -1;
+  return self;
+}
 @end
 
 @implementation SWAccessibilityTextGeometry
@@ -284,7 +289,7 @@ childIndex(NSDictionary<NSNumber *, SWAccessibilityState *> *states) {
   return result;
 }
 
-static void notify(SWAccessibilityNode *node, SWAccessibilityState *old,
+static void notify(id node, SWAccessibilityState *old,
                    SWAccessibilityState *next) {
   if (!same(old.name, next.name))
     NSAccessibilityPostNotification(node,
@@ -351,7 +356,8 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
       SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
       if (!tree.pending || tree.closed)
         return -4;
-      NSDictionary *previous = tree.published;
+      NSDictionary<NSNumber *, SWAccessibilityState *> *previous =
+          tree.published;
       NSDictionary<NSNumber *, SWAccessibilityState *> *changes = tree.pending;
       NSSet<NSNumber *> *removed = tree.removed;
       NSMutableDictionary *next = [previous mutableCopy];
@@ -360,7 +366,6 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
       [next addEntriesFromDictionary:changes];
       BOOL orderChanged = removed.count != 0;
       BOOL hitOrderChanged = removed.count != 0;
-      BOOL visibilityChanged = NO;
       for (NSNumber *number in changes) {
         SWAccessibilityState *old = previous[number];
         SWAccessibilityState *value = changes[number];
@@ -369,8 +374,6 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
                         before.order != value.data.order;
         hitOrderChanged |= (old.hit == nil) != (value.hit == nil) ||
                            before.scene_order != value.data.scene_order;
-        visibilityChanged |= ((before.flags ^ value.data.flags) &
-                              (SWAXHidden | SWAXIgnored)) != 0;
       }
       NSDictionary *children = orderChanged ? childIndex(next) : tree.children;
       NSArray *hits = hitOrderChanged ? hitIndex(next) : tree.hitOrder;
@@ -379,23 +382,28 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
       tree.children = children;
       tree.hitOrder = hits;
       tree.focused = focused;
+      BOOL rootChanged =
+          sw_accessibility_collections_commit(tree, previous, changes, removed);
       tree.pending = nil;
       tree.removed = nil;
       for (NSNumber *number in changes) {
         SWAccessibilityState *old = previous[number];
         SWAccessibilityState *value = changes[number];
-        if (old)
-          notify([tree element:number.longLongValue], old, value);
+        id target = value.itemKey ? [tree.collections[@(value.data.parent)]
+                                        cachedItemForKey:value.itemKey]
+                                  : [tree element:number.longLongValue];
+        if (old && target)
+          notify(target, old, value);
       }
       for (NSNumber *number in removed) {
         SWAccessibilityNode *node = tree.elements[number];
-        if (node)
+        if (node && !previous[number].itemKey)
           NSAccessibilityPostNotification(
               node, NSAccessibilityUIElementDestroyedNotification);
         [tree.elements removeObjectForKey:number];
         [tree.retiring removeObject:number];
       }
-      if (orderChanged || visibilityChanged)
+      if (rootChanged)
         NSAccessibilityPostNotification(
             tree.root, NSAccessibilityLayoutChangedNotification);
       if (oldFocus != focused)
@@ -426,6 +434,11 @@ void scoop_window_accessibility_close(void *pointer) {
   tree.closed = YES;
   tree.callback = NULL;
   tree.context = NULL;
+  tree.collectionCallback = NULL;
+  tree.collectionContext = NULL;
+  for (SWAccessibilityCollection *collection in tree.collections.allValues)
+    [collection retire];
+  [tree.collections removeAllObjects];
   tree.view.semanticRoot = nil;
   tree.view = nil;
   tree.root.retired = YES;

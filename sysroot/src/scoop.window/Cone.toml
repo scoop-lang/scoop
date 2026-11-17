@@ -32,6 +32,14 @@ path = "tests/values.scoop"
 when = { os = "windows" }
 
 [[test.sources]]
+path = "tests/collections.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/collections.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
 path = "tests/monitors.scoop"
 when = { os = "windows" }
 
@@ -80,6 +88,10 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/accessibility_node.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_collection.m"
 when = { os = "darwin" }
 
 [[native.sources]]

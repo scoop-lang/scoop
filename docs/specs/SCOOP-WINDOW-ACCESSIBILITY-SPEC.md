@@ -92,6 +92,18 @@ AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinVal
 
 AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible”动作，BOOL handler 仍只把 Completed 映射为 YES；读取动作列表不调用业务代码。当前 SDK 虽从 macOS 26 提供 NSAccessibilityScrollToVisibleAction 常量，但未提供对应的公开 BOOL protocol 方法，因此不声明同名的私有 selector。动作对象使用 weak target，保留旧动作不能保活 Window；实际调用重新检查当前能力和节点寿命。滚动与最终几何继续发送原有发布通知，不增加轮询或嵌套事件循环。其他 provider 按其实际公开合同映射同一 reveal 回调。
 
+### 3.4 虚拟集合的数据查询
+
+`SemanticRole.List` 是逻辑集合容器。`SemanticItemKey` 以 Number(Long)／Text(String) 表达集合内稳定 key，区分数字和文本。`SemanticCollectionSource` 提供同一不可变快照的 count、keyAt、indexOfKey、describe 与 search；不从 View 构造函数推导元数据。`SemanticCollectionSnapshot(source)` 只保留描述源和已校验的实际 count，不枚举数据或创建每项对象。
+
+`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected 与 expanded；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
+
+快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count 与 properties。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
+
+`AccessibilityNode.collection` 暂存一个可选快照，仅用于 List；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生轻量条目代理，弱缓存代理，不常驻 count 个对象或完整子 ID 数组。发布数据变化时只复核尚被引用的 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
+
+AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。Realize／Reveal／Focus 的完整接入仍按 S7 后续功能完成，不因数据查询可用而宣称已经交付。
+
 ## 4. AppKit 投影与验证
 
 使用 NSAccessibilityElement 与正式 NSAccessibility protocol，连接到现有内容 NSView。原生 Window、菜单和对话框继续提供自己的树；内容 view 不重复导出同一组节点。角色、名称、说明、identifier、值、enabled、checked、protected、焦点与实际动作由已发布节点决定。窗口逻辑矩形通过 AppKit 的 view／window 转换为屏幕坐标，窗口移动无需重写所有节点几何。

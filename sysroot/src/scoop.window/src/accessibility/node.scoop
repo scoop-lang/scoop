@@ -31,6 +31,50 @@ public class AccessibilityNode internal constructor(
     internal var hit: SemanticHitSnapshot? = None
     internal var textGeometry: SemanticTextSnapshot? = None
     internal var sceneOrder = 0L
+    internal var collectionValue: SemanticCollectionSnapshot? = None
+    internal var collectionRevision = 0UL
+    internal var publishedCollection: SemanticCollectionSnapshot? = None
+    internal var itemKey: SemanticItemKey? = None
+
+    /** Publishes a data source independently of the currently mounted row controls. */
+    public var collection: SemanticCollectionSnapshot?
+    get() {
+        checkOpen()
+        return collectionValue
+    }
+    set(value) {
+        checkOpen()
+        requireWindow(role == SemanticRole.List, "semantic collections require the list role")
+        when ((collectionValue, value)) {
+            case(Some(val before), Some(val after)) -> if (before === after)
+                return
+            case(None, None) -> return
+            else -> {}
+        }
+        collectionValue = value
+        if (collectionRevision == ULong.MAX_VALUE)
+            throw IllegalStateException(Some("semantic collection revision exhausted"))
+        collectionRevision += 1UL
+        provider.changed(this)
+    }
+
+    /** Associates a mounted row group with its logical item, without owning that item. */
+    public var collectionItem: SemanticItemKey?
+    get() {
+        checkOpen()
+        return itemKey
+    }
+    set(value) {
+        checkOpen()
+        requireWindow(
+            role == SemanticRole.Group && parentNode?.role == Some(SemanticRole.List),
+            "a collection item requires a group directly inside a list"
+        )
+        if (itemKey == value)
+            return
+        itemKey = value
+        provider.changed(this)
+    }
 
     public val isClosed: Boolean get() {
         provider.checkThread()
@@ -261,6 +305,8 @@ public class AccessibilityNode internal constructor(
             }
         if (sameParent && this.order == order)
             return
+        if (!sameParent)
+            itemKey = None
         provider.removeChild(this)
         parentNode = parent
         this.order = order

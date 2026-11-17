@@ -33,27 +33,33 @@ internal class ScrollRoot(private val probe: ScrollProbe, scope: ComponentScope)
                     semantics = ComponentSemantics(automationId = Some("text-scroll"))
                 }
             ]
-        return element({ mount -> ScrollPanel(probe, mount) }, children)
+        return element(
+            probe.showBars.value,
+            { props, mount -> ScrollPanel(probe, props, mount) },
+            children
+        )
     }
 }
 
-private class ScrollPanel(private val probe: ScrollProbe, scope: ComponentScope): Element<Unit>(
-    scope
-) {
+private class ScrollPanel(
+    private val probe: ScrollProbe,
+    private val props: Props<Boolean>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
+        Boolean
     > {
         context.measureChild(0L, Constraints(maxWidth = Some(200.0)))
         context.measureChild(1L, Constraints.tight(Size(200.0, 80.0)))
         context.placeChild(0L, Point(0.0, 0.0))
         context.placeChild(1L, Point(0.0, 110.0))
-        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 220.0))), Unit)
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 220.0))), props.value)
     }
-    public override fun scene(context: SceneContext, layout: Unit) {
+    public override fun scene(context: SceneContext, layout: Boolean) {
         context.children()
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
-                probe.accepted()
+                probe.accepted(layout)
         }
     }
 }

@@ -1,0 +1,95 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.window.accessibility.*
+
+private class CollectionSource(
+    private val keys: Array<SemanticItemKey>,
+    private val labels: Array<String?>,
+    public override val search: SemanticItemSearch = SemanticItemSearch(name = true),
+    private val unavailable: Long? = None
+): SemanticCollectionSource {
+    var descriptions = 0
+    public override val count: Long get() = keys.size
+    public override fun keyAt(index: Long): SemanticItemKey = keys[index]
+    public override fun indexOfKey(key: SemanticItemKey): Long? {
+        for (index in 0L ..< keys.size)
+            if (keys[index] == key)
+                return Some(index)
+        return None
+    }
+    public override fun describe(index: Long): SemanticItemProperties? {
+        descriptions += 1
+        if (unavailable == Some(index))
+            return None
+        return Some(
+            SemanticItemProperties(
+                name = labels[index],
+                automationId = Some(f"id-${index}"),
+                selected = Some(index == 1L)
+            )
+        )
+    }
+}
+
+private fun item(result: SemanticItemResult): SemanticItem =
+    when (result) {
+        case Found(val value) -> value
+        else -> fail(Some("expected a semantic item"))
+    }
+
+@Test
+private class SemanticCollectionTest {
+    @Test
+    fun `snapshots keep stable typed keys and query only the requested data`() {
+        val numeric = SemanticItemKey.Number(1L)
+        val text = SemanticItemKey.Text("1")
+        val source = CollectionSource([numeric, text], [Some("one"), Some("")])
+        val first = SemanticCollectionSnapshot(source)
+        assertEquals(0, source.descriptions)
+        assertEquals(2L, first.count)
+        assertEquals(text, item(first.itemAt(1L)).key)
+        assertEquals(Some(""), item(first.itemForKey(text)).properties.name)
+        assertEquals(2, source.descriptions)
+        val reordered =
+            SemanticCollectionSnapshot(CollectionSource([text, numeric], [Some(""), Some("one")]))
+        assertEquals(0L, item(reordered.itemForKey(text)).index)
+        assertEquals(1L, item(first.itemForKey(text)).index)
+        assertEquals(SemanticItemResult.NotFound, first.itemAt(-1L))
+        assertEquals(SemanticItemResult.NotFound, first.itemAt(2L))
+        assertEquals(SemanticItemResult.NotFound, first.itemForKey(SemanticItemKey.Number(9L)))
+    }
+
+    @Test
+    fun `search distinguishes unsupported unavailable and absent properties`() {
+        val a = SemanticItemKey.Number(1L)
+        val b = SemanticItemKey.Number(2L)
+        val c = SemanticItemKey.Number(3L)
+        val complete =
+            SemanticCollectionSnapshot(
+                CollectionSource([a, b, c], [Some("same"), Some("same"), Some("")])
+            )
+        assertEquals(b, item(complete.find(SemanticItemQuery.Name("same"), Some(a))).key)
+        assertEquals(c, item(complete.find(SemanticItemQuery.Name(""))).key)
+        assertEquals(SemanticItemResult.NotFound, complete.find(SemanticItemQuery.Name("absent")))
+        assertEquals(
+            SemanticItemResult.Unsupported,
+            complete.find(SemanticItemQuery.AutomationId("id-0"))
+        )
+        assertEquals(
+            SemanticItemResult.Unavailable,
+            complete.find(SemanticItemQuery.Name("same"), Some(SemanticItemKey.Number(4L)))
+        )
+        val unknown = SemanticCollectionSnapshot(CollectionSource([a], [None]))
+        assertEquals(SemanticItemResult.Unavailable, unknown.find(SemanticItemQuery.Name("x")))
+        val unavailable =
+            SemanticCollectionSnapshot(CollectionSource([a], [Some("one")], unavailable = Some(0L)))
+        assertEquals(SemanticItemResult.Unavailable, unavailable.itemForKey(a))
+        assertEquals(
+            SemanticItemResult.Unavailable,
+            unavailable.find(SemanticItemQuery.Name("one"))
+        )
+        val invalid = SemanticCollectionSnapshot(CollectionSource([a, a], [Some("x"), Some("y")]))
+        assertFailsWith<IllegalArgumentException> { invalid.itemAt(1L) }
+    }
+}

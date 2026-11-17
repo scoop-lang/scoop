@@ -1,6 +1,6 @@
 # UI 交互打磨与 accessibility 实施计划
 
-日期：2026-11-17。状态：S0～S6、S8～S9 进行中，S7、S10～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
+日期：2026-11-17。状态：S0～S9 进行中，S10～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
 
 本计划统一安排[交互打磨设计](DESIGN.md)与[accessibility 设计](../accessibility/DESIGN.md)的实现、消费者迁移和验收。两份设计规定行为与技术边界，本文规定任务拆分、依赖、交付顺序和完成条件；设计中的 U0～U5、P0～P5 仅作为来源分组对照，后续按本文记录实施状态。
 
@@ -8,7 +8,7 @@
 
 ## 当前待办与强制执行顺序
 
-2026-11-17 按用户要求调整。以下优先级高于批次编号及旧的“下一步”描述；S0～S11 仍用于拆分功能，不能据此提前开展低优先级工作。**当前执行一级，下一项为 S7 accessibility 虚拟集合。**
+以下优先级高于批次编号及旧的“下一步”描述；S0～S11 仍用于拆分功能，不能据此提前开展低优先级工作。**当前执行一级：S7 accessibility 虚拟集合。数据描述、稳定逻辑代理与实际行关联已完成本地验证，接下来实现原生 Realize／Reveal／Focus。**
 
 | 优先级 | 工作 | 开始条件 | 当前状态 |
 | --- | --- | --- | --- |
@@ -219,9 +219,10 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 **主要范围：** ItemSource／LazyElement、VirtualList、集合语义描述与原生代理、现有列表／树形或表格消费者。先改 UI、Component、Window spec。
 
-- [ ] 增加读取同一数据快照的条目描述源，按 key 查询名称、状态、集合位置和实际支持的属性搜索；未知名称、未加载数据、不支持搜索与查无条目分别表达。
-- [ ] 分离逻辑条目代理和具体 View／子控件身份；重排保持 key，过滤／删除使旧引用失效，回收 View 不等于业务删除，不常驻保存完整子 ID 数组。
-- [ ] 实现 Lookup／Enumerate／Find、Realize、Reveal、Focus 的各自边界；查询不 build／滚动／聚焦，Realize 不等于进入视口，Reveal 等待真实 Accepted 几何，Focus 反映实际焦点。
+- [x] 增加读取同一数据快照的条目描述源，按 key 查询名称、状态、集合位置和明确启用的属性搜索；未知名称、未加载数据、不支持搜索与查无条目分别表达。Window 纯测试与 VirtualList 消费已通过。
+- [x] 在共享模型与 AppKit 分离逻辑条目代理和具体 View／子控件身份；重排保持 key，过滤／删除使旧引用失效，回收 View 不等于业务删除，不常驻保存完整子 ID 数组。十万条数据、弱代理、真实行几何／子树／命中及关闭回归通过；其他平台投影随 S10 完成。
+- [x] Window 提供按 key／序号查询和属性 Find；AppKit rows／children 支持有界范围读取与实际 visibleRows。查询不 build／滚动／聚焦，描述暂不可用不伪报截断成功。
+- [ ] 接通原生 Realize、Reveal、Focus 的各自边界；Realize 不等于进入视口，Reveal 等待真实 Accepted 几何，Focus 反映实际焦点。其他平台查询入口与动作投影随 S10 完成。
 - [ ] 复用现有 lazy、滚动、焦点与选择控制器；普通客户端引用只保留轻量代理，具体实例按真实焦点、编辑及在途操作需要保留。取消、删除和根关闭优先，不复活旧 key。
 - [ ] 区分 hidden、离屏、折叠、未实例化与删除；补集合位置／数量、行列／层级／标题关系及适用 active descendant，具体行内控件由真实挂载提供能力。
 - [ ] 平台接入按其实际模型处理 rows／visibleRows、ItemContainer／VirtualizedItem、VISIBLE／SHOWING 等；不能把三者压成统一的可见布尔值。

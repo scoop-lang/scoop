@@ -52,16 +52,21 @@ public fun Window.createAccessibilityProvider(): AccessibilityProvider {
                 0,
                 ForeignCallbackMode.Reusable
             )
+        val collections = DarwinCollectionQueries(application, provider)
         try {
             val pointer =
                 created(
                     nativeAccessibilityCreate(owner.pointer!!, callback.function, callback.context),
                     "create accessibility provider"
                 )
-            provider.bind(DarwinAccessibilityProjection(application, pointer, callback))
+            collections.attach(pointer)
+            provider.bind(
+                DarwinAccessibilityProjection(application, pointer, callback, collections)
+            )
             owner.accessibility = Some(provider)
             return provider
         } catch (error: Throwable) {
+            collections.close()
             releaseForeignCallback(callback)
             throw error
         }
@@ -88,7 +93,8 @@ private class DarwinAccessibilityProjection(
     private val pointer: Ptr<Unit>,
     private val callback: ForeignCallback<
         (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int
-    >
+    >,
+    private val collections: DarwinCollectionQueries
 ): AccessibilityProjection {
     public override fun publish(
         changed: Collection<AccessibilityNode>,
@@ -110,6 +116,7 @@ private class DarwinAccessibilityProjection(
                         nativeAccessibilityPut(pointer, describe(node)),
                         "publish accessibility node"
                     )
+                    collections.publish(pointer, node)
                     when (val hit = node.hit) {
                         case Some(val value) -> checkNativeStatus(
                             nativeAccessibilityHit(pointer, node.id.number, value.native),
@@ -202,6 +209,7 @@ private class DarwinAccessibilityProjection(
             nativeAccessibilityClose(pointer)
         }
         val owned = callback
+        collections.close()
         application.mailbox.postControl {
             @Unsafe
             {
@@ -242,6 +250,7 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             case RadioButton -> 9
             case RadioGroup -> 10
             case Image -> 11
+            case List -> 12
         },
         flag(value.enabled) +
             2 *

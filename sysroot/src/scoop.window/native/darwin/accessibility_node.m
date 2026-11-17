@@ -36,7 +36,8 @@
       NSAccessibilityTextFieldRole,  NSAccessibilityScrollAreaRole,
       NSAccessibilityScrollBarRole,  NSAccessibilityButtonRole,
       NSAccessibilityButtonRole,     NSAccessibilityRadioButtonRole,
-      NSAccessibilityRadioGroupRole, NSAccessibilityImageRole};
+      NSAccessibilityRadioGroupRole, NSAccessibilityImageRole,
+      NSAccessibilityListRole};
   return roles[state.data.role];
 }
 - (NSString *)accessibilitySubrole {
@@ -182,6 +183,12 @@
     SWAccessibilityState *ancestor = self.tree.published[@(parent)];
     if (!ancestor)
       return nil;
+    if (ancestor.itemKey) {
+      id item = [[self.tree collection:ancestor.data.parent]
+          itemForKey:ancestor.itemKey];
+      if (item)
+        return item;
+    }
     if (!(ancestor.data.flags & SWAXIgnored))
       break;
     parent = ancestor.data.parent;
@@ -213,6 +220,9 @@
 - (NSArray *)accessibilityChildren {
   if (![self participatesInAccessibility])
     return @[];
+  SWAccessibilityCollection *collection = [self.tree collection:self.number];
+  if (collection)
+    return [collection rowsFrom:0 count:(NSUInteger)self.state.itemCount];
   NSMutableArray *children = [NSMutableArray new];
   [self appendChildrenOf:self.number to:children];
   return children;
@@ -221,11 +231,46 @@
   return self.accessibilityChildren;
 }
 - (NSArray *)accessibilityVisibleChildren {
+  SWAccessibilityCollection *collection = [self.tree collection:self.number];
+  if (collection)
+    return collection.visibleRows;
   NSMutableArray *visible = [NSMutableArray new];
   for (SWAccessibilityNode *node in self.accessibilityChildren)
     if (node.state.data.geometry && node.state.data.visible)
       [visible addObject:node];
   return visible;
+}
+- (NSInteger)accessibilityRowCount {
+  return MAX(self.state.itemCount, 0);
+}
+- (NSArray *)accessibilityRows {
+  return [[self.tree collection:self.number]
+      rowsFrom:0
+         count:(NSUInteger)MAX(self.state.itemCount, 0)];
+}
+- (NSArray *)accessibilityVisibleRows {
+  return [self.tree collection:self.number].visibleRows;
+}
+- (NSUInteger)accessibilityArrayAttributeCount:
+    (NSAccessibilityAttributeName)attribute {
+  if (self.state.itemCount >= 0 &&
+      ([attribute isEqual:NSAccessibilityRowsAttribute] ||
+       [attribute isEqual:NSAccessibilityChildrenAttribute]))
+    return [self participatesInAccessibility] ? (NSUInteger)self.state.itemCount
+                                              : 0;
+  return [super accessibilityArrayAttributeCount:attribute];
+}
+- (NSArray *)accessibilityArrayAttributeValues:
+                 (NSAccessibilityAttributeName)attribute
+                                         index:(NSUInteger)index
+                                      maxCount:(NSUInteger)count {
+  if (self.state.itemCount >= 0 &&
+      ([attribute isEqual:NSAccessibilityRowsAttribute] ||
+       [attribute isEqual:NSAccessibilityChildrenAttribute]))
+    return [[self.tree collection:self.number] rowsFrom:index count:count];
+  return [super accessibilityArrayAttributeValues:attribute
+                                            index:index
+                                         maxCount:count];
 }
 - (NSRect)accessibilityFrame {
   SWAccessibilityState *state = self.state;
@@ -269,8 +314,15 @@
         ![node participatesInAccessibility] || ![node isWithin:self.number] ||
         ![state.hit containsPoint:point])
       continue;
-    while (node.number && (node.state.data.flags & SWAXIgnored))
+    while (node.number && (node.state.data.flags & SWAXIgnored)) {
+      if (node.state.itemKey) {
+        id item = [[tree collection:node.state.data.parent]
+            itemForKey:node.state.itemKey];
+        if ([item isAccessibilityElement])
+          return item;
+      }
       node = [tree element:node.state.data.parent];
+    }
     if (node.isAccessibilityElement)
       return node;
   }
@@ -382,6 +434,10 @@
     [self perform:focused ? 3 : 4 text:nil];
 }
 - (BOOL)isAccessibilitySelectorAllowed:(SEL)selector {
+  if (selector == @selector(accessibilityRows) ||
+      selector == @selector(accessibilityVisibleRows) ||
+      selector == @selector(accessibilityRowCount))
+    return self.state.itemCount >= 0 && self.isAccessibilityElement;
   SWAccessibilityState *state = self.state;
   if (!state)
     return NO;

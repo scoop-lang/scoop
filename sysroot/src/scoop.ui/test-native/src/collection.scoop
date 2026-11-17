@@ -1,0 +1,63 @@
+package scoop.tests.ui.accessibility.native
+
+import scoop.window.*
+
+/** Runs AppKit metadata queries between owner callbacks, without activating a window. */
+public class NativeCollectionProbe public constructor(
+    root: NativeNode,
+    proxy: ApplicationProxy,
+    completed: (Int, Int) -> Unit
+): Closeable {
+    private val pointer = openCollectionProbe(root)
+    private val callback = collectionProbeCallback(proxy, completed)
+    public fun post(phase: Int) {
+        @Unsafe
+        {
+            nativeCollectionPost(pointer, phase, callback.function, callback.context)
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeCollectionClose(pointer)
+            releaseForeignCallback(callback)
+        }
+    }
+}
+
+private fun openCollectionProbe(root: NativeNode): Ptr<Unit> {
+    @Unsafe
+    {
+        return nativeCollectionProbe(root.pointer)
+    }
+}
+
+private fun collectionProbeCallback(proxy: ApplicationProxy, completed: (Int, Int) -> Unit):
+ForeignCallback<(Ptr<Unit>, Int, Int) -> Int> {
+    @Unsafe
+    {
+        return foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
+            {
+                phase: Int, result: Int ->
+                proxy.post { _ -> completed(phase, result) }
+                0
+            },
+            0,
+            ForeignCallbackMode.Reusable
+        )
+    }
+}
+
+@Extern(name = "scoop_ui_collection_probe")
+private fun nativeCollectionProbe(root: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_ui_collection_post")
+private fun nativeCollectionPost(
+    probe: Ptr<Unit>,
+    phase: Int,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+)
+
+@Extern(name = "scoop_ui_collection_close")
+private fun nativeCollectionClose(probe: Ptr<Unit>)

@@ -19,6 +19,8 @@ public class SemanticsHandle internal constructor(
     internal var revealPlacement: SemanticRevealPlacement? = None
     internal var textBinding: SemanticTextBinding? = None
     private var merging = false
+    internal var collectionSource: ItemSource? = None
+    internal var collectionItems: ItemSemantics? = None
     internal val generation: ULong get() = resource.contentRevision
 
     public val id: SemanticNodeId get() = resource.id
@@ -190,6 +192,20 @@ public class SemanticsHandle internal constructor(
         if (closed)
             return
         closed = true
+        collectionSource = None
+        collectionItems = None
+        when (owner.lazySemantics) {
+            case Some(val current) -> if (current === this) {
+                owner.lazySemantics = None
+                owner.lazyItems?.unbindSemantics()
+            }
+            case None -> {}
+        }
+        when (owner.semanticItem) {
+            case Some(val current) -> if (current === this)
+                owner.semanticItem = None
+            case None -> {}
+        }
         textBinding?.close()
         actions = SemanticActions()
         revealPlacement = None

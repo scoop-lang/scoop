@@ -34,6 +34,16 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private val keyed = HashMap<ViewKey, LazyItemEntry>()
     val count: Long get() = total
 
+    fun uses(value: ItemSource): Boolean = source === value
+    fun bindSemantics(parent: SemanticsHandle) {
+        for (entry in entries)
+            bindLazyItemSemantics(entry, parent)
+    }
+    fun unbindSemantics() {
+        for (entry in entries)
+            entry.node.semanticItem?.close()
+    }
+
     fun keyAt(index: Long): ViewKey = checkedItemKey(source, total, index)
     fun focusedEntry(): LazyItemEntry? {
         for (entry in entries)
@@ -135,6 +145,10 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         keyed.put(key, entry)
         // Keep the new mount reachable before any user render or lifecycle callback.
         publishOrder(node)
+        when (node.lazySemantics) {
+            case Some(val parent) -> bindLazyItemSemantics(entry, parent)
+            case None -> {}
+        }
         child.rebuild(UpdateTurn())
         child.mountPending()
         if (!node.root.isOpen)
