@@ -2,7 +2,7 @@
 
 状态：通用机制已实现，codec 迁移待实施。初稿：2026-10-15；公共基础修订：2026-10-21。原调研基线：`e548b9ebe`；本次公共基础核对基线：`4de3ae9e8`。M46 已完成；本文以 [M46 主设计](../milestone46/DESIGN.md)、[Serialize／Option 合同](../milestone46/SERIALIZE.md)及其完成后的实现为迁移基线，不实施或重新安排 M46。
 
-条件接口、codec 和命令行参数解析器的后续迁移见[联合设计草案](CODEC-CLI-MIGRATION.md)。
+条件接口的选择规则、codec 与 CLI 的库接口、模型构造约定和验收顺序见[完整迁移方案](CODEC-CLI-MIGRATION.md)。
 
 依据：[语言规范](../specs/SCOOP-SPEC.md) 8.5、9.4～9.6、11.13，[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) 2.1、2.2、2.7、2.11、2.17、2.20，以及[路线图](../ROADMAP.md)。本文规定功能边界、编译编排、试点迁移和验收；[同步协议与语义查询](PROTOCOL.md)规定进程交互、HIR 查询与方法体源码片段。通用查询、同步协议与方法体填充已随公共基础实现，实际范围见[实施与验收](../language-service/PROGRESS.md)；codec 迁移仍按本文推进，各批行为变更先同步相应 spec。
 
@@ -45,9 +45,9 @@ public annotation class GenerateWith(
 语言规范 9.4 与现有 M35 实现已支持 annotation class 的一维 `Array<String>` 参数，包括空数组、字符串常量元素、尾随逗号、元素来源以及跨 Cone metadata。M47 直接复用现有 parser、注解数组绑定和产物表示，无需新增字符串数组支持。
 
 ```scoop
-@GenerateWith(generator = "my.encoder", `interface` = ["Encodable<User>"])
-@GenerateWith(generator = "my.decoder", `interface` = ["Decodable<User>"])
-public class UserCodec : Encodable<User>, Decodable<User> {}
+@GenerateWith(generator = "my.encoder", `interface` = ["ValueEncoder<User>"])
+@GenerateWith(generator = "my.decoder", `interface` = ["ValueDecoder<User>"])
+public class UserCodec : ValueEncoder<User>, ValueDecoder<User> {}
 ```
 
 源码 parser 不识别 GenerateWith 的名字或参数含义，只产生普通 annotation AST；HIR 使用普通参数／target／Repeatable 规则绑定它。之后 driver 通过普通 core 命名空间查到 GenerateWith 的实际声明，读取正常 metadata 中对它的应用，解释 generator 名称与 interface 数组中的各个字符串，选择要填充的既有接口实现。导入别名、generator 的常量字符串及数组中的字符串常量元素都沿普通注解规则工作；不在 parser／HIR 中增加 GenerateWith 专属的 core role、schema 校验或注解节点。
@@ -60,13 +60,13 @@ codec 试点在一条注解中列出两个接口，由工具链注册的同一�
 public struct User(val id: Long, val name: String?) {
     @GenerateWith(
         generator = "scoop.codec",
-        `interface` = ["Encodable<User>", "Decodable<User>"]
+        `interface` = ["ValueEncoder<User>", "ValueDecoder<User>"]
     )
-    public companion object : Encodable<User>, Decodable<User> {}
+    public companion object : ValueEncoder<User>, ValueDecoder<User> {}
 }
 ```
 
-注解必须放在真正实现接口的 companion／codec 上，不能标在 User 外层并隐式转发到 companion。继承列表必须显式保留；单有 GenerateWith 不会让类型实现某个接口。Encodable／Decodable 和其他用户 interface 都使用这一通用机制。
+注解放在实际实现接口的 companion 或独立 codec 上，类型头或条件实现块显式声明相应接口。`ValueEncoder`、`ValueDecoder` 和用户定义的接口都使用这一机制。
 
 interface 数组中的每个字符串都是一个独立的类型选择配置。driver 按数组顺序，复用普通类型语法入口将每个元素解析为恰好一个完整类型，再通过已有类型绑定入口，在被修饰 owner 的词法上下文中解析 import、类型参数、限定名和透明 alias。之后与该 owner 已有的完整 interface application 比较并选定实际 typed 引用；不能按显示字符串相等、FQN 回退或隐式添加继承来完成匹配。generator 名称须非空；数组元素为空字符串、类型语法错误、非 interface、裸泛型模板、错误实参数量或未继承应用均定位到相应数组元素。
 
@@ -86,7 +86,7 @@ abstract 类型继续遵守原有抽象 requirement 规则，不为允许保留�
 
 生成绑定属于实际实现类型，数组中的每个元素建立一条 `(owner, interface application) -> generator` 绑定；同一注解选定接口的缺失方法合并成一个任务集合。选定的 interface application 必须存在于 owner 已声明的继承闭包中；注解不新增 conformance，也不能通过变型转换推造一个新的继承应用。绑定保留完整类型实参，`I<A>` 与 `I<B>` 是不同绑定，可以列在同一数组中；开放类型中的参数按 owner 的真实 binder 绑定，具体化时不重新选择 generator。
 
-每条绑定覆盖选定 interface 及其父接口带入的 requirement，不扩展到该 owner 的其他无关接口。比如 owner 已继承 `Combined<T> : Encodable<T>, Decodable<T>`，可以为两个实际父接口分别选择 generator，也可以为 Combined 的完整 requirement 集合选择同一个 generator。读取这些 requirement 仍保留其实际声明身份，不复制成新声明。
+每条绑定覆盖选定 interface 及其父接口带入的 requirement。比如 owner 已继承 `Combined<T> : ValueEncoder<T>, ValueDecoder<T>`，可以为两个实际父接口分别选择 generator，也可以为 Combined 的完整 requirement 集合选择同一个 generator。读取这些 requirement 时保留其实际声明身份。
 
 同一 owner、同一规范化 interface application 的重复配置报错，包括同一数组内重复、不同 GenerateWith 应用间重复，以及 alias 指向同一实际应用的情况；即使 generator 相同也不静默覆盖。错误定位到后一个数组元素并关联前一个。不同应用可能覆盖同一实现方法，沿现有实现关系去重，只产生一个 MethodId：相同 generator 合并任务并保留相关绑定与 requirement；不同 generator 则在后一配置处报告冲突并关联前一处，不按顺序试探。已有合法手写／继承／default 实现的方法先被排除，不为无需生成的方法报告这种冲突。
 
@@ -192,7 +192,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 
 ### 5.1 迁移的是算法
 
-独立程序同时处理 Encodable 与 Decodable 任务，并共享字段配置、结构查询和 codec 选择的公共部分。它通过普通依赖命名空间取得 core 声明，在查询与策略判断中使用 typed ID，最终用正常名称和语法生成源码。编译器无需知道哪一个任务表示 encode 或 decode。
+独立程序同时处理 `ValueEncoder<T>` 与 `ValueDecoder<T>` 任务，共享字段配置、结构查询和 codec 选择。它通过普通依赖命名空间取得 core 声明，按 typed ID 做策略判断，再为相应方法生成普通 Scoop 源码。
 
 迁移时给 M46 实际请求缺省正文的 companion／codec 添加对应的 GenerateWith，包含 core 中的普通 helper、库源码、示例和 fixture。只请求 encode 时数组只列编码接口；两个方向使用 scoop.codec 时列在同一数组中，也可通过两条注解选择不同 generator。已有完整手写实现不需要添加配置。相比 M46，仅有空的接口继承声明不再隐式触发 codec 合成；这个显式请求的源码变化属于 M47，编解码行为继续保持 M46 合同。不保留 interface 级默认配置或 compiler-known codec 自动触发作为第二条路径。
 
@@ -221,7 +221,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 | 编码 | 字段至多读取一次；ignore 不读取；先决定 None 是否省略，再建立 child、求值 codec、编码完整字段值 |
 | None 省略 | 仅按 M46 条件判断：原声明外层 Option、没有 required／emitNull，且缺失可直接恢复 None；不执行 default 或推断任意表达式等价性 |
 | 解码 | key 存在时交给完整字段 codec；缺失时显式 default 优先，再考虑原声明 Option 的 None；显式 null 和错误值不触发 default |
-| default 时机 | 先读取已提供字段并完成容器检查，再按声明序补缺失值，允许引用前参，每次构造至多执行一次，最后调用普通构造器 |
+| default 时机 | 先读取已提供字段并完成容器检查，再执行一次普通构造调用。对缺失且有默认值的形参省略具名实参，由普通调用按声明序求值，默认表达式可以引用前参 |
 | 形状与访问域 | struct、现有合格 final class、enum 的命名／位置 payload、tuple／Unit 沿原范围；普通字段／property／constructor 可见性保持 |
 | wire 外形 | 普通 enum 外层单 key、tuple 精确长度、M46 Option null 表示及手写 codec 组合保持 |
 
@@ -310,6 +310,7 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 | --- | --- |
 | 语言规范 9.4 | GenerateWith 的普通 annotation class 声明、`String`／`Array<String>` 参数、target 与 Repeatable；复用已有字符串数组支持，不扩展 annotation 语法或值域；Serialize 的普通检查边界 |
 | 语言规范 9.5、11.13 | 实现类型显式选择 interface application 与 generator；迁移原隐式 codec 请求，保持 M46 编解码规则，说明策略诊断按实际生成方向发生 |
+| 语言规范 12.7 | 用 `CliArguments<T>` 生成参数表和绑定方法，用 `CliValueParser<T>` 转换自定义字段。CLI 注解、构造约定与调用方迁移见[联合设计](CODEC-CLI-MIGRATION.md) |
 | 语言规范 9.6 | 静态描述通过工具查询用于 interface body 生成，仍无运行期反射或任意源码宏 |
 | 实现规范 2.1、2.2、2.11、2.20 | 公共源码／查询与严格片段适配、原方法上下文、必要的正文补齐接入、完整 HIR 和 typed identity；编辑态恢复结果不进入成功 HIR |
 | 实现规范 2.7 | 宿主 generator 配置、同步进程编排、缓存输入与失败诊断 |

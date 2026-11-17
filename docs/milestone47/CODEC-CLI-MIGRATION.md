@@ -1,6 +1,6 @@
 # 用 `@GenerateWith` 生成 codec 和命令行参数解析器
 
-评审草案，基于 `1681cdf1d`。本文补充 [M47 设计第 5 节](DESIGN.md#5-encoderdecoder-的迁移)，使用当前接口名 `ValueEncoder<T>` 和 `ValueDecoder<T>`。下文的 CLI 接口和生成器对主构造器的要求均为提案，所有示例使用现有 Scoop 语法。
+本次迁移同时交付两个生成器。`scoop.codec` 接管 HIR 中自动补 `encode` 和 `decode` 的职责，`scoop.cli` 根据参数类型生成专用命令行解析器。两者通过同一个 `@GenerateWith` 入口选择普通或带 `where` 的接口实现。构造对象时，生成器调用模型的主构造器，额外构造入口由作者在 companion 上提供具名工厂。所有用法采用现有 Scoop 语法。[M47 总体设计](DESIGN.md)
 
 ## 1. 应用如何使用
 
@@ -38,7 +38,7 @@ public struct Envelope<T>(val value: T) {
 
 两个方法分别使用各自的 `where`。元素类型只有 encoder 时，`Envelope<T>` 可以编码。请求解码的调用处需要独立证明 decoder 条件。条件写在显式接口实现块，注解中只写要选的完整接口。相同规则适用于用户接口和 CLI 接口。
 
-当前 driver 用无附加条件的 owner 去查询此刻可用的接口，导致条件块里的合法选择报 `E1317`。同一个自定义接口用普通继承时可以生成并运行，改成条件实现即能复现。HIR 已经在继承检查中记录了接口、适用条件和实现方法的对应关系。实施分三步。[任务选择](../../compiler/driver/src/generation/plan.rs) · [条件实现关系](../../compiler/hir-lower/src/class/inheritance/interfaces/conditional.rs)
+迁移基线（`1681cdf1d`）中的 driver 用无附加条件的 owner 查询可用接口，上例在选择阶段就会报 `E1317`。HIR 的继承检查已记录每个实现对应的接口、成立条件和方法。driver 和正文检查按以下规则使用这些关系。[任务选择](../../compiler/driver/src/generation/plan.rs) · [条件实现关系](../../compiler/hir-lower/src/class/inheritance/interfaces/conditional.rs)
 
 1. 选择配置时枚举 owner 已检查的实现关系，含父接口和沿基类实参代换后的条件。对每个选择器，按注解位置的 import、alias、类型参数和候选关系自身的假设绑定普通类型片段，用规范化后的完整接口身份匹配。这样 `I<T.Companion>` 或带 bound 的 `I<T>` 也能在其合法的块内解析。其他块的假设不得用于证明此候选。普通代码查询“当前能调用哪些接口”继续使用调用处的条件。
 2. 用匹配关系和原 requirement 定位缺正文的 `MethodId`。同一完整接口若有多个已检查且互不相交的实现域，选择器覆盖这些域中对应的方法，各方法按自身条件检查。已经手写或继承的接口仍参与配置检查，零缺失方法时无需启动进程。重复配置同一完整接口或两个不同生成器认领同一缺失方法时，沿用现有诊断。同一生成器覆盖同一方法只发一份任务。重叠实现和冲突 default 交给常规继承检查。
@@ -56,7 +56,7 @@ public struct Envelope<T>(val value: T) {
 | `encode` | 跳过 `ignore` 后，按声明序读取各参与字段，每个字段一次。仅当原声明外层是 core Option、`required` 和 `emitNull` 都为 false，且没有默认值或默认值直接为核心 `None` 时，才省略值为 `None` 的字段。默认表达式为函数调用或 `Some(...)` 时仍写出。决定写入后才取得 child、求值所选字段 codec 并调用。 |
 | `decode` | 按构造参数序读取已提供值，显式 `null` 交给完整字段 codec。先完成 record／sequence 的 `end` 检查，enum 先检查所选 payload 再检查外层，随后补默认值并构造。`required` 要求输入中有 key。允许缺失或标为 `ignore` 的字段优先用声明默认值，其次仅对声明处 Option 补 `None`。`T` 后来取 Option 仍遵守原声明的必填规则。 |
 
-生成器按声明身份识别接口、注解和 helper。codec 从 core 查公开声明，CLI 从所选 `CliArguments` 的声明来源取得 CLI Cone，再按其公开路径做 `lookupExport` 并核对声明身份。生成正文使用方法作用域内合法的类型名、限定名或局部 import alias，正常转义标识符和 wire 字符串。类型查询中的 `name` 是展示文本，无法区分同名类型。公共查询按实际使用补充 class 的 final／基类等形状事实，以及源码可引用的声明路径。用重名、别名和跨 Cone 正文验证查询结果。[类型查询输出](../../compiler/generator-protocol/src/descriptions/types.rs)
+生成器按声明身份识别接口、注解和 helper。codec 从 core 查公开声明，CLI 从所选 `CliArguments` 的声明来源取得 CLI Cone，再按其公开路径做 `lookupExport` 并核对声明身份。`describeTypes` 的 `sourcePath` 提供源码名称段，`visibleCompanion` 给出当前方法可访问的伴生类型，class 的 `modality` 和 `baseClass` 用于判断支持的形状。生成正文使用方法作用域内合法的类型名、限定名或局部 import alias，正常转义标识符和 wire 字符串。用重名、别名和跨 Cone 正文验证查询结果。[类型与成员查询](MEMBERS-JSON.md)
 
 切换时为实际依赖自动实现的 companion 和独立 codec 补注解，同时删除 HIR 中 `encode`／`decode` 专用合成、正文队列和 `Serialize` 策略检查。缺少注解的空实现走普通缺失方法诊断。`ValueInspector` 有自己的合成用途，共享的字段查询按其实际调用保留。[现有实现选择](../../compiler/hir-lower/src/class/inheritance/interfaces.rs) · [现有正文入口](../../compiler/hir-lower/src/pipeline/source_bodies.rs) · [字段语义基线](../milestone46/SERIALIZE.md)
 
@@ -96,7 +96,7 @@ return when (suppliedBias) {
 
 ## 5. `scoop.cli` 的独立接口
 
-当前 `Cli.schema(typeInfo<T>(), config)` 在运行时扫描字段，`CliParser(schema, codec)` 将 argv 转成 `CliDecoder` 后调用 `ValueDecoder<T>.decode`。CLI 实际只消费了 decoder。拟把目标类型相关的工作放进两个普通方法，把 argv 语法和 help 留在 `scoop.cli` 库内共用。[现有公开入口](../../sysroot/src/scoop.cli/src/cli.scoop) · [schema 推导](../../sysroot/src/scoop.cli/src/schema_model.scoop) · [argv 处理](../../sysroot/src/scoop.cli/src/tokens.scoop)
+现有 `Cli.schema(typeInfo<T>(), config)` 在运行时扫描字段，`CliParser(schema, codec)` 将 argv 转成 `CliDecoder` 后调用 `ValueDecoder<T>.decode`。迁移后，参数类型通过 `CliArguments<T>` 提供布局和构造逻辑，自定义字段通过 `CliValueParser<T>` 提供转换。argv 语法与 help 由 `scoop.cli` 库统一处理。[现有公开入口](../../sysroot/src/scoop.cli/src/cli.scoop) · [schema 推导](../../sysroot/src/scoop.cli/src/schema_model.scoop) · [argv 处理](../../sysroot/src/scoop.cli/src/tokens.scoop)
 
 ```scoop
 public interface CliArguments<T> {
