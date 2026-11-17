@@ -20,6 +20,14 @@ struct Argument<T>(val value: T) {
     }
 }
 
+struct Legacy(val id: Int, @CliIgnore val bias: Int = id + 2) {
+    constructor(id: Int) : this(id, 99) {}
+    @GenerateWith("scoop.cli", ["CliArguments<Legacy>"])
+    companion object : CliArguments<Legacy> {
+        public override fun bind(values: CliValues): Legacy = Legacy(values.required("id").readInt())
+    }
+}
+
 object Raw : CliArguments<CliValues> {
     public override fun entries(): Array<CliEntry> = [
         CliEntry("value", CliRole.Option, CliValueShape.Text, ["--value"]),
@@ -73,6 +81,8 @@ private class ApiTests {
         check(parsed(parser.parse(["--port=8080"])).port.value == 8080)
         val arguments = CliParser(CliConfig("generic"), Argument<Port>.Companion)
         check(parsed(arguments.parse(["--value=443"])).value.value == 443)
+        val legacy = CliParser(CliConfig("legacy"), Legacy.Companion)
+        check(parsed(legacy.parse(["--id=5"])).bias == 99)
         fails("/port", { parser.parse(["--port=oops"]) })
         val throwing = CliParser(CliConfig("throwing"), Throwing)
         check(when (throwing.parse(["--help"])) { case CliResult.HelpRequested -> true; else -> false })
