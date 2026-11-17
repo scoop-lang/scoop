@@ -1,0 +1,42 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Resolve default translucent decoration over its known surface, preserving absent fills. */
+internal fun componentBackground(
+    theme: Theme,
+    color: Color,
+    background: Color = theme.tokens.palette.background.background
+): Color =
+    if (
+        (theme.preferences.highContrast || theme.preferences.reduceTransparency) &&
+            color.alpha >
+            0.0 &&
+            color.alpha <
+            1.0
+    )
+        mixThemeColor(background, color.withAlpha(1.0), color.alpha)
+    else
+        color
+
+/** High contrast colors have already been resolved against this theme surface. */
+internal fun componentTint(
+    theme: Theme,
+    color: Color,
+    amount: Double,
+    background: Color = theme.tokens.palette.background.background
+): Color =
+    if (amount == 0.0)
+        Color.Transparent
+    else
+        if (theme.preferences.highContrast)
+            color
+        else
+            componentBackground(theme, color.withAlpha(color.alpha * amount), background)
+
+internal fun componentFocusWidth(theme: Theme, width: Double): Double =
+    if (theme.preferences.highContrast)
+        lowerBound(2.0, width)
+    else
+        width

@@ -1,0 +1,31 @@
+package scoop.ui.component
+
+import scoop.ui.style.*
+
+/** Keep each high contrast foreground with the background it was resolved against. */
+internal fun actionContrastPair(
+    theme: Theme,
+    shape: ActionShape,
+    variant: ButtonVariant,
+    visual: InteractionVisual
+): ColorPair {
+    val colors = theme.tokens.palette
+    when (shape) {
+        case Toggle(_, _, val selected) -> {
+            if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
+                return colors.muted
+        }
+        else -> {}
+    }
+    if (!visual.enabled)
+        return ColorPair(colors.background.background, colors.disabledText)
+    return when (variant) {
+        case Secondary -> colors.secondary
+        case Destructive -> colors.destructive
+        case Link -> ColorPair(colors.background.background, colors.primary.background)
+        else -> if (visual.hovered || visual.pressed)
+            colors.muted
+        else
+            colors.background
+    }
+}

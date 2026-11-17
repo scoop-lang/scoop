@@ -62,9 +62,9 @@ internal fun switchOptions(
     val density = theme.tokens.typography.body.fontSize / 14.0
     val off =
         if (theme.tokens.mode == ThemeMode.Dark)
-            colors.input.withAlpha(colors.input.alpha * 0.8)
+            componentTint(theme, colors.input, 0.8)
         else
-            colors.input
+            componentBackground(theme, colors.input)
     val fill = mixThemeColor(off, colors.primary.background, progress)
     val border = controlBorder(theme, input.style.track, visual, Color.Transparent)
     val local =
@@ -95,12 +95,15 @@ internal fun switchThumbStyle(input: SwitchProps, theme: Theme, progress: Double
     val colors = theme.tokens.palette
     val dark = theme.tokens.mode == ThemeMode.Dark
     val off =
-        if (dark)
-            colors.background.foreground
-        else
+        if (theme.preferences.highContrast)
             colors.background.background
+        else
+            if (dark)
+                colors.background.foreground
+            else
+                colors.background.background
     val on =
-        if (dark)
+        if (dark || theme.preferences.highContrast)
             colors.primary.foreground
         else
             colors.background.background

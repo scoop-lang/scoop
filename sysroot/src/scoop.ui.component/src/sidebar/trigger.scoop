@@ -143,8 +143,13 @@ public class SidebarMenuAction public constructor(
                         focus =
                             Some(
                                 OutlineStyle(
-                                    theme.tokens.palette.sidebar.ring.withAlpha(0.5),
-                                    2.0 * d,
+                                    componentTint(
+                                        theme,
+                                        theme.tokens.palette.sidebar.ring.withAlpha(1.0),
+                                        0.5,
+                                        theme.tokens.palette.sidebar.background.background
+                                    ),
+                                    componentFocusWidth(theme, 2.0 * d),
                                     0.0
                                 )
                             )

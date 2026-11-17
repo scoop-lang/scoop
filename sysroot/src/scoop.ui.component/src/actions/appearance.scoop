@@ -10,12 +10,23 @@ internal fun actionTextColor(
     visual: SurfaceVisual
 ): Color {
     when (shape) {
-        case Tab(_, val selected) -> return tabTextColor(theme, selected, visual.interaction)
+        case Tab(val variant, val selected) -> return tabTextColor(
+            theme,
+            variant,
+            selected,
+            visual.interaction
+        )
+        case Toggle(_, _, _) -> {
+            if (theme.preferences.highContrast)
+                return actionContrastPair(theme, shape, variant, visual.interaction).foreground
+        }
         else -> {}
     }
     val colors = theme.tokens.palette
     if (variant == ButtonVariant.Default)
         return theme.surfaceTextColor(visual)
+    if (theme.preferences.highContrast)
+        return actionContrastPair(theme, shape, variant, visual.interaction).foreground
     if (!visual.interaction.enabled && theme.tokens.disabledOpacity >= 1.0)
         return colors.disabledText
     return when (variant) {
@@ -128,7 +139,9 @@ internal fun actionOptions(
         if (variant == ButtonVariant.Destructive)
             Some(
                 OutlineStyle(
-                    colors.destructive.background.withAlpha(
+                    componentTint(
+                        theme,
+                        colors.destructive.background.withAlpha(1.0),
                         if (dark)
                             0.4
                         else
@@ -136,7 +149,7 @@ internal fun actionOptions(
                     ),
                     theme.tokens.validation.width,
                     theme.tokens.validation.outset,
-                    Some(colors.destructive.background.withAlpha(0.4))
+                    Some(componentTint(theme, colors.destructive.background.withAlpha(1.0), 0.4))
                 )
             )
         else
@@ -172,7 +185,23 @@ internal fun actionOptions(
             )
             else -> mixThemeColor(hover, colors.background.foreground, 0.08)
         }
-    val fill = StateColors(normal, hover, pressed, disabled).resolve(visual)
+    val sampled = StateColors(normal, hover, pressed, disabled).resolve(visual)
+    val active = visual.enabled && (visual.hovered || visual.pressed)
+    val contrastFill =
+        when (variant) {
+            case Link -> false
+            case Ghost -> active
+            case Outline -> !badge || active
+            else -> true
+        }
+    val fill =
+        if (theme.preferences.highContrast && variant != ButtonVariant.Default)
+            if (contrastFill)
+                actionContrastPair(theme, shape, variant, visual).background
+            else
+                Color.Transparent
+        else
+            componentBackground(theme, sampled)
     val resolvedBorder = border
     val variantStyle =
         styleOverride {

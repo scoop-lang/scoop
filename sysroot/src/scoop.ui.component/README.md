@@ -148,6 +148,8 @@ shadcn 外观取自 [Base Nova registry](https://ui.shadcn.com/r/styles/base-nov
 
 内置控件经 `ThemeSource.read(scope)` 消费根的减少动画、高对比度、减少透明度和文字缩放。应用通过 `uiPreferences { ... }`／`UiWindow.preferences` 覆盖系统值，None 恢复跟随；主题来源的基础值保持不变。字号变化重新度量文字与控件，保留编辑模型、挂载及焦点；减少动画生效后，加载动效和过渡停止持续请求帧。局部显式字号、颜色和效果保持应用的选择。
 
+Button／Badge、Toggle 和 Tabs 的默认状态配色在高对比度下保留主题的前景／背景配对；Switch 的 thumb 与轨道也保持可辨识。Slider／Sidebar 的默认焦点环不再衰减已解析的高对比颜色，字号缩小时宽度仍至少为 2 个逻辑单位。减少透明度时，控件派生的半透明底色合成到已知主题表面，原本没有填充的状态仍不填充。显式 surface／thumb／states 配色最后应用，可保留应用指定的透明度。
+
 主题 painter、字体、段落和滤镜归 Element 的 ComponentScope 所有，应用无需为每个控件添加 use。主题和效果没有自己的时钟，控件动画只使用 Surface Animatable；静止时不安排更新或绘制。
 
 Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props 更新；Stack 按描述顺序叠放。Frame 提供明确的尺寸、padding、两轴对齐和公共装饰，也可以选择 SurfaceKind 使用主题表面。未选表面时无需主题来源；从普通 Frame 切换为主题表面或反向切换都保留内容身份。Frame 透传经实际偏移后的基线，其他容器首期没有基线对齐策略。
