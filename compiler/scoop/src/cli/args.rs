@@ -102,7 +102,7 @@ pub(super) struct BuildOptions {
     pub generators: Vec<OsString>,
     #[arg(long)]
     pub cache_dir: Option<PathBuf>,
-    /// Maximum concurrent compiler workers across Cones and code generation; defaults to available CPUs.
+    /// Maximum parallelism shared by Scoop compilation and Swift builds; defaults to available CPUs.
     #[arg(short = 'j', long)]
     pub jobs: Option<std::num::NonZeroUsize>,
     #[arg(long)]
@@ -225,6 +225,9 @@ pub(super) struct LinkArgs {
 
 #[derive(Args)]
 pub(super) struct NativeOptions {
+    /// macOS Swift toolchain root containing usr/bin/swift and usr/bin/swiftc.
+    #[arg(long)]
+    pub swift_toolchain: Option<PathBuf>,
     /// Native C compiler driver for the selected target.
     #[arg(long)]
     pub cc: Option<PathBuf>,

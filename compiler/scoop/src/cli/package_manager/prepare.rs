@@ -15,7 +15,7 @@ pub(in crate::cli) struct PackageOptions {
     members: super::MemberOptions,
     #[arg(long)]
     lockfile: Option<PathBuf>,
-    /// Require an existing dependency selection without changing Cone.lock.
+    /// Preserve dependency selections in Cone.lock and Swift Package.resolved.
     #[arg(long)]
     locked: bool,
     /// Do not access the network.
@@ -30,6 +30,17 @@ pub(in crate::cli) struct PackageOptions {
 }
 
 impl PackageOptions {
+    pub fn swift_options(
+        &self,
+        toolchain: Option<PathBuf>,
+    ) -> scoop_toolchain::swift::SwiftBuildOptions {
+        scoop_toolchain::swift::SwiftBuildOptions {
+            toolchain,
+            locked: self.locked || self.frozen,
+            offline: self.offline || self.frozen,
+        }
+    }
+
     pub fn selects_members(&self) -> bool {
         self.members.explicit()
     }

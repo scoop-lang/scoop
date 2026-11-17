@@ -69,6 +69,7 @@ pub struct LoadedConeManifest {
     identity: ConeIdentity,
     parsed: ParsedConeManifest,
     metadata: std::collections::BTreeMap<String, String>,
+    shared_source: bool,
 }
 
 impl LoadedConeManifest {
@@ -94,11 +95,21 @@ impl LoadedConeManifest {
             identity,
             parsed,
             metadata,
+            shared_source: false,
         })
     }
 
     pub fn metadata(&self) -> &std::collections::BTreeMap<String, String> {
         &self.metadata
+    }
+
+    pub fn with_shared_source(mut self, shared: bool) -> Self {
+        self.shared_source = shared;
+        self
+    }
+
+    pub fn is_shared_source(&self) -> bool {
+        self.shared_source
     }
 
     pub fn real_root(&self) -> &Path {

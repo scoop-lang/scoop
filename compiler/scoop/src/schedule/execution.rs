@@ -15,6 +15,7 @@ pub(super) enum PreparedNode {
 }
 
 pub(super) struct Execution {
+    pub(super) swift: super::swift::SwiftExecution,
     pub(super) order: Vec<ConeIdentity>,
     pub(super) ready: ReadyNodes,
     completed: BTreeMap<ConeIdentity, CompletedNode>,
@@ -34,6 +35,7 @@ impl Execution {
             .filter(|id| include_root || *id != graph.root_identity())
             .collect::<Vec<_>>();
         Self {
+            swift: super::swift::SwiftExecution::new(graph, include_root),
             ready: ReadyNodes::new(
                 &order,
                 graph
@@ -161,6 +163,7 @@ impl Execution {
         Vec<ConeIdentity>,
         BTreeMap<ConeIdentity, CompletedNode>,
         BuildObservations,
+        Vec<scoop_toolchain::swift::SwiftProduct>,
     ) {
         let child_invocations = self
             .child_invocations
@@ -171,7 +174,12 @@ impl Execution {
             nodes: self.observations.into_values().collect(),
             child_invocations,
         };
-        (self.order, self.completed, observations)
+        (
+            self.order,
+            self.completed,
+            observations,
+            self.swift.completed.into_values().collect(),
+        )
     }
 }
 
@@ -202,8 +210,9 @@ impl PreparedBuildGraph {
             .into_iter()
             .zip(executions)
             .map(|(graph, execution)| {
-                let (order, completed, observations) = execution.into_parts();
+                let (order, completed, observations, swift) = execution.into_parts();
                 ExecutedBuildGraph {
+                    swift,
                     root: graph.root_identity(),
                     _prepared: graph,
                     dependency_first: order,
@@ -219,7 +228,7 @@ impl PreparedBuildGraph {
         runner: &impl SingleConeCompilerRunner,
     ) -> Result<(Vec<CompletedNode>, BuildObservations), BuildGraphExecutionFailure> {
         let execution = super::batch::execute(&[self], runner, false)?.remove(0);
-        let (order, mut completed, observations) = execution.into_parts();
+        let (order, mut completed, observations, _) = execution.into_parts();
         Ok((
             order
                 .into_iter()

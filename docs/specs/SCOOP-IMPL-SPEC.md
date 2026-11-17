@@ -1233,7 +1233,7 @@ generator 的 stderr 沿 driver 日志目标输出。scoop 在取得合法的 ch
 
 所有 profile 可显式请求 symbols，未请求时不收集或渲染该映射。它不进入 `.slib`、语言身份、ABI、Code 或优化输入，不改变机器代码、GC roots 或程序行为；仅请求缺失的 symbols 时沿 observation-only 路径停在 LIR，已有机器产物和最终链接继续复用。缓存命中仅复制已有观察。文档模式只允许 AST／HIR 的约定保持。
 
-包管理机器协议版本为 9；编译器机器协议版本为 33；generator 协议版本为 2。诊断具有明确 Error/Warning severity，primary 与 notes 保存实际 Cone、logical source 和 byte span。源码读取等文件级错误仅有实际 host path、没有字节区间时，使用独立的 HostPath origin（wire tag 5），不得丢失路径或伪造区间；已有 HostPathSpan 编码保持。产物错误保存 container/manifest/member/section 与 wire field path，I/O 错误不伪装成源码位置。human 与逐行 JSON（schema 2）使用同一结构化记录，写 stderr；stdout 留给被执行程序。缓存中的 warning 在本次显示时附加 locator，不丢失原位置。显示源码诊断时仅按需读取涉及的文件以计算行列和提取片段，同一轮显示共享读取结果；此读取不参与缓存更新判定。
+包管理机器协议版本为 10；编译器机器协议版本为 33；generator 协议版本为 2。诊断具有明确 Error/Warning severity，primary 与 notes 保存实际 Cone、logical source 和 byte span。源码读取等文件级错误仅有实际 host path、没有字节区间时，使用独立的 HostPath origin（wire tag 5），不得丢失路径或伪造区间；已有 HostPathSpan 编码保持。产物错误保存 container/manifest/member/section 与 wire field path，I/O 错误不伪装成源码位置。human 与逐行 JSON（schema 2）使用同一结构化记录，写 stderr；stdout 留给被执行程序。缓存中的 warning 在本次显示时附加 locator，不丢失原位置。显示源码诊断时仅按需读取涉及的文件以计算行列和提取片段，同一轮显示共享读取结果；此读取不参与缓存更新判定。
 
 human 诊断采用源码片段展示：先输出 severity、可用的错误代码和说明，再显示文件、行列、带行号的源码及标记实际 byte span 的下划线；related notes 显示各自的来源。UTF-8 字符、制表符、跨行范围及文件末尾的零宽位置应正确对齐；长片段可以折叠。终端可使用颜色，重定向输出不包含终端控制序列。源码不可读或无有效范围时仍保留原错误及可用的路径／字节位置，不猜测源码。JSON 继续输出结构化字段，不混入终端排版。
 
@@ -1241,7 +1241,7 @@ human 诊断采用源码片段展示：先输出 severity、可用的错误代�
 
 #### 2.7.1 Swift 包生产与更新记录（设计合同）
 
-本节正在实现，已接入清单与 compiler 输入投影；生产和调度待完成。源码配置使用语言规范 12.2.5 的 `native.swift`，依赖选择和 lock 见包管理规范 6.3。首期仅为 macOS 宿主上的现有 Darwin AArch64／x86-64 target；实际 Swift 工具链必须支持包的 tools version 和 Swift 6.3 起的正式 `@c`。新 CLI／协议字段在实现时与配套命令一起更新，不将本文的计划字段视为当前已支持。
+本节正在实现，已接入清单、compiler 输入投影、Swift 生产内核与 driver 调度；最终链接和交付待完成。源码配置使用语言规范 12.2.5 的 `native.swift`，依赖选择和 lock 见包管理规范 6.3。首期仅为 macOS 宿主上的现有 Darwin AArch64／x86-64 target；实际 Swift 工具链必须支持包的 tools version 和 Swift 6.3 起的正式 `@c`。新 CLI／协议字段在实现时与配套命令一起更新，不将本文的计划字段视为当前已支持。
 
 **职责与输入投影。** PM 只交付展开的生产声明；`scoop` 负责更新检查、Swift 子进程和产物发布；SwiftPM 负责包内依赖、target 选择、host 宏／插件和实际编译；`scoopc` 只接收投影后的普通 native 库要求与 Scoop 源码。选定 Swift product 是独立生产节点，不取得 ConeIdentity，也不把 Swift target 复制成 Scoop 编译节点。
 

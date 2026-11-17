@@ -24,6 +24,10 @@ impl NativeOptions {
                     .transpose()?,
             },
             FinalLinkOptions {
+                swift_toolchain: self
+                    .swift_toolchain
+                    .map(|path| absolute(cwd, path))
+                    .transpose()?,
                 linker: self.linker,
                 sysroot: Some(sysroot.to_owned()),
                 unwind_prefix: self

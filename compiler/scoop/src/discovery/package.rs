@@ -28,7 +28,10 @@ impl DiscoveredBuildGraph {
         for node in resolution.nodes {
             let identity = node.cone.coordinate().identity().map_err(error)?;
             let graph_node = match node.cone {
-                PreparedConeV1::Source { config } => {
+                PreparedConeV1::Source {
+                    config,
+                    shared_source,
+                } => {
                     let manifest = LoadedConeManifest::from_expanded(
                         config.root.to_path_buf().map_err(error)?,
                         config.manifest_path.to_path_buf().map_err(error)?,
@@ -37,7 +40,8 @@ impl DiscoveredBuildGraph {
                         config.metadata,
                     )
                     .map_err(error)?
-                    .with_input_root(config.input_root.to_path_buf().map_err(error)?);
+                    .with_input_root(config.input_root.to_path_buf().map_err(error)?)
+                    .with_shared_source(shared_source);
                     GraphNode::ManifestSource(Box::new(manifest))
                 }
                 PreparedConeV1::Prebuilt { artifact, summary } => {

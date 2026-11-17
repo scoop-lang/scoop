@@ -43,6 +43,13 @@ pub(super) fn requests(
             .map_err(crate::cli::commands::toolchain)?,
     )?;
     let search = paths(&cwd, args.cone_path)?;
+    let swift = args.packages.swift_options(
+        args.native
+            .swift_toolchain
+            .clone()
+            .map(|path| absolute(&cwd, path))
+            .transpose()?,
+    );
     let inputs = prepare(PrepareInput {
         cwd: &cwd,
         input: args.root_input,
@@ -98,6 +105,7 @@ pub(super) fn requests(
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
         }),
         generators,
+        swift,
     };
     let graphs = inputs.graphs(context)?;
     if output.is_some() && graphs.len() != 1 {

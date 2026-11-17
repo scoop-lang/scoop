@@ -151,9 +151,14 @@ fn prepare_binds_each_root_and_keeps_inherited_diagnostic_locations() {
             .iter()
             .find(|node| node.cone.coordinate() == &resolution.coordinate)
             .unwrap();
-        let PreparedConeV1::Source { config } = &node.cone else {
+        let PreparedConeV1::Source {
+            config,
+            shared_source,
+        } = &node.cone
+        else {
             panic!()
         };
+        assert!(!shared_source);
         let (key, dependency) = config.manifest.semantic().dependency_iter().next().unwrap();
         assert_eq!(
             dependency.version(),
@@ -236,7 +241,7 @@ fn prepare_only_activates_test_configuration_for_the_selected_test_root() {
     let graph = &response.resolutions[0];
     assert_eq!(graph.nodes.len(), 4);
     for node in &graph.nodes {
-        let PreparedConeV1::Source { config } = &node.cone else {
+        let PreparedConeV1::Source { config, .. } = &node.cone else {
             panic!()
         };
         let expected = usize::from(node.cone.coordinate().name() == "app");
