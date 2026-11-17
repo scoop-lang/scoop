@@ -224,6 +224,8 @@ pre-release/build metadata 无法无损映射到某格式时，要求提供该�
 
 当前 Linux GUI 使用 GTK 4.18 以上和 libadwaita 1.4 以上，且依赖对应 SONAME；包的发行版/runtime 基线必须满足真实二进制要求。AppImage 不能降低已构建程序的 glibc 符号版本要求。现有 linker 可能留下开发目录的 rpath，bundle 只在本次暂存副本上调整。
 
+Swift 原生库第一阶段的后续交接见 [Swift 设计](../swift-libraries/DESIGN.md#8-最终链接与运行)及实现规范 2.8.1，当前尚未实现。build 的结构化 `native_outputs` 提供实际生成的库／framework、二进制 linkage 和 SwiftPM resource bundle；bundle 消费同一组已选结果，不重新执行 SwiftPM。动态 framework／dylib 进入 Frameworks 布局并调整副本加载路径、最后签名；静态 archive／静态 framework 只参与链接，其资源仍需部署。resource bundle 保留实际名字，按生成访问器支持的应用资源位置放置并以真实读取验收，不能只复制 framework 后假定资源齐全。显式 `--binary` 仍需调用方提供配套文件与资源配置。
+
 ### 6.2 资源定位
 
 资源路径不能依赖 cwd、PWD、`argv[0]` 或安装时的开发机绝对路径。首期固定上表布局，配套示例从实际 executable 路径定位资源：macOS 为其目录的 `../Resources`；Linux 为 `../../../share/<identifier>`；Windows 为其目录的 `resources`。

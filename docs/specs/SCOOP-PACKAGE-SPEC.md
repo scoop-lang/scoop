@@ -1,6 +1,6 @@
 # Scoop 包管理规范
 
-状态：M63 本轮本地功能与静态 registry 消费已完成；源码打包/发布移至下一阶段。完成范围见[实施记录](../package-manager/PROGRESS.md)。更新日期：2026-10-28。
+状态：M63 本轮本地功能与静态 registry 消费已完成；源码打包/发布移至下一阶段。完成范围见[实施记录](../package-manager/PROGRESS.md)。2026-11-17 补充 Swift 原生库第一阶段设计合同，尚未实现。
 
 本规范规定独立 `scoop-pm` 的 workspace、依赖来源、版本解析、`Cone.lock`、源码 registry 及其与构建 driver 的接口。实现步骤与设计取舍见[包管理设计](../package-manager/DESIGN.md)，调度、编译和链接继续遵守[编译器与产物规范 2.7～2.8](SCOOP-IMPL-SPEC.md#27-scoop-与-single-cone-scoopc)。
 
@@ -9,6 +9,8 @@ Scoop 尚未发布。本次直接重定义 `Cone.toml` 的初始 schema，与仓
 本轮交付 workspace、path/Git/sysroot/artifact 依赖、版本与 lock、本地清单编辑、构建与 LSP 接入、配套工具发行，以及第 8 节静态 registry 的索引读取和归档下载消费。第 9 节源码打包/发布工具留至下一阶段；本轮以预先生成的静态文件验收消费闭环。
 
 当前可用的手工打包、静态目录组织和部署方法见[如何组织和发布 registry](https://scoop-lang.org/guides/registry.html)。
+
+Swift 生产声明、两套锁文件的职责、driver 交接与失效规则分别见 2.4、6.3、7.3、11.3；完整设计见 [Swift 原生库](../swift-libraries/DESIGN.md)。这些条目不表示当前 PM 协议或 CLI 已支持 Swift 构建。
 
 ## 1. 职责与交付边界
 
@@ -83,6 +85,12 @@ default = "https://packages.example.org/"
 含 `[cone]` 的清单可声明 `[bundle]` 工具表；也可用唯一的 `config = "packaging/Bundle.toml"` 字段引用外部配置。具体字段、文件布局与格式见 [scoop-bundle 设计](../scoop-bundle/DESIGN.md)。PM 只解析 TOML 表并保留其值和声明 span，不解释平台打包字段、读取引用文件或探测打包工具；配置选择和字段错误由外部 `scoop-bundle` 负责。virtual workspace 不承载应用 bundle 表，各应用成员独立声明。
 
 bundle 表不进入语言编译配置、依赖选择、ConeIdentity、`.slib` 或 runtime ABI。只改变 bundle metadata 或外置资源时，普通编译继续复用原结果。`members --json` 在成员中返回已经展开的 `metadata`，以及可空的 `bundle`（`table` 为原 TOML 值的 JSON 表示，`span` 为原清单字节范围）；成员原有 `manifest` 定位该来源。外部配置尚未在此时打开，原始 manifest 文本不成为打包器再次解释 workspace 的输入。
+
+### 2.4 Swift 生产声明（设计合同）
+
+普通 Cone 可使用语言规范 12.2.5 的 `[[native.swift]]` 声明本地 Swift package 的一个显式 static/dynamic library product，选择普通库或 framework 交付，并提供附加 `inputs`／`env`。PM 解析字段、目标条件与诊断位置，按 Cone 根展开普通 native 路径，保留生产配置；不执行 Package.swift、不读取 Swift 源码、不查找 Swift 工具或解析其依赖。未匹配目标条件的条目不访问包目录。
+
+Swift package 不是 Cone dependency，不取得 ConeIdentity；其版本要求由 Package.swift 表达，不加入 Scoop `[dependencies]` 或 registry 索引。virtual workspace、workspace 字段继承与单文件模式不增加 Swift 生产入口。只有选中 product 投影的逻辑 native library requirement 交给 Scoop 语言编译，完整配方留在 driver。
 
 ## 3. Workspace
 
@@ -269,6 +277,25 @@ source是带kind的封闭记录，各分支必需字段如下，不接收其他�
 
 求解、选中来源获取及必要 manifest 匹配成功后，才发布该批解析结果；失败保留旧 lock。后续编译失败可以保留已正确生成的 lock，但不能发布构建成功记录。普通文件锁和原子替换协调写入，在锁内重查输入并保留本次未选择的解析记录；不把两个并发命令的更新互相覆盖。已删除的成员记录在下一次写入时移除。lock 冲突不可通过任选一侧静默解决，应重新 resolve。
 
+### 6.3 Swift 依赖选择与锁文件（设计合同）
+
+`Cone.lock` 继续固定 Cone 图，Swift 构建根的 `Package.resolved` 由 SwiftPM 管理，固定其远端依赖版本／revision。两者不互相复制图或本机缓存路径。作为 SwiftPM 传递依赖的包是否采用自己的 lock，遵循 SwiftPM 的根规则；`native.swift.package` 指定的目录则是一次独立 Swift 构建的根。
+
+| 模式 | Swift 生产节点的行为 |
+| --- | --- |
+| 默认 | 优先使用有效 Package.resolved；首次选择或相关清单要求变化时才解析；不因远端出现新版本使构建失效 |
+| `--locked` | 不改变已有 Swift 选择；所需选择缺失或不满足请求时失败；没有需要锁定的远端依赖时允许无 Package.resolved |
+| `--offline` | 命中直接复用；未命中只能使用本地已准备的来源、二进制依赖与构建工具，不允许网络获取 |
+| `--frozen` | 同时满足 locked 与 offline |
+
+命中使用已完成生产的输入记录，不重新执行 SwiftPM 判断“最新”。lock 新增、删除或更新是正常输入变化；实际修改后需重新读取与判断，格式错误或 locked 不满足不能被旧二进制遮蔽。本地 path／editable 依赖不被 lock 冻结，源码和发现集合变化由 driver 观察。
+
+未命中后的 locked 调用使用 SwiftPM 的只消费 resolved 选择模式。`--skip-update` 仅抑制更新，不能保证不下载缺失来源；不得把它等同 offline。选定 SwiftPM 无可保证仅使用本地输入的调用路径时，在启动可能获取依赖的步骤前报告离线构建不支持，而不是放行网络。该限制也适用于 frozen；不为此引入网络代理或新的隔离框架。
+
+本地工作区／path Cone 的 Swift 构建根可由 SwiftPM 正常更新 Package.resolved；显式 `swift package update` 更新后，下一次 Scoop build 观察变化。`scoop pm update` 仍只更新 Cone 图。Swift 解析成功、随后编译失败时，可保留正确生成的 lock，但不能发布生产成功记录。
+
+第 11.1 节的 PM 共享源码不因 Swift 生产而成为可写工作区：Git／registry 取得的 Cone 中，Swift 根有远端依赖时须随源码提供有效 Package.resolved，并以只消费该选择的模式构建；不足时要求作者在本地修正并发布，不在共享源码内补写 lock。纯本地依赖可无 lock。Swift scratch、下载和产物写入正常构建缓存，不能写回共享源码；此规则依据 PM 已知的来源种类，不检查文件 owner、权限或来源可信性。
+
 ## 7. PM 与构建 driver 的接口
 
 ### 7.1 便携 lock 与本地准备结果
@@ -300,7 +327,7 @@ driver 消费的是 lock 的精确图和本次已准备好的本地输入。port
 
 ### 7.2 自动准备与低层调用
 
-普通 manifest build/run/test/check/doc 在构建前调用配套 PM 的 prepare。`scoop build/run` 在 `Cone.lock` 不存在时自动调用 PM 解析依赖、准备来源并生成 lock，成功后继续构建／运行，无需用户先执行 resolve。已有有效 lock 时优先复用锁定选择和本地准备结果，不查询新版本。显式 `--locked` 或 `--frozen` 遇到缺少适用 lock 时失败；普通 `--offline` 仍可用足够的本地来源生成 lock。`scoop build --lockfile <file> -p group:name --locked` 是显式消费锁定图的入口；没有 `-p` 时仍按所在 workspace 的默认选择。driver 本身从不修改 lock。
+普通 manifest build/run/test/check/doc 在构建前调用配套 PM 的 prepare。`scoop build/run` 在 `Cone.lock` 不存在时自动调用 PM 解析依赖、准备来源并生成 lock，成功后继续构建／运行，无需用户先执行 resolve。已有有效 lock 时优先复用锁定选择和本地准备结果，不查询新版本。显式 `--locked` 或 `--frozen` 遇到缺少适用 lock 时失败；普通 `--offline` 仍可用足够的本地来源生成 lock。`scoop build --lockfile <file> -p group:name --locked` 是显式消费锁定图的入口；没有 `-p` 时仍按所在 workspace 的默认选择。driver 本身从不修改 Cone.lock；SwiftPM 对 Package.resolved 的职责另见 6.3。
 
 首次构建也使用同一次 prepare 请求：
 
@@ -325,6 +352,16 @@ LSP 使用同一已展开数据模型。加载项目时，先通过 PM 的 membe
 LSP 在 workspace 根打开时发现全部成员，并为各成员独立取得所选 target/purpose 的锁定图；显式成员目录只选择该成员。同一次加载发现 lock 缺失时，共用该 lock 的各成员和配置都执行上述初始化，不因第一个成员创建了文件而漏掉其余记录。某成员解析失败、缺少适用记录或本地依赖时，仅该成员的依赖语义不可用，本地源码、语法诊断和 workspace 符号仍可使用，不能以猜测的版本或空依赖图冒充已解析项目。首次 lock 只依据磁盘清单生成；未保存文本继续仅作为随后 members/metadata 的覆盖输入，不写入 lock。已安装系统库的源码导航也使用 members 提供的源码选择，不为导航解析依赖。`Cone.lock` 与清单、源码和产物共同参与文件监听；已有 lock 的依赖准备仍由用户显式 resolve/fetch/build 触发。LSP 的 `packageManager` 默认取实际 scoop-lsp 同目录的 scoop-pm，`packageCacheDir` 与 `lockfile` 可显式配置，均沿配置根解析相对路径。
 
 `members --json` 的格式 8 同样由 `scoop-protocol` 定义：返回 workspace root、所有成员的 coordinate/kind/相对路径/本地目录/清单路径、selected 标记、生产/测试 SourceSelection 及第 2 节的 metadata/bundle；本地路径使用无损 host path 载体。formatter 消费所选成员的源码集合，clean 使用 workspace root 定位统一 target；两者不调用 prepare，不创建或读取 lock。JSON 失败默认使用与 prepare 相同的结构化诊断记录，也可显式选择文本诊断。`fmt` 支持 `--workspace` 和可重复 `-p`，成员选择只接受一个 workspace 输入；多个显式文件仍可合并格式化。显式 `.scoop` 文件模式独立于 PM。
+
+### 7.3 Swift 生产的 driver 交接（设计合同）
+
+prepare 的 source 配置增加已展开的 Swift 声明及其诊断位置，保留 package 路径、product、linkage、format、bundle_id、inputs/env 和目标选择。PM 已知的本地／共享源码属性用于执行 6.3 的 lock 写入规则；不要求 driver 再解释原始来源声明。协议版本和配套命令在实际实现时同步演进，不预留一套可编辑的 Swift 图或第二份 lock。
+
+`scoop` 将选定 Swift product 纳入现有跨根 ready queue；SwiftPM 负责其包内构建顺序，scoopc 不读取 Package.swift／Package.resolved。手写 extern 的 Scoop 编译可与 Swift 生产独立执行。全部实际 Swift 节点完成更新判断后，才能复用最终链接结果；相同配置共享结果，普通锁与 `--jobs` 协调见实现规范 2.7.1。
+
+普通 build/run/test 以及 library build、`--emit-slib` 完成所选 source Cone 闭包内的 Swift 生产；library／emit-slib 交付 `.slib` 及配套 `<slib-stem>.native/`。后者包含实际库、非系统依赖与资源，以及使用相对路径的 `native-outputs.json` 链接／部署描述；同一数据作为结构化 `native_outputs` 交给链接／部署工具。完整生产配方及 Swift 内容不进入 `.slib` 或 Scoop 语言编译键。显式 artifact-only link 只消费已交付原生文件及描述，不调用 PM 或 Swift 源码编译。
+
+check、doc、fmt、AST 观察和 LSP 只需展开后的语言输入，不启动 Swift 构建；members／metadata／resolve／fetch 只负责 Cone 来源与声明，不代替 SwiftPM 获取依赖。只有实际要求原生产物的 driver 请求才进入 Swift 节点。源码 package 默认也不构建 Swift，显式 `package --check` 通过普通 driver 验收时才使用同一生产流程。
 
 ## 8. 源码 registry
 
@@ -384,7 +421,7 @@ archives/org.example/json/1.4.3.tar.zst
 
 格式 1 的归档为 zstd 压缩的 tar，根目录直接包含 `Cone.toml`、源码及随包资源，不额外包一层包名目录。归档包含普通文件和目录。清单使用 schema 1，定义一个 Cone；workspace 继承必须展开，不含 workspace、根 overrides 或 publish 配置。路径按包内普通相对路径表达，随包内容必须足够用于声明的源码/native 输入。
 
-生产与测试依赖都须是可独立消费的显式 registry、完整 commit 的 Git，或 scoop 系统库来源，不能依赖发布者本地 path/artifact/default registry 配置。索引只列生产依赖，隐式 core 展开为精确依赖；源码中的普通 import、可见性和编译规则保持不变。消费者使用自己的 lock，归档不提供依赖版本选择。PM 在首次取得归档时将展开清单与索引匹配，然后把同一个共享源码目录交给构建；不需要先安装或调用 publish 工具。
+生产与测试依赖都须是可独立消费的显式 registry、完整 commit 的 Git，或 scoop 系统库来源，不能依赖发布者本地 path/artifact/default registry 配置。索引只列生产依赖，隐式 core 展开为精确依赖；源码中的普通 import、可见性和编译规则保持不变。消费者使用自己的 Cone.lock，归档不提供 Cone 依赖版本选择；Swift 原生构建根的 Package.resolved 属于 6.3 规定的生产输入。PM 在首次取得归档时将展开清单与索引匹配，然后把同一个共享源码目录交给构建；不需要先安装或调用 publish 工具。
 
 ## 9. 源码打包与静态发布
 
@@ -404,7 +441,9 @@ to = "vendor/llhttp"
 
 from 是相对当前 Cone 的普通文件/目录路径，to 是归档内相对路径。不同映射不得重叠或覆盖包内已选文件；PM 按最长匹配前缀重写 manifest 的 native.sources/include、readme 以及受支持的 native 路径参数。不能解析/重写的路径参数直接诊断，不猜测 shell 文本。普通复制按实际 I/O 读出文件；symlink 按实际目标读取并写成普通归档内容，遍历循环/I/O 错误照常报告，不进行文件系统来源审计。
 
-打包后的清单展开workspace继承和默认registry URL，移除workspace、overrides、publish配置和本机locator。生产与测试两张依赖表都必须能独立消费；path依赖只有同时声明发布用version要求与可确定的默认registry时才能转换成该registry依赖，因此path表本身无需允许第二种来源。Git依赖按原声明来源解析为完整commit，浮动tag/branch不能原样发布；未写version时补入该commit清单的精确版本要求。可复用来源匹配的lock选择，不能将根override的替换源写成原Git来源的发布结果。artifact依赖没有可移植源码替代，源码package拒绝它，作者需改成明确的源码依赖。消费者不继承发布者的lock或本地覆盖。
+Swift 原生库第一阶段实现后，源码包同样包含 `native.swift.package` 所需清单、源码、资源及附加 inputs，覆盖已声明平台分支；排除 Swift scratch、`.build` 和生产输出。可按上述映射改写 Cone.toml 中的 package／inputs 路径，但不解析改写可执行的 Package.swift。Swift 本地 path 依赖须以包内可用的相对布局交付，作者负责使清单中的路径在发布后仍成立；远端依赖由 SwiftPM 按随包有效 Package.resolved 选择。不隐式 vendor 整个 Swift 远端依赖图，也不把 Swift lock 当作应排除的 Cone.lock。默认打包不启动 Swift 检查清单，实际独立构建由显式 package --check 验证。
+
+打包后的清单展开workspace继承和默认registry URL，移除workspace、overrides、publish配置和本机locator。生产与测试两张依赖表都必须能独立消费；path依赖只有同时声明发布用version要求与可确定的默认registry时才能转换成该registry依赖，因此path表本身无需允许第二种来源。Git依赖按原声明来源解析为完整commit，浮动tag/branch不能原样发布；未写version时补入该commit清单的精确版本要求。可复用来源匹配的lock选择，不能将根override的替换源写成原Git来源的发布结果。artifact依赖没有可移植源码替代，源码package拒绝它，作者需改成明确的源码依赖。消费者不继承发布者的Cone.lock或本地覆盖。
 
 `package --list` 输出最终文件清单和改写后的 manifest；默认 package 进行清单、依赖可发布性和归档检查，不隐式运行编译。`package --check` 先为已生成归档解包后的独立Cone解析消费者可用的来源，生成本次检查用的临时lock，再显式调用普通driver做一次`--locked`构建；不把发布者的path/override带入该检查。生产源码及工具保持原位，不通过隐藏原输入制造验收。该构建不会证明所有其他 target 都已验证，结果须标明实际 target。
 
@@ -473,3 +512,15 @@ PM 的缓存保存 manifest 展开记录、registry metadata、Git objects/check
 prepare 的本地记录按规范化请求位置、成员选择、purpose/target、sysroot/search roots、有效 PM cache 和工具版本区分。更新记录保存本次读取的配置、manifest、artifact 和 lock 的 mtime/大小，以及成员发现过程中不存在的候选清单/用户配置；新增 workspace 或配置同样使记录失效。先检查这些更新信息，命中后直接读取并交付已有准备结果，不重读 TOML、不展开继承、不遍历版本约束，不读取 Scoop/native 源码正文。locked/offline 不改变已经成功准备且输入未变的结果；源文件内容变化留给 driver 的构建缓存处理。
 
 解析器测试使用内存 metadata 图；Git 测试使用本地仓库；registry 测试使用本地 HTTP 静态服务。绝大多数 PM 测试不需要 LLVM、runtime 或调用 `scoopc`。少量正式 CLI fixture 验证 prepare → driver → 编译/链接和离线消费；普通库行为继续放 Cone tests。不引入包授权、来源防伪、资源计费或通用任务执行框架。
+
+### 11.3 Swift 原生生产的失效（设计合同）
+
+Swift 生产记录由 driver 持有，复用现有 metadata 更新规则，与 PM 的 Cone 解析记录及 Scoop 编译记录分开。配置键包含实际包路径／product、目标／部署、SDK／工具链选择、profile、linkage／format 和声明 inputs/env。具体输入集合见实现规范 2.7.1，至少覆盖根与传递包的清单／选择、实际源码／头文件／module map／二进制／资源、本地包外依赖、宏／插件输入以及自动发现目录和缺失候选。
+
+Package.resolved 未变不代表本地源码未变；固定 revision 也不能代替已用 checkout 的普通输入检查。目录状态必须覆盖嵌套新增、删除和重命名；只 stat 包根或旧文件列表不足。未选测试、未选平台／product 的源码不进入当前有效生产输入。Package.swift／插件额外读取的文件和业务环境须由正常依赖输出或显式 inputs/env 覆盖，不建立任意代码的访问追踪或证明体系。
+
+目录状态改变时重新枚举有效选择，忽略排除项；附加 inputs 的目录同样递归记录。未选源码指独立文件／target，不承诺跳过已选文件内部的未激活分支修改；Package.swift 自身变化仍交给 SwiftPM。自动发现文件删除先更新集合，仍需使用的显式／实际依赖输入缺失才报错。
+
+输入未变且所需库、framework 文件及资源存在时直接复用，不执行 SwiftPM 空构建，不读取源码正文或库内容、不探测工具、不复制输入／输出。Swift 实现变化只使相应 native 结果和最终链接／部署更新；逻辑 native requirement 不变时不重编 Scoop `.slib`。Scoop 源码变化不重建未变的 Swift product。实际缺失输入、失败不发布及普通并发协调沿现有规则，不能在失败后继续链接旧结果。
+
+验收使用真实 Swift 工具、真实依赖变化和工具调用计数。保持源码、工具与原产物在位，覆盖本地传递依赖、发现集合、lock、资源／插件声明输入、无变化命中、并发和失败；不通过移走输入或破坏缓存构造恢复要求。具体矩阵见 [Swift 设计第 10 节](../swift-libraries/DESIGN.md#10-诊断与验收)。

@@ -3073,6 +3073,8 @@ when = { os = "darwin" }
 
 平台默认查找只解析已经声明的逻辑库需求，不发现相邻 native 源码或任意库；空 lib 的默认 namespace 也不因此扫描系统目录。具体 target、link mode、候选格式、产物绑定和缓存规则见实现规范 2.8。
 
+12.2.5 的 Swift 生产声明在实现后投影到同一逻辑库要求表；本次构建已生产的库由 driver 显式绑定。普通系统库声明不因此触发 Swift 构建。Framework 表示包布局，其内部 archive／动态 Mach-O 的链接分支见实现规范 2.8.1。
+
 #### 12.2.4 测试配置与生产构建隔离
 
 manifest 可声明 `[test]` 的 `sources` 与顶层 `[test-dependencies]`。测试源码清单使用 12.2.2 的 path/when 语法；`test.sources` 省略时选择 `tests/`，不存在的默认测试目录表示没有测试；显式空数组表示关闭测试源码选择，显式缺失路径仍是测试构建的输入错误。显式测试清单不追加默认目录。字段、路径形式和平台条件的格式与生产清单使用相同的检查及源码定位。
@@ -3099,6 +3101,44 @@ when = { os = "linux" }
 生产源码定义处的名称候选只包含生产声明，测试源码定义处可同时使用生产与测试声明。此规则作用于 import、package 限定名称、类型、值、函数及扩展候选的收集，先于重载选择；测试声明不能补齐生产代码中缺失的名称，也不能改变已有生产调用的选择。泛型正文和默认实参继续使用定义处的源码环境。生产与测试仍处于同一 Cone，9.1.5 的 internal、文件 private 和成员 private/protected 规则保持不变。
 
 依赖名称查找同样使用定义处的生产／测试角色：生产源码只收集生产 direct dependency 的公开 binding，测试源码收集生产与测试 direct dependency 的并集。筛选先于 package 前缀、同名冲突、重载及 re-export 路由合并；仅来自测试依赖的 package 不遮蔽生产源码中的类型或值。筛选依据当前 Cone 的直接依赖边，不按实体的原始声明 Cone 排除：同一实体经生产依赖 re-export 时仍可用；已经选中的生产 API 签名及其公开成员继续使用完整依赖闭包中的 typed 实体。core 始终沿生产依赖绑定，不能被分类为仅用于测试的依赖。
+
+#### 12.2.5 Swift 包原生库（第一阶段设计，待实现）
+
+本节为 2026-11-17 确定的设计合同，尚未实现；当前 CLI 不接受以下新增字段。完整流程见 [Swift 原生库设计](../swift-libraries/DESIGN.md)。本阶段消费 Swift package 中已经存在的 `@c` 导出，由用户手写 Scoop `@Extern`；bindgen 和自动 Swift 包装留到下一阶段。
+
+普通 Cone 可通过 `[[native.swift]]` 声明外部 Swift library product 的生产：
+
+```toml
+[[native.swift]]
+package = "native/swiftmath"
+product = "SwiftMath"
+linkage = "static"
+format = "library"
+when = { os = "darwin" }
+inputs = ["native/swiftmath/config/build.json"]
+env = ["SWIFTMATH_FEATURE"]
+```
+
+- `package` 必需，指向含 Package.swift 的目录，使用相对 Cone 根的普通 native 路径规则，允许用于共用输入的 `..`；不接受 shell 展开或 glob。
+- `product` 必需，是 SwiftPM 的实际 library product 名，同时作为逻辑 native 库名。`linkage` 必需，为 `static` 或 `dynamic`；SwiftPM product 必须显式声明相同类型，automatic product 给出需要明确类型的诊断，不改写其清单或生成空壳 Swift target。
+- `format` 默认 `library`，也可为 `framework`。library 按 linkage 交付 `.a` 或 `.dylib`。framework 必需 `bundle_id`，且 product 只有一个与其同名的直接 Swift target；该 target 可有正常依赖。library 禁止 bundle_id。framework 可含静态或动态二进制，不能从目录后缀推导 linkage。
+- `when` 使用 12.2.2 的目标条件。先检查全部条目格式，再筛选；未选中时不读取包、检查输入存在性或启动 Swift。首期仅支持 macOS 宿主构建现有 Darwin AArch64／x86-64 target，其他匹配目标报告不支持，不回退宿主。
+- `inputs` 为可选附加文件／目录路径数组，按 Cone 根解析；`env` 为可选环境变量名数组；两者缺省为空。它们补充 SwiftPM／编译依赖记录不能覆盖的外部输入，不替换自动输入发现。环境的未设置、空值与具体值不同。更新规则见实现规范 2.7.1 和包管理规范 11.3。
+- 同一 target 选中的同名 product 声明不能重复或指定不同生产配置。与同名 `native.libraries` 的要求按原合并规则处理，相同 kind 合并，不相容 kind 报错。无 Scoop extern、仅由 native 代码使用时也必须构建声明的 product。
+- Swift 声明不提供 workspace 继承，不用于 virtual workspace 或 single-file 模式；不向 Scoop 依赖增加 build dependency、feature、任意脚本或通用任务 DSL。SwiftPM 内部的依赖、target 和 host 宏／插件仍由 Swift 工具负责。
+
+选中声明向 `.slib` 投影逻辑 native requirement：library/static 为 StaticArchive，library/dynamic 为 Dynamic，framework 为 Framework。只有这份投影进入 Scoop 编译配置；package 定位、Swift 源码、锁文件、附加 inputs/env、Swift 构建结果和本机路径由 driver 的独立原生生产记录保存，不进入 ConeIdentity 或 HIR/MIR/LIR 语义。Swift 实现变化但逻辑要求与手写声明未变时，应复用已有 Scoop 编译结果。
+
+source Cone 的生产结果沿完整构建闭包交给最终链接，应用不重复配置依赖 Cone 的 Swift 包。同名逻辑库若被绑定到不同生产结果则报告冲突。library 构建及 `--emit-slib` 交付 `.slib` 与相邻 `<slib-stem>.native/`，配套目录包含普通原生文件及 `native-outputs.json` 链接／资源描述；显式 artifact-only 链接通过现有 `--library-path` 接收它们，不自动构建 Swift。具体生产、发布及链接合同见实现规范 2.7.1～2.8.1。
+
+Swift `@c` 使用现有 `@Extern(abi = "c")`：
+
+```scoop
+@Extern(lib = "SwiftMath", name = "swiftmath_digits")
+fun swiftDigits(value: Int): Int
+```
+
+该声明对应例如 `@c(swiftmath_digits) public func digits(_ value: Int32) -> Int32`。Swift Int32／Int64 对应 Scoop Int／Long；Swift Int 是平台字长，不按同名类型映射。实际边界必须同时满足 Swift `@c` 和 13.8 的 C-FFI-safe 规则；普通 Swift struct、class、String、泛型函数或 async API 不自动成为 Scoop 类型／函数。调用保持 unsafe 和默认 NativeSafe，13.4 的符号、调用模式和错误边界不变，不增加 `abi = "swift"`。
 
 ### 12.3 静态exact依赖图
 
@@ -3233,6 +3273,8 @@ fun buildTag(): Option<String> {
 实现与验证记录见[块级 import 设计](../block-imports/DESIGN.md)；编译期入口自身的状态仍见11.19。
 
 ### 12.5 编译产物 `.slib`
+
+12.2.5 的 Swift 原生库设计沿用 `.slib` 的逻辑 native 需求与 C ABI 声明，不把 Swift package 或其机器库当作新的 Cone。Swift 二进制和资源作为配套原生文件交付，`.slib` 单文件不承诺包含它们；source 构建自动传递生产绑定，artifact-only 消费显式提供原生库。Swift 生产配置和内容变化的更新判断由实现规范 2.7.1～2.8.1 管理。
 
 每个 Cone 产生 target-specific、版本化、确定性的 `.slib`，包含独立编译、下游类型检查、泛型实例化及链接所需的信息。library 的构建结果为 `.slib`；executable 也先产生完整 `.slib`，再与依赖闭包链接为程序。容器、metadata、版本、ABI、指纹与链接合同见编译器与产物规范 2.6～2.8。
 
@@ -3501,6 +3543,8 @@ annotation class InteriorMutable
 - 该注解不为 value 引入 identity，也不改变按值复制边界：两个 copy 仍是两份独立存储。值类型成员方法仍按 3.3 取得独立的 `this` copy，不得因 ABI 指针传递而把调用方存储暴露给方法。
 
 ### 13.8 FFI ABI
+
+Swift `@c` 导出采用本节既有 C ABI，见 12.2.5；Swift native calling convention、mangled symbol 和 `.swiftmodule` 不是新的 FFI ABI。Swift 自身的 ARC、类型 metadata 或错误表示不成为 Scoop runtime 对象或 GC 扫描数据。
 
 整型枚举（4.2.1）具有与其底层整数相同的 portable C scalar 表示，可用于 C 参数、结果、全局存储、CLayout 字段及 pointer/callback 签名；保留底层整数的 signedness、窄整数扩展与目标 ABI 分类。外部代码必须只提供 enum 已声明的合法值，可能产生未知数值的接口应声明为底层整数并显式选择合法 variant。普通复制、上转和调用不增加值域检查；该规则不扩展 Option niche 或泛型不变性。
 
