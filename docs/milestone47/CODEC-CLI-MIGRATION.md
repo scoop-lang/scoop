@@ -153,6 +153,6 @@ public struct Port(val value: Int) {
 
 ## 7. 本机验收结果
 
-- JSON 的 107 个、CLI 的 6 个、URL 的 22 个和 HTTP 服务端的 177 个 Cone 测试全部通过。额外验证了只生成 `encode` 或 `entries` 时，模型可以保留可见的次构造器。HTTP 客户端的 `post_json` 和服务端的 `json` 示例均通过 `scoop check --release`。
+- 五个 Cone 的 566 个测试全部通过，包括 JSON 107 个、CLI 6 个、URL 22 个、HTTP 客户端 254 个和服务端 177 个。额外验证了只生成 `encode` 或 `entries` 时，模型可以保留可见的次构造器。HTTP 客户端的 `post_json` 和服务端的 `json` 示例均通过 `scoop check --release`。
 - 133 个相关 fixture 均通过，含修复后复验的 4 个。覆盖条件接口、生成诊断位置、独立宿主进程及下游读取 `.slib`。用真实工具链冷构建时两个生成器各运行一次，立即重建及另一个 Cone 消费预编译产物时调用次数都未增加。更新已使用的 CLI 生成器后，构建重新执行。
 - 实测一个含 6 个可独立缺省字段的 CLI 模型，生成的 `bind` 正文为 13,276 字节，包含 64 种普通构造调用。混合传入与省略字段时只执行匹配的一次调用，结果符合模型声明的默认值。
