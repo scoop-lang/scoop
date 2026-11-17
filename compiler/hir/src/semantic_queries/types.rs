@@ -22,6 +22,7 @@ pub struct SemanticNominalDescription {
     pub kind: StaticNominalKind,
     pub source_path: Option<Vec<String>>,
     pub class_hierarchy: Option<SemanticClassHierarchy>,
+    pub integral_representation: Option<IntegerKind>,
     pub arguments: Vec<TypeId>,
     pub parameters: Vec<TypeParamDecl>,
     /// The declared companion application, irrespective of source visibility.

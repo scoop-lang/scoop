@@ -36,6 +36,9 @@ pub fn type_description(
                 .map(|ty| queries.type_signature(context.into(), ty))
                 .transpose()?;
             let mut kind = json!(QueryJson(&nominal.kind));
+            if nominal.kind == hir::StaticNominalKind::Enum {
+                kind["integral"] = json!(nominal.integral_representation.is_some());
+            }
             if let Some(class) = &nominal.class_hierarchy {
                 kind["modality"] = json!(match class.modifier {
                     hir::ClassModifier::Final => "final",

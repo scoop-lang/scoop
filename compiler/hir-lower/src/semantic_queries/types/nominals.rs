@@ -96,6 +96,7 @@ impl Lowerer {
             declaration,
             kind,
             class_hierarchy,
+            integral_representation: self.integral_enum_kind(ty),
             source_path,
             arguments,
             parameters,
