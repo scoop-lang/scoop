@@ -103,7 +103,11 @@ def generated_source(method):
         return "{ return value }"
     if name == "guardedEcho":
         # Exercise statement offsets beyond the end of the file declaring the method.
-        return "{\n" + "\n" * 1024 + "val decoder: ValueDecoder<T> = T.Companion\n return value }"
+        return (
+            "{\n"
+            + "\n" * 1024
+            + "val decoder: ValueDecoder<T> = T.Companion\n val result: () -> T = { value }\n return result() }"
+        )
     assert name == "value"
     return "{ return 42 }"
 
