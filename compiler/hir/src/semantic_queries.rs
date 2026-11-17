@@ -68,6 +68,7 @@ pub type SemanticCallableSignature =
 /// Complete type structure and the ordinary direct parent relation.
 #[derive(Clone, Debug)]
 pub struct SemanticTypeDescription {
+    pub visible_companion: Option<TypeId>,
     pub ty: TypeId,
     pub structure: SemanticTypeStructure,
     pub name: String,

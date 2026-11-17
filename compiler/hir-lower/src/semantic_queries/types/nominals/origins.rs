@@ -1,6 +1,40 @@
 use super::*;
 
 impl Lowerer {
+    pub(super) fn nominal_source_path(
+        &self,
+        nominal: hir::SourceNominalId,
+        identity: &hir::HirSourceNominalIdentity,
+    ) -> Vec<String> {
+        use scoop_identity::DefinitionOwnerAtom;
+        let key = identity.declaration();
+        let mut path: Vec<_> = key
+            .package()
+            .segments()
+            .iter()
+            .map(|part| part.as_str().to_owned())
+            .collect();
+        if matches!(
+            key.scope(),
+            scoop_identity::DeclarationScope::LexicalScoped { .. }
+        ) {
+            path.clear();
+        }
+        for owner in key.owners().owners() {
+            let parent = match owner {
+                DefinitionOwnerAtom::Type(id) => hir::SourceNominalId::Concrete(*id),
+                DefinitionOwnerAtom::GenericType(id) => hir::SourceNominalId::GenericTemplate(*id),
+                _ => {
+                    path.clear();
+                    continue;
+                }
+            };
+            path.push(self.nominal_template_name(parent).to_owned());
+        }
+        path.push(self.nominal_template_name(nominal).to_owned());
+        path
+    }
+
     pub(crate) fn semantic_nominal_identity(
         &self,
         ty: hir::TypeId,

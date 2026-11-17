@@ -42,7 +42,15 @@ impl Lowerer {
                     .expect("a resolved nominal retains its declaration"),
             ),
         };
+        let visible_companion = match &structure {
+            Shape::Nominal(nominal) => nominal
+                .companion
+                .filter(|&ty| self.nominal_is_accessible(ty)),
+            Shape::Parameter(_) => self.projected_companion_type(ty).ok(),
+            _ => None,
+        };
         Ok(hir::SemanticTypeDescription {
+            visible_companion,
             ty,
             structure,
             name: self.type_name(ty),

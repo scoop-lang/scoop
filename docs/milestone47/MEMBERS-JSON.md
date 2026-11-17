@@ -6,6 +6,8 @@
 
 TypeDescription 为 `{type, name, parents, shape}`。type 与 parents 都是完整 Type；shape 区分 unit、any、nominal、tuple、function、pointer、nativeFunctionPointer、parameter、companion。结构类型在 type 内保留所有组成，shape 保留相应组成类型；没有成员的结构类型不能冒充名义声明。
 
+nominal shape 的 `sourcePath` 保存 package 和词法 owner 到声明的名称段。局部类型用词法名称，调用方可在可见作用域使用普通 alias。class 的 `nominalKind` 另含 `modality`（final、open、abstract）及实际 `baseClass`（没有基类时为 null）。名义类型与参数的 `visibleCompanion` 为当前方法可使用的伴生类型，缺少时为 null。
+
 nominal shape 包含 `declaration`、`nominalKind`、`arguments`、`parameters`、`companion`、`annotations` 和 `origin`。nominalKind 区分 struct／enum／class／object／interface／intrinsic；intrinsic 使用既有编译器 intrinsic 名称明确具体语义。parameters 使用原名义声明的 binder 和完整约束，arguments、parents、companion 属于查询上下文。名义声明来源取实际源码声明或依赖中已有的定义来源。
 
 parameter shape 的 parameter 保留本次方法上下文中的 binder、声明引用、名称、约束和来源。companion shape 保留 host 参数及其 companion 约束，不执行 singleton 初始化。

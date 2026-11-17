@@ -35,8 +35,21 @@ pub fn type_description(
                 .companion
                 .map(|ty| queries.type_signature(context.into(), ty))
                 .transpose()?;
+            let mut kind = json!(QueryJson(&nominal.kind));
+            if let Some(class) = &nominal.class_hierarchy {
+                kind["modality"] = json!(match class.modifier {
+                    hir::ClassModifier::Final => "final",
+                    hir::ClassModifier::Open => "open",
+                    hir::ClassModifier::Abstract => "abstract",
+                });
+                let base = class
+                    .base
+                    .map(|base| queries.type_signature(context.into(), base))
+                    .transpose()?;
+                kind["baseClass"] = json!(QueryJson(&base));
+            }
             json!({"kind": "nominal", "declaration": NominalId::from(nominal.declaration),
-                "nominalKind": QueryJson(&nominal.kind), "arguments": arguments,
+                "nominalKind": kind, "sourcePath": nominal.source_path, "arguments": arguments,
                 "parameters": nominal_parameters(queries, nominal)?, "companion": QueryJson(&companion),
                 "annotations": Annotations {queries, target: nominal.annotations},
                 "origin": QueryJson(&nominal.origin)})
@@ -77,8 +90,12 @@ pub fn type_description(
             json!({"kind": "companion", "host": lexical_parameter(queries, function, host)?})
         }
     };
+    let companion = description
+        .visible_companion
+        .map(|ty| queries.type_signature(context.into(), ty))
+        .transpose()?;
     Ok(
-        json!({"type": QueryJson(&value_type), "name": description.name, "parents": parents, "shape": shape}),
+        json!({"type": QueryJson(&value_type), "visibleCompanion": QueryJson(&companion), "name": description.name, "parents": parents, "shape": shape}),
     )
 }
 
