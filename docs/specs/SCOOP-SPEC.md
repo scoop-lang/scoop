@@ -3121,13 +3121,15 @@ env = ["SWIFTMATH_FEATURE"]
 
 - `package` 必需，指向含 Package.swift 的目录，使用相对 Cone 根的普通 native 路径规则，允许用于共用输入的 `..`；不接受 shell 展开或 glob。
 - `product` 必需，是 SwiftPM 的实际 library product 名，同时作为逻辑 native 库名。`linkage` 必需，为 `static` 或 `dynamic`；SwiftPM product 必须显式声明相同类型，automatic product 给出需要明确类型的诊断，不改写其清单或生成空壳 Swift target。
-- `format` 默认 `library`，也可为 `framework`。library 按 linkage 交付 `.a` 或 `.dylib`。framework 必需 `bundle_id`，且 product 只有一个与其同名的直接 Swift target；该 target 可有正常依赖。library 禁止 bundle_id。framework 可含静态或动态二进制，不能从目录后缀推导 linkage。
+- `format` 默认 `library`，也可为 `framework`。library 按 linkage 交付 `.a` 或 `.dylib`。framework 必需 `bundle_id`，且实际构建必须提供与 product 同名的 Swift 模块；模块可以有正常依赖。library 禁止 bundle_id。framework 可含静态或动态二进制，不能从目录后缀推导 linkage。
 - `when` 使用 12.2.2 的目标条件。先检查全部条目格式，再筛选；未选中时不读取包、检查输入存在性或启动 Swift。首期仅支持 macOS 宿主构建现有 Darwin AArch64／x86-64 target，其他匹配目标报告不支持，不回退宿主。
-- `inputs` 为可选附加文件／目录路径数组，按 Cone 根解析；`env` 为可选环境变量名数组；两者缺省为空。它们补充 SwiftPM／编译依赖记录不能覆盖的外部输入，不替换自动输入发现。环境的未设置、空值与具体值不同。更新规则见实现规范 2.7.1 和包管理规范 11.3。
+- `inputs` 为可选附加文件／目录路径数组，按 Cone 根解析；`env` 为可选环境变量名数组；两者缺省为空。包根递归参与缓存更新；包外本地／editable 依赖、framework、宏／插件输入必须用 inputs 显式声明，Scoop 不分析可执行的 Package.swift 来推导依赖。环境的未设置、空值与具体值不同。更新规则见实现规范 2.7.1 和包管理规范 11.3。
 - 同一 target 选中的同名 product 声明不能重复或指定不同生产配置。与同名 `native.libraries` 的要求按原合并规则处理，相同 kind 合并，不相容 kind 报错。无 Scoop extern、仅由 native 代码使用时也必须构建声明的 product。
 - Swift 声明不提供 workspace 继承，不用于 virtual workspace 或 single-file 模式；不向 Scoop 依赖增加 build dependency、feature、任意脚本或通用任务 DSL。SwiftPM 内部的依赖、target 和 host 宏／插件仍由 Swift 工具负责。
 
 选中声明向 `.slib` 投影逻辑 native requirement：library/static 为 StaticArchive，library/dynamic 为 Dynamic，framework 为 Framework。只有这份投影进入 Scoop 编译配置；package 定位、Swift 源码、锁文件、附加 inputs/env、Swift 构建结果和本机路径由 driver 的独立原生生产记录保存，不进入 ConeIdentity 或 HIR/MIR/LIR 语义。Swift 实现变化但逻辑要求与手写声明未变时，应复用已有 Scoop 编译结果。
+
+最终需要链接的系统／第三方 framework 和库在所属 Cone 的 `native.libraries` 显式声明；Swift 包内依赖由 SwiftPM 管理，不自动提升为 Cone 链接依赖。bundle metadata 用 `bundle.files` 单独列出要打包的私有 framework；路径调整和签名在 bundle 阶段完成，系统 framework 不参与。
 
 source Cone 的生产结果沿完整构建闭包交给最终链接，应用不重复配置依赖 Cone 的 Swift 包。同名逻辑库若被绑定到不同生产结果则报告冲突。library 构建及 `--emit-slib` 交付 `.slib` 与相邻 `<slib-stem>.native/`，配套目录包含普通原生文件及 `native-outputs.json` 链接／资源描述；显式 artifact-only 链接通过现有 `--library-path` 接收它们，不自动构建 Swift。具体生产、发布及链接合同见实现规范 2.7.1～2.8.1。
 

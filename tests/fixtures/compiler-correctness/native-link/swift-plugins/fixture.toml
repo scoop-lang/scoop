@@ -26,7 +26,6 @@ json = "stderr"
 diagnostics = []
 checks = [
     { actual = "${build.result.native_outputs.length}", equals = 1 },
-    { actual = "${build.result.native_outputs.0.settings.libraries.length}", equals = 0 },
 ]
 
 [[steps]]
@@ -81,7 +80,7 @@ files = [{ replace = { path = "${work}/support/Sources/GeneratorSupport/Support.
 
 [[steps]]
 name = "tool_dependency_changed"
-argv = ["${scoop}", "build", "${work}/app", "--frozen", { each = "${options}" }, { each = "${link_args}" }]
+argv = ["${scoop}", "build", "${work}/app", "--locked", { each = "${options}" }, { each = "${link_args}" }]
 exit = 0
 stdout = ""
 stderr = ""

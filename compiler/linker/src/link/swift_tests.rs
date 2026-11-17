@@ -1,7 +1,7 @@
 use super::*;
 use crate::test_support;
 use scoop_manifest::{SwiftLibraryFormat, SwiftLinkage};
-use scoop_toolchain::{NativeLibraryOutput, NativeLinkSettings};
+use scoop_toolchain::NativeLibraryOutput;
 use std::process::Command;
 
 #[test]
@@ -54,7 +54,6 @@ fn exact_archive_and_framework_follow_only_selected_member_autolinks() {
         binary: archive,
         dependencies: Vec::new(),
         resources: Vec::new(),
-        settings: NativeLinkSettings::default(),
     };
     for framework in [false, true] {
         if framework {
@@ -77,14 +76,10 @@ fn exact_archive_and_framework_follow_only_selected_member_autolinks() {
             unused.name = "UnselectedProduct".into();
             unused.library = "libraries/absent.framework".into();
             unused.binary = "libraries/absent.framework/absent".into();
-            unused
-                .settings
-                .libraries
-                .insert("UnselectedMissingLibrary".into());
             std::fs::write(
                 root.join("native-outputs.json"),
                 serde_json::to_vec(&scoop_toolchain::native_output::NativeOutputsDescriptor {
-                    schema: 1,
+                    schema: 2,
                     outputs: vec![relative, unused],
                 })
                 .unwrap(),
@@ -174,7 +169,6 @@ fn archive_alternatives_are_lazy_but_extracted_strong_definitions_conflict() {
         binary,
         dependencies: Vec::new(),
         resources: Vec::new(),
-        settings: NativeLinkSettings::default(),
     };
     let link = || {
         link_program(

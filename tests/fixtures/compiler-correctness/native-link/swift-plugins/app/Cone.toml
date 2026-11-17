@@ -8,3 +8,4 @@ kind = "executable"
 package = "native"
 product = "PluginBridge"
 linkage = "static"
+inputs = ["../plugin", "../support"]

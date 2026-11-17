@@ -3,7 +3,6 @@ use std::process::Command;
 
 use scoop_lir::DarwinPackedVersionV1;
 use scoop_process::CommandExt;
-use serde::de::DeserializeOwned;
 
 use super::{NonZeroUsize, ResolvedTargetProfile, SwiftBuildRequest, ToolchainError, error};
 
@@ -76,22 +75,6 @@ impl SwiftTools {
         command
     }
 
-    pub(super) fn package_json<T: DeserializeOwned>(
-        &self,
-        package: &Path,
-        scratch: &Path,
-        args: &[&str],
-        locked: bool,
-    ) -> Result<T, ToolchainError> {
-        let mut command = self.command("package", package, scratch);
-        if locked {
-            command.arg("--force-resolved-versions");
-        }
-        let text = run(command.args(args))?;
-        serde_json::from_str(&text)
-            .map_err(|cause| error(format!("swift package {}: {cause}", args.join(" "))))
-    }
-
     pub(super) fn build(
         &self,
         request: &SwiftBuildRequest,
@@ -133,10 +116,6 @@ impl SwiftTools {
             )));
         }
         Ok(bin)
-    }
-
-    pub(super) fn is_tool_input(&self, path: &Path) -> bool {
-        path.starts_with(&self.sdk) || path.starts_with(&self.root)
     }
 }
 

@@ -1,4 +1,4 @@
-use scoop_identity::{CanonicalNativeLibraryName, NativeLibraryKind};
+use scoop_identity::NativeLibraryKind;
 use scoop_toolchain::NativeLibraryOutput;
 
 use super::*;
@@ -80,32 +80,4 @@ pub(super) fn read(
         scripts: Vec::new(),
         system_alias: false,
     })
-}
-
-pub(super) fn settings(
-    output: &NativeLibraryOutput,
-    profile: &ValidatedFinalLinkProfile,
-) -> Result<Vec<NativeLinkRequirementKey>, LinkError> {
-    output
-        .settings
-        .libraries
-        .iter()
-        .map(|name| (name, NativeLibraryKind::TargetDefault))
-        .chain(
-            output
-                .settings
-                .frameworks
-                .iter()
-                .map(|name| (name, NativeLibraryKind::Framework)),
-        )
-        .map(|(name, kind)| {
-            Ok(NativeLinkRequirementKey::for_target(
-                profile.target().wire_id(),
-                CanonicalNativeLibraryName::new(name)
-                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?,
-                kind,
-                NativeLibraryGrouping::Independent,
-            ))
-        })
-        .collect()
 }

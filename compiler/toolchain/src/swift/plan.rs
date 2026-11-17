@@ -1,4 +1,4 @@
-//! Inputs of the selected Swift Build description, including compiler depfiles.
+//! Locate actual build outputs; SwiftPM owns its package and target graph.
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -12,48 +12,18 @@ struct Manifest {
     commands: BTreeMap<String, BuildCommand>,
 }
 
-#[derive(Clone, Deserialize)]
-pub(super) struct BuildCommand {
-    #[serde(default)]
-    tool: String,
-    #[serde(default)]
-    pub(super) description: String,
+#[derive(Deserialize)]
+struct BuildCommand {
     #[serde(default)]
     inputs: Vec<String>,
     #[serde(default)]
     outputs: Vec<String>,
     #[serde(default, rename = "expectedOutputs")]
     expected_outputs: Vec<String>,
-    #[serde(default)]
-    pub(super) args: Vec<String>,
-    #[serde(default)]
-    deps: Option<DependencyFiles>,
-}
-
-#[derive(Clone, Deserialize)]
-#[serde(untagged)]
-enum DependencyFiles {
-    One(String),
-    Many(Vec<String>),
-}
-
-impl DependencyFiles {
-    fn paths(&self) -> &[String] {
-        match self {
-            Self::One(path) => std::slice::from_ref(path),
-            Self::Many(paths) => paths,
-        }
-    }
 }
 
 pub(super) struct BuildPlan {
-    pub(super) bin: PathBuf,
-    pub(super) inputs: BTreeSet<PathBuf>,
-    pub(super) dependencies: BTreeSet<PathBuf>,
     pub(super) outputs: BTreeSet<PathBuf>,
-    pub(super) link_inputs: BTreeSet<PathBuf>,
-    pub(super) link_commands: Vec<BuildCommand>,
-    pub(super) binary_artifacts: BTreeMap<PathBuf, BTreeSet<PathBuf>>,
 }
 
 impl BuildPlan {
@@ -116,7 +86,6 @@ impl BuildPlan {
             .collect::<Vec<_>>();
         let mut visited = BTreeSet::new();
         let mut commands = Vec::new();
-        let mut leaf_inputs = BTreeSet::new();
         while let Some(input) = queue.pop() {
             if let Some(id) = producers.get(input) {
                 if !visited.insert(*id) {
@@ -124,9 +93,7 @@ impl BuildPlan {
                 }
                 let command = &manifest.commands[*id];
                 queue.extend(command.inputs.iter().map(String::as_str));
-                commands.push(command.clone());
-            } else if let Some(path) = file_path(input) {
-                leaf_inputs.insert(path);
+                commands.push(command);
             }
         }
         let outputs = commands
@@ -150,120 +117,81 @@ impl BuildPlan {
                 main.display()
             )));
         }
-        let (link_inputs, link_commands) = linked_inputs(&manifest, &main);
-        let mut depfiles = outputs
-            .iter()
-            .filter(|p| p.extension().is_some_and(|ext| ext == "d"))
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        for command in &commands {
-            depfiles.extend(
-                command
-                    .deps
-                    .iter()
-                    .flat_map(DependencyFiles::paths)
-                    .filter_map(|path| file_path(path))
-                    .filter(|path| path.extension().is_some_and(|ext| ext == "d")),
-            );
-        }
-        let mut dependencies = BTreeSet::new();
-        for depfile in depfiles {
-            let text = match std::fs::read_to_string(&depfile) {
-                Ok(text) => text,
-                Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(cause) => return Err(error(cause)),
-            };
-            let text = text.replace("\\\n", " ").replace("\\\r\n", " ");
-            for rule in text.lines().filter(|line| !line.trim().is_empty()) {
-                let Some((target, _)) = rule.split_once(": ") else {
-                    return Err(error(format!(
-                        "invalid Swift compiler dependencies in {}",
-                        depfile.display()
-                    )));
-                };
-                let Some(paths) = scoop_process::parse_make_dependencies(rule, target) else {
-                    continue;
-                };
-                for path in paths {
-                    let path = if path.is_absolute() {
-                        path
-                    } else {
-                        scratch.join(path)
-                    };
-                    dependencies.insert(path.canonicalize().map_err(error)?);
-                }
-            }
-        }
-        let binary_artifacts = commands
-            .iter()
-            .filter(|command| command.tool == "process-xcframework")
-            .map(|command| {
-                let source = command
-                    .inputs
-                    .iter()
-                    .filter_map(|path| file_path(path))
-                    .find(|path| {
-                        path.extension()
-                            .is_some_and(|extension| extension == "xcframework")
-                    })
-                    .ok_or_else(|| error("Swift ProcessXCFramework has no source container"))?;
-                let outputs = command
-                    .outputs
-                    .iter()
-                    .filter_map(|path| file_path(path))
-                    .collect();
-                Ok((source, outputs))
-            })
-            .collect::<Result<_, ToolchainError>>()?;
-        Ok(Self {
-            bin: bin.canonicalize().map_err(error)?,
-            inputs: leaf_inputs,
-            dependencies,
-            outputs,
-            link_inputs,
-            link_commands,
-            binary_artifacts,
-        })
+        Ok(Self { outputs })
     }
-}
 
-fn linked_inputs(manifest: &Manifest, main: &Path) -> (BTreeSet<PathBuf>, Vec<BuildCommand>) {
-    let producers: BTreeMap<_, _> = manifest
-        .commands
-        .values()
-        .flat_map(|command| {
-            command
-                .outputs
-                .iter()
-                .filter_map(|path| file_path(path))
-                .map(move |output| (output, command))
-        })
-        .collect();
-    let mut pending = vec![main.to_owned()];
-    let mut inputs = BTreeSet::new();
-    let mut visited = BTreeSet::new();
-    let mut commands = Vec::new();
-    while let Some(file) = pending.pop() {
-        if !visited.insert(file.clone()) {
-            continue;
-        }
-        let Some(command) = producers.get(&file) else {
-            continue;
-        };
-        commands.push((**command).clone());
-        for input in command.inputs.iter().filter_map(|path| file_path(path)) {
-            // Only object/archive edges contribute consumer linker settings.
-            // Generated sources and macro/plugin tools remain production inputs.
-            if input
-                .extension()
-                .is_some_and(|ext| ext == "o" || ext == "a")
-            {
-                pending.push(input.clone());
+    pub(super) fn binaries(
+        &self,
+        request: &super::SwiftBuildRequest,
+        bin: &Path,
+    ) -> Result<Vec<crate::NativeLibraryDependency>, ToolchainError> {
+        let bin = bin.canonicalize().map_err(error)?;
+        let main = bin.join(format!(
+            "lib{}.{}",
+            request.product,
+            if request.linkage == SwiftLinkage::Static {
+                "a"
+            } else {
+                "dylib"
             }
-            inputs.insert(input);
+        ));
+        let mut libraries = BTreeSet::new();
+        for output in &self.outputs {
+            let Ok(relative) = output.strip_prefix(&bin) else {
+                continue;
+            };
+            let Some(first) = relative.components().next() else {
+                continue;
+            };
+            let library = bin.join(first);
+            if library == main {
+                continue;
+            }
+            if library
+                .extension()
+                .is_some_and(|ext| ext == "framework" || ext == "a" || ext == "dylib")
+            {
+                libraries.insert(library);
+            }
         }
+        let architecture = if request.target.canonical_triple() == "aarch64-apple-darwin" {
+            "arm64"
+        } else {
+            "x86_64"
+        };
+        let mut result = Vec::new();
+        for library in libraries {
+            let framework = library.extension().is_some_and(|ext| ext == "framework");
+            let name = library
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| error("invalid Swift companion filename"))?;
+            let name = if framework {
+                name
+            } else {
+                name.strip_prefix("lib")
+                    .ok_or_else(|| error("Swift companion filename must start with lib"))?
+            }
+            .to_owned();
+            let binary = if framework {
+                library.join(&name).canonicalize().map_err(error)?
+            } else {
+                library.clone()
+            };
+            let linkage = binary_linkage(&binary, architecture)?;
+            if request.linkage == SwiftLinkage::Dynamic && linkage == SwiftLinkage::Static {
+                continue;
+            }
+            result.push(crate::NativeLibraryDependency {
+                name,
+                linkage,
+                framework,
+                library,
+                binary,
+            });
+        }
+        Ok(result)
     }
-    (inputs, commands)
 }
 
 fn file_path(value: &str) -> Option<PathBuf> {
@@ -273,4 +201,48 @@ fn file_path(value: &str) -> Option<PathBuf> {
         return None;
     }
     Some(path.canonicalize().unwrap_or(path))
+}
+
+fn binary_linkage(path: &Path, architecture: &str) -> Result<SwiftLinkage, ToolchainError> {
+    use object::read::macho::{FatArch, MachOFatFile32, MachOFatFile64};
+    let bytes = std::fs::read(path).map_err(error)?;
+    fn slice<'a, F: FatArch>(
+        bytes: &'a [u8],
+        arches: &[F],
+        architecture: &str,
+    ) -> Result<&'a [u8], ToolchainError> {
+        let cpu = if architecture == "arm64" {
+            object::macho::CPU_TYPE_ARM64
+        } else {
+            object::macho::CPU_TYPE_X86_64
+        };
+        arches
+            .iter()
+            .find(|arch| arch.cputype() == cpu)
+            .ok_or_else(|| error("binary input has no selected architecture"))?
+            .data(bytes)
+            .map_err(error)
+    }
+    let selected = match object::FileKind::parse(bytes.as_slice()).map_err(error)? {
+        object::FileKind::MachOFat32 => slice(
+            &bytes,
+            MachOFatFile32::parse(bytes.as_slice())
+                .map_err(error)?
+                .arches(),
+            architecture,
+        )?,
+        object::FileKind::MachOFat64 => slice(
+            &bytes,
+            MachOFatFile64::parse(bytes.as_slice())
+                .map_err(error)?
+                .arches(),
+            architecture,
+        )?,
+        _ => bytes.as_slice(),
+    };
+    match object::FileKind::parse(selected).map_err(error)? {
+        object::FileKind::Archive => Ok(SwiftLinkage::Static),
+        object::FileKind::MachO64 => Ok(SwiftLinkage::Dynamic),
+        _ => Err(error(format!("{} is not a native library", path.display()))),
+    }
 }

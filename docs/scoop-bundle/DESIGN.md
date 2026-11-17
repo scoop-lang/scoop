@@ -228,7 +228,7 @@ macOS 的 `LC_LOAD_WEAK_DYLIB` 允许无实际候选；缺席搜索路径进入�
 
 当前 Linux GUI 使用 GTK 4.18 以上和 libadwaita 1.4 以上，且依赖对应 SONAME；包的发行版/runtime 基线必须满足真实二进制要求。AppImage 不能降低已构建程序的 glibc 符号版本要求。现有 linker 可能留下开发目录的 rpath，bundle 只在本次暂存副本上调整。
 
-Swift 原生库第一阶段的后续交接见 [Swift 设计](../swift-libraries/DESIGN.md#8-最终链接与运行)及实现规范 2.8.1，当前尚未实现。build 的结构化 `native_outputs` 提供实际生成的库／framework、二进制 linkage 和 SwiftPM resource bundle；bundle 消费同一组已选结果，不重新执行 SwiftPM。动态 framework／dylib 进入 Frameworks 布局并调整副本加载路径、最后签名；静态 archive／静态 framework 只参与链接，其资源仍需部署。resource bundle 保留实际名字，按生成访问器支持的应用资源位置放置并以真实读取验收，不能只复制 framework 后假定资源齐全。显式 `--binary` 仍需调用方提供配套文件与资源配置。
+Swift bridge 所需的最终链接依赖由 Cone 的 native.libraries 管理；私有 framework 打包清单独立写入 bundle metadata 的 files（kind = framework／library），bundle 不读取 Cone native metadata 或 Package.swift 来推导。系统 framework／dylib 不列入私有清单，按系统固定装载路径跳过。路径重定位、私有 framework 部署和最终签名只在 bundle 的副本上完成；编译链接阶段保留正常搜索与加载路径，仅预留 headerpad。SwiftPM resource bundle 沿既有 native_outputs.resources 交接，静态 archive 不进入运行 payload。
 
 ### 6.2 资源定位
 

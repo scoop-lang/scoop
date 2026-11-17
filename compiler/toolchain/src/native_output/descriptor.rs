@@ -23,12 +23,7 @@ impl NativeLibraryOutput {
             dependency.library = map(&dependency.library)?;
             dependency.binary = map(&dependency.binary)?;
         }
-        for path in self
-            .resources
-            .iter_mut()
-            .chain(&mut self.settings.library_paths)
-            .chain(&mut self.settings.framework_paths)
-        {
+        for path in &mut self.resources {
             *path = map(path)?;
         }
         Ok(())
@@ -47,7 +42,7 @@ pub fn read_native_outputs(
     let mut descriptor: NativeOutputsDescriptor =
         serde_json::from_reader(std::io::BufReader::new(file))
             .map_err(|cause| error(format!("{}: {cause}", path.display())))?;
-    if descriptor.schema != 1 {
+    if descriptor.schema != 2 {
         return Err(error(format!(
             "{}: unsupported native output schema {}",
             path.display(),

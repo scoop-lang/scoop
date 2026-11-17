@@ -120,4 +120,4 @@ pub use build_record::inputs::{Input as NativeInputMetadata, native_include_sear
 pub use compiler::paired_compiler_machine_capability;
 
 pub mod native_output;
-pub use native_output::{NativeLibraryDependency, NativeLibraryOutput, NativeLinkSettings};
+pub use native_output::{NativeLibraryDependency, NativeLibraryOutput};

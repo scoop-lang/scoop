@@ -105,8 +105,6 @@ impl<'a> ProgramInputs<'a> {
         }
         let mut roots = library_paths.to_vec();
         for output in &outputs {
-            roots.extend(output.settings.library_paths.iter().cloned());
-            roots.extend(output.settings.framework_paths.iter().cloned());
             if let Some(parent) = output.library.parent() {
                 roots.push(parent.to_owned());
             }

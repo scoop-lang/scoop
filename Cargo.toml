@@ -65,7 +65,6 @@ semver = { version = "1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10"
-plist = "1.10.3"
 tempfile = { version = "3" }
 pathdiff = "0.2.3"
 fs4 = { version = "1.1" }

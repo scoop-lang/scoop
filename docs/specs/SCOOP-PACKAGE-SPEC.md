@@ -288,9 +288,9 @@ source是带kind的封闭记录，各分支必需字段如下，不接收其他�
 | `--offline` | 命中直接复用；未命中只能使用本地已准备的来源、二进制依赖与构建工具，不允许网络获取 |
 | `--frozen` | 同时满足 locked 与 offline |
 
-命中使用已完成生产的输入记录，不重新执行 SwiftPM 判断“最新”。lock 新增、删除或更新是正常输入变化；实际修改后需重新读取与判断，格式错误或 locked 不满足不能被旧二进制遮蔽。本地 path／editable 依赖不被 lock 冻结，源码和发现集合变化由 driver 观察。
+命中使用已完成生产的输入记录，不重新执行 SwiftPM 判断“最新”。lock 新增、删除或更新是正常输入变化；实际修改后需重新读取与判断，格式错误或 locked 不满足不能被旧二进制遮蔽。本地 path／editable 依赖不被 lock 冻结，必须通过 Cone.toml 的 inputs 显式纳入缓存。
 
-未命中后的 locked 调用使用 SwiftPM 的只消费 resolved 选择模式。`--skip-update` 仅抑制更新，不能保证不下载缺失来源；不得把它等同 offline。选定 SwiftPM 无可保证仅使用本地输入的调用路径时，在启动可能获取依赖的步骤前报告离线构建不支持，而不是放行网络。该限制也适用于 frozen；不为此引入网络代理或新的隔离框架。
+未命中后的 locked 调用使用 SwiftPM 的只消费 resolved 选择模式。`--skip-update` 仅抑制更新，不能保证不下载缺失来源；不得把它等同 offline。选定 SwiftPM 无可保证仅使用本地输入的调用路径时，在启动可能获取依赖的步骤前报告离线构建不支持，而不是放行网络。该限制也适用于 frozen；首期不分析清单来猜测“只有本地依赖”，因此 Swift 生产未命中时统一报告不支持离线构建，命中可离线复用。不为此引入网络代理或新的隔离框架。
 
 本地工作区／path Cone 的 Swift 构建根可由 SwiftPM 正常更新 Package.resolved；显式 `swift package update` 更新后，下一次 Scoop build 观察变化。`scoop pm update` 仍只更新 Cone 图。Swift 解析成功、随后编译失败时，可保留正确生成的 lock，但不能发布生产成功记录。
 
@@ -515,11 +515,9 @@ prepare 的本地记录按规范化请求位置、成员选择、purpose/target�
 
 ### 11.3 Swift 原生生产的失效（设计合同）
 
-Swift 生产记录由 driver 持有，复用现有 metadata 更新规则，与 PM 的 Cone 解析记录及 Scoop 编译记录分开。配置键包含实际包路径／product、目标／部署、SDK／工具链选择、profile、linkage／format 和声明 inputs/env。具体输入集合见实现规范 2.7.1，至少覆盖根与传递包的清单／选择、实际源码／头文件／module map／二进制／资源、本地包外依赖、宏／插件输入以及自动发现目录和缺失候选。
+Swift 生产记录由 driver 持有，与 Cone 解析及 Scoop 编译记录分开。配置键包含包路径／product、目标／部署、SDK／工具链、profile、linkage／format 和 Cone.toml 中的 inputs/env。包根递归观察，跳过 `.git`、`.build` 和本次构建缓存；包外本地／editable 依赖、framework、宏／插件输入由 inputs 显式列出。目录变化重新枚举，覆盖嵌套增删和重命名；不读取 Package.swift 推导 target/exclude，也不调用 dump-package／describe／show-dependencies。包内未选文件变化也可使这一粗粒度生产节点失效。
 
-Package.resolved 未变不代表本地源码未变；固定 revision 也不能代替已用 checkout 的普通输入检查。目录状态必须覆盖嵌套新增、删除和重命名；只 stat 包根或旧文件列表不足。未选测试、未选平台／product 的源码不进入当前有效生产输入。Package.swift／插件额外读取的文件和业务环境须由正常依赖输出或显式 inputs/env 覆盖，不建立任意代码的访问追踪或证明体系。
-
-目录状态改变时重新枚举有效选择，忽略排除项；附加 inputs 的目录同样递归记录。未选源码指独立文件／target，不承诺跳过已选文件内部的未激活分支修改；Package.swift 自身变化仍交给 SwiftPM。自动发现文件删除先更新集合，仍需使用的显式／实际依赖输入缺失才报错。
+Package.resolved 的存在状态及 metadata 是普通输入，远端版本选择继续属于 SwiftPM。Scoop 不根据远端最新版本失效；本地修改依赖 checkout 时必须把该路径加入 inputs。最终链接依赖在 Cone 的 native.libraries 声明，私有 framework 打包清单在 bundle metadata 声明，二者不从 Swift 包图推导。具体合同见实现规范 2.7.1、2.8.1。
 
 输入未变且所需库、framework 文件及资源存在时直接复用，不执行 SwiftPM 空构建，不读取源码正文或库内容、不探测工具、不复制输入／输出。Swift 实现变化只使相应 native 结果和最终链接／部署更新；逻辑 native requirement 不变时不重编 Scoop `.slib`。Scoop 源码变化不重建未变的 Swift product。实际缺失输入、失败不发布及普通并发协调沿现有规则，不能在失败后继续链接旧结果。
 

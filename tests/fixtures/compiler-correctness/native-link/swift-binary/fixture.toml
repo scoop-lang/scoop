@@ -86,7 +86,7 @@ stderr = ""
 
 [[steps]]
 name = "changed"
-argv = ["${scoop}", "build", "${work}/app", "--frozen", {each = "${options}"}, {each = "${link_args}"}, "-o", "${work}/program"]
+argv = ["${scoop}", "build", "${work}/app", "--locked", {each = "${options}"}, {each = "${link_args}"}, "-o", "${work}/program"]
 exit = 0
 stdout = ""
 stderr = ""

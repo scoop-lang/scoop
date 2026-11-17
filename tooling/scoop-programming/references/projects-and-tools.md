@@ -103,15 +103,22 @@ package = "native"
 product = "SystemBridge"
 linkage = "static"
 when = { os = "darwin" }
+
+[[native.libraries]]
+name = "CoreText"
+kind = "framework"
+when = { os = "darwin" }
 ```
 
 `Package.swift` 必须将该 product 显式声明为 `.static`。`@Extern(lib = "SystemBridge", name = "scoop_ct_font_size")` 使用相同 product 名和 Swift 导出名；跨 Cone 调用的 Scoop 声明须为 `public`，参数／返回值遵守既有 C ABI。`build/run/test` 自动构建传递源码 Cone 的 Swift products；可用 `--swift-toolchain` 选择工具链根。`.a` 不代表 Swift runtime 全静态，系统 framework 与 runtime 由实际 autolink 需求解析。
 
-Swift 源码、传递本地依赖、资源和 Package.resolved 加入更新检查；只改 Swift 实现时复用 Scoop `.slib`。清单／插件读取的额外文件和环境变量分别声明为 `inputs`、`env`；`Cone.lock` 与 Swift 的 `Package.resolved` 各自管理依赖选择。命中不调用 Swift、不检查远端新版本。
+在同一个 Cone.toml 的 `native.libraries` 中显式声明 bridge 所需的系统／第三方 framework；Swift 包自己的链接设置只用于其构建。第三方库沿现有 `--library-path` 提供位置。
 
-Swift package 可按 SwiftPM 的 `.binaryTarget` 引入已有 XCFramework；构建会记录本次选中的 slice，并将 consumer 所需的 `.a`／framework 交付到配套目录。替换 binary target 的归档会更新最终链接；不需要为同一依赖另写 Scoop `native.libraries` 或手动添加 Swift scratch 的搜索路径。跨包 build plugin 的脚本、生成工具及其声明输入同样参与更新检查。
+Swift 包根递归参与更新检查，包外本地依赖、第三方 framework、宏／插件输入必须在 `native.swift.inputs` 中列出目录／文件，环境变量列入 env；Scoop 不分析可执行的 Package.swift 来推导依赖。只改 Swift 实现时复用 Scoop `.slib`。`Package.resolved` 固定 Swift 远端选择；命中不调用 Swift。offline／frozen 支持命中复用，SwiftPM 无完整离线构建模式，未命中需先正常构建。
 
-库构建和 `--emit-slib` 交付相邻 `<stem>.native/`；搬迁时一起复制，并向 `scoop link` 传 `--library-path <stem>.native`，独立链接不构建 Swift。SwiftPM resource bundle 随程序发布到相邻目录，`scoop bundle` 的项目入口自动放入 app 的 `Contents/Resources`；只改资源不重新链接。仓库中的 [CoreText bridge](../../../tests/fixtures/compiler-correctness/native-link/swift-system-framework/fixture.toml) 覆盖两个函数、依赖传递、Swift 变更与独立链接。可重定位动态库部署仍在完善，静态系统 framework bridge 可按此路径接入；自动包装及 bindgen 属于下一阶段。
+库构建和 `--emit-slib` 交付相邻 `<stem>.native/`；搬迁时一起复制，并向 `scoop link` 传 `--library-path <stem>.native`，独立链接不构建 Swift。resource bundle 随程序部署，项目模式打包自动放入 app 的 `Contents/Resources`。
+
+bundle metadata 单独列出私有 framework，复用 `[[bundle.files]]` 的 from、to、`kind = "framework"`。系统 framework 不列入，不复制也不修改路径。rpath／私有加载名修改和签名只在 bundle 的副本上进行，最终链接保持普通库搜索职责。自动包装和 bindgen 属于下一阶段。
 
 ## 语言服务查询
 

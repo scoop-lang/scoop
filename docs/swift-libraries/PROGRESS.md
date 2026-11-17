@@ -31,14 +31,21 @@
 - 2026-11-18：实际 ProcessXCFramework 的选中 slice 纳入更新记录，consumer 的 binary target 作为独立原生依赖快照及配套文件交付；宿主工具依赖不提升为 consumer 库。修正 Darwin archive 惰性候选处理：SwiftPM 已合入归档的二进制依赖与保留的 autolink 可以共存，两个成员实际抽取后的重复强定义仍报错。使用维护中的 plist 库读取容器描述，并同步主 workspace 与 runtime_builder 的锁文件。
 - 本项验证：相关格式化／clippy、2 项真实 archive 链接测试和 6 项发行许可测试通过，runtime_builder 的 locked 依赖解析通过。AArch64 [binary target fixture](../../tests/fixtures/compiler-correctness/native-link/swift-binary/fixture.toml) 通过 14 个进程步骤，覆盖跨包静态二进制依赖、frozen 命中、替换归档后 42→43、Scoop 编译复用、配套目录复制及两个独立链接入口。另用真实 versioned 静态 framework／XCFramework 验证相同交付，两入口复制后均返回 42；输入和原产物保持存在。初次探针暴露的 autolink 重复候选及单测对象命名导致的搜索歧义已闭合。
 
+## 最新职责收敛与验证
+
+2026-11-18 用户决定：最终 framework／库依赖显式写在 Cone.toml；SwiftPM 负责包自身构建；私有 framework 清单独立写在 bundle metadata，rpath／加载名调整及签名仅由 bundle 在副本上完成。系统 framework 跳过。上文自动包图／target／plugin／linkerSettings 推导属于早期实现，已由这一合同取代，不再保留两套路径。
+
+本批删除 Package.swift 描述求值、target／traits／plugin 依赖推导及 consumer 链接设置传播；包根递归观察，包外输入由 Cone 显式声明，实际 Swift Build 输出只用于定位产物。去掉无需使用的 plist 依赖并同步两个 Cargo.lock。配套描述 schema 2 仅保存实际文件／资源；Swift adapter 5、source final cache v5、link plan v9。链接器只增加正常 headerpad 预留，撤掉未提交的 CLI 动态部署尝试。
+
+验证：相关格式化／clippy 通过（新代码无警告，bundle 严格 clippy 通过）；2 项生产／缓存测试、2 项实际链接测试通过。AArch64 四组正式 Swift fixture（CoreText、资源、显式插件输入、显式 binary 输入）全部通过，共 43 个进程步骤。新 bundle 实机测试用 Swift staticlib 调用第三方 Answer.framework 和系统 Foundation：显式 bundle.files 清单、自足已有程序入口、热复用、复制 app 后运行、相对加载路径、签名及源文件不变均通过，Frameworks 目录仅含 Answer。未运行 x86-64。初次测试保留旧 offline 冷构建用法及把等价 @loader_path 误写成 @executable_path 的断言已修正。
+
+当前 offline／frozen 仅支持 Swift 生产命中；未命中在调用 Swift 前明确报错，因为不再分析任意清单来猜测是否会获取远端依赖。locked 仍交给 SwiftPM 的 resolved-only 模式。需要本地更新的外部目录必须显式列入 inputs。
+
 ## 后续工作与验收
 
-2026-11-18：app 打包保留 weak-load 的可缺省语义，缺席路径参与更新判断；可选库出现后重新打包，重定位保持弱加载。bundle 格式化与严格 clippy 通过；新增 AArch64 实机测试覆盖缺席返回 42、热复用、新库出现返回 43、整体复制运行，以及复制后仍为 LC_LOAD_WEAK_DYLIB。未运行 x86-64 用例。
+1. 以收敛后的合同复核共享源码／锁定、普通 dylib 与动态 framework、实际宏和 compatibility archive 的必要组合；不再增加自建 Swift 包图或 prebuild 分析。
+2. 补齐一个可运行的系统 bridge 编程示例，以及当前 spec 状态／帮助的一致性。
+3. AArch64 全部完成后，再统一修复和验证已记录的 x86-64 Swift target 问题。
+4. 最终合同与变更审查；bindgen 留到下一阶段。
 
-1. 补齐真实宏、prebuild 诊断，并执行共享源码、锁定／离线验收；跨包 build plugin、传递生成工具及静态 binary target 交付已验证。
-2. 补齐动态依赖的部署验收与 compatibility archive 组合覆盖；weak-load、re-export／rpath 的链接行为已定向通过，基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
-3. 动态库部署和 bundle 交接；配套目录的非系统依赖补齐实际传递加载输入。静态资源的 CLI／app 交付及静态 binary target 配套目录已完成。
-4. macOS 双架构正式 CLI fixture：真实 @c 调用、传递依赖变化、命中调用计数、并发与失败、资源读取和可重定位交付。
-5. 同步 CLI help、编程参考与可运行示例；完成最终合同审查。
-
-每个大项完成后进行相关格式化、lint 与定向验证，提交、推送，再合并 origin/main。原始日志和探针保留在仓库外；每轮清理不再使用的临时文件。此文件只记录范围、结果和未闭合事项。
+每个大项完成后定向验证，提交、推送，再合并 origin/main。原始日志在仓库外，每轮清理不再使用的临时文件。

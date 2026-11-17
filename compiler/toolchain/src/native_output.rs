@@ -1,5 +1,4 @@
 //! Ordinary native files and consumer link settings, independent of production.
-use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use scoop_manifest::{SwiftLibraryFormat, SwiftLinkage};
@@ -15,16 +14,6 @@ pub use resources::deploy_native_resources;
 mod descriptor;
 pub use descriptor::{NativeOutputsDescriptor, read_native_outputs};
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct NativeLinkSettings {
-    pub libraries: BTreeSet<String>,
-    pub frameworks: BTreeSet<String>,
-    #[serde(with = "values::paths")]
-    pub library_paths: Vec<PathBuf>,
-    #[serde(with = "values::paths")]
-    pub framework_paths: Vec<PathBuf>,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NativeLibraryOutput {
     pub name: String,
@@ -38,7 +27,6 @@ pub struct NativeLibraryOutput {
     pub dependencies: Vec<NativeLibraryDependency>,
     #[serde(with = "values::paths")]
     pub resources: Vec<PathBuf>,
-    pub settings: NativeLinkSettings,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

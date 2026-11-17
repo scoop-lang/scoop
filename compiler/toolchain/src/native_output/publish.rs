@@ -1,5 +1,5 @@
 //! Publish a portable companion directory without reading outputs on a hit.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -7,10 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::files::{self, available, error};
 use super::{NativeLibraryOutput, NativeOutputsDescriptor};
 use crate::ToolchainError;
-use crate::build_record::{self, Input, Record, values};
+use crate::build_record::{self, Record, values};
 use crate::swift::SwiftProduct;
-
-mod settings;
 
 #[derive(Serialize, Deserialize)]
 struct Publication {
@@ -31,7 +29,7 @@ pub fn publish_native_outputs(
     let key = build_record::fingerprint(
         &scoop_protocol::HostPathCarrier::from_path(&destination).map_err(error)?,
     )?;
-    let directory = cache.join("native-publications-v1");
+    let directory = cache.join("native-publications-v2");
     let record = directory.join(format!("{key}.json"));
     if outputs.is_empty() && !record.try_exists().map_err(error)? {
         return Ok(outputs);
@@ -43,10 +41,8 @@ pub fn publish_native_outputs(
         |result: &Publication| Ok(result.signature == signature && available(&result.required)?),
         || {
             let mut outputs = outputs;
-            let mut observed = BTreeSet::new();
             let mut copies = BTreeMap::new();
             for output in &mut outputs {
-                settings::collect(output, &mut observed)?;
                 let mut add = |path: &Path, role: &str| -> Result<PathBuf, ToolchainError> {
                     let basename = path
                         .file_name()
@@ -88,12 +84,6 @@ pub fn publish_native_outputs(
                 for resource in &mut output.resources {
                     *resource = add(resource, "resources")?;
                 }
-                if !output.settings.library_paths.is_empty() {
-                    output.settings.library_paths = vec![destination.join("libraries")];
-                }
-                if !output.settings.framework_paths.is_empty() {
-                    output.settings.framework_paths = vec![destination.join("libraries")];
-                }
             }
             let mut required = Vec::new();
             let mut inputs = Vec::new();
@@ -116,7 +106,7 @@ pub fn publish_native_outputs(
             serde_json::to_writer_pretty(
                 candidate.as_file(),
                 &NativeOutputsDescriptor {
-                    schema: 1,
+                    schema: 2,
                     outputs: relative,
                 },
             )
@@ -125,12 +115,6 @@ pub fn publish_native_outputs(
                 .persist(&descriptor)
                 .map_err(|cause| error(cause.error))?;
             required.push(descriptor);
-            inputs.extend(
-                observed
-                    .iter()
-                    .map(|path| Input::read(path))
-                    .collect::<Result<Vec<_>, _>>()?,
-            );
             retire(&record, &required)?;
             Ok(Record {
                 inputs,

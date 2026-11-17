@@ -140,18 +140,6 @@ impl NativeInputs {
             }
             result.add(key, origins, roots, profile)?;
         }
-        for output in outputs {
-            if output.is_static() {
-                for key in produced::settings(output, profile)? {
-                    result.add(
-                        key,
-                        vec![format!("native product {}", output.name)],
-                        roots,
-                        profile,
-                    )?;
-                }
-            }
-        }
 
         Ok(result)
     }

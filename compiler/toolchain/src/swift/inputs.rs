@@ -9,12 +9,9 @@ use super::{Input, ToolchainError, error, values};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) enum Rule {
     All,
-    Manifests,
-    Sources {
-        #[serde(with = "values::paths")]
-        include: Vec<PathBuf>,
-        #[serde(with = "values::paths")]
-        exclude: Vec<PathBuf>,
+    Package {
+        #[serde(with = "values::path")]
+        cache: PathBuf,
     },
 }
 
@@ -22,6 +19,7 @@ pub(super) enum Rule {
 pub(super) struct Selection {
     #[serde(with = "values::path")]
     root: PathBuf,
+    present: bool,
     rule: Rule,
     directories: Vec<Input>,
     #[serde(with = "values::paths")]
@@ -31,6 +29,7 @@ pub(super) struct Selection {
 impl Selection {
     pub(super) fn read(root: PathBuf, rule: Rule) -> Result<Self, ToolchainError> {
         let mut result = Self {
+            present: root.try_exists().map_err(error)?,
             root,
             rule,
             directories: Vec::new(),
@@ -52,10 +51,11 @@ impl Selection {
         } else {
             self.root.join(relative)
         };
-        if let Rule::Sources { exclude, .. } = &self.rule
-            && exclude
-                .iter()
-                .any(|excluded| relative.starts_with(excluded))
+        if let Rule::Package { cache } = &self.rule
+            && (path.starts_with(cache)
+                || relative
+                    .components()
+                    .any(|c| c.as_os_str() == ".git" || c.as_os_str() == ".build"))
         {
             return Ok(());
         }
@@ -84,61 +84,14 @@ impl Selection {
                 .map_err(error)?;
             entries.sort();
             for name in entries {
-                if !matches!(self.rule, Rule::All) && name.to_string_lossy().starts_with('.') {
-                    continue;
-                }
                 let child = relative.join(&name);
-                if matches!(self.rule, Rule::Manifests) {
-                    let name = name.to_string_lossy();
-                    if !relative.as_os_str().is_empty()
-                        || !(name == "Package.swift"
-                            || name.starts_with("Package@swift-") && name.ends_with(".swift"))
-                    {
-                        continue;
-                    }
-                }
                 self.walk(&child, ancestors)?;
             }
             ancestors.remove(&canonical);
-        } else if self.selected(relative) {
+        } else {
             self.files.push(path);
         }
         Ok(())
-    }
-
-    fn selected(&self, relative: &Path) -> bool {
-        match &self.rule {
-            Rule::All | Rule::Manifests => true,
-            Rule::Sources { include, .. } => {
-                (include.is_empty() || include.iter().any(|entry| relative.starts_with(entry)))
-                    && (relative
-                        .file_name()
-                        .is_some_and(|name| name == "module.modulemap")
-                        || relative
-                            .extension()
-                            .and_then(|e| e.to_str())
-                            .is_some_and(|extension| {
-                                matches!(
-                                    extension,
-                                    "swift"
-                                        | "c"
-                                        | "m"
-                                        | "mm"
-                                        | "cc"
-                                        | "cpp"
-                                        | "cxx"
-                                        | "c++"
-                                        | "s"
-                                        | "S"
-                                        | "h"
-                                        | "hh"
-                                        | "hpp"
-                                        | "hxx"
-                                        | "modulemap"
-                                )
-                            }))
-            }
-        }
     }
 
     pub(super) fn files(&self) -> &[PathBuf] {
@@ -148,7 +101,8 @@ impl Selection {
     pub(super) fn is_current(&self) -> Result<bool, ToolchainError> {
         for directory in &self.directories {
             if !directory.is_current()? {
-                return Ok(Self::read(self.root.clone(), self.rule.clone())?.files == self.files);
+                let current = Self::read(self.root.clone(), self.rule.clone())?;
+                return Ok(current.present == self.present && current.files == self.files);
             }
         }
         Ok(true)

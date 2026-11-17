@@ -34,6 +34,18 @@ macOS 默认执行 ad-hoc codesign；真实证书在 `[bundle.macos.signing]` �
 
 Developer ID 公证、Flatpak 与 MSIX 尚不属于首期。
 
+私有 framework 在 bundle metadata 中显式列出，不从 Cone 的 native 依赖推导。内嵌配置示例：
+
+```toml
+[[bundle.files]]
+from = "vendor/Acme.framework"
+to = "Acme.framework"
+kind = "framework"
+when = { os = "darwin" }
+```
+
+独立 Bundle.toml 同样使用 `[[bundle.files]]`。bundle 保留 framework 结构，在副本上调整 rpath／依赖加载名，最后签名；系统 framework 不列入清单，也不复制或修改。编译链接只负责普通依赖解析，并预留 headerpad。
+
 维护验证：先 `cargo fmt --manifest-path tooling/scoop-bundle/Cargo.toml` 和对应 `cargo clippy --all-targets -- -D warnings`，再运行对应 `cargo test`。macOS 集成测试实际构建含 framework 和传递 dylib 的程序，覆盖资源、签名、更新复用和失败保留旧包；临时工程自动清理。
 
 Linux 集成测试需要 `cc`、`dpkg`、`rpm`、`patchelf`、`ldconfig`、`appimagetool` 与 `appimage-runtime`。它在临时目录中安装、升级和卸载测试包，不修改宿主的包数据库，并通过普通 FUSE 入口运行 AppImage。

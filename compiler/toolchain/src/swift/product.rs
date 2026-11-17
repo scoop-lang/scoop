@@ -2,16 +2,13 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use super::inputs::{Rule, Selection};
 use super::plan::BuildPlan;
-use super::tool::SwiftTools;
 use super::{
     Input, Produced, Record, SwiftBuildRequest, SwiftLibraryFormat, SwiftLinkage, ToolchainError,
     build_record, error, outputs_exist, values,
 };
-use crate::NativeLinkSettings;
 use scoop_wire::Digest256;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -66,9 +63,7 @@ pub(super) fn publish(
     bin: &Path,
     plan: &BuildPlan,
     selections: Vec<Selection>,
-    settings: NativeLinkSettings,
     mut dependencies: Vec<crate::NativeLibraryDependency>,
-    single_module: bool,
 ) -> Result<Produced, ToolchainError> {
     let bin = bin.canonicalize().map_err(error)?;
     let main = bin.join(format!(
@@ -80,18 +75,6 @@ pub(super) fn publish(
         }
     ));
     let mut libraries = vec![main.clone()];
-    dependencies.extend(
-        plan.outputs
-            .iter()
-            .filter(|path| {
-                path.parent() == Some(&bin)
-                    && path.extension().is_some_and(|ext| ext == "dylib")
-                    && **path != main
-            })
-            .cloned()
-            .map(crate::NativeLibraryDependency::dylib)
-            .collect::<Result<Vec<_>, _>>()?,
-    );
     dependencies.sort_by(|left, right| left.library.cmp(&right.library));
     dependencies.dedup_by(|left, right| left.library == right.library);
     libraries.extend(
@@ -125,7 +108,7 @@ pub(super) fn publish(
     let modules = snapshot(
         request,
         "modules",
-        &if single_module && module.is_dir() {
+        &if module.is_dir() {
             vec![module]
         } else {
             Vec::new()
@@ -146,7 +129,7 @@ pub(super) fn publish(
         .into_iter()
         .collect::<Vec<_>>();
     let resources = snapshot(request, "resources", &resource_roots)?;
-    let link_key = build_record::fingerprint(&(binary.key.as_array(), &settings))?;
+    let link_key = binary.key;
     let mut required = binary.required;
     required.extend(modules.required);
     required.extend(resources.required);
@@ -163,7 +146,6 @@ pub(super) fn publish(
                 binary: binary.files[0].clone(),
                 dependencies,
                 resources: resources.files,
-                settings,
             },
         },
         selections,
@@ -271,7 +253,7 @@ pub(super) fn layout(
         return Ok(result.product.clone());
     };
     let module = result.modules.first().ok_or_else(|| {
-        error("framework requires one direct Swift module with the same name as the product")
+        error("framework requires a built Swift module with the same name as the product")
     })?;
     let key = layout_key(request, result)?;
     Ok(with_resources(build_record::cached(&request.directory.join("layouts"), key, |layout: &Layout| outputs_exist(&layout.required), || {
@@ -359,83 +341,4 @@ fn xml_escape(text: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
-}
-
-impl NativeLinkSettings {
-    pub(super) fn add_manifest_target(
-        &mut self,
-        target: &Value,
-        configuration: &str,
-        traits: &BTreeSet<String>,
-    ) -> Result<(), ToolchainError> {
-        for setting in target["settings"].as_array().into_iter().flatten() {
-            if setting["tool"].as_str() != Some("linker") {
-                continue;
-            }
-            let condition = &setting["condition"];
-            if condition["config"]
-                .as_str()
-                .is_some_and(|c| c != configuration)
-                || condition["platformNames"].as_array().is_some_and(|ps| {
-                    !ps.is_empty() && !ps.iter().any(|p| p.as_str() == Some("macos"))
-                })
-                || condition["traits"].as_array().is_some_and(|names| {
-                    !names
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .any(|name| traits.contains(name))
-                })
-            {
-                continue;
-            }
-            let kind = &setting["kind"];
-            if let Some(library) = kind["linkedLibrary"]["_0"].as_str() {
-                self.libraries.insert(library.to_owned());
-            } else if let Some(framework) = kind["linkedFramework"]["_0"].as_str() {
-                self.frameworks.insert(framework.to_owned());
-            } else if !kind.is_null() {
-                return Err(error(format!(
-                    "Swift target {:?} has unsupported consumer linker setting {kind}",
-                    target["name"]
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    pub(super) fn add_plan(
-        &mut self,
-        plan: &BuildPlan,
-        scratch: &Path,
-        tools: &SwiftTools,
-    ) -> Result<(), ToolchainError> {
-        for command in &plan.link_commands {
-            if !command.description.starts_with("Ld ") {
-                continue;
-            }
-            for option in &command.args {
-                let target = if let Some(path) = option.strip_prefix("-L") {
-                    Some((&mut self.library_paths, path))
-                } else {
-                    option
-                        .strip_prefix("-F")
-                        .map(|path| (&mut self.framework_paths, path))
-                };
-                if let Some((roots, path)) = target {
-                    if path.is_empty() {
-                        continue;
-                    }
-                    let path = PathBuf::from(path);
-                    let path = path.canonicalize().unwrap_or(path);
-                    if !path.starts_with(scratch)
-                        && !tools.is_tool_input(&path)
-                        && !roots.contains(&path)
-                    {
-                        roots.push(path);
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
 }

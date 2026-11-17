@@ -1,26 +1,26 @@
 use super::*;
 
 #[test]
-fn directory_selection_observes_nested_additions_but_ignores_exclusions() {
+fn package_selection_observes_files_but_ignores_build_state() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
     std::fs::create_dir_all(root.join("nested")).unwrap();
-    std::fs::create_dir_all(root.join("excluded")).unwrap();
+    std::fs::create_dir_all(root.join(".build")).unwrap();
     std::fs::write(root.join("nested/Main.swift"), "first").unwrap();
     let selected = inputs::Selection::read(
         root.to_path_buf(),
-        inputs::Rule::Sources {
-            include: Vec::new(),
-            exclude: vec![PathBuf::from("excluded")],
+        inputs::Rule::Package {
+            cache: root.join("cache"),
         },
     )
     .unwrap();
-    std::fs::write(root.join("ignored.txt"), "irrelevant").unwrap();
-    std::fs::write(root.join("excluded/NotAnInput.swift"), "irrelevant").unwrap();
+    std::fs::write(root.join(".build/generated.swift"), "ignored").unwrap();
+    std::fs::create_dir_all(root.join("cache")).unwrap();
+    std::fs::write(root.join("cache/record.json"), "ignored").unwrap();
     assert!(selected.is_current().unwrap());
     std::fs::create_dir_all(root.join("nested/deeper")).unwrap();
     assert!(selected.is_current().unwrap());
-    std::fs::write(root.join("nested/deeper/New.swift"), "selected").unwrap();
+    std::fs::write(root.join("nested/deeper/config.txt"), "selected").unwrap();
     assert!(!selected.is_current().unwrap());
 }
 
@@ -84,7 +84,7 @@ public func resource() -> URL { Bundle.module.bundleURL }
     let target = crate::ResolvedTargetProfile::resolve_host().unwrap();
     let manifest = |framework: bool| {
         crate::parse_cone_manifest(&format!(
-        "schema = 1\n[cone]\ngroup = 'swift.test'\nname = 'client'\nversion = '0.1.0'\nkind = 'library'\n[[native.swift]]\npackage = '.'\nproduct = 'Probe'\nlinkage = 'static'\n{}",
+        "schema = 1\n[cone]\ngroup = 'swift.test'\nname = 'client'\nversion = '0.1.0'\nkind = 'library'\n[[native.swift]]\npackage = '.'\nproduct = 'Probe'\nlinkage = 'static'\ninputs = ['../support']\n{}",
         if framework { "format = 'framework'\nbundle_id = 'dev.scoop.probe'\n" } else { "" })).unwrap()
     };
     let request = |framework: bool| {
@@ -101,12 +101,11 @@ public func resource() -> URL { Bundle.module.bundleURL }
             target.child_request().unwrap(),
             OptimizationMode::Release,
             SwiftBuildOptions {
-                offline: true,
                 locked: true,
                 ..Default::default()
             },
             false,
-            &root.join("cache"),
+            &temp.path().join("swift-cache"),
         )
         .unwrap()
     };
@@ -119,6 +118,12 @@ public func resource() -> URL { Bundle.module.bundleURL }
     };
     let request = request(false);
     let first = build(&request);
+    let mut offline = request.clone();
+    offline.options.offline = true;
+    assert!(matches!(
+        offline.prepare(false).unwrap(),
+        PreparedSwiftBuild::Complete(_)
+    ));
     let companion = temp.path().join("client.native");
     let publish = |product: &SwiftProduct| {
         crate::native_output::publish_native_outputs(
@@ -189,14 +194,20 @@ public func resource() -> URL { Bundle.module.bundleURL }
     );
     assert!(first.output.binary.is_file());
     assert_eq!(first.output.resources.len(), 1);
-    assert!(first.output.settings.libraries.contains("z"));
-    assert!(!first.output.settings.libraries.contains("DisabledLibrary"));
-    assert!(first.output.settings.frameworks.contains("Foundation"));
     assert!(matches!(
         request.prepare(false).unwrap(),
         PreparedSwiftBuild::Complete(_)
     ));
     std::fs::write(&resource, "changed resource only").unwrap();
+    let PreparedSwiftBuild::Pending(work) = offline.prepare(false).unwrap() else {
+        panic!("changed input must invalidate");
+    };
+    assert!(
+        work.build(&target, NonZeroUsize::new(2).unwrap())
+            .unwrap_err()
+            .to_string()
+            .contains("no offline build mode")
+    );
     let updated = build(&request);
     assert_eq!(first.link_key, updated.link_key);
     assert_eq!(first.output.binary, updated.output.binary);
@@ -233,12 +244,11 @@ public func resource() -> URL { Bundle.module.bundleURL }
         target.child_request().unwrap(),
         OptimizationMode::Release,
         SwiftBuildOptions {
-            offline: true,
             locked: true,
             ..Default::default()
         },
         false,
-        &root.join("cache"),
+        &temp.path().join("swift-cache"),
     )
     .unwrap();
     let framework = build(&framework_request);

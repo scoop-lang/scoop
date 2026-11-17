@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use crate::build_record::{self, Input, Record, values};
 use crate::{ResolvedTargetProfile, ToolchainError};
 
+mod declared;
 mod inputs;
-mod package;
 mod plan;
 mod product;
 mod tool;
@@ -116,7 +116,7 @@ impl SwiftBuildRequest {
         let package_key = build_record::fingerprint(&path(&package)?)?;
         // Layout is deliberately absent: a framework can reuse the same product.
         let key = build_record::fingerprint(&(
-            4u32,
+            5u32,
             path(&package)?,
             library.product().as_str(),
             library.linkage(),
@@ -225,43 +225,22 @@ impl PendingSwiftBuild {
             request.key,
             Produced::available,
             || {
-                let tools = tool::SwiftTools::resolve(request, target)?;
-                // Supplementary inputs need not be known to SwiftPM's own
-                // incremental engine. A changed declaration input selects new
-                // work state so macros and generators actually consume it.
-                let mut supplemental = Vec::new();
-                for path in &request.inputs {
-                    supplemental.push(Input::read(path)?);
-                    let selection = inputs::Selection::read(path.clone(), inputs::Rule::All)?;
-                    supplemental.extend(
-                        selection
-                            .files()
-                            .iter()
-                            .map(|p| Input::read(p))
-                            .collect::<Result<Vec<_>, _>>()?,
-                    );
+                if request.options.offline {
+                    return Err(error(
+                        "SwiftPM has no offline build mode; an uncached Swift product must be built without --offline/--frozen first",
+                    ));
                 }
+                let tools = tool::SwiftTools::resolve(request, target)?;
+                let supplemental = declared::supplemental(request)?;
                 let work_key = build_record::fingerprint(&(request.key.as_array(), supplemental))?;
                 let scratch = request.directory.join("work").join(work_key.to_string());
-                let mut packages = package::Packages::prepare(request, &tools, &scratch)?;
                 let bin = tools.build(request, &scratch, jobs)?;
                 let plan =
                     plan::BuildPlan::read(&scratch, &bin, &request.product, request.linkage)?;
-                packages.discover(request, &tools, &scratch)?;
-                let inputs = packages.inputs(request, &tools, &scratch, &plan)?;
-                let result = product::publish(
-                    request,
-                    &bin,
-                    &plan,
-                    inputs.selections,
-                    inputs.settings,
-                    inputs.binaries,
-                    packages.has_framework_module(request),
-                )?;
-                Ok(Record {
-                    inputs: inputs.inputs,
-                    result,
-                })
+                let (inputs, selections) = declared::read(request)?;
+                let dependencies = plan.binaries(request, &bin)?;
+                let result = product::publish(request, &bin, &plan, selections, dependencies)?;
+                Ok(Record { inputs, result })
             },
         )?;
         product::layout(request, &record.result)
