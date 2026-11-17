@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use super::files::{self, available, error};
 use super::{NativeLibraryOutput, NativeOutputsDescriptor};
 use crate::ToolchainError;
 use crate::build_record::{self, Input, Record, values};
 use crate::swift::SwiftProduct;
 
-mod files;
 mod settings;
 
 #[derive(Serialize, Deserialize)]
@@ -145,22 +145,6 @@ pub fn publish_native_outputs(
     Ok(result.result.outputs)
 }
 
-fn available(paths: &[PathBuf]) -> Result<bool, ToolchainError> {
-    for path in paths {
-        if !path.try_exists().map_err(error)? {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-fn error(cause: impl std::fmt::Display) -> ToolchainError {
-    ToolchainError::new(
-        scoop_source::DiagnosticCode::E2201,
-        format!("native publication: {cause}"),
-    )
-}
-
 fn retire(record: &Path, required: &[PathBuf]) -> Result<(), ToolchainError> {
     let file = match std::fs::File::open(record) {
         Ok(file) => file,
@@ -168,33 +152,5 @@ fn retire(record: &Path, required: &[PathBuf]) -> Result<(), ToolchainError> {
         Err(cause) => return Err(error(cause)),
     };
     let previous: Record<Publication> = serde_json::from_reader(file).map_err(error)?;
-    let mut obsolete: Vec<_> = previous
-        .result
-        .required
-        .into_iter()
-        .filter(|p| !required.contains(p))
-        .collect();
-    obsolete.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
-    for path in obsolete {
-        let metadata = match path.symlink_metadata() {
-            Ok(metadata) => metadata,
-            Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(cause) => return Err(error(cause)),
-        };
-        let result = if metadata.is_dir() {
-            std::fs::remove_dir(&path)
-        } else {
-            std::fs::remove_file(&path)
-        };
-        match result {
-            Ok(()) => {}
-            Err(cause)
-                if matches!(
-                    cause.kind(),
-                    std::io::ErrorKind::NotFound | std::io::ErrorKind::DirectoryNotEmpty
-                ) => {}
-            Err(cause) => return Err(error(cause)),
-        }
-    }
-    Ok(())
+    files::retire(previous.result.required, required)
 }

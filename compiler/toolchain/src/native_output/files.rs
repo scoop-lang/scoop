@@ -1,4 +1,9 @@
-use super::*;
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+
+use crate::ToolchainError;
+use crate::build_record::{self, Input, Record, values};
 
 #[derive(Serialize, Deserialize)]
 struct Copied {
@@ -99,5 +104,51 @@ fn copy(
         std::fs::copy(source, target).map_err(error)?;
     }
     required.push(target.to_owned());
+    Ok(())
+}
+
+pub(super) fn available(paths: &[PathBuf]) -> Result<bool, ToolchainError> {
+    for path in paths {
+        if !path.try_exists().map_err(error)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn error(cause: impl std::fmt::Display) -> ToolchainError {
+    ToolchainError::new(
+        scoop_source::DiagnosticCode::E2201,
+        format!("native publication: {cause}"),
+    )
+}
+
+pub(super) fn retire(previous: Vec<PathBuf>, required: &[PathBuf]) -> Result<(), ToolchainError> {
+    let mut obsolete: Vec<_> = previous
+        .into_iter()
+        .filter(|p| !required.contains(p))
+        .collect();
+    obsolete.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+    for path in obsolete {
+        let metadata = match path.symlink_metadata() {
+            Ok(metadata) => metadata,
+            Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(cause) => return Err(error(cause)),
+        };
+        let result = if metadata.is_dir() {
+            std::fs::remove_dir(&path)
+        } else {
+            std::fs::remove_file(&path)
+        };
+        match result {
+            Ok(()) => {}
+            Err(cause)
+                if matches!(
+                    cause.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::DirectoryNotEmpty
+                ) => {}
+            Err(cause) => return Err(error(cause)),
+        }
+    }
     Ok(())
 }

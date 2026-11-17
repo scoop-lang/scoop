@@ -1433,7 +1433,7 @@ ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v7`，覆盖 root/依赖、Cod
 
 #### 2.8.1 Swift 原生库的链接与发布（设计合同）
 
-本节与 2.7.1 配套，实施中。已接入 source 构建的精确库绑定、选中成员 autolink、Swift 系统库解析及静态 framework 读取；配套目录、可重定位部署与完整动态依赖验收仍待完成。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
+本节与 2.7.1 配套，实施中。已接入精确库绑定、选中成员 autolink、Swift 系统库解析、静态 framework 读取、配套目录／独立链接和 resource bundle 部署；可重定位动态库部署与完整动态依赖验收仍待完成。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
 
 **库与框架。** `.a` 使用 SwiftPM 实际完整 archive，不当作 `.o` 传给 scoopc，也不把所有 target 对象盲目拼接。静态 product 仍可依赖动态库、系统库和资源。`.dylib` 使用其普通 Mach-O 符号和装载依赖。
 
@@ -1460,6 +1460,8 @@ SwiftPM 实际计划中对最终 consumer 仍有效的库／framework 设置、�
 动态输入的 weak-load、re-export、install name 与 rpath 按实际平台合同处理，不一律转成强依赖或忽略。保留普通目标、部署版本、符号定义／引用及外部 ABI 声明检查；不声称对象符号表能证明 Swift 实现满足声明类型。产品 linkage 与 runtime linkage 分开，首期使用目标支持的普通动态 Swift runtime 和实际需要的静态 compatibility archive，不提供 macOS 全静态 Swift runtime。
 
 **最终更新与部署。** 最终缓存检查先于 Link 读取和工具准备，但晚于所有 Swift 节点的更新检查。记录纳入已完成的 Swift 链接输入结果及普通 native 文件／选择状态；同一路径不能掩盖 Swift 结果更新。部署资源与链接二进制分开记录，资源变更且库及需求未变时只更新部署。
+
+资源部署按本次最终输出位置记录输入 metadata 和已发布路径，保留 SwiftPM bundle 原名；相同源 bundle 共用，多个不同源要求同一目标名时在复制前报错。未变化时不读取／复制 bundle，缺少部署副本时从已完成的资源结果补齐。source build、两个独立链接入口都部署到输出程序的相邻目录，`run/test` 对含这些 native 输出的程序执行已发布路径，使 `Bundle.main` 与直接运行同一输出一致。资源内容不进入最终链接键；构建 JSON 的 resources 指向本次已部署位置。bundle 工具从该字段取得静态和动态库的资源，沿已有 payload／更新记录放入 `Contents/Resources`，不把静态 archive 当作运行库复制。
 
 本地可执行文件交付所需非系统 dylib／framework 和 resource bundle，使用相对加载路径；`run` 不依靠生产 scratch 的绝对路径或临时 DYLD_LIBRARY_PATH。缺少部署副本时可从成功缓存发布，已有相同位置的输出命中不反复复制、哈希或覆盖。同名输出冲突在发布前报错。`.app` 的 Resources／Frameworks 布局、路径修改及最终签名由 scoop-bundle 消费 native_outputs 完成；不打包整套 SDK／Swift runtime，不把系统提供的库复制成私有副本。
 

@@ -1,0 +1,8 @@
+package dev.swift.resources
+
+@Extern(lib = "ResourceBridge", name = "scoop_swift_resource")
+fun resourceValue(): Int
+
+fun main() {
+    @Unsafe { println(resourceValue()) }
+}

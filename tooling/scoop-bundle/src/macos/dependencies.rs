@@ -330,15 +330,20 @@ pub fn relocate(
                 format!("@rpath/{}", relative.display()).into(),
             ]);
         }
-        let relative = deploy::relative(
-            code.destination.parent().context("code has no directory")?,
-            Path::new("Contents/Frameworks"),
-        );
-        arguments.extend([
-            "-add_rpath".into(),
-            format!("@loader_path/{}", relative.display()).into(),
-            staged.into_os_string(),
-        ]);
+        if code.dylib || !code.changes.is_empty() {
+            let relative = deploy::relative(
+                code.destination.parent().context("code has no directory")?,
+                Path::new("Contents/Frameworks"),
+            );
+            arguments.extend([
+                "-add_rpath".into(),
+                format!("@loader_path/{}", relative.display()).into(),
+            ]);
+        }
+        if arguments.is_empty() {
+            continue;
+        }
+        arguments.push(staged.into_os_string());
         tools
             .run("install_name_tool", arguments, inputs)
             .with_context(|| format!("relocate {}", code.destination.display()))?;

@@ -128,6 +128,33 @@ public func resource() -> URL { Bundle.module.bundleURL }
         .remove(0)
     };
     let published = publish(&first);
+    let deploy = |product: &SwiftProduct| {
+        crate::native_output::deploy_native_resources(
+            std::slice::from_ref(&product.output),
+            &temp.path().join("program/run"),
+            &temp.path().join("publication-cache"),
+        )
+        .unwrap()
+        .remove(0)
+    };
+    let deployed = deploy(&first);
+    let resource_mtime = deployed.resources[0]
+        .metadata()
+        .unwrap()
+        .modified()
+        .unwrap();
+    assert_eq!(
+        deployed.resources[0].parent(),
+        Some(temp.path().join("program").as_path())
+    );
+    assert_eq!(
+        deploy(&first).resources[0]
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap(),
+        resource_mtime
+    );
     let published_mtime = published.binary.metadata().unwrap().modified().unwrap();
     let description = std::fs::read_to_string(companion.join("native-outputs.json")).unwrap();
     let descriptor: crate::native_output::NativeOutputsDescriptor =
@@ -172,6 +199,16 @@ public func resource() -> URL { Bundle.module.bundleURL }
     assert_eq!(first.output.binary, updated.output.binary);
     assert_ne!(first.deployment_key, updated.deployment_key);
     let resource_publication = publish(&updated);
+    let deployed_updated = deploy(&updated);
+    assert_eq!(deployed_updated.resources, deployed.resources);
+    assert_ne!(
+        deployed_updated.resources[0]
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap(),
+        resource_mtime
+    );
     assert_eq!(
         resource_publication
             .binary

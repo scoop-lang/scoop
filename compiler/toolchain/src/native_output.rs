@@ -9,6 +9,9 @@ use crate::build_record::values;
 
 mod publish;
 pub use publish::publish_native_outputs;
+mod files;
+mod resources;
+pub use resources::deploy_native_resources;
 mod descriptor;
 pub use descriptor::{NativeOutputsDescriptor, read_native_outputs};
 

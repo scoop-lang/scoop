@@ -43,7 +43,9 @@ Windows 快捷方式写入与 bundle.identifier 一致的 AppUserModelID。`bund
 
 PM 识别 `[bundle]` 工具表或外部配置引用，保留原始 TOML 值及诊断来源；字段含义只由 bundle 解析器解释。普通 build/check 不读取外部 bundle 文件、资源、证书或平台打包工具。bundle 表不进入 `ConeManifestSemantic`、`.slib`、语言身份或编译请求。
 
-成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。当前成员 JSON 使用协议 7，HostPathCarrier 的 bytes 是标准 Base64 字符串，按宿主保留 Unix 原始字节或 Windows WTF-16LE；构建结果中的普通字符串及非 Unicode 路径展示继续按其各自格式读取。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
+成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。当前成员 JSON 使用协议 10，HostPathCarrier 的 bytes 是标准 Base64 字符串，按宿主保留 Unix 原始字节或 Windows WTF-16LE；构建结果中的普通字符串及非 Unicode 路径展示继续按其各自格式读取。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
+
+项目构建结果的 `native_outputs[].resources` 提供原生库所需的已部署 resource bundle，macOS 将它们按原名复制到 `Contents/Resources`，静态 Swift 库同样适用。这些资源的路径及 metadata 纳入既有 bundle 更新记录；不读取 Swift 配方或推断 `.a` 内的资源，静态库本身不成为应用 payload。已有程序模式继续由 `bundle.files` 显式声明额外资源。
 
 项目模式的主流程为：
 
@@ -217,7 +219,7 @@ pre-release/build metadata 无法无损映射到某格式时，要求提供该�
 
 平台策略分别为：
 
-- **macOS**：系统 framework 和系统 dylib 由系统提供；选定第三方 framework/dylib 复制到 `Contents/Frameworks`。在副本上调整 `@rpath`、`@loader_path`、`@executable_path` 及 install name，覆盖内部库之间的引用，再进行签名。`.tbd` 只是链接输入，不能当作运行库打包。
+- **macOS**：系统 framework 和系统 dylib 由系统提供；选定第三方 framework/dylib 复制到 `Contents/Frameworks`。在副本上调整 `@rpath`、`@loader_path`、`@executable_path` 及 install name，覆盖内部库之间的引用，再进行签名。只有 dylib 或实际引用私有依赖的 image 才加入 Frameworks 的相对 rpath；没有需调整的装载命令时跳过 install_name_tool，纯静态 bridge 和 resource bundle 不产生额外加载路径。`.tbd` 只是链接输入，不能当作运行库打包。
 - **deb/rpm**：配置列出的私有库随包部署，其他依赖由显式 `depends`/`requires` 声明。ELF SONAME 不是发行版包名，不自行猜测 GTK 等依赖的跨发行版映射。保留系统搜索能力，将私有 RUNPATH 改为实际相对位置。
 - **AppImage**：根据明确的最低系统基线部署非基线依赖。使用 linuxdeploy/appimagetool 等成熟能力处理库和模块，并保留显式文件声明以覆盖 `dlopen`、图像 loader、schema 等无法由普通 ELF imports 推导的输入。
 - **Windows**：按 PE imports 部署实际非系统 DLL及其传递依赖，系统 DLL/API-set 由 Windows 提供。MSVC、LLVM-MinGW 的 CRT/运行库按各自目标选择；不从开发机偶然可见的同名 DLL 替换已选依赖。是否分发 VC runtime 必须显式配置。

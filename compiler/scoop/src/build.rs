@@ -147,12 +147,23 @@ fn prepare(
                     .publish(library, Some(&linked.result_key))
                     .map_err(output_error)?;
             }
+            let deployed = scoop_toolchain::native_output::deploy_native_resources(
+                &linked.native_outputs,
+                output.path(),
+                &cache,
+            )
+            .map_err(output_error)?;
             output
                 .publish(&linked.path, Some(&linked.result_key))
                 .map_err(output_error)?;
+            let executable = if deployed.is_empty() {
+                linked.path
+            } else {
+                output.path().to_owned()
+            };
             Ok((
-                Some((linked.runtime_index, linked.fingerprint, linked.path)),
-                linked.native_outputs,
+                Some((linked.runtime_index, linked.fingerprint, executable)),
+                deployed,
             ))
         };
         let (executable, native_outputs) =

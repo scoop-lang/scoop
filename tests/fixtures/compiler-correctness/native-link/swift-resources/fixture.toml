@@ -1,0 +1,117 @@
+schema = 1
+name = "swift-static-resource-deployment"
+inputs = ["app"]
+tools = ["scoop", "scoopc", "scoop-link"]
+when = { os = "darwin" }
+tags = ["swift", "native-link", "compiler-correctness", "cache", "resources"]
+
+[vars]
+options = ["--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--message-format", "json", "--jobs", "2"]
+
+[[steps]]
+name = "prepare"
+files = [{ copy = { from = "${fixture}/app", to = "${work}/app" } }]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "${work}/app", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/delivery/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${build.result.native_outputs.length}", equals = 1 },
+    { actual = "${build.result.native_outputs.0.resources.length}", equals = 1 },
+]
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "41\n"
+stderr = ""
+
+[[steps]]
+name = "hot_run"
+argv = ["${scoop}", "run", "${work}/app", { each = "${options}" }, { each = "${link_args}" }, "--target-dir", "${work}/run-target"]
+exit = 0
+stdout = "41\n"
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${hot_run.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${hot_run.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}" },
+    { actual = "${hot_run.result.native_outputs.0.binary}", equals = "${build.result.native_outputs.0.binary}" },
+]
+
+[[steps]]
+name = "change_resource"
+files = [{ replace = { path = "${work}/app/native/Sources/ResourceBridge/Resources/value.txt", old = "41", new = "42" } }]
+
+[[steps]]
+name = "changed"
+argv = ["${scoop}", "build", "${work}/app", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/delivery/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${changed.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${changed.result.root.artifact_fingerprint}", equals = "${build.result.root.artifact_fingerprint}" },
+    { actual = "${changed.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}" },
+    { actual = "${changed.result.native_outputs.0.binary}", equals = "${build.result.native_outputs.0.binary}" },
+]
+
+[[steps]]
+name = "copy_program"
+files = [{ copy = { from = "${work}/delivery", to = "${work}/relocated" } }]
+
+[[steps]]
+name = "run_relocated"
+argv = ["${work}/relocated/program"]
+exit = 0
+stdout = "42\n"
+stderr = ""
+
+[[steps]]
+name = "emit"
+argv = ["${scoop}", "build", "${work}/app", "--emit-slib", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/delivery/program.slib"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [{ actual = "${emit.result.dependencies.length}", equals = 1 }]
+
+[[steps]]
+name = "link"
+argv = ["${scoop}", "link", "--root-slib", "${work}/delivery/program.slib", "--dependency-slib", "${emit.result.dependencies.0.path}", "--library-path", "${work}/delivery/program.native", "--sysroot", "${sysroot}", "--cache-dir", "${work}/cache", { each = "${link_args}" }, "--message-format", "json", "-o", "${work}/linked/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run_linked"
+argv = ["${link.result.output}"]
+exit = 0
+stdout = "42\n"
+stderr = ""
+
+[[steps]]
+name = "standalone"
+argv = ["${scoop-link}", "--root-slib", "${work}/delivery/program.slib", "--dep-slib", "${emit.result.dependencies.0.path}", "--library-path", "${work}/delivery/program.native", "--sysroot", "${sysroot}", "--cache-dir", "${work}/cache", { each = "${link_args}" }, "-o", "${work}/standalone/program"]
+exit = 0
+stdout = { regex = "link-plan [0-9a-f]{64}\n" }
+stderr = ""
+
+[[steps]]
+name = "run_standalone"
+argv = ["${work}/standalone/program"]
+exit = 0
+stdout = "42\n"
+stderr = ""
