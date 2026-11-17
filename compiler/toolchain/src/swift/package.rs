@@ -11,6 +11,7 @@ use super::tool::SwiftTools;
 use super::{Input, SwiftBuildRequest, SwiftLibraryFormat, SwiftLinkage, ToolchainError, error};
 use crate::NativeLinkSettings;
 
+mod binaries;
 mod selection;
 
 #[derive(Deserialize)]
@@ -41,6 +42,8 @@ struct Target {
     #[serde(default)]
     target_dependencies: Vec<String>,
     #[serde(default)]
+    product_dependencies: Vec<String>,
+    #[serde(default)]
     module_type: String,
     #[serde(rename = "type")]
     kind: String,
@@ -60,6 +63,24 @@ pub(super) struct Packages {
     manifests: BTreeMap<PathBuf, Manifest>,
     dependencies: BTreeMap<PathBuf, BTreeMap<String, PathBuf>>,
     traits: BTreeMap<PathBuf, BTreeSet<String>>,
+}
+
+pub(super) struct PackageInputs {
+    pub(super) inputs: Vec<Input>,
+    pub(super) selections: Vec<Selection>,
+    pub(super) settings: NativeLinkSettings,
+    pub(super) binaries: Vec<crate::NativeLibraryDependency>,
+}
+
+impl Target {
+    fn linked(&self, package: &Path, plan: &BuildPlan) -> bool {
+        self.sources.iter().any(|source| {
+            plan.link_inputs
+                .contains(&package.join(&self.path).join(source))
+        }) || plan
+            .link_inputs
+            .contains(&plan.bin.join(format!("{}.o", self.c99name)))
+    }
 }
 
 impl Packages {
@@ -204,7 +225,7 @@ impl Packages {
         tools: &SwiftTools,
         scratch: &Path,
         plan: &BuildPlan,
-    ) -> Result<(Vec<Input>, Vec<Selection>, NativeLinkSettings), ToolchainError> {
+    ) -> Result<PackageInputs, ToolchainError> {
         let mut files = BTreeSet::from([
             request.package.join("Package.resolved"),
             scratch.join("workspace-state.json"),
@@ -221,6 +242,8 @@ impl Packages {
             })
             .collect::<Result<BTreeMap<_, _>, ToolchainError>>()?;
         let selected = self.selected_targets(request, &descriptions, plan)?;
+        let binaries =
+            self.binary_inputs(request, &descriptions, plan, &mut files, &mut selections)?;
         for (path, manifest) in &self.manifests {
             add_selection(path.clone(), Rule::Manifests, &mut files, &mut selections)?;
             add_selection(
@@ -258,6 +281,17 @@ impl Packages {
                         ))
                     })?;
                 let root = path.join(&target.path);
+                if target.kind == "binary" {
+                    // ProcessXCFramework inputs are recorded by binary_inputs;
+                    // executable artifact bundles belong to host build tools.
+                    if !plan
+                        .binary_artifacts
+                        .contains_key(&root.canonicalize().map_err(error)?)
+                    {
+                        add_selection(root, Rule::All, &mut files, &mut selections)?;
+                    }
+                    continue;
+                }
                 let paths = |key: &str| {
                     raw[key]
                         .as_array()
@@ -290,12 +324,7 @@ impl Packages {
                     &mut files,
                     &mut selections,
                 )?;
-                let linked = target.sources.iter().any(|source| {
-                    plan.link_inputs
-                        .contains(&path.join(&target.path).join(source))
-                }) || plan
-                    .link_inputs
-                    .contains(&plan.bin.join(format!("{}.o", target.c99name)));
+                let linked = target.linked(path, plan);
                 if request.linkage == SwiftLinkage::Static && linked {
                     settings.add_manifest_target(raw, request.configuration, &self.traits[path])?;
                 }
@@ -336,7 +365,12 @@ impl Packages {
             .iter()
             .map(|path| Input::read(path))
             .collect::<Result<_, _>>()?;
-        Ok((inputs, selections, settings))
+        Ok(PackageInputs {
+            inputs,
+            selections,
+            settings,
+            binaries,
+        })
     }
 }
 

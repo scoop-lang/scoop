@@ -128,3 +128,77 @@ fn exact_archive_and_framework_follow_only_selected_member_autolinks() {
         );
     }
 }
+
+#[test]
+fn archive_alternatives_are_lazy_but_extracted_strong_definitions_conflict() {
+    let fixture = test_support::native_fixture();
+    let root = fixture.directory.path().join("lazy-archives");
+    std::fs::create_dir(&root).unwrap();
+    let archive = |name: &str, source: &str| {
+        let path = root.join(format!("{name}.c"));
+        let object = root.join(format!("input-{name}.o"));
+        std::fs::write(&path, source).unwrap();
+        test_support::compile_native(&fixture.profile, &path, &object);
+        let library = root.join(format!("lib{name}.a"));
+        let result = Command::new("/usr/bin/ar")
+            .arg("rcs")
+            .arg(&library)
+            .arg(object)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        library
+    };
+    archive(
+        "A",
+        "int shared(void) { return 42; } int a(void) { return 1; }",
+    );
+    archive(
+        "B",
+        "int shared(void) { return 42; } int b(void) { return 2; }",
+    );
+    let declarations = "__asm__(\".linker_option \\\"-lA\\\"\"); __asm__(\".linker_option \\\"-lB\\\"\"); extern int shared(void), a(void), b(void);";
+    let binary = archive(
+        "Entry",
+        &format!("{declarations} int m23_final(int value) {{ return shared(); }}"),
+    );
+    let output = NativeLibraryOutput {
+        name: "m23_final".into(),
+        linkage: SwiftLinkage::Static,
+        format: SwiftLibraryFormat::Library,
+        library: binary.clone(),
+        binary,
+        dependencies: Vec::new(),
+        resources: Vec::new(),
+        settings: NativeLinkSettings::default(),
+    };
+    let link = || {
+        link_program(
+            &fixture.closure,
+            &fixture.runtime,
+            &fixture.profile,
+            ProgramLinkOptions {
+                native_outputs: std::slice::from_ref(&output),
+                ..Default::default()
+            },
+            std::slice::from_ref(&root),
+            &root.join("program"),
+            &root.join("cache"),
+        )
+    };
+    let linked = link().unwrap();
+    let run = Command::new(&linked.path).output().unwrap();
+    assert!(run.status.success());
+    assert_eq!(run.stdout, b"42\n");
+    archive(
+        "Entry",
+        &format!("{declarations} int m23_final(int value) {{ return a() + b(); }}"),
+    );
+    let failure = link().unwrap_err();
+    assert!(failure.to_string().contains("conflicts"), "{failure}");
+    assert!(failure.to_string().contains("_shared"), "{failure}");
+}

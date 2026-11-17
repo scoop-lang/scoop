@@ -28,11 +28,14 @@
 - 2026-11-18：Mach-O 动态依赖区分普通 load、weak-load 与 re-export；弱依赖无候选时可缺席，实际候选仍检查目标与版本。缺席查找进入缓存输入，新增可选库会重新链接；link plan 升为 v8，source final cache 升为 v4。
 - 本项验证：相关格式化／clippy 通过；AArch64 [weak-load fixture](../../tests/fixtures/compiler-correctness/native-link/dynamic-weak/fixture.toml) 通过 12 个进程步骤，覆盖缺席运行、热复用、实际库出现、版本不相容与强依赖缺失。已有 loader-path 与 re-export 两项 fixture 的 3 个变体、22 个进程步骤通过。初次回归遗漏 LLD 环境及复用残留 work 目录导致的准备失败均已闭合；没有开始 x86-64 验证。
 
+- 2026-11-18：实际 ProcessXCFramework 的选中 slice 纳入更新记录，consumer 的 binary target 作为独立原生依赖快照及配套文件交付；宿主工具依赖不提升为 consumer 库。修正 Darwin archive 惰性候选处理：SwiftPM 已合入归档的二进制依赖与保留的 autolink 可以共存，两个成员实际抽取后的重复强定义仍报错。使用维护中的 plist 库读取容器描述，并同步主 workspace 与 runtime_builder 的锁文件。
+- 本项验证：相关格式化／clippy、2 项真实 archive 链接测试和 6 项发行许可测试通过，runtime_builder 的 locked 依赖解析通过。AArch64 [binary target fixture](../../tests/fixtures/compiler-correctness/native-link/swift-binary/fixture.toml) 通过 14 个进程步骤，覆盖跨包静态二进制依赖、frozen 命中、替换归档后 42→43、Scoop 编译复用、配套目录复制及两个独立链接入口。另用真实 versioned 静态 framework／XCFramework 验证相同交付，两入口复制后均返回 42；输入和原产物保持存在。初次探针暴露的 autolink 重复候选及单测对象命名导致的搜索歧义已闭合。
+
 ## 后续工作与验收
 
-1. 补齐真实宏、prebuild 诊断和二进制输入交付，并执行正式构建缓存与共享源码、锁定／离线验收；跨包 build plugin 与传递生成工具已验证。
+1. 补齐真实宏、prebuild 诊断，并执行共享源码、锁定／离线验收；跨包 build plugin、传递生成工具及静态 binary target 交付已验证。
 2. 补齐动态依赖的部署验收与 compatibility archive 组合覆盖；weak-load、re-export／rpath 的链接行为已定向通过，基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
-3. 动态库部署和 bundle 交接；配套目录的非系统依赖补齐二进制 target／实际传递加载输入。静态资源的 CLI／app 交付已完成。
+3. 动态库部署和 bundle 交接；配套目录的非系统依赖补齐实际传递加载输入。静态资源的 CLI／app 交付及静态 binary target 配套目录已完成。
 4. macOS 双架构正式 CLI fixture：真实 @c 调用、传递依赖变化、命中调用计数、并发与失败、资源读取和可重定位交付。
 5. 同步 CLI help、编程参考与可运行示例；完成最终合同审查。
 

@@ -116,7 +116,7 @@ impl SwiftBuildRequest {
         let package_key = build_record::fingerprint(&path(&package)?)?;
         // Layout is deliberately absent: a framework can reuse the same product.
         let key = build_record::fingerprint(&(
-            3u32,
+            4u32,
             path(&package)?,
             library.product().as_str(),
             library.linkage(),
@@ -248,17 +248,20 @@ impl PendingSwiftBuild {
                 let plan =
                     plan::BuildPlan::read(&scratch, &bin, &request.product, request.linkage)?;
                 packages.discover(request, &tools, &scratch)?;
-                let (inputs, selections, settings) =
-                    packages.inputs(request, &tools, &scratch, &plan)?;
+                let inputs = packages.inputs(request, &tools, &scratch, &plan)?;
                 let result = product::publish(
                     request,
                     &bin,
                     &plan,
-                    selections,
-                    settings,
+                    inputs.selections,
+                    inputs.settings,
+                    inputs.binaries,
                     packages.has_framework_module(request),
                 )?;
-                Ok(Record { inputs, result })
+                Ok(Record {
+                    inputs: inputs.inputs,
+                    result,
+                })
             },
         )?;
         product::layout(request, &record.result)

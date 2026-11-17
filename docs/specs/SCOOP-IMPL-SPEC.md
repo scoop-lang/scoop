@@ -1266,6 +1266,8 @@ Swift 配方不进入已有 C/C++ native 对象键或 Scoop 源码编译键。li
 
 插件脚本可能在 Swift Build 主计划之外运行；从已选 target 的 plugin usage 沿 SwiftPM 已解析的直接包依赖定位插件 target，把本包及跨包插件源码选择纳入记录。实际主计划中的生成工具、其传递源码和声明输入继续按真实命令依赖跟踪。主产品的对象／归档输入另投影出 consumer 链接设置，宿主生成工具的链接设置不向 Scoop 程序传播；包级 traits 条件采用 SwiftPM 解析后的启用集合，不重新求解版本或 traits。
 
+SwiftPM 的 binary target 继续由 Swift 工具选择和处理。本适配器记录真实 ProcessXCFramework 节点的来源与输出，更新输入包含其 Info.plist 和本次 macOS／架构选中的 slice；其他独立 slice 的内容不使当前生产失效。实际 consumer 对象所属 target 的 binary 依赖作为配套 archive／dylib／framework 保存，宿主插件工具的 binary 依赖只参与其生产更新。静态产品未合入这些独立文件时，由最终按成员 autolink 或普通链接设置引用；配套文件的存在本身不强制载入全部 archive 成员。本阶段不生产 XCFramework 容器。
+
 目录 metadata 变化先重新枚举并应用已记录的输入选择，排除项变化不使 product 失效；附加 inputs 中的目录递归覆盖。未选输入按独立文件／target／product 区分，已选 Swift 文件内的未激活分支或已用 Package.swift 内的其他 target 声明被修改，仍按整个输入文件变化处理。自动发现文件删除触发重新发现；仍需使用的显式／实际依赖输入缺失才报错，不增加 Swift 语义比较器。
 
 清单或插件读取的包外文件、目录和业务环境必须由正常依赖输出或 `inputs`／`env` 声明覆盖；声明者负责列出这类额外输入，不引入任意 Swift 程序的文件访问证明或来源审核。无法表达更新输入且要求每次执行的 prebuild 不属于首期缓存生产合同，明确诊断；不得以每次调用 SwiftPM 做空构建替代命中判断。
@@ -1391,6 +1393,8 @@ Windows 同样接受普通 COFF archive。short import member 单独保存其 DL
 Windows 显式 library roots 的 TargetDefault 候选为 `L.obj`、`L.o`、`L.lib`、`libL.a`、`libL.dll.a`；StaticArchive 取普通 archive，包括含普通定义成员并附带 imports 的混合 archive（例如 Rust staticlib），不把静态库自身的 DLL 依赖误当成整份库是 import library。纯 import library 不匹配 StaticArchive；Dynamic 取实际包含 imports 的 archive，不凭 `.lib` 扩展名区分。短格式 import 与 GNU `.idata$*` 长格式 import 都将原 archive 交给 PE linker，保留原成员的导入表分组；长格式 import 不作为独立普通对象抽取。长格式 code section 中未标 function type 的 thunk 仍是函数，只有 `__imp_` 定义的数据 import 仍可匹配源级数据名称；IAT 本身的只读属性不代表 DLL 数据只读。roots、目标 sysroot、已选 SDK／MinGW provider 的顺序不变，framework 在 Windows 不适用。显式库仍检查符号归属和已知种类；未被显式库约束的普通 native 引用允许由真实 PE linker 按对象 directives／CRT defaults 完成，不另建立封闭的 Windows API 符号名单。实际 linker trace 的外部输入进入 executable 更新记录。
 
 尚未满足的 native 引用在候选选择时保留 Strong／Common／Weak 绑定，按下述目标优先级排除较弱候选；不能将一个强定义与 archive 中的弱后备实现误报为多 provider 歧义。最高优先级有多个 Strong 时仍报歧义；仅有同级 Weak／Common 时，优先复用 namespace provider，否则按既有 native 输入顺序选择。已经引入的对象定义继续按平台规则满足引用，不为查找另一个后备实现额外抽取 archive member；显式 library 的归属检查不变。
+
+Darwin 的尚未抽取 archive 成员按惰性链接处理：最高优先级候选均来自 archive 时，按已有 native 输入顺序抽取第一个，再由新增引用继续闭合；不能把仅存在于其他未选成员中的强定义当作已经发生的冲突。SwiftPM 将二进制依赖合入产品归档、同时对象仍保留该依赖的 autolink 时，也采用这一规则，不要求字节相等证明或生产来源声明。若其他引用使两个成员都被实际抽取，重复强定义仍在加入第二个对象时报告；动态 provider 的歧义与显式库归属保持原规则。
 
 COFF import library 中的导入条目是供 PE linker 惰性选择的引用，不是已抽取的普通对象强定义。默认 namespace 有多个 import library 提供同名条目时，按既有 native 输入顺序选择第一个，例如 kernel32 与 ntdll 都提供 RtlLookupFunctionEntry；不因同时声明这两个正常系统库而报重复强定义，也不声称不同 DLL 的导出必然等价。显式 SourceExtern library 仍先限定候选来源，普通对象的 Strong 冲突规则不变。短格式与 GNU 长格式 import 采用同一选择规则，最终链接使用相同输入顺序和原 import archive。
 

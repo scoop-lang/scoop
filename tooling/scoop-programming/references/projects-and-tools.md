@@ -109,6 +109,8 @@ when = { os = "darwin" }
 
 Swift 源码、传递本地依赖、资源和 Package.resolved 加入更新检查；只改 Swift 实现时复用 Scoop `.slib`。清单／插件读取的额外文件和环境变量分别声明为 `inputs`、`env`；`Cone.lock` 与 Swift 的 `Package.resolved` 各自管理依赖选择。命中不调用 Swift、不检查远端新版本。
 
+Swift package 可按 SwiftPM 的 `.binaryTarget` 引入已有 XCFramework；构建会记录本次选中的 slice，并将 consumer 所需的 `.a`／framework 交付到配套目录。替换 binary target 的归档会更新最终链接；不需要为同一依赖另写 Scoop `native.libraries` 或手动添加 Swift scratch 的搜索路径。跨包 build plugin 的脚本、生成工具及其声明输入同样参与更新检查。
+
 库构建和 `--emit-slib` 交付相邻 `<stem>.native/`；搬迁时一起复制，并向 `scoop link` 传 `--library-path <stem>.native`，独立链接不构建 Swift。SwiftPM resource bundle 随程序发布到相邻目录，`scoop bundle` 的项目入口自动放入 app 的 `Contents/Resources`；只改资源不重新链接。仓库中的 [CoreText bridge](../../../tests/fixtures/compiler-correctness/native-link/swift-system-framework/fixture.toml) 覆盖两个函数、依赖传递、Swift 变更与独立链接。可重定位动态库部署仍在完善，静态系统 framework bridge 可按此路径接入；自动包装及 bindgen 属于下一阶段。
 
 ## 语言服务查询

@@ -1,0 +1,153 @@
+schema = 1
+name = "swift-static-binary-dependency"
+inputs = ["app", "vendor", "NativeKit.c", "Info.aarch64-apple-darwin.plist", "Info.x86_64-apple-darwin.plist"]
+tools = ["scoop", "scoopc", "scoop-link", "cc", "ar"]
+when = { os = "darwin" }
+tags = ["swift", "native-link", "compiler-correctness", "cache"]
+
+[vars]
+options = ["--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--message-format", "json", "--jobs", "2"]
+
+[[steps]]
+name = "prepare"
+files = [
+    { copy = { from = "${fixture}/app", to = "${work}/app" } },
+    { copy = { from = "${fixture}/vendor", to = "${work}/vendor" } },
+    { copy = { from = "${fixture}/Info.${target}.plist", to = "${work}/vendor/NativeKit.xcframework/Info.plist" } },
+    { copy = { from = "${fixture}/NativeKit.c", to = "${work}/NativeKit.c" } },
+]
+
+[[steps]]
+name = "compile_native"
+argv = ["${cc}", {each = "${cc_args}"}, "-c", "${work}/NativeKit.c", "-o", "${work}/NativeKit.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "archive_native"
+argv = ["${ar}", "rcs", "${work}/vendor/NativeKit.xcframework/macos/libNativeKit.a", "${work}/NativeKit.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "${work}/app", {each = "${options}"}, {each = "${link_args}"}, "-o", "${work}/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${build.result.native_outputs.0.dependencies.length}", equals = 1 },
+    { actual = "${build.result.native_outputs.0.dependencies.0.name}", equals = "NativeKit" },
+    { actual = "${build.result.native_outputs.0.dependencies.0.linkage}", equals = "static" },
+]
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "42\n"
+stderr = ""
+
+[[steps]]
+name = "hot"
+argv = ["${scoop}", "build", "${work}/app", "--frozen", {each = "${options}"}, {each = "${link_args}"}, "-o", "${work}/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${hot.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${hot.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}" },
+    { actual = "${hot.result.native_outputs}", equals = "${build.result.native_outputs}" },
+]
+
+[[steps]]
+name = "change_binary_source"
+files = [{ replace = { path = "${work}/NativeKit.c", old = "42", new = "43" } }]
+
+[[steps]]
+name = "recompile_native"
+argv = ["${cc}", {each = "${cc_args}"}, "-c", "${work}/NativeKit.c", "-o", "${work}/NativeKit.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "replace_binary_input"
+argv = ["${ar}", "rcs", "${work}/vendor/NativeKit.xcframework/macos/libNativeKit.a", "${work}/NativeKit.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "changed"
+argv = ["${scoop}", "build", "${work}/app", "--frozen", {each = "${options}"}, {each = "${link_args}"}, "-o", "${work}/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${changed.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${changed.result.root.artifact_fingerprint}", equals = "${build.result.root.artifact_fingerprint}" },
+    { actual = "${changed.result.link_plan_fingerprint}", not_equals = "${build.result.link_plan_fingerprint}" },
+]
+
+[[steps]]
+name = "run_changed"
+argv = ["${changed.result.output}"]
+exit = 0
+stdout = "43\n"
+stderr = ""
+
+[[steps]]
+name = "emit"
+argv = ["${scoop}", "build", "${work}/app", "--emit-slib", {each = "${options}"}, {each = "${link_args}"}, "-o", "${work}/delivery/program.slib"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { file = "${work}/delivery/program.native/libraries/libBinaryBridge.a", exists = true },
+    { file = "${work}/delivery/program.native/libraries/libNativeKit.a", exists = true },
+]
+
+[[steps]]
+name = "copy_delivery"
+files = [{ copy = { from = "${work}/delivery", to = "${work}/relocated" } }]
+
+[[steps]]
+name = "link"
+argv = ["${scoop}", "link", "--root-slib", "${work}/relocated/program.slib", "--dependency-slib", "${emit.result.dependencies.0.path}", "--library-path", "${work}/relocated/program.native", "--sysroot", "${sysroot}", "--cache-dir", "${work}/cache", {each = "${link_args}"}, "--message-format", "json", "-o", "${work}/relocated/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run_linked"
+argv = ["${link.result.output}"]
+exit = 0
+stdout = "43\n"
+stderr = ""
+
+[[steps]]
+name = "standalone"
+argv = ["${scoop-link}", "--root-slib", "${work}/relocated/program.slib", "--dep-slib", "${emit.result.dependencies.0.path}", "--library-path", "${work}/relocated/program.native", "--sysroot", "${sysroot}", "--cache-dir", "${work}/cache", {each = "${link_args}"}, "-o", "${work}/relocated/standalone"]
+exit = 0
+stdout = { regex = "link-plan [0-9a-f]{64}\n" }
+stderr = ""
+
+[[steps]]
+name = "run_standalone"
+argv = ["${work}/relocated/standalone"]
+exit = 0
+stdout = "43\n"
+stderr = ""

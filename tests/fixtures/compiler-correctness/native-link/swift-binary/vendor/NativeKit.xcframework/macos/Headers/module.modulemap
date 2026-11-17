@@ -1,0 +1,1 @@
+module NativeKit { header "NativeKit.h" link "NativeKit" export * }

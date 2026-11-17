@@ -67,6 +67,7 @@ pub(super) fn publish(
     plan: &BuildPlan,
     selections: Vec<Selection>,
     settings: NativeLinkSettings,
+    mut dependencies: Vec<crate::NativeLibraryDependency>,
     single_module: bool,
 ) -> Result<Produced, ToolchainError> {
     let bin = bin.canonicalize().map_err(error)?;
@@ -79,7 +80,7 @@ pub(super) fn publish(
         }
     ));
     let mut libraries = vec![main.clone()];
-    libraries.extend(
+    dependencies.extend(
         plan.outputs
             .iter()
             .filter(|path| {
@@ -87,9 +88,39 @@ pub(super) fn publish(
                     && path.extension().is_some_and(|ext| ext == "dylib")
                     && **path != main
             })
-            .cloned(),
+            .cloned()
+            .map(crate::NativeLibraryDependency::dylib)
+            .collect::<Result<Vec<_>, _>>()?,
     );
+    dependencies.sort_by(|left, right| left.library.cmp(&right.library));
+    dependencies.dedup_by(|left, right| left.library == right.library);
+    libraries.extend(
+        dependencies
+            .iter()
+            .map(|dependency| dependency.library.clone()),
+    );
+    let mut names = BTreeSet::new();
+    for library in &libraries {
+        if !names.insert(library.file_name()) {
+            return Err(error(format!(
+                "conflicting Swift native output {}",
+                library.display()
+            )));
+        }
+    }
     let binary = snapshot(request, "binaries", &libraries)?;
+    for (dependency, published) in dependencies.iter_mut().zip(&binary.files[1..]) {
+        let relative = dependency
+            .binary
+            .strip_prefix(&dependency.library)
+            .map_err(error)?;
+        dependency.binary = if relative.as_os_str().is_empty() {
+            published.clone()
+        } else {
+            published.join(relative)
+        };
+        dependency.library = published.clone();
+    }
     let module = bin.join(format!("{}.swiftmodule", request.product));
     let modules = snapshot(
         request,
@@ -130,11 +161,7 @@ pub(super) fn publish(
                 format: SwiftLibraryFormat::Library,
                 library: binary.files[0].clone(),
                 binary: binary.files[0].clone(),
-                dependencies: binary.files[1..]
-                    .iter()
-                    .cloned()
-                    .map(crate::NativeLibraryDependency::dylib)
-                    .collect::<Result<_, _>>()?,
+                dependencies,
                 resources: resources.files,
                 settings,
             },

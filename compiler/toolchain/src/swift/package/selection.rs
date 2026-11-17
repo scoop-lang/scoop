@@ -127,7 +127,7 @@ impl Packages {
         Ok(selected)
     }
 
-    fn matches_package(
+    pub(super) fn matches_package(
         &self,
         owner: &Path,
         identity: &str,

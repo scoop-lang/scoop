@@ -15,6 +15,8 @@ struct Manifest {
 #[derive(Clone, Deserialize)]
 pub(super) struct BuildCommand {
     #[serde(default)]
+    tool: String,
+    #[serde(default)]
     pub(super) description: String,
     #[serde(default)]
     inputs: Vec<String>,
@@ -51,6 +53,7 @@ pub(super) struct BuildPlan {
     pub(super) outputs: BTreeSet<PathBuf>,
     pub(super) link_inputs: BTreeSet<PathBuf>,
     pub(super) link_commands: Vec<BuildCommand>,
+    pub(super) binary_artifacts: BTreeMap<PathBuf, BTreeSet<PathBuf>>,
 }
 
 impl BuildPlan {
@@ -191,6 +194,27 @@ impl BuildPlan {
                 }
             }
         }
+        let binary_artifacts = commands
+            .iter()
+            .filter(|command| command.tool == "process-xcframework")
+            .map(|command| {
+                let source = command
+                    .inputs
+                    .iter()
+                    .filter_map(|path| file_path(path))
+                    .find(|path| {
+                        path.extension()
+                            .is_some_and(|extension| extension == "xcframework")
+                    })
+                    .ok_or_else(|| error("Swift ProcessXCFramework has no source container"))?;
+                let outputs = command
+                    .outputs
+                    .iter()
+                    .filter_map(|path| file_path(path))
+                    .collect();
+                Ok((source, outputs))
+            })
+            .collect::<Result<_, ToolchainError>>()?;
         Ok(Self {
             bin: bin.canonicalize().map_err(error)?,
             inputs: leaf_inputs,
@@ -198,6 +222,7 @@ impl BuildPlan {
             outputs,
             link_inputs,
             link_commands,
+            binary_artifacts,
         })
     }
 }
