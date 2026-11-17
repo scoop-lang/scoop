@@ -94,7 +94,7 @@ abstract 类型继续遵守原有抽象 requirement 规则，不为允许保留�
 
 ### 2.3 宿主工具注册
 
-`scoop.codec` 默认注册到随工具链分发的宿主程序 `scoop-codec-generator`；这只提供“名称→程序”的工具配置，不自动为任何 interface 或实现类型创建生成绑定。首版通过可重复的 CLI 选项提供自定义绑定，`scoop build/run/test` 和 `scoopc build` 使用同一含义：
+`scoop.codec` 与 `scoop.cli` 分别默认注册到随工具链分发的宿主程序 `scoop-codec-generator` 与 `scoop-cli-generator`；这只提供“名称→程序”的工具配置，不自动为任何 interface 或实现类型创建生成绑定。首版通过可重复的 CLI 选项提供自定义绑定，`scoop build/run/test` 和 `scoopc build` 使用同一含义：
 
 ```text
 --generator my.generator=/absolute/path/to/my-generator

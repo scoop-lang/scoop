@@ -75,7 +75,7 @@ public struct Row(val id: Int, val bias: Int = defaultBias(id)) {
 }
 ```
 
-原先的次构造器 `constructor(id: Int) : this(id, 99)` 会截获省略 `bias` 的调用。把它改为 `fromLegacyId` 后，`Row(id = 5)` 得到 `bias == 7`，`Row.fromLegacyId(5)` 得到 `99`。自动解码只走主构造器。若解码或 CLI 绑定本身也需要业务工厂，用户可以手写对应的 `decode` 或 `bind`，显式调用该工厂，其他缺失方法仍可生成。
+原先的次构造器 `constructor(id: Int) : this(id, 99) {}` 会截获省略 `bias` 的调用。把它改为 `fromLegacyId` 后，`Row(id = 5)` 得到 `bias == 7`，`Row.fromLegacyId(5)` 得到 `99`。自动解码只走主构造器。若解码或 CLI 绑定本身也需要业务工厂，用户可以手写对应的 `decode` 或 `bind`，显式调用该工厂，其他缺失方法仍可生成。
 
 **缺失字段通过省略具名实参处理。** 生成方法先读完输入并完成容器检查，再根据已保存的字段值执行一次普通构造调用。例如 `suppliedBias: Option<Int>` 表示输入中 `bias` 的存在性，构造部分只需以下源码。
 

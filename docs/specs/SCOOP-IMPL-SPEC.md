@@ -1209,7 +1209,7 @@ machine transport 为一次 request/response 的 length-prefixed canonical CBOR�
 
 protocol 19 的 current 输入为 ExpandedCone（tag 3）或 SingleFile（tag 2）；旧 ManifestRoot tag 1 不再接受。ExpandedCone 的 field 1 保存包管理规范 7.1 的 ExpandedConeInputV1 UTF-8 JSON 字节，沿用现有 CBOR frame，不生成临时清单或源码树。parent 交付已绑定依赖的生产/测试配置、原始清单诊断文本及 host 路径；child 只解码必要格式与引用，不重新读取或解释原始清单。native 准备同样复用 parent 已加载的配置。独立 scoop-pm 的 JSON prepare 协议由包管理规范 7 定义；两种协议各自检查版本，不扩展成可协商任意构建任务的服务协议。
 
-本机编译结果保存在 `compile-v4`：按输入键保存普通 `record.cbor`（生产摘要、warning 与实际 generator 工具输入）。成功 response 的 field 5 返回实际调用的名称、所选程序路径、generator 协议版本和程序修改时间／大小；v1 没有额外生成器选项，程序更新状态表示实际工具版本，不额外启动版本探测。命中先按已用名称比较当前绑定和程序状态，未使用的注册不参与输入键或失效；缺失／变化使该 Cone 正常重编译。默认 scoop.codec 程序相对于实际选中的 scoopc 安装位置解析。
+本机编译结果保存在 `compile-v4`：按输入键保存普通 `record.cbor`（生产摘要、warning 与实际 generator 工具输入）。成功 response 的 field 5 返回实际调用的名称、所选程序路径、generator 协议版本和程序修改时间／大小；v1 没有额外生成器选项，程序更新状态表示实际工具版本，不额外启动版本探测。命中先按已用名称比较当前绑定和程序状态，未使用的注册不参与输入键或失效；缺失／变化使该 Cone 正常重编译。内置的 scoop.codec 与 scoop.cli 分别解析到所选 scoopc 同目录的 scoop-codec-generator 与 scoop-cli-generator。
 
 同一输入键下的不同 generator 结果按生产摘要中已有的 artifact fingerprint 分目录保存 `artifact.slib` 与其 dumps，使新绑定产生的结果不覆盖仍被其他构建使用的路径。记录只指向最近完成的结果，旧版本路径不在发布时删除；这仍是普通编译缓存，不另建 generator 缓存。命中只读记录、比较实际输入并检查所需输出是否存在；输出数据在真正的编译／链接消费者需要时才读取。编译成功后的输出经 rename 发布，记录普通原子替换，不读回、同步落盘或比较并发产物。取得构建锁后重查输入与结果即可复用。库的用户输出在目标位置旁保存所对应结果的普通记录；未变化且文件存在时不读回或重新复制。相同位置改为可执行文件时废止此前库输出记录，不使下一次库构建误用其他构建结果。
 
@@ -1852,7 +1852,7 @@ ARM64 release 复用已有分配 context 的首次使用机制，在一次 invoc
 
 语言规范 11.17 的 inspect 合成在 HIR lowering 复用普通 requirement 选择、方法签名登记、成员访问和显式依赖选择；生成普通 typed 读取、活动 variant 分支、闭包及 core 视图构造。合成作用域保持实现声明的实际 owner 与 source file，不增加成员访问许可。共享正文保存已选成员／inspector 与词法捕获，后续泛型具体化只替换参数。ValueView、集合 inspector 与 DebugPrinter 是普通 core 源码；MIR、LIR 与 runtime 不解释 DebugIgnore／DebugRedact 或读取反射字段。没有专用布局、全局 inspector 表或新的 wire 格式。
 
-语言规范 12.7 的 scoop.cli 完全由普通库源码实现：ClassInfo.isFinal 直接读取已有 class modifier；schema 使用描述中的成员／primary constructor 关联与原声明 Option 事实，在构造边界检查一次配置。argv 归一化、稳定 Decoder、数值文本及 help 不进入编译器 stage，复用已有浮点文本 extern ABI。
+语言规范 12.7 的 `scoop-cli-generator` 通过 2.20 的宿主协议查询字段、主构造器与原声明 Option，给所选 `CliArguments<T>` 生成参数表和绑定正文。`scoop.cli` 在建立 parser 时检查布局。argv 扫描、字段转换、错误位置和 help 由普通库实现，浮点文本转换复用既有 extern ABI。
 
 concrete HIR 的 TypeIdentityLiteral 指向已完全绑定的 TypeId，值类型固定为 String。MIR lower 只从现成 exact-type 表读取该 id 的十六进制 bytes 并生成普通 StringConst；不重新计算身份、遍历字段或解释描述。这让描述函数沿同一实例化队列生成，身份仍由原最终关系统一建立。
 
@@ -1874,9 +1874,11 @@ property accessor 的 Storage、Constant、Body、AbstractSlot、StorageBody tag
 
 companion 继承直接宿主的 binder 与 bound，不捕获宿主实例或 primary 参数值；ordinary static nested declaration 隔断该 binder。companion declaration、完整 application 和 concrete singleton 分别有身份，泛型状态共享规则见 2.13。
 
-ValueEncoder<R>.encode 与 ValueDecoder<R>.decode 是实际 companion/codec 的普通方法，receiver 与数据参数/结果独立。手写、继承与 default 先按语言规则选定，仅为缺失的 requirement 合成方法；字段 codec、variant、constructor 和默认值在定义处完成选择。
+ValueEncoder<R>.encode 与 ValueDecoder<R>.decode 是实际 companion/codec 的普通方法，receiver 与数据参数/结果独立。手写、继承与 default 先按语言规则选定。仅将显式选择且缺少正文的方法交给生成器。生成方法中的字段 codec、variant 和构造器调用都在定义处检查。
 
 核心Option/Array/MutableArray/ArrayList的编码／解码字段先检查完整字段的显式依赖和递归this，再递归选择元素codec并调用既有工厂，最后才考虑其他名义类型的默认companion（语言规范11.13.4）。新增核心容器的条件companion关系不能遮蔽已注入的元素策略；选择仍只产生已有普通调用和投影，不新增IR或runtime合同。ValueInspector的既有选择规则不变。
+
+`scoop-codec-generator` 通过 2.20 的宿主进程协议接收显式选择的编码和解码方法，读取公共语义查询后返回普通 Scoop 正文。字段策略、形状诊断、默认值分支和构造均由生成器负责，HIR lowering 使用普通方法检查路径。
 
 Serialize 的 rename／required／emitNull／ignore 来自同一已绑定 annotation 配置，当前源码与依赖使用已有静态值，不扩展 wire 参数值域。字段的声明处 Option 事实从原成员已绑定、展开 alias 的类型取得；具体化后不重新推断。None 省略只检查 default 的直接 typed None 表达式，不执行 default 或通用常量等价性分析。合成结果为普通 typed 字段访问、Option presence 分支、None 值、调用、控制流、闭包与构造；encode/decode 分别保留语言规范 11.13 的求值顺序、缺失字段处理和可见性。Export HIR 保存完整正文及支持声明，下游只实例化，不重新解释 annotation 或搜索 codec。
 
