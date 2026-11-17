@@ -12,6 +12,7 @@ members = [
     "compiler/manifest",
     "compiler/protocol",
     "compiler/generator-protocol",
+    "compiler/generators",
     "compiler/toolchain",
     "compiler/linker",
     "compiler/scoop",

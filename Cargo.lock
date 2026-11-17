@@ -1153,6 +1153,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "scoop-generators"
+version = "0.0.0"
+dependencies = [
+ "lsp-server",
+ "scoop-generator-protocol",
+ "scoop-identity",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "scoop-hir"
 version = "0.0.0"
 dependencies = [
