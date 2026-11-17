@@ -20,7 +20,7 @@ use crate::{
 pub struct Code {
     pub source: PathBuf,
     pub destination: PathBuf,
-    pub libraries: Vec<String>,
+    pub libraries: Vec<Load>,
     pub rpaths: Vec<String>,
     pub dylib: bool,
     pub executable: bool,
@@ -28,6 +28,12 @@ pub struct Code {
     pub thin_arch: Option<&'static str>,
     pub minimum: u32,
     pub changes: Vec<(String, PathBuf)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Load {
+    pub name: String,
+    pub weak: bool,
 }
 
 pub struct Collected {
@@ -71,10 +77,21 @@ fn describe(mach: MachO<'_>, source: &Path, destination: &Path, cpu: u32) -> Res
         source: source.into(),
         destination: destination.into(),
         libraries: mach
-            .libs
+            .load_commands
             .iter()
-            .filter(|v| **v != "self")
-            .map(|v| (*v).into())
+            .filter_map(|command| match command.command {
+                CommandVariant::LoadWeakDylib(_) => Some(true),
+                CommandVariant::LoadDylib(_)
+                | CommandVariant::LoadUpwardDylib(_)
+                | CommandVariant::ReexportDylib(_)
+                | CommandVariant::LazyLoadDylib(_) => Some(false),
+                _ => None,
+            })
+            .zip(mach.libs.iter().skip(1))
+            .map(|(weak, name)| Load {
+                name: (*name).into(),
+                weak,
+            })
             .collect(),
         rpaths: mach.rpaths.iter().map(|v| (*v).into()).collect(),
         dylib: mach.header.filetype == goblin::mach::header::MH_DYLIB,
@@ -194,7 +211,8 @@ pub fn collect(input: &Input, plan: &mut Plan, inputs: &mut Inputs) -> Result<Co
                     .filter_map(|p| expand(p, executable, executable)),
             );
         }
-        for name in files[position].libraries.clone() {
+        for dependency in files[position].libraries.clone() {
+            let name = dependency.name;
             if system(&name) {
                 continue;
             }
@@ -241,6 +259,9 @@ pub fn collect(input: &Input, plan: &mut Plan, inputs: &mut Inputs) -> Result<Co
                         resolved = Some(candidate.canonicalize()?);
                         break;
                     }
+                }
+                if resolved.is_none() && dependency.weak {
+                    continue;
                 }
                 let resolved = resolved.with_context(||format!("{}: missing private dependency {name}; use library-search-paths or a file mapping",origin.display()))?;
                 inputs.watch(&resolved)?;

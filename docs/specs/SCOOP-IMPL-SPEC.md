@@ -1467,6 +1467,8 @@ SwiftPM 实际计划中对最终 consumer 仍有效的库／framework 设置、�
 
 `LC_LOAD_WEAK_DYLIB` 使用与普通 load 相同的路径选择；只有无候选时允许缺席，已找到文件的格式、目标、版本错误或歧义照常报告。缺席边及其查找候选进入更新记录，后续出现实际库时重新解析。弱装载不等于 re-export，不将该依赖的符号加入父库导出，也不把父库内部的弱导入变为主程序的强库要求；缺席时仍可调用父库自身导出。该规则对应 [Apple dyld 的弱依赖加载语义](https://github.com/apple-oss-distributions/dyld/blob/main/dyld/JustInTimeLoader.cpp)。
 
+macOS app 打包同样保留弱装载：无实际候选时保留该可选 load，记录缺席路径而不报缺少强依赖；候选后续出现时使打包记录失效并部署它。路径改写保持原 load-command 种类，不通过增加主程序的强链接来实现部署。
+
 **最终更新与部署。** 最终缓存检查先于 Link 读取和工具准备，但晚于所有 Swift 节点的更新检查。记录纳入已完成的 Swift 链接输入结果及普通 native 文件／选择状态；同一路径不能掩盖 Swift 结果更新。部署资源与链接二进制分开记录，资源变更且库及需求未变时只更新部署。
 
 资源部署按本次最终输出位置记录输入 metadata 和已发布路径，保留 SwiftPM bundle 原名；相同源 bundle 共用，多个不同源要求同一目标名时在复制前报错。未变化时不读取／复制 bundle，缺少部署副本时从已完成的资源结果补齐。source build、两个独立链接入口都部署到输出程序的相邻目录，`run/test` 对含这些 native 输出的程序执行已发布路径，使 `Bundle.main` 与直接运行同一输出一致。资源内容不进入最终链接键；构建 JSON 的 resources 指向本次已部署位置。bundle 工具从该字段取得静态和动态库的资源，沿已有 payload／更新记录放入 `Contents/Resources`，不把静态 archive 当作运行库复制。

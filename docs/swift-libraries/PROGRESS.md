@@ -33,6 +33,8 @@
 
 ## 后续工作与验收
 
+2026-11-18：app 打包保留 weak-load 的可缺省语义，缺席路径参与更新判断；可选库出现后重新打包，重定位保持弱加载。bundle 格式化与严格 clippy 通过；新增 AArch64 实机测试覆盖缺席返回 42、热复用、新库出现返回 43、整体复制运行，以及复制后仍为 LC_LOAD_WEAK_DYLIB。未运行 x86-64 用例。
+
 1. 补齐真实宏、prebuild 诊断，并执行共享源码、锁定／离线验收；跨包 build plugin、传递生成工具及静态 binary target 交付已验证。
 2. 补齐动态依赖的部署验收与 compatibility archive 组合覆盖；weak-load、re-export／rpath 的链接行为已定向通过，基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
 3. 动态库部署和 bundle 交接；配套目录的非系统依赖补齐实际传递加载输入。静态资源的 CLI／app 交付及静态 binary target 配套目录已完成。
