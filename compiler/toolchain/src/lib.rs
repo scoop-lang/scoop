@@ -39,6 +39,7 @@ mod paths;
 mod registry;
 mod request;
 mod runtime;
+pub mod swift;
 mod system_provider;
 mod trusted_core;
 mod unwind;
