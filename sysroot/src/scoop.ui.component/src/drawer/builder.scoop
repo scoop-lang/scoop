@@ -12,6 +12,7 @@ public class DrawerBuilder internal constructor(): DismissibleModalBuilder() {
     public var snap: Binding<Long>? = None
     public var initialSnap: Long = 0L
     public var swipeToClose: Boolean = true
+    public var nativeSwipe: Boolean = true
     public var dragThreshold: Double = 4.0
     public var projectionSeconds: Double = 0.15
     public var swipeHandle: DrawerSwipeHandleOptions = DrawerSwipeHandleOptions()
@@ -58,7 +59,8 @@ public class DrawerBuilder internal constructor(): DismissibleModalBuilder() {
             viewportGap,
             viewportStyle,
             onSnapChange,
-            onDragCancel
+            onDragCancel,
+            nativeSwipe
         )
 }
 
@@ -98,5 +100,12 @@ public class Drawer public constructor(
     public override fun onMount() {
         modal.mount()
     }
-    public override fun render(): View = modal.render()
+    public override fun render(): View {
+        // Observe the selection here so external binding changes also update the control.
+        when (props.value.snap) {
+            case Some(val binding) -> binding.value
+            case None -> owner.localSnap.value
+        }
+        return modal.render()
+    }
 }

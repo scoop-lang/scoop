@@ -45,6 +45,13 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
             { _ -> available() && geometry!!.track.maximum > 0.0 },
             { event -> carouselDrag(this, event) }
         )
+    private val swipe =
+        scope.swipeGesture(
+            area,
+            swipeOptions(),
+            { _ -> available() && geometry!!.track.maximum > 0.0 },
+            { value -> carouselSwipe(this, value) }
+        )
     val active: Boolean get() = !retired && scope.isMounted
     val position: Double get() =
         if (active)
@@ -90,6 +97,15 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                 DragAxis.Vertical,
             read().props.dragThreshold,
             read().props.enabled
+        )
+    private fun swipeOptions(): SwipeGestureOptions =
+        SwipeGestureOptions(
+            if (read().props.orientation == Orientation.Horizontal)
+                DragAxis.Horizontal
+            else
+                DragAxis.Vertical,
+            enabled = read().props.enabled && read().props.nativeSwipe,
+            contacts = false
         )
     fun current(): Long {
         val input = read()
@@ -172,6 +188,11 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         )
         if (!active)
             return
+        swipe.update(
+            swipeOptions(),
+            { _ -> available() && geometry!!.track.maximum > 0.0 },
+            { value -> carouselSwipe(this, value) }
+        )
         when (transition()) {
             case None -> if (motion.state == AnimationState.Running)
                 motion.snapTo(motion.target)

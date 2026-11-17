@@ -1,0 +1,39 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.time.Duration
+import scoop.window.*
+
+public class SwipeGestureOptions public constructor(
+    public val axis: DragAxis = DragAxis.Horizontal,
+    public val enabled: Boolean = true,
+    public val native: Boolean = true,
+    public val contacts: Boolean = true,
+    public val mouse: Boolean = false,
+    public val distance: Double = 48.0,
+    public val maxDuration: Duration = Duration.milliseconds(500L)
+) {
+    init {
+        requireUi(
+            distance.isFinite() && distance > 0.0,
+            "swipe distance must be finite and positive"
+        )
+        requireUi(maxDuration > Duration.ZERO, "swipe duration must be positive")
+    }
+}
+
+public enum SwipeDirection {
+    Left, Right, Up, Down
+}
+
+public enum SwipeGestureInput {
+    Native, Mouse(MouseButton), Contact(ContactId, ContactKind)
+}
+
+/** Direction is local; native input does not invent a distance or a velocity. */
+public struct SwipeGestureSample(
+    val direction: SwipeDirection,
+    val position: Point,
+    val time: InputTime,
+    val input: SwipeGestureInput
+)

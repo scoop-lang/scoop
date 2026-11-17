@@ -48,6 +48,7 @@ internal class CarouselScene(private val p: CarouselProbe, scope: ComponentScope
                             Orientation.Horizontal
                     loop = p.loop;
                     enabled = p.enabled;
+                    nativeSwipe = p.nativeSwipe;
                     spacing = 10.0
                     handle = Some(p.handle)
                     viewport {

@@ -36,6 +36,7 @@ private class GesturePanel(
             )
         scope.routeChildren(area)
         probe.longPress?.mount(probe, scope, area, true)
+        probe.swipe?.mount(probe, scope, area)
         scope.resource { scope.input.addEventFinished { _ -> probe.completed += 1 } }
         scope.input.captureHandler =
             {
@@ -69,6 +70,8 @@ private class GesturePanel(
     public override fun scene(context: SceneContext, measured: Unit) {
         val shift = props.value
         context.translate(shift, 0.0)
+        if (probe.mirror.value)
+            context.scale(-1.0, 1.0)
         context.place(probe.parent!!, Rect(0.0, 0.0, 220.0, 120.0))
         context.children()
         context.onFrameComplete {

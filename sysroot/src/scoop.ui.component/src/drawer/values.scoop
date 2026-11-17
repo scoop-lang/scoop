@@ -52,7 +52,8 @@ public class DrawerProps public constructor(
     public val viewportGap: Double = 96.0,
     public val viewportStyle: StyleOverride = styleOverride(),
     public val onSnapChange: (Long) -> Unit = {},
-    public val onDragCancel: (DragCancelReason) -> Unit = {}
+    public val onDragCancel: (DragCancelReason) -> Unit = {},
+    public val nativeSwipe: Boolean = true
 ) {
     init {
         when (width) {

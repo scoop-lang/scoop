@@ -1,0 +1,161 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.*
+import scoop.window.*
+
+/** Combines a finite drag release with an independently enabled native swipe. */
+public class SwipeGesture internal constructor(
+    private val area: InputArea,
+    initial: SwipeGestureOptions,
+    accepts: (Point) -> Boolean,
+    onSwipe: (SwipeGestureSample) -> Unit
+): Closeable {
+    private var options = initial
+    private var accept = accepts
+    private var receive = onSwipe
+    private var closed = false
+    private var drag: Drag? = None
+    private val defaults = area.scope.addDefaultAction { context, event -> native(context, event) }
+
+    init {
+        updateDrag()
+    }
+
+    public val isClosed: Boolean get() {
+        area.isClosed
+        return closed
+    }
+
+    public fun update(
+        value: SwipeGestureOptions,
+        accepts: (Point) -> Boolean,
+        onSwipe: (SwipeGestureSample) -> Unit
+    ) {
+        requireUi(!closed && !area.isClosed, "swipe gesture is closed")
+        val changed =
+            value.axis !=
+                options.axis ||
+                value.enabled !=
+                options.enabled ||
+                value.native !=
+                options.native ||
+                value.contacts !=
+                options.contacts ||
+                value.mouse !=
+                options.mouse ||
+                value.distance !=
+                options.distance ||
+                value.maxDuration !=
+                options.maxDuration
+        options = value
+        accept = accepts
+        receive = onSwipe
+        if (changed)
+            drag?.cancel()
+        if (!closed && !area.isClosed)
+            updateDrag()
+    }
+
+    private fun updateDrag() {
+        if (!options.mouse && !options.contacts) {
+            val previous = drag
+            drag = None
+            previous?.close()
+            return
+        }
+        val value =
+            DragOptions(
+                options.axis,
+                options.distance,
+                options.enabled,
+                contacts = options.contacts,
+                mouse = options.mouse
+            )
+        when (drag) {
+            case Some(val current) -> current.update(
+                value,
+                { point -> accepts(point) },
+                { event -> dragged(event) }
+            )
+            case None -> drag =
+                Some(Drag(area, value, { point -> accepts(point) }, { event -> dragged(event) }))
+        }
+    }
+
+    private fun current(value: SwipeGestureOptions): Boolean =
+        !closed &&
+            !area.isClosed &&
+            options.enabled &&
+            options ===
+            value &&
+            area.scope.isInputAllowed
+
+    private fun accepts(point: Point): Boolean {
+        val before = options
+        return current(before) && accept(point) && current(before)
+    }
+
+    private fun dragged(event: DragEvent) {
+        if (closed || area.isClosed || !options.enabled)
+            return
+        when (event) {
+            case Started(val sample) -> if (!swipeInTime(sample, options.maxDuration))
+                drag?.cancel()
+            case Moved(val sample) -> if (!swipeInTime(sample, options.maxDuration))
+                drag?.cancel()
+            case Ended(val sample) -> when (swipeRelease(sample, options)) {
+                case Some(val value) -> receive(value)
+                case None -> {}
+            }
+            case Cancelled(_, _) -> return
+        }
+    }
+
+    private fun native(context: RoutedEventContext, event: InputEvent) {
+        val before = options
+        if (!current(before) || !before.native)
+            return
+        val value =
+            when (event) {
+                case Gesture(
+                    InputGestureEvent.Native(GestureEvent.Swipe(val state, val x, val y))
+                ) ->
+                nativeSwipeSample(area, state, x, y, before.axis) ?: return
+                else -> return
+            }
+        if (!accepts(value.position) || !current(before))
+            return
+        context.consume()
+        drag?.cancel()
+        if (current(before))
+            receive(value)
+    }
+
+    public fun cancel() {
+        area.isClosed
+        drag?.cancel()
+    }
+
+    public override fun close() {
+        area.isClosed
+        if (closed)
+            return
+        closed = true
+        val previous = drag
+        drag = None
+        var failure = cleanupUi(None) { previous?.close() }
+        failure = cleanupUi(failure) { defaults.close() }
+        throwUi(failure)
+    }
+}
+
+public fun ComponentScope.swipeGesture(
+    area: InputArea,
+    options: SwipeGestureOptions = SwipeGestureOptions(),
+    accepts: (Point) -> Boolean = { _ -> true },
+    onSwipe: (SwipeGestureSample) -> Unit
+): SwipeGesture {
+    requireBehaviorArea(area)
+    return resource { SwipeGesture(area, options, accepts, onSwipe) }
+}

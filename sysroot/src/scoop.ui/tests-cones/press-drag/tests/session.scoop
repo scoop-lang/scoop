@@ -72,6 +72,7 @@ internal class GestureProbe(
     private val exercise: ((GestureProbe, ActiveApplication) -> Unit)? = None
 ) {
     val shift = state(0.0)
+    val mirror = state(false)
     var committedShift: Double? = None
     var parent: InputArea? = None
     var area: InputArea? = None
@@ -91,6 +92,9 @@ internal class GestureProbe(
     var finished = false
     var waiting = false
     var longPress: LongPressScenario? = None
+    var swipe: SwipeScenario? = None
+    var gesturesQueued = 0
+    var gesturesReceived = 0
     var phase = 0
     private var runtime: UiHost? = None
     private var expected = 0
@@ -162,7 +166,9 @@ internal class GestureProbe(
                         completed >=
                         expected &&
                         receivedContacts >=
-                        queuedContacts
+                        queuedContacts &&
+                        gesturesReceived >=
+                        gesturesQueued
                 ) {
                     pending = true
                     active.proxy().post {
@@ -177,6 +183,7 @@ internal class GestureProbe(
                 }
             }
             case Window(_, WindowEvent.Contact(_)) -> receivedContacts += 1
+            case Window(_, WindowEvent.Gesture(_)) -> gesturesReceived += 1
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()
             case NewEvents(StartCause.Deadline) -> fail(Some("press and drag timeout"))
             else -> {}

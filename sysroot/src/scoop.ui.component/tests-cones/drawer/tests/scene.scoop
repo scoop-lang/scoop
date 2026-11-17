@@ -63,11 +63,15 @@ internal class DrawerScene(private val p: DrawerProbe, scope: ComponentScope): C
                     scrollState = Some(p.scroll)
                     focus = OverlayFocusOptions(Some(p.editor), restoreTarget = Some(p.trigger))
                     enabled = p.enabled;
+                    nativeSwipe = p.nativeSwipe;
+                    swipeToClose = p.swipeToClose;
                     mode = p.mode
                     swipeHandle {
                         visible = true;
                         only = p.only;
                         focus = FocusOptions(Some(p.grip))
+                        if (p.observeGrips)
+                            content = Some(observeDrawerGrip(p, 4))
                     }
                     projectionSeconds = 0.0
                     dragThreshold = p.dragThreshold
@@ -154,6 +158,8 @@ private class DrawerBody(private val p: DrawerProbe, scope: ComponentScope): Com
                     swipeHandle {
                         visible = true;
                         focus = FocusOptions(Some(p.nestedGrip))
+                        if (p.observeGrips)
+                            content = Some(observeDrawerGrip(p, 5))
                     }
                     transition(
                         if (p.motion)
@@ -207,6 +213,16 @@ private fun observeDrawer(p: DrawerProbe, slot: Int, content: View): View =
         ViewKey.Number(slot.toLong())
     )
 
+private fun observeDrawerGrip(p: DrawerProbe, slot: Int): View =
+    observeDrawer(
+        p,
+        slot,
+        frame(empty()) {
+            width = Some(48.0);
+            height = Some(8.0)
+        }
+    )
+
 private class DrawerCapture(var bounds: Rect, var ring: Boolean = false)
 
 private class DrawerObservation(
@@ -249,6 +265,8 @@ private class DrawerObservation(
                         p.editorBounds = captured.bounds;
                         p.editorRing = captured.ring
                     }
+                    case 4 -> p.gripBounds = captured.bounds
+                    case 5 -> p.nestedGripBounds = captured.bounds
                     else -> {
                         p.footerBounds = captured.bounds;
                         p.footerRing = captured.ring

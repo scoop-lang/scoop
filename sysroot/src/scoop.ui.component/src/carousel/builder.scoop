@@ -33,6 +33,7 @@ public class CarouselBuilder internal constructor() {
     public var orientation: Orientation = Orientation.Horizontal
     public var loop: Boolean = false
     public var enabled: Boolean = true
+    public var nativeSwipe: Boolean = true
     public var length: Double? = None
     public var spacing: Double = 16.0
     public var dragThreshold: Double = 4.0
@@ -109,7 +110,8 @@ public class CarouselBuilder internal constructor() {
             style,
             transition,
             onSelect,
-            onDragCancel
+            onDragCancel,
+            nativeSwipe
         )
     }
 }

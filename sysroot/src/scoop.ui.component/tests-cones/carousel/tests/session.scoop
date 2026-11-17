@@ -63,7 +63,11 @@ private class CarouselWindowTest {
     }
 }
 
-internal class CarouselProbe(val contactInput: Boolean = false) {
+internal class CarouselProbe(
+    val contactInput: Boolean = false,
+    private val exercise: ((CarouselProbe) -> Unit)? = None,
+    private val phases: Int = 61
+) {
     private var contactId = 0L
     private var contactDown = false
     val theme = ThemeSource(shadcnTheme())
@@ -90,6 +94,7 @@ internal class CarouselProbe(val contactInput: Boolean = false) {
     var reject = false
     var loop = false
     var enabled = true
+    var nativeSwipe = true
     var controlled = true
     var reordered = false
     var vertical = false
@@ -137,13 +142,16 @@ internal class CarouselProbe(val contactInput: Boolean = false) {
                 assertTrue(now < deadline, Some("carousel timeout"))
                 if (now >= next && settled()) {
                     waitAfter = Duration.milliseconds(150L)
-                    advanceCarousel(this);
+                    when (exercise) {
+                        case Some(val action) -> action(this)
+                        case None -> advanceCarousel(this)
+                    }
                     phase += 1
                     next = MonotonicTimeSource.markNow() + waitAfter
                 } else
                     if (!hidden && !native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < 61)
+                if (phase < phases)
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
                             if (next > now)
@@ -154,7 +162,7 @@ internal class CarouselProbe(val contactInput: Boolean = false) {
                     )
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 61;
+                finished = phase == phases;
                 active.requestExit()
             }
             else -> {}
@@ -241,7 +249,7 @@ internal class CarouselProbe(val contactInput: Boolean = false) {
     }
 }
 
-private fun reportCarouselFailure(error: Throwable) {
+internal fun reportCarouselFailure(error: Throwable) {
     if (error is ResourceUseException) {
         reportCarouselFailure(error.primaryFailure);
         reportCarouselFailure(error.cleanupFailure)

@@ -62,7 +62,10 @@ private class DrawerWindowTest {
     }
 }
 
-internal class DrawerProbe(val contactInput: Boolean = false) {
+internal class DrawerProbe(
+    val contactInput: Boolean = false,
+    private val exercise: ((DrawerProbe) -> Unit)? = None
+) {
     private var contactId = 0L
     private var contactDown = false
     val theme = ThemeSource(shadcnTheme())
@@ -93,6 +96,9 @@ internal class DrawerProbe(val contactInput: Boolean = false) {
     var rejectClose = false
     var veto = false
     var enabled = true
+    var nativeSwipe = true
+    var swipeToClose = true
+    var observeGrips = false
     var only = false
     var dragThreshold = 4.0
     var motion = false
@@ -109,6 +115,8 @@ internal class DrawerProbe(val contactInput: Boolean = false) {
     var headerBounds = bodyBounds
     var editorBounds = bodyBounds
     var footerBounds = bodyBounds
+    var gripBounds = bodyBounds
+    var nestedGripBounds = bodyBounds
     var editorRing = false
     var footerRing = false
     var from = Point(0.0, 0.0)
@@ -254,7 +262,10 @@ internal class DrawerProbe(val contactInput: Boolean = false) {
                         !nestedGrip.isPending
                 ) {
                     hold = 140L;
-                    advanceDrawer(this);
+                    when (exercise) {
+                        case Some(val action) -> action(this)
+                        case None -> advanceDrawer(this)
+                    }
                     phase += 1
                     ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
                 } else

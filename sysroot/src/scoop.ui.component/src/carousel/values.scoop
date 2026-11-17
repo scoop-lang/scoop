@@ -67,7 +67,8 @@ public class CarouselProps public constructor(
     public val style: StyleOverride = styleOverride(),
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
     public val onSelect: (Long, ViewKey) -> Unit = { _, _ -> Unit },
-    public val onDragCancel: (DragCancelReason) -> Unit = {}
+    public val onDragCancel: (DragCancelReason) -> Unit = {},
+    public val nativeSwipe: Boolean = true
 ) {
     init {
         requireComponent(source.count >= 0L, "negative carousel item count")

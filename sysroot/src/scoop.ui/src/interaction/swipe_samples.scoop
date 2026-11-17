@@ -1,0 +1,77 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.*
+import scoop.surface.InputArea
+import scoop.time.Duration
+import scoop.window.*
+
+internal fun swipeDirection(axis: DragAxis, x: Double, y: Double): SwipeDirection? {
+    if (!x.isFinite() || !y.isFinite())
+        return None
+    return if (axis == DragAxis.Horizontal) {
+        if (x == 0.0 || abs(x) < abs(y))
+            None
+        else
+            Some(
+                if (x < 0.0)
+                    SwipeDirection.Left
+                else
+                    SwipeDirection.Right
+            )
+    } else {
+        if (y == 0.0 || abs(y) < abs(x))
+            None
+        else
+            Some(
+                if (y < 0.0)
+                    SwipeDirection.Up
+                else
+                    SwipeDirection.Down
+            )
+    }
+}
+
+internal fun swipeInTime(sample: DragSample, duration: Duration): Boolean {
+    val elapsed = sample.time.mark() - sample.startTime.mark()
+    return elapsed >= Duration.ZERO && elapsed <= duration
+}
+
+internal fun swipeRelease(sample: DragSample, options: SwipeGestureOptions): SwipeGestureSample? {
+    if (!swipeInTime(sample, options.maxDuration) || abs(sample.displacement) < options.distance)
+        return None
+    val direction =
+        swipeDirection(
+            options.axis,
+            sample.position.x - sample.start.x,
+            sample.position.y - sample.start.y
+        ) ?:
+            return None
+    val input =
+        when (sample.input) {
+            case Mouse(val button) -> SwipeGestureInput.Mouse(button)
+            case Contact(val id, val kind) -> SwipeGestureInput.Contact(id, kind)
+        }
+    return Some(SwipeGestureSample(direction, sample.position, sample.time, input))
+}
+
+internal fun nativeSwipeSample(
+    area: InputArea,
+    state: PointerState,
+    x: Double,
+    y: Double,
+    axis: DragAxis
+): SwipeGestureSample? {
+    if (!x.isFinite() || !y.isFinite())
+        return None
+    val magnitude = max(abs(x), abs(y))
+    if (magnitude == 0.0)
+        return None
+    val point = Point(state.logicalPosition.x, state.logicalPosition.y)
+    if (!area.hitTest(point))
+        return None
+    val origin = area.toLocal(point) ?: return None
+    val end = area.toLocal(Point(point.x + x / magnitude, point.y + y / magnitude)) ?: return None
+    val direction = swipeDirection(axis, end.x - origin.x, end.y - origin.y) ?: return None
+    return Some(SwipeGestureSample(direction, origin, state.time, SwipeGestureInput.Native))
+}

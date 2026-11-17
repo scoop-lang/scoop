@@ -6,6 +6,22 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
 
+internal fun carouselSwipe(control: CarouselControl, sample: SwipeGestureSample) {
+    control.cancel(DragCancelReason.Explicit)
+    if (!control.available() || !control.read().props.nativeSwipe)
+        return
+    val shape = control.geometry!!
+    val next =
+        if (shape.orientation == Orientation.Vertical)
+            sample.direction == SwipeDirection.Up
+        else
+            if (shape.direction == LayoutDirection.Rtl)
+                sample.direction == SwipeDirection.Right
+            else
+                sample.direction == SwipeDirection.Left
+    control.step(next, true)
+}
+
 internal fun carouselDrag(control: CarouselControl, event: DragEvent) {
     when (event) {
         case Started(val sample) -> {
@@ -120,7 +136,11 @@ internal fun carouselKeyboard(
                     0.0
                 )
             when (target) {
-                case Some(val selected) -> control.select(selected.index, true, Some(selected.position))
+                case Some(val selected) -> control.select(
+                    selected.index,
+                    true,
+                    Some(selected.position)
+                )
                 case None -> {}
             }
         }

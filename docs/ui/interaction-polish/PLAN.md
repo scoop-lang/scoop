@@ -198,20 +198,20 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 **主要范围：** Window touch／原生 gesture、Surface contact 路由、UI 公共行为、文本宿主及现有交互控件。先改 Window、Surface、UI、Component spec。
 
-- [x] 接通 AppKit 原生 Magnify／Rotate／Swipe、Surface 连续手势路由和 UI 内容变换行为；原生边界／路由／消费者的本地回归与示例见实施记录。用户已确认真实触控板捏合／旋转及松手停止正常，Swipe 和其余设备矩阵继续单独验收。
+- [x] 接通 AppKit 原生 Magnify／Rotate／Swipe、Surface 连续手势路由和 UI 内容变换行为；原生边界／路由／消费者的本地回归与示例见实施记录。用户已确认真实触控板捏合／旋转及松手停止正常，Swipe 的真实设备和其余设备矩阵继续单独验收。
 - [x] 提供 contact 生命周期、设备来源、时间、位置及真实可得的压力字段，区分鼠标、直接触摸、笔和触控板原生 gesture。Windows／GTK 原生入口已实现；本地 ABI／队列验证通过，目标平台与真实触屏仍待集中验收。
 - [x] 按接触序列固定起始路径，以 claimContacts 成组接管并单独取消；失败清理新归属，保留原有接触。活动触点纳入 InputActivity，域外按下、精确结束命中及取消沿同一路径。
 - [x] Press 的单接触 tap 和公共轴向 Drag 已接入 Touch／Pen，保留真实来源，处理阈值、第二触点、被阻止的结束及重入关闭。
 - [x] 直接滚动使用公共 ScrollPan，配置阈值和锁轴，首个 Moved 接管后计入完整位移；嵌套沿 Accepted 几何消费残量，普通 Drag 保持独占。新的定位、第二触点、被拦截的输入、配置变化与换绑／关闭取消旧候选。
 - [x] TransformGesture 从直接触点组合识别 pinch／rotate，按阈值成组接管，保留真实身份／种类与连续角度；21 步行为及 40 步取消窗口场景通过，原生组合回归继续通过，真实设备范围单独验收。
 - [x] 公共 LongPress 与两类文本宿主共用 ContactPress，配置启用、延迟及移动容差；普通短按不消费，长按成功后不补点击。ContextMenu／NativeContextMenu 的 Props 与 builder 已接入，34 步公共行为、两组各 29 步菜单实窗及原有组合回归通过，包含真实原生 tracking 中更新参数后再次长按。
-- [ ] 继续完善直接触摸多击的控件组合并实现通用 swipe，保留明确的同时识别组合和失败候选取消。
+- [x] 公共 SwipeGesture 复用 Drag 判断直接来源的距离／时长，并独立接入原生离散方向；原始按下时间与真实来源保留，配置变化、失败输入、第二触点及关闭取消候选。36 步公共场景包含双指变换竞争；Carousel／Drawer 的 nativeSwipe 配置、方向／吸附／绑定与关闭、27／41 步实窗及原有组合回归通过，示例与等价操作同步。
 - [x] 为后续自定义手势保留同一输入与归属边界：原始 contact 可在 UI 消费，内建识别器与平台采集／具体控件解耦；新识别逻辑无需新增 Window 手势枚举，仍遵守取消、同时识别及命令／accessibility 规则。本轮不提前增加空 API 或插件框架。
 - [ ] 原生与合成鼠标去重；Windows OLE 仍可使用系统要求的合成鼠标启动路径，UI 只收到一次语义交互。第二触点、数量变化、几何失效、系统接管都有明确出口。
 - [x] Slider 通过公共 Drag 接入 Touch／Pen；触点和鼠标分别通过同一组键盘、提交、取消、外部更新、方向、焦点与卸载回归。取消直接读取业务模型，不查询已经退休的主题上下文。
 - [x] ScrollArea／VirtualList 通过共享 ScrollControl 接入 Touch／Pen，Props 与 builder 提供 touchScroll；本地窗口验证不补点击、接管后虚拟条目回收、接触期间滚动条保持以及结束后停帧。
 - [x] Resizable、Drawer／Carousel 通过公共 Drag 接入 Touch／Pen；可配置把手命中宽度，Drawer 按实际起点与正文方向仲裁，Carousel 观察全部活动触点暂停自动播放。57／61／73 步触点与鼠标独立窗口回归通过，包含零阈值、键盘、焦点、取消及停帧。
-- [ ] 完成其余控件的触摸组合，以及上述控件的三平台真实触屏／笔设备验收。
+- [ ] 完成其余控件的触摸／多击组合，以及上述控件的三平台真实触屏／笔设备验收。
 - [x] 两类文本宿主接入 Touch／Pen 短按 caret 定位、长按选词和 S3 原生菜单；TextTouchOptions 配置开关、阈值及一次性 deadline，编辑视口独立配置 touchScroll。原始 contact 归属处理行内动作／长按／滚动竞争，操作继续使用同一文档、投影和 Accepted 布局，键盘／语义菜单保留原入口。
 - [x] 两类文本宿主接入直接触摸二／三击选词／逻辑行；multiTap 独立开关，multiTapInterval 显式配置或跟随系统。69 步宿主窗口用例覆盖来源、时间／距离、显示投影、取消及回调重入，六类文本控件的 64 步场景、原 66 步触摸与键盘／鼠标／IME 组合回归通过；真实设备范围见实施记录。
 - [x] 按[文本选区端点方案](TEXT-SELECTION-HANDLES.md)接入两类文本宿主的 caret／双端点把手与现有路径的边缘滚动，提供独立显隐、绘制／命中半径和颜色配置。73 步交互与 35 步 RTL／取消窗口用例、六类控件的 114 步触摸场景及原文本回归通过；键盘和 accessibility 沿原宿主读写选区。

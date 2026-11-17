@@ -243,6 +243,8 @@ Resizable 的 `handle(key) { hitWidth = 32.0 }` 可扩大实际命中带，默�
 
 `drawer(open, content)` 复用 ModalOptions 与 Portal，提供四方向拖动、垂直 Fraction／Length 吸附、受控索引、可聚焦 swipeHandle、三种模态策略和显式 parent 嵌套。DrawerHandle 观察实际展开长度并请求吸附；滚动正文、关闭 veto、取消回弹、尺寸变化及停帧由 `tests-cones/drawer` 的定向实窗覆盖。拖动起点按真实输入位置和 Accepted 命中区判断，支持无 hover 的 Touch／Pen。正文 ScrollPan 使用相同阈值，并在起始边界无滚动余量时让出触点；已开始的正文滚动不在中途转成抽屉拖动，见[抽屉场景](tests-cones/drawer/README.md)。
 
+Carousel 与 Drawer 的 Props 和 builder 均提供 `nativeSwipe = true`，沿公共 SwipeGesture 接受系统交付的离散滑动，可单独关闭。Carousel 水平 LTR 向左下一项、RTL 相反，垂直向上下一项，继续遵守 loop、边界与 selected 绑定。Drawer 向内选择下一更大 snap，向外选择下一更小 snap；最小 snap 再向外时由 swipeToClose 决定是否走原关闭请求，保留 veto 与绑定拒绝。起点沿同一正文滚动边界、把手 only 和嵌套规则准入。直接触摸仍由原 Drag 连续跟手；原生 swipe 接替活动拖动时先取消旧拖动，释放不会重复提交。按钮、键盘和现有命令继续作为等价入口。
+
 
 `sidebar(open, content) { header(view); footer(view); inset(workspace) }` 提供 Sidebar／Floating／Inset、逻辑侧、Offcanvas／Icon／None、rail 和作用域内 Primary+B。Auto 根据父级宽度切换窄布局 Drawer；主编辑区保持实例，导航跨宿主的业务状态显式提升到外部。分组、菜单、独立动作／badge、子菜单、Skeleton、Input 与 Trigger 均有真实成员 DSL，菜单使用普通 Tab 与 Button。`tests-cones/sidebar` 覆盖折叠、稳定 key、快捷键、关闭拦截、窗口缩放、编辑状态及隐藏停帧。
 

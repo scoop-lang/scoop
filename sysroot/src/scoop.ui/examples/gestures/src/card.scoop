@@ -36,24 +36,13 @@ internal class GestureCard(private val props: Props<CardInput>, scope: Component
 
     public override fun onMount() {
         scope.transformGesture(area) { event -> transform(event) }
-        scope.resource {
-            area.scope.addDefaultAction {
-                context,
-                event -> when (event) {
-                    case Gesture(InputGestureEvent.Native(GestureEvent.Swipe(_, val x, _))) -> {
-                        if (x != 0.0) {
-                            context.consume()
-                            props.value.switchCard(
-                                if (x > 0.0)
-                                    1
-                                else
-                                    -1
-                            )
-                        }
-                    }
-                    else -> {}
-                }
-            }
+        scope.swipeGesture(area) {
+            value -> props.value.switchCard(
+                if (value.direction == SwipeDirection.Left)
+                    1
+                else
+                    -1
+            )
         }
     }
     public override fun update(): UiInvalidation {

@@ -1061,11 +1061,13 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 
 CarouselAutoplay(interval) 是显式配置，interval 必须大于零。轮播区域内有活动触点（含尚未达到拖动阈值的候选及导航按钮）时暂停，最后一个接触结束或取消后重新等待完整 interval，不依赖 hover 或焦点暂停开关。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
 
+CarouselProps／CarouselBuilder 的 nativeSwipe 默认 true，使用公共 SwipeGesture 接收系统已识别的有限方向动作。主轴按实际 LTR／RTL 映射到同一 previous／next 请求，复用现有绑定、循环和边界规则；识别时取消旧拖动与动画意图，不创建第二份选择或自动播放状态。关闭 nativeSwipe 保留直接 Drag、按钮和键盘操作，滚轮不转换为 swipe。
+
 ## 40. Drawer
 
 `drawer(open: Binding<Boolean>, content: View) { ... }` 创建 DrawerProps／Drawer。标题、说明、header／footer、trigger／close、字体、主题、滚动正文及关闭 veto 复用 ModalOptions 和 DismissibleModalBuilder；默认 side=Bottom、showCloseButton=false、viewportPadding=0。side 使用 SheetSide 的 Top／Bottom／Start／End，横向随 RTL 解析。mode 默认 Modal，也可显式选择 NonModal／FocusContained；只有 Modal 默认绘制遮罩，三种模式的指针、Tab、Escape、初始／恢复焦点、退出重开及 onClosed 均由同一 Portal 处理。swipe 关闭沿 OverlayHandle 的 Explicit 请求，不直接绕过业务 veto 或拒绝绑定。
 
-根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示，外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
+根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示。snap 的可观察来源在 render 中登记依赖，外部状态变化更新索引与实际位置，无需另行替换 Props，即使同时打开／关闭子抽屉也保持一致。外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
 
 无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。固定高度或横向面板的滚动正文填满头尾之间的剩余空间，页脚位于面板底部；自然高度的垂直面板仍随短正文收缩。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
 
@@ -1077,6 +1079,7 @@ DrawerHandle 只绑定一个活动 popup，提供可观察 snapshot（snapIndex�
 
 默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；本地受控触点和桌面指针分别验证；真实触屏／笔与各平台原生输入按设备矩阵验收。
 
+DrawerProps／DrawerBuilder 的 nativeSwipe 默认 true。系统离散 swipe 使用公共行为及同一 Accepted 正文／把手准入规则：朝内请求下一较大停靠点，朝外请求下一较小停靠点；已经在最小停靠点且 swipeToClose=true 时沿原 Overlay 关闭请求执行，保留拒绝绑定与 veto。方向由实际 side 与 RTL 解析，横向单停靠抽屉的朝外动作同样关闭。直接拖动继续使用原位置／速度投影，不同时建立另一份触点识别；关闭 nativeSwipe 不改变它及键盘操作。
 
 ## 41. Sidebar
 

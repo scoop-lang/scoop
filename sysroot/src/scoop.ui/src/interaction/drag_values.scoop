@@ -16,7 +16,8 @@ public class DragOptions public constructor(
     public val threshold: Double = 4.0,
     public val enabled: Boolean = true,
     public val button: MouseButton = MouseButton.Left,
-    public val contacts: Boolean = true
+    public val contacts: Boolean = true,
+    public val mouse: Boolean = true
 ) {
     init {
         requireUi(
@@ -35,6 +36,7 @@ public struct DragSample(
     val position: Point,
     val displacement: Double,
     val velocity: Double,
+    val startTime: InputTime,
     val time: InputTime,
     val input: DragInput
 )
@@ -42,7 +44,8 @@ public struct DragSample(
 public enum DragCancelReason {
     Input(
         InputCancelReason
-    ), Disabled, ConfigurationChanged, GeometryUnavailable, AdditionalContact, Explicit, Closed, PreventedRelease
+    ), Disabled, ConfigurationChanged, GeometryUnavailable, AdditionalContact, Explicit, Closed,
+    PreventedMovement, PreventedRelease
 }
 
 public enum DragEvent {

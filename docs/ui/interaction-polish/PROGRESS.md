@@ -19,7 +19,7 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按／多击已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；双指 TransformGesture 的 21 步行为及 40 步取消窗口场景通过；用户确认真实触控板缩放／旋转正常；文本选区把手与边缘滚动的 73 步交互和 35 步 RTL／取消、六类文本控件的 114 步触摸、原 66 步触摸与 69 步多击回归通过，菜单与 accessibility 共用动作；触摸数据拖放、其余控件组合、软键盘和完整设备矩阵继续实施 |
+| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接滚动、文本短按／长按／多击／选区把手、公共 LongPress／SwipeGesture 已接入；Resizable／Carousel／Drawer 的触点与鼠标场景、双指变换、公共手势及菜单组合通过；Carousel／Drawer 原生 swipe 的 27／41 步场景通过；用户确认真实触控板缩放／旋转正常。文本与菜单沿同一模型及 accessibility 动作；触摸数据拖放、其余控件组合、软键盘和完整设备矩阵继续实施 |
 | S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -473,3 +473,15 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI／Component 规范、输入边界、accessibility 设计、计划、库／测试 README 与编程导航同步；两库 API 文档生成并通过 8 组查询核对工厂、样本、参数、导入和两种菜单配置。7 份 UI／Style／主题／Component 开发产物更新，18 个 Scoop 文件格式、源码检查、release 构建及本地文档链接检查通过。临时应用与逐次 GUI 报告清理，保留开发产物、API 文档和共享缓存。
 
 本批触点经受控 native 队列进入 macOS 实窗，真实触屏／笔及 Windows／GTK 仍按集中轮次验收。触摸数据拖放仍依赖 S6 的原生来源接入：当前 AppKit 只接受真实左键来源，不以伪造事件宣称支持。通用 swipe、软键盘、滚动物理与其余 accessibility 计划继续推进，S8 和完整目标尚未结束。
+
+
+### 公共 swipe 与轮播／抽屉
+
+- 新增 SwipeGesture、SwipeGestureOptions 与真实来源样本。直接触点／可选鼠标复用 Drag 的阈值、归属及取消，在正常释放时检查距离、主轴与原始按下时间；系统离散 swipe 独立启用，按 Accepted 几何转换方向，不伪造距离或速度。配置、动作与准入可更新，关闭跟随挂载；普通滚轮保持原行为。
+- Drag 增加独立 mouse 开关及样本 startTime，被阻止的 Moved 通过事件完成通知取消，避免后续释放继续提交。公共 swipe 不另建拖动状态机或时钟；与直接双指变换组合时，第二触点及成组接管后不会补 swipe。
+- Carousel／Drawer 的 Props 与 builder 默认启用 nativeSwipe，可单独关闭。轮播沿同一 LTR／RTL、循环、边界和选择绑定；抽屉沿相邻 snap、正文滚动边界、把手 only、嵌套及原关闭请求，保留 veto／绑定拒绝。活动拖动被原生 swipe 接替时先取消，迟到释放不重复提交。
+- 嵌套窗口用例复现 Drawer 外部 snap 改变后索引更新而显示高度停在旧值。Drawer 现在在 render 中登记该状态依赖，控制器正常同步位置；无需调用方额外替换 Props，也不把外部改变回放为用户选择通知。相同场景和原有鼠标／触点组合均通过。
+- macOS release 的 2 项规则测试、36 步公共行为、27 步轮播和 41 步抽屉窗口场景通过；原 Press／Drag／LongPress、原生／直接双指变换及两控件的鼠标／触点回归一并通过，共 13 个独立窗口用例。覆盖取消、回调重入、真实局部方向、绑定拒绝、无重复动作、停帧和资源收尾。
+- 两份 spec、输入边界、accessibility 等价操作、README、编程导航与手势示例同步。示例构建通过，按钮／键盘／语义 Invoke 沿相同卡片切换命令；8 项 UI 与 4 项 Component 生成 API 查询通过，7 个受影响开发库产物已更新。格式、必要生产／测试构建和本地文档链接检查通过；临时应用包和逐次报告清理，保留后续需要的 API 文档与共享缓存。
+
+这些触点和离散 swipe 用例经受控 native 队列进入实际 macOS 窗口，真实触屏／笔、系统 swipe 的设备交付与 Windows／GTK 仍按集中轮次验收。触摸数据拖放、软键盘、滚动物理、其余 accessibility 与完整平台计划继续推进，S8 和完整目标尚未结束。

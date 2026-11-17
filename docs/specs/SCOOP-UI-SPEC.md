@@ -802,15 +802,25 @@ LongPress 与文本宿主复用 ContactPress 的接触、几何、deadline 和�
 
 ### 7.11 公共轴向 Drag
 
-`ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left, contacts=true)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。button 选择鼠标按钮，contacts 独立控制直接触摸／笔尖。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。
+`ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left, contacts=true, mouse=true)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。button 选择鼠标按钮，mouse 与 contacts 分别控制鼠标和直接触摸／笔尖。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。
 
 Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到阈值且主轴位移不少于交叉轴位移时调用 Surface claim。反向主导移动放弃候选，小幅移动继续保留原点击。threshold=0 可在按下默认阶段开始，例如滚动条 thumb；若该阶段已被后代消费而仍为候选，后续坐标未改变的 Moved 不会接管，等待实际位移。默认阶段仍按目标到祖先顺序决定谁先接管，不建立新的优先级或 gesture arena。
 
-`DragEvent` 包含 Started／Moved／Ended(DragSample) 和 Cancelled(DragSample, reason)。样本包含局部 start／position、主轴 displacement／velocity 和 InputTime；开始、上一位置和当前位置都由原窗口点通过当前已提交几何转换，避免布局／缩放变化后混用不同坐标系。速度按现有单调输入时间计算，重复或倒退时间为零；无可用几何或无法表示有限结果时取消，不输出无穷速度。不会从未提交布局推算拖动。
+`DragEvent` 包含 Started／Moved／Ended(DragSample) 和 Cancelled(DragSample, reason)。样本包含局部 start／position、主轴 displacement／velocity，以及原始按下 startTime 和当前 time（均为 InputTime）；开始、上一位置和当前位置都由原窗口点通过当前已提交几何转换，避免布局／缩放变化后混用不同坐标系。速度按现有单调输入时间计算，重复或倒退时间为零；无可用几何或无法表示有限结果时取消，不输出无穷速度。不会从未提交布局推算拖动。
 
 DragSample.input 为 DragInput.Mouse(MouseButton) 或 Contact(ContactId, ContactKind)，保留本次真实来源。接触按同样的轴向阈值取得 claimContacts([id])，被接管的后代收到取消；第二个接触取消单接触候选或活动拖动，交由明确组合的多接触行为处理。单接触拖动不从两个触点中猜选新的主指。取消与关闭只撤销本行为实际取得的接触，不取消同区域或窗口的其他接触。
 
-`Drag.isDragging` 只表示已经 claim 的阶段。`update` 更换最新 accepts／handler；禁用、改变 axis／threshold／button／contacts、关闭或输入取消都会终止当前状态。CancelReason 区分 Input、Disabled、ConfigurationChanged、GeometryUnavailable、AdditionalContact、Explicit、Closed 和 PreventedRelease；被阻止的 release 通过不可取消的完成通知收尾。未 claim 的候选放弃不发 Started／Cancelled。cancel() 显式取消当前候选／拖动；关闭行为取消自己已经取得的序列，注销登记，保留调用方 area。行为不创建时钟或永久帧需求；需要吸附时调用方驱动现有 Animatable，需要边缘滚动时仅在实际可推进期间预约 owner deadline。
+`Drag.isDragging` 只表示已经 claim 的阶段。`update` 更换最新 accepts／handler；禁用、改变 axis／threshold／button／contacts／mouse、关闭或输入取消都会终止当前状态。CancelReason 区分 Input、Disabled、ConfigurationChanged、GeometryUnavailable、AdditionalContact、Explicit、Closed、PreventedMovement 和 PreventedRelease；被阻止的移动或 release 通过不可取消的完成通知收尾，不用隐藏的位移继续识别释放动作。未 claim 的候选放弃不发 Started／Cancelled。cancel() 显式取消当前候选／拖动；关闭行为取消自己已经取得的序列，注销登记，保留调用方 area。行为不创建时钟或永久帧需求；需要吸附时调用方驱动现有 Animatable，需要边缘滚动时仅在实际可推进期间预约 owner deadline。
+
+### 7.11.1 公共 SwipeGesture
+
+`ComponentScope.swipeGesture(area, options=SwipeGestureOptions(), accepts={ true }, onSwipe)` 借用本挂载的 InputArea，返回随 scope 关闭的 SwipeGesture。选项为 axis=Horizontal、enabled=true、native=true、contacts=true、mouse=false、distance=48、maxDuration=500 ms；axis 使用 DragAxis，distance 是有限正的 Accepted 局部逻辑距离，maxDuration 必须为正。native 独立控制系统离散 swipe，contacts／mouse 控制从原始输入识别的释放动作；普通滚轮不产生 swipe。accepts 使用本次起点的 Accepted 局部位置，供控件判断正文／把手等实际可操作区域。
+
+直接输入复用 Drag 的候选、阈值、归属和取消。在主轴达到 distance 且占主导时接管，正常释放仍满足距离、方向及从 startTime 计算的 maxDuration 才报告一次方向动作；移回距离内、转为交叉轴主导、超时、倒退时间或取消不执行动作，不补点击。第二触点、被阻止的移动／释放、禁用、配置变化与关闭沿相同收尾路径；时间窗口按输入样本判断，不增加轮询或 deadline。鼠标需显式 mouse=true，保持真实 MouseButton，触点保留 ContactId／ContactKind。
+
+系统 Swipe 沿默认事件阶段使用同一 accepts 和回调，按最近 Accepted 变换把方向转换到区域局部轴。零方向、非有限值或交叉轴主导不消费；有效动作先消费并取消本行为尚在等待的直接输入，再执行回调。系统方向不是像素位移或速度，不套用直接输入的距离／时长门槛。`SwipeGestureSample(direction, position, time, input)` 的 direction 是 Left／Right／Up／Down，input 是 Native／Mouse(button)／Contact(id, kind)；样本只描述实际来源具有的事实。
+
+`update(options, accepts, onSwipe)` 更新配置及动作，实际配置变化取消旧直接候选；只换动作沿当前序列使用新回调。`cancel()` 收尾候选／归属，`close()` 注销资源但不关闭区域。接受检查或归属取消回调重入更新／关闭时不执行过期动作。调用方使用普通选择、关闭或内容切换命令；手势本身不创建额外语义树，键盘和 accessibility 入口继续复用相同业务状态。
 
 ### 7.12 Presence
 

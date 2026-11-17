@@ -10,7 +10,7 @@
 
 `scope.transformGesture(area, TransformGestureOptions()) { event -> ... }` 将原生缩放／旋转和直接接触的双指变换沿同一 InputArea 组合，返回随挂载关闭的行为。`enabled`、`magnify`、`rotate`、`contacts` 可分别配置；`contactThreshold` 默认 8，只影响直接接触的局部移动阈值，必须有限非负。`update` 替换配置和回调，`cancel` 结束当前会话，`isTransforming` 查询是否仍活动。Started／Changed／Ended／Cancelled／Discrete 提供局部位置、累计 scale／rotation、本次 scaleDelta／rotationDelta 与 input；倍率相乘，旋转为顺时针弧度相加。input 为 Native 或带两个 ContactId／ContactKind 的 Contacts，保留真实来源。
 
-双指达到启用变换的阈值后，一次取得两个接触的归属；完整初始变换只计入一次，跨半圈的旋转继续累计。一指结束会完成当前变换并取消另一指的归属；第三触点、被阻止的移动／结束、失效几何、配置变化和关闭都会收尾，晚到更新不会重启。行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，AppKit 离散 swipe 沿 Surface 的普通 Gesture 事件消费。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。真实触屏／笔与各平台输入仍单独验收，见[双指窗口测试](tests-cones/transform-gesture/README.md)。
+双指达到启用变换的阈值后，一次取得两个接触的归属；完整初始变换只计入一次，跨半圈的旋转继续累计。一指结束会完成当前变换并取消另一指的归属；第三触点、被阻止的移动／结束、失效几何、配置变化和关闭都会收尾，晚到更新不会重启。行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，离散 swipe 使用下述公共 SwipeGesture。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。真实触屏／笔与各平台输入仍单独验收，见[双指窗口测试](tests-cones/transform-gesture/README.md)。
 
 ## 直接触摸与笔尖
 
@@ -18,7 +18,11 @@
 
 `scope.longPress(area, LongPressOptions()) { sample -> ... }` 提供单次长按，enabled 默认 true，delay 默认 500 ms，threshold 默认 8 个窗口逻辑单位；可独立配置。sample 保留真实 ContactState 与 Accepted 局部 position。update 替换配置及动作，cancel 取消候选／归属，scope 卸载自动关闭。普通短按不被消费，达到期限并取得原接触归属才执行一次；零延迟也经一次性 deadline，移动超限、第二触点、失焦、配置变化及关闭都会收尾。行为与文本触摸共用识别逻辑，实际菜单消费者与窗口覆盖见 [Press／Drag／LongPress 测试](tests-cones/press-drag/README.md)。
 
-`scope.drag` 默认接受直接触摸／笔尖；`DragOptions.contacts=false` 单独关闭此来源，`button` 仍只选择鼠标按钮。达到轴向阈值后接管原触点路径，取消后代点击候选；`DragSample.input` 保留 `DragInput.Mouse(button)` 或 `Contact(id, kind)`。第二触点使单接触拖动以 AdditionalContact 取消，不重新猜选主指。已有 Slider、滚动条 thumb 等使用该公共行为的消费者沿同一路径接入。
+`scope.drag` 默认接受鼠标、直接触摸／笔尖；`DragOptions.mouse` 与 `contacts` 分别开关，`button` 只选择鼠标按钮。达到轴向阈值后接管原触点路径，取消后代点击候选；`DragSample.input` 保留 `DragInput.Mouse(button)` 或 `Contact(id, kind)`，`startTime` 是原始按下时间。第二触点使单接触拖动以 AdditionalContact 取消；被阻止的移动以 PreventedMovement 取消，不在后续释放时继续提交。已有 Slider、滚动条 thumb 等消费者使用同一路径。
+
+`scope.swipeGesture(area, SwipeGestureOptions()) { sample -> ... }` 组合原生离散 swipe 与直接接触的快速轴向滑动。axis 默认 Horizontal，enabled、native、contacts 默认 true，mouse 默认 false；distance 默认 48 个 Accepted 局部逻辑单位，maxDuration 默认 500 ms，均须为正，距离须有限。直接来源复用 Drag，在阈值后接管，正常释放仍满足距离、时长及主轴方向才动作一次；取消或超时不补点击。原生来源使用系统交付的方向，不套用直接输入的距离／时长门槛。sample.direction 为局部 Left／Right／Up／Down，position、time 与 Native／Mouse／Contact 来源保留真实值。
+
+可选 `accepts: (Point) -> Boolean` 按起点的 Accepted 局部坐标准入。`update` 替换配置和动作，实际配置变化取消直接候选，单独替换动作保留它；`cancel` 取消当前候选，卸载自动关闭。原生 swipe 接替本行为的直接候选后，迟到释放不会重复动作。区域变换影响方向，普通滚轮不转成 swipe；应用继续提供按钮、键盘或语义等价命令。组合回归见 [Press／Drag／LongPress／Swipe 测试](tests-cones/press-drag/README.md)。
 
 应用需要自己的识别逻辑时，可从 `InputEvent.Contact` 读取原始触点，沿 `scope.claimContacts(ids)` 成组接管，并处理不可取消的 Cancelled 和事件完成通知；不需要向 Window 增加手势枚举。`InputActivity.hasContact` 让活动触点所属的虚拟条目保持。真实触屏与其他平台仍按设备矩阵验收；受控队列组合验证见 [Press／Drag 测试](tests-cones/press-drag/tests/contact.scoop)。
 

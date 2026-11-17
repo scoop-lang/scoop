@@ -22,6 +22,7 @@ public class Drag internal constructor(
     private val contacts = ArrayList<ContactId>()
     private var latest: DragSample? = None
     private var claimed = false
+    private var moved = false
     private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
     private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
     private val finished = area.scope.addEventFinished { event -> finish(event) }
@@ -48,7 +49,9 @@ public class Drag internal constructor(
                 value.threshold !=
                 options.threshold ||
                 value.contacts !=
-                options.contacts
+                options.contacts ||
+                value.mouse !=
+                options.mouse
         options = value
         accept = accepts
         receive = handler
@@ -80,6 +83,7 @@ public class Drag internal constructor(
             ) -> {
                 if (
                     options.enabled &&
+                        options.mouse &&
                         (!options.contacts || contacts.size == 0L) &&
                         button ==
                         options.button
@@ -132,8 +136,10 @@ public class Drag internal constructor(
                 InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)
             ) -> if (isMouse() && button == options.button && options.threshold == 0.0)
                 advance(context, point.state, true)
-            case Pointer(InputPointerEvent.Moved(val point)) -> if (isMouse())
+            case Pointer(InputPointerEvent.Moved(val point)) -> if (isMouse()) {
+                moved = true
                 advance(context, point.state)
+            }
             case Pointer(
                 InputPointerEvent.Button(val point, val button, ElementState.Released, _)
             ) -> {
@@ -144,8 +150,10 @@ public class Drag internal constructor(
                 isContact(value.id) && options.threshold == 0.0
             )
                 advance(context, value.pointer, true)
-            case Contact(InputContactEvent.Moved(val value)) -> if (isContact(value.id))
+            case Contact(InputContactEvent.Moved(val value)) -> if (isContact(value.id)) {
+                moved = true
                 advance(context, value.pointer)
+            }
             case Contact(InputContactEvent.Ended(val value)) -> {
                 if (isContact(value.id))
                     end(context, value.pointer)
@@ -235,7 +243,9 @@ public class Drag internal constructor(
                 0.0
         if (!displacement.isFinite() || !speed.isFinite())
             return None
-        return Some(DragSample(beginning, local, displacement, speed, point.time, source))
+        return Some(
+            DragSample(beginning, local, displacement, speed, origin.time, point.time, source)
+        )
     }
     private fun axis(point: Point): Double =
         if (options.axis == DragAxis.Horizontal)
@@ -248,6 +258,16 @@ public class Drag internal constructor(
         if (closed)
             return
         when (event) {
+            case Pointer(InputPointerEvent.Moved(_)) -> {
+                if (isMouse() && start != None && !moved)
+                    cancel(DragCancelReason.PreventedMovement)
+                moved = false
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (isContact(value.id) && start != None && !moved)
+                    cancel(DragCancelReason.PreventedMovement)
+                moved = false
+            }
             case Pointer(InputPointerEvent.Button(_, val button, ElementState.Released, _)) -> {
                 if (isMouse() && button == options.button && start != None)
                     cancel(DragCancelReason.PreventedRelease)
@@ -280,6 +300,7 @@ public class Drag internal constructor(
         latest = None;
         input = None;
         claimed = false
+        moved = false
     }
     private fun release(source: DragInput) {
         when (source) {
