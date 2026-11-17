@@ -339,6 +339,7 @@ impl NativeLinkSettings {
         &mut self,
         target: &Value,
         configuration: &str,
+        traits: &BTreeSet<String>,
     ) -> Result<(), ToolchainError> {
         for setting in target["settings"].as_array().into_iter().flatten() {
             if setting["tool"].as_str() != Some("linker") {
@@ -348,9 +349,15 @@ impl NativeLinkSettings {
             if condition["config"]
                 .as_str()
                 .is_some_and(|c| c != configuration)
-                || condition["platformNames"]
-                    .as_array()
-                    .is_some_and(|ps| !ps.iter().any(|p| p.as_str() == Some("macos")))
+                || condition["platformNames"].as_array().is_some_and(|ps| {
+                    !ps.is_empty() && !ps.iter().any(|p| p.as_str() == Some("macos"))
+                })
+                || condition["traits"].as_array().is_some_and(|names| {
+                    !names
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .any(|name| traits.contains(name))
+                })
             {
                 continue;
             }
@@ -375,7 +382,7 @@ impl NativeLinkSettings {
         scratch: &Path,
         tools: &SwiftTools,
     ) -> Result<(), ToolchainError> {
-        for command in &plan.commands {
+        for command in &plan.link_commands {
             if !command.description.starts_with("Ld ") {
                 continue;
             }

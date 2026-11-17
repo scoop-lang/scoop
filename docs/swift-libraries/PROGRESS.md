@@ -22,9 +22,12 @@
 - 2026-11-18：静态 Swift 库资源接入 CLI 与 app。resource bundle 保留原名，部署记录独立复用，source run/test 执行已发布路径；两个 artifact-only 链接入口同样部署资源。scoop-bundle 消费 native_outputs，并同步 PM 成员协议 10；只有实际私有动态依赖才添加 Frameworks rpath。
 - 本项验证：相关 Rust 格式化／clippy 通过；Swift 生产／发布／资源热部署测试、bundle 15 项单测和 1 项 macOS 集成测试通过。AArch64 [资源 fixture](../../tests/fixtures/compiler-correctness/native-link/swift-resources/fixture.toml) 通过 10 个进程步骤，覆盖 source build/run、资源变化、整体复制运行和两个独立链接入口；Swift 函数检查 Bundle.module 位于主程序资源目录，未回退到 scratch。真实 bundle 项目热构建复用，资源修改后原 executable mtime 不变，新 app 读取新值；复制 app 后运行成功，不设置 DYLD_LIBRARY_PATH。初次 run 用例误传 -o、打包器旧协议与多余 rpath 问题已闭合。
 
+- 2026-11-18：补齐跨包 build plugin 脚本的更新输入；生成工具及其传递源码、声明输入仍由真实构建计划收集。consumer 链接设置只沿实际产品对象／归档收集，排除宿主生成工具；配置与 traits 条件采用 SwiftPM 已解析选择。
+- 本项验证：定向格式化／clippy、真实 Swift 生产缓存测试通过。AArch64 [插件 fixture](../../tests/fixtures/compiler-correctness/native-link/swift-plugins/fixture.toml) 通过 9 个进程步骤，覆盖三个本地包、插件脚本变化、生成工具的传递支持库变化、声明输入变化及 frozen 热复用；输出依次为 52、62、63、62，均无需重编 Scoop。宿主工具专用 linker flag 与 z 库未传播给最终程序。初次用例误用 clang 的 -Wl 参数已改为 Swift 的 -Xlinker。
+
 ## 后续工作与验收
 
-1. 补齐真实宏／插件和二进制输入交付，并执行正式构建缓存与共享源码、锁定／离线验收。
+1. 补齐真实宏、prebuild 诊断和二进制输入交付，并执行正式构建缓存与共享源码、锁定／离线验收；跨包 build plugin 与传递生成工具已验证。
 2. 补齐动态依赖的 weak-load、re-export／rpath 交付验收与 compatibility archive 组合覆盖；基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
 3. 动态库部署和 bundle 交接；配套目录的非系统依赖补齐二进制 target／实际传递加载输入。静态资源的 CLI／app 交付已完成。
 4. macOS 双架构正式 CLI fixture：真实 @c 调用、传递依赖变化、命中调用计数、并发与失败、资源读取和可重定位交付。

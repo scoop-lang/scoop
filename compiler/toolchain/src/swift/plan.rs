@@ -45,10 +45,12 @@ impl DependencyFiles {
 }
 
 pub(super) struct BuildPlan {
+    pub(super) bin: PathBuf,
     pub(super) inputs: BTreeSet<PathBuf>,
     pub(super) dependencies: BTreeSet<PathBuf>,
     pub(super) outputs: BTreeSet<PathBuf>,
-    pub(super) commands: Vec<BuildCommand>,
+    pub(super) link_inputs: BTreeSet<PathBuf>,
+    pub(super) link_commands: Vec<BuildCommand>,
 }
 
 impl BuildPlan {
@@ -145,6 +147,7 @@ impl BuildPlan {
                 main.display()
             )));
         }
+        let (link_inputs, link_commands) = linked_inputs(&manifest, &main);
         let mut depfiles = outputs
             .iter()
             .filter(|p| p.extension().is_some_and(|ext| ext == "d"))
@@ -189,12 +192,53 @@ impl BuildPlan {
             }
         }
         Ok(Self {
+            bin: bin.canonicalize().map_err(error)?,
             inputs: leaf_inputs,
             dependencies,
             outputs,
-            commands,
+            link_inputs,
+            link_commands,
         })
     }
+}
+
+fn linked_inputs(manifest: &Manifest, main: &Path) -> (BTreeSet<PathBuf>, Vec<BuildCommand>) {
+    let producers: BTreeMap<_, _> = manifest
+        .commands
+        .values()
+        .flat_map(|command| {
+            command
+                .outputs
+                .iter()
+                .filter_map(|path| file_path(path))
+                .map(move |output| (output, command))
+        })
+        .collect();
+    let mut pending = vec![main.to_owned()];
+    let mut inputs = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut commands = Vec::new();
+    while let Some(file) = pending.pop() {
+        if !visited.insert(file.clone()) {
+            continue;
+        }
+        let Some(command) = producers.get(&file) else {
+            continue;
+        };
+        commands.push((**command).clone());
+        for input in command.inputs.iter().filter_map(|path| file_path(path)) {
+            // Only object/archive edges contribute consumer linker settings.
+            // Generated sources and macro/plugin tools remain production inputs.
+            if input
+                .extension()
+                .is_some_and(|ext| ext == "o" || ext == "a")
+            {
+                pending.push(input.clone());
+            }
+            inputs.insert(input);
+        }
+    }
+    (inputs, commands)
 }
 
 fn file_path(value: &str) -> Option<PathBuf> {

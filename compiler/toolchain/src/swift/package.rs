@@ -11,8 +11,11 @@ use super::tool::SwiftTools;
 use super::{Input, SwiftBuildRequest, SwiftLibraryFormat, SwiftLinkage, ToolchainError, error};
 use crate::NativeLinkSettings;
 
+mod selection;
+
 #[derive(Deserialize)]
 struct Manifest {
+    name: String,
     #[serde(default)]
     dependencies: Vec<Value>,
     #[serde(default)]
@@ -31,6 +34,7 @@ struct Description {
 #[derive(Deserialize)]
 struct Target {
     name: String,
+    c99name: String,
     path: PathBuf,
     #[serde(default)]
     sources: Vec<PathBuf>,
@@ -38,17 +42,24 @@ struct Target {
     target_dependencies: Vec<String>,
     #[serde(default)]
     module_type: String,
+    #[serde(rename = "type")]
+    kind: String,
 }
 
 #[derive(Deserialize)]
 struct Dependency {
+    identity: String,
     path: PathBuf,
+    #[serde(default)]
+    traits: BTreeSet<String>,
     #[serde(default)]
     dependencies: Vec<Dependency>,
 }
 
 pub(super) struct Packages {
     manifests: BTreeMap<PathBuf, Manifest>,
+    dependencies: BTreeMap<PathBuf, BTreeMap<String, PathBuf>>,
+    traits: BTreeMap<PathBuf, BTreeSet<String>>,
 }
 
 impl Packages {
@@ -105,6 +116,8 @@ impl Packages {
         check_deployment(&root, tools, &request.package)?;
         let mut result = Self {
             manifests: BTreeMap::from([(request.package.clone(), root)]),
+            dependencies: BTreeMap::new(),
+            traits: BTreeMap::new(),
         };
         if request.options.offline {
             result.check_local(&request.package, tools, scratch)?;
@@ -163,6 +176,18 @@ impl Packages {
         let mut pending = vec![graph];
         while let Some(dependency) = pending.pop() {
             let path = dependency.path.canonicalize().map_err(error)?;
+            let children = dependency
+                .dependencies
+                .iter()
+                .map(|child| {
+                    Ok((
+                        child.identity.clone(),
+                        child.path.canonicalize().map_err(error)?,
+                    ))
+                })
+                .collect::<Result<_, ToolchainError>>()?;
+            self.dependencies.insert(path.clone(), children);
+            self.traits.insert(path.clone(), dependency.traits);
             if let std::collections::btree_map::Entry::Vacant(entry) = self.manifests.entry(path) {
                 let manifest =
                     tools.package_json(entry.key(), scratch, &["dump-package"], false)?;
@@ -186,6 +211,16 @@ impl Packages {
         ]);
         let mut selections = Vec::new();
         let mut settings = NativeLinkSettings::default();
+        let descriptions = self
+            .manifests
+            .keys()
+            .map(|path| {
+                let description: Description =
+                    tools.package_json(path, scratch, &["describe", "--type", "json"], false)?;
+                Ok((path.clone(), description))
+            })
+            .collect::<Result<BTreeMap<_, _>, ToolchainError>>()?;
+        let selected = self.selected_targets(request, &descriptions, plan)?;
         for (path, manifest) in &self.manifests {
             add_selection(path.clone(), Rule::Manifests, &mut files, &mut selections)?;
             add_selection(
@@ -194,74 +229,20 @@ impl Packages {
                 &mut files,
                 &mut selections,
             )?;
-            let description: Description =
-                tools.package_json(path, scratch, &["describe", "--type", "json"], false)?;
+            let description = &descriptions[path];
             let targets = description
                 .targets
                 .iter()
                 .map(|t| (t.name.as_str(), t))
                 .collect::<BTreeMap<_, _>>();
-            let mut selected = description
-                .targets
-                .iter()
-                .filter(|target| {
-                    let root = path.join(&target.path);
-                    target
-                        .sources
-                        .iter()
-                        .any(|source| plan.inputs.contains(&root.join(source)))
-                        || plan.inputs.iter().any(|source| source.starts_with(&root))
-                })
-                .map(|t| t.name.clone())
-                .collect::<BTreeSet<_>>();
-            // Plugins and macros may run outside the destination build plan.
-            loop {
-                let mut added = Vec::new();
-                for name in &selected {
-                    if let Some(target) = targets.get(name.as_str()) {
-                        added.extend(
-                            target
-                                .target_dependencies
-                                .iter()
-                                .filter(|name| {
-                                    targets.get(name.as_str()).is_some_and(|t| {
-                                        matches!(
-                                            t.module_type.as_str(),
-                                            "PluginTarget" | "MacroTarget"
-                                        )
-                                    })
-                                })
-                                .cloned(),
-                        );
-                    }
-                    if let Some(raw) = manifest
-                        .targets
-                        .iter()
-                        .find(|t| t["name"].as_str() == Some(name))
-                        && let Some(plugins) = raw["pluginUsages"].as_array()
-                    {
-                        for plugin in plugins {
-                            if let Some(name) = plugin["plugin"][0].as_str()
-                                && targets.contains_key(name)
-                            {
-                                added.push(name.to_owned());
-                            }
-                        }
-                    }
-                }
-                let old = selected.len();
-                selected.extend(added);
-                if selected.len() == old {
-                    break;
-                }
-            }
+            let selected = &selected[path];
             if !selected.is_empty() {
                 check_deployment(manifest, tools, path)?;
             }
             for name in selected {
                 let target = targets[name.as_str()];
                 if path == &request.package
-                    && name == request.product
+                    && name == &request.product
                     && matches!(request.format, SwiftLibraryFormat::Framework { .. })
                     && target.module_type != "SwiftTarget"
                 {
@@ -270,7 +251,7 @@ impl Packages {
                 let raw = manifest
                     .targets
                     .iter()
-                    .find(|t| t["name"].as_str() == Some(&name))
+                    .find(|t| t["name"].as_str() == Some(name.as_str()))
                     .ok_or_else(|| {
                         error(format!(
                             "Swift target {name} missing from package description"
@@ -309,8 +290,14 @@ impl Packages {
                     &mut files,
                     &mut selections,
                 )?;
-                if request.linkage == SwiftLinkage::Static {
-                    settings.add_manifest_target(raw, request.configuration)?;
+                let linked = target.sources.iter().any(|source| {
+                    plan.link_inputs
+                        .contains(&path.join(&target.path).join(source))
+                }) || plan
+                    .link_inputs
+                    .contains(&plan.bin.join(format!("{}.o", target.c99name)));
+                if request.linkage == SwiftLinkage::Static && linked {
+                    settings.add_manifest_target(raw, request.configuration, &self.traits[path])?;
                 }
             }
         }

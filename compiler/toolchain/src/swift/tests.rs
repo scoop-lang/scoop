@@ -61,9 +61,11 @@ let package = Package(name: "Support", products: [.library(name: "Support", targ
 import PackageDescription
 let package = Package(name: "Probe", platforms: [.macOS(.v14)],
     products: [.library(name: "Probe", type: .static, targets: ["Probe"])],
+    traits: [.default(enabledTraits: ["UseZ"]), .trait(name: "UseZ"), .trait(name: "Disabled")],
     dependencies: [.package(path: "../support")],
     targets: [.target(name: "Probe", dependencies: [.product(name: "Support", package: "support")], resources: [.process("Resources")],
-        linkerSettings: [.linkedLibrary("z"), .linkedFramework("Foundation")])])
+        linkerSettings: [.linkedLibrary("z", .when(configuration: .release, traits: ["UseZ", "Disabled"])),
+            .linkedLibrary("DisabledLibrary", .when(traits: ["Disabled"])), .linkedFramework("Foundation")])])
 "#,
     )
     .unwrap();
@@ -188,6 +190,7 @@ public func resource() -> URL { Bundle.module.bundleURL }
     assert!(first.output.binary.is_file());
     assert_eq!(first.output.resources.len(), 1);
     assert!(first.output.settings.libraries.contains("z"));
+    assert!(!first.output.settings.libraries.contains("DisabledLibrary"));
     assert!(first.output.settings.frameworks.contains("Foundation"));
     assert!(matches!(
         request.prepare(false).unwrap(),
