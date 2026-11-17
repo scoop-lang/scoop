@@ -1,6 +1,6 @@
 # Swift 原生库第一阶段设计
 
-状态：实施中。2026-11-18 按用户决定收敛职责：SwiftPM 负责构建；Cone 显式声明缓存输入和最终链接依赖；bundle metadata 独立声明私有 framework。只在 bundle 阶段重定位动态库。先完成 AArch64，再统一验证 x86-64。进度见[实施记录](PROGRESS.md)。
+状态：AArch64 实现与验收完成，x86-64 收尾中。2026-11-18 按用户决定收敛职责：SwiftPM 负责构建；Cone 显式声明缓存输入和最终链接依赖；bundle metadata 独立声明私有 framework。只在 bundle 阶段重定位动态库。先完成 AArch64，再统一验证 x86-64。进度见[实施记录](PROGRESS.md)。
 
 本阶段优先实现系统／第三方 framework 的手写 Swift staticlib bridge：`@c` → `.a` → Scoop `@Extern` → 最终程序。bindgen、自动包装和 Swift 类型导入留到下一阶段。
 

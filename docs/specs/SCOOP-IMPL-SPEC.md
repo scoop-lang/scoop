@@ -1454,6 +1454,8 @@ Swift bridge 需要的最终链接库／framework 由所属 Cone 在 `native.lib
 
 已要求的 Swift 库可从所选 SDK 的 `usr/lib/swift` 与所选 Swift 工具链正常资源目录解析，继续使用已有显式／系统 provider 优先级。SDK 的 arm64e 系统 stub 沿已有系统兼容映射消费，不据此放宽第三方机器库的架构检查。实际需要的 Core、Concurrency、StringProcessing、compatibility archives 和其他库均由输入决定，不建立只含 swiftCore 的固定名单。预解析及 LLD 必须消费同一组已选库，不在最后步骤回退宿主搜索。
 
+普通 Mach-O 对象、归档成员及 dylib 可以同时提供 macOS 与 Mac Catalyst 的 `LC_BUILD_VERSION`（zippered 输入，例如 Apple Swift compatibility archives）。Darwin 消费选择 macOS 记录检查最低部署版本，其他平台记录不使该输入失效；存在平台记录却没有 macOS 记录时拒绝，dylib 仍须有唯一的 macOS 部署记录。该规则不改变架构、符号或归档抽取检查，也不要求 Scoop 生产多平台输出；平台选择与 [LLVM Mach-O 输入处理](https://github.com/llvm/llvm-project/blob/main/lld/MachO/InputFiles.cpp)一致。
+
 动态输入的 weak-load、re-export、install name 与 rpath 按实际平台合同处理，不一律转成强依赖或忽略。保留普通目标、部署版本、符号定义／引用及外部 ABI 声明检查；不声称对象符号表能证明 Swift 实现满足声明类型。产品 linkage 与 runtime linkage 分开，首期使用目标支持的普通动态 Swift runtime 和实际需要的静态 compatibility archive，不提供 macOS 全静态 Swift runtime。
 
 `LC_LOAD_WEAK_DYLIB` 使用与普通 load 相同的路径选择；只有无候选时允许缺席，已找到文件的格式、目标、版本错误或歧义照常报告。缺席边及其查找候选进入更新记录，后续出现实际库时重新解析。弱装载不等于 re-export，不将该依赖的符号加入父库导出，也不把父库内部的弱导入变为主程序的强库要求；缺席时仍可调用父库自身导出。该规则对应 [Apple dyld 的弱依赖加载语义](https://github.com/apple-oss-distributions/dyld/blob/main/dyld/JustInTimeLoader.cpp)。

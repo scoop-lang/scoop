@@ -191,6 +191,8 @@ fn check_deployment(
         .macho_load_commands()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     let endian = file.endian();
+    let mut has_platform = false;
+    let mut has_macos = false;
     while let Some(command) = commands
         .next()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
@@ -198,14 +200,24 @@ fn check_deployment(
         if let Some(build) = command
             .build_version()
             .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
-            && (build.platform.get(endian) != macho::PLATFORM_MACOS
-                || build.minos.get(endian) > deployment.minimum_os().packed())
         {
-            return Err(error(
-                scoop_source::DiagnosticCode::E2305,
-                "native object has incompatible platform or minimum macOS",
-            ));
+            has_platform = true;
+            if build.platform.get(endian) == macho::PLATFORM_MACOS {
+                has_macos = true;
+                if build.minos.get(endian) > deployment.minimum_os().packed() {
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "native object has incompatible minimum macOS",
+                    ));
+                }
+            }
         }
+    }
+    if has_platform && !has_macos {
+        return Err(error(
+            scoop_source::DiagnosticCode::E2305,
+            "native object has no compatible macOS platform",
+        ));
     }
     Ok(())
 }

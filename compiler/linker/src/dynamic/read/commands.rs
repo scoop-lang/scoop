@@ -95,16 +95,19 @@ pub(super) fn read<'a>(
                             "invalid native dylib build version",
                         )
                     })?;
-                if build.platform.get(endian) != macho::PLATFORM_MACOS
-                    || build.minos.get(endian)
-                        > profile
-                            .startup_toolchain()
-                            .profile()
-                            .contract()
-                            .deployment()
-                            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
-                            .minimum_os()
-                            .packed()
+                // Zippered inputs also describe Mac Catalyst; select macOS.
+                if build.platform.get(endian) != macho::PLATFORM_MACOS {
+                    continue;
+                }
+                if build.minos.get(endian)
+                    > profile
+                        .startup_toolchain()
+                        .profile()
+                        .contract()
+                        .deployment()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
+                        .minimum_os()
+                        .packed()
                 {
                     return Err(error(
                         scoop_source::DiagnosticCode::E2305,
@@ -211,7 +214,7 @@ pub(super) fn read<'a>(
     if builds != 1 {
         return Err(error(
             scoop_source::DiagnosticCode::E2305,
-            "native dylib requires one LC_BUILD_VERSION",
+            "native dylib requires one macOS LC_BUILD_VERSION",
         ));
     }
     Ok(Commands {

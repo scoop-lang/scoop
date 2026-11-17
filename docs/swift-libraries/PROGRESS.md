@@ -49,12 +49,17 @@
 
 收敛后的普通 dylib、动态 framework 和使用 Foundation `#Predicate` 宏的 staticlib，在 AArch64 冷构建、热复用与运行均通过；三种程序显式 bundle 后，热复用、复制 app 运行和签名验证通过。系统库未复制；动态产物只部署显式列出的私有文件。示例首次验证遇到开发版 scoopc 的 LLVM 加载环境问题，已使用既有测试启动器闭合；阅读器旧主题数量断言与临时验证脚本的 JSON 层级已修正。
 
-实际 Swift compatibility archive 探针暴露了原生 Mach-O 读取器的问题：Apple 归档成员同时含 macOS 与 Mac Catalyst 的 LC_BUILD_VERSION 时被拒绝。该问题尚未闭合，不计作兼容库验证通过；先修复 AArch64，再开始 x86-64。
+实际 Swift compatibility archive 探针暴露了原生 Mach-O 读取器的问题：Apple 归档成员同时含 macOS 与 Mac Catalyst 的 LC_BUILD_VERSION 时被拒绝。当时未计作兼容库验证通过；修复与复测见下节。
+
+## AArch64 验收完成
+
+2026-11-18：按普通 Mach-O 多平台记录规则修复对象／归档及 dylib 的部署选择，消费 macOS 记录，忽略不相关的平台记录。规范先行同步；没有 macOS 或 macOS 最低版本高于当前部署仍拒绝。没有引入 compatibility 库名单或平台来源豁免。
+
+验证：格式化和定向 clippy 通过（仅既有警告）；2 项 native object 测试通过，其中新测试用真实 clang 产出普通对象／dylib，覆盖多平台输入、仅 Catalyst 和 macOS 最低版本过高。实际 Swift staticlib 使用工具链的 runtime compatibility 选项生成真实引用，最终程序成功解析并链接 Compatibility50、51、56、Concurrency、DynamicReplacements，热复用和两个 CoreText @c 调用均通过。AArch64 本阶段能力与组合验收完成，下一批才开始 x86-64。
 
 ## 后续工作与验收
 
-1. 修复普通 Mach-O 多平台标记的消费，完成真实 Swift compatibility archive 验证。
-2. AArch64 全部完成后，统一修复和验证已记录的 x86-64 Swift target 问题。
-3. 最终合同与变更审查；bindgen 留到下一阶段。
+1. 统一修复和验证已记录的 x86-64 Swift target 问题。
+2. 最终合同与变更审查；bindgen 留到下一阶段。
 
 每个大项完成后定向验证，提交、推送，再合并 origin/main。原始日志在仓库外，每轮清理不再使用的临时文件。
