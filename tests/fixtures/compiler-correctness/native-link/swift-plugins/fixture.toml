@@ -1,0 +1,121 @@
+schema = 1
+name = "swift-static-plugin-cache"
+inputs = ["app", "plugin", "support"]
+tools = ["scoop", "scoopc"]
+when = { os = "darwin" }
+tags = ["swift", "native-link", "compiler-correctness", "cache", "plugins"]
+
+[vars]
+options = ["--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--message-format", "json", "--jobs", "2", "-o", "${work}/program"]
+
+[[steps]]
+name = "prepare"
+files = [
+    { copy = { from = "${fixture}/app", to = "${work}/app" } },
+    { copy = { from = "${fixture}/plugin", to = "${work}/plugin" } },
+    { copy = { from = "${fixture}/support", to = "${work}/support" } },
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "${work}/app", { each = "${options}" }, { each = "${link_args}" }]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${build.result.native_outputs.length}", equals = 1 },
+]
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "52\n"
+stderr = ""
+
+[[steps]]
+name = "hot"
+argv = ["${scoop}", "build", "${work}/app", "--frozen", { each = "${options}" }, { each = "${link_args}" }]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${hot.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${hot.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}" },
+    { actual = "${hot.result.native_outputs}", equals = "${build.result.native_outputs}" },
+]
+
+[[steps]]
+name = "change_plugin"
+files = [{ replace = { path = "${work}/plugin/Plugins/Generate/Plugin.swift", old = 'output.path, "10"', new = 'output.path, "20"' } }]
+
+[[steps]]
+name = "plugin_changed"
+argv = ["${scoop}", "build", "${work}/app", { each = "${options}" }, { each = "${link_args}" }]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${plugin_changed.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${plugin_changed.result.root.artifact_fingerprint}", equals = "${build.result.root.artifact_fingerprint}" },
+    { actual = "${plugin_changed.result.link_plan_fingerprint}", not_equals = "${build.result.link_plan_fingerprint}" },
+]
+
+[[steps]]
+name = "run_plugin_changed"
+argv = ["${plugin_changed.result.output}"]
+exit = 0
+stdout = "62\n"
+stderr = ""
+
+[[steps]]
+name = "change_tool_dependency"
+files = [{ replace = { path = "${work}/support/Sources/GeneratorSupport/Support.swift", old = "{ 1 }", new = "{ 2 }" } }]
+
+[[steps]]
+name = "tool_dependency_changed"
+argv = ["${scoop}", "build", "${work}/app", "--locked", { each = "${options}" }, { each = "${link_args}" }]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${tool_dependency_changed.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${tool_dependency_changed.result.root.artifact_fingerprint}", equals = "${build.result.root.artifact_fingerprint}" },
+    { actual = "${tool_dependency_changed.result.link_plan_fingerprint}", not_equals = "${plugin_changed.result.link_plan_fingerprint}" },
+]
+
+[[steps]]
+name = "run_tool_dependency_changed"
+argv = ["${tool_dependency_changed.result.output}"]
+exit = 0
+stdout = "63\n"
+stderr = ""
+
+[[steps]]
+name = "change_declared_input"
+files = [{ replace = { path = "${work}/app/native/Sources/PluginBridge/value.txt", old = "41", new = "40" } }]
+
+[[steps]]
+name = "input_changed"
+argv = ["${scoop}", "build", "${work}/app", { each = "${options}" }, { each = "${link_args}" }]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [{ actual = "${input_changed.result.observations.child_invocations.length}", equals = 0 }]
+
+[[steps]]
+name = "run_input_changed"
+argv = ["${input_changed.result.output}"]
+exit = 0
+stdout = "62\n"
+stderr = ""

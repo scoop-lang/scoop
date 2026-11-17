@@ -9,12 +9,14 @@ mod include;
 mod language;
 mod libraries;
 mod parse;
+mod swift;
 
 pub use flags::{NativeCompileFlag, NativeIncludeFlag};
 pub use include::NativeIncludePath;
 pub use language::NativeSourceLanguage;
 pub use libraries::NativeLibrary;
 pub(crate) use parse::RawNativeConfig;
+pub use swift::{SwiftLibrary, SwiftLibraryFormat, SwiftLinkage};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct NativeConfig {
@@ -25,9 +27,26 @@ pub struct NativeConfig {
     objc_flags: Vec<NativeCompileFlag>,
     cxx: crate::TargetPredicate,
     libraries: Vec<NativeLibrary>,
+    swift: Vec<SwiftLibrary>,
 }
 
 impl NativeConfig {
+    pub fn swift_libraries(&self, target: TargetProfileId) -> impl Iterator<Item = &SwiftLibrary> {
+        self.swift
+            .iter()
+            .filter(move |library| library.predicate().matches(target))
+    }
+
+    /// The compiler consumes logical native requirements, never external build recipes.
+    pub fn compiler_projection(&self) -> Self {
+        let mut projected = self.clone();
+        projected
+            .libraries
+            .extend(self.swift.iter().map(SwiftLibrary::requirement));
+        projected.swift.clear();
+        projected
+    }
+
     pub fn sources(&self) -> &[ConditionalSourcePath] {
         &self.sources
     }

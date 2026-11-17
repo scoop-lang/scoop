@@ -18,7 +18,7 @@ mod validate;
 pub use members::{PackageMemberV1, PackageMembersV1};
 pub use overlays::{ManifestOverlayV1, ManifestOverlaysV1};
 
-pub const PACKAGE_PROTOCOL_VERSION: u32 = 8;
+pub const PACKAGE_PROTOCOL_VERSION: u32 = 10;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -94,6 +94,8 @@ pub struct PreparedNodeV1 {
 pub enum PreparedConeV1 {
     Source {
         config: Box<ExpandedConeInputV1>,
+        /// Shared Git/registry input; native producers must not update its lock.
+        shared_source: bool,
     },
     Prebuilt {
         artifact: HostPathCarrier,
@@ -105,14 +107,14 @@ pub enum PreparedConeV1 {
 impl PreparedConeV1 {
     pub fn coordinate(&self) -> &ConeCoordinate {
         match self {
-            Self::Source { config } => config.manifest.semantic().coordinate(),
+            Self::Source { config, .. } => config.manifest.semantic().coordinate(),
             Self::Prebuilt { summary, .. } => summary.cone().coordinate(),
         }
     }
 
     pub fn kind(&self) -> RequestedConeKind {
         match self {
-            Self::Source { config } => config.manifest.semantic().requested_kind(),
+            Self::Source { config, .. } => config.manifest.semantic().requested_kind(),
             Self::Prebuilt { summary, .. } => match summary.cone().kind() {
                 scoop_slib::ConeKind::Library => RequestedConeKind::Library,
                 scoop_slib::ConeKind::Executable => RequestedConeKind::Executable,
@@ -135,6 +137,11 @@ pub struct ExpandedConeInputV1 {
 }
 
 impl ExpandedConeInputV1 {
+    pub fn into_compiler_projection(mut self) -> Self {
+        self.manifest = self.manifest.into_compiler_projection();
+        self
+    }
+
     pub fn from_manifest(
         manifest: &scoop_manifest::LoadedConeManifest,
     ) -> Result<Self, crate::HostPathError> {

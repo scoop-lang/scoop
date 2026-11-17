@@ -60,9 +60,12 @@ impl DynamicInputs {
                             format!("native renamed re-export {symbol} has no resolved dependency"),
                         )
                     })?;
-                    self.find(*child, imported, visited).map(|binding| {
+                    let Some(child) = child.provider() else {
+                        return Ok(None);
+                    };
+                    self.find(child, imported, visited).map(|binding| {
                         binding.map(|mut binding| {
-                            if binding.owner == *child {
+                            if binding.owner == child {
                                 binding.owner = id;
                             }
                             binding
@@ -73,12 +76,16 @@ impl DynamicInputs {
                     dependency,
                     interface,
                 } => {
-                    let child = *self.edges.get(&(id, *dependency)).ok_or_else(|| {
-                        error(
-                            scoop_source::DiagnosticCode::E2305,
-                            format!("previous SDK export {symbol} has no load provider"),
-                        )
-                    })?;
+                    let child = self
+                        .edges
+                        .get(&(id, *dependency))
+                        .and_then(|edge| edge.provider())
+                        .ok_or_else(|| {
+                            error(
+                                scoop_source::DiagnosticCode::E2305,
+                                format!("previous SDK export {symbol} has no load provider"),
+                            )
+                        })?;
                     Ok(Some(DynamicBinding {
                         owner: child,
                         source: child,
@@ -90,10 +97,11 @@ impl DynamicInputs {
             };
         }
         for (index, dependency) in provider.dependencies.iter().enumerate() {
-            if dependency.reexport
-                && let Some(mut binding) = self.find(self.edges[&(id, index)], symbol, visited)?
+            if dependency.kind == LoadKind::Reexport
+                && let Some(child) = self.edges[&(id, index)].provider()
+                && let Some(mut binding) = self.find(child, symbol, visited)?
             {
-                if binding.owner == self.edges[&(id, index)] {
+                if binding.owner == child {
                     binding.owner = id;
                 }
                 return Ok(Some(binding));

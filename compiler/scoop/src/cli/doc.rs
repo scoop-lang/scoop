@@ -145,6 +145,7 @@ pub(super) fn execute(
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
         }),
         generators: Default::default(),
+        swift: Default::default(),
     };
     let mut graphs = Vec::new();
     for input in prepared {

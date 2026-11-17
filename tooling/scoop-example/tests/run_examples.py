@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from process_examples import (
@@ -34,6 +35,7 @@ EXPECTED = {
         "version=1.2.3\nHello, Scoop!\nbytes=14, first=72\n"
         "file=banner.txt\nfile=docs/help.txt\nhelp bytes=12\nprivate bytes=0\n"
     ),
+    "language/swift-bridge": "true\ntrue\n",
     "language/imports": (
         "Hello, Ada!\nGood day, Ada.\nHello, Lin!\nGood day, Lin.\nHello, Lin!\nGood day, Grace.\n"
     ),
@@ -169,7 +171,7 @@ def validate(topic, command, work, environment):
             directory = directory / "app"
             run(command + ["test", "--release", "."], directory, environment, logs / "test.log")
             source = "."
-        elif id in ("start/cone", "language/imports"):
+        elif id in ("start/cone", "language/imports", "language/swift-bridge"):
             source = "."
         else:
             source = topic["files"][0]["path"]
@@ -211,7 +213,12 @@ def main():
         assert set(args.topics) <= set(ids), "Unknown topic selection"
         ids = args.topics
     failures = []
+    skipped = 0
     for id in ids:
+        if id == "language/swift-bridge" and sys.platform != "darwin":
+            print(f"SKIP {id}: requires macOS and Swift", flush=True)
+            skipped += 1
+            continue
         try:
             topic = json.loads(
                 run(
@@ -226,7 +233,9 @@ def main():
         except (AssertionError, OSError, subprocess.SubprocessError) as error:
             failures.append(id)
             print(f"FAIL {id}: {error}", flush=True)
-    print(f"{len(ids) - len(failures)}/{len(ids)} topics passed; logs: {work / 'logs'}")
+    print(
+        f"{len(ids) - len(failures) - skipped}/{len(ids) - skipped} topics passed; {skipped} skipped; logs: {work / 'logs'}"
+    )
     return 1 if failures else 0
 
 

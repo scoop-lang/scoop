@@ -11,11 +11,13 @@ use scoop_wire::{Digest256, Encoder, WireEncode, domain_separated_cbor_hash, sha
 use crate::{LinkError, error, native_object::NativeObjectInfo};
 
 mod archive;
+pub(crate) mod autolink;
 pub(crate) mod coff_import;
 pub(crate) mod elf_dynamic;
 mod embedded;
 mod objects;
 mod plan;
+mod produced;
 pub(crate) use objects::{NativeArchiveMemberId, NativeObjectId};
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod elf_tests;
@@ -108,6 +110,7 @@ pub(crate) struct NativeInputs {
     pub files: BTreeMap<NativeInputId, NativeFile>,
     pub libraries: BTreeMap<NativeLinkRequirementId, LibraryInput>,
     pub selected: BTreeMap<NativeObjectId, String>,
+    bindings: BTreeMap<String, (PathBuf, NativeFileKind)>,
     embedded: BTreeMap<(scoop_identity::ConeIdentity, scoop_slib::SlibMemberId), NativeInputId>,
 }
 
@@ -116,8 +119,10 @@ impl NativeInputs {
         requirements: BTreeMap<NativeLinkRequirementId, (NativeLinkRequirementKey, Vec<String>)>,
         roots: &[PathBuf],
         profile: &ValidatedFinalLinkProfile,
+        outputs: &[scoop_toolchain::NativeLibraryOutput],
     ) -> Result<Self, LinkError> {
         let mut result = Self::default();
+        result.bind_outputs(outputs)?;
         let mut positions = BTreeMap::new();
         for (id, (key, origins)) in requirements {
             if let NativeLibraryGrouping::OrderedGroup { name, position } = key.grouping()
@@ -133,28 +138,70 @@ impl NativeInputs {
                     ),
                 ));
             }
-            let resolution = locate::library(&key, roots, profile, &mut result.observed_paths)
-                .map_err(|err| {
-                    error(
-                        err.code(),
-                        format!("{err}; requirement {id}; origins: {}", origins.join(", ")),
-                    )
-                })?;
-            result.libraries.insert(
+            result.add(key, origins, roots, profile)?;
+        }
+
+        Ok(result)
+    }
+
+    pub fn add(
+        &mut self,
+        key: NativeLinkRequirementKey,
+        origins: Vec<String>,
+        roots: &[PathBuf],
+        profile: &ValidatedFinalLinkProfile,
+    ) -> Result<bool, LinkError> {
+        let id = NativeLinkRequirementId::from_key(&key)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
+        if let Some(existing) = self.libraries.get_mut(&id) {
+            existing.origins.extend(origins);
+            return Ok(false);
+        }
+        // An autolink's default kind shares an already explicit declaration.
+        let existing = (key.kind() == scoop_identity::NativeLibraryKind::TargetDefault)
+            .then(|| {
+                self.libraries
+                    .values()
+                    .find(|library| library.key.library() == key.library())
+            })
+            .flatten();
+        let resolution = if let Some(existing) = existing {
+            self.libraries.insert(
                 id,
                 LibraryInput {
                     key,
                     origins,
-                    inputs: resolution.files.iter().map(|file| file.id).collect(),
-                    scripts: resolution.scripts,
-                    system_alias: resolution.system_alias,
+                    inputs: existing.inputs.clone(),
+                    scripts: existing.scripts.clone(),
+                    system_alias: existing.system_alias,
                 },
             );
-            for file in resolution.files {
-                result.files.entry(file.id).or_insert(file);
-            }
+            return Ok(false);
+        } else if let Some((path, kind)) = self.bindings.get(key.library().as_str()) {
+            produced::read(&key, path, *kind, profile)
+        } else {
+            locate::library(&key, roots, profile, &mut self.observed_paths)
         }
-        Ok(result)
+        .map_err(|err| {
+            error(
+                err.code(),
+                format!("{err}; requirement {id}; origins: {}", origins.join(", ")),
+            )
+        })?;
+        self.libraries.insert(
+            id,
+            LibraryInput {
+                key,
+                origins,
+                inputs: resolution.files.iter().map(|file| file.id).collect(),
+                scripts: resolution.scripts,
+                system_alias: resolution.system_alias,
+            },
+        );
+        for file in resolution.files {
+            self.files.entry(file.id).or_insert(file);
+        }
+        Ok(true)
     }
 
     pub fn input_paths(&self) -> Vec<PathBuf> {

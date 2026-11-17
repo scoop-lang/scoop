@@ -54,7 +54,21 @@ impl DynamicInputs {
             rpaths: BTreeSet::new(),
             stubs: BTreeMap::new(),
         };
-        let mut names = BTreeMap::from([(system.install_name().to_owned(), id)]);
+        result.extend(native, roots, profile)?;
+        Ok(result)
+    }
+
+    pub fn extend(
+        &mut self,
+        native: &mut NativeInputs,
+        roots: &[PathBuf],
+        profile: &ValidatedFinalLinkProfile,
+    ) -> Result<(), LinkError> {
+        let mut names = self
+            .providers
+            .values()
+            .map(|p| (p.install_name.clone(), p.id))
+            .collect();
         for file in native.ordered_files() {
             if let NativeContent::Dynamic(records) = &file.content {
                 let root = records.first().ok_or_else(|| {
@@ -64,30 +78,39 @@ impl DynamicInputs {
                     )
                 })?;
                 locate::runpath(root, roots, profile)?;
-                result.roots.insert(root.id);
+                self.roots.insert(root.id);
                 for record in records {
-                    result.insert(record.clone(), &mut names)?;
+                    self.insert(record.clone(), &mut names)?;
                 }
             }
         }
-        let mut pending: BTreeSet<_> = result.providers.keys().copied().collect();
+        let mut pending: BTreeSet<_> = self.providers.keys().copied().collect();
         let mut visited = BTreeSet::new();
         while let Some(id) = pending.pop_first() {
             if !visited.insert(id) {
                 continue;
             }
-            let provider = result.providers[&id].clone();
+            let provider = self.providers[&id].clone();
             for (index, edge) in provider.dependencies.iter().enumerate() {
+                match self.edges.get(&(id, index)) {
+                    Some(LoadTarget::Provider(_)) => continue,
+                    Some(LoadTarget::AbsentWeak) if !names.contains_key(&edge.name) => continue,
+                    _ => {}
+                }
                 let target = if let Some(target) = names.get(&edge.name) {
                     *target
                 } else {
-                    let file = locate::dependency(
+                    let Some(file) = locate::dependency(
                         &provider,
-                        &edge.name,
+                        edge,
                         roots,
                         profile,
                         &mut native.observed_paths,
-                    )?;
+                    )?
+                    else {
+                        self.edges.insert((id, index), LoadTarget::AbsentWeak);
+                        continue;
+                    };
                     let NativeContent::Dynamic(records) = &file.content else {
                         return Err(error(
                             scoop_source::DiagnosticCode::E2305,
@@ -106,13 +129,13 @@ impl DynamicInputs {
                         })?
                         .id;
                     for record in records {
-                        result.insert(record.clone(), &mut names)?;
+                        self.insert(record.clone(), &mut names)?;
                         pending.insert(record.id);
                     }
                     native.files.entry(file.id).or_insert(file);
                     target
                 };
-                let child = &result.providers[&target];
+                let child = &self.providers[&target];
                 if child.current_version < edge.compatibility_version {
                     return Err(error(
                         scoop_source::DiagnosticCode::E2305,
@@ -122,10 +145,10 @@ impl DynamicInputs {
                         ),
                     ));
                 }
-                result.edges.insert((id, index), target);
+                self.edges.insert((id, index), LoadTarget::Provider(target));
             }
         }
-        Ok(result)
+        Ok(())
     }
 
     fn insert(
@@ -192,11 +215,13 @@ impl DynamicInputs {
             }
             let provider = &self.providers[&id];
             for (index, edge) in provider.dependencies.iter().enumerate() {
-                let child = self.edges[&(id, index)];
-                if edge.name.starts_with("@rpath/") {
-                    if let Some(path) = locate::runpath(&self.providers[&child], roots, profile)? {
-                        self.rpaths.insert(path);
-                    }
+                let Some(child) = self.edges[&(id, index)].provider() else {
+                    continue;
+                };
+                if edge.name.starts_with("@rpath/")
+                    && let Some(path) = locate::runpath(&self.providers[&child], roots, profile)?
+                {
+                    self.rpaths.insert(path);
                 }
                 pending.insert(child);
             }

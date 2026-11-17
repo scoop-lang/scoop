@@ -12,6 +12,7 @@ struct Record {
     debug_file: Option<(scoop_toolchain::DebugFileKind, HostPathCarrier)>,
     fingerprint: [u8; 32],
     result_key: [u8; 32],
+    native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
 }
 
 pub(super) fn load(path: &Path) -> BuildResult<Option<Executable>> {
@@ -71,6 +72,7 @@ pub(super) fn load(path: &Path) -> BuildResult<Option<Executable>> {
         return Ok(None);
     }
     Ok(Some(Executable {
+        native_outputs: record.native_outputs,
         path,
         runtime_index: record
             .runtime_index
@@ -89,6 +91,7 @@ pub(super) fn save(
     inputs: Vec<NativeInputMetadata>,
 ) -> BuildResult<()> {
     let record = Record {
+        native_outputs: executable.native_outputs.clone(),
         inputs,
         import_library: executable
             .import_library

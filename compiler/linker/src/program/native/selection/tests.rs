@@ -11,6 +11,7 @@ fn empty_worklist_extracts_nothing_and_later_work_selects_each_member_once() {
         &fixture.runtime,
         &fixture.profile,
         &fixture.library_paths,
+        &[],
     )
     .unwrap();
     let member = path.join("member.o");
@@ -29,7 +30,7 @@ fn empty_worklist_extracts_nothing_and_later_work_selects_each_member_once() {
 
     let (declarations, libraries) = declarations::read(&fixture.closure).unwrap();
     inputs.native =
-        NativeInputs::read(libraries, &fixture.library_paths, &fixture.profile).unwrap();
+        NativeInputs::read(libraries, &fixture.library_paths, &fixture.profile, &[]).unwrap();
     inputs
         .definitions
         .retain(|_, owner| !matches!(owner, DefinitionOwner::Native(_)));
@@ -43,13 +44,34 @@ fn empty_worklist_extracts_nothing_and_later_work_selects_each_member_once() {
     {
         inputs.namespace.unbind(&symbol);
     }
-    resolve(&mut inputs, &declarations, &fixture.runtime).unwrap();
+    resolve(
+        &mut inputs,
+        &declarations,
+        &fixture.runtime,
+        &fixture.profile,
+        &fixture.library_paths,
+    )
+    .unwrap();
     assert!(inputs.native.selected.is_empty());
 
     inputs.requirements.insert(inputs.symbol("m23_final"));
-    resolve(&mut inputs, &declarations, &fixture.runtime).unwrap();
+    resolve(
+        &mut inputs,
+        &declarations,
+        &fixture.runtime,
+        &fixture.profile,
+        &fixture.library_paths,
+    )
+    .unwrap();
     assert_eq!(inputs.native.selected.len(), 1);
-    resolve(&mut inputs, &declarations, &fixture.runtime).unwrap();
+    resolve(
+        &mut inputs,
+        &declarations,
+        &fixture.runtime,
+        &fixture.profile,
+        &fixture.library_paths,
+    )
+    .unwrap();
     assert_eq!(inputs.native.selected.len(), 1);
     let objects = inputs.native.ordered_files()[0].objects();
     assert_eq!(objects.len(), 2);

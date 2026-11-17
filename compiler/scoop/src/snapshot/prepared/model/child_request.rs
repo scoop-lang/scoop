@@ -142,12 +142,11 @@ impl PreparedBuildGraph {
                             scoop_protocol::package::ExpandedConeInputV1::from_manifest(
                                 &node.manifest,
                             )
-                            .map_err(|source| {
-                                ChildRequestPlanError::HostPath {
-                                    path: node.manifest.manifest_path().to_owned(),
-                                    source,
-                                }
-                            })?,
+                            .map_err(|source| ChildRequestPlanError::HostPath {
+                                path: node.manifest.manifest_path().to_owned(),
+                                source,
+                            })?
+                            .into_compiler_projection(),
                         ),
                     },
                     direct,

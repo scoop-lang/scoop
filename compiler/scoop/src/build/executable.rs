@@ -20,6 +20,7 @@ pub(super) struct Request<'a> {
     pub enable_gc_stress: bool,
     pub enable_startup_stats: bool,
     pub output: &'a Path,
+    pub native_outputs: &'a [scoop_toolchain::NativeLibraryOutput],
 }
 
 impl Request<'_> {
@@ -44,13 +45,15 @@ pub(super) struct Executable {
     pub import_library: Option<PathBuf>,
     pub fingerprint: ResolvedLinkPlanFingerprint,
     pub result_key: [u8; 32],
+    pub native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
 }
 
 pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let key = key::of(&request)?;
-    let namespace = request.cache.join("final-products-v2");
+    let namespace = request.cache.join("final-products-v6");
     let entry = namespace.join(format!("{key}.json"));
-    if let Some(executable) = record::load(&entry)? {
+    if let Some(mut executable) = record::load(&entry)? {
+        refresh_outputs(&mut executable, request.native_outputs);
         return Ok(executable);
     }
     std::fs::create_dir_all(&namespace)
@@ -58,7 +61,8 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let lock = crate::cache::open_build_lock(&namespace.join(format!("{key}.lock")))
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     FileExt::lock(&lock).map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
-    if let Some(executable) = record::load(&entry)? {
+    if let Some(mut executable) = record::load(&entry)? {
+        refresh_outputs(&mut executable, request.native_outputs);
         return Ok(executable);
     }
     let target = request.target.production().map_err(|error| {
@@ -90,6 +94,7 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
         &runtime,
         &profile,
         scoop_linker::ProgramLinkOptions {
+            native_outputs: request.native_outputs,
             keep_symbols: request.keep_symbols(),
             emit_debug_file: request.emit_debug_file(),
             enable_stack_trace: request.enable_stack_trace(),
@@ -130,6 +135,7 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     )
     .as_array();
     let executable = Executable {
+        native_outputs: linked.native_outputs,
         path: linked.path,
         runtime_index,
         debug_file: linked.debug_file,
@@ -144,4 +150,15 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
 
 fn failure(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> Box<BuildFailure> {
     BuildFailure::tool(code, BuildFailurePhase::FinalLink, error)
+}
+
+fn refresh_outputs(executable: &mut Executable, current: &[scoop_toolchain::NativeLibraryOutput]) {
+    for output in &mut executable.native_outputs {
+        if let Some(updated) = current
+            .iter()
+            .find(|candidate| candidate.name == output.name)
+        {
+            *output = updated.clone();
+        }
+    }
 }

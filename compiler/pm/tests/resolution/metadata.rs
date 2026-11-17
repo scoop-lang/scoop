@@ -29,7 +29,7 @@ fn source(result: &PreparedWorkspaceV1, name: &str) -> std::path::PathBuf {
         .iter()
         .find(|node| node.cone.coordinate().name() == name)
         .unwrap();
-    let PreparedConeV1::Source { config } = &node.cone else {
+    let PreparedConeV1::Source { config, .. } = &node.cone else {
         panic!("expected a source package")
     };
     config.root.to_path_buf().unwrap()

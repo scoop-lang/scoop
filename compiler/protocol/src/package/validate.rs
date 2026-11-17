@@ -87,7 +87,7 @@ impl PreparedResolutionV1 {
                 }
             }
             match &node.cone {
-                PreparedConeV1::Source { config } => {
+                PreparedConeV1::Source { config, .. } => {
                     config.validate()?;
                     let mut expected: Vec<_> = config
                         .manifest

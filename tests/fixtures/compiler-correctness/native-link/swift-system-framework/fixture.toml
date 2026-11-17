@@ -1,0 +1,127 @@
+schema = 1
+name = "swift-static-system-framework"
+inputs = ["app", "bridge"]
+tools = ["scoop", "scoopc", "scoop-link"]
+when = { os = "darwin" }
+tags = ["swift", "native-link", "compiler-correctness", "cache"]
+
+[vars]
+options = ["--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--message-format", "json", "--jobs", "2"]
+
+[[steps]]
+name = "prepare"
+files = [
+    { copy = { from = "${fixture}/app", to = "${work}/sources/app" } },
+    { copy = { from = "${fixture}/bridge", to = "${work}/sources/bridge" } },
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "${work}/sources/app", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${build.result.native_outputs.length}", equals = 1 },
+    { actual = "${build.result.native_outputs.0.name}", equals = "SystemBridge" },
+    { actual = "${build.result.native_outputs.0.linkage}", equals = "static" },
+    { actual = "${build.result.native_outputs.0.format.format}", equals = "library" },
+]
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "true\ntrue\n"
+stderr = ""
+
+[[steps]]
+name = "hot"
+argv = ["${scoop}", "build", "${work}/sources/app", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${hot.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${hot.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}" },
+    { actual = "${hot.result.native_outputs}", equals = "${build.result.native_outputs}" },
+]
+
+[[steps]]
+name = "change_swift"
+files = [{ replace = { path = "${work}/sources/bridge/native/Sources/SystemBridge/Fonts.swift", old = "return CTFontGetSize(makeFont(size))", new = "return CTFontGetSize(makeFont(size)) + 1" } }]
+
+[[steps]]
+name = "changed"
+argv = ["${scoop}", "build", "${work}/sources/app", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${changed.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${changed.result.root.artifact_fingerprint}", equals = "${build.result.root.artifact_fingerprint}" },
+    { actual = "${changed.result.link_plan_fingerprint}", not_equals = "${build.result.link_plan_fingerprint}" },
+]
+
+[[steps]]
+name = "run_changed"
+argv = ["${changed.result.output}"]
+exit = 0
+stdout = "false\ntrue\n"
+stderr = ""
+
+[[steps]]
+name = "emit"
+argv = ["${scoop}", "build", "${work}/sources/app", "--emit-slib", { each = "${options}" }, { each = "${link_args}" }, "-o", "${work}/delivery/program.slib"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${emit.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${emit.result.dependencies.length}", equals = 2 },
+    { file = "${work}/delivery/program.native/libraries/libSystemBridge.a", exists = true },
+    { file = "${work}/delivery/program.native/native-outputs.json", exists = true },
+]
+
+[[steps]]
+name = "copy_delivery"
+files = [{ copy = { from = "${work}/delivery", to = "${work}/relocated" } }]
+
+[[steps]]
+name = "link"
+argv = ["${scoop}", "link", "--root-slib", "${work}/relocated/program.slib", "--dependency-slib", "${emit.result.dependencies.0.path}", "--dependency-slib", "${emit.result.dependencies.1.path}", "--library-path", "${work}/relocated/program.native", "--sysroot", "${sysroot}", "--cache-dir", "${work}/cache", { each = "${link_args}" }, "--message-format", "json", "-o", "${work}/relocated/program"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [{ actual = "${link.result.native_outputs.length}", equals = 1 }]
+
+[[steps]]
+name = "run_linked"
+argv = ["${link.result.output}"]
+exit = 0
+stdout = "false\ntrue\n"
+stderr = ""
+
+[[steps]]
+name = "standalone"
+argv = ["${scoop-link}", "--root-slib", "${work}/relocated/program.slib", "--dep-slib", "${emit.result.dependencies.0.path}", "--dep-slib", "${emit.result.dependencies.1.path}", "--library-path", "${work}/relocated/program.native", "--sysroot", "${sysroot}", "--cache-dir", "${work}/cache", { each = "${link_args}" }, "-o", "${work}/relocated/standalone"]
+exit = 0
+stdout = { regex = "link-plan [0-9a-f]{64}\n" }
+stderr = ""
+
+[[steps]]
+name = "run_standalone"
+argv = ["${work}/relocated/standalone"]
+exit = 0
+stdout = "false\ntrue\n"
+stderr = ""

@@ -2,6 +2,11 @@
 
 范围遵循 [设计](DESIGN.md)：首期为 app、deb、rpm、AppImage、NSIS、MSI；Flatpak/MSIX 后续单独实施。原始日志、上游源码调研和临时验证工程放在仓库外。
 
+## 2026-11-18：Swift 静态库资源
+
+- 项目入口同步 PM 成员协议 10，消费 build JSON 的 native_outputs 资源路径，在 app 的 Contents/Resources 保留 SwiftPM bundle 原名；静态 archive 不进入 payload。没有私有动态依赖的 executable 不追加 Frameworks rpath，无需装载修改时不调用 install_name_tool。
+- 格式化、clippy、15 项单测和 macOS 集成测试通过。AArch64 真实 Swift staticlib／Scoop 项目完成 app 资源读取、热构建复用、资源变化后保留原 executable mtime，以及整体复制 app 后读取新值；Swift 代码核对 Bundle.module 实际位置，运行不依赖开发 DYLD_LIBRARY_PATH。x86-64 随 Swift 能力完整后统一验证。
+
 ## 2026-11-08：公共接口
 
 - Cone `[bundle]` 保留为工具 metadata；PM 成员协议版本 6 交付原始表、来源 span 与展开的发布 metadata。普通编译不解释打包配置。

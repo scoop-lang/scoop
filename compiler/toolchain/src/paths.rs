@@ -36,7 +36,7 @@ pub fn shared_commands_root() -> Option<PathBuf> {
         .map(|root| root.join("commands"))
 }
 
-fn default_cache() -> Option<PathBuf> {
+pub(crate) fn default_cache() -> Option<PathBuf> {
     if cfg!(windows) {
         return std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)

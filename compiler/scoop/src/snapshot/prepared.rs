@@ -91,10 +91,35 @@ impl Preparer {
 
     fn run(mut self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
         let mut nodes = BTreeMap::new();
+        let mut swift = Vec::new();
 
         for (identity, node) in self.parts.nodes {
             let prepared = match node {
                 GraphNode::ManifestSource(manifest) => {
+                    if !self.frontend {
+                        let context = &self.parts.context;
+                        for library in manifest
+                            .parsed()
+                            .semantic()
+                            .native()
+                            .swift_libraries(context.target.id())
+                        {
+                            let request = scoop_toolchain::swift::SwiftBuildRequest::new(
+                                manifest.input_root(),
+                                library,
+                                context
+                                    .target
+                                    .request()
+                                    .map_err(PrepareBuildGraphError::Native)?,
+                                context.optimization,
+                                context.swift.clone(),
+                                manifest.is_shared_source(),
+                                context.cache_root.as_path(),
+                            )
+                            .map_err(PrepareBuildGraphError::Native)?;
+                            swift.push((identity, request));
+                        }
+                    }
                     let purpose = if identity == self.parts.root {
                         self.parts.context.purpose
                     } else {
@@ -142,6 +167,7 @@ impl Preparer {
             nodes.insert(identity, prepared);
         }
         Ok(PreparedBuildGraph {
+            swift,
             root: self.parts.root,
             nodes,
             edges: self.parts.edges,

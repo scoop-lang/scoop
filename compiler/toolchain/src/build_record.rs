@@ -17,6 +17,25 @@ pub(crate) struct Record<T> {
     pub(crate) result: T,
 }
 
+pub(crate) fn lookup<T: DeserializeOwned>(
+    path: &Path,
+    available: impl Fn(&T) -> Result<bool, ToolchainError>,
+) -> Result<Option<Record<T>>, ToolchainError> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(cause) => return Err(error(scoop_source::DiagnosticCode::E2201, cause)),
+    };
+    let record: Record<T> = serde_json::from_reader(BufReader::new(file))
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
+    for input in &record.inputs {
+        if !input.is_current()? {
+            return Ok(None);
+        }
+    }
+    Ok(available(&record.result)?.then_some(record))
+}
+
 pub(crate) fn cached<T: Serialize + DeserializeOwned>(
     directory: &Path,
     key: Digest256,
@@ -24,22 +43,7 @@ pub(crate) fn cached<T: Serialize + DeserializeOwned>(
     build: impl FnOnce() -> Result<Record<T>, ToolchainError>,
 ) -> Result<Record<T>, ToolchainError> {
     let path = directory.join(format!("{key}.json"));
-    let lookup = || -> Result<Option<Record<T>>, ToolchainError> {
-        let file = match File::open(&path) {
-            Ok(file) => file,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(error(scoop_source::DiagnosticCode::E2201, e)),
-        };
-        let record: Record<T> = serde_json::from_reader(BufReader::new(file))
-            .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
-        for input in &record.inputs {
-            if !input.is_current()? {
-                return Ok(None);
-            }
-        }
-        Ok(available(&record.result)?.then_some(record))
-    };
-    if let Some(record) = lookup()? {
+    if let Some(record) = lookup(&path, &available)? {
         return Ok(record);
     }
     std::fs::create_dir_all(directory)
@@ -52,7 +56,7 @@ pub(crate) fn cached<T: Serialize + DeserializeOwned>(
         .open(directory.join(format!("{key}.lock")))
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     fs4::FileExt::lock(&lock).map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
-    if let Some(record) = lookup()? {
+    if let Some(record) = lookup(&path, &available)? {
         return Ok(record);
     }
     let record = build()?;

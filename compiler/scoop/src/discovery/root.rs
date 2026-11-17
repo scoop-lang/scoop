@@ -51,6 +51,7 @@ impl BuildGraphRequest {
                 purpose,
                 jobs,
                 generators,
+                swift: Default::default(),
             },
         )
     }

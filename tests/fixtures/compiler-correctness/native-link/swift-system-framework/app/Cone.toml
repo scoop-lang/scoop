@@ -1,0 +1,10 @@
+schema = 1
+
+[cone]
+group = "dev.swift"
+name = "font-client"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"dev.swift:system-bridge" = { version = "0.1.0", path = "../bridge" }

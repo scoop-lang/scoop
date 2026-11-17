@@ -220,6 +220,66 @@ fn jobs_do_not_change_compilation_keys() {
     );
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn a_waiting_swift_package_does_not_block_a_compiler_failure() {
+    struct CompilerWithSwiftSibling;
+    impl SingleConeCompilerRunner for CompilerWithSwiftSibling {
+        fn invoke(
+            &self,
+            tool: &ResolvedPairedScoopc,
+            request: &ScoopcRequestEnvelopeV1,
+            io: &ChildIoPlan,
+        ) -> Result<ScoopcResponseEnvelopeV1, ChildTransportError> {
+            assert_eq!(
+                io.jobs.get(),
+                2,
+                "the compiler must share four jobs with the ready Swift product"
+            );
+            FailureRunner.invoke(tool, request, io)
+        }
+    }
+    let temp = tempfile::tempdir().unwrap();
+    write_parallel_graph(temp.path());
+    let root = temp.path().join("first");
+    let manifest_path = root.join("Cone.toml");
+    let mut manifest = std::fs::read_to_string(&manifest_path).unwrap();
+    manifest.push_str(
+        "\n[[native.swift]]\npackage = 'native'\nproduct = 'Probe'\nlinkage = 'static'\n",
+    );
+    std::fs::write(manifest_path, manifest).unwrap();
+    std::fs::create_dir_all(root.join("native/Sources/Probe")).unwrap();
+    std::fs::write(root.join("native/Package.swift"), "// swift-tools-version: 6.3\nimport PackageDescription\nlet package = Package(name: \"Probe\", products: [.library(name: \"Probe\", type: .static, targets: [\"Probe\"])], targets: [.target(name: \"Probe\")])\n").unwrap();
+    std::fs::write(
+        root.join("native/Sources/Probe/Probe.swift"),
+        "@c(probe) public func probe() -> Int32 { 42 }\n",
+    )
+    .unwrap();
+    let graph = request(&root, temp.path())
+        .with_jobs(NonZeroUsize::new(4).unwrap())
+        .load_root()
+        .unwrap()
+        .discover()
+        .unwrap()
+        .resolve()
+        .unwrap()
+        .prepare()
+        .unwrap();
+    let scoop_toolchain::swift::PreparedSwiftBuild::Pending(held) =
+        graph.swift_requests()[0].1.prepare(false).unwrap()
+    else {
+        panic!("cold producer acquires its package lock");
+    };
+    let error = graph
+        .execute_with_runner(&CompilerWithSwiftSibling)
+        .unwrap_err();
+    assert!(matches!(
+        error.cause(),
+        BuildGraphExecutionError::Ordinary(..)
+    ));
+    drop(held);
+}
+
 #[test]
 fn busy_cache_key_does_not_block_an_active_child_from_releasing_its_lock() {
     let temp = tempfile::tempdir().unwrap();

@@ -51,10 +51,32 @@ pub(crate) enum DynamicExport {
     },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LoadKind {
+    Normal,
+    Weak,
+    Reexport,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum LoadTarget {
+    Provider(NativeDynamicProviderId),
+    AbsentWeak,
+}
+
+impl LoadTarget {
+    fn provider(self) -> Option<NativeDynamicProviderId> {
+        match self {
+            Self::Provider(id) => Some(id),
+            Self::AbsentWeak => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct LoadDependency {
     pub name: String,
-    pub reexport: bool,
+    pub kind: LoadKind,
     pub compatibility_version: u32,
 }
 
@@ -83,7 +105,7 @@ pub(crate) struct DynamicBinding {
 pub(crate) struct DynamicInputs {
     pub providers: BTreeMap<NativeDynamicProviderId, Arc<DynamicProvider>>,
     pub roots: BTreeSet<NativeDynamicProviderId>,
-    pub edges: BTreeMap<(NativeDynamicProviderId, usize), NativeDynamicProviderId>,
+    pub edges: BTreeMap<(NativeDynamicProviderId, usize), LoadTarget>,
     pub rpaths: BTreeSet<String>,
     pub stubs: BTreeMap<NativeDynamicProviderId, Vec<u8>>,
 }

@@ -1,0 +1,14 @@
+package dev.example.swiftbridge
+
+@Extern(lib = "SystemBridge", name = "scoop_ct_font_size")
+fun fontSize(size: Double): Double
+
+@Extern(lib = "SystemBridge", name = "scoop_ct_glyph_count")
+fun glyphCount(): Int
+
+fun main() {
+    @Unsafe {
+        println(fontSize(18.0) == 18.0)
+        println(glyphCount() > 0)
+    }
+}

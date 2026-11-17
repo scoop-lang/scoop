@@ -1,0 +1,23 @@
+schema = 1
+
+[cone]
+group = "dev.swift"
+name = "system-bridge"
+version = "0.1.0"
+kind = "library"
+
+[[native.swift]]
+package = "native"
+product = "SystemBridge"
+linkage = "static"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "CoreText"
+kind = "framework"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "CoreFoundation"
+kind = "framework"
+when = { os = "darwin" }

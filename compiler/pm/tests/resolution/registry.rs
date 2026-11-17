@@ -99,9 +99,14 @@ fn real_registry_resolution_downloads_only_selected_versions_and_shares_across_p
             .iter()
             .find(|node| node.cone.coordinate().name() == "a")
             .unwrap();
-        let scoop_protocol::package::PreparedConeV1::Source { config } = &node.cone else {
+        let scoop_protocol::package::PreparedConeV1::Source {
+            config,
+            shared_source,
+        } = &node.cone
+        else {
             panic!()
         };
+        assert!(shared_source);
         prepared_roots.push(config.root.to_path_buf().unwrap());
     }
     assert_eq!(prepared_roots[0], prepared_roots[1]);

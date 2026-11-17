@@ -149,6 +149,7 @@ impl Reporter {
         let mut record = json!({
             "schema": 2, "kind": "library", "profile": build.profile.as_str(), "output": path_value(&build.output),
             "target": root.artifact().summary().target_selection().target().contract().canonical_triple(),
+            "native_outputs": build.native_outputs,
             "root": artifact(root.artifact().summary(), root.artifact_locator()), "dependencies": dependencies,
             "observations": { "nodes": nodes, "child_invocations": observations.child_invocations().iter().map(ToString::to_string).collect::<Vec<_>>() },
         });
@@ -193,6 +194,7 @@ impl Reporter {
             MessageFormat::Json => {
                 let mut record = json!({
                     "schema": 2, "kind": "link", "output": path_value(&outcome.output),
+                    "native_outputs": outcome.native_outputs,
                     "root": artifact(&outcome.root.summary, &outcome.root.path),
                     "dependencies": outcome.dependencies.iter().map(|dependency| artifact(&dependency.summary, &dependency.path)).collect::<Vec<_>>(),
                     "runtime_index": path_value(&outcome.runtime_index), "link_plan_fingerprint": outcome.link_plan_fingerprint.to_string(),

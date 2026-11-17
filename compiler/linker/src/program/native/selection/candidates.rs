@@ -100,15 +100,22 @@ fn choose(
     else {
         return Ok(None);
     };
-    let mut best = candidates
+    let best = candidates
         .into_iter()
-        .filter(|(_, binding)| binding.precedence(format) == priority);
-    let (candidate, binding) = best.next().expect("maximum candidate priority exists");
-    if binding == NativeSymbolBinding::Strong && best.next().is_some() {
+        .filter(|(_, binding)| binding.precedence(format) == priority)
+        .collect::<Vec<_>>();
+    let lazy_archives = format == NativeObjectFormat::MachO64
+        && best.iter().all(|(candidate, _)| {
+            matches!(
+                candidate,
+                Candidate::Object(NativeObjectId::ArchiveMember(_))
+            )
+        });
+    if best[0].1 == NativeSymbolBinding::Strong && best.len() > 1 && !lazy_archives {
         return Err(error(
             scoop_source::DiagnosticCode::E2306,
             format!("ambiguous native providers for {symbol}: multiple strong definitions"),
         ));
     }
-    Ok(Some(candidate))
+    Ok(best.into_iter().next().map(|(candidate, _)| candidate))
 }

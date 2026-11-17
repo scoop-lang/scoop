@@ -3,6 +3,32 @@
 use super::execution::{CompilerResponse, Execution, PreparedNode};
 use super::*;
 use crate::ChildTransportError;
+use scoop_toolchain::swift::{PreparedSwiftBuild, SwiftProduct};
+
+enum Response {
+    Compiler(CompilerResponse),
+    Swift(Result<Box<SwiftProduct>, scoop_toolchain::ToolchainError>),
+}
+
+fn receive(
+    execution: &mut Execution,
+    graph: &PreparedBuildGraph,
+    position: usize,
+    response: Response,
+) {
+    match response {
+        Response::Compiler(response) => execution.receive(graph, (position, response)),
+        Response::Swift(Ok(product)) => {
+            execution.swift.completed.insert(position, *product);
+        }
+        Response::Swift(Err(source)) => {
+            execution.failures.insert(
+                execution.order.len() + position,
+                execution.swift.error(position, source),
+            );
+        }
+    }
+}
 
 pub(super) fn execute(
     graphs: &[&PreparedBuildGraph],
@@ -36,11 +62,12 @@ pub(super) fn execute(
         .collect::<Result<Vec<_>, BuildGraphExecutionFailure>>()?;
     std::thread::scope(|scope| {
         let (sender, receiver) =
-            std::sync::mpsc::channel::<(usize, usize, std::num::NonZeroUsize, CompilerResponse)>();
+            std::sync::mpsc::channel::<(usize, usize, std::num::NonZeroUsize, Response)>();
         let mut active_jobs = 0;
+        let mut wait_for_lock = false;
         loop {
             while let Ok((graph, position, worker_jobs, response)) = receiver.try_recv() {
-                executions[graph].receive(graphs[graph], (position, response));
+                receive(&mut executions[graph], graphs[graph], position, response);
                 active_jobs -= worker_jobs.get();
             }
             let mut failed = executions
@@ -51,7 +78,7 @@ pub(super) fn execute(
                 while !failed && active_jobs < jobs {
                     let ready = executions
                         .iter()
-                        .map(|execution| execution.ready.len())
+                        .map(|execution| execution.ready.len() + execution.swift.ready.len())
                         .sum::<usize>()
                         .max(1);
                     let worker_jobs =
@@ -60,12 +87,8 @@ pub(super) fn execute(
                     let Some(position) = execution.ready.pop() else {
                         break;
                     };
-                    match execution.prepare(
-                        graph,
-                        position,
-                        offsets[index] + position,
-                        active_jobs == 0,
-                    ) {
+                    let block = std::mem::take(&mut wait_for_lock) && active_jobs == 0;
+                    match execution.prepare(graph, position, offsets[index] + position, block) {
                         Ok(PreparedNode::WaitingForLock(key)) => {
                             execution.waiting_keys.insert(position, key);
                             waiting.push(position);
@@ -87,7 +110,12 @@ pub(super) fn execute(
                                             || runner.invoke(compiler, &request, &io),
                                         ))
                                         .unwrap_or(Err(ChildTransportError::WorkerPanicked));
-                                    let _ = sender.send((index, position, worker_jobs, response));
+                                    let _ = sender.send((
+                                        index,
+                                        position,
+                                        worker_jobs,
+                                        Response::Compiler(response),
+                                    ));
                                 });
                             match worker {
                                 Ok(_) => {
@@ -115,16 +143,100 @@ pub(super) fn execute(
                     }
                 }
                 executions[index].ready.defer(waiting);
+                let mut waiting = Vec::new();
+                while !failed && active_jobs < jobs {
+                    let ready = executions
+                        .iter()
+                        .map(|execution| execution.ready.len() + execution.swift.ready.len())
+                        .sum::<usize>()
+                        .max(1);
+                    let worker_jobs =
+                        std::num::NonZeroUsize::new(((jobs - active_jobs) / ready).max(1)).unwrap();
+                    let execution = &mut executions[index];
+                    let Some(position) = execution.swift.ready.pop_front() else {
+                        break;
+                    };
+                    let block = std::mem::take(&mut wait_for_lock) && active_jobs == 0;
+                    match execution.swift.requests[position].1.prepare(block) {
+                        Ok(PreparedSwiftBuild::Complete(product)) => {
+                            execution.swift.completed.insert(position, *product);
+                        }
+                        Ok(PreparedSwiftBuild::WaitingForLock) => waiting.push(position),
+                        Ok(PreparedSwiftBuild::Pending(pending)) => {
+                            let sender = sender.clone();
+                            let target = graph.native_target().clone();
+                            let worker = std::thread::Builder::new()
+                                .name(format!("scoop-swift-{index}-{position}"))
+                                .spawn_scoped(scope, move || {
+                                    let result = std::panic::catch_unwind(
+                                        std::panic::AssertUnwindSafe(|| {
+                                            target.production().and_then(|target| {
+                                                pending.build(target, worker_jobs)
+                                            })
+                                        }),
+                                    )
+                                    .unwrap_or_else(|_| {
+                                        Err(scoop_toolchain::ToolchainError::new(
+                                            scoop_source::DiagnosticCode::ICE2201,
+                                            "Swift build worker panicked".to_owned(),
+                                        ))
+                                    });
+                                    let _ = sender.send((
+                                        index,
+                                        position,
+                                        worker_jobs,
+                                        Response::Swift(result.map(Box::new)),
+                                    ));
+                                });
+                            match worker {
+                                Ok(_) => active_jobs += worker_jobs.get(),
+                                Err(source) => {
+                                    execution.failures.insert(
+                                        execution.order.len() + position,
+                                        execution.swift.error(
+                                            position,
+                                            scoop_toolchain::ToolchainError::new(
+                                                scoop_source::DiagnosticCode::E2201,
+                                                format!(
+                                                    "cannot start Swift build worker: {source}"
+                                                ),
+                                            ),
+                                        ),
+                                    );
+                                    failed = true;
+                                }
+                            }
+                        }
+                        Err(source) => {
+                            execution.failures.insert(
+                                execution.order.len() + position,
+                                execution.swift.error(position, source),
+                            );
+                            failed = true;
+                        }
+                    }
+                }
+                executions[index].swift.ready.extend(waiting);
             }
             if active_jobs == 0 {
-                break;
+                if failed
+                    || executions.iter().all(|execution| {
+                        execution.ready.len() == 0 && execution.swift.ready.is_empty()
+                    })
+                {
+                    break;
+                }
+                // Only lock waiters remain. Block on one after every runnable
+                // compiler and Swift node has had a chance to acquire a slot.
+                wait_for_lock = true;
+                continue;
             }
-            // All locks remain on the parent thread. Drain started workers even
-            // after failure, so another root cannot wait on an undelivered result.
+            wait_for_lock = false;
+            // Drain started workers after failure before releasing the graph.
             let (graph, position, worker_jobs, response) = receiver
                 .recv()
                 .expect("an active compiler worker returns a response");
-            executions[graph].receive(graphs[graph], (position, response));
+            receive(&mut executions[graph], graphs[graph], position, response);
             active_jobs -= worker_jobs.get();
         }
     });
@@ -143,7 +255,10 @@ pub(super) fn execute(
     debug_assert!(
         executions
             .iter()
-            .all(|execution| execution.completed_refs().len() == execution.order.len())
+            .all(
+                |execution| execution.completed_refs().len() == execution.order.len()
+                    && execution.swift.completed.len() == execution.swift.requests.len()
+            )
     );
     Ok(executions)
 }

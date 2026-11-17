@@ -104,7 +104,7 @@ fn bundle(input: &project::Input, format: &str, force: bool) -> Result<(PathBuf,
         .open(parent.join(format!(".{format}.lock")))?;
     lock.lock()?;
     let destination = parent.join(format);
-    let key = json!({"schema":1,"config":settings.config,"source":host_path::value(&settings.source),"name":settings.name,"version":settings.version.to_string(),"display_name":settings.display_name,"target":input.target.triple,"profile":input.profile,"format":format,"executable":host_path::value(&input.executable),"path":std::env::var_os("PATH").map(|v|host_path::value(std::path::Path::new(&v)))});
+    let key = json!({"schema":1,"config":settings.config,"source":host_path::value(&settings.source),"name":settings.name,"version":settings.version.to_string(),"display_name":settings.display_name,"target":input.target.triple,"profile":input.profile,"format":format,"executable":host_path::value(&input.executable),"native_resources":input.native_resources.iter().map(|path|host_path::value(path)).collect::<Vec<_>>(),"path":std::env::var_os("PATH").map(|v|host_path::value(std::path::Path::new(&v)))});
     if !force && let Some(path) = cache::hit(&destination, &key)? {
         return Ok((path, true));
     }

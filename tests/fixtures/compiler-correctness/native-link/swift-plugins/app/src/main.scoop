@@ -1,0 +1,4 @@
+package dev.swift.pluginclient
+@Extern(lib = "PluginBridge", name = "swift_generated")
+fun generated(): Int
+fun main() { @Unsafe { println(generated()) } }

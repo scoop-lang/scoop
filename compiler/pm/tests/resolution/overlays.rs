@@ -64,7 +64,7 @@ fn source<'a>(
         .iter()
         .find(|node| node.cone.coordinate().name() == name)
         .unwrap();
-    let PreparedConeV1::Source { config } = &node.cone else {
+    let PreparedConeV1::Source { config, .. } = &node.cone else {
         panic!()
     };
     config

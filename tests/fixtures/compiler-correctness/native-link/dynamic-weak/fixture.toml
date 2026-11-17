@@ -1,0 +1,133 @@
+schema = 1
+name = "native-link-dynamic-weak"
+inputs = ["cone", "facade.c", "optional.c", "strong.c", "optional.tbd", "required.tbd"]
+tools = ["scoop", "scoopc", "cc"]
+when = { os = "darwin" }
+tags = ["native-link", "compiler-correctness", "cache"]
+
+[vars]
+build_args = ["${work}/cone", "--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--library-path", "${work}/native", "--message-format", "json", "-o", "${work}/program"]
+
+[[steps]]
+name = "prepare"
+files = [
+    { copy = { from = "${fixture}/cone", to = "${work}/cone" } },
+    { mkdir = { path = "${work}/native" } },
+]
+
+# Link against an interface; no Optional runtime library has been produced yet.
+[[steps]]
+name = "facade"
+argv = ["${cc}", {each = "${cc_args}"}, "-dynamiclib", "${fixture}/facade.c", "-install_name", "@rpath/libFacade.dylib", "-Wl,-weak_library,${fixture}/optional.tbd", "-o", "${work}/native/libFacade.dylib"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", {each = "${build_args}"}, {each = "${link_args}"}]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run_absent"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "42\n"
+stderr = ""
+
+[[steps]]
+name = "link"
+argv = ["${scoop}", "link", "--root-slib", "${build.result.root.path}", "--dependency-slib", "${build.result.dependencies.0.path}", "--runtime-objects", "${build.result.runtime_index}", "--sysroot", "${sysroot}", {each = "${link_args}"}, "--library-path", "${work}/native", "--cache-dir", "${work}/cache", "--message-format", "json", "--dump-plan", "-o", "${work}/linked"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${link.result.link_plan}", contains = 'weak-load "@rpath/libOptional.dylib" -> absent' },
+    { actual = "${link.result.link_plan}", not_contains = 'dynamic binding _optional_value' },
+]
+
+[[steps]]
+name = "hot"
+argv = ["${scoop}", "build", {each = "${build_args}"}, {each = "${link_args}"}]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${hot.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${hot.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}" },
+]
+
+[[steps]]
+name = "produce_optional"
+argv = ["${cc}", {each = "${cc_args}"}, "-dynamiclib", "${fixture}/optional.c", "-install_name", "@rpath/libOptional.dylib", "-current_version", "1.0", "-compatibility_version", "1.0", "-o", "${work}/native/libOptional.dylib"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "present"
+argv = ["${scoop}", "build", {each = "${build_args}"}, {each = "${link_args}"}]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+    { actual = "${present.result.observations.child_invocations.length}", equals = 0 },
+    { actual = "${present.result.link_plan_fingerprint}", not_equals = "${build.result.link_plan_fingerprint}" },
+]
+
+[[steps]]
+name = "run_present"
+argv = ["${present.result.output}"]
+exit = 0
+stdout = "43\n"
+stderr = ""
+
+[[steps]]
+name = "incompatible_optional"
+argv = ["${cc}", {each = "${cc_args}"}, "-dynamiclib", "${fixture}/optional.c", "-install_name", "@rpath/libOptional.dylib", "-current_version", "0.5", "-compatibility_version", "0.5", "-o", "${work}/native/libOptional.dylib"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "reject_incompatible"
+argv = ["${scoop}", "build", {each = "${build_args}"}, {each = "${link_args}"}]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+checks = [
+    { actual = "${reject_incompatible.diagnostics.length}", equals = 1 },
+    { actual = "${reject_incompatible.diagnostics.0.code}", equals = "E2305" },
+    { actual = "${reject_incompatible.diagnostics.0.message}", contains = "dynamic dependency @rpath/libOptional.dylib has incompatible version" },
+]
+
+[[steps]]
+name = "require_missing"
+argv = ["${cc}", {each = "${cc_args}"}, "-dynamiclib", "${fixture}/strong.c", "${fixture}/required.tbd", "-install_name", "@rpath/libFacade.dylib", "-o", "${work}/native/libFacade.dylib"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "reject_required"
+argv = ["${scoop}", "build", {each = "${build_args}"}, {each = "${link_args}"}]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+checks = [
+    { actual = "${reject_required.diagnostics.length}", equals = 1 },
+    { actual = "${reject_required.diagnostics.0.code}", equals = "E2302" },
+    { actual = "${reject_required.diagnostics.0.message}", contains = "dynamic dependency @rpath/libRequired.dylib" },
+]

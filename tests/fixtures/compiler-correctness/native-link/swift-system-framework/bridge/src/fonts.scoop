@@ -1,0 +1,7 @@
+package dev.swift.systembridge
+
+@Extern(lib = "SystemBridge", name = "scoop_ct_font_size")
+public fun fontSize(size: Double): Double
+
+@Extern(lib = "SystemBridge", name = "scoop_ct_glyph_count")
+public fun glyphCount(): Int

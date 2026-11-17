@@ -191,21 +191,53 @@ fn check_deployment(
         .macho_load_commands()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     let endian = file.endian();
+    let mut has_platform = false;
+    let mut has_macos = false;
     while let Some(command) = commands
         .next()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
     {
-        if let Some(build) = command
-            .build_version()
-            .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
-            && (build.platform.get(endian) != macho::PLATFORM_MACOS
-                || build.minos.get(endian) > deployment.minimum_os().packed())
-        {
-            return Err(error(
-                scoop_source::DiagnosticCode::E2305,
-                "native object has incompatible platform or minimum macOS",
-            ));
+        if let Some((platform, minimum)) = deployment_record(&command, endian)? {
+            has_platform = true;
+            if platform == macho::PLATFORM_MACOS {
+                has_macos = true;
+                if minimum > deployment.minimum_os().packed() {
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "native object has incompatible minimum macOS",
+                    ));
+                }
+            }
         }
     }
+    if has_platform && !has_macos {
+        return Err(error(
+            scoop_source::DiagnosticCode::E2305,
+            "native object has no compatible macOS platform",
+        ));
+    }
     Ok(())
+}
+
+pub(crate) fn deployment_record(
+    command: &object::read::macho::LoadCommandData<'_, object::Endianness>,
+    endian: object::Endianness,
+) -> Result<Option<(u32, u32)>, LinkError> {
+    let platform = match command.cmd() {
+        macho::LC_BUILD_VERSION => {
+            let build: &macho::BuildVersionCommand<_> = command
+                .data()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
+            return Ok(Some((build.platform.get(endian), build.minos.get(endian))));
+        }
+        macho::LC_VERSION_MIN_MACOSX => macho::PLATFORM_MACOS,
+        macho::LC_VERSION_MIN_IPHONEOS => macho::PLATFORM_IOS,
+        macho::LC_VERSION_MIN_TVOS => macho::PLATFORM_TVOS,
+        macho::LC_VERSION_MIN_WATCHOS => macho::PLATFORM_WATCHOS,
+        _ => return Ok(None),
+    };
+    let version: &macho::VersionMinCommand<_> = command
+        .data()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
+    Ok(Some((platform, version.version.get(endian))))
 }

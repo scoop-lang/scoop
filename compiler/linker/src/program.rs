@@ -54,6 +54,7 @@ pub(crate) struct ProgramInputs<'a> {
     pub root: String,
     pub string_target: String,
     pub native: NativeInputs,
+    pub native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
     pub windows_subsystem: scoop_identity::WindowsSubsystem,
 }
 
@@ -63,6 +64,7 @@ impl<'a> ProgramInputs<'a> {
         runtime: &'a RuntimeObjectSet,
         profile: &ValidatedFinalLinkProfile,
         library_paths: &[std::path::PathBuf],
+        outputs: &[scoop_toolchain::NativeLibraryOutput],
     ) -> Result<Self, LinkError> {
         if (closure.root_kind() == scoop_slib::ConeKind::NativeApp)
             != (profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary)
@@ -83,7 +85,41 @@ impl<'a> ProgramInputs<'a> {
             .expect("validated final-link target")
             .os;
         let (declarations, libraries) = native::declarations::read(closure)?;
-        let mut native = NativeInputs::read(libraries, library_paths, profile)?;
+        let selected_names: BTreeSet<_> = libraries
+            .values()
+            .map(|(key, _)| key.library().as_str())
+            .collect();
+        let source_names: BTreeSet<_> = outputs.iter().map(|output| output.name.as_str()).collect();
+        let mut outputs = outputs.to_vec();
+        let mut descriptors = Vec::new();
+        if !selected_names.is_empty() {
+            for root in library_paths {
+                descriptors.push(root.join("native-outputs.json"));
+                if let Some(entries) = scoop_toolchain::native_output::read_native_outputs(root)? {
+                    outputs.extend(entries.into_iter().filter(|output| {
+                        selected_names.contains(output.name.as_str())
+                            && !source_names.contains(output.name.as_str())
+                    }));
+                }
+            }
+        }
+        let mut roots = library_paths.to_vec();
+        for output in &outputs {
+            if let Some(parent) = output.library.parent() {
+                roots.push(parent.to_owned());
+            }
+            roots.extend(
+                output
+                    .dependencies
+                    .iter()
+                    .filter_map(|p| p.library.parent().map(std::path::Path::to_owned)),
+            );
+        }
+        roots.sort();
+        roots.dedup();
+        let library_paths = roots.as_slice();
+        let mut native = NativeInputs::read(libraries, library_paths, profile, &outputs)?;
+        native.observed_paths.extend(descriptors);
         native.include_embedded(closure, profile)?;
         let namespace =
             crate::namespace::NativeNamespace::read(&mut native, library_paths, profile)?;
@@ -298,6 +334,7 @@ impl<'a> ProgramInputs<'a> {
             root,
             string_target,
             native,
+            native_outputs: outputs,
             windows_subsystem,
         };
         native::resolve(

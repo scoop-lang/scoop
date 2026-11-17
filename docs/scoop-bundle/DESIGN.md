@@ -43,7 +43,9 @@ Windows 快捷方式写入与 bundle.identifier 一致的 AppUserModelID。`bund
 
 PM 识别 `[bundle]` 工具表或外部配置引用，保留原始 TOML 值及诊断来源；字段含义只由 bundle 解析器解释。普通 build/check 不读取外部 bundle 文件、资源、证书或平台打包工具。bundle 表不进入 `ConeManifestSemantic`、`.slib`、语言身份或编译请求。
 
-成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。当前成员 JSON 使用协议 7，HostPathCarrier 的 bytes 是标准 Base64 字符串，按宿主保留 Unix 原始字节或 Windows WTF-16LE；构建结果中的普通字符串及非 Unicode 路径展示继续按其各自格式读取。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
+成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。当前成员 JSON 使用协议 10，HostPathCarrier 的 bytes 是标准 Base64 字符串，按宿主保留 Unix 原始字节或 Windows WTF-16LE；构建结果中的普通字符串及非 Unicode 路径展示继续按其各自格式读取。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
+
+项目构建结果的 `native_outputs[].resources` 提供原生库所需的已部署 resource bundle，macOS 将它们按原名复制到 `Contents/Resources`，静态 Swift 库同样适用。这些资源的路径及 metadata 纳入既有 bundle 更新记录；不读取 Swift 配方或推断 `.a` 内的资源，静态库本身不成为应用 payload。已有程序模式继续由 `bundle.files` 显式声明额外资源。
 
 项目模式的主流程为：
 
@@ -211,18 +213,22 @@ pre-release/build metadata 无法无损映射到某格式时，要求提供该�
 
 ### 6.1 依赖部署
 
+macOS 的 `LC_LOAD_WEAK_DYLIB` 允许无实际候选；缺席搜索路径进入更新记录，候选出现后重新部署。已存在的候选仍按普通机器文件处理，缺少强依赖仍报错；路径改写不把 weak-load 升为强装载。
+
 已有 Scoop runtime 与语言依赖已经正常链接进最终程序；bundle 处理的是机器程序实际加载的原生动态依赖和显式文件。初次生成或输入变化时，使用成熟机器格式 reader/平台工具读取架构、依赖名称与加载路径，不重新消费 `.slib`。
 
 显式映射的 library/framework 优先提供私有依赖；其余私有依赖从 `library-search-paths` 和程序实际声明的加载路径定位。按实际依赖递归收集，遇到同名不同文件、错误架构、缺少必需库时明确诊断。系统库按平台部署规则保留为系统依赖；不把整个 sysroot、开发 SDK 或 PATH 目录复制进应用。
 
 平台策略分别为：
 
-- **macOS**：系统 framework 和系统 dylib 由系统提供；选定第三方 framework/dylib 复制到 `Contents/Frameworks`。在副本上调整 `@rpath`、`@loader_path`、`@executable_path` 及 install name，覆盖内部库之间的引用，再进行签名。`.tbd` 只是链接输入，不能当作运行库打包。
+- **macOS**：系统 framework 和系统 dylib 由系统提供；选定第三方 framework/dylib 复制到 `Contents/Frameworks`。在副本上调整 `@rpath`、`@loader_path`、`@executable_path` 及 install name，覆盖内部库之间的引用，再进行签名。只有 dylib 或实际引用私有依赖的 image 才加入 Frameworks 的相对 rpath；没有需调整的装载命令时跳过 install_name_tool，纯静态 bridge 和 resource bundle 不产生额外加载路径。`.tbd` 只是链接输入，不能当作运行库打包。
 - **deb/rpm**：配置列出的私有库随包部署，其他依赖由显式 `depends`/`requires` 声明。ELF SONAME 不是发行版包名，不自行猜测 GTK 等依赖的跨发行版映射。保留系统搜索能力，将私有 RUNPATH 改为实际相对位置。
 - **AppImage**：根据明确的最低系统基线部署非基线依赖。使用 linuxdeploy/appimagetool 等成熟能力处理库和模块，并保留显式文件声明以覆盖 `dlopen`、图像 loader、schema 等无法由普通 ELF imports 推导的输入。
 - **Windows**：按 PE imports 部署实际非系统 DLL及其传递依赖，系统 DLL/API-set 由 Windows 提供。MSVC、LLVM-MinGW 的 CRT/运行库按各自目标选择；不从开发机偶然可见的同名 DLL 替换已选依赖。是否分发 VC runtime 必须显式配置。
 
 当前 Linux GUI 使用 GTK 4.18 以上和 libadwaita 1.4 以上，且依赖对应 SONAME；包的发行版/runtime 基线必须满足真实二进制要求。AppImage 不能降低已构建程序的 glibc 符号版本要求。现有 linker 可能留下开发目录的 rpath，bundle 只在本次暂存副本上调整。
+
+Swift bridge 所需的最终链接依赖由 Cone 的 native.libraries 管理；私有 framework 打包清单独立写入 bundle metadata 的 files（kind = framework／library），bundle 不读取 Cone native metadata 或 Package.swift 来推导。系统 framework／dylib 不列入私有清单，按系统固定装载路径跳过。路径重定位、私有 framework 部署和最终签名只在 bundle 的副本上完成；编译链接阶段保留正常搜索与加载路径，仅预留 headerpad。SwiftPM resource bundle 沿既有 native_outputs.resources 交接，静态 archive 不进入运行 payload。
 
 ### 6.2 资源定位
 
