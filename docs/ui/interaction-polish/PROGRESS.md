@@ -19,7 +19,7 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按已接入；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步和六类文本控件的 20 步本地窗口场景通过，菜单与 accessibility 共用动作；其余控件、多击／选区端点、软键盘和完整设备矩阵继续实施 |
+| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步和六类文本控件的 20 步场景通过，菜单与 accessibility 共用动作；其余控件、多击／选区端点、软键盘和完整设备矩阵继续实施 |
 | S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -421,3 +421,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI、Style、四套主题及 Component 的开发产物已按依赖更新；源码及受影响测试 Cone 检查、release 构建和 30 个 Scoop 文件格式检查通过。两库离线 API 文档重新生成，9 组查询核对类型、默认值、Props／builder 及导入；规范、输入边界、计划、库／测试 README 与编程导航同步，本地 Markdown 目标与 diff 检查通过。
 
 本批触摸测试通过受控 native contact 队列验证 macOS 实窗行为，不能代替真实触屏或笔设备。用户已确认的触控板捏合／旋转结果单独保留；选区端点、多击、触摸拖放、多指变换、软键盘、其他控件和集中平台验收仍按原计划继续。临时应用包和逐次报告在验证后清理，保留后续需要的启动脚本、API 文档、开发产物与共享缓存。
+
+### 分隔面板、轮播与抽屉触摸组合
+
+- ResizableHandleOptions 与 builder 增加 hitWidth，默认 20，要求有限正值，随主题密度缩放；只扩大居中的命中带，不改变面板布局与分隔线。修复纵向命中带被后一个面板编辑器覆盖的问题，使用已有 SceneContext.children(order) 调整呈现顺序，挂载、Tab 和语义阅读顺序仍按声明。
+- Drawer 从真实输入位置和 Accepted 几何判断正文／把手，不再依赖 hover。正文 ScrollPan 使用同一阈值，新增 TouchScrollOptions.claimAtBoundary 默认 true，Drawer 正文设为 false，在起始方向无余量时让出候选；已开始的滚动继续保持原 Chain／Contain。零阈值正文等待实际位移，公共 Drag 的未接管候选忽略坐标未改变的 Moved，同时保留按下即开始的零阈值行为。
+- Carousel 观察整个交互组的活动触点，关闭 hover／focus 暂停也不会在手指仍按住时自动翻页；最后一根触点结束后重新等待完整 interval。继续复用原定时器和绑定／命令入口，不为触摸建立另一套模型。
+- Resizable 57 步、Carousel 61 步、Drawer 73 步分别通过触点和鼠标两个独立窗口用例，覆盖约束、方向、正文滚动、键盘、焦点、嵌套、外部替换、取消、卸载和停帧。Resizable 触点从细线外 12 个逻辑单位开始，Carousel 验证两根触点和完整恢复间隔，Drawer 包含零阈值按下／原地移动及向内滚动。公共 Press／Drag 两项窗口回归、原 ScrollPan 48 步及新增起始边界 13 步也通过，共 10 个窗口用例；每项都有无失败的 end 和 complete 事件。TouchScrollOptions 与 Resizable DSL 两项配置测试通过，覆盖默认值、显式关闭、hitWidth 透传和非法尺寸。
+- Carousel 动画暴露 SkRect 先以单精度相减导致的矩形包含误差。独立 [PR #147](https://github.com/scoop-lang/scoop/pull/147) 改为先提升边再计算 Double 尺寸，12 项 Graphics 几何回归与独立预编译消费者通过；已合入 main、同步工作分支并更新本机 ARM64 Graphics 产物，保持 accessibility 的包含校验和动画断言。
+- UI／Component 规范、设计、计划、库／测试 README 与编程导航同步；两库 API 文档生成，4 组查询核对签名、访问器、构造默认值及导入。UI、Style、四套主题与 Component 开发产物已按依赖更新，生产及受影响测试源码检查、release 构建通过；上一批 OTP 投影参数的两个内部测试调用一并同步。28 个 Scoop 文件格式检查及本地 Markdown 目标、diff 检查通过；临时应用包、逐次报告和独立复现 Cone 已清理，保留开发产物、API 文档与共享缓存。
+
+本批接触输入经受控 native 队列进入 macOS 实窗，不代替真实触屏／笔、Windows／GTK 或读屏器验收。用户确认的真实触控板捏合／旋转仍单独保留；其余 S8 组合与 S7、S9～S11 范围继续按计划实施。

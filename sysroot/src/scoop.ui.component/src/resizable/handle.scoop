@@ -185,13 +185,14 @@ internal class ResizableHandle(
                 }
             ) { _ -> }
         }
+        val hitWidth = resizableHandle(input.root.props, input.index).hitWidth * density
         if (context.size.width > 0.0 && context.size.height > 0.0)
             context.place(
                 area!!,
                 if (horizontal)
-                    Rect(-1.5 * density, 0.0, 4.0 * density, context.size.height)
+                    Rect((context.size.width - hitWidth) / 2.0, 0.0, hitWidth, context.size.height)
                 else
-                    Rect(0.0, -1.5 * density, context.size.width, 4.0 * density)
+                    Rect(0.0, (context.size.height - hitWidth) / 2.0, context.size.width, hitWidth)
             )
     }
     public override fun onUnmount() {

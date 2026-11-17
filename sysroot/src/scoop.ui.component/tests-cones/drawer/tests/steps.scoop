@@ -73,31 +73,62 @@ internal fun advanceDrawer(p: DrawerProbe) {
         case 14 -> {
             p.out(60.0);
             assertFalse(p.controller.snapshot.dragging);
-            p.release();
+            p.release()
+        }
+        case 15 -> {
+            assertFalse(p.controller.snapshot.dragging)
+            assertEquals(
+                if (p.contactInput)
+                    90.0
+                else
+                    150.0,
+                p.scroll.offset.y
+            )
+            p.dragThreshold = 0.0
+            p.refresh()
             p.scroll.scrollTo(Point(0.0, 0.0))
         }
-        case 15 -> p.start(p.bodyBounds)
-        case 16 -> p.out(100.0)
-        case 17 -> {
+        case 16 -> if (p.contactInput) {
+            p.start(p.bodyBounds)
+            p.out(0.0)
+        }
+        case 17 -> if (p.contactInput) {
+            assertFalse(p.controller.snapshot.dragging)
+            assertEquals(0.0, p.scroll.offset.y)
+            p.out(-60.0)
+        }
+        case 18 -> {
+            if (p.contactInput) {
+                assertFalse(p.controller.snapshot.dragging)
+                assertEquals(60.0, p.scroll.offset.y)
+                p.release()
+                p.scroll.scrollTo(Point(0.0, 0.0))
+            }
+            p.dragThreshold = 4.0
+            p.refresh()
+        }
+        case 19 -> p.start(p.bodyBounds)
+        case 20 -> p.out(100.0)
+        case 21 -> {
             assertTrue(p.controller.snapshot.dragging);
             assertTrue(sendSurfaceScroll(p.native!!, p.last.x, p.last.y, 0, -2))
         }
-        case 18 -> {
+        case 22 -> {
             assertFalse(p.controller.snapshot.dragging);
             assertEquals(2, p.cancels);
             p.expect(2L, 400.0)
             p.release();
             p.scroll.scrollTo(Point(0.0, 0.0))
         }
-        case 19 -> p.start(p.headerBounds)
-        case 20 -> p.out(100.0)
-        case 21 -> {
+        case 23 -> p.start(p.headerBounds)
+        case 24 -> p.out(100.0)
+        case 25 -> {
             assertTrue(p.controller.snapshot.dragging);
             p.native!!.requestSize(LogicalSize(680.0, 560.0));
             p.height = Some(360.0);
             p.refresh()
         }
-        case 22 -> {
+        case 26 -> {
             assertFalse(p.controller.snapshot.dragging);
             assertEquals(3, p.cancels);
             p.expect(2L, 360.0)
@@ -108,52 +139,52 @@ internal fun advanceDrawer(p: DrawerProbe) {
             p.height = Some(240.0);
             p.refresh()
         }
-        case 23 -> {
+        case 27 -> {
             p.expect(0L, 240.0);
             assertTrue(p.headerBounds.y < 50.0);
             p.start(p.headerBounds)
         }
-        case 24 -> p.out(60.0)
-        case 25 -> {
+        case 28 -> p.out(60.0)
+        case 29 -> {
             assertTrue(p.controller.snapshot.dragging);
             p.expect(0L, 180.0);
             p.release()
         }
-        case 26 -> {
+        case 30 -> {
             p.expect(0L, 240.0);
             p.side = SheetSide.Start;
             p.height = None;
             p.refresh()
         }
-        case 27 -> {
+        case 31 -> {
             p.expect(0L, 220.0);
             assertTrue(p.headerBounds.x < 50.0);
-            p.start(p.headerBounds)
-        }
-        case 28 -> p.out(70.0)
-        case 29 -> {
-            assertTrue(p.controller.snapshot.dragging);
-            p.expect(0L, 150.0);
-            p.key(53, "\u001b")
-        }
-        case 30 -> {
-            p.expect(0L, 220.0);
-            p.release();
-            p.rtl = true;
-            p.refresh()
-        }
-        case 31 -> {
-            assertTrue(p.headerBounds.x > 400.0);
             p.start(p.headerBounds)
         }
         case 32 -> p.out(70.0)
         case 33 -> {
             assertTrue(p.controller.snapshot.dragging);
             p.expect(0L, 150.0);
+            p.key(53, "\u001b")
+        }
+        case 34 -> {
+            p.expect(0L, 220.0);
+            p.release();
+            p.rtl = true;
+            p.refresh()
+        }
+        case 35 -> {
+            assertTrue(p.headerBounds.x > 400.0);
+            p.start(p.headerBounds)
+        }
+        case 36 -> p.out(70.0)
+        case 37 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.expect(0L, 150.0);
             p.enabled = false;
             p.refresh()
         }
-        case 34 -> {
+        case 38 -> {
             assertFalse(p.controller.snapshot.dragging);
             assertEquals(5, p.cancels);
             p.release()
@@ -166,22 +197,22 @@ internal fun advanceDrawer(p: DrawerProbe) {
             p.mode = OverlayMode.NonModal;
             p.refresh()
         }
-        case 35 -> {
+        case 39 -> {
             p.expect(2L, 400.0);
             assertTrue(p.background.requestFocus())
         }
-        case 36 -> {
+        case 40 -> {
             assertTrue(p.background.hasFocus);
             p.mode = OverlayMode.FocusContained;
             p.refresh()
         }
-        case 37 -> {
+        case 41 -> {
             assertFalse(p.background.requestFocus());
             p.mode = OverlayMode.Modal;
             p.nestedOpen.value = true;
             p.refresh()
         }
-        case 38 -> {
+        case 42 -> {
             assertTrue(p.nestedController.isAttached);
             assertEquals(1L, p.controller.snapshot.nestedDepth)
             assertTrue(
@@ -192,27 +223,27 @@ internal fun advanceDrawer(p: DrawerProbe) {
             assertFalse(p.editor.requestFocus());
             p.nestedLayer.requestClose()
         }
-        case 39 -> {
+        case 43 -> {
             assertFalse(p.nestedController.isAttached);
             assertEquals(0L, p.controller.snapshot.nestedDepth);
             p.start(p.headerBounds)
         }
-        case 40 -> p.out(390.0)
-        case 41 -> {
+        case 44 -> p.out(390.0)
+        case 45 -> {
             p.expect(2L, 10.0);
             p.veto = true;
             p.release()
         }
-        case 42 -> {
+        case 46 -> {
             assertTrue(p.open.value);
             p.expect(2L, 400.0);
             p.rejectClose = true;
             p.veto = false;
             p.start(p.headerBounds)
         }
-        case 43 -> p.out(390.0)
-        case 44 -> p.release()
-        case 45 -> {
+        case 47 -> p.out(390.0)
+        case 48 -> p.release()
+        case 49 -> {
             assertTrue(p.open.value);
             p.expect(2L, 400.0);
             p.rejectClose = false;
@@ -221,59 +252,59 @@ internal fun advanceDrawer(p: DrawerProbe) {
             p.refresh();
             p.hold = 300L
         }
-        case 46 -> {
+        case 50 -> {
             assertTrue(p.nestedGrip.hasFocus);
             assertTrue(p.nestedTarget.requestFocus());
             p.beforeMounts = p.mounts
         }
-        case 47 -> {
+        case 51 -> {
             assertTrue(p.nestedTarget.hasFocus);
             p.nestedLayer.requestClose();
             p.hold = 30L
         }
-        case 48 -> {
+        case 52 -> {
             assertFalse(p.nestedOpen.value);
             assertTrue(p.nestedController.isAttached)
             p.nestedOpen.value = true;
             p.hold = 300L
         }
-        case 49 -> {
+        case 53 -> {
             assertTrue(p.nestedOpen.value);
             assertTrue(p.nestedTarget.hasFocus);
             assertEquals(p.beforeMounts, p.mounts)
             p.nestedLayer.requestClose();
             p.hold = 350L
         }
-        case 50 -> {
+        case 54 -> {
             assertFalse(p.nestedController.isAttached);
             assertEquals(0L, p.controller.snapshot.nestedDepth)
             assertFalse(p.frames!!.snapshot().required);
             p.quiet = Some(p.frames!!.snapshot());
             p.hold = 220L
         }
-        case 51 -> {
+        case 55 -> {
             assertEquals(p.quiet!!, p.frames!!.snapshot());
             p.only = true;
             p.motion = false;
             p.refresh()
         }
-        case 52 -> p.start(p.headerBounds)
-        case 53 -> p.out(80.0)
-        case 54 -> {
+        case 56 -> p.start(p.headerBounds)
+        case 57 -> p.out(80.0)
+        case 58 -> {
             assertFalse(p.controller.snapshot.dragging);
             p.release();
             p.only = false;
             p.mode = OverlayMode.NonModal;
             p.refresh()
         }
-        case 55 -> p.start(p.headerBounds)
-        case 56 -> p.out(80.0)
-        case 57 -> {
+        case 59 -> p.start(p.headerBounds)
+        case 60 -> p.out(80.0)
+        case 61 -> {
             assertTrue(p.controller.snapshot.dragging);
             p.blockedRelease = true;
             p.release()
         }
-        case 58 -> {
+        case 62 -> {
             assertFalse(p.controller.snapshot.dragging);
             assertEquals(6, p.cancels);
             p.expect(2L, 400.0);
@@ -281,17 +312,17 @@ internal fun advanceDrawer(p: DrawerProbe) {
             p.mode = OverlayMode.Modal;
             p.refresh()
         }
-        case 59 -> p.start(p.headerBounds)
-        case 60 -> p.out(390.0)
-        case 61 -> p.release()
-        case 62 -> {
+        case 63 -> p.start(p.headerBounds)
+        case 64 -> p.out(390.0)
+        case 65 -> p.release()
+        case 66 -> {
             assertFalse(p.open.value);
             assertFalse(p.controller.isAttached);
             assertTrue(p.trigger.hasFocus);
             p.gone = true;
             p.refresh()
         }
-        case 63 -> {
+        case 67 -> {
             assertEquals(p.mounts, p.unmounts);
             p.gone = false;
             p.shortContent = true;
@@ -300,7 +331,7 @@ internal fun advanceDrawer(p: DrawerProbe) {
             p.open.value = true;
             p.refresh()
         }
-        case 64 -> {
+        case 68 -> {
             assertTrue(
                 p.controller.snapshot.extent < 250.0,
                 Some("short content must retain its natural height")
@@ -309,19 +340,19 @@ internal fun advanceDrawer(p: DrawerProbe) {
             assertTrue(p.footerRing);
             p.start(p.headerBounds)
         }
-        case 65 -> p.out(40.0)
-        case 66 -> {
+        case 69 -> p.out(40.0)
+        case 70 -> {
             assertTrue(p.controller.snapshot.dragging);
             p.scroll.scrollTo(Point(0.0, 0.0))
         }
-        case 67 -> {
+        case 71 -> {
             assertFalse(p.controller.snapshot.dragging);
             assertEquals(7, p.cancels)
             p.release();
             p.gone = true;
             p.refresh()
         }
-        case 68 -> {
+        case 72 -> {
             assertEquals(p.mounts, p.unmounts);
             p.done = true;
             p.native!!.requestDestroy()

@@ -55,7 +55,9 @@ public class ScrollPan internal constructor(
                 this.options.threshold !=
                 options.threshold ||
                 this.options.lockAxis !=
-                options.lockAxis
+                options.lockAxis ||
+                this.options.claimAtBoundary !=
+                options.claimAtBoundary
         this.axes = axes
         this.chain = chain
         this.options = options
@@ -130,6 +132,10 @@ public class ScrollPan internal constructor(
                     if (!selectAxes(candidate, value))
                         return
                     if (context.contactRemaining == None) {
+                        if (!options.claimAtBoundary && !canMove(candidate, value)) {
+                            cancel()
+                            return
+                        }
                         val acquired = area.scope.claimContacts([value.id])
                         if (!acquired || !same(candidate) || !viewport.active || area.isClosed) {
                             if (acquired && !area.isClosed)
@@ -198,6 +204,25 @@ public class ScrollPan internal constructor(
             candidate.axes = Some(axes)
         }
         return true
+    }
+
+    private fun canMove(candidate: ScrollPanContact, value: ContactState): Boolean {
+        val start = area.toLocal(position(candidate.start)) ?: return false
+        val end = area.toLocal(position(value)) ?: return false
+        val selected = candidate.axes!!
+        val offset = candidate.state.offset
+        val maximum = candidate.state.maximum
+        return (
+            selected.horizontal &&
+                ((end.x < start.x && offset.x < maximum.x) || (end.x > start.x && offset.x > 0.0))
+        ) ||
+            (
+                selected.vertical &&
+                    (
+                        (end.y < start.y && offset.y < maximum.y) ||
+                            (end.y > start.y && offset.y > 0.0)
+                    )
+            )
     }
 
     private fun consume(context: RoutedEventContext, candidate: ScrollPanContact) {

@@ -103,4 +103,9 @@ internal fun editorTouchScroll(options: TextEditOptions): TouchScrollOptions =
     if (options.enabled)
         options.touchScroll
     else
-        TouchScrollOptions(false, options.touchScroll.threshold, options.touchScroll.lockAxis)
+        TouchScrollOptions(
+            false,
+            options.touchScroll.threshold,
+            options.touchScroll.lockAxis,
+            options.touchScroll.claimAtBoundary
+        )

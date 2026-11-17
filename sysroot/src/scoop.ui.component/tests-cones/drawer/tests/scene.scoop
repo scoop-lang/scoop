@@ -70,6 +70,7 @@ internal class DrawerScene(private val p: DrawerProbe, scope: ComponentScope): C
                         focus = FocusOptions(Some(p.grip))
                     }
                     projectionSeconds = 0.0
+                    dragThreshold = p.dragThreshold
                     transition(
                         if (p.motion)
                             Some(AnimationSpec.Tween(Duration.milliseconds(180L)))
@@ -273,6 +274,11 @@ private class DrawerRoot(
                             point.state.logicalPosition.y
                         }"
                     )
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (p.blockedRelease) {
+                            context.preventDefault()
+                        }
+                    }
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                     ) -> {

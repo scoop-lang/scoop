@@ -230,6 +230,8 @@ AppKit 的公开 NSDraggingSession 不提供强制取消。Window 因而分开 c
 
 直接滚动通过 UI 的 ScrollPan 复用 ScrollViewport 和 ScrollState。TouchScrollOptions 配置开关、阈值与方向锁定，ScrollArea／VirtualList 共用同一个行为。Surface 只在已取得归属的 owner 明确开放本次触点位移后，允许祖先消费余量；普通独占拖动保持独占。转换复用原生滚轮的 Accepted 几何算法，Chain／Contain、取消及新的定位意图沿同一路径执行，释放惯性与回弹继续由第 4 节的滚动物理负责。
 
+Drawer 起始区域按 Accepted 几何中的实际按下位置命中，把手和正文不依赖 hover。正文的 ScrollPan 与 Drawer Drag 使用同一阈值；claimAtBoundary=false 仅在初次接管时按范围和方向让出无余量的候选，已经开始滚动仍遵守原 Chain／Contain，不在同一序列中突然改为关闭抽屉。Carousel 的暂停条件直接观察整个区域的活动触点，不把焦点或拖动状态当作接触仍存在的替代。Resizable 的命中带可单独配置，面板布局与细分隔线保持原几何。
+
 文本宿主复用内部 ContactPress 处理 tap／长按，不增加公开识别器层。TextTouchOptions 单独配置开关、窗口距离阈值与可关闭的长按 deadline；TextEditOptions.touchScroll 复用 ScrollPan，滚动接管与文本接管沿同一 contact 归属取消竞争者。接触按下的自动聚焦保留候选，并停止显露旧 caret；实际 tap 或长按随后使用匹配文档和投影的 Accepted 布局。长按的最终操作仍进入既有文本菜单／选区命令，键盘和 accessibility 不受触摸开关影响。Press 在接触按下时只登记候选，激活时消费结束，允许文本祖先识别行内动作上的长按。
 
 自定义手势暂不交付公共 API，但本轮保留其接入空间：原始 contact 序列经过 Surface 路由后仍可供 UI 识别，内建手势不写死在 Window 的平台采集或具体控件中。未来应用识别器沿同一接触归属、取消与同时识别规则接入，最终操作复用命令和语义动作。无需为了新手势修改平台事件枚举，也不通过绕开 claim 的第二条输入流实现；具体边界见[输入方案](INPUT-BOUNDARY.md#自定义手势的后续接入)。

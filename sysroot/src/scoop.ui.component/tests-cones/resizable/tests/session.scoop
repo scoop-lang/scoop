@@ -8,6 +8,7 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.sendNativeContact
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
@@ -15,12 +16,20 @@ import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class ResizableWindowTest {
     @Test
     fun `native splitters preserve keyed content and constrained state through drag and keyboard cancellation`() {
-        val p = SplitProbe()
+        run(false)
+    }
+    @Test
+    fun `contact splitters preserve constrained sizes cancellation and keyboard behavior`() {
+        run(true)
+    }
+    private fun run(contacts: Boolean) {
+        val p = SplitProbe(contacts)
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }
         try {
             context(p.theme) {
@@ -64,7 +73,9 @@ private class ResizableWindowTest {
     }
 }
 
-internal class SplitProbe {
+internal class SplitProbe(val contactInput: Boolean = false) {
+    private var contactId = 0L
+    private var contactDown = false
     val theme = ThemeSource(shadcnTheme())
     val fonts = FontCollection(false)
     val sizes = state<Array<ResizableSize>>(splitInitial())
@@ -161,12 +172,54 @@ internal class SplitProbe {
         assertTrue(sendSurfaceKey(native!!, code, false, shift = shift))
     }
     fun press(x: Double, down: Boolean, y: Double = 170.0) {
-        move(x, y);
-        assertTrue(view!!.button(x, y, down))
+        if (contactInput) {
+            if (down) {
+                contactId += 1L
+                contactDown = true
+                contact(0, x, y)
+            } else {
+                move(x, y)
+                contact(2, x, y)
+                contactDown = false
+            }
+        } else {
+            move(x, y)
+            assertTrue(view!!.button(x, y, down))
+        }
     }
     fun move(x: Double, y: Double = 170.0) {
-        pointerTrace.add(f"phase ${phase}: send ${x}, ${y}")
-        assertTrue(moveSurfacePointer(native!!, x, y))
+        if (contactInput) {
+            if (contactDown)
+                contact(1, x, y)
+        } else {
+            pointerTrace.add(f"phase ${phase}: send ${x}, ${y}")
+            assertTrue(moveSurfacePointer(native!!, x, y))
+        }
+    }
+    private fun contact(phase: Int, x: Double, y: Double) {
+        val px =
+            x +
+                if (vertical)
+                    0.0
+                else
+                    12.0
+        val py =
+            y +
+                if (vertical)
+                    12.0
+                else
+                    0.0
+        @Unsafe
+        {
+            val lease = native!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(view, contactId, 0, phase, px, py)
+                }
+            } finally {
+                lease.close()
+            }
+        }
     }
     fun expect(a: Double, b: Double, c: Double) {
         val expected = [a, b, c]

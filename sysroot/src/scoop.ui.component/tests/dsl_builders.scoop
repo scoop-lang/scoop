@@ -150,9 +150,10 @@ private class ComponentReceiverDslTests {
         assertTrue(code.protectedText)
         otp.acceptDrops = true
         assertFalse(code.acceptDrops)
-        assertFalse(otpOptions(code).acceptDrops)
+        val editOptions = otpOptions(code, textProjection())
+        assertFalse(editOptions.acceptDrops)
         assertSame(props.drag, code.drag)
-        assertSame(code.drag, otpOptions(code).drag)
+        assertSame(code.drag, editOptions.drag)
         otp.drag = TextDragOptions()
         assertFalse(code.drag.enabled)
         assertTrue(otp.snapshot(model, 6L).drag.enabled)

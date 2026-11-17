@@ -1035,13 +1035,13 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 
 `resizable(sizes: Binding<Array<ResizableSize>>) { panel(key, content) { ... }; handle(afterKey) { ... } }` 创建 ResizableProps／Resizable。ResizableSize 为显式 key、fraction（有限 0..1）与 collapsed=false；展开项的 fraction 按相对权重分配，全部为零时等分。缺失项使用等权默认值，未知 key 保留，显示和窗口缩放不暗写 Binding。模型 key 唯一。折叠项保留最近展开时占全部面板实际长度的比例，恢复时用当前总长换算并受相邻面板约束；不允许折叠的面板忽略模型中的 collapsed，不改写模型。
 
-每个 ResizablePanelProps 保存唯一显式 key、普通 View 正文、minimum=0、maximum=None、collapsible=false、collapsedSize=0 和 style。尺寸为有限非负逻辑长度，maximum 不小于 minimum，可折叠项的 collapsedSize 不超过 minimum。面板之间自动生成一个把手，handle(afterKey) 覆盖其 withHandle／enabled／FocusOptions／style；afterKey 必须对应一个有后继的面板且不重复。根支持 orientation=Horizontal、enabled=true、withHandle=false、length=None、keyboardStep=10、dragThreshold=4、theme、style、clip=false、onSizesChange／onSizesCommit／onSizesCancel。有限父约束内默认占满主轴，未约束时取 length 或 320；交叉轴可用空间有限时铺满，否则取正文自然尺寸。
+每个 ResizablePanelProps 保存唯一显式 key、普通 View 正文、minimum=0、maximum=None、collapsible=false、collapsedSize=0 和 style。尺寸为有限非负逻辑长度，maximum 不小于 minimum，可折叠项的 collapsedSize 不超过 minimum。面板之间自动生成一个把手，handle(afterKey) 覆盖其 withHandle／enabled／FocusOptions／style／hitWidth；hitWidth 默认为 20，是有限正的主题密度逻辑宽度，只改变以分隔线为中心的命中带，不改变面板分配或可见线宽。面板以反向场景顺序呈现，使每个尾部分隔把手覆盖后一个面板的交互内容；逻辑挂载、Tab 和语义阅读顺序仍按声明顺序。afterKey 必须对应一个有后继的面板且不重复。根支持 orientation=Horizontal、enabled=true、withHandle=false、length=None、keyboardStep=10、dragThreshold=4、theme、style、clip=false、onSizesChange／onSizesCommit／onSizesCancel。有限父约束内默认占满主轴，未约束时取 length 或 320；交叉轴可用空间有限时铺满，否则取正文自然尺寸。
 
 分配复用 allocateFlex：折叠项使用 collapsedSize，展开项按比例和 min／max 分配剩余长度；分隔线占 1 主题密度单位。最小尺寸总和超出可用长度时保留明确 overflow，不产生负面板；所有项到达 maximum 后允许尾部空白。逻辑顺序和 key 稳定，横向 RTL 只转换放置坐标与拖动符号。正文按面板边界裁剪，零尺寸正文不放置但保留挂载；缩放、方向切换、重排和折叠恢复不替换正文实例。根仅在 clip=true 或明确 style.clipContent 时裁剪，焦点环向外绘制且不增加分隔线布局尺寸。
 
-拖动复用 Drag 的主轴阈值、指针声明与取消，仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
+鼠标、Touch／Pen 拖动复用同一个 Drag 的主轴阈值、归属与取消；第二触点取消当前单接触拖动，不提交尺寸。仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
 
-把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 4 像素命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。
+把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 hitWidth 命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。
 
 ## 39. Carousel
 
@@ -1053,9 +1053,9 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 
 吸附由实际测量项目起点产生。非循环位置夹在 0 与内容末端减视口之间，重合的尾部锚点不产生无意义的上一／下一动作；不足一屏时两个方向都不可用。循环按实际总长和接缝间距移动同一批内容，每个 key 仅有一个交互实例；仅在移走任一项后余下环长仍可覆盖视口时启用，否则按非循环处理。内容、尺寸、方向或外部定位改变使旧拖动／动画目标失效，以当前选择重新定位；不清空项目状态。
 
-Drag 到达主轴阈值后声明原指针路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
+鼠标、Touch／Pen 的 Drag 到达主轴阈值后认领原输入路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
 
-CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
+CarouselAutoplay(interval) 是显式配置，interval 必须大于零。轮播区域内有活动触点（含尚未达到拖动阈值的候选及导航按钮）时暂停，最后一个接触结束或取消后重新等待完整 interval，不依赖 hover 或焦点暂停开关。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
 
 ## 40. Drawer
 
@@ -1067,11 +1067,11 @@ CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在�
 
 swipeHandle 通过 `swipeHandle { visible=true }` 配置，默认隐藏；可设 only、focus、style 和普通 View content。only=true 要求把手可见。默认握柄为主轴厚 4、交叉轴长 96 的 muted 圆角条，位于面板内侧的 12 单位区域，命中带至少 20；四个方向均有实际布局和命中。把手是独立焦点目标，主轴方向键按物理方向展开／收缩到下一个不同锚点，Home／End 到最小／最大吸附位置；正文编辑器保留自己的按键。Escape 在活动拖动中取消本次手势，其余由 Portal 关闭。
 
-Drag 达到主轴阈值后才声明原指针路径，未达阈值保留正文点击。把手和非滚动头尾可直接拖动；从正文起步时，Bottom 要求滚动已到顶部，Top 要求已到底部，横向不接管纵向滚动。正文仍有可消费的主轴滚动时不抢手势；滚轮／外部 ScrollState 意图到来时取消已有拖动。释放使用实际可见长度、速度和 snapTarget 投影；swipeToClose 允许零位置作为关闭目标，否则只在现有锚点间吸附。超过最大展开长度时采用有限阻力。取消、失焦、几何失效、禁用、外部模型替换、阻止默认释放及卸载不提交 snap，回到当前有效模型；关闭被拒绝同样回弹。
+鼠标、Touch／Pen 使用同一 Drag，达到主轴阈值后才认领原输入路径，未达阈值保留正文点击；第二触点取消活动拖动。起始区域用该次输入位置和 Accepted 几何精确命中，不依赖鼠标悬停。把手和非滚动头尾可直接拖动；从正文起步时，Bottom 要求滚动已到顶部，Top 要求已到底部，横向不接管纵向滚动。正文的 ScrollPan 使用同一 dragThreshold，并设置 claimAtBoundary=false；阈值为零时，正文触点按下只登记候选，仍等待首个非零移动决定滚动方向。可滚方向先由正文接管，起步已经处于相应边界且向外移动时让 Drawer 接管。已开始的正文滚动到达边界后仍保持本次滚动归属，不中途改成抽屉拖动。正文仍有可消费的主轴滚动时不抢手势；滚轮／外部 ScrollState 意图到来时取消已有拖动。释放使用实际可见长度、速度和 snapTarget 投影；swipeToClose 允许零位置作为关闭目标，否则只在现有锚点间吸附。超过最大展开长度时采用有限阻力。取消、失焦、几何失效、禁用、外部模型替换、阻止默认释放及卸载不提交 snap，回到当前有效模型；关闭被拒绝同样回弹。
 
 DrawerHandle 只绑定一个活动 popup，提供可观察 snapshot（snapIndex、extent、visibleExtent、dragging、nestedDepth）和 `snapTo(index, animated=true)`。popup 完成退出或卸载后解除绑定，应用可以继续保留句柄。parent 显式关联同窗口内已挂载的父 DrawerHandle，用于嵌套外观与手势协调；不能自指、成环或跨窗口。焦点层级仍来自正常 Portal 嵌套，parent 不建立另一套模态或恢复会话。父面板按实际前层尺寸缩放，每层缩小 5%、向内露出 16 并略微压暗；子层拖动时逐渐还原父层。子层打开期间不启动父层拖动，子层关闭／重开和整体卸载正常解除关联。
 
-默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；仅验证现有桌面指针，不声称提供尚未交付的触屏后端。
+默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；本地受控触点和桌面指针分别验证；真实触屏／笔与各平台原生输入按设备矩阵验收。
 
 
 ## 41. Sidebar

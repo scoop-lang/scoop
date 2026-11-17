@@ -7,6 +7,7 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.sendNativeContact
 import scoop.time.*
 import scoop.ui.*
 import scoop.ui.component.*
@@ -14,12 +15,20 @@ import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class CarouselWindowTest {
     @Test
     fun `native carousel preserves slides through snapping dragging cancellation and timer pauses`() {
-        val p = CarouselProbe()
+        run(false)
+    }
+    @Test
+    fun `contact carousel preserves snapping cancellation and autoplay pauses`() {
+        run(true)
+    }
+    private fun run(contacts: Boolean) {
+        val p = CarouselProbe(contacts)
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }
         try {
             context(p.theme) {
@@ -54,7 +63,9 @@ private class CarouselWindowTest {
     }
 }
 
-internal class CarouselProbe {
+internal class CarouselProbe(val contactInput: Boolean = false) {
+    private var contactId = 0L
+    private var contactDown = false
     val theme = ThemeSource(shadcnTheme())
     val fonts = FontCollection(false)
     val handle = CarouselHandle()
@@ -87,6 +98,7 @@ internal class CarouselProbe {
     var empty = false
     var gone = false
     var autoplay = false
+    var pauseOnInteraction = true
     var motion = false
     var hidden = false
     var finished = false
@@ -131,7 +143,7 @@ internal class CarouselProbe {
                 } else
                     if (!hidden && !native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < 53)
+                if (phase < 61)
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
                             if (next > now)
@@ -142,7 +154,7 @@ internal class CarouselProbe {
                     )
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 53;
+                finished = phase == 61;
                 active.requestExit()
             }
             else -> {}
@@ -166,13 +178,59 @@ internal class CarouselProbe {
         assertTrue(sendSurfaceKey(native!!, code, true));
         assertTrue(sendSurfaceKey(native!!, code, false))
     }
-    fun move(x: Double, y: Double) {
-        pointerTrace.add(f"phase ${phase}: send ${x}, ${y}");
+    fun hover(x: Double, y: Double) {
         assertTrue(moveSurfacePointer(native!!, x, y))
     }
+    fun move(x: Double, y: Double) {
+        if (contactInput) {
+            if (contactDown)
+                contact(1, x, y)
+        } else {
+            pointerTrace.add(f"phase ${phase}: send ${x}, ${y}")
+            hover(x, y)
+        }
+    }
     fun press(x: Double, y: Double, down: Boolean) {
-        move(x, y);
-        assertTrue(view!!.button(x, y, down))
+        if (contactInput) {
+            if (down) {
+                contactId += 1L
+                contactDown = true
+                contact(0, x, y)
+            } else {
+                move(x, y)
+                contact(2, x, y)
+                contactDown = false
+            }
+        } else {
+            move(x, y)
+            assertTrue(view!!.button(x, y, down))
+        }
+    }
+    fun autoplayContact(id: Long, phase: Int) {
+        @Unsafe
+        {
+            val lease = native!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(view, id, 0, phase, 150.0, 250.0)
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    private fun contact(phase: Int, x: Double, y: Double) {
+        @Unsafe
+        {
+            val lease = native!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(view, contactId, 0, phase, x, y)
+                }
+            } finally {
+                lease.close()
+            }
+        }
     }
     fun expect(index: Long, position: Double) {
         assertEquals(index, handle.snapshot.index)

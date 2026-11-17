@@ -15,7 +15,14 @@ import scoop.window.native.*
 private class ScrollPanWindowTest {
     @Test
     fun `direct scroll composes nested movement claims lifetime and newer position requests`() {
-        val probe = PanProbe()
+        run(false)
+    }
+    @Test
+    fun `direct scroll yields initial boundaries and preserves active containment`() {
+        run(true)
+    }
+    private fun run(boundaries: Boolean) {
+        val probe = PanProbe(boundaries)
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
                 host -> Application(
@@ -23,9 +30,14 @@ private class ScrollPanWindowTest {
                 ).run(host)
             }
             assertTrue(probe.finished)
-            assertEquals(1, probe.clicks)
-            assertEquals(1, probe.dragStarts)
-            assertEquals(1, probe.dragEnds)
+            val actions =
+                if (boundaries)
+                    0
+                else
+                    1
+            assertEquals(actions, probe.clicks)
+            assertEquals(actions, probe.dragStarts)
+            assertEquals(actions, probe.dragEnds)
             assertTrue(probe.innerPan!!.isClosed)
             assertTrue(probe.outerPan!!.isClosed)
             assertTrue(probe.innerArea!!.isClosed)
@@ -46,7 +58,7 @@ private class ScrollPanWindowTest {
     }
 }
 
-internal class PanProbe {
+internal class PanProbe(private val boundaries: Boolean = false) {
     val outer = ScrollState()
     val inner = ScrollState()
     val alternate = ScrollState(Point(0.0, 25.0))
@@ -124,7 +136,10 @@ internal class PanProbe {
                         application ->
                         pending = false
                         if (!finished) {
-                            panStep(this, application)
+                            if (boundaries)
+                                panBoundaryStep(this)
+                            else
+                                panStep(this, application)
                             phase += 1
                         }
                     }

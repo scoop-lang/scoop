@@ -395,6 +395,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                 area.visibleBounds !=
                 None &&
                 area.scope.isInputAllowed &&
+                !read().owner.group!!.scope.activity.hasContact &&
                 !(options!!.pauseOnFocus && read().owner.group!!.scope.activity.hasFocus) &&
                 !(options!!.pauseOnHover && read().owner.group!!.scope.isHovered) &&
                 carouselAdjacent(geometry!!.track, current(), true) !=

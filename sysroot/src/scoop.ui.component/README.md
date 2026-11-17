@@ -237,7 +237,9 @@ Combobox 提供单／多选、Unicode 包含搜索、外部候选、自定义项
 
 `resizable(sizes) { panel(key, content) { minimum = 80.0; collapsible = true }; panel(other, editor); withHandle = true }` 使用受控 `Array<ResizableSize>` 描述比例与折叠状态，自动在相邻面板间放置键盘／拖动把手。min／max 是逻辑长度，折叠保留恢复比例，取消不覆盖外部新值，窗口缩放只重新布局；正文以稳定 key 保留挂载，零尺寸停止放置。横／纵、RTL、嵌套、主题与局部样式可组合，`tests-cones/resizable` 覆盖真实窗口拖动、焦点和状态生命周期。
 
-`drawer(open, content)` 复用 ModalOptions 与 Portal，提供四方向拖动、垂直 Fraction／Length 吸附、受控索引、可聚焦 swipeHandle、三种模态策略和显式 parent 嵌套。DrawerHandle 观察实际展开长度并请求吸附；滚动正文、关闭 veto、取消回弹、尺寸变化及停帧由 `tests-cones/drawer` 的定向实窗覆盖。仅使用现有桌面指针输入。
+Resizable 的 `handle(key) { hitWidth = 32.0 }` 可扩大实际命中带，默认 20，要求有限正值；它围绕分隔线居中并随主题密度缩放，不改变面板尺寸。鼠标与 Touch／Pen 使用相同 Drag、键盘及 Binding 提交／取消规则；[实窗场景](tests-cones/resizable/README.md)分别验证两种来源。Carousel 同样复用公共 Drag；轮播区域内任一活动触点会暂停自动播放，即使关闭 hover／focus 暂停，最后一根手指结束后再等待完整 interval，见[轮播场景](tests-cones/carousel/README.md)。
+
+`drawer(open, content)` 复用 ModalOptions 与 Portal，提供四方向拖动、垂直 Fraction／Length 吸附、受控索引、可聚焦 swipeHandle、三种模态策略和显式 parent 嵌套。DrawerHandle 观察实际展开长度并请求吸附；滚动正文、关闭 veto、取消回弹、尺寸变化及停帧由 `tests-cones/drawer` 的定向实窗覆盖。拖动起点按真实输入位置和 Accepted 命中区判断，支持无 hover 的 Touch／Pen。正文 ScrollPan 使用相同阈值，并在起始边界无滚动余量时让出触点；已开始的正文滚动不在中途转成抽屉拖动，见[抽屉场景](tests-cones/drawer/README.md)。
 
 
 `sidebar(open, content) { header(view); footer(view); inset(workspace) }` 提供 Sidebar／Floating／Inset、逻辑侧、Offcanvas／Icon／None、rail 和作用域内 Primary+B。Auto 根据父级宽度切换窄布局 Drawer；主编辑区保持实例，导航跨宿主的业务状态显式提升到外部。分组、菜单、独立动作／badge、子菜单、Skeleton、Input 与 Trigger 均有真实成员 DSL，菜单使用普通 Tab 与 Button。`tests-cones/sidebar` 覆盖折叠、稳定 key、快捷键、关闭拦截、窗口缩放、编辑状态及隐藏停帧。

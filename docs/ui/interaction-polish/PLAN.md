@@ -208,7 +208,8 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 - [ ] 原生与合成鼠标去重；Windows OLE 仍可使用系统要求的合成鼠标启动路径，UI 只收到一次语义交互。第二触点、数量变化、几何失效、系统接管都有明确出口。
 - [x] Slider 通过公共 Drag 接入 Touch／Pen；触点和鼠标分别通过同一组键盘、提交、取消、外部更新、方向、焦点与卸载回归。取消直接读取业务模型，不查询已经退休的主题上下文。
 - [x] ScrollArea／VirtualList 通过共享 ScrollControl 接入 Touch／Pen，Props 与 builder 提供 touchScroll；本地窗口验证不补点击、接管后虚拟条目回收、接触期间滚动条保持以及结束后停帧。
-- [ ] 将 Resizable、Drawer／Carousel 等迁到公共触摸行为；落实起始区域、轴向接管、阈值和与滚动的竞争，完成其余控件组合及设备验收。
+- [x] Resizable、Drawer／Carousel 通过公共 Drag 接入 Touch／Pen；可配置把手命中宽度，Drawer 按实际起点与正文方向仲裁，Carousel 观察全部活动触点暂停自动播放。57／61／73 步触点与鼠标独立窗口回归通过，包含零阈值、键盘、焦点、取消及停帧。
+- [ ] 完成其余控件的触摸组合，以及上述控件的三平台真实触屏／笔设备验收。
 - [x] 两类文本宿主接入 Touch／Pen 短按 caret 定位、长按选词和 S3 原生菜单；TextTouchOptions 配置开关、阈值及一次性 deadline，编辑视口独立配置 touchScroll。原始 contact 归属处理行内动作／长按／滚动竞争，操作继续使用同一文档、投影和 Accepted 布局，键盘／语义菜单保留原入口。
 - [ ] 增加文本选区端点调整与对应边缘滚动；接入 S6 的触摸拖放可用路径，并完成多击及真实设备组合验收。
 - [ ] 补足触摸命中、无 hover 的操作入口与键盘／语义等价动作；pinch／rotate 使用普通图像／内容变换消费者，不自动缩放全应用。

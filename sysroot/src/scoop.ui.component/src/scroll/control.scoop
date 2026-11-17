@@ -91,7 +91,12 @@ internal class ScrollControl(
             if (value.enabled)
                 value.touchScroll
             else
-                TouchScrollOptions(false, value.touchScroll.threshold, value.touchScroll.lockAxis)
+                TouchScrollOptions(
+                    false,
+                    value.touchScroll.threshold,
+                    value.touchScroll.lockAxis,
+                    value.touchScroll.claimAtBoundary
+                )
         )
         focus.options = value.focus
         area.scope.enabled = value.enabled

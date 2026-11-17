@@ -187,8 +187,9 @@ private class ResizableLayout(
         return LayoutResult(LayoutMetrics(size), shape)
     }
     public override fun scene(context: SceneContext, shape: ResizableGeometry) {
+        val order = Array<Long>(shape.lengths.size) { index -> shape.lengths.size - 1L - index }
         painter!!.scene(context, props.value.props.style.resolve(style())) {
-            local -> containerScene(local, props.value.props.clip)
+            local -> containerScene(local, props.value.props.clip, Some(order))
         }
         context.onFrameComplete {
             result -> if (result.submission == FrameSubmission.Accepted)

@@ -704,9 +704,11 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 ### 7.7.1 直接接触滚动
 
-`ComponentScope.scrollPan(area, viewport, axes=Both, chain=Chain, options=TouchScrollOptions())` 登记随挂载关闭的 ScrollPan，借用同一 mount 的 InputArea 与 ScrollViewport，不关闭二者。ScrollChain 在 UI 层定义 Chain／Contain，供公共行为和控件共用。TouchScrollOptions 是不可变配置，包含 enabled=true、threshold=8（有限非负局部逻辑距离）和 lockAxis=true；构造非法阈值立即报错。ScrollPan.update(axes, chain, options) 更新配置，cancel 结束本次候选／滚动，isPanning 只表示已接管或正在接收嵌套残量的接触，isClosed 查询登记寿命。
+`ComponentScope.scrollPan(area, viewport, axes=Both, chain=Chain, options=TouchScrollOptions())` 登记随挂载关闭的 ScrollPan，借用同一 mount 的 InputArea 与 ScrollViewport，不关闭二者。ScrollChain 在 UI 层定义 Chain／Contain，供公共行为和控件共用。TouchScrollOptions 是不可变配置，包含 enabled=true、threshold=8（有限非负局部逻辑距离）、lockAxis=true 和 claimAtBoundary=true；构造非法阈值立即报错。ScrollPan.update(axes, chain, options) 更新配置，cancel 结束本次候选／滚动，isPanning 只表示已接管或正在接收嵌套残量的接触，isClosed 查询登记寿命。
 
 Touch／Pen 开始时保存原始位置并停止该视口的旧平滑运动，不制造 hover 或鼠标按钮。首个非零移动越过阈值后才在 Default 阶段尝试 claimContacts；没有移动的 tap 不接管，Ended 不能开始新滚动。lockAxis 开启时按最近 Accepted 几何中的累计位移选择主导轴，该轴不在 axes 内则放弃；双轴平局选择水平轴，选定后保持到结束。关闭 lockAxis 时消费全部已启用轴。初次消费包含开始到当前的完整位移，后续使用逐次原生位移，避免阈值跳变和重复累加。
+
+claimAtBoundary=false 时，首个达到阈值的移动若在所选轴及方向上没有可消费的范围，则放弃候选，不认领触点或阻止祖先默认行为；该序列不会在之后重新成为本层候选。这只决定初次独占接管，不改变已开始滚动的 Chain／Contain 余量规则，也不阻止已获准的嵌套余量接收。短内容同样可让出起始动作，调用方无需用一次真实滚动试探范围。
 
 取得归属后通过 Surface.consumeContactMovement 共享本次位移，从内到外按各自 Accepted 变换转换和消费，offset 使用手指位移的反向。祖先仅在 owner 明确开放共享位移后参与，普通 Slider／Drag 的独占接管不能触发外层滚动。Chain 只交出实际余量，Contain 处理本层后阻止祖先默认行为；每层仍遵守自己的启用轴与锁轴配置。请求复用 ScrollState.scrollBy 的 User 意图与真实范围，保持已有键盘、焦点和语义滚动入口。活动触点保留与虚拟条目回收复用 Surface 的真实归属。
 
@@ -788,7 +790,7 @@ Press 通过 Surface 的独立事件／默认动作／完成登记组合，不�
 
 `ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left, contacts=true)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。button 选择鼠标按钮，contacts 独立控制直接触摸／笔尖。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。
 
-Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到阈值且主轴位移不少于交叉轴位移时调用 Surface claim。反向主导移动放弃候选，小幅移动继续保留原点击。threshold=0 可在按下默认阶段开始，例如滚动条 thumb。默认阶段仍按目标到祖先顺序决定谁先接管，不建立新的优先级或 gesture arena。
+Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到阈值且主轴位移不少于交叉轴位移时调用 Surface claim。反向主导移动放弃候选，小幅移动继续保留原点击。threshold=0 可在按下默认阶段开始，例如滚动条 thumb；若该阶段已被后代消费而仍为候选，后续坐标未改变的 Moved 不会接管，等待实际位移。默认阶段仍按目标到祖先顺序决定谁先接管，不建立新的优先级或 gesture arena。
 
 `DragEvent` 包含 Started／Moved／Ended(DragSample) 和 Cancelled(DragSample, reason)。样本包含局部 start／position、主轴 displacement／velocity 和 InputTime；开始、上一位置和当前位置都由原窗口点通过当前已提交几何转换，避免布局／缩放变化后混用不同坐标系。速度按现有单调输入时间计算，重复或倒退时间为零；无可用几何或无法表示有限结果时取消，不输出无穷速度。不会从未提交布局推算拖动。
 

@@ -262,6 +262,13 @@ internal class ModalContent(private val read: () -> ModalInput, scope: Component
                             value.snapPoints.size >
                             0L
                         else -> true
+                    },
+                    when (input.kind) {
+                        case Drawer(val value, _) -> TouchScrollOptions(
+                            threshold = value.dragThreshold,
+                            claimAtBoundary = false
+                        )
+                        else -> TouchScrollOptions()
                     }
                 ),
                 { current, mount -> ModalBody(current, scope = mount) },

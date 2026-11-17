@@ -9,7 +9,8 @@ public enum ScrollChain {
 public class TouchScrollOptions public constructor(
     public val enabled: Boolean = true,
     public val threshold: Double = 8.0,
-    public val lockAxis: Boolean = true
+    public val lockAxis: Boolean = true,
+    public val claimAtBoundary: Boolean = true
 ) {
     init {
         requireUi(

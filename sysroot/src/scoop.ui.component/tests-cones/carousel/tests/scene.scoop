@@ -58,7 +58,13 @@ internal class CarouselScene(private val p: CarouselProbe, scope: ComponentScope
                     next { visible = false }
                     autoplay =
                         if (p.autoplay)
-                            Some(CarouselAutoplay(Duration.milliseconds(250L)))
+                            Some(
+                                CarouselAutoplay(
+                                    Duration.milliseconds(250L),
+                                    pauseOnHover = p.pauseOnInteraction,
+                                    pauseOnFocus = p.pauseOnInteraction
+                                )
+                            )
                         else
                             None
                     transition(

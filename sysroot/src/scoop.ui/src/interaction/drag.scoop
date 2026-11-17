@@ -131,7 +131,7 @@ public class Drag internal constructor(
             case Pointer(
                 InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)
             ) -> if (isMouse() && button == options.button && options.threshold == 0.0)
-                advance(context, point.state)
+                advance(context, point.state, true)
             case Pointer(InputPointerEvent.Moved(val point)) -> if (isMouse())
                 advance(context, point.state)
             case Pointer(
@@ -143,7 +143,7 @@ public class Drag internal constructor(
             case Contact(InputContactEvent.Began(val value)) -> if (
                 isContact(value.id) && options.threshold == 0.0
             )
-                advance(context, value.pointer)
+                advance(context, value.pointer, true)
             case Contact(InputContactEvent.Moved(val value)) -> if (isContact(value.id))
                 advance(context, value.pointer)
             case Contact(InputContactEvent.Ended(val value)) -> {
@@ -165,7 +165,11 @@ public class Drag internal constructor(
         clear()
         receive(DragEvent.Ended(value!!))
     }
-    private fun advance(context: RoutedEventContext, point: PointerState) {
+    private fun advance(
+        context: RoutedEventContext,
+        point: PointerState,
+        pressed: Boolean = false
+    ) {
         val value = sample(point)
         if (value == None) {
             cancel(DragCancelReason.GeometryUnavailable);
@@ -174,6 +178,8 @@ public class Drag internal constructor(
         val current = value!!
         latest = value
         if (!claimed) {
+            if (!pressed && current.position == current.start)
+                return
             val cross =
                 if (options.axis == DragAxis.Horizontal)
                     current.position.y - current.start.y
