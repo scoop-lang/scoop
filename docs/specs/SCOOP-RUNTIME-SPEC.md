@@ -839,7 +839,7 @@ adapter 在返回 C 前捕获全部 Scoop 异常、保存原 managed Throwable �
 
 ### 4.5 线程状态
 
-[语言规范 12.2.5](SCOOP-SPEC.md#1225-swift-包原生库第一阶段设计待实现)的 Swift 原生库设计复用以下 C ABI 边界，不增加 runtime ABI。`@c` 导出默认作为 NativeSafe callee；Swift runtime／ARC 自行管理 Swift 对象，不注册为 Scoop managed image 或扫描 Swift 堆。手写 FFI 对 opaque pointer、数据借用和 callback 的所有权负责，继续使用既有 handle、pin 与 callback 入口。Swift 调用、ARC release 或 deinit 不自动满足 GCLeaf／STW release-safe 合同，只有原有完整约束允许选择这些模式。
+[语言规范 12.2.5](SCOOP-SPEC.md#1225-swift-包原生库第一阶段)的 Swift 原生库设计复用以下 C ABI 边界，不增加 runtime ABI。`@c` 导出默认作为 NativeSafe callee；Swift runtime／ARC 自行管理 Swift 对象，不注册为 Scoop managed image 或扫描 Swift 堆。手写 FFI 对 opaque pointer、数据借用和 callback 的所有权负责，继续使用既有 handle、pin 与 callback 入口。Swift 调用、ARC release 或 deinit 不自动满足 GCLeaf／STW release-safe 合同，只有原有完整约束允许选择这些模式。
 
 普通 C ABI outbound 默认使用 NativeSafe，Scoop ABI outbound 使用 NativeBorrowed；NoGC 声明不取消 caller 的协调与保活义务。NativeSafe 的常见进入/返回使用 3.5 的无锁协议，实际 C 调用期间不持有 world lock。foreign callback attach 后通过独立 boundary 进入 managed；返回 managed 与 callback 进入均不能绕过当前 GC 的协调。
 

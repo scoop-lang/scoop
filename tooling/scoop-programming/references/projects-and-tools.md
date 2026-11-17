@@ -95,6 +95,8 @@ single-file run 允许第一个普通程序位置参数开始转发；为避免�
 
 ## macOS Swift staticlib bridge
 
+完整可运行示例用 `scoop example language/swift-bridge` 查看；JSON 输出包含 Cone.toml、Swift package 和 Scoop 调用代码。
+
 需要调用系统 framework 时，可以在普通库 Cone 中维护 Swift package，手写 `@c` 导出函数和 Scoop `@Extern` 声明。Swift 工具链须支持正式 `@c`（Swift 6.3+）及 Swift Build 后端，目标为 macOS AArch64 或 x86-64。在 Cone.toml 声明：
 
 ```toml

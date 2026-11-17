@@ -1,5 +1,8 @@
 use super::*;
 
+#[cfg(target_os = "macos")]
+mod resolution;
+
 #[test]
 fn package_selection_observes_files_but_ignores_build_state() {
     let temp = tempfile::tempdir().unwrap();

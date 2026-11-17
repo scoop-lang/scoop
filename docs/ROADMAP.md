@@ -805,7 +805,7 @@ iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出
 - 增加 `native.swift` 生产声明；PM 只展开 Cone 配置，SwiftPM 管理 Swift 图和 Package.resolved，driver 调度独立 Swift 节点。
 - 将 Swift 包目录和 Cone 显式声明的包外依赖／framework／插件／环境输入纳入现有更新记录；不分析 Package.swift 推导依赖。命中不调用 Swift；所有 Swift 节点更新检查先于最终链接复用，仅 Swift 实现变化不重编 Scoop `.slib`。
 - 完成 Swift autolink、runtime／SDK 系统库、framework 固定组装与资源部署；交付 `.slib` 配套原生文件，支持显式 artifact-only 链接。最终链接依赖写在 Cone，私有 framework 清单独立写在 bundle metadata，rpath 重定位和签名只在 bundle 阶段执行；系统 framework 不打包。
-- 以真实 `@c` 调用、两种架构、三类容器、缓存失效／并发／失败、资源读取及可重定位部署验收。语言、实现、包管理与 runtime spec 已补充设计合同，当前能力仍待实现。
+- 以真实 `@c` 调用、两种架构、三类容器、缓存失效／并发／失败、资源读取及可重定位部署验收。语言、实现、包管理与 runtime spec 及可运行 `language/swift-bridge` 示例已同步；AArch64 收尾和随后 x86-64 验收进度见 [实施记录](swift-libraries/PROGRESS.md)。
 
 下一阶段单独设计 bindgen：分析 Swift API，生成 Swift C ABI 包装和 Scoop binding。本阶段不生成包装、不导入 Swift 类型或引入 Swift ABI。
 

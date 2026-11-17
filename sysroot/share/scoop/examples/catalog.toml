@@ -535,3 +535,19 @@ files = [
   { path = "tests/model.scoop", source = "src/scoop.ui.component/examples/state/tests/model.scoop", language = "scoop" },
   { path = "tests/window.scoop", source = "src/scoop.ui.component/examples/state/tests/window.scoop", language = "scoop" },
 ]
+
+[[topics]]
+id = "language/swift-bridge"
+title = "用 Swift 静态库桥接 macOS framework"
+summary = "Swift 导出两个 CoreText C ABI 函数，Scoop 通过 staticlib 调用。"
+aliases = ["swift-bridge", "Swift", "staticlib"]
+keywords = ["CoreText", "CoreFoundation", "framework", "native.swift", "native.libraries", "@c", "@Extern", "macOS", "bridge", "FFI", "bundle"]
+document = "topics/language/swift-bridge.md"
+requirements = ["仅 macOS；需要 Swift 6.3+、Swift Build 后端及配套 Xcode SDK。", "使用配套 Scoop 工具链与预编译系统库；以下命令使用 release。"]
+related = ["start/cone", "language/visibility"]
+files = [
+  { path = "Cone.toml", source = "share/scoop/examples/programs/language/swift-bridge/Cone.toml", language = "toml" },
+  { path = "src/main.scoop", source = "share/scoop/examples/programs/language/swift-bridge/src/main.scoop", language = "scoop" },
+  { path = "native/Package.swift", source = "share/scoop/examples/programs/language/swift-bridge/native/Package.swift", language = "swift" },
+  { path = "native/Sources/SystemBridge/Fonts.swift", source = "share/scoop/examples/programs/language/swift-bridge/native/Sources/SystemBridge/Fonts.swift", language = "swift" },
+]

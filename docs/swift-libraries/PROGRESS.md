@@ -41,11 +41,20 @@
 
 当前 offline／frozen 仅支持 Swift 生产命中；未命中在调用 Swift 前明确报错，因为不再分析任意清单来猜测是否会获取远端依赖。locked 仍交给 SwiftPM 的 resolved-only 模式。需要本地更新的外部目录必须显式列入 inputs。
 
+## AArch64 收尾与发布示例
+
+2026-11-18：新增随工具链发布的 `language/swift-bridge` 主题，完整提供 CoreText 两个函数的 Swift package、Cone 和 Scoop 调用。同步示例索引、阅读器检查、runner 与编程参考；清理规范中失效的“待实现”状态和旧链接设置描述，更新 runtime 章节引用与 PM members 协议号。
+
+验证：格式化／lint 通过，示例阅读器 9 项测试通过；从正式 `scoop example` JSON 还原工程后运行通过。新增真实本地 Git Swift 依赖测试通过，覆盖共享源码缺少 resolved 选择失败、本地首次生成 lock、共享源码按 lock 构建、远端新增版本不失效及不满足锁定选择时失败且不改 lock。
+
+收敛后的普通 dylib、动态 framework 和使用 Foundation `#Predicate` 宏的 staticlib，在 AArch64 冷构建、热复用与运行均通过；三种程序显式 bundle 后，热复用、复制 app 运行和签名验证通过。系统库未复制；动态产物只部署显式列出的私有文件。示例首次验证遇到开发版 scoopc 的 LLVM 加载环境问题，已使用既有测试启动器闭合；阅读器旧主题数量断言与临时验证脚本的 JSON 层级已修正。
+
+实际 Swift compatibility archive 探针暴露了原生 Mach-O 读取器的问题：Apple 归档成员同时含 macOS 与 Mac Catalyst 的 LC_BUILD_VERSION 时被拒绝。该问题尚未闭合，不计作兼容库验证通过；先修复 AArch64，再开始 x86-64。
+
 ## 后续工作与验收
 
-1. 以收敛后的合同复核共享源码／锁定、普通 dylib 与动态 framework、实际宏和 compatibility archive 的必要组合；不再增加自建 Swift 包图或 prebuild 分析。
-2. 补齐一个可运行的系统 bridge 编程示例，以及当前 spec 状态／帮助的一致性。
-3. AArch64 全部完成后，再统一修复和验证已记录的 x86-64 Swift target 问题。
-4. 最终合同与变更审查；bindgen 留到下一阶段。
+1. 修复普通 Mach-O 多平台标记的消费，完成真实 Swift compatibility archive 验证。
+2. AArch64 全部完成后，统一修复和验证已记录的 x86-64 Swift target 问题。
+3. 最终合同与变更审查；bindgen 留到下一阶段。
 
 每个大项完成后定向验证，提交、推送，再合并 origin/main。原始日志在仓库外，每轮清理不再使用的临时文件。

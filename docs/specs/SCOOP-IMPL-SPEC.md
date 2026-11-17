@@ -20,7 +20,7 @@ Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN
 
 编译器使用自身及所选 C/C++ 工具链成功产生的输出，后续步骤只读取实际需要的数据，不重新证明生产过程。工作文件按普通生命周期管理，不设为只读、不审计权限或文件来源。实际 I/O、编译和链接错误正常报告；失败不发布部分结果。实体身份、ODR、ABI、GC 与读取边界所需的数据继续保留，不以验证资格或生产凭证替代这些普通合同。
 
-Swift 原生库第一阶段正在实现，见 2.7.1～2.8.1 及 [Swift 设计](../swift-libraries/DESIGN.md)。它新增由 Swift 工具生产的独立 native 库结果及其更新判断，不增加编译 stage、Swift ABI 或 bindgen；清单解析及 compiler 投影已接入，生产、调度与链接进度见 [实施记录](../swift-libraries/PROGRESS.md)。
+Swift 原生库第一阶段见 2.7.1～2.8.1 及 [Swift 设计](../swift-libraries/DESIGN.md)。它通过 Swift 工具生产独立 native 库结果并记录更新，不增加编译 stage、Swift ABI 或 bindgen；实现及目标验收进度见 [实施记录](../swift-libraries/PROGRESS.md)。
 
 编译请求明确选择相容的 LIR target、backend、C bridge toolchain、runtime build 与 final-link 配置。静态目标目录由独立的 `scoop-target-data`（`compiler/target-data`）维护：`targets.toml` 是 Rust 与维护／fixture 脚本共用的完整目标事实，Rust 构建时生成类型化常量，Python 直接读取同一配置。目录只登记已实现的目标和实现选择，不执行工具探测或 ABI 分类；driver、toolchain、对象消费者和脚本按需投影，不各自维护完整目标列表。typed target/backend/toolchain identity 只规定规范化名称与版本的格式；格式合法不代表相应消费者支持。native 符号的对象前缀由选中目标的数据显式传入；identity 解码只检查身份和符号字节格式，目标消费边界按源码符号重建并核对归一化结果。LLVM/backend 和具体 ABI 实现由 codegen 选择，对象读取与最终链接由 slib/linker 的有限支持集合决定，未知或不相容组合必须明确诊断，不回退到宿主目标。阶段只消费其所需投影；library 编译不要求未使用的最终 linker、CRT 或 unwind archive，链接只执行其实际需要的工具，不通过移除源码编译器或 LLVM 工具证明隔离能力。
 
@@ -1239,9 +1239,9 @@ human 诊断采用源码片段展示：先输出 severity、可用的错误代�
 
 工具中断停止后续构建并回收正在运行的 child。Unix 向 child 传递原信号并保留真实 signal；Windows 处理 Ctrl+C／Ctrl+Break／console close，以持有的 process handle 终止尚在运行的 child，使用 `STATUS_CONTROL_C_EXIT`，不将它解释为 POSIX signal。Windows 外部程序的普通退出保留完整 32-bit 状态。某节点失败后停止派发新节点，不启动 dependent 或 program-link，并等待已启动的 child 收尾；失败节点不发布结果，已经成功的节点继续遵循普通缓存规则。已收集失败按 canonical 顺序选择报告，不能因为完成时间不同而重排同一组诊断。
 
-#### 2.7.1 Swift 包生产与更新记录（设计合同）
+#### 2.7.1 Swift 包生产与更新记录
 
-本节正在实现，已接入清单、compiler 输入投影、Swift 生产内核与 driver 调度；最终链接和交付待完成。源码配置使用语言规范 12.2.5 的 `native.swift`，依赖选择和 lock 见包管理规范 6.3。首期仅为 macOS 宿主上的现有 Darwin AArch64／x86-64 target；实际 Swift 工具链必须支持包的 tools version 和 Swift 6.3 起的正式 `@c`。新 CLI／协议字段在实现时与配套命令一起更新，不将本文的计划字段视为当前已支持。
+源码配置使用语言规范 12.2.5 的 `native.swift`，依赖选择和 lock 见包管理规范 6.3。首期仅为 macOS 宿主上的现有 Darwin AArch64／x86-64 target；实际 Swift 工具链必须支持包的 tools version 和 Swift 6.3 起的正式 `@c`。driver、compiler、PM 与链接工具须使用相容的配套协议。
 
 **职责与输入投影。** PM 只交付展开的生产声明；`scoop` 负责更新检查、Swift 子进程和产物发布；SwiftPM 负责包内依赖、target 选择、host 宏／插件和实际编译；`scoopc` 只接收投影后的普通 native 库要求与 Scoop 源码。选定 Swift product 是独立生产节点，不取得 ConeIdentity，也不把 Swift target 复制成 Scoop 编译节点。
 
@@ -1271,9 +1271,9 @@ SwiftPM scratch 按 package／实际编译配置保持以复用其内部增量�
 
 **构建入口与返回。** 主要调用为 `swift build --build-system swiftbuild --package-path … --product … --configuration … --scratch-path …`，传入选定目标／SDK／部署和 jobs。实际产物位置由正常工具输出或 `--show-bin-path` 在未命中时取得。automatic product 不承诺独立库，按语言规范要求改为显式 static/dynamic；不补写 Swift 源码或重写第三方清单。framework 的固定组装和发布规则见 2.8.1。
 
-新增 Swift 结果携带逻辑 product、实际库／framework 路径、二进制 linkage、传递链接需求、部署资源及已有更新结果。它与 `PreparedNativeObjects` 的逐文件 `.o` 通道分开，不占用 scoopc 的有序 native-object 数组。根和全部 source Cone 的结果沿构建图汇总到最终链接；相同生产键共用，同一逻辑库名的不同生产绑定报冲突，不按搜索顺序覆盖。
+新增 Swift 结果携带逻辑 product、实际库／framework 路径、二进制 linkage、同次生成的配套原生文件、部署资源及已有更新结果。它与 `PreparedNativeObjects` 的逐文件 `.o` 通道分开，不占用 scoopc 的有序 native-object 数组。根和全部 source Cone 的结果沿构建图汇总到最终链接；相同生产键共用，同一逻辑库名的不同生产绑定报冲突，不按搜索顺序覆盖。
 
-源码 library build 和 `--emit-slib` 同样生产 Swift 配套库，`.slib` 与 `<slib-stem>.native/` 成为本次交付；配套目录保存实际库、非系统传递依赖和资源，不是新的语言归档格式。只改变 Swift 实现时可以单独更新配套结果而不重写 `.slib`。构建 JSON 返回 `native_outputs`，包含逻辑库名、产物种类、linkage、实际二进制／framework／资源路径和必要链接要求，命中返回同一已存描述。配套目录的 `native-outputs.json` 使用同一描述与目录内相对路径，支持独立链接及整体搬迁；字段服务工具交接，不写入语言实体身份。
+源码 library build 和 `--emit-slib` 同样生产 Swift 配套库，`.slib` 与 `<slib-stem>.native/` 成为本次交付；配套目录保存实际库、同次生成的配套原生文件和资源，不是新的语言归档格式。只改变 Swift 实现时可以单独更新配套结果而不重写 `.slib`。构建 JSON 返回 `native_outputs`，包含逻辑库名、产物种类、linkage、实际二进制／framework／配套原生文件／资源路径，命中返回同一已存描述。配套目录的 `native-outputs.json` 使用同一描述与目录内相对路径，支持独立链接及整体搬迁；字段服务工具交接，不写入语言实体身份。
 
 ### 2.8 程序链接与最终结果复用
 
@@ -1428,27 +1428,27 @@ ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v9`，覆盖 root/依赖、Cod
 
 本次链接按实际 target、symbol、Strong/ODR 选择、startup/image 与 GC/EH 要求生成程序，native linker 不能改选另一份 ODR 实现。工具成功后普通 rename 发布并保存链接结果，不重新读取刚生成的 executable 完整复核生产过程。目标装载格式与执行位属于输出工作；后端、链接与 GC 合同由针对性程序／结构测试验证，不成为每次发布和命中的重放阶段。失败不发布部分文件。
 
-#### 2.8.1 Swift 原生库的链接与发布（设计合同）
+#### 2.8.1 Swift 原生库的链接与发布
 
-本节与 2.7.1 配套，实施中。已接入精确库绑定、选中成员 autolink、Swift 系统库解析、静态 framework 读取、配套目录／独立链接和 resource bundle 部署；私有 framework 的 bundle 交付仍待完整验收。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
+本节与 2.7.1 配套，规定精确库绑定、选中成员 autolink、Swift 系统库解析、framework 读取、配套目录／独立链接、资源部署和私有 framework 打包。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
 
 **库与框架。** `.a` 使用 SwiftPM 实际完整 archive，不当作 `.o` 传给 scoopc，也不把所有 target 对象盲目拼接。静态 product 仍可依赖动态库、系统库和资源。`.dylib` 使用其普通 Mach-O 符号和装载依赖。
 
-framework 仅对语言规范 12.2.5 的单直接模块 product 提供固定组装：先生产匹配 linkage 的普通库，再形成 `<product>.framework/Versions/A/<product>`、`Resources/Info.plist` 和 `Modules/<product>.swiftmodule/`，建立正常的 Versions/Current 与顶层链接。使用实际 compiler module 文件，不为 C ABI 消费强制 library evolution，不生成 Swift wrapper。Info.plist 使用声明的 bundle_id、product 和 FMWK 包类别。静态 framework 的二进制按 archive 读取，动态 framework 按 Mach-O 读取；Framework requirement 表示容器要求，实际二进制决定链接分支。
+framework 对语言规范 12.2.5 中实际产出同名 Swift 模块的 product 提供固定组装：先生产匹配 linkage 的普通库，再形成 `<product>.framework/Versions/A/<product>`、`Resources/Info.plist` 和 `Modules/<product>.swiftmodule/`，建立正常的 Versions/Current 与顶层链接。使用实际 compiler module 文件，不为 C ABI 消费强制 library evolution，不生成 Swift wrapper。Info.plist 使用声明的 bundle_id、product 和 FMWK 包类别。静态 framework 的二进制按 archive 读取，动态 framework 按 Mach-O 读取；Framework requirement 表示容器要求，实际二进制决定链接分支。
 
 动态 framework 在发布副本上由平台工具设置 `@rpath/<product>.framework/Versions/A/<product>` install name，并完成实际需要的路径调整与开发 ad-hoc signing。静态 framework 只参与链接。resource bundle 保留 SwiftPM 实际名称，作为独立配套输出；首期 Swift Build 资源访问器支持 CLI 程序相邻位置与 `.app/Contents/Resources`，须按这两种布局实际部署并运行验收，不能依赖构建目录回退或只复制 framework 后假定资源齐全。此流程不接管任意 Xcode project、Universal 或 XCFramework 生产。
 
 **生产绑定与独立消费。** source 构建中，driver 将逻辑 requirement 直接绑定到本次 Swift 生产结果，不把生成目录加入全局 roots 后重新任选库。普通未绑定的 native requirements 继续按 2.8 的搜索规则解析。artifact-only `scoop link`／`scoop-link` 通过既有 `--library-path` 接收 `.slib` 的配套原生目录，不构建 Swift、不回源修复缺库。两个入口接受相同 `--swift-toolchain` 资源选择以定位实际需要的 compatibility library；正常工具信息查询不表示允许 Swift 源码编译。缺失 native 文件、目标不相容和库归属冲突按普通链接错误报告。
 
-显式原生目录中的 `native-outputs.json` 提供库文件不能完整表达的实际链接要求及资源部署描述，原生文件自身继续提供 autolink／目标／符号／装载信息。该描述不替换显式库绑定或放宽冲突规则，没有该文件的普通 library root 沿原规则使用。它不保存构建配方、源码、lock、摘要或成功凭证；仅在实际链接／部署需要时作普通格式读取，内容及文件选择作为正常输入记录，命中不重读复核。
+显式原生目录中的 `native-outputs.json` 提供实际库／配套文件定位及资源部署描述，原生文件自身继续提供 autolink／目标／符号／装载信息。该描述不替换显式库绑定或放宽冲突规则，没有该文件的普通 library root 沿原规则使用。它不保存构建配方、源码、lock、摘要或成功凭证；仅在实际链接／部署需要时作普通格式读取，内容及文件选择作为正常输入记录，命中不重读复核。
 
 配套描述使用 schema 2：`outputs` 列出逻辑 product、library/framework 格式及 linkage、库／二进制相对路径、同次构建的配套原生文件和 resource bundle；不保存推导的 consumer 链接设置。`libraries/` 保存实际库及 framework，`resources/` 保存原名 resource bundle；所有描述路径相对于该配套目录，使用现有 HostPathCarrier 表达。Swift 同次生成的配套库保存到 `libraries/`；Cone 另行声明的第三方库仍通过显式 library-path 提供，不从 Swift 清单推导或自动 vendor。描述和各文件按自己的输入更新，只删除本次输出集合明确退役的已发布文件，不清空整个配套目录。
 
-配套文件以目录内相对路径交付；实际非系统依赖随库发布，SDK／工具链依赖保留逻辑要求，不能依赖源码／scratch 的绝对搜索路径。独立链接只使用已选逻辑库对应的描述，不把目录中的其他条目全部转成库／资源依赖。
+配套文件以目录内相对路径交付；同次生成的配套原生文件随库发布，另行声明的第三方库由显式库目录提供，SDK／工具链依赖保留逻辑要求，不能依赖源码／scratch 的绝对搜索路径。独立链接只使用已选逻辑库对应的描述，不把目录中的其他条目全部转成库／资源依赖。
 
 `.slib` 只含现有逻辑 native requirements 与 C ABI 声明，不包含 Swift 配方、源码、锁文件、scratch 路径或整个 framework；单独的 `.slib` 不承诺替代配套文件。Swift 实现变化不改变手写声明的 HIR/MIR/LIR 语义；实际 native 文件和本次结果进入最终链接／部署更新输入。普通 C native 对象的既有嵌入方式不因本节改变。
 
-**autolink 与 runtime。** 在真实链接读取所需对象时，处理 Mach-O `LC_LINKER_OPTION` 和 Swift 生产的普通链接需求，转成库／framework 输入。随实际未定义引用选择 archive member，再纳入该 member 的 autolink，直到所需引用闭合；未选择成员不引入其专用依赖。Swift metadata、初始化与重定位所需记录按平台规则保留，不默认 whole-archive 所有 Swift 依赖。
+**autolink 与 runtime。** 在真实链接读取所需对象时，处理 Mach-O `LC_LINKER_OPTION` 和 Cone 显式声明的普通链接需求，转成库／framework 输入。随实际未定义引用选择 archive member，再纳入该 member 的 autolink，直到所需引用闭合；未选择成员不引入其专用依赖。Swift metadata、初始化与重定位所需记录按平台规则保留，不默认 whole-archive 所有 Swift 依赖。
 
 Swift bridge 需要的最终链接库／framework 由所属 Cone 在 `native.libraries` 显式声明，并进入该 Cone 的普通 native requirements；Swift package 的内部依赖及 linkerSettings 只服务它自己的构建。Scoop 不从 Swift 清单、target 或构建参数生成第二套 consumer 链接要求。
 

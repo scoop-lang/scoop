@@ -13,6 +13,7 @@ scoop example language
 scoop example language/option
 scoop example language/compiler-inputs
 scoop example language/imports
+scoop example language/swift-bridge
 scoop example --search "JSON 序列化"
 scoop example json/typed --format source
 scoop example http/get --format source --file client.scoop
@@ -46,7 +47,7 @@ SCOOP_SYSROOT="$PWD/sysroot" scoop example --list
 
 编辑 [catalog.toml](../../sysroot/share/scoop/examples/catalog.toml) 注册已完成的主题。`document` 相对索引目录，`source` 相对安装根，`path` 是用户保存文件时的相对路径。已有库例子引用原源码；新增教学程序放在 `programs/<主题 ID>/`。正文使用“运行、预期结果、关键说明、常见误用”四节，不复制源码代码块。相关主题必须已经发布。
 
-当前有 32 个完整主题，包括编译期资源／环境、块级 import 和已有 HTTP 连接接入；后续内容按[主题清单](../../docs/scoop-example/TOPICS.md)补充。新增主题时同步增加下述独立行为验证；不要将待补内容先放进 catalog。主题目录和三个输出形态详见[设计](../../docs/scoop-example/DESIGN.md)。
+主题包括编译期资源／环境、块级 import、已有 HTTP 连接和 macOS Swift staticlib bridge；后续内容按[主题清单](../../docs/scoop-example/TOPICS.md)补充。新增主题时同步增加下述独立行为验证；不要将待补内容先放进 catalog。主题目录和三个输出形态详见[设计](../../docs/scoop-example/DESIGN.md)。
 
 ## 独立验证
 

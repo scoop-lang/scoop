@@ -3073,7 +3073,7 @@ when = { os = "darwin" }
 
 平台默认查找只解析已经声明的逻辑库需求，不发现相邻 native 源码或任意库；空 lib 的默认 namespace 也不因此扫描系统目录。具体 target、link mode、候选格式、产物绑定和缓存规则见实现规范 2.8。
 
-12.2.5 的 Swift 生产声明在实现后投影到同一逻辑库要求表；本次构建已生产的库由 driver 显式绑定。普通系统库声明不因此触发 Swift 构建。Framework 表示包布局，其内部 archive／动态 Mach-O 的链接分支见实现规范 2.8.1。
+12.2.5 的 Swift 生产声明投影到同一逻辑库要求表；本次构建已生产的库由 driver 显式绑定。普通系统库声明不因此触发 Swift 构建。Framework 表示包布局，其内部 archive／动态 Mach-O 的链接分支见实现规范 2.8.1。
 
 #### 12.2.4 测试配置与生产构建隔离
 
@@ -3102,9 +3102,9 @@ when = { os = "linux" }
 
 依赖名称查找同样使用定义处的生产／测试角色：生产源码只收集生产 direct dependency 的公开 binding，测试源码收集生产与测试 direct dependency 的并集。筛选先于 package 前缀、同名冲突、重载及 re-export 路由合并；仅来自测试依赖的 package 不遮蔽生产源码中的类型或值。筛选依据当前 Cone 的直接依赖边，不按实体的原始声明 Cone 排除：同一实体经生产依赖 re-export 时仍可用；已经选中的生产 API 签名及其公开成员继续使用完整依赖闭包中的 typed 实体。core 始终沿生产依赖绑定，不能被分类为仅用于测试的依赖。
 
-#### 12.2.5 Swift 包原生库（第一阶段设计，待实现）
+#### 12.2.5 Swift 包原生库（第一阶段）
 
-本节为 2026-11-17 确定的设计合同，正在实现；清单解析已接入，完整 Swift 构建与链接尚未交付，进度见 [实施记录](../swift-libraries/PROGRESS.md)。完整流程见 [Swift 原生库设计](../swift-libraries/DESIGN.md)。本阶段消费 Swift package 中已经存在的 `@c` 导出，由用户手写 Scoop `@Extern`；bindgen 和自动 Swift 包装留到下一阶段。
+本节规定 Swift 包生产、缓存和 C ABI 消费合同，实现及目标验收进度见 [实施记录](../swift-libraries/PROGRESS.md)。完整流程见 [Swift 原生库设计](../swift-libraries/DESIGN.md)。本阶段消费 Swift package 中已经存在的 `@c` 导出，由用户手写 Scoop `@Extern`；bindgen 和自动 Swift 包装留到下一阶段。
 
 普通 Cone 可通过 `[[native.swift]]` 声明外部 Swift library product 的生产：
 
