@@ -32,6 +32,7 @@ pub use input::{
 };
 pub use native::{
     NativeCompileFlag, NativeConfig, NativeIncludeFlag, NativeIncludePath, NativeSourceLanguage,
+    SwiftLibrary, SwiftLibraryFormat, SwiftLinkage,
 };
 pub use requirement::VersionRequirement;
 pub use root::{

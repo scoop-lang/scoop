@@ -3104,7 +3104,7 @@ when = { os = "linux" }
 
 #### 12.2.5 Swift 包原生库（第一阶段设计，待实现）
 
-本节为 2026-11-17 确定的设计合同，尚未实现；当前 CLI 不接受以下新增字段。完整流程见 [Swift 原生库设计](../swift-libraries/DESIGN.md)。本阶段消费 Swift package 中已经存在的 `@c` 导出，由用户手写 Scoop `@Extern`；bindgen 和自动 Swift 包装留到下一阶段。
+本节为 2026-11-17 确定的设计合同，正在实现；清单解析已接入，完整 Swift 构建与链接尚未交付，进度见 [实施记录](../swift-libraries/PROGRESS.md)。完整流程见 [Swift 原生库设计](../swift-libraries/DESIGN.md)。本阶段消费 Swift package 中已经存在的 `@c` 导出，由用户手写 Scoop `@Extern`；bindgen 和自动 Swift 包装留到下一阶段。
 
 普通 Cone 可通过 `[[native.swift]]` 声明外部 Swift library product 的生产：
 
