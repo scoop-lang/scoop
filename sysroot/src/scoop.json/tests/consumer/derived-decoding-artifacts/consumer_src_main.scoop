@@ -18,15 +18,21 @@ private fun check(value: Boolean, code: Int, location: SourceLocation = currentS
     assertTrue(value, location = location)
 }
 
+@GenerateWith("scoop.codec", ["ValueDecoder<Batch<T>>"])
 public class BatchDecoder<T>(private val element: ValueDecoder<T>) : ValueDecoder<Batch<T>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Packet<T>>"])
 public class LocalPacketDecoder<T>(private val element: ValueDecoder<T>) : ValueDecoder<Packet<T>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Row<T>>"])
 public class RowDecoder<T>(private val element: ValueDecoder<T>) : ValueDecoder<Row<T>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Event<T>>"])
 public class EventDecoder<T>(private val element: ValueDecoder<T>) : ValueDecoder<Event<T>>
 private class Offset(private val amount: Int) : ValueDecoder<Int> {
     public override fun decode(decoder: Decoder): Int = Int.Companion.decode(decoder) + amount
 }
 public struct Combined(val foreign: ImportedCollision, val local: LocalCollision, val phantom: Phantom<Any>)
+@GenerateWith("scoop.codec", ["ValueDecoder<Combined>"])
 public object CombinedDecoder : ValueDecoder<Combined>
+@GenerateWith("scoop.codec", ["ValueDecoder<ImportedCollision>"])
 public object ForeignDecoder : ValueDecoder<ImportedCollision>
 
 private fun exerciseConsumer() {

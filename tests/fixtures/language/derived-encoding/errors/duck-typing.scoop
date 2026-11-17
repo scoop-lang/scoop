@@ -3,6 +3,6 @@ struct Value() {
         public fun encode(value: Value, encoder: Encoder) { encoder.singleValue().writeNull() }
     }
 }
-struct Item(val value: Value) { companion object : ValueEncoder<Item> }
+struct Item(val value: Value) { @GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) companion object : ValueEncoder<Item> }
 
 fun main() {}

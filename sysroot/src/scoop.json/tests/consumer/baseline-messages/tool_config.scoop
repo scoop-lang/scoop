@@ -4,6 +4,7 @@ import scoop.test.*
 import scoop.json.*
 
 struct UserTool(val name: String, val input_schema: JsonValue, val description: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<UserTool>", "ValueDecoder<UserTool>"])
     companion object : ValueEncoder<UserTool>, ValueDecoder<UserTool> {}
 }
 struct ComputerConfig(
@@ -12,21 +13,27 @@ struct ComputerConfig(
     val display_height_px: Long,
     val display_number: Long? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ComputerConfig>", "ValueDecoder<ComputerConfig>"])
     companion object : ValueEncoder<ComputerConfig>, ValueDecoder<ComputerConfig> {}
 }
 struct SearchConfig(val name: String, val max_uses: Long? = None, val allowed_domains: Array<String>? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchConfig>", "ValueDecoder<SearchConfig>"])
     companion object : ValueEncoder<SearchConfig>, ValueDecoder<SearchConfig> {}
 }
 struct BasicToolConfig(val name: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<BasicToolConfig>", "ValueDecoder<BasicToolConfig>"])
     companion object : ValueEncoder<BasicToolConfig>, ValueDecoder<BasicToolConfig> {}
 }
 struct ChoiceOptions(val disable_parallel_tool_use: Boolean = false) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChoiceOptions>", "ValueDecoder<ChoiceOptions>"])
     companion object : ValueEncoder<ChoiceOptions>, ValueDecoder<ChoiceOptions> {}
 }
 struct NamedChoice(val name: String, val disable_parallel_tool_use: Boolean = false) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<NamedChoice>", "ValueDecoder<NamedChoice>"])
     companion object : ValueEncoder<NamedChoice>, ValueDecoder<NamedChoice> {}
 }
 struct ThinkingBudget(val budget_tokens: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ThinkingBudget>", "ValueDecoder<ThinkingBudget>"])
     companion object : ValueEncoder<ThinkingBudget>, ValueDecoder<ThinkingBudget> {}
 }
 enum ToolChoice {

@@ -5,9 +5,11 @@ import test.m57.provider.*
 import test.m57.left.codec as leftCodec
 import test.m57.right.codec as rightCodec
 
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>", "ValueDecoder<Envelope<T>>"])
 class LocalCodec<T> : CodecBase<T>()
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<Envelope<T>>>", "ValueDecoder<Envelope<Envelope<T>>>"])
 class LocalWrappedCodec<T> : CodecBase<Envelope<T>>()
-struct LocalCodecHost<T>() { public companion object : CodecBase<T>() }
+struct LocalCodecHost<T>() { @GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>", "ValueDecoder<Envelope<T>>"]) public companion object : CodecBase<T>() }
 
 fun inheritedCodecs(): Boolean {
     val value = Envelope(7)

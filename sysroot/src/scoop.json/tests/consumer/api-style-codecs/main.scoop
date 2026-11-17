@@ -9,6 +9,7 @@ private fun check(value: Boolean, location: SourceLocation = currentSourceLocati
 }
 
 struct Message(val count: Int, val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Message>", "ValueDecoder<Message>"])
     companion object : ValueEncoder<Message>, ValueDecoder<Message>, ValueInspector<Message>
 }
 

@@ -3,8 +3,10 @@ package scoop.json.tests.consumer.tuple_encoding_artifacts.p2
 import scoop.test.*
 
 public struct Envelope(val pair: (Int, String)) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Envelope>", "ValueDecoder<Envelope>"])
     public companion object : ValueEncoder<Envelope>, ValueDecoder<Envelope>
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<(A, B)>"])
 public class PairEncoder<A, B> public constructor(private val first: ValueEncoder<A>, private val second: ValueEncoder<B>)
     : ValueEncoder<(A, B)>
 public fun pair(): (Int, String) = (41, "provider")
@@ -14,4 +16,5 @@ public fun <T> encoding(element: ValueEncoder<T>): ((T, String), Encoder) -> Uni
     return codec::encode
 }
 public fun array(): Array<(Int, String)> = Array<(Int, String)>(1L) { _ -> pair() }
+@GenerateWith("scoop.codec", ["ValueEncoder<(Int, String)>", "ValueDecoder<(Int, String)>"])
 public object PairCodec : ValueEncoder<(Int, String)>, ValueDecoder<(Int, String)>

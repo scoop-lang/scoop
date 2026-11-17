@@ -33,15 +33,19 @@ struct SearchQuery(
     val queries: Array<String>? = None,
     val sources: Array<SearchSource>? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchQuery>", "ValueDecoder<SearchQuery>"])
     companion object : ValueEncoder<SearchQuery>, ValueDecoder<SearchQuery> {}
 }
 struct SearchSource(val type: String, val url: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchSource>", "ValueDecoder<SearchSource>"])
     companion object : ValueEncoder<SearchSource>, ValueDecoder<SearchSource> {}
 }
 struct SearchPage(val url: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchPage>", "ValueDecoder<SearchPage>"])
     companion object : ValueEncoder<SearchPage>, ValueDecoder<SearchPage> {}
 }
 struct SearchFind(val url: String, val pattern: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchFind>", "ValueDecoder<SearchFind>"])
     companion object : ValueEncoder<SearchFind>, ValueDecoder<SearchFind> {}
 }
 enum SearchAction {

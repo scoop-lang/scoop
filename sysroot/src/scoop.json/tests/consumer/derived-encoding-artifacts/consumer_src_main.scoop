@@ -12,8 +12,11 @@ fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
     assertTrue(value, location = location)
 }
 
+@GenerateWith("scoop.codec", ["ValueEncoder<Packet<T>>"])
 class LocalPacketEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Packet<T>>
+@GenerateWith("scoop.codec", ["ValueEncoder<Event<T>>"])
 class LocalEventEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Event<T>>
+@GenerateWith("scoop.codec", ["ValueEncoder<PublicRow>"])
 object LocalRowEncoder : ValueEncoder<PublicRow>
 
 fun <T> encode(value: T, codec: ValueEncoder<T>): String = Json.encodeToString(value, codec)

@@ -24,6 +24,7 @@ enum Values {
     }
 }
 struct Predicate(val os: Values? = None, val arch: Values? = None, val env: Values? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Predicate>"])
     companion object : ValueEncoder<Predicate>, ValueDecoder<Predicate> {
         public override fun decode(decoder: Decoder): Predicate {
             val fields = strict(decoder, ["os", "arch", "env"])
@@ -38,6 +39,7 @@ struct Predicate(val os: Values? = None, val arch: Values? = None, val env: Valu
     fun matches(os: String, arch: String, env: String): Boolean =
         matchesValue(this.os, os) && matchesValue(this.arch, arch) && matchesValue(this.env, env)
 }
+@GenerateWith("scoop.codec", ["ValueDecoder<Predicate>"])
 object PredicateFields : ValueDecoder<Predicate> {}
 fun matchesValue(values: Values?, value: String): Boolean = when (values) {
     case None -> true
@@ -59,6 +61,7 @@ fun validateValues(child: Decoder?, value: Values?, allowed: Array<String>) {
 }
 
 struct Selection(val path: String, @Serialize(rename = "when") val predicate: Predicate? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Selection>"])
     companion object : ValueEncoder<Selection>, ValueDecoder<Selection> {
         public override fun decode(decoder: Decoder): Selection {
             val fields = strict(decoder, ["path", "when"])
@@ -69,4 +72,5 @@ struct Selection(val path: String, @Serialize(rename = "when") val predicate: Pr
         }
     }
 }
+@GenerateWith("scoop.codec", ["ValueDecoder<Selection>"])
 object SelectionFields : ValueDecoder<Selection> {}

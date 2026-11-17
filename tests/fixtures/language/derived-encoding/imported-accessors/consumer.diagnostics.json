@@ -1,47 +1,107 @@
 [
   {
-    "code": "E1311",
-    "message": "stored property `value` has a custom accessor or delegate",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic encode requires readable storage for `value`; provide an explicit encode implementation or mark it Serialize(ignore = true)",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide an explicit encode implementation or mark it Serialize(ignore = true)",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
+          "end": 132,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 110
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
+          "end": 132,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 110
         }
       }
     ],
     "origin": {
-      "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
-      "end": 121,
+      "cone": "c4f72aeba7825e04eec182a2bb3e0b02cadb4daf5c986f3f455bf3f5a4ae1925",
+      "end": 120,
       "kind": "source",
       "path": "src/main.scoop",
-      "start": 80
+      "start": 73
     },
     "severity": "error"
   },
   {
-    "code": "E1311",
-    "message": "stored property `value` has a custom accessor or delegate",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic encode requires readable storage for `value`; provide an explicit encode implementation or mark it Serialize(ignore = true)",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide an explicit encode implementation or mark it Serialize(ignore = true)",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
+          "end": 229,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 207
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
+          "end": 229,
+          "kind": "source",
+          "path": "src/main.scoop",
+          "start": 207
         }
       }
     ],
     "origin": {
-      "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
-      "end": 163,
+      "cone": "c4f72aeba7825e04eec182a2bb3e0b02cadb4daf5c986f3f455bf3f5a4ae1925",
+      "end": 230,
       "kind": "source",
       "path": "src/main.scoop",
-      "start": 122
+      "start": 170
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `GetterCodec` does not implement interface method `ValueEncoder<Getter>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
+      "end": 176,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 135
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `SetterCodec` does not implement interface method `ValueEncoder<Setter>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "6b5ad4a123bf57882ae35ee6ccd12133eb6d66c4a02c022eb149afa16625dd5b",
+      "end": 273,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 232
     },
     "severity": "error"
   }

@@ -2,30 +2,39 @@ package scoop.json.tests.consumer.baseline_chat
 
 import scoop.test.*
 struct TextPart(val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TextPart>", "ValueDecoder<TextPart>"])
     companion object : ValueEncoder<TextPart>, ValueDecoder<TextPart> {}
 }
 struct RefusalPart(val refusal: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<RefusalPart>", "ValueDecoder<RefusalPart>"])
     companion object : ValueEncoder<RefusalPart>, ValueDecoder<RefusalPart> {}
 }
 struct ChatImage(val image_url: ImageURL) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatImage>", "ValueDecoder<ChatImage>"])
     companion object : ValueEncoder<ChatImage>, ValueDecoder<ChatImage> {}
 }
 struct ImageURL(val url: String, val detail: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ImageURL>", "ValueDecoder<ImageURL>"])
     companion object : ValueEncoder<ImageURL>, ValueDecoder<ImageURL> {}
 }
 struct ChatAudio(val input_audio: InputAudio) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatAudio>", "ValueDecoder<ChatAudio>"])
     companion object : ValueEncoder<ChatAudio>, ValueDecoder<ChatAudio> {}
 }
 struct InputAudio(val data: String, val format: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<InputAudio>", "ValueDecoder<InputAudio>"])
     companion object : ValueEncoder<InputAudio>, ValueDecoder<InputAudio> {}
 }
 struct ChatFile(val file: FileData) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatFile>", "ValueDecoder<ChatFile>"])
     companion object : ValueEncoder<ChatFile>, ValueDecoder<ChatFile> {}
 }
 struct FileData(val file_id: String? = None, val file_data: String? = None, val filename: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FileData>", "ValueDecoder<FileData>"])
     companion object : ValueEncoder<FileData>, ValueDecoder<FileData> {}
 }
 struct ChatTextMessage(val content: ChatContent, val name: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatTextMessage>", "ValueDecoder<ChatTextMessage>"])
     companion object : ValueEncoder<ChatTextMessage>, ValueDecoder<ChatTextMessage> {}
 }
 struct ChatAssistant(
@@ -35,26 +44,34 @@ struct ChatAssistant(
     val function_call: FunctionCall? = None,
     val audio: AudioOutput? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatAssistant>", "ValueDecoder<ChatAssistant>"])
     companion object : ValueEncoder<ChatAssistant>, ValueDecoder<ChatAssistant> {}
 }
 struct AudioOutput(val id: String, val data: String, val expires_at: Long, val transcript: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<AudioOutput>", "ValueDecoder<AudioOutput>"])
     companion object : ValueEncoder<AudioOutput>, ValueDecoder<AudioOutput> {}
 }
 struct ChatToolMessage(val tool_call_id: String, val content: ChatContent) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatToolMessage>", "ValueDecoder<ChatToolMessage>"])
     companion object : ValueEncoder<ChatToolMessage>, ValueDecoder<ChatToolMessage> {}
 }
 struct ChatFunctionMessage(val name: String, @Serialize(required = true) val content: String?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatFunctionMessage>", "ValueDecoder<ChatFunctionMessage>"])
     companion object : ValueEncoder<ChatFunctionMessage>, ValueDecoder<ChatFunctionMessage> {}
 }
 struct FunctionCall(val name: String, val arguments: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FunctionCall>", "ValueDecoder<FunctionCall>"])
     companion object : ValueEncoder<FunctionCall>, ValueDecoder<FunctionCall> {}
 }
 struct ChatFunctionCall(val id: String, val function: FunctionCall) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatFunctionCall>", "ValueDecoder<ChatFunctionCall>"])
     companion object : ValueEncoder<ChatFunctionCall>, ValueDecoder<ChatFunctionCall> {}
 }
 struct ChatCustomCall(val id: String, val custom: CustomCall) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatCustomCall>", "ValueDecoder<ChatCustomCall>"])
     companion object : ValueEncoder<ChatCustomCall>, ValueDecoder<ChatCustomCall> {}
 }
 struct CustomCall(val name: String, val input: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CustomCall>", "ValueDecoder<CustomCall>"])
     companion object : ValueEncoder<CustomCall>, ValueDecoder<CustomCall> {}
 }

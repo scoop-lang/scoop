@@ -4,10 +4,12 @@ import scoop.test.*
 import scoop.json.Json
 
 struct Identity(val id: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Identity>", "ValueDecoder<Identity>"])
     companion object : ValueEncoder<Identity>, ValueDecoder<Identity> {}
 }
 
 struct Details(val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Details>", "ValueDecoder<Details>"])
     companion object : ValueEncoder<Details>, ValueDecoder<Details> {}
 }
 

@@ -1,14 +1,41 @@
 [
   {
-    "code": "E1310",
-    "message": "automatic decode requires a final class without a class base; Item requires an explicit implementation",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic decode requires a struct, enum, tuple, or final class without a class base; target Item requires an explicit implementation",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 163,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 143
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 163,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 143
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Reader` does not implement interface method `ValueDecoder<Item>.decode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 154,
+      "end": 207,
       "kind": "source",
       "path": "main.scoop",
-      "start": 113
+      "start": 166
     },
     "severity": "error"
   }

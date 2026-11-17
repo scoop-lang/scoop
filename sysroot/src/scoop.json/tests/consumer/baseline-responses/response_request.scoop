@@ -15,18 +15,23 @@ struct ResponseRequest(
     val previous_response_id: String? = None,
     val metadata: Strings? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseRequest>", "ValueDecoder<ResponseRequest>"])
     companion object : ValueEncoder<ResponseRequest>, ValueDecoder<ResponseRequest> {}
 }
 struct TextConfig(val format: ResponseFormat) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TextConfig>", "ValueDecoder<TextConfig>"])
     companion object : ValueEncoder<TextConfig>, ValueDecoder<TextConfig> {}
 }
 struct SchemaFormat(val name: String, val schema: JsonValue, val strict: Boolean? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SchemaFormat>", "ValueDecoder<SchemaFormat>"])
     companion object : ValueEncoder<SchemaFormat>, ValueDecoder<SchemaFormat> {}
 }
 struct PromptConfig(val id: String, val variables: PromptVariables) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<PromptConfig>", "ValueDecoder<PromptConfig>"])
     companion object : ValueEncoder<PromptConfig>, ValueDecoder<PromptConfig> {}
 }
 struct ConversationID(val id: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ConversationID>", "ValueDecoder<ConversationID>"])
     companion object : ValueEncoder<ConversationID>, ValueDecoder<ConversationID> {}
 }
 enum ResponseInput {

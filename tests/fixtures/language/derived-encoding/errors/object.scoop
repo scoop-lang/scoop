@@ -1,4 +1,4 @@
 object Item { val value: Int = 1 }
-object Codec : ValueEncoder<Item>
+@GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) object Codec : ValueEncoder<Item>
 
 fun main() {}

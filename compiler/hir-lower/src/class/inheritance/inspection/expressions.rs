@@ -27,10 +27,7 @@ impl Lowerer {
         target: TypeId,
         span: Span,
     ) -> Option<hir::Expr> {
-        let CodingDirection::Inspect(factory) = context.direction else {
-            unreachable!("inspection has its type reference factory")
-        };
-        let callee = match factory {
+        let callee = match context.factory {
             InspectionTypeFactory::Current(function) => {
                 hir::Callable::Generic(self.record_instantiation(function, vec![target])).into()
             }
@@ -65,8 +62,7 @@ impl Lowerer {
         sink: &mut Vec<hir::Statement>,
     ) -> Option<hir::Expr> {
         let ty = self.inspection_type(name, span)?;
-        let record = self.coding_primary(ty, span)?;
-        self.call_coding_constructor(ty, &record, values, span, sink)
+        self.construct_inspection_value(ty, values, span, sink)
     }
 
     pub(super) fn inspection_variant(

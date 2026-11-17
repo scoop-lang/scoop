@@ -5,6 +5,7 @@ import scoop.test.*
 import scoop.time.Duration
 
 private struct ExtractorPage(val page: Int = 1) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<ExtractorPage>"])
     public companion object: ValueDecoder<ExtractorPage>
 }
 

@@ -9,6 +9,7 @@ public interface Transform<T> {
 }
 
 struct Hidden(val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Hidden>", "ValueDecoder<Hidden>"])
     public companion object : ValueEncoder<Hidden>, ValueDecoder<Hidden>
 }
 object TransformHidden : Transform<Hidden> {

@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1315",
+    "code": "GENERATOR_DIAGNOSTIC",
     "message": "automatic decode requires a declared default for omitted constructor parameter `value`",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 99,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 79
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 99,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 79
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 42,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 37
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Reader` does not implement interface method `ValueDecoder<Item>.decode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 90,
+      "end": 143,
       "kind": "source",
       "path": "main.scoop",
-      "start": 49
+      "start": 102
     },
     "severity": "error"
   }

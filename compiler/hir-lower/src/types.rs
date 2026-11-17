@@ -85,7 +85,6 @@ mod resolution;
 mod substitution;
 mod variants;
 pub(crate) use deferred_bounds::DeferredTypeBound;
-pub(crate) use variants::EnumVariant;
 
 pub(crate) use qualified::ResolvedTypeName;
 

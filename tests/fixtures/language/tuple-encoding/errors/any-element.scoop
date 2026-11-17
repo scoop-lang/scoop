@@ -1,2 +1,2 @@
-object Coding : ValueEncoder<(Int, Any)>
+@GenerateWith("scoop.codec", ["ValueEncoder<(Int, Any)>"]) object Coding : ValueEncoder<(Int, Any)>
 fun main() {}

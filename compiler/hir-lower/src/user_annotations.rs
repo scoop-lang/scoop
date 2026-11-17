@@ -11,8 +11,7 @@ mod nested;
 mod properties;
 mod rules;
 mod schemas;
-mod serialization;
-pub(crate) use serialization::SerializeConfig;
+use crate::imports::{ImportLookupLayer, lookup::TypeLookupTarget};
 mod targets;
 pub(crate) mod type_uses;
 mod types;
@@ -42,6 +41,31 @@ pub(crate) struct SourceAnnotationInput {
 }
 
 impl Lowerer {
+    /// Resolve the core declaration through its ordinary prelude binding.
+    pub(crate) fn core_source_annotation(&self, name: &str) -> Option<PersistentAnnotationId> {
+        if matches!(self.core, crate::CoreLoweringAuthority::Defined) {
+            return self.source_annotations.iter().find_map(|(&id, input)| {
+                (self.source_is_core(input.file)
+                    && input.owner.is_none()
+                    && input.identity.key().package().is_root()
+                    && input.declaration.name.text == name)
+                    .then_some(id)
+            });
+        }
+        self.type_lookup_layers(name)
+            .into_iter()
+            .filter(|layer| layer.kind == ImportLookupLayer::CorePrelude)
+            .flat_map(|layer| layer.candidates)
+            .find_map(|candidate| match candidate.target {
+                TypeLookupTarget::Current(TopLevelTypeTarget::Annotation(id)) => Some(id),
+                TypeLookupTarget::Dependency(binding) => match binding.target() {
+                    hir::ImportedTarget::Annotation(id) => Some(id.persistent()),
+                    _ => None,
+                },
+                _ => None,
+            })
+    }
+
     pub(crate) fn declare_annotation_class(
         &mut self,
         declaration: &ast::AnnotationClassDecl,

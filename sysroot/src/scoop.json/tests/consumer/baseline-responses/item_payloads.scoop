@@ -2,21 +2,27 @@ package scoop.json.tests.consumer.baseline_responses
 
 import scoop.test.*
 struct EasyMessage(val role: String, val content: ResponseContent) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<EasyMessage>", "ValueDecoder<EasyMessage>"])
     companion object : ValueEncoder<EasyMessage>, ValueDecoder<EasyMessage> {}
 }
 struct InputMessage(val role: String, val content: Array<ResponsePart>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<InputMessage>", "ValueDecoder<InputMessage>"])
     companion object : ValueEncoder<InputMessage>, ValueDecoder<InputMessage> {}
 }
 struct OutputMessage(val id: String, val role: String, val status: String, val content: Array<ResponsePart>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<OutputMessage>", "ValueDecoder<OutputMessage>"])
     companion object : ValueEncoder<OutputMessage>, ValueDecoder<OutputMessage> {}
 }
 struct ReasoningItem(val id: String, val summary: Array<SummaryPart>, val encrypted_content: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ReasoningItem>", "ValueDecoder<ReasoningItem>"])
     companion object : ValueEncoder<ReasoningItem>, ValueDecoder<ReasoningItem> {}
 }
 struct SummaryPart(val type: String, val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SummaryPart>", "ValueDecoder<SummaryPart>"])
     companion object : ValueEncoder<SummaryPart>, ValueDecoder<SummaryPart> {}
 }
 struct CompactionItem(val encrypted_content: String, val id: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CompactionItem>", "ValueDecoder<CompactionItem>"])
     companion object : ValueEncoder<CompactionItem>, ValueDecoder<CompactionItem> {}
 }
 struct FunctionItem(
@@ -26,9 +32,11 @@ struct FunctionItem(
     val id: String? = None,
     val status: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FunctionItem>", "ValueDecoder<FunctionItem>"])
     companion object : ValueEncoder<FunctionItem>, ValueDecoder<FunctionItem> {}
 }
 struct FunctionResult(val call_id: String, val output: ResponseContent, val id: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FunctionResult>", "ValueDecoder<FunctionResult>"])
     companion object : ValueEncoder<FunctionResult>, ValueDecoder<FunctionResult> {}
 }
 struct FileSearchItem(
@@ -37,6 +45,7 @@ struct FileSearchItem(
     val queries: Array<String>,
     val results: Array<FileSearchResult>? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FileSearchItem>", "ValueDecoder<FileSearchItem>"])
     companion object : ValueEncoder<FileSearchItem>, ValueDecoder<FileSearchItem> {}
 }
 struct FileSearchResult(
@@ -45,12 +54,15 @@ struct FileSearchResult(
     val score: Double? = None,
     val text: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FileSearchResult>", "ValueDecoder<FileSearchResult>"])
     companion object : ValueEncoder<FileSearchResult>, ValueDecoder<FileSearchResult> {}
 }
 struct WebSearchItem(val id: String, val status: String, val action: SearchAction) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<WebSearchItem>", "ValueDecoder<WebSearchItem>"])
     companion object : ValueEncoder<WebSearchItem>, ValueDecoder<WebSearchItem> {}
 }
 struct ImageItem(val id: String, val status: String, @Serialize(required = true) val result: String?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ImageItem>", "ValueDecoder<ImageItem>"])
     companion object : ValueEncoder<ImageItem>, ValueDecoder<ImageItem> {}
 }
 struct CodeItem(
@@ -60,11 +72,14 @@ struct CodeItem(
     @Serialize(required = true) val code: String?,
     @Serialize(required = true) val outputs: Array<CodeOutput>?
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeItem>", "ValueDecoder<CodeItem>"])
     companion object : ValueEncoder<CodeItem>, ValueDecoder<CodeItem> {}
 }
 struct CodeLogs(val logs: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeLogs>", "ValueDecoder<CodeLogs>"])
     companion object : ValueEncoder<CodeLogs>, ValueDecoder<CodeLogs> {}
 }
 struct CodeImage(val url: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeImage>", "ValueDecoder<CodeImage>"])
     companion object : ValueEncoder<CodeImage>, ValueDecoder<CodeImage> {}
 }

@@ -2731,7 +2731,9 @@ public struct Box<T>(val value: T) {
     }
 }
 
+@GenerateWith("scoop.codec", ["ValueEncoder<Box<E>>"])
 public class BoxEncoder<E>(private val element: ValueEncoder<E>) : ValueEncoder<Box<E>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Box<E>>"])
 public class BoxDecoder<E>(private val element: ValueDecoder<E>) : ValueDecoder<Box<E>>
 ```
 

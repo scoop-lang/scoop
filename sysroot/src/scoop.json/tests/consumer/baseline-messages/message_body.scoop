@@ -13,6 +13,7 @@ struct MessageBody(
     val container: ResponseContainer? = None,
     val diagnostics: Diagnostics? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MessageBody>", "ValueDecoder<MessageBody>"])
     companion object : ValueEncoder<MessageBody>, ValueDecoder<MessageBody> {}
 }
 struct Usage(
@@ -22,14 +23,18 @@ struct Usage(
     val cache_read_input_tokens: Long? = None,
     val server_tool_use: ServerUsage? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Usage>", "ValueDecoder<Usage>"])
     companion object : ValueEncoder<Usage>, ValueDecoder<Usage> {}
 }
 struct ServerUsage(val web_search_requests: Long, val web_fetch_requests: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ServerUsage>", "ValueDecoder<ServerUsage>"])
     companion object : ValueEncoder<ServerUsage>, ValueDecoder<ServerUsage> {}
 }
 struct ResponseContainer(val id: String, val expires_at: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseContainer>", "ValueDecoder<ResponseContainer>"])
     companion object : ValueEncoder<ResponseContainer>, ValueDecoder<ResponseContainer> {}
 }
 struct Diagnostics(@Serialize(required = true) val cache_miss_reason: CacheMiss?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Diagnostics>", "ValueDecoder<Diagnostics>"])
     companion object : ValueEncoder<Diagnostics>, ValueDecoder<Diagnostics> {}
 }

@@ -1,2 +1,4 @@
 enum Item { @Serialize(emitNull = true) Value }
+@GenerateWith("scoop.codec", ["ValueEncoder<Item>"])
+object Codec : ValueEncoder<Item>
 fun main() {}

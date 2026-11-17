@@ -16,17 +16,21 @@ public enum Choice<T> {
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Choice<T>> = ChoiceEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Choice<T>>"])
 public class ChoiceEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Choice<T>>
 
 public enum Tree {
     Leaf,
     Branch(val node: Node)
+    @GenerateWith("scoop.codec", ["ValueEncoder<Tree>"])
     public companion object : ValueEncoder<Tree>
 }
 public class Node public constructor(public val child: Tree) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Node>"])
     public companion object : ValueEncoder<Node>
 }
 public struct Wrapper<T>(val value: T)
+@GenerateWith("scoop.codec", ["ValueEncoder<Wrapper<T>>"])
 public class WrapperEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Wrapper<T>>
 
 private fun exerciseConsumer() {

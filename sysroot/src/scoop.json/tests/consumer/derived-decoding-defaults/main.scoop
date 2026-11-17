@@ -32,10 +32,12 @@ public struct Defaults(
     val second: Logged = defaultValue(first.value + 1, "B"),
     @Serialize(ignore = true) val ignored: Logged = defaultValue(second.value + 1, "T")
 ) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Defaults>"])
     public companion object : ValueDecoder<Defaults>
 }
 
 public struct OptionalField(val value: Option<Int>, val fallback: Option<Int> = Some(8)) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<OptionalField>"])
     public companion object : ValueDecoder<OptionalField>
 }
 
@@ -47,12 +49,14 @@ public struct Late(val value: Int) {
     }
 }
 public struct LazyDefault(val value: Late = Late(7)) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<LazyDefault>"])
     public companion object : ValueDecoder<LazyDefault>
 }
 
 public class UserFailure(message: String) : Exception(Some(message))
 public fun failingDefault(): Int { throw UserFailure("default") }
 public struct Failing(val value: Int = failingDefault()) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Failing>"])
     public companion object : ValueDecoder<Failing>
 }
 public class Constructed public constructor(public val value: Int) {
@@ -60,6 +64,7 @@ public class Constructed public constructor(public val value: Int) {
         Trace.constructed += 1
         if (value < 0) { throw UserFailure("constructor") }
     }
+    @GenerateWith("scoop.codec", ["ValueDecoder<Constructed>"])
     public companion object : ValueDecoder<Constructed>
 }
 

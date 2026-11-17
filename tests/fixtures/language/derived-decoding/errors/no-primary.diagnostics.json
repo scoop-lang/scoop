@@ -1,14 +1,41 @@
 [
   {
-    "code": "E1310",
-    "message": "automatic decode requires a primary constructor for Item",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic construction requires a primary constructor",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 96,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 76
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 96,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 76
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Reader` does not implement interface method `ValueDecoder<Item>.decode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 87,
+      "end": 140,
       "kind": "source",
       "path": "main.scoop",
-      "start": 46
+      "start": 99
     },
     "severity": "error"
   }

@@ -1,7 +1,7 @@
 enum Item {
     @Serialize(rename = "same") First,
     @Serialize(rename = "same") Second
-    companion object : ValueEncoder<Item>
+    @GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) companion object : ValueEncoder<Item>
 }
 
 fun main() {}

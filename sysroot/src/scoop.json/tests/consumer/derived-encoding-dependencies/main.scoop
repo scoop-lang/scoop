@@ -13,27 +13,33 @@ class Offset(private val amount: Int) : ValueEncoder<Int> {
     }
 }
 struct Pair<A, B>(val first: A, val second: B)
+@GenerateWith("scoop.codec", ["ValueEncoder<Pair<A, B>>"])
 class PairEncoder<A, B>(private val first: ValueEncoder<A>, private val second: ValueEncoder<B>)
     : ValueEncoder<Pair<A, B>>
 
 struct Packet<T>(val parts: (T, Option<T>, Unit), val values: Array<T>)
+@GenerateWith("scoop.codec", ["ValueEncoder<Packet<T>>"])
 struct PacketEncoder<T>(val element: ValueEncoder<T>) : ValueEncoder<Packet<T>>
 
 struct Leaf(val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Leaf>"])
     public companion object : ValueEncoder<Leaf>
 }
 object LeafOverride : ValueEncoder<Leaf> {
     public override fun encode(value: Leaf, encoder: Encoder) { Int.encode(-100, encoder) }
 }
 struct Wrapper(val value: Leaf)
+@GenerateWith("scoop.codec", ["ValueEncoder<Wrapper>"])
 class WrapperEncoder(private val leaf: ValueEncoder<Leaf>) : ValueEncoder<Wrapper>
 
 class Node(public val children: Array<Node>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Node>"])
     public companion object : ValueEncoder<Node>
 }
 object NodeOverride : ValueEncoder<Node> {
     public override fun encode(value: Node, encoder: Encoder) { Int.encode(-200, encoder) }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Node>"])
 class NodeEncoder(private val child: ValueEncoder<Node>) : ValueEncoder<Node>
 
 private fun exerciseConsumer() {

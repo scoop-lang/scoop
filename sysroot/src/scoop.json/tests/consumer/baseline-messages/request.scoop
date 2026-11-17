@@ -17,27 +17,35 @@ struct MessagesRequest(
     val diagnostics: RequestDiagnostics? = None,
     val metadata: Metadata? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MessagesRequest>", "ValueDecoder<MessagesRequest>"])
     companion object : ValueEncoder<MessagesRequest>, ValueDecoder<MessagesRequest> {}
 }
 struct Turn(val role: String, val content: Content) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Turn>", "ValueDecoder<Turn>"])
     companion object : ValueEncoder<Turn>, ValueDecoder<Turn> {}
 }
 struct RequestDiagnostics(val previous_message_id: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<RequestDiagnostics>", "ValueDecoder<RequestDiagnostics>"])
     companion object : ValueEncoder<RequestDiagnostics>, ValueDecoder<RequestDiagnostics> {}
 }
 struct Metadata(val user_id: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Metadata>", "ValueDecoder<Metadata>"])
     companion object : ValueEncoder<Metadata>, ValueDecoder<Metadata> {}
 }
 struct OutputConfig(val effort: String? = None, val format: OutputFormat? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<OutputConfig>", "ValueDecoder<OutputConfig>"])
     companion object : ValueEncoder<OutputConfig>, ValueDecoder<OutputConfig> {}
 }
 struct OutputFormat(val type: String, val schema: JsonValue) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<OutputFormat>", "ValueDecoder<OutputFormat>"])
     companion object : ValueEncoder<OutputFormat>, ValueDecoder<OutputFormat> {}
 }
 struct ContainerConfig(val id: String? = None, val skills: Array<Skill>? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ContainerConfig>", "ValueDecoder<ContainerConfig>"])
     companion object : ValueEncoder<ContainerConfig>, ValueDecoder<ContainerConfig> {}
 }
 struct Skill(val type: String, val skill_id: String, val version: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Skill>", "ValueDecoder<Skill>"])
     companion object : ValueEncoder<Skill>, ValueDecoder<Skill> {}
 }
 enum Container {

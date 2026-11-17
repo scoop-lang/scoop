@@ -4,7 +4,10 @@ public abstract class CodecBase<T> protected constructor() {
     override interface ValueEncoder<Envelope<T>> where T.Companion : ValueEncoder<T> {}
     override interface ValueDecoder<Envelope<T>> where T.Companion : ValueDecoder<T> {}
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>", "ValueDecoder<Envelope<T>>"])
 public class InheritedCodec<T> public constructor() : CodecBase<T>()
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<Envelope<T>>>", "ValueDecoder<Envelope<Envelope<T>>>"])
 public class WrappedCodec<T> public constructor() : CodecBase<Envelope<T>>()
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<Int>>", "ValueDecoder<Envelope<Int>>"])
 public class KnownCodec public constructor() : CodecBase<Int>()
-public struct CodecHost<T>() { public companion object : CodecBase<T>() }
+public struct CodecHost<T>() { @GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>", "ValueDecoder<Envelope<T>>"]) public companion object : CodecBase<T>() }

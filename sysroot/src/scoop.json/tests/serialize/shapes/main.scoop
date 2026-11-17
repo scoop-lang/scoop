@@ -7,10 +7,12 @@ enum Choice {
     @Serialize(rename = "empty") Empty,
     Named(val text: String?, @Serialize(required = true) val must: Long?, @Serialize(ignore = true) val local: String?),
     Position(String?)
+    @GenerateWith("scoop.codec", ["ValueEncoder<Choice>", "ValueDecoder<Choice>"])
     companion object : ValueEncoder<Choice>, ValueDecoder<Choice> {}
 }
 
 class Record(val id: Long, val text: String?, @Serialize(ignore = true) val cache: String?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Record>", "ValueDecoder<Record>"])
     companion object : ValueEncoder<Record>, ValueDecoder<Record> {}
 }
 

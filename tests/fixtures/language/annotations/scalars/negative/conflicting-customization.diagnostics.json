@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1303",
+    "code": "GENERATOR_DIAGNOSTIC",
     "message": "Serialize ignore cannot be combined with rename, required, or emitNull",
-    "notes": [],
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 134,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 113
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 134,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 113
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 56,
       "kind": "source",
       "path": "main.scoop",
       "start": 13
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Value.Companion` does not implement interface method `ValueEncoder<Value>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 179,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 141
     },
     "severity": "error"
   }

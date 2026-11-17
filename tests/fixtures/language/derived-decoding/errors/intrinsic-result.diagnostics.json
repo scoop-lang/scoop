@@ -1,24 +1,41 @@
 [
   {
-    "code": "E1310",
-    "message": "automatic decode requires a struct, enum, tuple, or final class with a primary constructor",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic decode requires a struct, enum, tuple, or final class without a class base; target Int requires an explicit implementation",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "result Int requires an explicit implementation",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 49,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 30
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 40,
+      "end": 49,
       "kind": "source",
       "path": "main.scoop",
-      "start": 0
+      "start": 30
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Reader` does not implement interface method `ValueDecoder<Int>.decode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 92,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 52
     },
     "severity": "error"
   }

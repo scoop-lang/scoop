@@ -73,9 +73,7 @@ impl Lowerer {
             let body = self.lower_body(id, decl);
             self.functions[id].kind = FunctionKind::User(body);
         }
-        self.lower_derived_encoding_bodies();
         PhaseFailure::check(check)?;
-        self.lower_derived_decoding_bodies();
         PhaseFailure::check(check)?;
         self.lower_derived_inspection_bodies(type_reference);
         PhaseFailure::check(check)?;

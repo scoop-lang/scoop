@@ -10,6 +10,7 @@ public struct Packet<T>(
     val count: Int = next(7),
     @Serialize(ignore = true) val ignored: Int = count + 1
 )
+@GenerateWith("scoop.codec", ["ValueDecoder<Packet<T>>"])
 public class PacketDecoder<T> public constructor(private val element: ValueDecoder<T>)
     : ValueDecoder<Packet<T>>
 
@@ -26,15 +27,18 @@ public enum Event<T> {
 }
 
 public struct Nest<T>(val values: (T, Option<Array<T>>))
+@GenerateWith("scoop.codec", ["ValueDecoder<Nest<T>>"])
 public class NestDecoder<T> public constructor(private val element: ValueDecoder<T>)
     : ValueDecoder<Nest<T>>
 
 public struct RemoteRecord(@Serialize(rename = "remote") val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<RemoteRecord>"])
     public companion object : ValueDecoder<RemoteRecord>
 }
 public typealias ForeignCollision = RemoteRecord
 
 public struct Phantom<T>(val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Phantom<T>>"])
     public companion object : ValueDecoder<Phantom<T>>
 }
 

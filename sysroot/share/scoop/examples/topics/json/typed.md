@@ -18,7 +18,7 @@ no note
 
 ## 关键说明
 
-User 的 public companion 同时声明 ValueEncoder<User> 和 ValueDecoder<User>，为这些库入口提供类型 codec。`Json.encodeToString(original)` 和 `Json.decodeFromString<User>(text)` 通过公开 companion 能力使用 codec。需要自己选择 codec 时，也可使用 API 的显式 encoder/decoder 参数入口。
+User 的 public companion 同时声明 ValueEncoder<User> 和 ValueDecoder<User>，通过 `@GenerateWith("scoop.codec", ["ValueEncoder<User>", "ValueDecoder<User>"])` 生成两个方法。`Json.encodeToString(original)` 和 `Json.decodeFromString<User>(text)` 通过公开 companion 能力使用 codec。需要自己选择 codec 时，也可使用 API 的显式 encoder/decoder 参数入口。
 
 note 的 String? 用 None 表示缺失值，当前默认编码结果省略这个字段；解码时使用声明中的默认值 None，往返后仍是 None。不能把这里的缺省字段行为推广为所有格式和所有编码入口的规则。scores 是 Array<Int>；索引是 Long。
 

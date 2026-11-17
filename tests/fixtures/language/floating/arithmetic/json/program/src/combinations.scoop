@@ -2,11 +2,11 @@ package dev.m30
 import scoop.json.Json
 
 struct Measurement(@Serialize(rename = "small/~") val small: Float, val wide: Double = -0.0) {
-    public companion object : ValueEncoder<Measurement>, ValueDecoder<Measurement>
+    @GenerateWith("scoop.codec", ["ValueEncoder<Measurement>", "ValueDecoder<Measurement>"]) public companion object : ValueEncoder<Measurement>, ValueDecoder<Measurement>
 }
 enum Event {
     Reading(Measurement), Empty
-    public companion object : ValueEncoder<Event>, ValueDecoder<Event>
+    @GenerateWith("scoop.codec", ["ValueEncoder<Event>", "ValueDecoder<Event>"]) public companion object : ValueEncoder<Event>, ValueDecoder<Event>
 }
 struct Box<T>(val value: T)
 class BoxEncoder<T>(val element: ValueEncoder<T>): ValueEncoder<Box<T>> {

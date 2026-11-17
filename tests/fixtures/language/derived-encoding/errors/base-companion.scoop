@@ -4,6 +4,6 @@ open class Base(public val id: Int) {
     }
 }
 class Child(id: Int, public val extra: String) : Base(id)
-struct Item(val value: Child) { companion object : ValueEncoder<Item> }
+struct Item(val value: Child) { @GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) companion object : ValueEncoder<Item> }
 
 fun main() {}

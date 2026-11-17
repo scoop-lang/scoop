@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1314",
+    "code": "GENERATOR_DIAGNOSTIC",
     "message": "automatic decode has duplicate field name `same`",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 162,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 142
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 162,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 142
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 108,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 93
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Reader` does not implement interface method `ValueDecoder<Item>.decode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 153,
+      "end": 206,
       "kind": "source",
       "path": "main.scoop",
-      "start": 112
+      "start": 165
     },
     "severity": "error"
   }

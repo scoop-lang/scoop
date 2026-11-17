@@ -1,2 +1,5 @@
-struct Value(@Serialize(ignore = true, rename = "value") val value: Int = 7)
+struct Value(@Serialize(ignore = true, rename = "value") val value: Int = 7) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Value>"])
+    companion object : ValueEncoder<Value>
+}
 fun main() {}

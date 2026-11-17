@@ -5,14 +5,17 @@ import scoop.asyncio.*
 import scoop.http.server.*
 
 private struct GreetingQuery(val name: String = "world") {
+    @GenerateWith("scoop.codec", ["ValueDecoder<GreetingQuery>"])
     public companion object: ValueDecoder<GreetingQuery>
 }
 
 private struct GreetingInput(val name: String) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<GreetingInput>"])
     public companion object: ValueDecoder<GreetingInput>
 }
 
 private struct GreetingOutput(val message: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<GreetingOutput>"])
     public companion object: ValueEncoder<GreetingOutput>
 }
 

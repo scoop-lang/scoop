@@ -28,6 +28,7 @@ package demo.json
 import scoop.json.*
 
 struct User(val name: String, val scores: Array<Int>, val note: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<User>", "ValueDecoder<User>"])
     public companion object : ValueEncoder<User>, ValueDecoder<User> {}
 }
 

@@ -292,28 +292,12 @@ impl Lowerer {
                         }
                         InterfaceDefaultSelection::Obligation(_) => {
                             if let Some(function) = self
-                                .derive_missing_encoding(
+                                .derive_missing_inspection(
                                     owner,
                                     &member,
                                     &all_interfaces,
                                     &candidates,
                                 )
-                                .or_else(|| {
-                                    self.derive_missing_decoding(
-                                        owner,
-                                        &member,
-                                        &all_interfaces,
-                                        &candidates,
-                                    )
-                                })
-                                .or_else(|| {
-                                    self.derive_missing_inspection(
-                                        owner,
-                                        &member,
-                                        &all_interfaces,
-                                        &candidates,
-                                    )
-                                })
                                 .or_else(|| {
                                     self.declare_generated_interface_method(
                                         owner,

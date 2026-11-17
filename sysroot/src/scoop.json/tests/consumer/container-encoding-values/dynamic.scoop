@@ -5,6 +5,7 @@ import scoop.json.Json
 
 private struct Opaque()
 private class Node(public val children: Array<Node>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Node>"])
     public companion object : ValueEncoder<Node>
 }
 private interface Labeled {}

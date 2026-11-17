@@ -14,6 +14,7 @@ private struct Item(val number: Int) {
     }
 }
 private struct Record(@Serialize(rename = "wire") val values: Array<Option<Item>>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Record>"])
     public companion object : ValueEncoder<Record>
 }
 private class Captured<T>(private val write: (T, Encoder) -> Unit) : ValueEncoder<T> {

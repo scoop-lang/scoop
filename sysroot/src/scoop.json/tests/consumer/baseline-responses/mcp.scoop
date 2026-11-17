@@ -11,24 +11,31 @@ struct MCPItem(
     val output: String? = None,
     val error: MCPError? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPItem>", "ValueDecoder<MCPItem>"])
     companion object : ValueEncoder<MCPItem>, ValueDecoder<MCPItem> {}
 }
 struct MCPToolsItem(val id: String, val server_label: String, val tools: Array<MCPTool>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPToolsItem>", "ValueDecoder<MCPToolsItem>"])
     companion object : ValueEncoder<MCPToolsItem>, ValueDecoder<MCPToolsItem> {}
 }
 struct MCPTool(val name: String, val input_schema: JsonValue, val description: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPTool>", "ValueDecoder<MCPTool>"])
     companion object : ValueEncoder<MCPTool>, ValueDecoder<MCPTool> {}
 }
 struct MCPApprovalItem(val id: String, val server_label: String, val name: String, val arguments: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPApprovalItem>", "ValueDecoder<MCPApprovalItem>"])
     companion object : ValueEncoder<MCPApprovalItem>, ValueDecoder<MCPApprovalItem> {}
 }
 struct MCPDecisionItem(val approval_request_id: String, val approve: Boolean, val reason: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPDecisionItem>", "ValueDecoder<MCPDecisionItem>"])
     companion object : ValueEncoder<MCPDecisionItem>, ValueDecoder<MCPDecisionItem> {}
 }
 struct MCPStatusError(val code: Double, val message: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPStatusError>", "ValueDecoder<MCPStatusError>"])
     companion object : ValueEncoder<MCPStatusError>, ValueDecoder<MCPStatusError> {}
 }
 struct MCPExecutionError(val content: JsonValue) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPExecutionError>", "ValueDecoder<MCPExecutionError>"])
     companion object : ValueEncoder<MCPExecutionError>, ValueDecoder<MCPExecutionError> {}
 }
 enum MCPError {

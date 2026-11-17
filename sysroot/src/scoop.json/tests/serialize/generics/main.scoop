@@ -6,8 +6,11 @@ import scoop.json.Json
 typealias Maybe<T> = Option<T>
 typealias Identity<T> = T
 struct Box<T>(val required: Identity<T>, val optional: Maybe<T>)
+@GenerateWith("scoop.codec", ["ValueEncoder<Box<T>>"])
 class BoxEncoder<T>(val codec: ValueEncoder<T>) : ValueEncoder<Box<T>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Box<T>>"])
 class BoxDecoder<T>(val codec: ValueDecoder<T>) : ValueDecoder<Box<T>>
+@GenerateWith("scoop.codec", ["ValueEncoder<Box<String?>>", "ValueDecoder<Box<String?>>"])
 object Concrete : ValueEncoder<Box<String?>>, ValueDecoder<Box<String?>>
 
 private fun exercise() {

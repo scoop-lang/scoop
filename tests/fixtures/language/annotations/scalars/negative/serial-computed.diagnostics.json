@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1301",
-    "message": "`@Serialize` is not allowed on this target",
-    "notes": [],
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "Serialize requires a stored property",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 121,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 100
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 121,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 100
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 42,
       "kind": "source",
       "path": "main.scoop",
       "start": 14
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Writer` does not implement interface method `ValueEncoder<Value>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 159,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 124
     },
     "severity": "error"
   }

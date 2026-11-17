@@ -18,6 +18,7 @@ struct Defaults(
     val previous: String? = nonempty,
     val limit: Long = 20L
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Defaults>", "ValueDecoder<Defaults>"])
     companion object : ValueEncoder<Defaults>, ValueDecoder<Defaults> {}
 }
 

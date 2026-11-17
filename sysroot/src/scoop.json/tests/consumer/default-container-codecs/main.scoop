@@ -22,6 +22,7 @@ private fun <T> abilities(companion: Any, encode: Boolean, decode: Boolean) {
 }
 
 private struct Envelope<T>(val value: T) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>", "ValueDecoder<Envelope<T>>"])
     public companion object {
         override interface ValueEncoder<Envelope<T>> where T.Companion : ValueEncoder<T> {}
         override interface ValueDecoder<Envelope<T>> where T.Companion : ValueDecoder<T> {}
@@ -29,7 +30,9 @@ private struct Envelope<T>(val value: T) {
 }
 
 private struct Fields(val array: Array<Int>, val optional: Int?, val mutable: MutableArray<Int>, val list: ArrayList<Int>)
+@GenerateWith("scoop.codec", ["ValueEncoder<Fields>"])
 private class FieldEncoder(private val element: ValueEncoder<Int>) : ValueEncoder<Fields>
+@GenerateWith("scoop.codec", ["ValueDecoder<Fields>"])
 private class FieldDecoder(private val element: ValueDecoder<Int>) : ValueDecoder<Fields>
 
 @Test

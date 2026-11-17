@@ -9,33 +9,43 @@ struct FunctionSpec(
     val parameters: JsonValue? = None,
     val strict: Boolean? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FunctionSpec>", "ValueDecoder<FunctionSpec>"])
     companion object : ValueEncoder<FunctionSpec>, ValueDecoder<FunctionSpec> {}
 }
 struct NestedFunction(val function: FunctionSpec) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<NestedFunction>", "ValueDecoder<NestedFunction>"])
     companion object : ValueEncoder<NestedFunction>, ValueDecoder<NestedFunction> {}
 }
 struct CustomSpec(val name: String, val description: String? = None, val format: CustomFormat? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CustomSpec>", "ValueDecoder<CustomSpec>"])
     companion object : ValueEncoder<CustomSpec>, ValueDecoder<CustomSpec> {}
 }
 struct NestedCustom(val custom: CustomSpec) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<NestedCustom>", "ValueDecoder<NestedCustom>"])
     companion object : ValueEncoder<NestedCustom>, ValueDecoder<NestedCustom> {}
 }
 struct Grammar(val syntax: String, val definition: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Grammar>", "ValueDecoder<Grammar>"])
     companion object : ValueEncoder<Grammar>, ValueDecoder<Grammar> {}
 }
 struct GrammarFormat(val grammar: Grammar) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<GrammarFormat>", "ValueDecoder<GrammarFormat>"])
     companion object : ValueEncoder<GrammarFormat>, ValueDecoder<GrammarFormat> {}
 }
 struct NamedFunction(val name: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<NamedFunction>", "ValueDecoder<NamedFunction>"])
     companion object : ValueEncoder<NamedFunction>, ValueDecoder<NamedFunction> {}
 }
 struct NestedNamedFunction(val function: NamedFunction) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<NestedNamedFunction>", "ValueDecoder<NestedNamedFunction>"])
     companion object : ValueEncoder<NestedNamedFunction>, ValueDecoder<NestedNamedFunction> {}
 }
 struct AllowedTools(val mode: String, val tools: Array<ChatNamedTool>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<AllowedTools>", "ValueDecoder<AllowedTools>"])
     companion object : ValueEncoder<AllowedTools>, ValueDecoder<AllowedTools> {}
 }
 struct AllowedChoice(val allowed_tools: AllowedTools) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<AllowedChoice>", "ValueDecoder<AllowedChoice>"])
     companion object : ValueEncoder<AllowedChoice>, ValueDecoder<AllowedChoice> {}
 }
 struct JsonSchema(
@@ -44,9 +54,11 @@ struct JsonSchema(
     val strict: Boolean? = None,
     val description: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<JsonSchema>", "ValueDecoder<JsonSchema>"])
     companion object : ValueEncoder<JsonSchema>, ValueDecoder<JsonSchema> {}
 }
 struct SchemaFormat(val json_schema: JsonSchema) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SchemaFormat>", "ValueDecoder<SchemaFormat>"])
     companion object : ValueEncoder<SchemaFormat>, ValueDecoder<SchemaFormat> {}
 }
 enum CustomFormat {

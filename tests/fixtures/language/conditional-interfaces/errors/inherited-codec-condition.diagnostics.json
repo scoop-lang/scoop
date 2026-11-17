@@ -15,28 +15,28 @@
             "notes": [],
             "origin": {
               "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-              "end": 484,
+              "end": 670,
               "kind": "source",
               "path": "main.scoop",
-              "start": 450
+              "start": 636
             }
           }
         ],
         "origin": {
           "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-          "end": 337,
+          "end": 455,
           "kind": "source",
           "path": "main.scoop",
-          "start": 309
+          "start": 427
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 484,
+      "end": 670,
       "kind": "source",
       "path": "main.scoop",
-      "start": 450
+      "start": 636
     },
     "severity": "error"
   },
@@ -66,10 +66,10 @@
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 560,
+      "end": 746,
       "kind": "source",
       "path": "main.scoop",
-      "start": 540
+      "start": 726
     },
     "severity": "error"
   },
@@ -89,28 +89,67 @@
             "notes": [],
             "origin": {
               "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-              "end": 671,
+              "end": 857,
               "kind": "source",
               "path": "main.scoop",
-              "start": 628
+              "start": 814
             }
           }
         ],
         "origin": {
           "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-          "end": 379,
+          "end": 565,
           "kind": "source",
           "path": "main.scoop",
-          "start": 338
+          "start": 524
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 671,
+      "end": 857,
       "kind": "source",
       "path": "main.scoop",
-      "start": 628
+      "start": 814
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "class `Derived` does not implement interface method `ValueEncoder<Payload<T>>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 455,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 427
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "class `Constructed` does not implement interface method `ValueEncoder<Payload<Wrapper<T>>>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 565,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 524
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Wrapper.Companion` does not implement interface method `ValueEncoder<Wrapper<T>>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 245,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 163
     },
     "severity": "error"
   }

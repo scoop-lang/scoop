@@ -11,12 +11,15 @@ struct ResponseBody(
     @Serialize(required = true) val incomplete_details: Incomplete?,
     @Serialize(required = true) val usage: ResponseUsage?
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseBody>", "ValueDecoder<ResponseBody>"])
     companion object : ValueEncoder<ResponseBody>, ValueDecoder<ResponseBody> {}
 }
 struct ResponseError(val code: String, val message: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseError>", "ValueDecoder<ResponseError>"])
     companion object : ValueEncoder<ResponseError>, ValueDecoder<ResponseError> {}
 }
 struct Incomplete(val reason: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Incomplete>", "ValueDecoder<Incomplete>"])
     companion object : ValueEncoder<Incomplete>, ValueDecoder<Incomplete> {}
 }
 struct ResponseUsage(
@@ -26,11 +29,14 @@ struct ResponseUsage(
     val input_tokens_details: InputTokens,
     val output_tokens_details: OutputTokens
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseUsage>", "ValueDecoder<ResponseUsage>"])
     companion object : ValueEncoder<ResponseUsage>, ValueDecoder<ResponseUsage> {}
 }
 struct InputTokens(val cached_tokens: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<InputTokens>", "ValueDecoder<InputTokens>"])
     companion object : ValueEncoder<InputTokens>, ValueDecoder<InputTokens> {}
 }
 struct OutputTokens(val reasoning_tokens: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<OutputTokens>", "ValueDecoder<OutputTokens>"])
     companion object : ValueEncoder<OutputTokens>, ValueDecoder<OutputTokens> {}
 }

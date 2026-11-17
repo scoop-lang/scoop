@@ -3,6 +3,7 @@ package scoop.json.tests.consumer.derived_decoding_artifacts
 import scoop.test.*
 
 public struct LocalRecord(@Serialize(rename = "local") val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<LocalRecord>"])
     public companion object : ValueDecoder<LocalRecord>
 }
 public typealias LocalCollision = LocalRecord

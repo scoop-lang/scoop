@@ -13,8 +13,10 @@ struct ChatRequest(
     val stream: Boolean = false,
     val stream_options: StreamOptions? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatRequest>", "ValueDecoder<ChatRequest>"])
     companion object : ValueEncoder<ChatRequest>, ValueDecoder<ChatRequest> {}
 }
 struct StreamOptions(val include_usage: Boolean = false) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<StreamOptions>", "ValueDecoder<StreamOptions>"])
     companion object : ValueEncoder<StreamOptions>, ValueDecoder<StreamOptions> {}
 }

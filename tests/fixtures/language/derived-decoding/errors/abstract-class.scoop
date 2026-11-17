@@ -1,4 +1,4 @@
 public abstract class Item public constructor(public val value: Int)
-public object Reader : ValueDecoder<Item>
+@GenerateWith("scoop.codec", ["ValueDecoder<Item>"]) public object Reader : ValueDecoder<Item>
 
 fun main() {}

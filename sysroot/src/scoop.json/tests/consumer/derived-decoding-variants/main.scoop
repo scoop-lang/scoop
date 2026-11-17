@@ -12,9 +12,11 @@ public enum Choice {
     Pair(String, Int),
     Named(@Serialize(rename = "v/~") val value: Int = 5, @Serialize(ignore = true) val ignored: Int = value + 1),
     Record { value: String, count: Int }
+    @GenerateWith("scoop.codec", ["ValueEncoder<Choice>", "ValueDecoder<Choice>"])
     public companion object : ValueEncoder<Choice>, ValueDecoder<Choice>
 }
 
+@GenerateWith("scoop.codec", ["ValueDecoder<(Int, String, (Long, Char), Unit)>"])
 private object TupleDecoder : ValueDecoder<(Int, String, (Long, Char), Unit)>
 
 private fun <T> reject(text: String, codec: ValueDecoder<T>, path: String) {

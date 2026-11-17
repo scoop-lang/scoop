@@ -16,6 +16,7 @@ private struct Element(val value: Int) {
 private class Captured<T>(private val write: (T, Encoder) -> Unit) : ValueEncoder<T> {
     public override fun encode(value: T, encoder: Encoder) { write(value, encoder) }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<(Element, Element, Element)>"])
 private object Triple : ValueEncoder<(Element, Element, Element)>
 private fun <T> capture(element: ValueEncoder<T>): ((T, Unit), Encoder) -> Unit {
     val codec = PairEncoder(element, UnitEncoder)

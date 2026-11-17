@@ -17,4 +17,5 @@ public struct Envelope<T>(val items: Array<T>, val last: Option<T>) {
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Envelope<T>> = EnvelopeEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>"])
 private class EnvelopeEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Envelope<T>>

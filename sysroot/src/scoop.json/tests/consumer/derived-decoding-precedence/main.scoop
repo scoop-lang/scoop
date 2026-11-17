@@ -20,6 +20,7 @@ public struct Explicit(val offset: Int) : ValueDecoder<Item> {
     public override fun decode(decoder: Decoder): Item = Item(Int.Companion.decode(decoder) + offset)
 }
 public interface Extended : ValueDecoder<Item> { public fun label(): String }
+@GenerateWith("scoop.codec", ["ValueDecoder<Item>"])
 public object Derived : Extended {
     public fun decode(number: Int): Int = number + 1
     public override fun label(): String = "derived"
@@ -28,6 +29,7 @@ public object Opaque : ValueDecoder<Any> {
     public override fun decode(decoder: Decoder): Any = Int.Companion.decode(decoder)
 }
 public struct WithAny(val value: Any)
+@GenerateWith("scoop.codec", ["ValueDecoder<WithAny>"])
 public class AnyDecoder(private val value: ValueDecoder<Any>) : ValueDecoder<WithAny>
 
 private fun exerciseConsumer() {

@@ -1,24 +1,54 @@
 [
   {
-    "code": "E1311",
-    "message": "stored property `value` has a custom accessor",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic encode requires readable storage for `value`; provide an explicit encode implementation or mark it Serialize(ignore = true)",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide an explicit encode implementation or mark it Serialize(ignore = true)",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 114,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 94
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 114,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 94
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 101,
+      "end": 59,
       "kind": "source",
       "path": "main.scoop",
-      "start": 64
+      "start": 19
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Item.Companion` does not implement interface method `ValueEncoder<Item>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 154,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 117
     },
     "severity": "error"
   }

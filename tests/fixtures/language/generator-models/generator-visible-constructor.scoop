@@ -1,0 +1,6 @@
+struct Options(val id: Int, val bias: Int = id + 2) {
+    constructor(id: Int): this(id, 99) {}
+    @GenerateWith("scoop.codec", ["ValueDecoder<Options>"])
+    companion object : ValueDecoder<Options>
+}
+fun main() {}

@@ -1,2 +1,4 @@
 struct Item(@Serialize(ignore = true, required = true) val value: Int?)
+@GenerateWith("scoop.codec", ["ValueEncoder<Item>"])
+object Codec : ValueEncoder<Item>
 fun main() {}
