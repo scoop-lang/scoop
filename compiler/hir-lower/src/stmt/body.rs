@@ -100,7 +100,7 @@ impl Lowerer {
     }
 
     pub(crate) fn lower_body(&mut self, id: FunctionId, decl: &ast::FunctionDecl) -> hir::Body {
-        self.with_function_body(id, &decl.name.text, |lowerer| {
+        self.with_function_body(id, &decl.name.text, None, |lowerer| {
             lowerer.lower_body_input(id, &decl.name.text, &decl.body)
         })
     }
@@ -114,7 +114,7 @@ impl Lowerer {
             || self.functions[id].name.clone(),
             |source| source.name.clone(),
         );
-        self.with_function_body(id, &name, generate)
+        self.with_function_body(id, &name, None, generate)
     }
 
     pub(crate) fn lower_generated_body(
@@ -129,15 +129,14 @@ impl Lowerer {
             .expect("source function declaration")
             .name
             .clone();
-        self.with_function_body(id, &name, |lowerer| {
-            let previous_source = lowerer.generated_source_file.replace(source_file);
-            let previous_context = lowerer.current_source_context;
-            lowerer.set_source_context(hir::SourceContextSubject::Function(id));
-            let statements = lowerer.lower_function_block(id, &name, block);
-            lowerer.generated_source_file = previous_source;
-            lowerer.current_source_context = previous_context;
-            statements
-        })
+        let previous_source = self.generated_source_file.replace(source_file);
+        // A body-only fragment introduces the interface parameters at its opening brace.
+        let entry = ast::Span::new(block.span.start, block.span.start + 1);
+        let body = self.with_function_body(id, &name, Some(entry), |lowerer| {
+            lowerer.lower_function_block(id, &name, block)
+        });
+        self.generated_source_file = previous_source;
+        body
     }
 
     fn lower_function_block(

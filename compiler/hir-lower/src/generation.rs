@@ -103,13 +103,13 @@ impl Lowerer {
         let previous_file = std::mem::replace(&mut self.current_file, lexical_file);
         let before_errors = self.diagnostics.len();
         let before_warnings = self.warnings.len();
-        let body = self.lower_generated_body(function, &generated.body, source_file);
-        // Statements carry offsets in the generated text. Keep the lexical owner for
-        // name lookup and use the fragment for the implementation's definition.
+        // Keep the original lexical owner for lookup. The implementation and
+        // its local bindings are defined in the generated fragment.
         self.generation
             .function_sources
             .insert(function, source_file);
         self.functions[function].span = generated.body.span;
+        let body = self.lower_generated_body(function, &generated.body, source_file);
         self.functions[function].kind = hir::FunctionKind::User(body);
         self.current_file = previous_file;
         let note = DiagnosticNote::at_source(
