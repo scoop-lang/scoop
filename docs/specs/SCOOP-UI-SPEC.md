@@ -830,11 +830,15 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 
 ### 7.16 内容缩放与旋转手势
 
-`ComponentScope.transformGesture(area, options = TransformGestureOptions(), handler)` 为指定区域登记普通事件、默认行为与完成处理器，返回随 scope 关闭的 TransformGesture。当前消费 Window 的原生 Magnify／Rotate，沿 Surface 的起始路径交付；直接接触识别随后接入同一行为，不能通过另一条绕过归属的输入流驱动控件。
+`ComponentScope.transformGesture(area, options = TransformGestureOptions(), handler)` 为指定区域登记普通事件、默认行为与完成处理器，返回随 scope 关闭的 TransformGesture。消费 Window 的原生 Magnify／Rotate，并从原始 Touch／Pen 接触识别双指缩放与旋转；两者沿 Surface 的起始路径交付。识别逻辑位于 UI，不扩展平台手势枚举，也不通过另一条绕过归属的输入流驱动控件。
 
-TransformGestureOptions 的 enabled、magnify、rotate 缺省为 true。两个识别种类由调用方通过同一行为明确组合，活动期间至少一个种类未结束即保持同一会话；全部正常结束才发送 Ended。取消其中一个种类、目标失效或关闭结束整个会话，迟到更新不恢复。新 Began 可以开始新会话。update 更新选项和 handler；禁用或改变启用的种类取消正在进行的会话。cancel 显式取消，close 注销本行为的登记而不关闭 area。
+TransformGestureOptions 的 enabled、magnify、rotate、contacts 缺省为 true，contactThreshold 缺省为 8，是有限非负局部逻辑距离，只影响直接接触的识别。两个识别种类由调用方通过同一行为明确组合。原生输入中，活动期间至少一个种类未结束即保持同一会话，全部正常结束才发送 Ended；取消其中一个种类、目标失效或关闭结束整个会话，迟到更新不恢复。update 更新选项和 handler；禁用、改变启用种类、contacts 或 contactThreshold 取消候选及活动会话。来源中断的取消回调返回后重新检查本次输入种类的资格，回调关闭的分量不能继续启动新会话。cancel 显式取消，close 注销本行为的登记而不关闭 area。
 
-TransformGestureSample 保存本次 localPosition、从会话开始累计的 scale／rotation、本次 scaleDelta／rotationDelta 与 InputTime。scale 初始 1，倍率相乘；rotation 初始 0，顺时针弧度相加；增量缺省为 1／0。倍率／弧度沿 Window 单位，位置使用当前交付冻结的局部几何。事件为 Started／Changed／Ended／Cancelled(sample, reason)／Discrete；没有原生相位的单次事件发送 Discrete，不保留活动状态。无效或溢出的累计值终止会话，不向绘图传播非有限变换。原生 Ended／Cancelled 被传播或默认取消阻止时，完成处理器仍收尾并报告 PreventedEnd。
+TransformGestureSample 保存本次 localPosition、从会话开始累计的 scale／rotation、本次 scaleDelta／rotationDelta、InputTime 与 input。TransformGestureInput 为 Native 或 Contacts(firstId, firstKind, secondId, secondKind)，按原始开始顺序保留两个接触身份和 Touch／Pen 来源。scale 初始 1，倍率相乘；rotation 初始 0，顺时针弧度相加；增量缺省为 1／0。原生倍率／弧度沿 Window 单位，位置使用当前交付冻结的局部几何。事件为 Started／Changed／Ended／Cancelled(sample, reason)／Discrete；没有原生相位的单次事件发送 Discrete，不保留活动状态。无效或溢出的累计值终止会话，不向绘图传播非有限变换。原生 Ended／Cancelled 被传播或默认取消阻止时，完成处理器仍收尾并报告 PreventedEnd。
+
+直接接触在同一区域的第二个 Began 形成固定配对；未达到阈值时只保留候选，不认领输入或制造鼠标事件。将两指上一位置与当前位置通过同一 Accepted 几何转换，长度比给出倍率，夹角的最短有向差给出旋转增量并连续累加，质心作为样本位置。接管前以配对起点为基准，启用缩放时的半径变化与启用旋转时的等效弧长取较大者达到 contactThreshold 后，才一次 claimContacts 两个身份；零阈值仍要求启用分量有非零变化。首个样本计入阈值内的完整变换，接管后改用逐次位置，不重放先前位移。只有平移而无启用变换时不开始会话。不能成组取得归属时放弃本次候选，不取消其他 owner 已拥有的接触。
+
+配对中的任一 Ended 正常结束整个直接接触会话，计入结束位置并发送一次 Ended，同时取消本行为仍拥有的另一个接触；剩余手指不会接续成单指拖动。第三触点、任一成员取消、失效几何、重合或不可表示的跨度、被阻止的 Moved／Ended、配置变化与关闭都有明确取消出口；分别保留 AdditionalContact、Input、GeometryUnavailable／InvalidTransform、PreventedMovement／PreventedEnd 等原因。未 Started 的候选放弃不发 Cancelled。取消后等待本区域仍存续的接触结束／取消，不替换原配对或由迟到移动重开；新的原生 Began／Discrete 和新的直接接触序列互相中断旧来源，不将两种输入的增量混入同一会话。会话状态和剩余接触的归属在通知业务回调前收束，回调内关闭或更新不遗留触点、订阅或帧需求。
 
 该行为只识别和报告变换，不隐式修改根缩放、滚动或业务状态；调用方通过同一业务命令提供缩放、旋转与恢复的键盘／菜单／语义替代入口。减少动画不禁止直接手势变换。识别进度不自动创建语义节点或逐帧播报。
 

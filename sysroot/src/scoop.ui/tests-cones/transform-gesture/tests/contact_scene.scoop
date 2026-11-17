@@ -1,0 +1,101 @@
+package scoop.tests.ui.transform
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class ContactTransformRoot(
+    private val probe: ContactTransformProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        element(
+            ContactTransformSceneInput(probe, probe.scale.value),
+            { props, mount -> ContactTransformArea(props, scope = mount) }
+        )
+}
+
+private class ContactTransformSceneInput(val probe: ContactTransformProbe, val scale: Double)
+
+private class ContactTransformArea(
+    private val props: Props<ContactTransformSceneInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        val p = props.value.probe
+        val area = scope.createArea()
+        val child = scope.createArea(parent = Some(area))
+        p.scope = Some(scope)
+        p.area = Some(area)
+        p.child = Some(child)
+        p.install()
+        scope.press(area) { p.taps += 1 }
+        scope.resource {
+            child.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Began(val value)) -> {
+                        if (
+                            p.takeFirst &&
+                                value.id ==
+                                ContactId(p.firstId) &&
+                                child.scope.claimContacts([value.id])
+                        )
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        }
+        scope.resource {
+            child.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Cancelled(_, val reason, _)) -> {
+                        p.childCancels += 1
+                        if (p.closeDuringClaim && reason == InputCancelReason.Claimed)
+                            p.gesture!!.close()
+                    }
+                    else -> {}
+                }
+            }
+        }
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Moved(_)) -> {
+                        if (p.preventMovement)
+                            context.consume()
+                    }
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (p.preventEnd)
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.Scene
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 260.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val p = props.value.probe
+        context.translate(20.0, 20.0)
+        context.scale(props.value.scale, props.value.scale)
+        context.place(p.area!!, Rect(0.0, 0.0, 120.0, 120.0))
+        context.place(p.child!!, Rect(0.0, 0.0, 45.0, 120.0))
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, 120.0, 120.0),
+                Paint(Color(0.2, 0.4, 0.8))
+            )
+        }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.accepted = true
+        }
+    }
+}

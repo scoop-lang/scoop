@@ -1,0 +1,20 @@
+package scoop.tests.ui.transform
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class TransformGestureOptionsTest {
+    @Test
+    fun `direct transform configuration validates thresholds and independent sources`() {
+        val defaults = TransformGestureOptions()
+        assertTrue(defaults.enabled && defaults.magnify && defaults.rotate && defaults.contacts)
+        assertEquals(8.0, defaults.contactThreshold)
+        assertFalse(TransformGestureOptions(contacts = false).contacts)
+        assertEquals(0.0, TransformGestureOptions(contactThreshold = 0.0).contactThreshold)
+        for (value in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> {
+                TransformGestureOptions(contactThreshold = value)
+            }
+    }
+}

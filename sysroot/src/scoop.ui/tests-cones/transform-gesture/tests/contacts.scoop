@@ -1,0 +1,251 @@
+package scoop.tests.ui.transform
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ContactTransformUiTest {
+    @Test
+    fun `direct transforms preserve thresholds geometry source identity and paired completion`() {
+        run(false)
+    }
+    @Test
+    fun `direct transform cancellation preserves other owners and closes reentrant claims`() {
+        run(true)
+    }
+    private fun run(edges: Boolean) {
+        val probe = ContactTransformProbe(edges)
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.gesture!!.isClosed)
+            assertTrue(probe.area!!.isClosed)
+            assertTrue(probe.child!!.isClosed)
+        } catch (error: Throwable) {
+            println(
+                f"contact transform stage=${probe.stage}, starts=${probe.starts}, ends=${
+                    probe.ends
+                }, cancels=${probe.reasons.size}"
+            )
+            for (line in probe.trace)
+                println(line)
+            throw error
+        }
+    }
+}
+
+internal class ContactTransformProbe(val edges: Boolean) {
+    var window: Window? = None
+    var scope: ComponentScope? = None
+    var area: InputArea? = None
+    var child: InputArea? = None
+    var gesture: TransformGesture? = None
+    var accepted = false
+    var finished = false
+    var preventMovement = false
+    var preventEnd = false
+    var takeFirst = false
+    var closeDuringClaim = false
+    var closeOnStart = false
+    var disableNativeOnCancel = false
+    var starts = 0
+    var ends = 0
+    var taps = 0
+    var childCancels = 0
+    var last: TransformGestureSample? = None
+    val reasons = ArrayList<TransformGestureCancelReason>()
+    val trace = ArrayList<String>()
+    val scale = state(2.0)
+    var stage = 0
+    var firstId = 0L
+    var secondId = 0L
+    var firstKind = 0
+    var secondKind = 0
+    var firstPoint = Point(60.0, 60.0)
+    var secondPoint = Point(140.0, 60.0)
+    private var nextId = 1L
+    private var expected = 0
+    private var received = 0
+    private var pending = false
+
+    fun install() {
+        gesture = Some(scope!!.transformGesture(area!!) { event -> transformed(event) })
+    }
+    fun configure(options: TransformGestureOptions) {
+        gesture!!.update(options) { event -> transformed(event) }
+    }
+    fun transformed(event: TransformGestureEvent) {
+        when (event) {
+            case Started(val sample) -> {
+                starts += 1
+                last = Some(sample)
+                if (closeOnStart)
+                    gesture!!.close()
+            }
+            case Changed(val sample) -> last = Some(sample)
+            case Ended(val sample) -> {
+                ends += 1
+                last = Some(sample)
+            }
+            case Cancelled(val sample, val reason) -> {
+                reasons.add(reason)
+                last = Some(sample)
+                if (disableNativeOnCancel) {
+                    disableNativeOnCancel = false
+                    configure(TransformGestureOptions(magnify = false, contactThreshold = 0.0))
+                }
+            }
+            case Discrete(val sample) -> last = Some(sample)
+        }
+    }
+    fun begin(
+        first: Point = Point(60.0, 60.0),
+        second: Point = Point(140.0, 60.0),
+        aKind: Int = 0,
+        bKind: Int = 0
+    ) {
+        firstId = nextId
+        secondId = nextId + 1L
+        nextId += 2L
+        firstPoint = first
+        secondPoint = second
+        firstKind = aKind
+        secondKind = bKind
+        contact(firstId, 0, firstPoint, firstKind)
+        contact(secondId, 0, secondPoint, secondKind)
+    }
+    fun start() {
+        begin()
+        moveSecond(Point(180.0, 60.0))
+    }
+    fun moveFirst(point: Point) {
+        firstPoint = point
+        contact(firstId, 1, point, firstKind)
+    }
+    fun moveSecond(point: Point) {
+        secondPoint = point
+        contact(secondId, 1, point, secondKind)
+    }
+    fun endFirst() {
+        contact(firstId, 2, firstPoint, firstKind)
+    }
+    fun endSecond() {
+        contact(secondId, 2, secondPoint, secondKind)
+    }
+    fun end() {
+        endFirst();
+        endSecond()
+    }
+    fun extra(phase: Int) {
+        contact(900L, phase, Point(100.0, 120.0))
+    }
+    fun contact(id: Long, phase: Int, point: Point, kind: Int = 0) {
+        trace.add(f"${stage}: contact ${id}/${phase}, ${point.x}, ${point.y}")
+        expected += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(
+                        view,
+                        id,
+                        kind,
+                        phase,
+                        point.x,
+                        point.y
+                    )
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun native(phase: Int, value: Double = 0.0) {
+        expected += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeGesture(
+                        view,
+                        0,
+                        phase,
+                        60.0,
+                        60.0,
+                        value,
+                        0.0
+                    )
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun near(expected: Double, actual: Double) {
+        assertTrue(abs(expected - actual) < 1.0e-8, Some(f"expected ${expected}, actual ${actual}"))
+    }
+    fun changeScale(value: Double) {
+        accepted = false
+        scale.value = value
+    }
+    fun done(active: ActiveApplication) {
+        finished = true
+        window!!.requestDestroy()
+        active.requestExit()
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop direct transform test"
+                            size = LogicalSize(320.0, 280.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { mount -> ContactTransformRoot(this, scope = mount) })
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case Window(_, WindowEvent.Gesture(_)) -> received += 1
+            case AboutToWait -> if (accepted && !finished && !pending && received >= expected) {
+                pending = true
+                active.proxy().post {
+                    application ->
+                    pending = false
+                    if (!finished) {
+                        if (edges)
+                            contactTransformEdges(this, application)
+                        else
+                            contactTransformSteps(this, application)
+                        stage += 1
+                    }
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"contact transform timeout at ${stage}, input ${received}/${expected}")
+            )
+            else -> {}
+        }
+    }
+}

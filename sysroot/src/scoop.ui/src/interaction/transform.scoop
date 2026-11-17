@@ -15,13 +15,24 @@ public class TransformGesture internal constructor(
     private var magnifying = false
     private var rotating = false
     private var latest: TransformGestureSample? = None
+    private val contacts =
+        ContactTransform(
+            area,
+            { options },
+            { event -> receive(event) },
+            {
+                cancelNative(
+                    TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted)
+                )
+            }
+        )
     private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
     private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
     private val finished = area.scope.addEventFinished { event -> finish(event) }
 
     public val isTransforming: Boolean get() {
         area.isClosed
-        return magnifying || rotating
+        return magnifying || rotating || contacts.active
     }
     public val isClosed: Boolean get() {
         area.isClosed
@@ -30,7 +41,15 @@ public class TransformGesture internal constructor(
 
     public fun update(value: TransformGestureOptions, handler: (TransformGestureEvent) -> Unit) {
         requireUi(!closed && !area.isClosed, "transform gesture is closed")
-        val changed = value.magnify != options.magnify || value.rotate != options.rotate
+        val changed =
+            value.magnify !=
+                options.magnify ||
+                value.rotate !=
+                options.rotate ||
+                value.contacts !=
+                options.contacts ||
+                value.contactThreshold !=
+                options.contactThreshold
         options = value
         receive = handler
         if (!value.enabled)
@@ -47,6 +66,14 @@ public class TransformGesture internal constructor(
             case Swipe -> false
         }
 
+    private fun accepts(kind: GestureKind): Boolean =
+        options.enabled &&
+            when (kind) {
+                case Magnify -> options.magnify
+                case Rotate -> options.rotate
+                case Swipe -> false
+            }
+
     private fun setActive(kind: GestureKind, value: Boolean) {
         when (kind) {
             case Magnify -> magnifying = value
@@ -56,12 +83,13 @@ public class TransformGesture internal constructor(
     }
 
     private fun observe(context: RoutedEventContext, event: InputEvent) {
-        if (closed || context.phase != RoutedPhase.Notification)
+        if (closed)
             return
         when (event) {
+            case Contact(val value) -> contacts.observe(context, value)
             case Gesture(InputGestureEvent.Cancelled(val kind, val reason, _)) -> {
-                if (active(kind))
-                    cancel(TransformGestureCancelReason.Input(reason))
+                if (context.phase == RoutedPhase.Notification && active(kind))
+                    cancelNative(TransformGestureCancelReason.Input(reason))
             }
             else -> {}
         }
@@ -72,6 +100,10 @@ public class TransformGesture internal constructor(
             return
         val native =
             when (event) {
+                case Contact(val value) -> {
+                    contacts.handle(context, value)
+                    return
+                }
                 case Gesture(InputGestureEvent.Native(val value)) -> value
                 else -> return
             }
@@ -91,16 +123,23 @@ public class TransformGesture internal constructor(
             }
         val kind = native.kind
         val phase = native.phase
+        if (phase == GesturePhase.Began || phase == GesturePhase.None) {
+            contacts.cancel(
+                TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted)
+            )
+            if (closed || area.isClosed || !accepts(kind))
+                return
+        }
         if (phase == GesturePhase.Cancelled) {
             if (active(kind)) {
                 context.consume()
-                cancel(TransformGestureCancelReason.Native)
+                cancelNative(TransformGestureCancelReason.Native)
             }
             return
         }
         if (phase == GesturePhase.None) {
-            cancel(TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted))
-            if (closed || area.isClosed || !options.enabled)
+            cancelNative(TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted))
+            if (closed || area.isClosed || !accepts(kind))
                 return
         } else
             if (phase != GesturePhase.Began && !active(kind)) {
@@ -111,34 +150,27 @@ public class TransformGesture internal constructor(
             setActive(kind, true)
         val position = context.localPosition
         if (position == None) {
-            cancel(TransformGestureCancelReason.GeometryUnavailable)
-            return
-        }
-        val previous = latest
-        val scale = (previous?.scale ?: 1.0) * scaleDelta
-        val rotation = (previous?.rotation ?: 0.0) + rotationDelta
-        if (
-            !scale.isFinite() ||
-                scale <=
-                0.0 ||
-                !rotation.isFinite() ||
-                !scaleDelta.isFinite() ||
-                scaleDelta <=
-                0.0 ||
-                !rotationDelta.isFinite()
-        ) {
-            cancel(TransformGestureCancelReason.InvalidTransform)
+            cancelNative(TransformGestureCancelReason.GeometryUnavailable)
             return
         }
         val sample =
-            TransformGestureSample(
-                position!!,
-                scale,
-                rotation,
-                scaleDelta,
-                rotationDelta,
-                native.state.time
-            )
+            when (
+                val value =
+                    transformSample(
+                        position!!,
+                        latest,
+                        scaleDelta,
+                        rotationDelta,
+                        native.state.time,
+                        TransformGestureInput.Native
+                    )
+            ) {
+                case Some(val value) -> value
+                case None -> {
+                    cancelNative(TransformGestureCancelReason.InvalidTransform)
+                    return
+                }
+            }
         latest = Some(sample)
         context.consume()
         when (phase) {
@@ -166,12 +198,13 @@ public class TransformGesture internal constructor(
         if (closed)
             return
         when (event) {
+            case Contact(val value) -> contacts.finish(value)
             case Gesture(InputGestureEvent.Native(val value)) -> {
                 if (
                     (value.phase == GesturePhase.Ended || value.phase == GesturePhase.Cancelled) &&
                         active(value.kind)
                 )
-                    cancel(TransformGestureCancelReason.PreventedEnd)
+                    cancelNative(TransformGestureCancelReason.PreventedEnd)
             }
             else -> {}
         }
@@ -190,6 +223,12 @@ public class TransformGesture internal constructor(
     }
 
     private fun cancel(reason: TransformGestureCancelReason) {
+        var failure = cleanupUi(None) { cancelNative(reason) }
+        failure = cleanupUi(failure) { contacts.cancel(reason) }
+        throwUi(failure)
+    }
+
+    private fun cancelNative(reason: TransformGestureCancelReason) {
         val snapshot = latest
         clear()
         when (snapshot) {
@@ -203,7 +242,8 @@ public class TransformGesture internal constructor(
         if (closed)
             return
         closed = true
-        var failure = cleanupUi(None) { cancel(TransformGestureCancelReason.Closed) }
+        var failure = cleanupUi(None) { cancelNative(TransformGestureCancelReason.Closed) }
+        failure = cleanupUi(failure) { contacts.close() }
         failure = cleanupUi(failure) { events.close() }
         failure = cleanupUi(failure) { defaults.close() }
         failure = cleanupUi(failure) { finished.close() }

@@ -2,14 +2,27 @@ package scoop.ui
 
 import scoop.graphics.Point
 import scoop.surface.InputCancelReason
-import scoop.window.InputTime
+import scoop.window.*
 
-/** Explicitly combines native magnification and rotation on one content area. */
+/** Combines native gestures and direct-contact transforms on one content area. */
 public class TransformGestureOptions public constructor(
     public val enabled: Boolean = true,
     public val magnify: Boolean = true,
-    public val rotate: Boolean = true
-)
+    public val rotate: Boolean = true,
+    public val contacts: Boolean = true,
+    public val contactThreshold: Double = 8.0
+) {
+    init {
+        requireUi(
+            contactThreshold.isFinite() && contactThreshold >= 0.0,
+            "transform contact threshold must be finite and non-negative"
+        )
+    }
+}
+
+public enum TransformGestureInput {
+    Native, Contacts(ContactId, ContactKind, ContactId, ContactKind)
+}
 
 /** Scale deltas multiply; clockwise rotation deltas add. Position is local. */
 public struct TransformGestureSample(
@@ -18,17 +31,45 @@ public struct TransformGestureSample(
     val rotation: Double,
     val scaleDelta: Double,
     val rotationDelta: Double,
-    val time: InputTime
+    val time: InputTime,
+    val input: TransformGestureInput
 )
 
 public enum TransformGestureCancelReason {
     Input(InputCancelReason), Native, Disabled, ConfigurationChanged,
-    GeometryUnavailable, InvalidTransform, PreventedEnd, Explicit, Closed
+    GeometryUnavailable, InvalidTransform, AdditionalContact, PreventedMovement,
+    PreventedEnd, Explicit, Closed
 }
 
 public enum TransformGestureEvent {
     Started(TransformGestureSample), Changed(TransformGestureSample), Ended(TransformGestureSample),
     Cancelled(TransformGestureSample, TransformGestureCancelReason), Discrete(
         TransformGestureSample
+    )
+}
+
+internal fun transformSample(
+    position: Point,
+    previous: TransformGestureSample?,
+    scaleDelta: Double,
+    rotationDelta: Double,
+    time: InputTime,
+    input: TransformGestureInput
+): TransformGestureSample? {
+    val scale = (previous?.scale ?: 1.0) * scaleDelta
+    val rotation = (previous?.rotation ?: 0.0) + rotationDelta
+    if (
+        !scale.isFinite() ||
+            scale <=
+            0.0 ||
+            !rotation.isFinite() ||
+            !scaleDelta.isFinite() ||
+            scaleDelta <=
+            0.0 ||
+            !rotationDelta.isFinite()
+    )
+        return None
+    return Some(
+        TransformGestureSample(position, scale, rotation, scaleDelta, rotationDelta, time, input)
     )
 }

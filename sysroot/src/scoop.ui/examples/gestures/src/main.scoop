@@ -119,5 +119,5 @@ private class GestureLayout(scope: ComponentScope): Element<Unit>(scope) {
 }
 
 fun main() {
-    runUiApplication("Scoop — native gestures", { mount -> GestureDemo(scope = mount) })
+    runUiApplication("Scoop — gestures", { mount -> GestureDemo(scope = mount) })
 }

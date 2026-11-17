@@ -19,7 +19,7 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步和六类文本控件的 20 步场景通过，菜单与 accessibility 共用动作；其余控件、多击／选区端点、软键盘和完整设备矩阵继续实施 |
+| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；双指 TransformGesture 的 21 步行为及 40 步取消窗口场景通过；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步和六类文本控件的 20 步场景通过，菜单与 accessibility 共用动作；其余控件、多击／选区端点、软键盘和完整设备矩阵继续实施 |
 | S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -432,3 +432,13 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI／Component 规范、设计、计划、库／测试 README 与编程导航同步；两库 API 文档生成，4 组查询核对签名、访问器、构造默认值及导入。UI、Style、四套主题与 Component 开发产物已按依赖更新，生产及受影响测试源码检查、release 构建通过；上一批 OTP 投影参数的两个内部测试调用一并同步。28 个 Scoop 文件格式检查及本地 Markdown 目标、diff 检查通过；临时应用包、逐次报告和独立复现 Cone 已清理，保留开发产物、API 文档与共享缓存。
 
 本批接触输入经受控 native 队列进入 macOS 实窗，不代替真实触屏／笔、Windows／GTK 或读屏器验收。用户确认的真实触控板捏合／旋转仍单独保留；其余 S8 组合与 S7、S9～S11 范围继续按计划实施。
+
+### 直接接触的双指缩放与旋转
+
+- TransformGesture 从原始 Touch／Pen 识别双指变换，与原生手势共用事件、累计值和业务操作；新增 contacts 开关和默认 8 的 contactThreshold，两个分量可独立关闭。样本 input 保留 Native 或两个真实 ContactId／ContactKind，不为 UI 识别增添 Window 手势种类。
+- 在同一 Accepted 局部几何中计算前后两组位置、跨度、连续角度与质心。达到阈值后一次 claimContacts 两个身份，首个样本包含完整初始变化；原有归属冲突时放弃候选。任一指抬起结束并取消另一指的归属，第三触点、阻止输入、失效几何、配置变化和关闭收束整个配对，剩余接触及迟到更新不恢复旧操作。
+- 回归复现并修复了来源切换的回调重入问题：取消回调关闭缩放后，正在切换过来的原生缩放曾继续发出 Started。现在回调返回后重新检查该输入种类的最新配置，原生 Began／Discrete 共用此检查；成组接管通知和 Started 回调内关闭也不遗留归属。
+- aarch64-apple-darwin release 的 3 项窗口用例和 1 项配置用例全部通过。直接变换 21 步覆盖阈值、完整倍率、跨半圈旋转、Touch／Pen、分量开关、结束和 Accepted 变换；取消 40 步覆盖输入阻止、第三指、已有归属、两种来源切换、重入配置／关闭与退化几何。原生组合回归继续通过，各窗口用例独立运行并取得无失败的 end 和 complete 事件；配置用例检查默认值、开关及非法阈值。
+- UI 规范、交互与 accessibility 设计、计划、库／测试／示例 README 和编程导航同步；UI API 文档生成后用 7 组查询核对选项、默认值、来源载荷及取消原因。UI、Style、四套主题与 Component 共 7 份开发产物按依赖更新，示例重新检查并构建；生产／测试源码检查、10 个 Scoop 文件格式检查、168 个本地 Markdown 目标和 diff 检查通过。7 份逐次 GUI 报告及测试应用包已清理，保留开发产物、API 文档、启动脚本与共享缓存。
+
+受控 native contact 队列的 macOS 实窗结果与用户已确认的真实触控板结果分开记录；真实触屏／笔、Windows／GTK 入口和读屏器仍待集中验收。公共手势、文本端点、多击、软键盘与其余完整计划继续推进。

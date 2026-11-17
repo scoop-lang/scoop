@@ -8,9 +8,9 @@
 
 ## 内容缩放与旋转
 
-`scope.transformGesture(area, TransformGestureOptions()) { event -> ... }` 将 macOS 的原生缩放／旋转沿同一 InputArea 组合，返回随挂载关闭的行为。`enabled`、`magnify`、`rotate` 可分别配置；`update` 替换配置和回调，`cancel` 结束当前会话，`isTransforming` 查询是否仍活动。Started／Changed／Ended／Cancelled／Discrete 提供局部位置、累计 scale／rotation 与本次 scaleDelta／rotationDelta；倍率相乘，旋转为顺时针弧度相加。结束或取消被其他处理器阻止时也会收尾，晚到更新不会重启。
+`scope.transformGesture(area, TransformGestureOptions()) { event -> ... }` 将原生缩放／旋转和直接接触的双指变换沿同一 InputArea 组合，返回随挂载关闭的行为。`enabled`、`magnify`、`rotate`、`contacts` 可分别配置；`contactThreshold` 默认 8，只影响直接接触的局部移动阈值，必须有限非负。`update` 替换配置和回调，`cancel` 结束当前会话，`isTransforming` 查询是否仍活动。Started／Changed／Ended／Cancelled／Discrete 提供局部位置、累计 scale／rotation、本次 scaleDelta／rotationDelta 与 input；倍率相乘，旋转为顺时针弧度相加。input 为 Native 或带两个 ContactId／ContactKind 的 Contacts，保留真实来源。
 
-行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，AppKit 离散 swipe 沿 Surface 的普通 Gesture 事件消费。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。直接触摸的长按、滚动和多指识别继续按交互计划实现，不能把原生手势回归当作触屏验收。
+双指达到启用变换的阈值后，一次取得两个接触的归属；完整初始变换只计入一次，跨半圈的旋转继续累计。一指结束会完成当前变换并取消另一指的归属；第三触点、被阻止的移动／结束、失效几何、配置变化和关闭都会收尾，晚到更新不会重启。行为只报告变化，由应用更新实际内容。窗口滚轮不会自动缩放应用，AppKit 离散 swipe 沿 Surface 的普通 Gesture 事件消费。[可运行手势示例](examples/gestures/README.md)同时提供按钮、Tab／Enter／Space 和语义 Invoke，复用同一业务操作。真实触屏／笔与各平台输入仍单独验收，见[双指窗口测试](tests-cones/transform-gesture/README.md)。
 
 ## 直接触摸与笔尖
 
