@@ -1,0 +1,177 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.*
+import scoop.surface.*
+import scoop.time.Duration
+
+/** One released route consumes one trajectory; it does not dispatch synthetic input. */
+internal class ScrollInertia(
+    private val root: UiRoot,
+    private val entries: Array<ScrollInputEntry>,
+    private val origin: Point,
+    private val animation: Animatable<Point>
+) {
+    private var closed = false
+    private var previous = Point(0.0, 0.0)
+    private var blockedHorizontal = false
+    private var blockedVertical = false
+    private val final: ScrollInputEntry get() = entries[entries.size - 1L]
+
+    fun start(distance: Point, duration: Duration) {
+        for (entry in entries)
+            entry.viewport.cancelInertia()
+        root.scrollInertias.add(this)
+        for (entry in entries) {
+            entry.viewport.inertia = Some(this)
+            entry.viewport.state.changed()
+        }
+        try {
+            animation.snapTo(Point(0.0, 0.0))
+            animation.animateTo(
+                distance,
+                AnimationSpec.Tween(
+                    duration,
+                    Easing.cubicBezier(1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0, 1.0)
+                )
+            )
+        } catch (error: Throwable) {
+            stop()
+            throw error
+        }
+    }
+
+    private fun filter(amount: Point): Point? {
+        if (!blockedHorizontal && !blockedVertical)
+            return Some(amount)
+        val local = inputLocalVector(final.scope, origin, amount) ?: return None
+        return inputWindowVector(
+            final.scope,
+            origin,
+            Point(
+                if (blockedHorizontal)
+                    0.0
+                else
+                    local.x,
+                if (blockedVertical)
+                    0.0
+                else
+                    local.y
+            )
+        )
+    }
+
+    fun advance() {
+        if (closed)
+            return
+        for (entry in entries)
+            if (
+                !entry.active ||
+                    entry.viewport.motionReduced ||
+                    !entry.viewport.physics.inertia.enabled
+            ) {
+                stop()
+                return
+            }
+        if (!applyStep())
+            stop()
+    }
+
+    private fun applyStep(): Boolean {
+        val point = animation.value
+        val step = filter(Point(point.x - previous.x, point.y - previous.y)) ?: return false
+        previous = point
+        var remaining = step
+        if (remaining != Point(0.0, 0.0)) {
+            for (entry in entries) {
+                val local = inputLocalVector(entry.scope, origin, remaining) ?: return false
+                val wanted = scrollAxisPoint(local, entry.axes)
+                val consumed = entry.viewport.state.consumeInput(Point(-wanted.x, -wanted.y), false)
+                val used =
+                    inputWindowVector(entry.scope, origin, Point(-consumed.x, -consumed.y)) ?:
+                        return false
+                remaining = Point(remaining.x - used.x, remaining.y - used.y)
+            }
+            val rest = inputLocalVector(final.scope, origin, remaining) ?: return false
+            val requested = inputLocalVector(final.scope, origin, step) ?: return false
+            val horizontal = !blockedHorizontal && abs(rest.x) > max(1.0, abs(requested.x)) * 1.0e-9
+            val vertical = !blockedVertical && abs(rest.y) > max(1.0, abs(requested.y)) * 1.0e-9
+            if (horizontal || vertical) {
+                val speed = animation.velocity
+                val velocity =
+                    inputLocalVector(final.scope, origin, Point(speed.x, speed.y)) ?: return false
+                blockedHorizontal = blockedHorizontal || horizontal
+                blockedVertical = blockedVertical || vertical
+                final.viewport.edge.kick(
+                    rest,
+                    velocity,
+                    horizontal && final.axes.horizontal,
+                    vertical && final.axes.vertical
+                )
+            }
+        }
+        val speed = animation.velocity
+        val next = filter(Point(speed.x, speed.y)) ?: return false
+        if (next == Point(0.0, 0.0) || animation.state == AnimationState.Finished)
+            stop(true)
+        return true
+    }
+
+    fun stop(keepPending: Boolean = false) {
+        if (closed)
+            return
+        closed = true
+        if (animation.state != AnimationState.Closed)
+            animation.cancel()
+        var index = 0L
+        while (index < root.scrollInertias.size) {
+            if (root.scrollInertias[index] === this)
+                root.scrollInertias.removeAt(index)
+            else
+                index += 1L
+        }
+        for (entry in entries) {
+            val viewport = entry.viewport
+            viewport.inertia = None
+            val state = viewport.state
+            if (!keepPending && viewport.active) {
+                state.request = ScrollRequest.Position(state.current.offset)
+                state.revision += 1UL
+            }
+            state.changed()
+            viewport.requestFrame()
+        }
+    }
+}
+
+internal fun startScrollInertia(
+    root: UiRoot,
+    entries: Array<ScrollInputEntry>,
+    release: ScrollRelease
+) {
+    val selected = ArrayList<ScrollInputEntry>()
+    for (entry in entries) {
+        if (
+            !entry.active || entry.viewport.motionReduced || !entry.viewport.physics.inertia.enabled
+        )
+            break
+        selected.add(entry)
+    }
+    if (selected.size == 0L)
+        return
+    val first = selected[0L]
+    val local = inputLocalVector(first.scope, release.position, release.velocity) ?: return
+    val window =
+        inputWindowVector(first.scope, release.position, scrollAxisPoint(local, first.axes)) ?:
+            return
+    val options = first.viewport.physics.inertia
+    val velocity = scrollInertiaVelocity(window, options)
+    if (velocity == Point(0.0, 0.0))
+        return
+    val seconds = hypot(velocity.x, velocity.y) / options.deceleration
+    val distance = Point(velocity.x * (seconds / 2.0), velocity.y * (seconds / 2.0))
+    val duration = Duration.nanoseconds(ceil(seconds * 1000000000.0).toLong())
+    val motion =
+        ScrollInertia(root, selected.toArray(), release.position, first.viewport.inertiaAnimation)
+    motion.start(distance, duration)
+}

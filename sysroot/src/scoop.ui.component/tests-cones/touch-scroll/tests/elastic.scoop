@@ -23,7 +23,13 @@ internal fun touchElasticStep(p: TouchProbe) {
     when (p.phase) {
         0 -> {
             p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
-            p.physics = ScrollPhysicsOptions(ScrollBoundary.Elastic, 0.5, 40.0)
+            p.physics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    0.5,
+                    40.0,
+                    inertia = ScrollInertiaOptions(false)
+                )
             p.changed()
         }
         1 -> {
@@ -93,7 +99,8 @@ internal fun touchElasticStep(p: TouchProbe) {
             near(p.rowOrigin, rowY(p))
             p.contact(304L, 2, 100.0)
             p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
-            p.physics = ScrollPhysicsOptions(ScrollBoundary.Hard)
+            p.physics =
+                ScrollPhysicsOptions(ScrollBoundary.Hard, inertia = ScrollInertiaOptions(false))
             p.changed()
         }
         15 -> {
@@ -104,7 +111,13 @@ internal fun touchElasticStep(p: TouchProbe) {
             near(p.rowOrigin, rowY(p))
             assertEquals(Point(0.0, 0.0), p.scroll.offset)
             p.contact(305L, 2, 100.0)
-            p.physics = ScrollPhysicsOptions(ScrollBoundary.Elastic, 0.5, 40.0)
+            p.physics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    0.5,
+                    40.0,
+                    inertia = ScrollInertiaOptions(false)
+                )
             p.changed()
         }
         17 -> {

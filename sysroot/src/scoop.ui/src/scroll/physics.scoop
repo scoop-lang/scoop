@@ -18,7 +18,8 @@ public class ScrollPhysicsOptions public constructor(
     public val maxOverscroll: Double = 64.0,
     public val shortContent: Boolean = false,
     public val stiffness: Double = 200.0,
-    public val dampingRatio: Double = 1.0
+    public val dampingRatio: Double = 1.0,
+    public val inertia: ScrollInertiaOptions = ScrollInertiaOptions()
 ) {
     init {
         requireUi(
@@ -49,7 +50,8 @@ internal fun sameScrollPhysics(a: ScrollPhysicsOptions, b: ScrollPhysicsOptions)
         a.stiffness ==
         b.stiffness &&
         a.dampingRatio ==
-        b.dampingRatio
+        b.dampingRatio &&
+        sameScrollInertia(a.inertia, b.inertia)
 
 internal fun scrollElasticDistance(pull: Double, options: ScrollPhysicsOptions): Double {
     if (pull == 0.0)

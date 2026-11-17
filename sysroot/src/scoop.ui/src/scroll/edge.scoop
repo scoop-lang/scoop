@@ -95,11 +95,70 @@ internal class ScrollEdge(
             viewport.requestFrame()
             return
         }
+        beginRelease(start, Point(0.0, 0.0))
+    }
+
+    fun kick(amount: Point, velocity: Point, horizontal: Boolean, vertical: Boolean) {
+        val options = viewport.physics
+        if (viewport.motionReduced || !options.elastic)
+            return
+        val state = viewport.state
+        val current = state.current
+        val snapshot = state.plan(current.viewport, current.content, current.padding)
+        val x = horizontal && (snapshot.maximum.x > 0.0 || options.shortContent)
+        val y = vertical && (snapshot.maximum.y > 0.0 || options.shortContent)
+        if (!x && !y)
+            return
+        val before = sample(snapshot)
+        val speed =
+            if (releasing)
+                animation.velocity
+            else
+                AnimationVector()
+        val start =
+            Point(
+                if (x)
+                    edgeValue(
+                        before.x + scrollElasticDistance(amount.x, options),
+                        snapshot.offset.x,
+                        snapshot.maximum.x,
+                        options
+                    )
+                else
+                    before.x,
+                if (y)
+                    edgeValue(
+                        before.y + scrollElasticDistance(amount.y, options),
+                        snapshot.offset.y,
+                        snapshot.maximum.y,
+                        options
+                    )
+                else
+                    before.y
+            )
+        beginRelease(
+            start,
+            Point(
+                if (x)
+                    velocity.x * options.resistance
+                else
+                    speed.x,
+                if (y)
+                    velocity.y * options.resistance
+                else
+                    speed.y
+            )
+        )
+    }
+
+    private fun beginRelease(start: Point, velocity: Point) {
+        pull = Point(0.0, 0.0)
         animation.snapTo(start)
         val options = viewport.physics
         animation.animateTo(
             Point(0.0, 0.0),
-            AnimationSpec.Spring(options.stiffness, options.dampingRatio, 0.1, 1.0)
+            AnimationSpec.Spring(options.stiffness, options.dampingRatio, 0.1, 1.0),
+            initialVelocity = Some(AnimationVector(velocity.x, velocity.y))
         )
         releasing = true
         viewport.state.changed()

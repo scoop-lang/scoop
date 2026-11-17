@@ -210,7 +210,7 @@ Component 的挂载工厂在该入口构造实例，因此可以在构造阶段�
 
 上述变化沿根的既有显示依赖更新；实际排版、绘图与输入区域使用同一轮结果，保留挂载、编辑模型、IME 与焦点。测试同时检查四套主题的明暗配色和真实控件热切换，尤其验证停止动画后不继续请求帧。
 
-滚动边界效果使用 UI 规范 §7.7.2 的 ScrollPhysicsOptions。各主题解析后的 MotionPreference.Reduced 必须由共享滚动控制器和文本宿主转交局部 reduceMotion；根热更新同时约束自绘 ScrollViewport。颜色、透明度、字体和滚动条静态外观继续沿既有 ThemeSource 解析，不在主题实现复制滚动物理。
+滚动边界与直接接触惯性使用 UI 规范 §7.7.2／§7.7.3 的 ScrollPhysicsOptions。各主题解析后的 MotionPreference.Reduced 必须由共享滚动控制器和文本宿主转交局部 reduceMotion；根热更新同时约束自绘 ScrollViewport。颜色、透明度、字体和滚动条静态外观继续沿既有 ThemeSource 解析，不在主题实现复制滚动物理。
 
 ## 7. 效果、缓存与能耗
 

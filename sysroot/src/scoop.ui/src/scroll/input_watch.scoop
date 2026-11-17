@@ -24,6 +24,7 @@ internal class ScrollViewportInput(
                 case Pointer(InputPointerEvent.ScrollCancelled(_, _)) -> viewport.cancelAnimation()
                 case Contact(InputContactEvent.Began(_)) -> viewport.cancelAnimation()
                 case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
+                    viewport.cancelInertia()
                     if (
                         phase ==
                             ScrollPhase.MayBegin ||

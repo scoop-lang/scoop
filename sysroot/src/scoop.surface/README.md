@@ -58,6 +58,8 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 `SurfaceWindow.animations.value(initial)` 创建由窗口持有的 Animatable，支持 Double、Point、Size、Color，也可传入 AnimationConverter。`animateTo` 接受 Tween 或 Spring，可指定 Repeat；pause／resume、cancel、reverse 和 snapTo 明确控制生命周期。spring 改目标保留速度，恢复显示后按实际经过时间继续。窗口关闭会关闭其所有动画，并取消尚未交付的完成回调。
 
+`animateTo(target, spring, initialVelocity = Some(AnimationVector(vx, vy)))` 可把交互测得的速度传给首段 spring，单位为转换器向量分量每秒。None 保留当前采样速度，Some(零向量) 从静止开始；显式速度必须有限，Tween 不接受该参数。即使当前位置等于目标，非零速度仍会先运动再收敛。完成处理器使用 named onFinished 或最后的 trailing lambda。
+
 已知内容不参与当前场景时可设 `animation.isFrameEnabled = false`，时间仍然推进。有限动画通过窗口所属的一次性期限完成，无限重复动画不产生离屏周期唤醒；恢复 true 时直接采样当前进度并请求帧。窗口整体隐藏／遮挡时也使用相同的有限完成机制。`hasWork` 包含所有活动动画，`hasFrameWork` 只表示启用帧的工作；Surface 只按后者要求连续帧。
 
 `timeline.group(frameEnabled)` 创建同一时间轴所属的 AnimationGroup，再用 `group.value(initial)` 创建其动画。组的 isFrameEnabled 与各动画自己的标记共同决定帧需求，切换组不会覆盖动画的本地选择。关闭组会关闭全部成员，关闭时间轴也会关闭仍为空的组；组不创建独立时钟或事件循环。

@@ -330,6 +330,8 @@ ScrollAreaProps／VirtualListProps 及对应 builder 提供 touchScroll: TouchSc
 
 ScrollAreaProps／VirtualListProps／MessageScrollerProps 及对应 builder 同时提供 `scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()`，共享 ScrollControl 将其交给原视口。InputProps／TextareaProps／InputOtpProps 与已有输入包装也透传 scrollPhysics；TextEditOptions 使用同名字段。主题 MotionPreference.Reduced 与根减少动画共同关闭边界效果和装饰平滑滚动，热切换不更换编辑器、列表或 ScrollState。文本输入区域覆盖固定视口，正文、caret 和语义文本几何使用同一 ScrollLayout.presentationOffset；滚动条按合法 snapshot 表示范围。
 
+scrollPhysics.inertia 统一配置直接 Touch／Pen 释放后的减速，默认启用；关闭该项保留已有边界配置。共享滚动控制器和文本宿主使用 UI 规范 §7.7.3 的同一实际路径、时间与取消合同，主题 Reduced 同时停止惯性和回弹，不为各类控件复制运动循环。
+
 ScrollbarPlacement.Overlay 覆盖视口边缘，不改变正文测量；Gutter 在允许的滚动轴上固定预留最大条带。双轴条在角落各让出另一轴的条带，Gutter 即使该轴暂时没有溢出也保留角部。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例与焦点，不反转正文或登记新的滚动意图；Overlay 左侧留白变化时沿 UI 的 LayoutCorrection 尽可能保持正文的窗口位置，其他情形只按新范围收敛；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在原始正文未溢出时隐藏，Always 在实际零范围时画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
 
 滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头在默认阶段接管按下，按下及重复行为由下述 ScrollbarBehavior 配置。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。

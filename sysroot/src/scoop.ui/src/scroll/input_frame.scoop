@@ -1,13 +1,14 @@
 package scoop.ui
 
 import scoop.graphics.Point
-import scoop.graphics.Rect
 import scoop.surface.InputScope
 
 internal class ScrollInputEntry(
     val viewport: ScrollViewport,
     val scope: InputScope,
-    val revision: ULong
+    val revision: ULong,
+    val axes: ScrollAxes,
+    val release: ScrollRelease? = None
 ) {
     val active: Boolean get() =
         viewport.active &&
@@ -23,8 +24,13 @@ internal class ScrollInputFrame(private val root: UiRoot) {
     private var finished = false
     private var restored = false
 
-    fun add(viewport: ScrollViewport, scope: InputScope): ScrollInputEntry {
-        val entry = ScrollInputEntry(viewport, scope, viewport.inputRevision)
+    fun add(
+        viewport: ScrollViewport,
+        scope: InputScope,
+        axes: ScrollAxes,
+        release: ScrollRelease? = None
+    ): ScrollInputEntry {
+        val entry = ScrollInputEntry(viewport, scope, viewport.inputRevision, axes, release)
         entries.add(entry)
         return entry
     }
@@ -83,11 +89,17 @@ internal class ScrollInputFrame(private val root: UiRoot) {
                 final.viewport.edge.absorb(amount, axes)
             else
                 Point(0.0, 0.0)
+        val stretched = final.viewport.edge.held
         if (!elastic)
             final.viewport.edge.stop()
         else
             if (release)
                 final.viewport.edge.release()
+        if (release && !stretched && entries.size > 0L)
+            when (entries[0L].release) {
+                case Some(val value) -> startScrollInertia(root, entries.toArray(), value)
+                case None -> {}
+            }
         prune()
         var registered = false
         for (entry in root.scrollEdges)
@@ -116,18 +128,3 @@ private fun inputAncestor(ancestor: InputScope, child: InputScope): Boolean {
         current = current.parent ?: return false
     }
 }
-
-private fun inputWindowPoint(scope: InputScope, point: Point): Point? =
-    when (scope.area) {
-        case Some(val area) -> when (area.toWindow(Rect(point.x, point.y, 0.0, 0.0))) {
-            case Some(val bounds) -> Some(Point(bounds.x, bounds.y))
-            case None -> None
-        }
-        case None -> Some(point)
-    }
-
-private fun inputLocalPoint(scope: InputScope, point: Point): Point? =
-    when (scope.area) {
-        case Some(val area) -> area.toLocal(point)
-        case None -> Some(point)
-    }

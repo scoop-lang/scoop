@@ -498,3 +498,15 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - Surface 四项最终余量测试、原四项 Wheel／五项接触消费测试及 UI 两项物理规则测试通过，共 15 项普通测试。三库 API 文档及 23 项查询核对公开参数、默认值、属性、继承和导入；spec、accessibility 设计、输入边界、计划、README 与编程导航同步。8 份 Surface／UI／Style／主题／Component 开发产物更新，53 个 Scoop 文件的格式、受影响生产／测试检查、release 构建和本地 Markdown 链接检查通过。临时测试应用与逐次报告清理，保留开发产物、API 文档和共享缓存。
 
 本批仅交付弹性边界，软件触摸惯性、阅读锚点与其余视觉组合仍按 S9 继续。触点用例通过受控 native 队列进入真实 macOS 窗口，不替代真实触屏／笔、读屏器与 Windows／GTK 集中验收；S9 和完整目标尚未结束。
+
+
+### 直接接触惯性与嵌套交接
+
+- ScrollPhysicsOptions.inertia 接入 ScrollInertiaOptions，默认启用 Touch／Pen 的释放减速，独立配置减速度、最小和最大速度。单位为窗口逻辑坐标和秒，构造时检查有限值及实际停止时间／距离的可表示范围。最近 100 ms 的原始 InputTime 样本估计速度，合并同刻样本，倒序或停住后释放不沿用旧速度；鼠标 wheel、系统 momentum 和 native gesture 不叠加软件运动。
+- 一次释放复用源视口的 Surface 动画组，按实际 Default 参与者共用一段解析轨迹；父子不各自启动相同速度，关闭惯性或减少动画的祖先截断交接，Contain 保持原规则。各轴独立到边界停止，Elastic 将余速交给已有 spring。Surface Animatable.animateTo 的 initialVelocity 仅允许有限的显式 spring 初速度，None 保留当前采样速度，不改变后续重复段规则。
+- 根在布局前准备位置请求，Accepted 才发布 ScrollSnapshot 与正文、命中、caret 和语义几何。运动不保留已经结束的 contact，也不产生额外 User／Programmatic 意图。新输入、显式定位、配置／尺寸变化、根／主题／局部减少动画、禁用、离屏、卸载及关闭终止旧运动；释放后的公共 ScrollPan.cancel 也能收尾。
+- aarch64-apple-darwin release 的新 18／31 步共享视口、两组各 12 步普通／虚拟列表及 15 步文本惯性场景通过。覆盖缩放、Pen、停止距离、逐轴边界、取消、主题热切换、文本选区与 Accepted caret 几何；十万项来源同时实现不超过 12 行，旧行退休不终止视口惯性。原直接滚动与弹性边界、文本触摸／回弹／系统 IME、滚动状态和两项原生 accessibility 文本回归通过，共 17 项独立窗口用例取得无失败的 end 与 complete。
+- 两处测试预期在本批收敛：旧只读文本父视口的直接位移断言未关闭新默认惯性，现明确关闭并由独立带时间样本用例验收惯性；普通 ScrollArea 的垂直末端断言改为检查纵轴最大值及横轴保持，避免把滚动条留槽形成的横向范围当作纵向运动目标。相关用例修正后通过。
+- Surface 动画 8 项与 UI 速度／参数 3 项普通测试通过。三库 API 文档生成，12 项查询检查构造器、默认值、只读属性、初速度参数、消费接口与导入；四份 spec、交互／accessibility 设计、输入边界、计划、README 和编程导航同步。8 份开发库产物按依赖更新，29 个 Scoop 文件格式、原生辅助的严格编译／格式、受影响源码检查、release 构建、Markdown 本地链接及 diff 检查通过。临时测试应用与逐次报告清理，保留开发产物、API 文档与共享缓存。
+
+本批触点通过带明确时间的受控 native 队列进入 macOS 实窗，真实触屏／笔、读屏器以及 Windows／GTK 按集中平台轮次验收。阅读锚点、其余视觉组合、触摸数据拖放、软键盘及剩余 accessibility 计划继续推进；S9 和完整目标尚未结束。

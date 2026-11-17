@@ -177,7 +177,7 @@ open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHa
 
 `TouchScrollOptions(claimAtBoundary = false)` 让首个过阈值的移动在当前方向无可滚余量时放弃候选，允许祖先拖动接管；默认 true 保持边界处认领。让出后本次序列不会重新开始本层滚动，已开始滚动仍按 Chain／Contain 处理残量。Drawer 正文使用此选项组合自身拖动，不需要伪造滚动请求或改变鼠标 hover。
 
-`ScrollPan.update(axes, chain, options)` 同步配置和视口换绑，`isPanning` 查询当前是否已经接管或参与嵌套滚动；cancel／close 结束本行为，close 不关闭借用的区域或视口。第二触点、新的外部定位、被阻止的移动／结束、禁用、换绑和卸载会终止旧候选，已经滚动的合法位置保留。滚动自己的 User 通知不取消自己，LayoutCorrection 继续保持阅读位置；回调内新的定位优先。该行为不运行惯性时钟，不改变原生 wheel／触控板 momentum。嵌套、变换、归属与收尾的窗口验证见 [scroll-pan](tests-cones/scroll-pan/README.md)。
+`ScrollPan.update(axes, chain, options)` 同步配置和视口换绑，`isPanning` 查询当前是否已经接管或参与嵌套滚动；cancel／close 结束本行为及其释放运动，close 不关闭借用的区域或视口。第二触点、新的外部定位、被阻止的移动／结束、禁用、换绑和卸载会终止旧候选，已经滚动的合法位置保留。滚动自己的 User 通知不取消自己，LayoutCorrection 继续保持阅读位置；回调内新的定位优先。正常释放按 viewport.physics.inertia 决定是否沿 Surface 时间轴继续运动，释放后不再持有 contact。原生 wheel／触控板 momentum 保持原行为。嵌套、变换、归属与收尾的窗口验证见 [scroll-pan](tests-cones/scroll-pan/README.md)。
 
 呈现滚动内容时使用 `viewport.present(context, layout, Some { content -> content.children() })`。内容回调自动获得统一的视口 clip 和负 presentationOffset 平移，也登记实际滚动路径；滚动条或固定装饰在回调外绘制。省略回调只发布布局。焦点显露按同一成功帧的几何从内向外进行，每次只调整一层并等待提交；Portal 在层出口建立自己的场景路径。更新的焦点或已调整视口上的滚动请求会取消旧显露，隐藏时等待正常恢复。
 
@@ -192,15 +192,25 @@ viewport.physics = ScrollPhysicsOptions(
     maxOverscroll = 64.0,
     shortContent = false,
     stiffness = 200.0,
-    dampingRatio = 1.0
+    dampingRatio = 1.0,
+    inertia = ScrollInertiaOptions(
+        enabled = true,
+        deceleration = 2400.0,
+        minVelocity = 50.0,
+        maxVelocity = 8000.0
+    )
 )
 ```
 
-默认 `ScrollBoundary.Platform` 在 Darwin 使用弹性边界，在 Windows／Linux 使用硬边界；显式 Hard 关闭回弹，Elastic 可用于任一平台。它是 UI 的平台默认策略，不代表额外探测了系统回弹设置。resistance 为有限的 (0,1] 系数，其余数值为有限正值，maxOverscroll 使用局部逻辑单位；短内容默认不回弹。直接 ScrollPan 与带原生连续相位的像素滚动共用这些选项，离散滚轮不附加边界动画。
+默认 `ScrollBoundary.Platform` 在 Darwin 使用弹性边界，在 Windows／Linux 使用硬边界；显式 Hard 关闭回弹，Elastic 可用于任一平台。它是 UI 的平台默认策略，不代表额外探测了系统回弹设置。resistance 为有限的 (0,1] 系数，maxOverscroll、stiffness 和 dampingRatio 为有限正值，maxOverscroll 使用局部逻辑单位；短内容默认不回弹。直接 ScrollPan 与带原生连续相位的像素滚动共用这些选项，离散滚轮不附加边界动画。
 
 自绘容器的 Wheel 默认处理应调用 `viewport.consumeScroll(context, lineStep, axes, chain, phase, momentumPhase)`，末两项取自 InputPointerEvent.Wheel。Surface 先完成整条普通残量链，UI 才吸收最终余量；同次输入只有一个视口保持拉伸，反向输入先收回已有拉伸。传统滚轮与 OS momentum 原样消费，不重复添加模拟惯性。`ScrollLayout.snapshot` 始终保存合法范围；`overscroll` 是内容呈现位移，`presentationOffset = snapshot.offset - overscroll`，present 的绘制、命中、caret、anchor 与语义几何共同使用它。虚拟索引、阅读锚点和滚动条范围继续使用 snapshot。
 
-`viewport.reduceMotion = true` 提供局部减少动画要求，与根的有效 reduceMotion 取逻辑或。生效时回弹归零，活动平滑定位到达原目标，后续 animateTo 直接定位；主题 Reduced 也由内置控件转交。释放 spring 使用原 Surface 动画组，isAnimating 包含回弹，结束／离屏／取消后停止帧需求；回弹帧不重复发布用户滚动意图。TextEditOptions.scrollPhysics 配置相同边界，TextEditAppearance.reduceMotion 配置局部动画约束。软件触摸惯性尚未作为可用选项发布。
+`ScrollInertiaOptions` 配置 Touch／Pen 释放后的减速，与边界种类独立：Hard 保留惯性，`inertia = ScrollInertiaOptions(enabled = false)` 单独关闭惯性。deceleration 使用窗口逻辑单位每秒平方，两个速度使用窗口逻辑单位每秒；数值须有限，减速度和最大速度为正，最小速度在零与最大速度之间，最大停止时间和距离须可表示。滚动使用最近 100 ms 的真实接触样本估计速度，停住再松手不会沿用旧速度。
+
+一次释放沿实际参与的嵌套路径共用一段轨迹，最内层视口决定参数。关闭惯性或要求减少动画的祖先会截断交接，Contain 保留原边界；不会把同一段速度分别放进父子视口。达到最终边界的轴单独停止，Elastic 将余速交给释放 spring，另一轴仍可继续。新输入、显式定位、取消、配置／尺寸变化及失效挂载会停止旧运动。
+
+`viewport.reduceMotion = true` 提供局部减少动画要求，与根的有效 reduceMotion 取逻辑或。生效时回弹归零，软件惯性停在最近 Accepted 的合法位置，活动平滑定位到达原目标，后续 animateTo 直接定位；主题 Reduced 也由内置控件转交。惯性与 spring 使用原 Surface 动画组，isAnimating 包含二者，结束／离屏／取消后停止帧需求；运动帧不重复发布用户滚动意图。TextEditOptions.scrollPhysics 配置相同物理行为，TextEditAppearance.reduceMotion 配置局部动画约束。
 
 ## 按需子项
 
@@ -270,7 +280,7 @@ macOS 的 TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`Te
 
 拖动保留另一个端点，允许交叉和反向；从折叠选区开始则始终移动 caret。靠近视口边缘时沿现有滚动路径移动，等待新 Accepted 布局再计算落点，只读文本也可使用父视口。输入取消、外部定位、模型或选区修改、禁用和卸载会结束操作；鼠标、键盘及失焦撤下触摸把手。键盘和 accessibility 仍通过同一宿主读写选区，不需要模拟拖动。真实窗口覆盖见[文本编辑测试](tests-cones/editing/README.md)。
 
-`TextEditOptions.touchScroll` 独立接收 `scoop.ui.TouchScrollOptions`，默认让多行视口沿两个轴、单行视口沿横轴接收直接拖动，并向父视口交接边界残量；SelectableTextHost 借用外层滚动容器。关闭触摸选择不关闭滚动，也不影响键盘和 accessibility 的文本菜单入口。手指停留不轮询或持续绘制，触摸开始时不为旧 caret 改变视口。选区把手和释放惯性继续按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)实现。
+`TextEditOptions.touchScroll` 独立接收 `scoop.ui.TouchScrollOptions`，默认让多行视口沿两个轴、单行视口沿横轴接收直接拖动，并向父视口交接边界残量；SelectableTextHost 借用外层滚动容器。关闭触摸选择不关闭滚动，也不影响键盘和 accessibility 的文本菜单入口。手指停留不轮询或持续绘制，触摸开始时不为旧 caret 改变视口。释放惯性使用 scrollPhysics.inertia，正文、caret 和命中继续跟随同一 Accepted 变换，选区与编辑历史保持原值。
 
 临时落点 caret 与边缘滚动使用当前模型／修订／投影的 Accepted 几何，拖动反馈不改变原选区或 IME。DragDrop 复用 Paste 和通用策略；Copy 可清洗或裁剪，Move 有损则拒绝。同文档 Move 一次编辑、一个 undo，落在原选区内不改变历史；其他目标接受 Move 后，来源重新确认正文修订并删除一次。onCompleted 的 TextDragResult.SourceRetained 明确表示目标已接收但源未删除。真实进程内 localData 关联文档，不能用相同文本或 local 标记猜测。示例见 [drop-target](examples/drop-target/README.md)，平台与协议范围见[文本拖放合同](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md#5-文本选区拖出与移动)。
 

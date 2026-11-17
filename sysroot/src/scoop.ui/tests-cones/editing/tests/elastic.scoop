@@ -16,7 +16,13 @@ internal fun textElasticStep(p: TextTouchProbe) {
     when (p.phase) {
         0 -> {
             p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
-            p.scrollPhysics = ScrollPhysicsOptions(ScrollBoundary.Elastic, 0.5, 40.0)
+            p.scrollPhysics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    0.5,
+                    40.0,
+                    inertia = ScrollInertiaOptions(false)
+                )
             p.touch = TextTouchOptions(longPressDelay = None)
             p.changed()
         }

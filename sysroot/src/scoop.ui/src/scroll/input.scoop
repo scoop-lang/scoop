@@ -19,6 +19,7 @@ public fun ScrollViewport.consumeScroll(
         throw IllegalStateException(Some("scroll consumption requires the default phase"))
     if (context.defaultPrevented)
         return
+    cancelInertia()
     val source =
         context.scrollRemaining ?: throw IllegalStateException(Some("event is not a wheel"))
     val continuous = phase != ScrollPhase.None || momentumPhase != ScrollPhase.None
@@ -40,7 +41,7 @@ public fun ScrollViewport.consumeScroll(
     val released = phase == ScrollPhase.Ended || momentumPhase == ScrollPhase.Ended
     val frame = inputFrame()
     watchInput(context.currentTarget)
-    val entry = frame.add(this, context.currentTarget)
+    val entry = frame.add(this, context.currentTarget, axes)
     context.consumeScroll(
         lineStep,
         Some { amount -> frame.complete(entry, amount, axes, elastic && !cancelled, released) }
@@ -57,12 +58,17 @@ public fun ScrollViewport.consumeScroll(
 internal fun ScrollViewport.consumeContact(
     context: RoutedEventContext,
     axes: ScrollAxes,
-    released: Boolean
+    release: ScrollRelease?
 ) {
     cancelPositioning()
     edge.interruptRelease()
     val frame = inputFrame()
-    val entry = frame.add(this, context.currentTarget)
+    val entry = frame.add(this, context.currentTarget, axes, release)
+    val released =
+        when (release) {
+            case Some(_) -> true
+            case None -> false
+        }
     context.consumeContactMovement(
         Some { amount -> frame.complete(entry, amount, axes, true, released) }
     ) {

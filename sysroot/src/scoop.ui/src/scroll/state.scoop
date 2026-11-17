@@ -151,18 +151,21 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         return consumed
     }
     /** Routed input preserves the current held edge; explicit position requests cancel it. */
-    internal fun consumeInput(delta: Point): Point {
+    internal fun consumeInput(delta: Point, notify: Boolean = true): Point {
         checkMutation()
         checkScrollPoint(delta)
         val base = plan(current.viewport, current.content, current.padding).offset
         val next = Point(base.x + delta.x, base.y + delta.y)
         checkScrollPoint(next)
         val bounded = clampScroll(next, current.viewport, current.content)
+        if (!notify && bounded == base)
+            return Point(0.0, 0.0)
         request = ScrollRequest.Position(bounded)
         revision += 1UL
         val token = revision
         viewportOwner?.requestFrame()
-        notifyRequest(ScrollOrigin.User, token)
+        if (notify)
+            notifyRequest(ScrollOrigin.User, token)
         return Point(bounded.x - base.x, bounded.y - base.y)
     }
     public fun reveal(

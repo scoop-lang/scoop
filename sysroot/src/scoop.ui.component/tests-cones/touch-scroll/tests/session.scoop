@@ -6,6 +6,7 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.window.sendNativeContact
+import scoop.tests.window.sendNativeContactTimed
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.StateColors
@@ -33,8 +34,16 @@ private class TouchScrollComponentTest {
     fun `elastic virtual list preserves legal ranges row geometry and bounded realization`() {
         run(true, true)
     }
-    private fun run(virtual: Boolean, elastic: Boolean = false) {
-        val p = TouchProbe(virtual, elastic)
+    @Test
+    fun `scroll area inertia follows shared physics theme changes and unmount`() {
+        run(false, inertia = true)
+    }
+    @Test
+    fun `virtual list inertia survives row recycling and stops with its viewport`() {
+        run(true, inertia = true)
+    }
+    private fun run(virtual: Boolean, elastic: Boolean = false, inertia: Boolean = false) {
+        val p = TouchProbe(virtual, elastic, inertia)
         try {
             UiHost { host, active, event -> p.event(host, active, event) }.use {
                 host -> Application(
@@ -43,7 +52,7 @@ private class TouchScrollComponentTest {
             }
             assertTrue(p.finished)
             assertEquals(
-                if (elastic)
+                if (elastic || inertia)
                     0
                 else
                     1,
@@ -72,13 +81,17 @@ private class TouchScrollComponentTest {
     }
 }
 
-internal class TouchProbe(val virtual: Boolean, val elastic: Boolean = false) {
+internal class TouchProbe(
+    val virtual: Boolean,
+    val elastic: Boolean = false,
+    val inertia: Boolean = false
+) {
     val scroll = ScrollState()
     val baseTheme = shadcnTheme { scrollbar { track = StateColors.solid(Color(0.9, 0.9, 0.9)) } }
     val theme = ThemeSource(baseTheme)
     val generation = state(0)
     var touch = TouchScrollOptions()
-    var physics = ScrollPhysicsOptions()
+    var physics = ScrollPhysicsOptions(inertia = ScrollInertiaOptions(false))
     var ui: UiWindow? = None
     var rowOrigin = 0.0
     var enabled = true
@@ -101,6 +114,7 @@ internal class TouchProbe(val virtual: Boolean, val elastic: Boolean = false) {
     var queued = 0
     var received = 0
     var pending = false
+    var animatedSteps = false
     var waiting = false
     var finished = false
 
@@ -148,17 +162,20 @@ internal class TouchProbe(val virtual: Boolean, val elastic: Boolean = false) {
                         queued &&
                         accepted ==
                         generation.value &&
-                        !frames!!.snapshot().required
+                        (animatedSteps || !frames!!.snapshot().required)
                 ) {
                     pending = true
                     active.proxy().post {
                         _ ->
                         pending = false
                         if (!finished) {
-                            if (elastic)
-                                touchElasticStep(this)
+                            if (inertia)
+                                touchInertiaStep(this)
                             else
-                                touchStep(this)
+                                if (elastic)
+                                    touchElasticStep(this)
+                                else
+                                    touchStep(this)
                             phase += 1
                         }
                     }
@@ -210,6 +227,25 @@ internal class TouchProbe(val virtual: Boolean, val elastic: Boolean = false) {
                         50.0,
                         y
                     )
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun fling(id: Long) {
+        queued += 4
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> {
+                        sendNativeContactTimed(view, id, 0, 0, 50.0, 80.0, id * 1000L)
+                        sendNativeContactTimed(view, id, 0, 1, 50.0, 65.0, id * 1000L + 20L)
+                        sendNativeContactTimed(view, id, 0, 1, 50.0, 50.0, id * 1000L + 40L)
+                        sendNativeContactTimed(view, id, 0, 2, 50.0, 50.0, id * 1000L + 40L)
+                    }
                 }
             } finally {
                 lease.close()

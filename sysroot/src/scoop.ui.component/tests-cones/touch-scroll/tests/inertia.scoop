@@ -1,0 +1,88 @@
+package scoop.tests.ui.touchscroll
+
+import scoop.graphics.Point
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.MotionPreference
+
+private fun inertiaPhysics(boundary: ScrollBoundary = ScrollBoundary.Hard): ScrollPhysicsOptions =
+    ScrollPhysicsOptions(
+        boundary,
+        maxOverscroll = 40.0,
+        inertia = ScrollInertiaOptions(true, 300.0, 20.0, 300.0)
+    )
+
+internal fun touchInertiaStep(p: TouchProbe) {
+    when (p.phase) {
+        0 -> {
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.physics = inertiaPhysics()
+            p.changed()
+        }
+        1 -> {
+            p.original = p.row(0L)
+            p.animatedSteps = true
+            p.fling(601L)
+        }
+        2 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.animatedSteps = false
+        }
+        3 -> {
+            assertTrue(abs(p.scroll.offset.y - 180.0) < 0.02)
+            assertFalse(p.scroll.isAnimating)
+            if (p.virtual) {
+                assertFalse(p.original!!.active)
+                assertTrue(p.row(7L)!!.active)
+            }
+            p.scroll.scrollTo(Point(0.0, p.scroll.maximum.y - 60.0))
+            p.physics = inertiaPhysics(ScrollBoundary.Elastic)
+            p.changed()
+        }
+        4 -> p.fling(602L)
+        5 -> {
+            assertEquals(p.scroll.maximum.y, p.scroll.offset.y)
+            assertEquals(0.0, p.scroll.offset.x)
+            assertFalse(p.scroll.isAnimating)
+            p.scroll.scrollTo(Point(0.0, 0.0))
+            p.physics = inertiaPhysics()
+            p.changed()
+        }
+        6 -> {
+            p.animatedSteps = true
+            p.fling(603L)
+        }
+        7 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.theme.current.value =
+                p.baseTheme.copy { tokens { motion { preference = MotionPreference.Reduced } } }
+            p.changed()
+            p.animatedSteps = false
+        }
+        8 -> {
+            assertFalse(p.scroll.isAnimating)
+            p.theme.current.value = p.baseTheme
+            p.scroll.scrollTo(Point(0.0, 0.0))
+            p.changed()
+        }
+        9 -> {
+            p.animatedSteps = true
+            p.fling(604L)
+        }
+        10 -> {
+            assertTrue(p.scroll.isAnimating)
+            p.gone = true
+            p.changed()
+            p.animatedSteps = false
+        }
+        11 -> {
+            assertFalse(p.scroll.isAttached)
+            assertEquals(0, p.alive)
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected component inertia phase"))
+    }
+}

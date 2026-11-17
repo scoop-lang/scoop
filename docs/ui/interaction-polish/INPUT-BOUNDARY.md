@@ -92,6 +92,8 @@ UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等
 
 Surface 的 consumeScroll／consumeContactMovement 另可登记 onRemainder，在普通 Default 消费结束后用最后登记者的冻结几何处理最终余量，随后仍执行必要的事件完成清理。UI 的共享边界效果沿真实参与者收束旧拉伸，不增加第二棵输入树；ScrollLayout 的呈现偏移与合法 snapshot 分离。直接触摸释放和原生连续像素输入可以回弹，原生 momentum 不再叠加软件惯性。
 
+UI 在正常 Touch／Pen 释放时，用最近真实 InputTime 样本和当次 Default 参与者启动一段共享惯性；ScrollInertiaOptions 配置是否启用、减速度与速度范围。该运动复用源视口的 Surface AnimationGroup，在根布局前准备请求，Accepted 后才发布位置和几何；没有新的系统事件、claim 或独立时钟。初速度、父子交接与边界余速都保持真实坐标单位，新输入和原有取消通路结束旧运动。自定义手势仍可从同一原始事件、时间与归属接口识别，不依赖滚动实现。
+
 ### 自定义手势的后续接入
 
 本轮保留自定义手势的接入边界，具体公共 API 随实际消费者再设计。Window 交付的原始 contact 序列不被内建手势枚举替代；开始、更新、结束／取消、稳定的接触标识、时间、坐标与来源保留到 Surface 路由。系统只提供已识别手势时如实转交，不承诺取得 OS 没有暴露的原始触点。

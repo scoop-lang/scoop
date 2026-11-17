@@ -9,7 +9,15 @@ import scoop.time.Duration
 import scoop.ui.*
 
 internal fun elasticScroll(shortContent: Boolean = false): ScrollPhysicsOptions =
-    ScrollPhysicsOptions(ScrollBoundary.Elastic, 0.5, 40.0, shortContent, 300.0, 1.0)
+    ScrollPhysicsOptions(
+        ScrollBoundary.Elastic,
+        0.5,
+        40.0,
+        shortContent,
+        300.0,
+        1.0,
+        ScrollInertiaOptions(false)
+    )
 
 internal fun scrollNear(expected: Double, actual: Double) {
     assertTrue(abs(expected - actual) < 0.001, Some(f"expected ${expected}, got ${actual}"))

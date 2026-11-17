@@ -1,0 +1,107 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+
+private fun textInertiaGeometry(p: TextTouchProbe) {
+    assertTrue(abs(p.savedPoint.y - p.editor!!.scroll.offset.y - p.point(5L).y) < 0.02)
+    assertEquals(p.viewportBounds, p.editor!!.area.visibleBounds!!)
+    assertEquals(p.savedSelection, p.model.selection)
+    assertEquals(Point(0.0, 0.0), p.outer.offset)
+    assertTrue(p.editor!!.area.hitTest(Point(p.viewportBounds.x + 2.0, p.viewportBounds.y + 2.0)))
+}
+
+internal fun textInertiaStep(p: TextTouchProbe) {
+    val editor = p.editor!!
+    when (p.phase) {
+        0 -> {
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.scrollPhysics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Hard,
+                    inertia = ScrollInertiaOptions(true, 200.0, 20.0, 100.0)
+                )
+            p.touch = TextTouchOptions(longPressDelay = None)
+            p.changed()
+        }
+        1 -> {
+            assertTrue(editor.scroll.maximum.y >= 55.0)
+            assertTrue(editor.focus.handle.requestFocus())
+            p.savedPoint = p.point(5L)
+            p.savedSelection = p.model.selection
+            p.viewportBounds = editor.area.visibleBounds!!
+            p.animatedSteps = true
+            p.fling(701L)
+        }
+        2 -> {
+            assertTrue(editor.scroll.isAnimating)
+            textInertiaGeometry(p)
+            p.animatedSteps = false
+        }
+        3 -> {
+            assertTrue(abs(editor.scroll.offset.y - 55.0) < 0.02)
+            assertFalse(editor.scroll.isAnimating)
+            textInertiaGeometry(p)
+            editor.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        4 -> {
+            p.animatedSteps = true
+            p.fling(702L)
+        }
+        5 -> {
+            assertTrue(editor.scroll.isAnimating)
+            p.appearance = TextEditAppearance(p.fonts, p.appearance.textStyle, reduceMotion = true)
+            p.changed()
+            p.animatedSteps = false
+        }
+        6 -> {
+            assertFalse(editor.scroll.isAnimating)
+            textInertiaGeometry(p)
+            editor.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        7 -> p.fling(703L)
+        8 -> {
+            assertTrue(abs(editor.scroll.offset.y - 30.0) < 0.02)
+            assertFalse(editor.scroll.isAnimating)
+            textInertiaGeometry(p)
+            editor.scroll.scrollTo(Point(0.0, 0.0))
+            p.appearance = TextEditAppearance(p.fonts, p.appearance.textStyle)
+            p.changed()
+        }
+        9 -> {
+            p.animatedSteps = true
+            p.fling(704L)
+        }
+        10 -> {
+            assertTrue(editor.scroll.isAnimating)
+            editor.scroll.reveal(Rect(0.0, editor.scroll.content.height - 1.0, 1.0, 1.0))
+            p.animatedSteps = false
+        }
+        11 -> {
+            assertEquals(editor.scroll.maximum.y, editor.scroll.offset.y)
+            assertFalse(editor.scroll.isAnimating)
+            textInertiaGeometry(p)
+            editor.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        12 -> {
+            p.animatedSteps = true
+            p.fling(705L)
+        }
+        13 -> {
+            assertTrue(editor.scroll.isAnimating)
+            p.gone = true
+            p.changed()
+            p.animatedSteps = false
+        }
+        14 -> {
+            assertTrue(editor.isClosed)
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected text inertia phase"))
+    }
+}

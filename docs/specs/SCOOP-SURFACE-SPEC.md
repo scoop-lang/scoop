@@ -140,6 +140,8 @@ AnimationSpec 描述 tween／easing 或 spring；Animatable 持有当前值、�
 
 动画按单调时间与起点求值，不用固定帧数或连续累加固定 dt 推进；跳帧直接采样当前进度。retarget 从当前时间对应的值开始；spring 同时保留适用的当前速度。提供启动／改目标、取消、暂停／恢复及有限或重复播放控制；零时长立即到达目标。
 
+`Animatable.animateTo(target, spec, repeat=None, initialVelocity: AnimationVector?=None, onFinished=None)` 可为首段 spring 显式指定外部交互测得的初速度，单位为转换器向量分量每秒。None 保留当前采样速度，Some(零向量) 从静止开始；显式值各分量必须有限，仅允许用于 Spring，Tween 收到显式初速度时报参数错误。初速度属于本次首段，不改变重复段从静止开始的规则，也不修改转换器对最终值的范围约束。
+
 AnimationTimeline 接受一个 TimeSource 和失效回调，SurfaceWindow 使用同一个单调源并在真实帧内采样；离屏调用方可用 advanceTo 明确驱动。一个采样作用域内的启动、改目标和完成回调共用当前帧时间。完成回调在本轮全部动画采样结束后派发，新启动的动画进入下一轮；重入 advanceTo 拒绝。时间源必须一致，时间不得倒退。
 
 Tween 支持线性与 cubic Bézier easing。Spring 采用质量为 1 的阻尼弹簧解析解，分别处理欠阻尼、临界阻尼和过阻尼；stiffness、dampingRatio、位移／速度阈值均为有限正数。依据解的衰减包络确定收敛时间，到达时精确落到目标并清零速度，不依赖采样间隔决定结束时机。计算无法用有限 Double 表达时报参数错误。

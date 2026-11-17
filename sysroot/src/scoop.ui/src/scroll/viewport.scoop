@@ -35,6 +35,8 @@ public class ScrollViewport internal constructor(
     private var reduced = false
     internal var inputRevision = 0UL
     internal val edge = ScrollEdge(this, edgeAnimation)
+    internal var inertia: ScrollInertia? = None
+    internal val inertiaAnimation: Animatable<Point> get() = animation
     private val preferences = node.root.preferences.observe { _ -> preferenceChanged() }
     private var lastActivity = node.root.window.activity
     private val activity =
@@ -64,7 +66,13 @@ public class ScrollViewport internal constructor(
             None
     internal fun belongsTo(owner: MountedNode): Boolean = active && node === owner
     internal fun contains(owner: MountedNode): Boolean = withinFocusScope(owner, node)
-    internal val moving: Boolean get() = active && (motion?.started != None || edge.moving)
+    internal val moving: Boolean get() =
+        active && (motion?.started != None || edge.moving || hasInertia)
+    private val hasInertia: Boolean get() =
+        when (inertia) {
+            case Some(_) -> true
+            case None -> false
+        }
     internal val positioning: Boolean get() = motion?.started != None
     internal val motionReduced: Boolean get() =
         reduced || (node.root.preferences.value.reduceMotion ?: false)
@@ -277,7 +285,10 @@ public class ScrollViewport internal constructor(
                         offered.padding
                 )
         )
+        {
+            cancelInertia(true)
             edge.stop()
+        }
         edge.complete()
         state.publish(offered, layout.revision == state.revision && !positioning, layout.revision)
         when (motion) {
@@ -355,8 +366,12 @@ public class ScrollViewport internal constructor(
     }
     internal fun cancelAnimation() {
         inputRevision += 1UL
+        cancelInertia()
         edge.stop()
         cancelPositioning()
+    }
+    internal fun cancelInertia(keepPending: Boolean = false) {
+        inertia?.stop(keepPending)
     }
     internal fun cancelPositioning() {
         when (motion) {
@@ -381,6 +396,7 @@ public class ScrollViewport internal constructor(
         current.checkMutation()
         if (closed)
             return
+        cancelInertia()
         closed = true
         var index = 0L
         while (index < node.root.scrollEdges.size) {

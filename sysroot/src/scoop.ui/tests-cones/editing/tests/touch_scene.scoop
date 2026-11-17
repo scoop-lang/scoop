@@ -123,6 +123,8 @@ private class TouchReadPane(private val p: TextTouchProbe, scope: ComponentScope
     private val area = scope.createArea()
     private val pan = scope.scrollPan(area, viewport, ScrollAxes.Vertical)
     public override fun onMount() {
+        // This scene checks direct movement; timed inertia has its own cases.
+        viewport.physics = ScrollPhysicsOptions(inertia = ScrollInertiaOptions(false))
         scope.routeChildren(area)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

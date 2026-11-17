@@ -85,14 +85,27 @@ public class Animatable<T> internal constructor(
         target: T,
         spec: AnimationSpec = AnimationSpec.Tween(Duration.milliseconds(300L)),
         repeat: Repeat? = None,
+        initialVelocity: AnimationVector? = None,
         onFinished: ((T) -> Unit)? = None
     ) {
         checkOpen()
         val destination = converter.toVector(target)
         destination.check()
+        when (initialVelocity) {
+            case Some(val value) -> {
+                value.check()
+                when (spec) {
+                    case Spring(_, _, _, _) -> {}
+                    else -> throw IllegalArgumentException(
+                        Some("an explicit initial velocity requires a spring")
+                    )
+                }
+            }
+            case None -> {}
+        }
         val now = timeline.now()
         sample(now)
-        val run = MotionRun(vector, destination, speed, spec, repeat)
+        val run = MotionRun(vector, destination, initialVelocity ?: speed, spec, repeat)
         playback = AnimationPlayback.Running(AnimationSegment(run, now))
         goal = target
         serial += 1L
@@ -167,7 +180,7 @@ public class Animatable<T> internal constructor(
                 case Finished(val value) -> value
                 else -> throw IllegalStateException(Some("no animation segment to reverse"))
             }
-        animateTo(converter.fromVector(run.origin), run.spec, run.repeat, callback)
+        animateTo(converter.fromVector(run.origin), run.spec, run.repeat, onFinished = callback)
     }
     internal fun sample(time: TimeMark) {
         when (playback) {

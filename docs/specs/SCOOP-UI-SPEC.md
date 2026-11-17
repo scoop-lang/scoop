@@ -556,7 +556,7 @@ TextEditOptions.touch 为 TextTouchOptions(enabled=true, threshold=8, longPressD
 
 multiTap 启用时，同一宿主、相同 ContactKind 的连续成功短按按开始时刻的单调时间和 threshold 内的窗口距离计数；第二次选词，第三次及以上选逻辑行，继续复用鼠标选择的文本范围和投影映射。multiTapInterval 为显式非负间隔；None 读取当前系统 doubleClickInterval，未知时使用 500 ms，设置变化使旧序列失效。计数位于 UI 的共享 ContactPress，不伪造鼠标事件，也不改变 Window 的原生鼠标连续点击计数。失败／被阻止的接触、长按、其他输入、域外接触、外部选区／正文变化和前述取消条件都打断序列；触摸选择自身的正常选区发布保留序列。新按下仍须有匹配当前正文、修订和投影的 Accepted 布局；布局变换改变旧落点时不把它计为原位置的连续短按。关闭 multiTap 只使每次成功短按放置 caret，长按及键盘／语义选择入口独立。
 
-TextEditAppearance.reduceMotion 默认为 false，作为宿主的局部减少动画要求；ScrollPhysicsOptions 由 TextEditOptions.scrollPhysics 配置，边界与热更新沿第 7.7.2 节。TextEditOptions.touchScroll 为 TouchScrollOptions()，独立配置同一编辑视口的直接滚动；多行使用 Both，单行只使用 Horizontal，Chain 允许父视口消费余量。文本按压与滚动共用原始接触，ScrollPan 开始时取消尚未识别的文本按压，长按接管后阻止该序列继续变成滚动。接触按下的自动聚焦保留正在登记的触摸候选，不为旧 caret 发起显露；tap 结束后再显露实际落点。位置、caret、选区、IME 和语义几何仍来自同一 ScrollViewport 与 Accepted 布局，不复制编辑模型。软件惯性按后续滚动物理能力接入。
+TextEditAppearance.reduceMotion 默认为 false，作为宿主的局部减少动画要求；ScrollPhysicsOptions 由 TextEditOptions.scrollPhysics 配置，边界、直接接触惯性与热更新沿第 7.7.2／7.7.3 节。TextEditOptions.touchScroll 为 TouchScrollOptions()，独立配置同一编辑视口的直接滚动；多行使用 Both，单行只使用 Horizontal，Chain 允许父视口消费余量。文本按压与滚动共用原始接触，ScrollPan 开始时取消尚未识别的文本按压，长按接管后阻止该序列继续变成滚动。接触按下的自动聚焦保留正在登记的触摸候选，不为旧 caret 发起显露；tap 结束后再显露实际落点。位置、caret、选区、IME 和语义几何仍来自同一 ScrollViewport 与 Accepted 布局，不复制编辑模型。软件惯性使用同一 scrollPhysics.inertia 和真实接触时间，释放后的运动保持选区与编辑历史。
 
 TextTouchOptions.selectionHandles 为 TextSelectionHandleOptions(enabled=true, radius=6, hitRadius=18, color=None)，配置触摸选择后的 caret／双端点把手；有限正半径、hitRadius 不小于 radius，显式颜色有限。编辑器默认沿 caretColor，只读宿主沿不透明 selectionColor。成功触摸选择显示，非触摸输入、外部模型／选区变更、失焦、禁用和关闭撤下；不新增焦点或语义节点。两类宿主的把手共用输入与呈现，按下／抬起仍传递短按，达到移动阈值后取得原接触归属。拖动固定另一端点，允许交叉；初始折叠把手始终移动 caret。最终位置、投影映射、取消和回调重入沿原选区发布，取消保留实际已完成的选择。
 
@@ -722,7 +722,7 @@ claimAtBoundary=false 时，首个达到阈值的移动若在所选轴及方向�
 
 ### 7.7.2 弹性滚动边界
 
-`ScrollPhysicsOptions(boundary=Platform, resistance=0.55, maxOverscroll=64, shortContent=false, stiffness=200, dampingRatio=1)` 是不可变配置。`ScrollBoundary` 为 Platform／Hard／Elastic；Platform 在 Darwin 使用弹性边界，在 Windows／Linux 使用硬边界，这是 UI 的平台默认策略，不把未知的系统偏好当作已探测值。显式 Elastic 可用于任一平台。resistance 为 (0,1] 的有限系数，其余数值为有限正值；构造时检查。每轴的视觉位移不超过 maxOverscroll 个局部逻辑单位，阻力随拉伸增大；短正文默认不回弹，shortContent 显式允许该轴零滚动范围时的效果。
+`ScrollPhysicsOptions(boundary=Platform, resistance=0.55, maxOverscroll=64, shortContent=false, stiffness=200, dampingRatio=1, inertia=ScrollInertiaOptions())` 是不可变配置。`ScrollBoundary` 为 Platform／Hard／Elastic；Platform 在 Darwin 使用弹性边界，在 Windows／Linux 使用硬边界，这是 UI 的平台默认策略，不把未知的系统偏好当作已探测值。显式 Elastic 可用于任一平台。resistance 为 (0,1] 的有限系数，maxOverscroll、stiffness 与 dampingRatio 为有限正值；构造时检查。每轴的视觉位移不超过 maxOverscroll 个局部逻辑单位，阻力随拉伸增大；短正文默认不回弹，shortContent 显式允许该轴零滚动范围时的效果。
 
 `ScrollViewport.physics` 可整体替换，`reduceMotion: Boolean = false` 表示调用方要求的局部减少动画；它与根的有效 reduceMotion 取逻辑或。两者只在普通逻辑阶段更新；真实配置变化终止旧效果，等价配置替换不打断输入。有效减少动画关闭弹性边界，并将 `ScrollState.animateTo` 的本次目标直接作为普通位置请求，不播放装饰动画；热切换时已开始的平滑定位落到原目标，回弹收束到零，保留当前合法滚动值。
 
@@ -732,7 +732,19 @@ claimAtBoundary=false 时，首个达到阈值的移动若在所选轴及方向�
 
 共享输入先从内到外消费合法位置；已有拉伸遇到反向输入时先还原拉伸，剩余输入再移动内容。使用 Surface 的 onRemainder，在所有普通消费者结束后才吸收最终余量。Chain 最后的参与视口决定边界效果，Contain 阻止外层普通处理；同次输入只允许一个视口保留拉伸，外层硬边界也可明确收束内层旧效果。被回调中的新位置请求、换绑、禁用或关闭中断的处理不得恢复旧拉伸。零位移的正常 Ended 仍完成释放。
 
-释放通过挂载已有 Surface AnimationGroup 的 Point spring 回到零，不建立新循环／常驻 deadline。isAnimating 包含释放回弹，不把仍按住的拉伸当作运行中的动画。回弹帧不发布 User／Programmatic 定位意图；合法范围未变时也不重复发布 ScrollSnapshot。新按下、显式位置请求、捕获取消、配置变化、禁用、隐藏、离屏或卸载终止效果；正文或视口尺寸变化时收束旧拉伸，已有布局锚点与合法位置修正规则优先。软件触摸惯性属于后续批次，尚未作为可用选项发布。
+释放通过挂载已有 Surface AnimationGroup 的 Point spring 回到零，不建立新循环／常驻 deadline。isAnimating 包含释放回弹，不把仍按住的拉伸当作运行中的动画。回弹帧不发布 User／Programmatic 定位意图；合法范围未变时也不重复发布 ScrollSnapshot。新按下、显式位置请求、捕获取消、配置变化、禁用、隐藏、离屏或卸载终止效果；正文或视口尺寸变化时收束旧拉伸，已有布局锚点与合法位置修正规则优先。
+
+### 7.7.3 直接接触惯性
+
+`ScrollInertiaOptions(enabled=true, deceleration=2400, minVelocity=50, maxVelocity=8000)` 配置直接 Touch／Pen 释放后的惯性，与边界种类独立：Hard 可减速滚动但不回弹，关闭 inertia 仍可释放已有弹性拉伸。deceleration、maxVelocity 为有限正数，minVelocity 为有限非负数且不大于 maxVelocity；单位分别为窗口逻辑单位每秒平方及每秒。最大停止时长必须可表示为纳秒 Duration，最大停止距离必须可用有限 Double 表达；构造时检查实际数值范围。
+
+ScrollPan 使用同一接触最近 100 ms 的真实位置和 InputTime.mark 估计窗口速度；同时间样本合并，倒序时间清空旧估计，停住后再释放不沿用旧速度。未接管、被阻止、取消或第二触点打断的操作不启动惯性。释放时用当前 Accepted 几何过滤源视口所选轴，再按最小速度门槛与最大速度限制启动；只使用原生 contact，不给鼠标轮、系统 momentum 或 native gesture 添加软件惯性。
+
+一次释放只为实际参与该次 Default 消费的路径创建一段运动。最内层参与者决定是否启动和减速参数；祖先关闭 inertia 或要求减少动画时在其前截断惯性传递，不穿过它寻找更外层。速度向量 v 按固定减速度 a 保持方向减至零，停止时长 T=|v|/a、总位移 vT/2；在 [0,T] 内累计位移为 v(t−t²/(2T))，时长按纳秒向上取整。每帧按同一时间线解析采样，依原路径、局部坐标与轴从内到外分配本次位移；Contain 保留既有截断。路径不重新命中或投向新的兄弟，虚拟行退休不改变仍然挂载的视口身份。各轴独立在最终边界停止；弹性轴将剩余速度交给原有 spring，另一轴可继续减速。
+
+惯性复用源视口挂载的 AnimationGroup，在 UI 根开始本帧布局前准备位置请求，不从 measure／scene 或业务 render 修改状态；只有 Accepted 发布实际 ScrollSnapshot 与几何。跳帧直接采样解析轨迹，Discarded 保留未发布的请求，取消回到最近实际接受的位置。运动帧不制造新的 User／Programmatic 意图，参与视口的 isAnimating 包含该运动；动画结束或取消后移除登记并停帧。
+
+路径中任一视口的新输入、显式定位、配置／轴／换绑变化、禁用、失焦、隐藏、离屏、卸载或关闭都会终止该段惯性。有效减少动画也立即停止；正文或视口尺寸变化采用新的合法布局修正并停止旧惯性，不回放旧位置。已释放的接触不继续持有 claim；后续输入与自定义手势仍使用同一原始输入和归属接口。
 
 ### 7.8 按需子项与 LazyElement
 

@@ -23,3 +23,5 @@ macOS 实窗用例复用多个 TextEditHost 和一个 SelectableTextHost，覆�
 无需 drawable 的正文、选区、偏移映射和动作回归分别见[文本编辑语义](../accessibility-text/README.md)及[只读富文本语义](../accessibility-selectable/README.md)。实窗、外部 AX 与 VoiceOver 的实际通过范围见[实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)，完整范围见[统一计划](../../../../../docs/ui/interaction-polish/PLAN.md)。
 
 `--filter 'elastic text viewport'` 单独验证文本回弹：固定输入视口覆盖空白边界，正文与 caret 一起移动，释放／根或局部减少动画后回到合法位置；连续像素滚动、显式 reveal 与卸载共用同一编辑状态和 Accepted 几何。
+
+`--filter 'text inertia keeps accepted caret geometry'` 用带时间的原生接触检查直接拖动与释放减速的总距离。运动期间及停止后，caret 与合法 offset 使用同一 Accepted 变换，输入区域仍覆盖原视口，选区和只读外层位置不变；局部减少动画的热切换与持续启用、显式 reveal、卸载分别验证取消和停帧。原直接位移场景在编辑与只读父视口明确关闭软件惯性。

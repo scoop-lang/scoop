@@ -72,6 +72,7 @@ internal class UiRoot(
     var windowFrame: UiWindowFrameClaim? = None
     internal var scrollInput: ScrollInputFrame? = None
     internal val scrollEdges = ArrayList<ScrollInputEntry>()
+    internal val scrollInertias = ArrayList<ScrollInertia>()
     private var scrollCompletion: Closeable? = None
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
@@ -154,6 +155,8 @@ internal class UiRoot(
     public override fun paint(frame: FrameContext) {
         if (!isOpen)
             return
+        for (motion in scrollInertias.toArray())
+            motion.advance()
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
         frame.canvas.clear(Color.Transparent)
         focus.beginFrame()
@@ -209,6 +212,8 @@ internal class UiRoot(
             failure = cleanupUi(failure) { scrollInput?.cancel() }
             scrollInput = None
             scrollEdges.clear()
+            for (motion in scrollInertias.toArray())
+                failure = cleanupUi(failure) { motion.stop() }
             failure = cleanupUi(failure) { scrollCompletion?.close() }
             scrollCompletion = None
             failure = cleanupUi(failure) { preferences.close() }

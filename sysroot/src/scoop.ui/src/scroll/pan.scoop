@@ -14,6 +14,15 @@ private class ScrollPanContact(
     var axes: ScrollAxes? = None
     var claimed = false
     var active = false
+    var latest = start
+    val velocity = ScrollVelocity()
+    init {
+        velocity.add(position(start), start.pointer.time)
+    }
+    fun sample(value: ContactState) {
+        latest = value
+        velocity.add(position(value), value.pointer.time)
+    }
 }
 
 /** A direct-contact scroll behavior borrowing its mount's area and viewport. */
@@ -136,6 +145,7 @@ public class ScrollPan internal constructor(
             case Contact(InputContactEvent.Moved(val value)) -> {
                 moved = true
                 val candidate = current(value) ?: return
+                candidate.sample(value)
                 if (!candidate.active) {
                     if (!selectAxes(candidate, value))
                         return
@@ -159,6 +169,7 @@ public class ScrollPan internal constructor(
             }
             case Contact(InputContactEvent.Ended(val value)) -> {
                 val candidate = current(value) ?: return
+                candidate.sample(value)
                 if (candidate.active)
                     consume(context, candidate, true)
                 clear(false, false)
@@ -246,7 +257,14 @@ public class ScrollPan internal constructor(
         applying = true
         ownIntent = None
         try {
-            viewport.consumeContact(context, selected, released)
+            viewport.consumeContact(
+                context,
+                selected,
+                if (released)
+                    Some(ScrollRelease(position(candidate.latest), candidate.velocity.value()))
+                else
+                    None
+            )
         } finally {
             applying = false
             ownIntent = None
@@ -296,10 +314,10 @@ public class ScrollPan internal constructor(
     private fun clear(release: Boolean, stopEffect: Boolean = true) {
         val previous = contact
         contact = None
+        if (stopEffect && viewport.active)
+            viewport.cancelAnimation()
         when (previous) {
             case Some(val value) -> {
-                if (stopEffect && viewport.active)
-                    viewport.cancelAnimation()
                 if (release && value.claimed && !area.isClosed)
                     area.scope.cancelContactClaim(value.start.id)
             }

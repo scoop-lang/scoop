@@ -1,6 +1,8 @@
 package scoop.tests.ui.scrollpan
 
 import scoop.graphics.*
+import scoop.math.abs
+import scoop.math.max
 import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
@@ -215,6 +217,13 @@ private class PanPanel(
         val inner = props.value.inner
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {
+                if (measured.overscroll != Point(0.0, 0.0))
+                    probe.bounced = true
+                probe.peakStretch =
+                    max(
+                        probe.peakStretch,
+                        max(abs(measured.overscroll.x), abs(measured.overscroll.y))
+                    )
                 if (inner)
                     probe.innerLayout = Some(measured)
                 else
