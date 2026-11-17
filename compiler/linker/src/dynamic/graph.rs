@@ -92,19 +92,25 @@ impl DynamicInputs {
             }
             let provider = self.providers[&id].clone();
             for (index, edge) in provider.dependencies.iter().enumerate() {
-                if self.edges.contains_key(&(id, index)) {
-                    continue;
+                match self.edges.get(&(id, index)) {
+                    Some(LoadTarget::Provider(_)) => continue,
+                    Some(LoadTarget::AbsentWeak) if !names.contains_key(&edge.name) => continue,
+                    _ => {}
                 }
                 let target = if let Some(target) = names.get(&edge.name) {
                     *target
                 } else {
-                    let file = locate::dependency(
+                    let Some(file) = locate::dependency(
                         &provider,
-                        &edge.name,
+                        edge,
                         roots,
                         profile,
                         &mut native.observed_paths,
-                    )?;
+                    )?
+                    else {
+                        self.edges.insert((id, index), LoadTarget::AbsentWeak);
+                        continue;
+                    };
                     let NativeContent::Dynamic(records) = &file.content else {
                         return Err(error(
                             scoop_source::DiagnosticCode::E2305,
@@ -139,7 +145,7 @@ impl DynamicInputs {
                         ),
                     ));
                 }
-                self.edges.insert((id, index), target);
+                self.edges.insert((id, index), LoadTarget::Provider(target));
             }
         }
         Ok(())
@@ -209,11 +215,13 @@ impl DynamicInputs {
             }
             let provider = &self.providers[&id];
             for (index, edge) in provider.dependencies.iter().enumerate() {
-                let child = self.edges[&(id, index)];
-                if edge.name.starts_with("@rpath/") {
-                    if let Some(path) = locate::runpath(&self.providers[&child], roots, profile)? {
-                        self.rpaths.insert(path);
-                    }
+                let Some(child) = self.edges[&(id, index)].provider() else {
+                    continue;
+                };
+                if edge.name.starts_with("@rpath/")
+                    && let Some(path) = locate::runpath(&self.providers[&child], roots, profile)?
+                {
+                    self.rpaths.insert(path);
                 }
                 pending.insert(child);
             }

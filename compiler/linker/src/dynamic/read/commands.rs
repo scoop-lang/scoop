@@ -31,7 +31,10 @@ pub(super) fn read<'a>(
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
     {
         match command.cmd() {
-            macho::LC_ID_DYLIB | macho::LC_LOAD_DYLIB | macho::LC_REEXPORT_DYLIB => {
+            macho::LC_ID_DYLIB
+            | macho::LC_LOAD_DYLIB
+            | macho::LC_REEXPORT_DYLIB
+            | macho::LC_LOAD_WEAK_DYLIB => {
                 let dylib: &macho::DylibCommand<object::Endianness> = command
                     .data()
                     .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
@@ -59,7 +62,11 @@ pub(super) fn read<'a>(
                 } else {
                     dependencies.push(LoadDependency {
                         name,
-                        reexport: command.cmd() == macho::LC_REEXPORT_DYLIB,
+                        kind: match command.cmd() {
+                            macho::LC_REEXPORT_DYLIB => LoadKind::Reexport,
+                            macho::LC_LOAD_WEAK_DYLIB => LoadKind::Weak,
+                            _ => LoadKind::Normal,
+                        },
                         compatibility_version: dylib.dylib.compatibility_version.get(endian),
                     });
                 }
@@ -180,8 +187,7 @@ pub(super) fn read<'a>(
                     base = Some(segment.vmaddr.get(endian));
                 }
             }
-            macho::LC_LOAD_WEAK_DYLIB
-            | macho::LC_LOAD_UPWARD_DYLIB
+            macho::LC_LOAD_UPWARD_DYLIB
             | macho::LC_LAZY_LOAD_DYLIB
             | macho::LC_DYLD_ENVIRONMENT
             | macho::LC_LINKER_OPTION => {

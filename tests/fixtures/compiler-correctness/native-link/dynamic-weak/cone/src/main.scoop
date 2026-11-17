@@ -1,0 +1,8 @@
+package dev.native.weakload
+
+@Extern(lib = "Facade", name = "facade_value")
+fun value(): Int
+
+fun main() {
+    @Unsafe { println(value()) }
+}

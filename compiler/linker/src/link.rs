@@ -173,7 +173,7 @@ fn link_inputs(
         .map_err(|cause| error(cause.code(), cause))?;
     let fingerprint = ResolvedLinkPlanFingerprint(
         domain_separated_cbor_hash(
-            "scoop-resolved-link-plan-v7",
+            "scoop-resolved-link-plan-v8",
             &Plan {
                 closure,
                 runtime,

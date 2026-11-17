@@ -1427,7 +1427,7 @@ DSO 依赖查找使用显式 roots、provider 目录、实际 RPATH/RUNPATH 与�
 native-app 最终链接由 root `.slib` 的完整 entry 分支选择 shared-library profile，生成唯一公开 `scoop_app_init`，内部调用 `scoop_rt_init_native_app(images, image_count, native_app_entry, host_api, out_app_api, out_error, enable_stack_trace)`。默认输出为 Darwin `lib<name>.dylib`、ELF `lib<name>.so`、Windows `<name>.dll`；显式输出名原样保留。`build` 和 artifact-only `link` 共用此路径，`run` 报告需要 native host。`--install-name`／`--soname` 只适用于对应平台的 shared-library profile。Windows import library 和所需调试文件随最终产物一起发布，并作为缓存命中所需输出；新链接的 PE 必须在发布前检查实际 export 恰为 scoop_app_init。更新记录包含输出种类、实际 loader name 与 bootstrap 配置；未变化且输出齐备时直接复用，不读取命中动态库或 import library。
 
 
-ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v7`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
+ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v8`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
 
 面向用户的 native 缺失符号诊断显示声明请求的库名；Mach-O 动态 provider 的文本计划按实际 install name 排序，再以 provider identity 区分同名记录。对象内容变化不能仅因内容摘要的排序改变这部分报告顺序；真实链接顺序、绑定、依赖边和 canonical 内容编码保持原合同。
 
@@ -1460,6 +1460,8 @@ SwiftPM 实际计划中对最终 consumer 仍有效的库／framework 设置、�
 已要求的 Swift 库可从所选 SDK 的 `usr/lib/swift` 与所选 Swift 工具链正常资源目录解析，继续使用已有显式／系统 provider 优先级。SDK 的 arm64e 系统 stub 沿已有系统兼容映射消费，不据此放宽第三方机器库的架构检查。实际需要的 Core、Concurrency、StringProcessing、compatibility archives 和其他库均由输入决定，不建立只含 swiftCore 的固定名单。预解析及 LLD 必须消费同一组已选库，不在最后步骤回退宿主搜索。
 
 动态输入的 weak-load、re-export、install name 与 rpath 按实际平台合同处理，不一律转成强依赖或忽略。保留普通目标、部署版本、符号定义／引用及外部 ABI 声明检查；不声称对象符号表能证明 Swift 实现满足声明类型。产品 linkage 与 runtime linkage 分开，首期使用目标支持的普通动态 Swift runtime 和实际需要的静态 compatibility archive，不提供 macOS 全静态 Swift runtime。
+
+`LC_LOAD_WEAK_DYLIB` 使用与普通 load 相同的路径选择；只有无候选时允许缺席，已找到文件的格式、目标、版本错误或歧义照常报告。缺席边及其查找候选进入更新记录，后续出现实际库时重新解析。弱装载不等于 re-export，不将该依赖的符号加入父库导出，也不把父库内部的弱导入变为主程序的强库要求；缺席时仍可调用父库自身导出。该规则对应 [Apple dyld 的弱依赖加载语义](https://github.com/apple-oss-distributions/dyld/blob/main/dyld/JustInTimeLoader.cpp)。
 
 **最终更新与部署。** 最终缓存检查先于 Link 读取和工具准备，但晚于所有 Swift 节点的更新检查。记录纳入已完成的 Swift 链接输入结果及普通 native 文件／选择状态；同一路径不能掩盖 Swift 结果更新。部署资源与链接二进制分开记录，资源变更且库及需求未变时只更新部署。
 

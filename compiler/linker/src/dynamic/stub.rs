@@ -22,7 +22,7 @@ pub(super) fn entries(
         .into_iter()
         .map(|name| LoadDependency {
             name,
-            reexport: true,
+            kind: LoadKind::Reexport,
             compatibility_version: 0,
         })
         .collect();
@@ -39,7 +39,7 @@ pub(super) fn entries(
             let index = dependencies.len();
             dependencies.push(LoadDependency {
                 name: previous.install_name.clone(),
-                reexport: false,
+                kind: LoadKind::Normal,
                 compatibility_version: previous.compatibility_version,
             });
             index

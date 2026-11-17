@@ -25,10 +25,13 @@
 - 2026-11-18：补齐跨包 build plugin 脚本的更新输入；生成工具及其传递源码、声明输入仍由真实构建计划收集。consumer 链接设置只沿实际产品对象／归档收集，排除宿主生成工具；配置与 traits 条件采用 SwiftPM 已解析选择。
 - 本项验证：定向格式化／clippy、真实 Swift 生产缓存测试通过。AArch64 [插件 fixture](../../tests/fixtures/compiler-correctness/native-link/swift-plugins/fixture.toml) 通过 9 个进程步骤，覆盖三个本地包、插件脚本变化、生成工具的传递支持库变化、声明输入变化及 frozen 热复用；输出依次为 52、62、63、62，均无需重编 Scoop。宿主工具专用 linker flag 与 z 库未传播给最终程序。初次用例误用 clang 的 -Wl 参数已改为 Swift 的 -Xlinker。
 
+- 2026-11-18：Mach-O 动态依赖区分普通 load、weak-load 与 re-export；弱依赖无候选时可缺席，实际候选仍检查目标与版本。缺席查找进入缓存输入，新增可选库会重新链接；link plan 升为 v8，source final cache 升为 v4。
+- 本项验证：相关格式化／clippy 通过；AArch64 [weak-load fixture](../../tests/fixtures/compiler-correctness/native-link/dynamic-weak/fixture.toml) 通过 12 个进程步骤，覆盖缺席运行、热复用、实际库出现、版本不相容与强依赖缺失。已有 loader-path 与 re-export 两项 fixture 的 3 个变体、22 个进程步骤通过。初次回归遗漏 LLD 环境及复用残留 work 目录导致的准备失败均已闭合；没有开始 x86-64 验证。
+
 ## 后续工作与验收
 
 1. 补齐真实宏、prebuild 诊断和二进制输入交付，并执行正式构建缓存与共享源码、锁定／离线验收；跨包 build plugin 与传递生成工具已验证。
-2. 补齐动态依赖的 weak-load、re-export／rpath 交付验收与 compatibility archive 组合覆盖；基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
+2. 补齐动态依赖的部署验收与 compatibility archive 组合覆盖；weak-load、re-export／rpath 的链接行为已定向通过，基础精确绑定、按成员 autolink、SDK Swift 系统库和两类 framework 已接入。
 3. 动态库部署和 bundle 交接；配套目录的非系统依赖补齐二进制 target／实际传递加载输入。静态资源的 CLI／app 交付已完成。
 4. macOS 双架构正式 CLI fixture：真实 @c 调用、传递依赖变化、命中调用计数、并发与失败、资源读取和可重定位交付。
 5. 同步 CLI help、编程参考与可运行示例；完成最终合同审查。
