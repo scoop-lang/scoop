@@ -20,9 +20,19 @@ impl DynamicInputs {
             for (index, dependency) in provider.dependencies.iter().enumerate() {
                 e.array(4)?;
                 e.text(&dependency.name)?;
-                e.unsigned(u64::from(dependency.reexport))?;
+                e.unsigned(match dependency.kind {
+                    LoadKind::Normal => 0,
+                    LoadKind::Weak => 1,
+                    LoadKind::Reexport => 2,
+                })?;
                 e.unsigned(u64::from(dependency.compatibility_version))?;
-                self.edges[&(provider.id, index)].encode(e)?;
+                match self.edges[&(provider.id, index)] {
+                    LoadTarget::Provider(id) => {
+                        e.array(1)?;
+                        id.encode(e)?;
+                    }
+                    LoadTarget::AbsentWeak => e.array(0)?,
+                }
             }
             e.array(provider.rpaths.len() as u64)?;
             for path in &provider.rpaths {
@@ -83,9 +93,16 @@ impl DynamicInputs {
             for (index, edge) in provider.dependencies.iter().enumerate() {
                 text.push_str(&format!(
                     "  {} {:?} -> {}\n",
-                    if edge.reexport { "re-export" } else { "load" },
+                    match edge.kind {
+                        LoadKind::Normal => "load",
+                        LoadKind::Weak => "weak-load",
+                        LoadKind::Reexport => "re-export",
+                    },
                     edge.name,
-                    self.edges[&(provider.id, index)]
+                    match self.edges[&(provider.id, index)] {
+                        LoadTarget::Provider(id) => id.to_string(),
+                        LoadTarget::AbsentWeak => "absent".to_owned(),
+                    }
                 ));
             }
         }

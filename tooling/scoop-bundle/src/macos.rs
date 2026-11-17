@@ -19,6 +19,17 @@ pub fn build(
 ) -> Result<PathBuf> {
     let settings = &input.settings;
     let mut plan = deploy::payload(settings, &input.target, &input.executable, inputs)?;
+    for resource in &input.native_resources {
+        let name = resource
+            .file_name()
+            .context("native resource has no basename")?;
+        plan.add(
+            resource,
+            &Path::new("Contents/Resources").join(name),
+            false,
+            inputs,
+        )?;
+    }
     let code = dependencies::collect(input, &mut plan, inputs)?;
     let icon = icon(settings, scratch, inputs, tools)?;
     if let Some(icon) = &icon {

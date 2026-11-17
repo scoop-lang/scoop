@@ -54,6 +54,12 @@ fn read_bytes(
     profile: &ValidatedFinalLinkProfile,
     system: bool,
 ) -> Result<NativeFile, LinkError> {
+    // A framework is a container; its binary can be an ordinary archive.
+    let kind = if kind == NativeFileKind::Framework && bytes.starts_with(b"!<arch>\n") {
+        NativeFileKind::Archive
+    } else {
+        kind
+    };
     let slice = if kind == NativeFileKind::TextStub
         || (kind == NativeFileKind::Archive && bytes.starts_with(b"!<arch>\n"))
     {

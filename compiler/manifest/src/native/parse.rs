@@ -23,6 +23,8 @@ pub(crate) struct RawNativeConfig {
     cxx: Option<Spanned<RawCxx>>,
     #[serde(default)]
     libraries: Vec<super::libraries::RawNativeLibrary>,
+    #[serde(default)]
+    swift: Vec<Spanned<super::swift::RawSwiftLibrary>>,
 }
 
 impl RawNativeConfig {
@@ -30,7 +32,7 @@ impl RawNativeConfig {
         self,
         catalog: &[crate::SourceTarget<'_>],
     ) -> Result<NativeConfig, ManifestParseError> {
-        Ok(NativeConfig {
+        let config = NativeConfig {
             sources: self
                 .sources
                 .into_iter()
@@ -54,7 +56,14 @@ impl RawNativeConfig {
                 .into_iter()
                 .map(|raw| super::libraries::parse(raw, catalog))
                 .collect::<Result<_, _>>()?,
-        })
+            swift: self
+                .swift
+                .into_iter()
+                .map(|raw| super::swift::parse(raw, catalog))
+                .collect::<Result<_, _>>()?,
+        };
+        super::swift::validate(&config, catalog)?;
+        Ok(config)
     }
 }
 

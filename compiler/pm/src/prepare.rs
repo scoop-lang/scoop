@@ -147,6 +147,11 @@ fn project_root(root: ResolvedRoot) -> PmResult<PreparedResolutionV1> {
                     )
                 })?;
                 PreparedConeV1::Source {
+                    shared_source: matches!(
+                        &node.source,
+                        crate::lockfile::LockedSource::Git { .. }
+                            | crate::lockfile::LockedSource::Registry { .. }
+                    ),
                     config: Box::new(ExpandedConeInputV1 {
                         input_root: host(&member.input_directory)?,
                         root: host(&member.directory)?,

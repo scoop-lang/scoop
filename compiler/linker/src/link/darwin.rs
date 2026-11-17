@@ -26,6 +26,10 @@ pub(super) fn link(
     let mut command = darwin
         .command(&sdk, directory, candidate)
         .map_err(|cause| error(cause.code(), cause))?;
+    // Bundle tools may extend load paths on deployment copies.
+    darwin.linker_argument(&mut command, "-headerpad_max_install_names");
+    // Native member autolinks were resolved to these exact inputs above.
+    darwin.linker_argument(&mut command, "-ignore_auto_link");
     if !keep_symbols {
         darwin.linker_argument(&mut command, "-x");
         darwin.linker_argument(&mut command, "-S");

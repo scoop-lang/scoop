@@ -106,6 +106,7 @@ fn build_fixture(root_fixture: &str, native: bool) -> Fixture {
             keep_symbols: true,
             emit_debug_file: false,
             enable_stack_trace: false,
+            ..Default::default()
         },
         &library_paths,
         &path.join("program"),

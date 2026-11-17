@@ -92,6 +92,12 @@ fn prepare(
     let publish = move |graph: crate::BuildGraphOutcome| {
         let finish = || -> BuildResult<_> {
             if request.emit_slib || matches!(graph, crate::BuildGraphOutcome::Library { .. }) {
+                let native_outputs = scoop_toolchain::native_output::publish_native_outputs(
+                    graph.swift_products(),
+                    &output.path().with_extension("native"),
+                    &cache,
+                )
+                .map_err(output_error)?;
                 output
                     .publish(
                         graph.root().artifact_locator(),
@@ -105,8 +111,11 @@ fn prepare(
                         ),
                     )
                     .map_err(output_error)?;
-                return Ok(None);
+                return Ok((None, native_outputs));
             }
+            let native_outputs =
+                scoop_toolchain::swift::SwiftProduct::outputs(graph.swift_products())
+                    .map_err(output_error)?;
             let linked = executable::get(executable::Request {
                 graph: &graph,
                 runtime: &request.runtime,
@@ -119,6 +128,7 @@ fn prepare(
                 enable_gc_stress: request.enable_gc_stress,
                 enable_startup_stats: request.enable_startup_stats,
                 output: output.path(),
+                native_outputs: &native_outputs,
             })?;
             if let Some(file) = &linked.debug_file {
                 OutputLocation::new(&file.kind.output_path(output.path()))
@@ -137,19 +147,30 @@ fn prepare(
                     .publish(library, Some(&linked.result_key))
                     .map_err(output_error)?;
             }
+            let deployed = scoop_toolchain::native_output::deploy_native_resources(
+                &linked.native_outputs,
+                output.path(),
+                &cache,
+            )
+            .map_err(output_error)?;
             output
                 .publish(&linked.path, Some(&linked.result_key))
                 .map_err(output_error)?;
-            Ok(Some((
-                linked.runtime_index,
-                linked.fingerprint,
-                linked.path,
-            )))
+            let executable = if deployed.is_empty() {
+                linked.path
+            } else {
+                output.path().to_owned()
+            };
+            Ok((
+                Some((linked.runtime_index, linked.fingerprint, executable)),
+                deployed,
+            ))
         };
-        let executable =
+        let (executable, native_outputs) =
             finish().map_err(|error| error.with_context(graph.warnings(), &sources))?;
         let build = BuiltArtifacts {
             output: output.path().to_owned(),
+            native_outputs,
             profile: request.profile,
             graph,
             sources,

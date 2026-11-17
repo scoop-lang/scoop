@@ -39,6 +39,7 @@ mod paths;
 mod registry;
 mod request;
 mod runtime;
+pub mod swift;
 mod system_provider;
 mod trusted_core;
 mod unwind;
@@ -117,3 +118,6 @@ impl fmt::Display for ToolchainError {
 impl std::error::Error for ToolchainError {}
 pub use build_record::inputs::{Input as NativeInputMetadata, native_include_search_paths};
 pub use compiler::paired_compiler_machine_capability;
+
+pub mod native_output;
+pub use native_output::{NativeLibraryDependency, NativeLibraryOutput};

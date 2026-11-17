@@ -1,0 +1,8 @@
+package dev.swift.binary
+
+@Extern(lib = "BinaryBridge", name = "swift_binary_value")
+fun value(): Int
+
+fun main() {
+    @Unsafe { println(value()) }
+}

@@ -16,6 +16,7 @@ pub struct Input {
     pub target: Target,
     pub profile: String,
     pub output_root: PathBuf,
+    pub native_resources: Vec<PathBuf>,
 }
 
 pub fn prepare(args: &Args) -> Result<Input> {
@@ -32,6 +33,7 @@ pub fn prepare(args: &Args) -> Result<Input> {
         let target = Target::parse(args.target.as_deref().context("--target is required")?)?;
         target.require_host()?;
         return Ok(Input {
+            native_resources: Vec::new(),
             settings,
             executable: host_path::absolute(executable)?,
             target,
@@ -85,8 +87,8 @@ pub fn prepare(args: &Args) -> Result<Input> {
     let members: Value =
         serde_json::from_slice(&result.stdout).context("invalid PM members JSON")?;
     ensure!(
-        members["format"] == 7,
-        "scoop-bundle requires PM members protocol 7; update the paired Scoop tools"
+        members["format"] == 10,
+        "scoop-bundle requires PM members protocol 10; update the paired Scoop tools"
     );
     let selected: Vec<_> = members["members"]
         .as_array()
@@ -227,12 +229,29 @@ pub fn prepare(args: &Args) -> Result<Input> {
         "build profile does not match the request"
     );
     Ok(Input {
+        native_resources: resources(&success)?,
         settings,
         executable: host_path::decode(&success["output"])?,
         target,
         profile: profile.into(),
         output_root: output_root(args, target_dir)?,
     })
+}
+
+fn resources(record: &Value) -> Result<Vec<PathBuf>> {
+    let mut resources = std::collections::BTreeSet::new();
+    for output in record["native_outputs"]
+        .as_array()
+        .context("build JSON has no native_outputs")?
+    {
+        for resource in output["resources"]
+            .as_array()
+            .context("native output has no resources")?
+        {
+            resources.insert(host_path::decode(resource)?);
+        }
+    }
+    Ok(resources.into_iter().collect())
 }
 
 fn output_root(args: &Args, target: PathBuf) -> Result<PathBuf> {

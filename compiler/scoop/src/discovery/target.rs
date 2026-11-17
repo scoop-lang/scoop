@@ -17,6 +17,13 @@ pub enum GraphTarget {
 }
 
 impl GraphTarget {
+    pub(crate) fn request(&self) -> Result<TargetSelectionRequestV1, ToolchainError> {
+        match self {
+            Self::Artifact(target) => target.child_request(),
+            Self::Pending { request, .. } => Ok(request.clone()),
+        }
+    }
+
     pub fn requested(request: TargetSelectionRequestV1) -> Result<Self, ToolchainError> {
         let selection = scoop_toolchain::select_target(request.canonical_triple())?;
         Ok(Self::Pending {

@@ -1,0 +1,11 @@
+schema = 1
+[cone]
+group = "dev.swift"
+name = "binary-client"
+version = "0.1.0"
+kind = "executable"
+[[native.swift]]
+package = "native"
+product = "BinaryBridge"
+linkage = "static"
+inputs = ["../vendor"]

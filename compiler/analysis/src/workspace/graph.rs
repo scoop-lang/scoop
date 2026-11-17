@@ -74,7 +74,7 @@ impl ProjectBuilder {
                 })
                 .collect::<Result<_, _>>()?;
             let input = match node.cone {
-                PreparedConeV1::Source { config } => {
+                PreparedConeV1::Source { config, .. } => {
                     let manifest = loader.files.expanded(
                         host,
                         &builder.project.configuration.name,

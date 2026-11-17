@@ -41,6 +41,7 @@ pub struct LinkOutcome {
     pub runtime_index: PathBuf,
     pub link_plan_fingerprint: ResolvedLinkPlanFingerprint,
     pub link_plan: String,
+    pub native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
 }
 
 pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
@@ -88,6 +89,7 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
         &runtime,
         &profile,
         scoop_linker::ProgramLinkOptions {
+            native_outputs: &[],
             keep_symbols: request.final_link.keep_symbols,
             emit_debug_file: request.final_link.emit_debug_file,
             enable_stack_trace: request.final_link.enable_stack_trace.unwrap_or(false),
@@ -115,10 +117,17 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
             .publish(file, None)
             .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     }
+    let native_outputs = scoop_toolchain::native_output::deploy_native_resources(
+        &linked.native_outputs,
+        output.path(),
+        &request.cache_dir,
+    )
+    .map_err(|error| failure(error.code(), error))?;
     output
         .publish(&linked.path, None)
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     Ok(LinkOutcome {
+        native_outputs,
         output: output.path().to_owned(),
         root,
         dependencies,

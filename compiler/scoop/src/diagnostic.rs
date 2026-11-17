@@ -252,6 +252,7 @@ impl ClassifyBuildFailure for PrepareBuildGraphError {
 impl ClassifyBuildFailure for BuildGraphExecutionError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
+            Self::Swift { source, .. } => classified(BuildFailurePhase::Toolchain, source.code()),
             Self::MissingPreparedNode(_) | Self::RequestIdOverflow => {
                 classified(BuildFailurePhase::ChildTransport, DiagnosticCode::ICE2201)
             }

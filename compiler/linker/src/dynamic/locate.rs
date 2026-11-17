@@ -3,11 +3,12 @@ use crate::native_input::{NativeContent, NativeFile, NativeFileKind};
 
 pub(super) fn dependency(
     parent: &DynamicProvider,
-    name: &str,
+    dependency: &LoadDependency,
     roots: &[PathBuf],
     profile: &ValidatedFinalLinkProfile,
     observed: &mut Vec<PathBuf>,
-) -> Result<NativeFile, LinkError> {
+) -> Result<Option<NativeFile>, LinkError> {
+    let name = dependency.name.as_str();
     let mut paths = BTreeMap::new();
     let mut add = |priority: u8, path: PathBuf, system: bool| {
         let text = path.extension().is_some_and(|extension| extension == "tbd");
@@ -162,6 +163,9 @@ pub(super) fn dependency(
             candidates.insert(file.id, file);
         }
     }
+    if candidates.is_empty() && dependency.kind == LoadKind::Weak {
+        return Ok(None);
+    }
     if candidates.len() != 1 {
         return Err(error(
             if candidates.is_empty() {
@@ -176,7 +180,7 @@ pub(super) fn dependency(
             ),
         ));
     }
-    candidates.into_values().next().ok_or_else(|| {
+    candidates.into_values().next().map(Some).ok_or_else(|| {
         error(
             scoop_source::DiagnosticCode::E2305,
             "dynamic dependency candidate disappeared",

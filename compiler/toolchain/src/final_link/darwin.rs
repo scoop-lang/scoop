@@ -25,6 +25,7 @@ const PRODUCTION_SYMBOLS: &str = "_scoop$1$bs$*\n";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DarwinFinalLinkProfile {
     startup: ValidatedCBridgeToolchainInvocation,
+    swift_toolchain: Option<PathBuf>,
     pub(super) data: Discovery,
 }
 
@@ -63,6 +64,7 @@ impl DarwinFinalLinkProfile {
         )?;
         Ok(Self {
             startup,
+            swift_toolchain: options.swift_toolchain.clone(),
             data: Discovery {
                 output,
                 native_roots,
@@ -116,6 +118,15 @@ impl DarwinFinalLinkProfile {
 
     pub fn cxx(&self) -> bool {
         self.data.cxx.is_some()
+    }
+
+    /// Only queried after an actually required Swift library was absent in the SDK.
+    pub fn swift_library_roots(&self) -> Result<Vec<PathBuf>, ToolchainError> {
+        let root = crate::swift::toolchain_root(self.swift_toolchain.as_deref())?;
+        Ok(vec![
+            root.join("usr/lib/swift/macosx"),
+            root.join("usr/lib/swift_static/macosx"),
+        ])
     }
 
     pub fn linker_argument(&self, command: &mut Command, argument: impl AsRef<std::ffi::OsStr>) {

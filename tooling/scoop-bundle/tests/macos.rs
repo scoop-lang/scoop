@@ -239,3 +239,101 @@ codesign = "tools/codesign"
                 .starts_with(".app-"))
     );
 }
+
+#[test]
+fn weak_load_can_be_absent_and_a_new_library_invalidates_the_bundle() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path();
+    let vendor = root.join("vendor");
+    fs::create_dir(&vendor).unwrap();
+    let (architecture, target) = if cfg!(target_arch = "aarch64") {
+        ("arm64", "aarch64-apple-darwin")
+    } else {
+        ("x86_64", "x86_64-apple-darwin")
+    };
+    fs::write(root.join("Optional.tbd"), format!("--- !tapi-tbd\ntbd-version: 4\ntargets: [ {architecture}-macos ]\ninstall-name: '@rpath/libOptional.dylib'\nexports:\n  - targets: [ {architecture}-macos ]\n    symbols: [ _optional_value ]\n...\n")).unwrap();
+    fs::write(root.join("facade.c"), "extern int optional_value(void) __attribute__((weak_import)); int facade_value(void) { return optional_value ? optional_value() : 42; }\n").unwrap();
+    fs::write(
+        root.join("optional.c"),
+        "int optional_value(void) { return 43; }\n",
+    )
+    .unwrap();
+    fs::write(root.join("main.c"), "#include <stdio.h>\nint facade_value(void); int main(void) { printf(\"%d\\n\", facade_value()); }\n").unwrap();
+    let facade = vendor.join("libFacade.dylib");
+    successful(
+        Command::new("clang")
+            .args(["-arch", architecture, "-dynamiclib"])
+            .arg(root.join("facade.c"))
+            .args(["-Xlinker", "-weak_library", "-Xlinker"])
+            .arg(root.join("Optional.tbd"))
+            .args([
+                "-Wl,-install_name,@rpath/libFacade.dylib",
+                "-Wl,-headerpad_max_install_names",
+                "-o",
+            ])
+            .arg(&facade),
+    );
+    let executable = root.join("program");
+    successful(
+        Command::new("clang")
+            .args(["-arch", architecture])
+            .arg(root.join("main.c"))
+            .arg(&facade)
+            .args(["-Xlinker", "-rpath", "-Xlinker"])
+            .arg(&vendor)
+            .args(["-Wl,-headerpad_max_install_names", "-o"])
+            .arg(&executable),
+    );
+    fs::write(root.join("Bundle.toml"), "[bundle]\nschema = 1\nidentifier = \"dev.scoop.weak-load\"\nname = \"weak-load\"\nversion = \"1.0.0\"\nlibrary-search-paths = [\"vendor\"]\n").unwrap();
+    let bundle = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_scoop-bundle"));
+        command
+            .current_dir(root)
+            .arg("--executable")
+            .arg(&executable)
+            .args([
+                "--config",
+                "Bundle.toml",
+                "--target",
+                target,
+                "--message-format",
+                "json",
+            ]);
+        record(&successful(&mut command))
+    };
+    let first = bundle();
+    let app = PathBuf::from(first["output"].as_str().unwrap());
+    let run = |app: &Path, expected: &[u8]| {
+        let output = successful(
+            Command::new(app.join("Contents/MacOS/weak-load"))
+                .env_remove("DYLD_LIBRARY_PATH")
+                .env_remove("DYLD_FRAMEWORK_PATH"),
+        );
+        assert_eq!(output.stdout, expected);
+    };
+    run(&app, b"42\n");
+    assert_eq!(bundle()["reused"], true);
+    successful(
+        Command::new("clang")
+            .args(["-arch", architecture, "-dynamiclib"])
+            .arg(root.join("optional.c"))
+            .args([
+                "-Wl,-install_name,@rpath/libOptional.dylib",
+                "-Wl,-headerpad_max_install_names",
+                "-o",
+            ])
+            .arg(vendor.join("libOptional.dylib")),
+    );
+    assert_eq!(bundle()["reused"], false);
+    assert!(app.join("Contents/Frameworks/libOptional.dylib").is_file());
+    run(&app, b"43\n");
+    let relocated = root.join("Copied.app");
+    successful(Command::new("/usr/bin/ditto").arg(&app).arg(&relocated));
+    run(&relocated, b"43\n");
+    let commands = successful(
+        Command::new("otool")
+            .arg("-l")
+            .arg(relocated.join("Contents/Frameworks/libFacade.dylib")),
+    );
+    assert!(String::from_utf8_lossy(&commands.stdout).contains("LC_LOAD_WEAK_DYLIB"));
+}

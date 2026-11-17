@@ -7,6 +7,7 @@ use crate::{BuildGraphOutcome, BuildProfile, SelectedSource};
 #[derive(Debug)]
 pub struct BuiltArtifacts {
     pub output: PathBuf,
+    pub native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
     pub profile: BuildProfile,
     pub graph: BuildGraphOutcome,
     pub sources: Vec<SelectedSource>,

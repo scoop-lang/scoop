@@ -56,6 +56,8 @@ pub struct FinalLinkOptions {
     pub linker: Option<PathBuf>,
     pub sysroot: Option<PathBuf>,
     pub unwind_prefix: Option<PathBuf>,
+    /// Swift runtime and compatibility resources for native Swift inputs.
+    pub swift_toolchain: Option<PathBuf>,
     pub mode: Option<LinkMode>,
     /// Retain the ordinary symbol table in the final native output.
     pub keep_symbols: bool,

@@ -4,6 +4,11 @@ use super::*;
 use crate::package::{DependencyDeclaration, InheritableValue, PackageDocument};
 
 impl ParsedConeManifest {
+    pub fn into_compiler_projection(mut self) -> Self {
+        self.semantic.native = self.semantic.native.compiler_projection();
+        self
+    }
+
     /// A compiler handoff uses bound coordinates; discovery locators are no longer inputs.
     pub fn into_bound(mut self) -> Self {
         for locator in self.locators.0.values_mut() {

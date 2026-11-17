@@ -54,7 +54,7 @@ impl ArtifactLinkRequest {
         )?;
         runtime.require_gc_stress(self.enable_gc_stress)?;
         runtime.require_startup_stats(self.enable_startup_stats)?;
-        link_program(
+        let mut linked = link_program(
             &closure,
             &runtime,
             &profile,
@@ -62,11 +62,18 @@ impl ArtifactLinkRequest {
                 keep_symbols: self.final_link.keep_symbols,
                 emit_debug_file: self.final_link.emit_debug_file,
                 enable_stack_trace: self.final_link.enable_stack_trace.unwrap_or(false),
+                ..Default::default()
             },
             &self.library_paths,
             &self.output,
             &self.cache_dir,
-        )
+        )?;
+        linked.native_outputs = scoop_toolchain::native_output::deploy_native_resources(
+            &linked.native_outputs,
+            &linked.path,
+            &self.cache_dir,
+        )?;
+        Ok(linked)
     }
 }
 

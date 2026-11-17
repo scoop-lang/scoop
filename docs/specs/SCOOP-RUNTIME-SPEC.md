@@ -839,6 +839,8 @@ adapter 在返回 C 前捕获全部 Scoop 异常、保存原 managed Throwable �
 
 ### 4.5 线程状态
 
+[语言规范 12.2.5](SCOOP-SPEC.md#1225-swift-包原生库第一阶段)的 Swift 原生库设计复用以下 C ABI 边界，不增加 runtime ABI。`@c` 导出默认作为 NativeSafe callee；Swift runtime／ARC 自行管理 Swift 对象，不注册为 Scoop managed image 或扫描 Swift 堆。手写 FFI 对 opaque pointer、数据借用和 callback 的所有权负责，继续使用既有 handle、pin 与 callback 入口。Swift 调用、ARC release 或 deinit 不自动满足 GCLeaf／STW release-safe 合同，只有原有完整约束允许选择这些模式。
+
 普通 C ABI outbound 默认使用 NativeSafe，Scoop ABI outbound 使用 NativeBorrowed；NoGC 声明不取消 caller 的协调与保活义务。NativeSafe 的常见进入/返回使用 3.5 的无锁协议，实际 C 调用期间不持有 world lock。foreign callback attach 后通过独立 boundary 进入 managed；返回 managed 与 callback 进入均不能绕过当前 GC 的协调。
 
 显式 `@GCLeaf` C ABI outbound 与 `GCLeafFunPtr` 间接调用按 3.5 保持原线程状态，不执行 NativeSafe/RETURNING 握手，不额外发布或撤销 caller roots。只有语言规范 13.4.1、13.10 的完整调用契约允许这种模式；GC-free 参数或 `@NoGC` 本身不能推导它。编译器按实现规范 2.4～2.5 选择直接 C ABI 调用或 storage bridge，两者保持相同的 native 签名和 GC 契约；NativeSafe 复用直接调用时仍须完成原有协调与保活。ABI 路径选择不增加 runtime 状态或运行时判断。release hook 的 raw leaf 调用仍按 3.8 单独检查，`@GCLeaf` 不放宽 release-safe 限制。
@@ -904,6 +906,8 @@ native exception record 不能跨线程共享或跨挂起保存；可以保存�
 跨挂起或线程发布前必须保存 managed 引用并结束 native catch，不能保存 native record。后续传播重新调用 throw，为同一个对象建立新 record；同步 rethrow 保持原 record。不存在额外的异常物化 runtime API。
 
 ### 5.5 依赖与 FFI 边界
+
+Swift `@c` 调用遵守同一 C frame 边界。Swift 的 `throws` 由 Swift 实现按其公开 C API 的状态／错误数据约定处理，Scoop 不接管 Swift error 表示，也不生成跨语言异常或 async adapter。Swift 与 Scoop 的展开依赖由所选平台链接配置协调，不能引入第二份冲突的系统 unwind provider；此项不改变本节 ABI。
 
 生产异常 ABI 只依赖 Itanium Level I，不依赖 C++ EH、RTTI 或 terminate。target profile 明确选择兼容 unwind provider；Linux CRT 的普通退出清理符号不视为 C++ EH。
 

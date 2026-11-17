@@ -155,6 +155,7 @@ impl PreparedGraphNode {
 
 #[derive(Debug)]
 pub struct PreparedBuildGraph {
+    pub(super) swift: Vec<(ConeIdentity, scoop_toolchain::swift::SwiftBuildRequest)>,
     pub(super) root: ConeIdentity,
     pub(super) nodes: BTreeMap<ConeIdentity, PreparedGraphNode>,
     pub(super) edges: BTreeMap<(ConeIdentity, ConeIdentity), ResolvedDependencyEdge>,
@@ -169,6 +170,16 @@ pub struct PreparedBuildGraph {
 }
 
 impl PreparedBuildGraph {
+    pub(crate) fn swift_requests(
+        &self,
+    ) -> &[(ConeIdentity, scoop_toolchain::swift::SwiftBuildRequest)] {
+        &self.swift
+    }
+
+    pub(crate) fn native_target(&self) -> &crate::GraphTarget {
+        &self.context.target
+    }
+
     pub fn compilation_purpose(
         &self,
         identity: ConeIdentity,

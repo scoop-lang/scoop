@@ -1,0 +1,11 @@
+schema = 1
+[cone]
+group = "dev.swift"
+name = "plugin-client"
+version = "0.1.0"
+kind = "executable"
+[[native.swift]]
+package = "native"
+product = "PluginBridge"
+linkage = "static"
+inputs = ["../plugin", "../support"]

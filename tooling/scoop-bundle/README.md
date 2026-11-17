@@ -22,7 +22,7 @@ scoop bundle --executable ./dist/editor --target aarch64-apple-darwin \
 
 项目配置位于 `Cone.toml` 的 `[bundle]`，也可以仅声明 `config = "packaging/Bundle.toml"`。独立文件仍使用 `[bundle]` 表；已有程序模式必须提供 name、version、identifier。命令行 `--config` 选择完整外置配置，相对文件路径以该配置文件所在目录为基准。
 
-项目入口消费当前配套包管理器的 `pm members --json` 协议 7，选定一个 executable Cone 并读取其 metadata／bundle 配置；构建仍交给同一 Scoop 工具链。
+项目入口消费当前配套包管理器的 `pm members --json` 协议 10，选定一个 executable Cone 并读取其 metadata／bundle 配置；构建仍交给同一 Scoop 工具链。macOS 自动接收构建 JSON 中的 Swift resource bundle，并按原名放入 `Contents/Resources`，包含来自静态库的资源。已有程序模式用 `bundle.files` 显式声明这些资源。
 
 资源示例见 [Cone.toml](examples/resources/Cone.toml) 与 [main.scoop](examples/resources/src/main.scoop)。程序通过 `executablePath()` 访问固定相对布局，在其他 cwd 启动同样可用。
 
@@ -33,6 +33,18 @@ macOS 默认执行 ad-hoc codesign；真实证书在 `[bundle.macos.signing]` �
 [GUI 示例](examples/gui/Cone.toml) 打开真实窗口、读取资源并在两秒后退出，适合验证打包后的事件循环。资源文本在窗口创建成功后打印；桌面可能因遮挡而暂缓绘制，这不影响资源读取或定时退出。Linux GUI 使用 GTK 4.18 以上、libadwaita 1.4 以上；deb/rpm 的发行版依赖必须由应用声明，AppImage 的构建系统须满足最低运行系统的 glibc 基线。动态加载模块、GSettings schema 等非 ELF imports 输入使用 files 显式加入。
 
 Developer ID 公证、Flatpak 与 MSIX 尚不属于首期。
+
+私有 framework 在 bundle metadata 中显式列出，不从 Cone 的 native 依赖推导。内嵌配置示例：
+
+```toml
+[[bundle.files]]
+from = "vendor/Acme.framework"
+to = "Acme.framework"
+kind = "framework"
+when = { os = "darwin" }
+```
+
+独立 Bundle.toml 同样使用 `[[bundle.files]]`。bundle 保留 framework 结构，在副本上调整 rpath／依赖加载名，最后签名；系统 framework 不列入清单，也不复制或修改。编译链接只负责普通依赖解析，并预留 headerpad。
 
 维护验证：先 `cargo fmt --manifest-path tooling/scoop-bundle/Cargo.toml` 和对应 `cargo clippy --all-targets -- -D warnings`，再运行对应 `cargo test`。macOS 集成测试实际构建含 framework 和传递 dylib 的程序，覆盖资源、签名、更新复用和失败保留旧包；临时工程自动清理。
 

@@ -796,7 +796,18 @@ Darwin self-image 前置已完成：按 runtime 内部地址定位自身 Mach-O�
 
 共享库工具链前置已完成：`FinalOutputKind` 与系统 `LinkMode` 分离，按目标生成导出控制、install name／SONAME、DLL import library 与 PDB。Darwin 双架构、Linux GNU／动态 musl、Windows 三环境均已通过真实 C host 装载、隐藏函数表、既有线程 TLS 与 CRT／unwind 验证，适用环境覆盖 C++ 初始化与异常；现有 executable 链接回归通过。根 kind、独立 Scoop entry／descriptor／gateway、持久 runtime、最终发布和 linked-product 缓存已接通。2026-11-03，Darwin AArch64／x86-64、Linux GNU／动态 musl 和 Windows 三环境完成真实源码 → `.slib` → 共享库 → host 的 debug／release 验收，覆盖重入／并发初始化、稳定错误报告、初始化线程退出后的 Context／callback／移动 GC、artifact-only／独立 scoop-link、C++ 直接链接、业务关闭、测试入口替换和 run 拒绝；Windows 另验证 DbgHelp 宿主会话共存、import library／PDB 与额外导出拒绝；阻塞 native 调用期间的并发移动 GC 在七个目标上通过。runtime ABI 32／metadata 10，开发 sysroot 须显式重建；本机 Darwin AArch64 的 36 个系统 Cone 与四种 runtime 变体已重建。Rust 全 workspace 的两项既有测试环境限制见设计第 11 节，不计为默认全量通过。
 
-iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
+iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
+
+### Swift 原生库第一阶段（已完成，2026-11-18，[设计](swift-libraries/DESIGN.md)）
+
+第一阶段从 Swift package 已有的 `@c` 函数出发，经 Swift 工具生产 `.a`／`.dylib`／静态或动态 framework，接入 Scoop 最终链接及手写 `@Extern` 调用。首期为 macOS 宿主与现有两个 Darwin target；这与 Scoop native-app 自身的 framework 输出是不同能力。
+
+- 增加 `native.swift` 生产声明；PM 只展开 Cone 配置，SwiftPM 管理 Swift 图和 Package.resolved，driver 调度独立 Swift 节点。
+- 将 Swift 包目录和 Cone 显式声明的包外依赖／framework／插件／环境输入纳入现有更新记录；不分析 Package.swift 推导依赖。命中不调用 Swift；所有 Swift 节点更新检查先于最终链接复用，仅 Swift 实现变化不重编 Scoop `.slib`。
+- 完成 Swift autolink、runtime／SDK 系统库、framework 固定组装与资源部署；交付 `.slib` 配套原生文件，支持显式 artifact-only 链接。最终链接依赖写在 Cone，私有 framework 清单独立写在 bundle metadata，rpath 重定位和签名只在 bundle 阶段执行；系统 framework 不打包。
+- 以真实 `@c` 调用、两种架构、三类容器、缓存失效／并发／失败、资源读取及可重定位部署验收。语言、实现、包管理与 runtime spec 及可运行 `language/swift-bridge` 示例已同步；两架构完成记录与必要限制见 [实施记录](swift-libraries/PROGRESS.md)。
+
+下一阶段单独设计 bindgen：分析 Swift API，生成 Swift C ABI 包装和 Scoop binding。本阶段不生成包装、不导入 Swift 类型或引入 Swift ABI。
 
 ### 独立 Regex 库（已完成，[设计](regex/INVESTIGATION.md)、[规范](specs/SCOOP-REGEX-SPEC.md)、[实施记录](regex/PROGRESS.md)）
 

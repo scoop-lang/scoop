@@ -30,7 +30,7 @@ fn check_system_libraries(target: &str, musl: bool) {
         requirements.insert(id, (key, vec!["system-library-test".to_owned()]));
         ids.insert(name, id);
     }
-    let mut native = NativeInputs::read(requirements, &[], &profile).unwrap();
+    let mut native = NativeInputs::read(requirements, &[], &profile, &[]).unwrap();
     let namespace = ElfNamespace::read(&mut native, &[], &profile).unwrap();
     for (name, symbol) in [("c", "puts"), ("m", "cos")] {
         let library = &native.libraries[&ids[name]];
@@ -95,7 +95,7 @@ fn real_elf_flat_namespace_rejects_incompatible_explicit_library_bindings() {
         ids.push(id);
     }
     let roots = vec![path.to_owned()];
-    let mut native = NativeInputs::read(libraries, &roots, &profile).unwrap();
+    let mut native = NativeInputs::read(libraries, &roots, &profile, &[]).unwrap();
     let mut namespace = ElfNamespace::read(&mut native, &roots, &profile).unwrap();
     for (symbol, library) in [("m23_foo", ids[0]), ("m23_bar", ids[1])] {
         let mut candidates =

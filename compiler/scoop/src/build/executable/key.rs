@@ -64,6 +64,15 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         ),
         options.sysroot.as_deref().map(path).transpose()?,
         options.unwind_prefix.as_deref().map(path).transpose()?,
+        (
+            options.swift_toolchain.as_deref().map(path).transpose()?,
+            request
+                .graph
+                .swift_products()
+                .iter()
+                .map(|product| product.link_key.as_array())
+                .collect::<Vec<_>>(),
+        ),
         request
             .libraries
             .iter()

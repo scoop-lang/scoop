@@ -38,6 +38,7 @@ pub struct BuildContext {
     pub purpose: scoop_protocol::CompilationPurpose,
     pub jobs: std::num::NonZeroUsize,
     pub generators: scoop_toolchain::GeneratorPrograms,
+    pub swift: scoop_toolchain::swift::SwiftBuildOptions,
 }
 
 #[derive(Debug)]

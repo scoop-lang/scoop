@@ -20,6 +20,8 @@ Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN
 
 编译器使用自身及所选 C/C++ 工具链成功产生的输出，后续步骤只读取实际需要的数据，不重新证明生产过程。工作文件按普通生命周期管理，不设为只读、不审计权限或文件来源。实际 I/O、编译和链接错误正常报告；失败不发布部分结果。实体身份、ODR、ABI、GC 与读取边界所需的数据继续保留，不以验证资格或生产凭证替代这些普通合同。
 
+Swift 原生库第一阶段见 2.7.1～2.8.1 及 [Swift 设计](../swift-libraries/DESIGN.md)。它通过 Swift 工具生产独立 native 库结果并记录更新，不增加编译 stage、Swift ABI 或 bindgen；实现及目标验收进度见 [实施记录](../swift-libraries/PROGRESS.md)。
+
 编译请求明确选择相容的 LIR target、backend、C bridge toolchain、runtime build 与 final-link 配置。静态目标目录由独立的 `scoop-target-data`（`compiler/target-data`）维护：`targets.toml` 是 Rust 与维护／fixture 脚本共用的完整目标事实，Rust 构建时生成类型化常量，Python 直接读取同一配置。目录只登记已实现的目标和实现选择，不执行工具探测或 ABI 分类；driver、toolchain、对象消费者和脚本按需投影，不各自维护完整目标列表。typed target/backend/toolchain identity 只规定规范化名称与版本的格式；格式合法不代表相应消费者支持。native 符号的对象前缀由选中目标的数据显式传入；identity 解码只检查身份和符号字节格式，目标消费边界按源码符号重建并核对归一化结果。LLVM/backend 和具体 ABI 实现由 codegen 选择，对象读取与最终链接由 slib/linker 的有限支持集合决定，未知或不相容组合必须明确诊断，不回退到宿主目标。阶段只消费其所需投影；library 编译不要求未使用的最终 linker、CRT 或 unwind archive，链接只执行其实际需要的工具，不通过移除源码编译器或 LLVM 工具证明隔离能力。
 
 静态目录是 OS、机器架构、对象目标、过程 ABI、backend、codegen deployment profile、machine frame、native environment 与 final-link profile 的唯一组合根。Rust 侧的 OS 与机器架构使用封闭的类型化值；对象目标是 `{format, machine, header ABI/flags, relocation profile, symbol normalization}` 的完整数据，不以单独的 format 代替 machine 与 ABI。目录只引用当前已有的实现，不为尚未支持的 OS、机器、ABI、triple、SDK 或资源保存占位值。consumer 只能读取自己负责的投影：runtime OS 服务不从 native environment 或对象格式推导，ABI planner 不从 ISA 或 OS 推导过程 ABI，对象 reader 不从 format 推导 machine，codegen deployment 与 final-link 都由目录显式选择，不从对象格式或 native environment 推导平台；源码调试信息格式由 backend 合同显式选择，不能以 COFF、ELF 或 Mach-O 反推 CodeView 或 DWARF。目录构建边界一次检查这些投影相容，数据未变化的后续 stage 复用结果，不重复组合或重放全量检查。
@@ -967,7 +969,7 @@ MIR `identity-foundation/6` 与 LIR foundation 保存实际实现的实体目录
 
 归档输出至 `tmp/dist/scoop-<version>/` 或显式输出目录，全部成功后写入 `packages-<host>.list`；发布侧只从该清单选取本次附件。安装根继续包含 `bin`、`commands`、`lib/<target>`、`include`、`src`、`vendor`、`native`、`libexec`、`share`、`tooling` 和 post-install 入口。commands 按原内容和 executable 权限复制，空目录仍进入包，`.gitkeep` 不进入包。VSIX 按 npm lockfile 构建，源码 revision、版本与宿主写入纯文本 VERSION 和说明性 toolchain.toml；docs 由安装后生成。默认 LLVM 输入缺失时由维护脚本取得固定上游归档，显式输入失败照常报错。宿主／目标集合不变，Darwin AArch64 同时发行两个 Darwin 目标，Linux GNU 同时发行 GNU／musl。
 
-Windows 默认工具选择分别保存实际宿主安装根与所选 Scoop sysroot：Clang／LLD、Clang builtin headers 和 MinGW 公共头取自宿主安装根，目标 SDK 取自 `<sysroot>/lib/<target>/toolchain`。generated-C、native C/C++、RC 预处理和最终链接消费同一次解析结果；目标配置头优先于公共头，C++ 另加配置与公共 libc++ 目录，Clang resource-dir 指向目标 compiler-rt，并显式保留宿主 builtin include。最终 driver／linker 不从目标数据包寻找。显式完整外部 native prefix 仍使用自身的头、库与工具，不混入随包公共头。Scoop sysroot 加入 target request 的 field 3；compiler protocol 为 32，按同一请求传递实际调用配置，删除原调用配置中的工具输入指纹，不保存 native 工具巡检记录，不改 `.slib` 或 runtime ABI。
+Windows 默认工具选择分别保存实际宿主安装根与所选 Scoop sysroot：Clang／LLD、Clang builtin headers 和 MinGW 公共头取自宿主安装根，目标 SDK 取自 `<sysroot>/lib/<target>/toolchain`。generated-C、native C/C++、RC 预处理和最终链接消费同一次解析结果；目标配置头优先于公共头，C++ 另加配置与公共 libc++ 目录，Clang resource-dir 指向目标 compiler-rt，并显式保留宿主 builtin include。最终 driver／linker 不从目标数据包寻找。显式完整外部 native prefix 仍使用自身的头、库与工具，不混入随包公共头。Scoop sysroot 加入 target request 的 field 3；compiler protocol 为 33，按同一请求传递实际调用配置，删除原调用配置中的工具输入指纹，不保存 native 工具巡检记录，不改 `.slib` 或 runtime ABI。
 
 发行组件索引使用 schema 1 TOML。每个固定 release 的 `manifest.toml` 记录 release／version／revision、sources／vendor 引用、宿主默认 target 与可用 target、各 target 的 base／可选 GUI／native 引用和平台要求；每个归档记录相对 path、压缩 size 和 SHA-256。索引仅来自本次成功组装的归档。各宿主生成独立片段，全局 sources／vendor 仅选一个生产宿主的片段；发布作业合并为完整索引，再更新 `latest.toml` 指向它。普通命令与已安装组件复用不读取归档做摘要检查。具体字段见[发行索引格式](../distribution/MANIFEST.md)。
 
@@ -1201,7 +1203,7 @@ PM的全局源码/解析缓存与编译缓存职责分离，默认布局和覆�
 
 Windows 编译缓存和 native 构建记录的原子发布支持超过传统 `MAX_PATH` 的缓存目录。创建临时文件及替换目标记录时使用同一已存在目录的完整系统路径；该处理只发生在实际发布时，不改变缓存更新条件或命中路径。
 
-machine transport 为一次 request/response 的 length-prefixed canonical CBOR，protocol version 为 32（诊断附加信息携带规则编号与递归原因／说明／建议；展开 native.cxx 保存目标条件；展开 native.include 保存普通路径或 target sysroot 路径；已解析 Linux C 工具记录加入 compiler family；展开 native 配置加入 `objc_flags`；合并 full 静态变量调试级别、Windows C++ 工具 locator 与编译期环境、文件及目录输入；展开配置保留原 Cone 根定位；当前 Cone 采用已展开配置，已有 Check、观察、生成器配置、工具输入和片段诊断原文保持），stdout 只含协议 frame。build request field 6 为输出选择：Artifact、Documentation、ArtifactWithDocumentation，保存各自实际输出 locator；Check 使用新 tag 4 的单字段 map，只保存 tag、不含 locator；成功 response 的 field 2 使用对应 product 选择，Artifact 与 ArtifactWithDocumentation 变体携带 artifact summary，文档输出保存渲染输入 locator 和独立文档 warning；Check product 同样使用 tag 4 的单字段 map，warning 与实际 generator 输入沿共有成功字段保存。Check 拒绝 dump、observation-only 与非空 native 对象输入。build request field 9 为 OptimizationMode（Debug=1、Release=2），field 10 为按归一化路径排序的选中 native 源码所对应的已编译 native 对象 locator 数组，机器生产时数量必须与 manifest 的实际 target 选择一致；没有 native 源码或仅文档时为空。field 11 为当前 Cone 的 CompilationPurpose（Production=1、Test=2）；field 12 为按名称排序且唯一的 generator 注册数组，保存名称与已按接收 CLI cwd 解析的绝对宿主程序路径，未使用的注册不探测程序。build request field 13 为 DebugInfoLevel（none=0、line-tables=1、full=2）；和 field 9 的优化模式独立，生产级别进入源码 Cone 的编译更新键。target request 保存 canonical triple，以及待解析的 C driver／native sysroot 选择或已解析的 C 工具调用记录。parent 将已得到的记录直接交给 child，child 解码后用于实际编译，不重复执行探测；独立 scoopc 请求仍执行正常工具发现。调用数据保存实际目标／deployment 配置与 host locator，不保存工具状态巡检摘要，不是产物验证资格，host locator 不进入 artifact identity。旧或不匹配协议拒绝。request envelope field 5 为 observation-only 标志（unsigned 0／1）；为 true 时必须请求非空 dump 集合，沿同一编译实现执行到最后一个所需阶段，不发布机器对象或 `.slib`。观察成功使用 response tag 3，携带 warning 和 dump 描述，不伪造产物摘要。
+machine transport 为一次 request/response 的 length-prefixed canonical CBOR，protocol version 为 33（Swift 生产配方仅由 driver 消费，compiler 接收逻辑 native 库投影；诊断附加信息携带规则编号与递归原因／说明／建议；展开 native.cxx 保存目标条件；展开 native.include 保存普通路径或 target sysroot 路径；已解析 Linux C 工具记录加入 compiler family；展开 native 配置加入 `objc_flags`；合并 full 静态变量调试级别、Windows C++ 工具 locator 与编译期环境、文件及目录输入；展开配置保留原 Cone 根定位；当前 Cone 采用已展开配置，已有 Check、观察、生成器配置、工具输入和片段诊断原文保持），stdout 只含协议 frame。build request field 6 为输出选择：Artifact、Documentation、ArtifactWithDocumentation，保存各自实际输出 locator；Check 使用新 tag 4 的单字段 map，只保存 tag、不含 locator；成功 response 的 field 2 使用对应 product 选择，Artifact 与 ArtifactWithDocumentation 变体携带 artifact summary，文档输出保存渲染输入 locator 和独立文档 warning；Check product 同样使用 tag 4 的单字段 map，warning 与实际 generator 输入沿共有成功字段保存。Check 拒绝 dump、observation-only 与非空 native 对象输入。build request field 9 为 OptimizationMode（Debug=1、Release=2），field 10 为按归一化路径排序的选中 native 源码所对应的已编译 native 对象 locator 数组，机器生产时数量必须与 manifest 的实际 target 选择一致；没有 native 源码或仅文档时为空。field 11 为当前 Cone 的 CompilationPurpose（Production=1、Test=2）；field 12 为按名称排序且唯一的 generator 注册数组，保存名称与已按接收 CLI cwd 解析的绝对宿主程序路径，未使用的注册不探测程序。build request field 13 为 DebugInfoLevel（none=0、line-tables=1、full=2）；和 field 9 的优化模式独立，生产级别进入源码 Cone 的编译更新键。target request 保存 canonical triple，以及待解析的 C driver／native sysroot 选择或已解析的 C 工具调用记录。parent 将已得到的记录直接交给 child，child 解码后用于实际编译，不重复执行探测；独立 scoopc 请求仍执行正常工具发现。调用数据保存实际目标／deployment 配置与 host locator，不保存工具状态巡检摘要，不是产物验证资格，host locator 不进入 artifact identity。旧或不匹配协议拒绝。request envelope field 5 为 observation-only 标志（unsigned 0／1）；为 true 时必须请求非空 dump 集合，沿同一编译实现执行到最后一个所需阶段，不发布机器对象或 `.slib`。观察成功使用 response tag 3，携带 warning 和 dump 描述，不伪造产物摘要。
 
 成功响应直接携带生产时得到的产物摘要：Cone、直接依赖、target、产物 profile、各语义指纹、artifact fingerprint 及测试目录，并携带 warning 和 dump 描述。parent 将该摘要与产物实际位置保存为普通构建记录，不重新打开 child 产物、重读摘要或逐字段核对响应与归档。摘要是后续编译、链接及测试列举需要的数据，不是验证资格；不得包含无人消费的归档长度或成员数来支持复核。protocol 8 用此摘要替换原独立的七个指纹字段。
 
@@ -1231,11 +1233,47 @@ generator 的 stderr 沿 driver 日志目标输出。scoop 在取得合法的 ch
 
 所有 profile 可显式请求 symbols，未请求时不收集或渲染该映射。它不进入 `.slib`、语言身份、ABI、Code 或优化输入，不改变机器代码、GC roots 或程序行为；仅请求缺失的 symbols 时沿 observation-only 路径停在 LIR，已有机器产物和最终链接继续复用。缓存命中仅复制已有观察。文档模式只允许 AST／HIR 的约定保持。
 
-包管理机器协议版本为 8；编译器机器协议版本为 32；generator 协议版本为 2。诊断具有明确 Error/Warning severity，primary 与 notes 保存实际 Cone、logical source 和 byte span。源码读取等文件级错误仅有实际 host path、没有字节区间时，使用独立的 HostPath origin（wire tag 5），不得丢失路径或伪造区间；已有 HostPathSpan 编码保持。产物错误保存 container/manifest/member/section 与 wire field path，I/O 错误不伪装成源码位置。human 与逐行 JSON（schema 2）使用同一结构化记录，写 stderr；stdout 留给被执行程序。缓存中的 warning 在本次显示时附加 locator，不丢失原位置。显示源码诊断时仅按需读取涉及的文件以计算行列和提取片段，同一轮显示共享读取结果；此读取不参与缓存更新判定。
+包管理机器协议版本为 10；编译器机器协议版本为 33；generator 协议版本为 2。诊断具有明确 Error/Warning severity，primary 与 notes 保存实际 Cone、logical source 和 byte span。源码读取等文件级错误仅有实际 host path、没有字节区间时，使用独立的 HostPath origin（wire tag 5），不得丢失路径或伪造区间；已有 HostPathSpan 编码保持。产物错误保存 container/manifest/member/section 与 wire field path，I/O 错误不伪装成源码位置。human 与逐行 JSON（schema 2）使用同一结构化记录，写 stderr；stdout 留给被执行程序。缓存中的 warning 在本次显示时附加 locator，不丢失原位置。显示源码诊断时仅按需读取涉及的文件以计算行列和提取片段，同一轮显示共享读取结果；此读取不参与缓存更新判定。
 
 human 诊断采用源码片段展示：先输出 severity、可用的错误代码和说明，再显示文件、行列、带行号的源码及标记实际 byte span 的下划线；related notes 显示各自的来源。UTF-8 字符、制表符、跨行范围及文件末尾的零宽位置应正确对齐；长片段可以折叠。终端可使用颜色，重定向输出不包含终端控制序列。源码不可读或无有效范围时仍保留原错误及可用的路径／字节位置，不猜测源码。JSON 继续输出结构化字段，不混入终端排版。
 
 工具中断停止后续构建并回收正在运行的 child。Unix 向 child 传递原信号并保留真实 signal；Windows 处理 Ctrl+C／Ctrl+Break／console close，以持有的 process handle 终止尚在运行的 child，使用 `STATUS_CONTROL_C_EXIT`，不将它解释为 POSIX signal。Windows 外部程序的普通退出保留完整 32-bit 状态。某节点失败后停止派发新节点，不启动 dependent 或 program-link，并等待已启动的 child 收尾；失败节点不发布结果，已经成功的节点继续遵循普通缓存规则。已收集失败按 canonical 顺序选择报告，不能因为完成时间不同而重排同一组诊断。
+
+#### 2.7.1 Swift 包生产与更新记录
+
+源码配置使用语言规范 12.2.5 的 `native.swift`，依赖选择和 lock 见包管理规范 6.3。首期仅为 macOS 宿主上的现有 Darwin AArch64／x86-64 target；实际 Swift 工具链必须支持包的 tools version 和 Swift 6.3 起的正式 `@c`。driver、compiler、PM 与链接工具须使用相容的配套协议。
+
+**职责与输入投影。** PM 只交付展开的生产声明；`scoop` 负责更新检查、Swift 子进程和产物发布；SwiftPM 负责包内依赖、target 选择、host 宏／插件和实际编译；`scoopc` 只接收投影后的普通 native 库要求与 Scoop 源码。选定 Swift product 是独立生产节点，不取得 ConeIdentity，也不把 Swift target 复制成 Scoop 编译节点。
+
+Swift 配方不进入已有 C/C++ native 对象键或 Scoop 源码编译键。library/static、library/dynamic、framework 分别向既有 native 要求表投影 StaticArchive、Dynamic、Framework；只有该投影变化才改变对应 Scoop 编译输入。Swift 源码、lock、flags／环境或二进制变化而投影未变时，复用既有 `.slib`，更新独立的原生链接／部署输入。实现不能因为原 `NativeConfig` 同时容纳配方就散列其全部字段作为语义键。
+
+**配置与工具。** `--swift-toolchain <path>` 选择含 `usr/bin/swift`、`usr/bin/swiftc` 和配套资源的根；缺省采用本次 Xcode 开发环境的默认工具链。Darwin SDK、目标架构和 debug/release 显式传给 Swift，不能采用宿主默认目标；本次最低部署版本传入环境，包自身的部署设置仍由 SwiftPM 管理。package/product、configuration、scratch、jobs 和输出参数由 driver 管理；直接传 argv，不经过 shell。SwiftPM 的编译 flags／traits 由包清单表达，本阶段不提供任意构建 hook。只交接普通机器码，不要求 Swift 内部 LLVM 与 Scoop 相同，不使用跨工具链 bitcode／LTO。
+
+首期明确选用 SwiftPM 的 Swift Build 后端（`--build-system swiftbuild`），所选工具必须支持它，不静默切换其他后端的输入／资源合同。AArch64、x86-64 分别使用 `--arch arm64`、`--arch x86_64`，配合选定 macOS SDK；不同时传互斥的 `--triple`，也不依赖该参数控制 Swift Build 的架构。SwiftPM 可以按包声明生成最低版本更低的库；实际产物要求的最低系统版本高于本次目标时由普通 native 消费检查报告不相容，不静默抬高最终程序基线，不解析 Package.swift 重建部署设置。PM 共享 Git／registry 源码中的 Swift 根按包管理规范 6.3 消费随包 lock，scratch／下载／产物不得回写共享源码。
+
+节点配置键由实际 package locator、product、linkage、format／bundle_id、目标与部署、SDK／工具链选择、profile、附加 inputs/env 及 adapter 格式版本构成。无关 source Cone identity 不妨碍相同配置共享；不同来源或配置不能仅凭同名 product 合并。工具的有效选择配置进入记录，实际发现与版本／target-info 查询在未命中后执行；继续遵守 2.7 不巡检整套工具文件或 SDK 的规则。
+
+**更新记录。** Swift package 是一个完整的外部生产节点。Scoop 不解析 Package.swift，也不调用 dump-package／describe／show-dependencies 来推导 package、target、trait、plugin 或最终链接依赖。SwiftPM 自己执行清单并完成其内部构建；Scoop 只观察声明输入和实际产物。
+
+包根目录递归参与更新判断，覆盖 Package.swift、版本专用清单、Package.resolved、源码、头文件、module map、资源、插件及二进制文件；忽略 `.git`、`.build` 和本次构建缓存目录。包内的未选 target／测试文件也按普通目录输入处理，不复刻 SwiftPM 的 source/exclude 或条件选择规则。Package.resolved 的缺席、出现、变化均记录；它作为普通输入交给 SwiftPM，不在 Scoop 内复制远端依赖图。
+
+包外本地／editable 依赖、第三方 framework、宏／插件读取的额外文件和目录，必须在 **Cone.toml** 的 `native.swift.inputs` 显式列出；声明目录递归覆盖文件及嵌套增删、删除、重命名，声明文件缺失报错。`env` 显式列出清单／生成器消费的环境。远端包版本由根 Package.resolved 固定；对 checkout 的本地编辑同样须声明其实际目录。不会因远端出现新版本而失效。未声明的包外输入不承诺自动发现。
+
+记录采用文件 metadata 与目录选择。目录状态变化先重新枚举；输入集合或已记录文件变化使节点失效。命中不读取源码正文或 Package.swift，不运行 SwiftPM 空构建。附加 inputs 变化为 Swift 选择新的工作状态，保证清单／插件实际消费新输入；普通包内源码与资源变化交给 SwiftPM 正常增量构建。依赖和编译行为以 Swift 工具为准，不自行分析 prebuild 或要求每次执行的任意脚本。
+
+Swift Build 的实际输出描述仅用于定位所选 `.a`／`.dylib`、模块、resource bundle 和同次生成的配套原生文件；不从命令参数反推 consumer 的链接 flags，不扫描 Package.swift 里的 linkerSettings。最终需要的系统／第三方 framework 和库由 Cone 的 `native.libraries` 声明；归档成员已有的 autolink 仍按普通机器码链接规则处理。实际产物目标／部署版本的相容性沿正常 native 消费边界检查。
+
+有效配置、已记录输入均未变且所需输出存在时，直接返回已存结果。命中先于源码正文读取、清单执行、工具定位／探测、输入／输出复制以及 Swift、xcrun、Xcode 调用；不读取命中库来检查内容、符号或摘要。framework 检查记录中实际必需的二进制、Info.plist、模块／资源文件是否存在，不能只检查外层目录。沿用普通输入变化及缺失输入错误规则，不新增构建期间输入替换检测／重试、不可变源码镜像、缓存损坏恢复或验证凭证。
+
+**调度。** Scoop 编译节点与 Swift 节点按各自已知输入就绪；手写 extern 的编译不依赖 Swift 二进制，可独立执行。最终链接或其缓存复用必须等待全部实际 Swift 生产结果完成更新判断。相同生产配置共享结果与普通锁，取得锁后重查；同一 package 的可写 workspace／根 Package.resolved 另按包级普通锁协调，跨 scratch 也不能同时覆盖其选择。等待者让出父调度执行位。Swift 节点加入现有 `--jobs` ready queue，分配正常子进程并行度，不另外建立资源预算系统。
+
+SwiftPM scratch 按 package／实际编译配置保持以复用其内部增量；不同输入不能覆盖正在消费的已发布结果。工具成功后，把所需产物及资源一次发布到新的结果目录，再更新记录；命中不复制。失败保留上次成功结果和已正确产生的 lock，但不将旧结果用于本次链接或 run，不发布部分 framework。独立成功的 Scoop 编译结果可以继续留在其正常缓存中。
+
+**构建入口与返回。** 主要调用为 `swift build --build-system swiftbuild --package-path … --product … --configuration … --scratch-path …`，传入选定目标／SDK／部署和 jobs。实际产物位置由正常工具输出或 `--show-bin-path` 在未命中时取得。automatic product 不承诺独立库，按语言规范要求改为显式 static/dynamic；不补写 Swift 源码或重写第三方清单。framework 的固定组装和发布规则见 2.8.1。
+
+新增 Swift 结果携带逻辑 product、实际库／framework 路径、二进制 linkage、同次生成的配套原生文件、部署资源及已有更新结果。它与 `PreparedNativeObjects` 的逐文件 `.o` 通道分开，不占用 scoopc 的有序 native-object 数组。根和全部 source Cone 的结果沿构建图汇总到最终链接；相同生产键共用，同一逻辑库名的不同生产绑定报冲突，不按搜索顺序覆盖。
+
+源码 library build 和 `--emit-slib` 同样生产 Swift 配套库，`.slib` 与 `<slib-stem>.native/` 成为本次交付；配套目录保存实际库、同次生成的配套原生文件和资源，不是新的语言归档格式。只改变 Swift 实现时可以单独更新配套结果而不重写 `.slib`。构建 JSON 返回 `native_outputs`，包含逻辑库名、产物种类、linkage、实际二进制／framework／配套原生文件／资源路径，命中返回同一已存描述。配套目录的 `native-outputs.json` 使用同一描述与目录内相对路径，支持独立链接及整体搬迁；字段服务工具交接，不写入语言实体身份。
 
 ### 2.8 程序链接与最终结果复用
 
@@ -1347,6 +1385,8 @@ Windows 显式 library roots 的 TargetDefault 候选为 `L.obj`、`L.o`、`L.li
 
 尚未满足的 native 引用在候选选择时保留 Strong／Common／Weak 绑定，按下述目标优先级排除较弱候选；不能将一个强定义与 archive 中的弱后备实现误报为多 provider 歧义。最高优先级有多个 Strong 时仍报歧义；仅有同级 Weak／Common 时，优先复用 namespace provider，否则按既有 native 输入顺序选择。已经引入的对象定义继续按平台规则满足引用，不为查找另一个后备实现额外抽取 archive member；显式 library 的归属检查不变。
 
+Darwin 的尚未抽取 archive 成员按惰性链接处理：最高优先级候选均来自 archive 时，按已有 native 输入顺序抽取第一个，再由新增引用继续闭合；不能把仅存在于其他未选成员中的强定义当作已经发生的冲突。SwiftPM 将二进制依赖合入产品归档、同时对象仍保留该依赖的 autolink 时，也采用这一规则，不要求字节相等证明或生产来源声明。若其他引用使两个成员都被实际抽取，重复强定义仍在加入第二个对象时报告；动态 provider 的歧义与显式库归属保持原规则。
+
 COFF import library 中的导入条目是供 PE linker 惰性选择的引用，不是已抽取的普通对象强定义。默认 namespace 有多个 import library 提供同名条目时，按既有 native 输入顺序选择第一个，例如 kernel32 与 ntdll 都提供 RtlLookupFunctionEntry；不因同时声明这两个正常系统库而报重复强定义，也不声称不同 DLL 的导出必然等价。显式 SourceExtern library 仍先限定候选来源，普通对象的 Strong 冲突规则不变。短格式与 GNU 长格式 import 采用同一选择规则，最终链接使用相同输入顺序和原 import archive。
 
 Linux 默认 namespace 中，显式 native 对象或 archive 成员的 Strong 定义优先于工具链固定系统运行库的同名接口：系统 archive 只补充未满足的定义，系统动态库遵守 ELF 的普通符号抢占规则，不将其接口计为第二个对象 Strong 定义。这包括 Rust staticlib 携带的算术 builtins 与配套 `libgcc.a`／C++ `libgcc_s.so` 的组合。多个显式 native Strong 候选的歧义、显式动态库之间的候选规则，以及显式 SourceExtern library 归属检查保持不变。
@@ -1382,11 +1422,55 @@ DSO 依赖查找使用显式 roots、provider 目录、实际 RPATH/RUNPATH 与�
 native-app 最终链接由 root `.slib` 的完整 entry 分支选择 shared-library profile，生成唯一公开 `scoop_app_init`，内部调用 `scoop_rt_init_native_app(images, image_count, native_app_entry, host_api, out_app_api, out_error, enable_stack_trace)`。默认输出为 Darwin `lib<name>.dylib`、ELF `lib<name>.so`、Windows `<name>.dll`；显式输出名原样保留。`build` 和 artifact-only `link` 共用此路径，`run` 报告需要 native host。`--install-name`／`--soname` 只适用于对应平台的 shared-library profile。Windows import library 和所需调试文件随最终产物一起发布，并作为缓存命中所需输出；新链接的 PE 必须在发布前检查实际 export 恰为 scoop_app_init。更新记录包含输出种类、实际 loader name 与 bootstrap 配置；未变化且输出齐备时直接复用，不读取命中动态库或 import library。
 
 
-ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v7`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
+ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v10`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
 
 面向用户的 native 缺失符号诊断显示声明请求的库名；Mach-O 动态 provider 的文本计划按实际 install name 排序，再以 provider identity 区分同名记录。对象内容变化不能仅因内容摘要的排序改变这部分报告顺序；真实链接顺序、绑定、依赖边和 canonical 内容编码保持原合同。
 
 本次链接按实际 target、symbol、Strong/ODR 选择、startup/image 与 GC/EH 要求生成程序，native linker 不能改选另一份 ODR 实现。工具成功后普通 rename 发布并保存链接结果，不重新读取刚生成的 executable 完整复核生产过程。目标装载格式与执行位属于输出工作；后端、链接与 GC 合同由针对性程序／结构测试验证，不成为每次发布和命中的重放阶段。失败不发布部分文件。
+
+#### 2.8.1 Swift 原生库的链接与发布
+
+本节与 2.7.1 配套，规定精确库绑定、选中成员 autolink、Swift 系统库解析、framework 读取、配套目录／独立链接、资源部署和私有 framework 打包。普通 Darwin LLD、Scoop startup/image tables、GC metadata 与系统 unwind provider 保持；Swift 工具只生产 native 输入，不接管 Scoop 最终链接。
+
+**库与框架。** `.a` 使用 SwiftPM 实际完整 archive，不当作 `.o` 传给 scoopc，也不把所有 target 对象盲目拼接。静态 product 仍可依赖动态库、系统库和资源。`.dylib` 使用其普通 Mach-O 符号和装载依赖。
+
+framework 对语言规范 12.2.5 中实际产出同名 Swift 模块的 product 提供固定组装：先生产匹配 linkage 的普通库，再形成 `<product>.framework/Versions/A/<product>`、`Resources/Info.plist` 和 `Modules/<product>.swiftmodule/`，建立正常的 Versions/Current 与顶层链接。使用实际 compiler module 文件，不为 C ABI 消费强制 library evolution，不生成 Swift wrapper。Info.plist 使用声明的 bundle_id、product 和 FMWK 包类别。静态 framework 的二进制按 archive 读取，动态 framework 按 Mach-O 读取；Framework requirement 表示容器要求，实际二进制决定链接分支。
+
+动态 framework 在发布副本上由平台工具设置 `@rpath/<product>.framework/Versions/A/<product>` install name，并完成实际需要的路径调整与开发 ad-hoc signing。静态 framework 只参与链接。resource bundle 保留 SwiftPM 实际名称，作为独立配套输出；首期 Swift Build 资源访问器支持 CLI 程序相邻位置与 `.app/Contents/Resources`，须按这两种布局实际部署并运行验收，不能依赖构建目录回退或只复制 framework 后假定资源齐全。此流程不接管任意 Xcode project、Universal 或 XCFramework 生产。
+
+**生产绑定与独立消费。** source 构建中，driver 将逻辑 requirement 直接绑定到本次 Swift 生产结果，不把生成目录加入全局 roots 后重新任选库。普通未绑定的 native requirements 继续按 2.8 的搜索规则解析。artifact-only `scoop link`／`scoop-link` 通过既有 `--library-path` 接收 `.slib` 的配套原生目录，不构建 Swift、不回源修复缺库。两个入口接受相同 `--swift-toolchain` 资源选择以定位实际需要的 compatibility library；正常工具信息查询不表示允许 Swift 源码编译。缺失 native 文件、目标不相容和库归属冲突按普通链接错误报告。
+
+显式原生目录中的 `native-outputs.json` 提供实际库／配套文件定位及资源部署描述，原生文件自身继续提供 autolink／目标／符号／装载信息。该描述不替换显式库绑定或放宽冲突规则，没有该文件的普通 library root 沿原规则使用。它不保存构建配方、源码、lock、摘要或成功凭证；仅在实际链接／部署需要时作普通格式读取，内容及文件选择作为正常输入记录，命中不重读复核。
+
+配套描述使用 schema 2：`outputs` 列出逻辑 product、library/framework 格式及 linkage、库／二进制相对路径、同次构建的配套原生文件和 resource bundle；不保存推导的 consumer 链接设置。`libraries/` 保存实际库及 framework，`resources/` 保存原名 resource bundle；所有描述路径相对于该配套目录，使用现有 HostPathCarrier 表达。Swift 同次生成的配套库保存到 `libraries/`；Cone 另行声明的第三方库仍通过显式 library-path 提供，不从 Swift 清单推导或自动 vendor。描述和各文件按自己的输入更新，只删除本次输出集合明确退役的已发布文件，不清空整个配套目录。
+
+配套文件以目录内相对路径交付；同次生成的配套原生文件随库发布，另行声明的第三方库由显式库目录提供，SDK／工具链依赖保留逻辑要求，不能依赖源码／scratch 的绝对搜索路径。独立链接只使用已选逻辑库对应的描述，不把目录中的其他条目全部转成库／资源依赖。
+
+`.slib` 只含现有逻辑 native requirements 与 C ABI 声明，不包含 Swift 配方、源码、锁文件、scratch 路径或整个 framework；单独的 `.slib` 不承诺替代配套文件。Swift 实现变化不改变手写声明的 HIR/MIR/LIR 语义；实际 native 文件和本次结果进入最终链接／部署更新输入。普通 C native 对象的既有嵌入方式不因本节改变。
+
+**autolink 与 runtime。** 在真实链接读取所需对象时，处理 Mach-O `LC_LINKER_OPTION` 和 Cone 显式声明的普通链接需求，转成库／framework 输入。随实际未定义引用选择 archive member，再纳入该 member 的 autolink，直到所需引用闭合；未选择成员不引入其专用依赖。Swift metadata、初始化与重定位所需记录按平台规则保留，不默认 whole-archive 所有 Swift 依赖。
+
+Swift bridge 需要的最终链接库／framework 由所属 Cone 在 `native.libraries` 显式声明，并进入该 Cone 的普通 native requirements；Swift package 的内部依赖及 linkerSettings 只服务它自己的构建。Scoop 不从 Swift 清单、target 或构建参数生成第二套 consumer 链接要求。
+
+已要求的 Swift 库可从所选 SDK 的 `usr/lib/swift` 与所选 Swift 工具链正常资源目录解析，继续使用已有显式／系统 provider 优先级。SDK 的 arm64e 系统 stub 沿已有系统兼容映射消费，不据此放宽第三方机器库的架构检查。实际需要的 Core、Concurrency、StringProcessing、compatibility archives 和其他库均由输入决定，不建立只含 swiftCore 的固定名单。预解析及 LLD 必须消费同一组已选库，不在最后步骤回退宿主搜索。
+
+普通 Mach-O 对象、归档成员及 dylib 可以同时提供 macOS 与 Mac Catalyst 的部署记录（zippered 输入，例如 Apple Swift compatibility archives）。Darwin 消费选择 macOS 记录检查最低部署版本；接受 `LC_BUILD_VERSION` 及等价的旧式 `LC_VERSION_MIN_MACOSX`，两种格式可分别描述不同平台。其他平台记录不使含 macOS 的输入失效；存在平台记录却没有 macOS 记录时拒绝，dylib 仍须有唯一的 macOS 部署记录。该规则不改变架构、符号或归档抽取检查，也不要求 Scoop 生产多平台输出；平台选择与 [LLVM Mach-O 输入处理](https://github.com/llvm/llvm-project/blob/main/lld/MachO/InputFiles.cpp)一致。
+
+动态输入的 weak-load、re-export、install name 与 rpath 按实际平台合同处理，不一律转成强依赖或忽略。保留普通目标、部署版本、符号定义／引用及外部 ABI 声明检查；不声称对象符号表能证明 Swift 实现满足声明类型。产品 linkage 与 runtime linkage 分开，首期使用目标支持的普通动态 Swift runtime 和实际需要的静态 compatibility archive，不提供 macOS 全静态 Swift runtime。
+
+`LC_LOAD_WEAK_DYLIB` 使用与普通 load 相同的路径选择；只有无候选时允许缺席，已找到文件的格式、目标、版本错误或歧义照常报告。缺席边及其查找候选进入更新记录，后续出现实际库时重新解析。弱装载不等于 re-export，不将该依赖的符号加入父库导出，也不把父库内部的弱导入变为主程序的强库要求；缺席时仍可调用父库自身导出。该规则对应 [Apple dyld 的弱依赖加载语义](https://github.com/apple-oss-distributions/dyld/blob/main/dyld/JustInTimeLoader.cpp)。
+
+macOS app 打包同样保留弱装载：无实际候选时保留该可选 load，记录缺席路径而不报缺少强依赖；候选后续出现时使打包记录失效并部署它。路径改写保持原 load-command 种类，不通过增加主程序的强链接来实现部署。
+
+**最终更新与部署。** 最终缓存检查先于 Link 读取和工具准备，但晚于所有 Swift 节点的更新检查。记录纳入已完成的 Swift 链接输入结果及普通 native 文件／选择状态；同一路径不能掩盖 Swift 结果更新。部署资源与链接二进制分开记录，资源变更且库及需求未变时只更新部署。
+
+资源部署按本次最终输出位置记录输入 metadata 和已发布路径，保留 SwiftPM bundle 原名；相同源 bundle 共用，多个不同源要求同一目标名时在复制前报错。未变化时不读取／复制 bundle，缺少部署副本时从已完成的资源结果补齐。source build、两个独立链接入口都部署到输出程序的相邻目录，`run/test` 对含这些 native 输出的程序执行已发布路径，使 `Bundle.main` 与直接运行同一输出一致。资源内容不进入最终链接键；构建 JSON 的 resources 指向本次已部署位置。bundle 工具从该字段取得静态和动态库的资源，沿已有 payload／更新记录放入 `Contents/Resources`，不把静态 archive 当作运行库复制。
+
+开发态 build/run/test 使用已解析的库位置及正常加载路径，最终链接不复制私有 framework，不重写产物的 rpath／依赖加载名。Darwin 链接预留 `-headerpad_max_install_names`，供随后打包修改 load commands。
+
+发布时由 bundle metadata 自己显式列出私有 framework／dylib，复用 `bundle.files` 的 `kind = "framework"`／`"library"`，不从 Cone native metadata 或 Swift 清单推导打包清单。bundle 在副本上部署到 `Contents/Frameworks`，统一处理 rpath、install name 和私有库之间的加载路径，再签名；文件描述、metadata 和产物位置进入已有 bundle 更新记录。系统 framework／dylib 位于系统固定位置，不列入私有清单，bundle 跳过它们，不复制、不修改加载路径、不重签。SwiftPM resource bundle 仍通过既有资源交接进入 `Contents/Resources`。
+
+**调用。** `@c` 入口按语言规范 12.2.5、13.4、13.8 使用现有 C ABI symbol、参数和 NativeSafe 调用。runtime 合同见运行时规范 4.5、5.5；不增加 Swift ABI、ARC/GC 合并、自动类型转换或 bindgen。
 
 ### 2.9 虚方法与接口分派
 
@@ -2001,7 +2085,7 @@ digest kinds 4、8、9，digest owner tags 4、11、9，保留不用；全部 ru
 
 缺少名称或扩展成员时，导入提示只取当前 Cone 和当前源码可用的直接依赖绑定，并使用原可见性、命名空间和 receiver 约束查询。关联声明位置的附注可以携带结构化 import 路径，CLI 与 LSP 读取同一结果，不匹配英文消息或重新检查语义。多个可用路径分别列出；单一路径本身仍有歧义、名称已经被更高层绑定占据或依赖尚未提供时，不生成声称可用的导入修复。提示不改变依赖、不自动包装 `Some`，也不修改调用以掩盖错误。
 
-compiler protocol 的 diagnostic note 使用 field 3 保存 import 路径的标识符数组；空数组表示普通附注。规则编号与递归附属信息遵循 §2.11，当前协议版本为 32。此项只影响配套 driver/scoopc 的一次请求响应，不改变 `.slib` 或 runtime ABI。
+compiler protocol 的 diagnostic note 使用 field 3 保存 import 路径的标识符数组；空数组表示普通附注。规则编号与递归附属信息遵循 §2.11，当前协议版本为 33。此项只影响配套 driver/scoopc 的一次请求响应，不改变 `.slib` 或 runtime ABI。
 
 LSP 的导入 code action 将上述路径转换为同版语法头中的普通 import 编辑，保留源码换行和已有注释。动作携带文档版本；解析延迟动作时也核对分析 revision，import、依赖或目标变化后不能应用旧候选。动作只返回编辑，是否应用由调用方决定。
 

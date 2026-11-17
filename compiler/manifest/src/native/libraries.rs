@@ -13,10 +13,10 @@ use crate::{ManifestParseError, ManifestParseErrorKind, TargetPredicate};
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct NativeLibrary {
     #[serde(with = "crate::serde_record::library_name")]
-    name: CanonicalNativeLibraryName,
+    pub(super) name: CanonicalNativeLibraryName,
     #[serde(with = "crate::serde_record::LibraryKind")]
-    kind: NativeLibraryKind,
-    predicate: TargetPredicate,
+    pub(super) kind: NativeLibraryKind,
+    pub(super) predicate: TargetPredicate,
 }
 
 impl NativeConfig {
@@ -28,10 +28,15 @@ impl NativeConfig {
         scoop_wire::HashError,
     > {
         let mut selected = BTreeMap::new();
+        let swift = self
+            .swift_libraries(target)
+            .map(super::SwiftLibrary::requirement);
         for library in self
             .libraries
             .iter()
             .filter(|library| library.predicate.matches(target))
+            .cloned()
+            .chain(swift)
         {
             let record = CborIdentityRecord::<NativeLinkRequirementId, _>::from_key(
                 NativeLinkRequirementKey::for_target(
