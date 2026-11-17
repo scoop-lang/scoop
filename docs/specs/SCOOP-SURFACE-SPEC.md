@@ -266,13 +266,15 @@ ShortcutBinding 保存 window 的 ShortcutChord，以及 enabled、allowRepeat�
 
 Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines 不换成固定像素，Pixels 已按事件 scale 完成一次逻辑像素换算。每次派发另保存一份可消费残量；`RoutedEventContext.scrollRemaining: InputScrollDelta?` 读取它，非 Wheel 为 None。传播阶段读取的是尚未消费的值，默认阶段由内向外读取前面节点留下的部分，原 InputEvent 不被改写。stopPropagation 不消费滚动量；preventDefault／consume 停止后续默认行为，Contain 策略可在处理本层后用 preventDefault 截断剩余量。
 
-`context.consumeScroll(lineStep: Double, apply: (graphics.Point) -> graphics.Point)` 只允许在 Wheel 的 Default 阶段调用。lineStep 为调用方明确提供的有限正逻辑步长；Lines 先按它换成窗口逻辑距离，再按接收区域的变换换到局部坐标，Pixels 不再应用 scale。无几何 scope 使用窗口逻辑坐标。apply 接收局部有符号位移，返回本容器实际消费的同向、未超量位移；零残量不调用 apply。返回值须有限，各轴允许正常浮点舍入误差，非法结果报告参数错误。消费量换回原单位后从残量扣除，下一容器使用自己的变换及 lineStep；旋转／剪切下仍按同一坐标变换保留向量残量。
+`context.consumeScroll(lineStep: Double, onRemainder: ((graphics.Point) -> graphics.Point)? = None, apply: (graphics.Point) -> graphics.Point)` 只允许在 Wheel 的 Default 阶段调用。lineStep 为调用方明确提供的有限正逻辑步长；Lines 先按它换成窗口逻辑距离，再按接收区域的变换换到局部坐标，Pixels 不再应用 scale。无几何 scope 使用窗口逻辑坐标。apply 接收局部有符号位移，返回本容器实际消费的同向、未超量位移；零残量不调用 apply。返回值须有限，各轴允许正常浮点舍入误差，非法结果报告参数错误。消费量换回原单位后从残量扣除，下一容器使用自己的变换及 lineStep；旋转／剪切下仍按同一坐标变换保留向量残量。
 
 同一次 Wheel 的位置和几何变换在传播前固定，与 localPosition 使用同一 placement。apply 中的布局更新不更换本次换算依据。上下文及 apply 为同步借用，不允许在同一个 apply 内递归消费；回调结束后上下文失效。默认动作已被取消时不再调用 apply。
 
 无 phase、无 momentum 的离散 Wheel 按当次命中选择路由，与鼠标按钮捕获独立。连续 Wheel 从首个非 None phase 固定逻辑目标与路径，MayBegin 到 Began 沿用该路径；同一手势及其动量后续事件只用新的已提交几何换算位置，不因内容滚动或指针经过兄弟区域而改投。接触 Ended 后保存这条路径以接收随后的 momentum Began；等待动量不请求帧，也不算仍在进行的交互。新的接触手势或离散 Wheel 重新命中，结束前一条仍活动的滚动；正常 momentum Ended／Cancelled 释放路由。
 
 `InputPointerEvent.ScrollCancelled(InputCancelReason, InputTime)` 是独立的 Notification，向完整旧滚动路径交付，不取消鼠标按钮捕获；`InputCancelReason.ScrollInterrupted` 表示另一段滚动开始。区域缺席／关闭／禁用／重挂、模态边界切换、窗口失焦和关闭分别沿用 AreaChanged／BoundaryChanged／Window／Closed。处理器内发生这些变化时，立即停止旧滚动的后续普通交付，退出当前派发后再完整通知旧路径；一段已取消的 phase／momentum 保持空路径到结束，不在后续 Changed 或惯性阶段改投背景兄弟。原生 Wheel 自带 Ended／Cancelled 仍按原事件交付，onEventFinished 保证其收尾不会被传播或默认取消吞掉。
+
+`onRemainder` 为本次交付登记可选的最终余量处理。只保存最后一次非 None 登记的接收 scope、当前冻结几何与 lineStep；普通消费者传 None 不撤销已有登记。所有普通 Default 消费正常结束后、onEventFinished 之前调用一次，接收最终剩余的局部位移，并按相同方向、有限值与不超量规则返回实际消费量；即使剩余为零也调用，以完成本次输入。此前调用 preventDefault 只阻止后续普通消费者，不阻止本层已登记的余量处理。其 scope、滚轮／接触路径或输入域失效时跳过；普通阶段抛错不执行最终处理，必要的完成通知仍继续。回调只在该次路由内借用几何，不延长 RoutedEventContext 的寿命，也不能递归消费。直接接触沿同一合同处理剩余窗口位移，不增设第二条路由。
 
 ### 6.5 可组合处理器与按下序列接管
 
@@ -312,7 +314,7 @@ cancelContactClaim(id) 仅取消调用 scope 已取得的该接触，不交还�
 
 InputArea.hitTest(windowPoint) 根据最近 Accepted 的精确几何、clip、逻辑有效性和前景遮挡判断该区域是否在本次命中路径上，供无 hover 的结束命中使用。输入域的 beforePress(InputPress) 在首个鼠标按钮和每个新接触开始传播前执行；InputPress.source 区分 Mouse(InputPointer, MouseButton, clickCount) 与 Contact(ContactState)，保留真实来源。消费开始使该序列后续不再转交目标；弹层关闭等仍沿原输入边界规则。
 
-`RoutedEventContext.consumeContactMovement(apply: (Point) -> Point)` 仅用于 Contact.Moved／Ended 的 Default 阶段。首次调用必须来自该触点已取得归属的 scope；它为本次交付开放共享位移，后续祖先可以继续消费。普通 claim 本身不开放这条通路，独占拖动不会被外层滚动重复消费。`contactRemaining: Point?` 在本次 owner 尚未开放、非移动／结束或路由失效时为 None，开放后为窗口逻辑坐标中的剩余位移；它不改变原 ContactState，也不伪造 Wheel。
+`RoutedEventContext.consumeContactMovement(onRemainder: ((Point) -> Point)? = None, apply: (Point) -> Point)` 仅用于 Contact.Moved／Ended 的 Default 阶段。首次调用必须来自该触点已取得归属的 scope；它为本次交付开放共享位移，后续祖先可以继续消费。普通 claim 本身不开放这条通路，独占拖动不会被外层滚动重复消费。`contactRemaining: Point?` 在本次 owner 尚未开放、非移动／结束或路由失效时为 None，开放后为窗口逻辑坐标中的剩余位移；它不改变原 ContactState，也不伪造 Wheel。
 
 一次接管后的首个消费覆盖原始开始位置到当前位置的位移，使阈值以内的距离只计入一次；后续消费使用前一个原生样本到当前样本的差量，包括正常结束时最后的位移。每次交付单独开放与消费，已被阻止的后续更新不会在下一次重放。起止位置通过本次传播前固定的 Accepted 几何换算，返回的实际同向、未超量局部位移按第 6.4 节的算法换回窗口坐标再扣除，支持嵌套缩放／旋转。零余量不调用 apply；有限值、方向、同步借用和禁止递归规则与滚轮相同。preventDefault 阻止后续祖先消费，取消后不再调用 apply。Ended 仍不能取得新的归属。
 

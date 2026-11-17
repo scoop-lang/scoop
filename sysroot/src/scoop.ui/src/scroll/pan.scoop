@@ -36,6 +36,10 @@ public class ScrollPan internal constructor(
     private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
     private val finished = area.scope.addEventFinished { event -> finish(event) }
 
+    init {
+        viewport.watchInput(area.scope)
+    }
+
     public val isPanning: Boolean get() {
         area.isClosed
         return contact?.active ?: false
@@ -105,7 +109,11 @@ public class ScrollPan internal constructor(
                     contact = Some(ScrollPanContact(value, state, viewport.bindingRevision))
                 }
             }
-            case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> cancel()
+            case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> clear(true, false)
+            case Pointer(InputPointerEvent.Button(_, _, ElementState.Pressed, _)) -> {
+                viewport.cancelAnimation()
+                cancel()
+            }
             else -> {}
         }
     }
@@ -152,8 +160,8 @@ public class ScrollPan internal constructor(
             case Contact(InputContactEvent.Ended(val value)) -> {
                 val candidate = current(value) ?: return
                 if (candidate.active)
-                    consume(context, candidate)
-                clear(false)
+                    consume(context, candidate, true)
+                clear(false, false)
             }
             else -> {}
         }
@@ -225,46 +233,26 @@ public class ScrollPan internal constructor(
             )
     }
 
-    private fun consume(context: RoutedEventContext, candidate: ScrollPanContact) {
+    private fun consume(
+        context: RoutedEventContext,
+        candidate: ScrollPanContact,
+        released: Boolean = false
+    ) {
         if (!candidate.claimed && context.contactRemaining == None) {
             cancel()
             return
         }
         val selected = candidate.axes!!
-        context.consumeContactMovement { amount -> applyMovement(candidate, selected, amount) }
-        if (chain == ScrollChain.Contain && same(candidate))
-            context.preventDefault()
-    }
-
-    private fun applyMovement(
-        candidate: ScrollPanContact,
-        selected: ScrollAxes,
-        amount: Point
-    ): Point {
-        if (!same(candidate) || !viewport.matches(candidate.state, candidate.binding))
-            return Point(0.0, 0.0)
-        val requested =
-            Point(
-                if (selected.horizontal)
-                    -amount.x
-                else
-                    0.0,
-                if (selected.vertical)
-                    -amount.y
-                else
-                    0.0
-            )
-        if (requested == Point(0.0, 0.0))
-            return requested
         applying = true
         ownIntent = None
         try {
-            val consumed = candidate.state.scrollBy(requested, ScrollOrigin.User)
-            return Point(-consumed.x, -consumed.y)
+            viewport.consumeContact(context, selected, released)
         } finally {
             applying = false
             ownIntent = None
         }
+        if (chain == ScrollChain.Contain && same(candidate))
+            context.preventDefault()
     }
 
     private fun same(candidate: ScrollPanContact): Boolean =
@@ -305,11 +293,13 @@ public class ScrollPan internal constructor(
         if (!closed)
             clear(true)
     }
-    private fun clear(release: Boolean) {
+    private fun clear(release: Boolean, stopEffect: Boolean = true) {
         val previous = contact
         contact = None
         when (previous) {
             case Some(val value) -> {
+                if (stopEffect && viewport.active)
+                    viewport.cancelAnimation()
                 if (release && value.claimed && !area.isClosed)
                     area.scope.cancelContactClaim(value.start.id)
             }

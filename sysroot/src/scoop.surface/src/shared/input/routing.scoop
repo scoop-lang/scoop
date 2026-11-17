@@ -10,6 +10,8 @@ internal struct RouteDelivery(
     val geometry: CanvasGeometry? = None
 )
 
+internal class RouteRemainder(val delivery: RouteDelivery, val action: () -> Unit)
+
 internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = None): Array<
     RouteDelivery
 > {
@@ -175,6 +177,18 @@ private fun InputRouter.routeStages(
             }
             pass += 1
         }
+    }
+    when (flags.remainder) {
+        case Some(val final) -> invoke(
+            final.delivery,
+            target,
+            event,
+            RoutedPhase.Default,
+            time,
+            flags,
+            callback = Some { _, _ -> final.action() }
+        )
+        case None -> {}
     }
 }
 

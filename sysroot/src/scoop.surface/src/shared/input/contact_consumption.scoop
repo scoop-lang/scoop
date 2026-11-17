@@ -14,7 +14,12 @@ internal class ContactConsumption(private val route: InputContactRoute) {
             case None -> None
         }
 
-    fun consume(receiver: InputScope, geometry: CanvasGeometry?, apply: (Point) -> Point) {
+    fun consume(
+        receiver: InputScope,
+        geometry: CanvasGeometry?,
+        apply: (Point) -> Point,
+        notifyEmpty: Boolean = false
+    ) {
         val value =
             when (shared) {
                 case Some(val current) -> current
@@ -50,7 +55,7 @@ internal class ContactConsumption(private val route: InputContactRoute) {
                 )
                 case None -> None
             }
-        value.consume(1.0, geometry, anchor, apply)
+        value.consume(1.0, geometry, anchor, apply, notifyEmpty)
     }
 }
 

@@ -1,0 +1,85 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.abs
+import scoop.math.max
+import scoop.math.min
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+
+public enum ScrollBoundary {
+    Platform, Hard, Elastic
+}
+
+/** Bounded presentation at an edge, independent of the logical scroll range. */
+public class ScrollPhysicsOptions public constructor(
+    public val boundary: ScrollBoundary = ScrollBoundary.Platform,
+    public val resistance: Double = 0.55,
+    public val maxOverscroll: Double = 64.0,
+    public val shortContent: Boolean = false,
+    public val stiffness: Double = 200.0,
+    public val dampingRatio: Double = 1.0
+) {
+    init {
+        requireUi(
+            resistance.isFinite() && resistance > 0.0 && resistance <= 1.0,
+            "invalid scroll resistance"
+        )
+        requireUi(maxOverscroll.isFinite() && maxOverscroll > 0.0, "invalid maximum overscroll")
+        requireUi(stiffness.isFinite() && stiffness > 0.0, "invalid scroll spring stiffness")
+        requireUi(dampingRatio.isFinite() && dampingRatio > 0.0, "invalid scroll spring damping")
+    }
+    internal val elastic: Boolean get() =
+        when (boundary) {
+            case Platform -> operatingSystem == OperatingSystem.Darwin
+            case Hard -> false
+            case Elastic -> true
+        }
+}
+
+internal fun sameScrollPhysics(a: ScrollPhysicsOptions, b: ScrollPhysicsOptions): Boolean =
+    a.boundary ==
+        b.boundary &&
+        a.resistance ==
+        b.resistance &&
+        a.maxOverscroll ==
+        b.maxOverscroll &&
+        a.shortContent ==
+        b.shortContent &&
+        a.stiffness ==
+        b.stiffness &&
+        a.dampingRatio ==
+        b.dampingRatio
+
+internal fun scrollElasticDistance(pull: Double, options: ScrollPhysicsOptions): Double {
+    if (pull == 0.0)
+        return 0.0
+    val distance =
+        options.maxOverscroll / (1.0 + options.maxOverscroll / (abs(pull) * options.resistance))
+    return if (pull < 0.0)
+        -distance
+    else
+        distance
+}
+
+/** Returns only the part that restores an existing stretch toward its resting edge. */
+internal fun scrollRestoringPart(pull: Double, delta: Double): Double =
+    if (pull > 0.0 && delta < 0.0)
+        max(-pull, delta)
+    else
+        if (pull < 0.0 && delta > 0.0)
+            min(-pull, delta)
+        else
+            0.0
+
+internal fun scrollAxisPoint(point: Point, axes: ScrollAxes): Point =
+    Point(
+        if (axes.horizontal)
+            point.x
+        else
+            0.0,
+        if (axes.vertical)
+            point.y
+        else
+            0.0
+    )

@@ -25,8 +25,16 @@ private class TouchScrollComponentTest {
         run(true)
     }
 
-    private fun run(virtual: Boolean) {
-        val p = TouchProbe(virtual)
+    @Test
+    fun `elastic scroll area keeps content geometry and follows reduced motion`() {
+        run(false, true)
+    }
+    @Test
+    fun `elastic virtual list preserves legal ranges row geometry and bounded realization`() {
+        run(true, true)
+    }
+    private fun run(virtual: Boolean, elastic: Boolean = false) {
+        val p = TouchProbe(virtual, elastic)
         try {
             UiHost { host, active, event -> p.event(host, active, event) }.use {
                 host -> Application(
@@ -34,7 +42,13 @@ private class TouchScrollComponentTest {
                 ).run(host)
             }
             assertTrue(p.finished)
-            assertEquals(1, p.clicks)
+            assertEquals(
+                if (elastic)
+                    0
+                else
+                    1,
+                p.clicks
+            )
             assertFalse(p.scroll.isAttached)
             assertEquals(0, p.alive)
             if (virtual) {
@@ -58,12 +72,15 @@ private class TouchScrollComponentTest {
     }
 }
 
-internal class TouchProbe(val virtual: Boolean) {
+internal class TouchProbe(val virtual: Boolean, val elastic: Boolean = false) {
     val scroll = ScrollState()
-    val theme =
-        ThemeSource(shadcnTheme { scrollbar { track = StateColors.solid(Color(0.9, 0.9, 0.9)) } })
+    val baseTheme = shadcnTheme { scrollbar { track = StateColors.solid(Color(0.9, 0.9, 0.9)) } }
+    val theme = ThemeSource(baseTheme)
     val generation = state(0)
     var touch = TouchScrollOptions()
+    var physics = ScrollPhysicsOptions()
+    var ui: UiWindow? = None
+    var rowOrigin = 0.0
     var enabled = true
     var gone = false
     var window: Window? = None
@@ -103,16 +120,17 @@ internal class TouchProbe(val virtual: Boolean) {
                 waiter =
                     Some(native.createDeadline { active.proxy().post { _ -> waiting = false } })
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(
-                    native,
-                    { mount -> TouchScene(this, scope = mount) },
-                    preferences =
-                        uiPreferences {
-                            reduceMotion = Some(true)
-                            autoHideScrollbars = Some(true)
-                            reduceTransparency = Some(false)
-                        }
-                )
+                ui =
+                    host.attach(
+                        native,
+                        { mount -> TouchScene(this, scope = mount) },
+                        preferences =
+                            uiPreferences {
+                                reduceMotion = Some(true)
+                                autoHideScrollbars = Some(true)
+                                reduceTransparency = Some(false)
+                            }
+                    )
                 native.requestFocus()
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
@@ -137,13 +155,26 @@ internal class TouchProbe(val virtual: Boolean) {
                         _ ->
                         pending = false
                         if (!finished) {
-                            touchStep(this)
+                            if (elastic)
+                                touchElasticStep(this)
+                            else
+                                touchStep(this)
                             phase += 1
                         }
                     }
                 }
             }
-            case NewEvents(StartCause.Deadline) -> fail(Some("touch scroll timeout"))
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"touch scroll timeout phase=${phase}, focused=${window!!.isFocused}, visible=${
+                        window!!.isVisible
+                    }, occluded=${window!!.isOccluded}, required=${
+                        frames!!.snapshot().required
+                    }, pending=${pending}, waiting=${waiting}, received=${received}/${
+                        queued
+                    }, accepted=${accepted}/${generation.value}"
+                )
+            )
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()
             else -> {}
         }

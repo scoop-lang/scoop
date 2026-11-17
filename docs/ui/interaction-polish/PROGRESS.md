@@ -485,3 +485,16 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 两份 spec、输入边界、accessibility 等价操作、README、编程导航与手势示例同步。示例构建通过，按钮／键盘／语义 Invoke 沿相同卡片切换命令；8 项 UI 与 4 项 Component 生成 API 查询通过，7 个受影响开发库产物已更新。格式、必要生产／测试构建和本地文档链接检查通过；临时应用包和逐次报告清理，保留后续需要的 API 文档与共享缓存。
 
 这些触点和离散 swipe 用例经受控 native 队列进入实际 macOS 窗口，真实触屏／笔、系统 swipe 的设备交付与 Windows／GTK 仍按集中轮次验收。触摸数据拖放、软键盘、滚动物理、其余 accessibility 与完整平台计划继续推进，S8 和完整目标尚未结束。
+
+
+### 弹性滚动边界与共享呈现
+
+- ScrollPhysicsOptions 提供 Platform／Hard／Elastic、阻力、最大视觉距离、短内容开关与 spring 参数。Platform 明确采用 Darwin 弹性、Windows／Linux 硬边界的 UI 默认策略；连续 Pixels／直接 Touch／Pen 可回弹，离散滚轮只改变合法位置，原生 momentum 不叠加模拟减速。公共 ScrollViewport、文本编辑器及 ScrollArea／VirtualList／MessageScroller／Input／Textarea／OTP 共用配置，组合输入保留透传。
+- Surface 的 consumeScroll／consumeContactMovement 增加可选最终余量处理，使用本次冻结坐标和原路由资格，在普通 Default 消费结束后调用一次，零余量也收尾。UI 沿实际参与路径分配合法位移和最终边界，反向输入先恢复祖先已有拉伸；Contain、不同轴、缩放、失效 scope、异常及业务重入不会重复消费或恢复旧效果。
+- ScrollLayout.overscroll／presentationOffset 统一内容呈现，ScrollSnapshot 和虚拟索引始终合法；正文、命中、caret、显露与语义几何沿同一 Accepted 变换。编辑器点击区域保持完整视口，拉伸空白不产生命中孔洞。回弹复用已有 AnimationGroup，结束后停帧，动画帧不发布新的用户定位或未变化的 snapshot。
+- 根与局部减少动画取逻辑或，内置控件转交主题 Reduced；热切换收束回弹，平滑定位直接到原目标。新输入、显式定位、取消、配置／尺寸变化、禁用／离屏／卸载终止旧效果。旧滚动状态回归发现初始化活动通知误取消首帧前排队定位，已改为识别实际活动状态丢失，同一回归通过。
+- aarch64-apple-darwin release 的新 30 步直接接触、26 步原生滚轮、13 步文本回弹及两组各 21 步普通／虚拟列表场景通过；十万项列表最多同时实现 12 行。原两项滚动接触、滚动状态、编辑／IME、两项原生 accessibility 文本和两项组件触摸回归通过，本批共 13 项窗口用例分别在独立进程通过。
+- 组件主题热切换测试改为显式配置基础主题 tokens，避免将一次 withPreferences 解析结果当作持久基础配置；Reduced 与根偏好均验证立即收束。组件一次启动前置超时在后续运行未复现；原生菜单复制断言首次失败，相同构建在独立 Application 进程重跑通过，未复现。保留原焦点与停帧检查，不据这些结果声称已定位为系统焦点问题。
+- Surface 四项最终余量测试、原四项 Wheel／五项接触消费测试及 UI 两项物理规则测试通过，共 15 项普通测试。三库 API 文档及 23 项查询核对公开参数、默认值、属性、继承和导入；spec、accessibility 设计、输入边界、计划、README 与编程导航同步。8 份 Surface／UI／Style／主题／Component 开发产物更新，53 个 Scoop 文件的格式、受影响生产／测试检查、release 构建和本地 Markdown 链接检查通过。临时测试应用与逐次报告清理，保留开发产物、API 文档和共享缓存。
+
+本批仅交付弹性边界，软件触摸惯性、阅读锚点与其余视觉组合仍按 S9 继续。触点用例通过受控 native 队列进入真实 macOS 窗口，不替代真实触屏／笔、读屏器与 Windows／GTK 集中验收；S9 和完整目标尚未结束。

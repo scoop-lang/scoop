@@ -21,8 +21,16 @@ private class ScrollPanWindowTest {
     fun `direct scroll yields initial boundaries and preserves active containment`() {
         run(true)
     }
-    private fun run(boundaries: Boolean) {
-        val probe = PanProbe(boundaries)
+    @Test
+    fun `elastic contact boundaries keep nested geometry and settle on preferences and lifecycle changes`() {
+        run(false, 1)
+    }
+    @Test
+    fun `elastic native scrolling respects momentum containment and discrete wheel boundaries`() {
+        run(false, 2)
+    }
+    private fun run(boundaries: Boolean, physics: Int = 0) {
+        val probe = PanProbe(boundaries, physics)
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
                 host -> Application(
@@ -31,7 +39,7 @@ private class ScrollPanWindowTest {
             }
             assertTrue(probe.finished)
             val actions =
-                if (boundaries)
+                if (boundaries || physics != 0)
                     0
                 else
                     1
@@ -58,7 +66,7 @@ private class ScrollPanWindowTest {
     }
 }
 
-internal class PanProbe(private val boundaries: Boolean = false) {
+internal class PanProbe(private val boundaries: Boolean = false, private val physics: Int = 0) {
     val outer = ScrollState()
     val inner = ScrollState()
     val alternate = ScrollState(Point(0.0, 25.0))
@@ -69,6 +77,20 @@ internal class PanProbe(private val boundaries: Boolean = false) {
             alternate
         else
             inner
+    var innerPhysics = ScrollPhysicsOptions(ScrollBoundary.Hard)
+    var outerPhysics = ScrollPhysicsOptions(ScrollBoundary.Hard)
+    var innerHeight = 320.0
+    var outerHeight = 500.0
+    var innerLayout: ScrollLayout? = None
+    var outerLayout: ScrollLayout? = None
+    var outerViewport: ScrollViewport? = None
+    var outerScope: ComponentScope? = None
+    var leafArea: InputArea? = None
+    var ui: UiWindow? = None
+    var animatedSteps = false
+    var userIntents = 0
+    var beforeIntents = 0
+    var beforeBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var innerOptions = TouchScrollOptions()
     var outerOptions = TouchScrollOptions()
     var outerAxes = ScrollAxes.Both
@@ -112,13 +134,14 @@ internal class PanProbe(private val boundaries: Boolean = false) {
                 frames = Some(observeFrames(native))
                 view = Some(observeWindow(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(native, { mount -> PanScene(this, scope = mount) })
+                ui = host.attach(native, { mount -> PanScene(this, scope = mount) })
                 native.requestFocus()
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case Window(_, WindowEvent.Pointer(PointerEvent.Wheel(_, _, _, _))) -> received += 1
             case AboutToWait -> {
                 val native = window ?: return
                 if (
@@ -129,18 +152,27 @@ internal class PanProbe(private val boundaries: Boolean = false) {
                         generation.value &&
                         received ==
                         queued &&
-                        !frames!!.snapshot().required
+                        (!frames!!.snapshot().required || animatedSteps)
                 ) {
                     pending = true
                     active.proxy().post {
                         application ->
                         pending = false
                         if (!finished) {
-                            if (boundaries)
-                                panBoundaryStep(this)
-                            else
-                                panStep(this, application)
-                            phase += 1
+                            if (physics == 1) {
+                                if (panElasticStep(this))
+                                    phase += 1
+                            } else
+                                if (physics == 2) {
+                                    if (panWheelStep(this))
+                                        phase += 1
+                                } else {
+                                    if (boundaries)
+                                        panBoundaryStep(this)
+                                    else
+                                        panStep(this, application)
+                                    phase += 1
+                                }
                         }
                     }
                 }
@@ -171,9 +203,22 @@ internal class PanProbe(private val boundaries: Boolean = false) {
             }
         }
     }
+    fun wheel(
+        delta: Int,
+        pixels: Boolean = true,
+        phase: Int = 0,
+        momentum: Int = 0,
+        horizontal: Int = 0
+    ) {
+        queued += 1
+        assertTrue(
+            sendSurfaceScroll(window!!, 50.0, 55.0, horizontal, delta, pixels, phase, momentum)
+        )
+    }
     fun intent(state: ScrollState, value: ScrollIntent) {
         when (value) {
             case User(_) -> {
+                userIntents += 1
                 if (overridePosition) {
                     overridePosition = false
                     state.scrollTo(Point(0.0, 75.0))

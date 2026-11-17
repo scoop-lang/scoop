@@ -1,0 +1,36 @@
+package scoop.ui
+
+import scoop.test.*
+
+@Test
+private class ScrollPhysicsTest {
+    @Test
+    fun `elastic presentation is bounded symmetric and restores the held displacement first`() {
+        val options =
+            ScrollPhysicsOptions(ScrollBoundary.Elastic, resistance = 0.5, maxOverscroll = 40.0)
+        assertEquals(0.0, scrollElasticDistance(0.0, options))
+        assertEquals(20.0, scrollElasticDistance(80.0, options))
+        assertEquals(-20.0, scrollElasticDistance(-80.0, options))
+        val large = scrollElasticDistance(1.0e300, options)
+        assertTrue(large > 39.0 && large <= 40.0)
+        assertEquals(0.0, scrollRestoringPart(80.0, 12.0))
+        assertEquals(-15.0, scrollRestoringPart(80.0, -15.0))
+        assertEquals(-80.0, scrollRestoringPart(80.0, -100.0))
+        assertEquals(80.0, scrollRestoringPart(-80.0, 100.0))
+    }
+
+    @Test
+    fun `edge options reject invalid physical values and compare effective configuration`() {
+        assertFailsWith<IllegalArgumentException> { ScrollPhysicsOptions(resistance = 0.0) }
+        assertFailsWith<IllegalArgumentException> { ScrollPhysicsOptions(resistance = 1.01) }
+        assertFailsWith<IllegalArgumentException> { ScrollPhysicsOptions(maxOverscroll = -1.0) }
+        assertFailsWith<IllegalArgumentException> { ScrollPhysicsOptions(stiffness = 0.0) }
+        assertFailsWith<IllegalArgumentException> { ScrollPhysicsOptions(dampingRatio = 0.0) }
+        assertTrue(sameScrollPhysics(ScrollPhysicsOptions(), ScrollPhysicsOptions()))
+        assertFalse(
+            sameScrollPhysics(ScrollPhysicsOptions(), ScrollPhysicsOptions(shortContent = true))
+        )
+        assertFalse(ScrollPhysicsOptions(ScrollBoundary.Hard).elastic)
+        assertTrue(ScrollPhysicsOptions(ScrollBoundary.Elastic).elastic)
+    }
+}

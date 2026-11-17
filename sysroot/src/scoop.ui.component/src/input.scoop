@@ -35,7 +35,8 @@ public class InputProps public constructor(
     public val acceptDrops: Boolean = true,
     public val drag: TextDragOptions = TextDragOptions(),
     public val touch: TextTouchOptions = TextTouchOptions(),
-    public val touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -72,7 +73,8 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             acceptDrops = input.acceptDrops,
             drag = input.drag,
             touch = input.touch,
-            touchScroll = input.touchScroll
+            touchScroll = input.touchScroll,
+            scrollPhysics = input.scrollPhysics
         ),
         1L,
         ScrollbarVisibility.Hidden,

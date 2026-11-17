@@ -240,8 +240,8 @@ public class SceneContext internal constructor(
             val snapshot = layout.snapshot
             child.clipRect(Rect(0.0, 0.0, snapshot.viewport.width, snapshot.viewport.height))
             child.translate(
-                origin.x - snapshot.offset.x + snapshot.padding.left,
-                origin.y - snapshot.offset.y + snapshot.padding.top
+                origin.x - layout.presentationOffset.x + snapshot.padding.left,
+                origin.y - layout.presentationOffset.y + snapshot.padding.top
             )
             block(child)
         }

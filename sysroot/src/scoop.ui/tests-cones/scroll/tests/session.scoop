@@ -124,7 +124,11 @@ internal class ScrollProbe {
             case 0 -> {
                 if (second.isAnimating)
                     return
-                assertEquals(Point(0.0, 100.0), second.offset)
+                assertEquals(
+                    Point(0.0, 100.0),
+                    second.offset,
+                    Some(f"queued first-frame offset was ${second.offset.x}, ${second.offset.y}")
+                )
                 assertEquals(Point(30.0, 120.0), first.offset)
                 assertEquals(Size(500.0, 500.0), first.content)
                 assertTrue(first.isAttached)

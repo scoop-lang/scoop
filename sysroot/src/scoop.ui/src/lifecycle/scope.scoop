@@ -390,7 +390,14 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun scrollViewport(state: ScrollState): ScrollViewport {
         checkMounted()
         state.checkBinding()
-        val value = ScrollViewport(node, state, animations().value(Point(0.0, 0.0)))
+        val value =
+            ScrollViewport(
+                node,
+                state,
+                animations().value(Point(0.0, 0.0)),
+                animations().value(Point(0.0, 0.0))
+            )
+        scrollViewports.add(value)
         managed.add(value)
         return value
     }
@@ -447,7 +454,12 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
+    private val scrollViewports = ArrayList<ScrollViewport>()
     internal fun updateFrameParticipation() {
+        if (!node.frameEnabled)
+            for (viewport in scrollViewports)
+                if (!viewport.isClosed)
+                    viewport.cancelAnimation()
         when (animationGroup) {
             case Some(val value) -> if (!value.isClosed)
                 value.isFrameEnabled = node.frameEnabled

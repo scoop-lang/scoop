@@ -26,7 +26,8 @@ public class VirtualListProps public constructor(
     public val endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0),
     public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
     public val semantics: ComponentSemantics = ComponentSemantics(),
-    public val touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 )
 
 /** Creates item subtrees only for the viewport, overscan and existing input sessions. */
@@ -64,7 +65,8 @@ public class VirtualList public constructor(
                 themes.read(input.theme),
                 scrollbarBehavior = input.scrollbarBehavior,
                 semantics = input.semantics,
-                touchScroll = input.touchScroll
+                touchScroll = input.touchScroll,
+                scrollPhysics = input.scrollPhysics
             )
         return lazyElement(
             input.source,

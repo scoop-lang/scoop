@@ -3,9 +3,18 @@ package scoop.tests.ui.scrollpan
 import scoop.graphics.*
 import scoop.surface.*
 import scoop.ui.*
+import scoop.window.*
 
 internal class PanScene(private val probe: PanProbe, scope: ComponentScope): Component(scope) {
     public override fun onMount() {
+        scope.resource {
+            probe.outer.observeIntent {
+                value -> when (value) {
+                    case User(_) -> probe.userIntents += 1
+                    else -> {}
+                }
+            }
+        }
         scope.resource { probe.inner.observeIntent { value -> probe.intent(probe.inner, value) } }
         scope.resource {
             probe.alternate.observeIntent { value -> probe.intent(probe.alternate, value) }
@@ -23,7 +32,9 @@ internal class PanScene(private val probe: PanProbe, scope: ComponentScope): Com
                     probe.chain,
                     probe.innerOptions,
                     true,
-                    true
+                    true,
+                    probe.innerPhysics,
+                    probe.innerHeight
                 ),
                 { props, mount -> PanPanel(probe, props, scope = mount) },
                 [leaf]
@@ -36,7 +47,9 @@ internal class PanScene(private val probe: PanProbe, scope: ComponentScope): Com
                     ScrollChain.Chain,
                     probe.outerOptions,
                     false,
-                    probe.enabled
+                    probe.enabled,
+                    probe.outerPhysics,
+                    probe.outerHeight
                 ),
                 { props, mount -> PanPanel(probe, props, scope = mount) },
                 [inner, drag]
@@ -100,7 +113,9 @@ private class PanPanelProps(
     val chain: ScrollChain,
     val options: TouchScrollOptions,
     val inner: Boolean,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val physics: ScrollPhysicsOptions,
+    val contentHeight: Double
 )
 
 private class PanPanel(
@@ -124,12 +139,32 @@ private class PanPanel(
             probe.innerPan = Some(behavior)
             probe.innerArea = Some(input)
             probe.innerViewport = Some(view)
-        } else
+        } else {
             probe.outerPan = Some(behavior)
+            probe.outerViewport = Some(view)
+            probe.outerScope = Some(scope)
+        }
+        input.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) ->
+                    view.consumeScroll(
+                        context,
+                        10.0,
+                        props.value.axes,
+                        props.value.chain,
+                        phase,
+                        momentum
+                    )
+                    else -> {}
+                }
+            }
     }
     public override fun update(): UiInvalidation {
         val value = props.value
         viewport!!.state = value.state
+        viewport!!.physics = value.physics
         area!!.scope.enabled = value.enabled
         pan!!.update(value.axes, value.chain, value.options)
         return UiInvalidation.Layout
@@ -167,9 +202,9 @@ private class PanPanel(
             )
         val content =
             if (inner)
-                Size(140.0, 320.0)
+                Size(140.0, props.value.contentHeight)
             else
-                Size(500.0, 500.0)
+                Size(500.0, props.value.contentHeight)
         return LayoutResult(LayoutMetrics(size), viewport!!.layout(size, content))
     }
     public override fun scene(context: SceneContext, measured: ScrollLayout) {
@@ -177,6 +212,15 @@ private class PanPanel(
         context.place(area!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.9, 0.9, 0.9))) }
         viewport!!.present(context, measured, Some { content -> content.children() })
+        val inner = props.value.inner
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                if (inner)
+                    probe.innerLayout = Some(measured)
+                else
+                    probe.outerLayout = Some(measured)
+            }
+        }
     }
 }
 
@@ -206,8 +250,10 @@ private class PanLeaf(
                             }
                     )
                 )
-        } else
+        } else {
             probe.press = Some(scope.press(input) { probe.clicks += 1 })
+            probe.leafArea = Some(input)
+        }
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

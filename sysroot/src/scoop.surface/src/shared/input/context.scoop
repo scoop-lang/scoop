@@ -13,6 +13,7 @@ internal class RouteFlags(
 ) {
     var stopped = false
     var prevented = false
+    var remainder: RouteRemainder? = None
 }
 
 /** A synchronous delivery borrow; propagation and default cancellation are independent. */
@@ -68,13 +69,36 @@ public class RoutedEventContext internal constructor(
         }
     }
     /** Applies a local portion, then returns the unconsumed displacement to source units. */
-    public fun consumeScroll(lineStep: Double, apply: (Point) -> Point) {
+    public fun consumeScroll(
+        lineStep: Double,
+        onRemainder: ((Point) -> Point)? = None,
+        apply: (Point) -> Point
+    ) {
         checkActive()
         if (stage != RoutedPhase.Default)
             throw IllegalStateException(Some("scroll consumption requires the default phase"))
         val scroll = flags.scroll ?: throw IllegalStateException(Some("event is not a wheel"))
-        if (!flags.prevented)
+        if (!flags.prevented) {
             scroll.consume(lineStep, geometry, position, apply)
+            when (onRemainder) {
+                case Some(val action) -> {
+                    val delivery = RouteDelivery(receiver, position, geometry)
+                    flags.remainder =
+                        Some(
+                            RouteRemainder(delivery) {
+                                scroll.consume(
+                                    lineStep,
+                                    delivery.geometry,
+                                    delivery.position,
+                                    action,
+                                    true
+                                )
+                            }
+                        )
+                }
+                case None -> {}
+            }
+        }
     }
     /** Remaining window-logical movement after the contact owner opens this delivery. */
     public val contactRemaining: Point? get() {
@@ -88,14 +112,30 @@ public class RoutedEventContext internal constructor(
             None
     }
     /** The contact owner opens movement sharing; ancestors consume only its remainder. */
-    public fun consumeContactMovement(apply: (Point) -> Point) {
+    public fun consumeContactMovement(
+        onRemainder: ((Point) -> Point)? = None,
+        apply: (Point) -> Point
+    ) {
         checkActive()
         if (stage != RoutedPhase.Default)
             throw IllegalStateException(Some("contact consumption requires the default phase"))
         val movement =
             flags.movement ?: throw IllegalStateException(Some("event is not a contact movement"))
-        if (!flags.prevented && owner.contactDeliveryAllowed(flags.contact, receiver))
+        if (!flags.prevented && owner.contactDeliveryAllowed(flags.contact, receiver)) {
             movement.consume(receiver, geometry, apply)
+            when (onRemainder) {
+                case Some(val action) -> {
+                    val delivery = RouteDelivery(receiver, position, geometry)
+                    flags.remainder =
+                        Some(
+                            RouteRemainder(delivery) {
+                                movement.consume(delivery.scope, delivery.geometry, action, true)
+                            }
+                        )
+                }
+                case None -> {}
+            }
+        }
     }
     public fun stopPropagation() {
         checkActive()

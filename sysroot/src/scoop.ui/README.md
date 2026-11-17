@@ -169,7 +169,7 @@ open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHa
 
 无状态失效、显式帧请求或活动动画时，框架不遍历树、不投递空任务；Surface 停止请求原生帧。动画通过 Surface 同一时间轴采样，直接参与本帧测量与绘制，不逐帧重跑未失效的 render。
 
-`ScrollState` 保存最近 Accepted 的 offset、viewport、content 和 maximum，hasSnapshot 区分首个成功帧前的零值。scrollTo／scrollBy／reveal 立即登记请求，画面快照等成功呈现后更新；scrollBy 返回按最近范围收敛的请求位移，供嵌套 wheel 计算残量，连续请求在尚未呈现的目标上累积。自绘容器在 onMount 登记 `scope.scrollViewport(state)`，在 measure 调用其 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context)`。被丢弃帧不覆盖旧结果，成功帧也不会吞掉期间发出的新请求。一个 State 同时只能绑定一个视口，关闭立即解绑，业务 State 保留最后位置。
+`ScrollState` 保存最近 Accepted 的 offset、viewport、content 和 maximum，hasSnapshot 区分首个成功帧前的零值。scrollTo／scrollBy／reveal 立即登记请求，画面快照等成功呈现后更新；scrollBy 返回按最近范围收敛的请求位移，供嵌套 wheel 计算残量，连续请求在尚未呈现的目标上累积。自绘容器在 onMount 登记 `scope.scrollViewport(state)`，在 measure 调用其 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context, layout)`。被丢弃帧不覆盖旧结果，成功帧也不会吞掉期间发出的新请求。一个 State 同时只能绑定一个视口，关闭立即解绑，业务 State 保留最后位置。
 
 定位方法的 origin 默认为 `ScrollOrigin.Programmatic`，输入行为使用 User。`scope.resource { scroll.observeIntent { event -> ... } }` 观察带 requestRevision 的 User／Programmatic／LayoutCorrection：用户在边界滚动仍有意图通知，自动保持阅读位置只在 Accepted 后通知修正。订阅可独立关闭，回调内新请求优先；不用全局事件总线。
 
@@ -179,9 +179,28 @@ open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHa
 
 `ScrollPan.update(axes, chain, options)` 同步配置和视口换绑，`isPanning` 查询当前是否已经接管或参与嵌套滚动；cancel／close 结束本行为，close 不关闭借用的区域或视口。第二触点、新的外部定位、被阻止的移动／结束、禁用、换绑和卸载会终止旧候选，已经滚动的合法位置保留。滚动自己的 User 通知不取消自己，LayoutCorrection 继续保持阅读位置；回调内新的定位优先。该行为不运行惯性时钟，不改变原生 wheel／触控板 momentum。嵌套、变换、归属与收尾的窗口验证见 [scroll-pan](tests-cones/scroll-pan/README.md)。
 
-呈现滚动内容时使用 `viewport.present(context, Some { content -> content.children() })`。内容回调自动获得统一的视口 clip 和负 offset 平移，也登记实际滚动路径；滚动条或固定装饰在回调外绘制。省略回调只发布布局。焦点显露按同一成功帧的几何从内向外进行，每次只调整一层并等待提交；Portal 在层出口建立自己的场景路径。更新的焦点或已调整视口上的滚动请求会取消旧显露，隐藏时等待正常恢复。
+呈现滚动内容时使用 `viewport.present(context, layout, Some { content -> content.children() })`。内容回调自动获得统一的视口 clip 和负 presentationOffset 平移，也登记实际滚动路径；滚动条或固定装饰在回调外绘制。省略回调只发布布局。焦点显露按同一成功帧的几何从内向外进行，每次只调整一层并等待提交；Portal 在层出口建立自己的场景路径。更新的焦点或已调整视口上的滚动请求会取消旧显露，隐藏时等待正常恢复。
 
 `state.animateTo(offset, spec)` 使用视口所属 Surface 的时间轴，要求已绑定，可在首布局前排队；`cancelAnimation()` 在最后发布的位置停止。直接定位和 reveal 同样停止旧动画。实际 ScrollArea 和滚动条属于独立控件库，自绘容器可通过这组公开接口实现自己的布局，不需观察 offset 来重建内容树。滚动纯状态测试在本 Cone，成功／丢弃帧、动画、绑定替换和停帧在 `tests-cones/scroll` 验证。
+
+`viewport.physics = ScrollPhysicsOptions(...)` 配置边界效果，相关类型从 `scoop.ui` 导入：
+
+```scoop
+viewport.physics = ScrollPhysicsOptions(
+    boundary = ScrollBoundary.Elastic,
+    resistance = 0.55,
+    maxOverscroll = 64.0,
+    shortContent = false,
+    stiffness = 200.0,
+    dampingRatio = 1.0
+)
+```
+
+默认 `ScrollBoundary.Platform` 在 Darwin 使用弹性边界，在 Windows／Linux 使用硬边界；显式 Hard 关闭回弹，Elastic 可用于任一平台。它是 UI 的平台默认策略，不代表额外探测了系统回弹设置。resistance 为有限的 (0,1] 系数，其余数值为有限正值，maxOverscroll 使用局部逻辑单位；短内容默认不回弹。直接 ScrollPan 与带原生连续相位的像素滚动共用这些选项，离散滚轮不附加边界动画。
+
+自绘容器的 Wheel 默认处理应调用 `viewport.consumeScroll(context, lineStep, axes, chain, phase, momentumPhase)`，末两项取自 InputPointerEvent.Wheel。Surface 先完成整条普通残量链，UI 才吸收最终余量；同次输入只有一个视口保持拉伸，反向输入先收回已有拉伸。传统滚轮与 OS momentum 原样消费，不重复添加模拟惯性。`ScrollLayout.snapshot` 始终保存合法范围；`overscroll` 是内容呈现位移，`presentationOffset = snapshot.offset - overscroll`，present 的绘制、命中、caret、anchor 与语义几何共同使用它。虚拟索引、阅读锚点和滚动条范围继续使用 snapshot。
+
+`viewport.reduceMotion = true` 提供局部减少动画要求，与根的有效 reduceMotion 取逻辑或。生效时回弹归零，活动平滑定位到达原目标，后续 animateTo 直接定位；主题 Reduced 也由内置控件转交。释放 spring 使用原 Surface 动画组，isAnimating 包含回弹，结束／离屏／取消后停止帧需求；回弹帧不重复发布用户滚动意图。TextEditOptions.scrollPhysics 配置相同边界，TextEditAppearance.reduceMotion 配置局部动画约束。软件触摸惯性尚未作为可用选项发布。
 
 ## 按需子项
 

@@ -95,7 +95,7 @@ internal fun editorDragMove(host: TextEditHost, pointer: InputPointer) {
 private fun editorUpdateDrag(host: TextEditHost, drag: EditorDrag, displacement: Point) {
     val frame = host.accepted ?: return
     val point = host.area.toLocal(drag.windowPoint) ?: return
-    val offset = frame.snapshot.offset
+    val offset = frame.presentationOffset
     val viewport = frame.snapshot.visibleSize
     val hit =
         Point(
@@ -150,8 +150,8 @@ internal fun editorEdgeDelta(host: TextEditHost, windowPoint: Point, inset: Doub
     val frame = host.accepted ?: return Point(0.0, 0.0)
     val point = host.area.toLocal(windowPoint) ?: return Point(0.0, 0.0)
     val snapshot = frame.snapshot
-    val x = point.x - snapshot.offset.x
-    val y = point.y - snapshot.offset.y
+    val x = point.x - frame.presentationOffset.x
+    val y = point.y - frame.presentationOffset.y
     val horizontalInset = min(inset, snapshot.visibleSize.width / 2.0)
     val verticalInset = min(inset, snapshot.visibleSize.height / 2.0)
     val horizontal =

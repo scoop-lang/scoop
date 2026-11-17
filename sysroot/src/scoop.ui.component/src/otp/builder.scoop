@@ -24,6 +24,7 @@ public class InputOtpBuilder internal constructor() {
     public var drag: TextDragOptions = TextDragOptions()
     public var touch: TextTouchOptions = TextTouchOptions()
     public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var invalid: Boolean = false
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
@@ -83,7 +84,8 @@ public class InputOtpBuilder internal constructor() {
             acceptDrops,
             drag,
             touch,
-            touchScroll
+            touchScroll,
+            scrollPhysics
         )
 }
 

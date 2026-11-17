@@ -126,7 +126,8 @@ internal fun otpAppearance(
         style.inactiveSelectionColor ?: colors.muted.foreground.withAlpha(0.20),
         style.caretColor ?: colors.background.foreground,
         style.markedColor ?: colors.primary.background,
-        style.caretWidth
+        style.caretWidth,
+        theme.tokens.motion.preference == MotionPreference.Reduced
     )
 }
 
@@ -143,5 +144,6 @@ internal fun otpOptions(input: InputOtpProps, projection: TextProjection): TextE
         acceptDrops = input.acceptDrops,
         drag = input.drag,
         touch = input.touch,
-        touchScroll = input.touchScroll
+        touchScroll = input.touchScroll,
+        scrollPhysics = input.scrollPhysics
     )

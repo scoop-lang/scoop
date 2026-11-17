@@ -204,3 +204,7 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/text_edit_cells.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll_physics.scoop"
+when = { os = "linux", env = "gnu" }

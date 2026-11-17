@@ -71,7 +71,8 @@ internal fun <T: Equals<T>> comboEditor(
                 field.acceptDrops,
                 field.drag,
                 field.touch,
-                field.touchScroll
+                field.touchScroll,
+                field.scrollPhysics
             ),
             { current, mount -> Input(current, scope = mount) }
         )

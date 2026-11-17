@@ -31,6 +31,7 @@ public open class InputBuilder internal constructor() {
     public var drag: TextDragOptions = TextDragOptions()
     public var touch: TextTouchOptions = TextTouchOptions()
     public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var contextMenu: TextContextMenuOptions = TextContextMenuOptions()
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
@@ -76,7 +77,8 @@ public open class InputBuilder internal constructor() {
             acceptDrops,
             drag,
             touch,
-            touchScroll
+            touchScroll,
+            scrollPhysics
         )
 }
 
@@ -129,7 +131,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             acceptDrops,
             drag,
             touch,
-            touchScroll
+            touchScroll,
+            scrollPhysics
         )
 }
 

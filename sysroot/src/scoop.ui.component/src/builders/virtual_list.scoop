@@ -26,6 +26,7 @@ public class VirtualListBuilder internal constructor() {
     public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
     public var semantics: ComponentSemantics = ComponentSemantics()
     public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var key: ViewKey = ViewKey.Position
 
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
@@ -63,7 +64,8 @@ public class VirtualListBuilder internal constructor() {
             endPadding,
             scrollbarBehavior,
             semantics,
-            touchScroll
+            touchScroll,
+            scrollPhysics
         )
 }
 

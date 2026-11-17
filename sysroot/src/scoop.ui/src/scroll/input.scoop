@@ -1,0 +1,99 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.*
+import scoop.window.ScrollPhase
+
+/** Uses native phases only to release an edge; native momentum is never simulated again. */
+public fun ScrollViewport.consumeScroll(
+    context: RoutedEventContext,
+    lineStep: Double,
+    axes: ScrollAxes = ScrollAxes.Both,
+    chain: ScrollChain = ScrollChain.Chain,
+    phase: ScrollPhase = ScrollPhase.None,
+    momentumPhase: ScrollPhase = ScrollPhase.None
+) {
+    state.checkMutation()
+    requireUi(active, "scroll viewport is no longer mounted")
+    if (context.phase != RoutedPhase.Default)
+        throw IllegalStateException(Some("scroll consumption requires the default phase"))
+    if (context.defaultPrevented)
+        return
+    val source =
+        context.scrollRemaining ?: throw IllegalStateException(Some("event is not a wheel"))
+    val continuous = phase != ScrollPhase.None || momentumPhase != ScrollPhase.None
+    val elastic =
+        continuous &&
+            when (source) {
+                case Pixels(_, _) -> true
+                else -> false
+            }
+    if (phase == ScrollPhase.Began || phase == ScrollPhase.MayBegin || !continuous)
+        cancelAnimation()
+    else {
+        cancelPositioning()
+        edge.interruptRelease()
+    }
+    val cancelled = phase == ScrollPhase.Cancelled || momentumPhase == ScrollPhase.Cancelled
+    if (cancelled)
+        cancelAnimation()
+    val released = phase == ScrollPhase.Ended || momentumPhase == ScrollPhase.Ended
+    val frame = inputFrame()
+    watchInput(context.currentTarget)
+    val entry = frame.add(this, context.currentTarget)
+    context.consumeScroll(
+        lineStep,
+        Some { amount -> frame.complete(entry, amount, axes, elastic && !cancelled, released) }
+    ) {
+        amount -> if (entry.active && !cancelled)
+            consumeScrollAmount(amount, axes, frame, entry)
+        else
+            Point(0.0, 0.0)
+    }
+    if (chain == ScrollChain.Contain && entry.active)
+        context.preventDefault()
+}
+
+internal fun ScrollViewport.consumeContact(
+    context: RoutedEventContext,
+    axes: ScrollAxes,
+    released: Boolean
+) {
+    cancelPositioning()
+    edge.interruptRelease()
+    val frame = inputFrame()
+    val entry = frame.add(this, context.currentTarget)
+    context.consumeContactMovement(
+        Some { amount -> frame.complete(entry, amount, axes, true, released) }
+    ) {
+        amount -> if (entry.active)
+            consumeScrollAmount(amount, axes, frame, entry)
+        else
+            Point(0.0, 0.0)
+    }
+}
+
+private fun ScrollViewport.inputFrame(): ScrollInputFrame {
+    when (node.root.scrollInput) {
+        case Some(val frame) -> return frame
+        case None -> {}
+    }
+    val frame = ScrollInputFrame(node.root)
+    node.root.scrollInput = Some(frame)
+    return frame
+}
+
+private fun ScrollViewport.consumeScrollAmount(
+    amount: Point,
+    axes: ScrollAxes,
+    frame: ScrollInputFrame,
+    entry: ScrollInputEntry
+): Point {
+    val requested = scrollAxisPoint(amount, axes)
+    val restored = frame.restore(entry, requested)
+    val delta = Point(restored.x - requested.x, restored.y - requested.y)
+    if (delta == Point(0.0, 0.0))
+        return restored
+    val used = state.consumeInput(delta)
+    return Point(restored.x - used.x, restored.y - used.y)
+}

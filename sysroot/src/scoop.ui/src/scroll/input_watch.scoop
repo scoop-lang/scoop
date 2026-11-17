@@ -1,0 +1,60 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+/** Also serves custom wheel consumers that do not install ScrollPan. */
+internal class ScrollViewportInput(
+    private val viewport: ScrollViewport,
+    val scope: InputScope
+): Closeable {
+    private val activity =
+        scope.observeActivity {
+            if (!scope.isInputAllowed)
+                viewport.cancelAnimation()
+        }
+    private val events =
+        scope.addEventHandler {
+            _,
+            event -> when (event) {
+                case Pointer(
+                    InputPointerEvent.Button(_, _, ElementState.Pressed, _)
+                ) -> viewport.cancelAnimation()
+                case Pointer(InputPointerEvent.Cancelled(_, _)) -> viewport.cancelAnimation()
+                case Pointer(InputPointerEvent.ScrollCancelled(_, _)) -> viewport.cancelAnimation()
+                case Contact(InputContactEvent.Began(_)) -> viewport.cancelAnimation()
+                case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
+                    if (
+                        phase ==
+                            ScrollPhase.MayBegin ||
+                            phase ==
+                            ScrollPhase.Began ||
+                            phase ==
+                            ScrollPhase.Cancelled ||
+                            momentum ==
+                            ScrollPhase.Cancelled
+                    )
+                        viewport.cancelAnimation()
+                }
+                else -> {}
+            }
+        }
+    private val finished =
+        scope.addEventFinished {
+            event -> when (event) {
+                case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
+                    if (phase == ScrollPhase.Cancelled || momentum == ScrollPhase.Cancelled)
+                        viewport.cancelAnimation()
+                    else
+                        if (phase == ScrollPhase.Ended || momentum == ScrollPhase.Ended)
+                            viewport.edge.release()
+                }
+                else -> {}
+            }
+        }
+    public override fun close() {
+        activity.close()
+        events.close()
+        finished.close()
+    }
+}

@@ -70,6 +70,9 @@ internal class UiRoot(
     var drops: RootDrops? = None
     var dragSource: DragSource? = None
     var windowFrame: UiWindowFrameClaim? = None
+    internal var scrollInput: ScrollInputFrame? = None
+    internal val scrollEdges = ArrayList<ScrollInputEntry>()
+    private var scrollCompletion: Closeable? = None
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
     override var pendingEnqueued = false
@@ -90,6 +93,15 @@ internal class UiRoot(
     }
     fun mount(value: SurfaceWindow) {
         attached = Some(value)
+        scrollCompletion =
+            Some(
+                value.input.addEventFinished {
+                    _ ->
+                    val pending = scrollInput
+                    scrollInput = None
+                    pending?.cancel()
+                }
+            )
         val current = createNode(this, None, initial)
         node = Some(current)
         preferences.start()
@@ -194,6 +206,11 @@ internal class UiRoot(
         completions.clear()
         prepareUi {
             var failure: Throwable? = None
+            failure = cleanupUi(failure) { scrollInput?.cancel() }
+            scrollInput = None
+            scrollEdges.clear()
+            failure = cleanupUi(failure) { scrollCompletion?.close() }
+            scrollCompletion = None
             failure = cleanupUi(failure) { preferences.close() }
             failure = cleanupUi(failure) { focus.close() }
             failure = cleanupUi(failure) { drops?.close() }

@@ -25,7 +25,8 @@ public class ScrollAreaProps public constructor(
     public val focusOutline: OutlineStyle? = None,
     public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
     public val semantics: ComponentSemantics = ComponentSemantics(),
-    public val touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 )
 
 /** Keeps explicit content mounted while moving its scene inside one viewport clip. */
@@ -72,6 +73,7 @@ internal class ScrollAreaInkProps(
             input.focusOutline,
             input.scrollbarBehavior,
             input.semantics,
-            input.touchScroll
+            input.touchScroll,
+            input.scrollPhysics
         )
 }

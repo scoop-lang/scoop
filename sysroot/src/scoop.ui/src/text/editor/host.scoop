@@ -124,6 +124,8 @@ public class TextEditHost public constructor(
         area.scope.onEventFinished = { event -> editorFinish(this, event) }
         area.scope.enabled = initialOptions.enabled
         viewport.paintCache = initialOptions.paintCache
+        viewport.physics = initialOptions.scrollPhysics
+        viewport.reduceMotion = appearance.reduceMotion
         refreshMenuCommands()
     }
 
@@ -288,6 +290,8 @@ public class TextEditHost public constructor(
             caretVisible = true
         }
         viewport.paintCache = options.paintCache
+        viewport.physics = options.scrollPhysics
+        viewport.reduceMotion = appearance.reduceMotion
         area.scope.enabled = options.enabled
         area.textInput = options.enabled && !options.readOnly
         dropTarget?.update()

@@ -15,6 +15,7 @@ internal class EditorInputLayout(
 internal class EditorFrame(
     private val retained: RetainedEditorLayout,
     val snapshot: ScrollSnapshot,
+    val presentationOffset: Point,
     val editor: TextEditorState,
     val projection: TextProjection,
     val revision: Long,
@@ -218,6 +219,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         EditorFrame(
             measure.retained.layout.retain(),
             measure.scrollSnapshot,
+            measure.scroll.presentationOffset,
             measure.editor,
             measure.projection,
             measure.revision,
@@ -258,8 +260,8 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             host.area.setCaret(caret, Some(input.revision))
             val viewport =
                 Rect(
-                    snapshot.offset.x - snapshot.padding.left,
-                    snapshot.offset.y - snapshot.padding.top,
+                    frame.presentationOffset.x - snapshot.padding.left,
+                    frame.presentationOffset.y - snapshot.padding.top,
                     snapshot.viewport.width,
                     snapshot.viewport.height
                 )

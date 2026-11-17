@@ -39,6 +39,7 @@ internal class TouchScene(private val p: TouchProbe, scope: ComponentScope): Com
                         state = Some(probe.scroll)
                         theme = Some(probe.theme)
                         touchScroll = probe.touch
+                        scrollPhysics = probe.physics
                         enabled = probe.enabled
                         scrollbar { thickness = Some(10.0) }
                         scrollbarBehavior = behavior
@@ -50,6 +51,7 @@ internal class TouchScene(private val p: TouchProbe, scope: ComponentScope): Com
                         state = Some(probe.scroll)
                         theme = Some(probe.theme)
                         touchScroll = probe.touch
+                        scrollPhysics = probe.physics
                         enabled = probe.enabled
                         scrollbar { thickness = Some(10.0) }
                         scrollbarBehavior = behavior

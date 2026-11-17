@@ -135,6 +135,7 @@ internal fun textFieldAppearance(
         style.inactiveSelectionColor ?: palette.muted.foreground.withAlpha(0.20),
         style.caretColor ?: palette.primary.background,
         style.markedColor ?: palette.primary.background,
-        style.caretWidth
+        style.caretWidth,
+        theme.tokens.motion.preference == MotionPreference.Reduced
     )
 }

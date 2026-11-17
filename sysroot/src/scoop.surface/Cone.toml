@@ -204,3 +204,7 @@ when = { os = "linux", env = "gnu" }
 name = "glib-2.0"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_remainder.scoop"
+when = { os = "linux", env = "gnu" }

@@ -34,7 +34,8 @@ public class TextEditOptions public constructor(
     public val acceptDrops: Boolean = true,
     public val drag: TextDragOptions = TextDragOptions(),
     public val touch: TextTouchOptions = TextTouchOptions(),
-    public val touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 ) {
     internal fun check() {
         drag.check()
@@ -58,7 +59,8 @@ public class TextEditAppearance public constructor(
     public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
     public val caretColor: Color = Color.Black,
     public val markedColor: Color = Color.Black,
-    public val caretWidth: Double? = None
+    public val caretWidth: Double? = None,
+    public val reduceMotion: Boolean = false
 ) {
     internal fun check() {
         when (caretWidth) {

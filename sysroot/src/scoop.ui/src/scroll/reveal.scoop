@@ -23,7 +23,7 @@ internal class ScrollReveal(
 
     fun local(window: Rect): Rect? {
         val rect = localReveal(geometry, window) ?: return None
-        val offset = layout.snapshot.offset
+        val offset = layout.presentationOffset
         val padding = layout.snapshot.padding
         return Some(
             Rect(
@@ -35,6 +35,8 @@ internal class ScrollReveal(
         )
     }
     fun needsMove(rect: Rect): Boolean {
+        if (layout.overscroll != Point(0.0, 0.0))
+            return true
         val snapshot = layout.snapshot
         val wanted = snapshot.revealedOffset(rect)
         val visible =

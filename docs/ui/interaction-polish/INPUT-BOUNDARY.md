@@ -90,6 +90,8 @@ UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等
 
 直接滚动由 UI 的 `scope.scrollPan(area, viewport)` 识别阈值和锁轴，ScrollArea／VirtualList 沿共享 ScrollControl 接入。Surface 的 `consumeContactMovement` 只处理本次已获归属的位移与祖先剩余量，首次消费计入起点以来的完整距离，随后按相邻样本计算；几何转换与残量校验复用原滚轮基础。每次事件仅归属者可以先开放共享，普通 Drag 仍独占。新的定位、第二触点、配置变化与失效按现有取消通路收尾；该层不增加惯性时钟。
 
+Surface 的 consumeScroll／consumeContactMovement 另可登记 onRemainder，在普通 Default 消费结束后用最后登记者的冻结几何处理最终余量，随后仍执行必要的事件完成清理。UI 的共享边界效果沿真实参与者收束旧拉伸，不增加第二棵输入树；ScrollLayout 的呈现偏移与合法 snapshot 分离。直接触摸释放和原生连续像素输入可以回弹，原生 momentum 不再叠加软件惯性。
+
 ### 自定义手势的后续接入
 
 本轮保留自定义手势的接入边界，具体公共 API 随实际消费者再设计。Window 交付的原始 contact 序列不被内建手势枚举替代；开始、更新、结束／取消、稳定的接触标识、时间、坐标与来源保留到 Surface 路由。系统只提供已识别手势时如实转交，不承诺取得 OS 没有暴露的原始触点。

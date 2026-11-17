@@ -17,6 +17,11 @@ import scoop.window.native.*
 @Test
 private class TextTouchWindowTest {
     @Test
+    fun `elastic text viewport keeps caret input and accepted geometry together`() {
+        runTextTouch({ probe -> textElasticStep(probe) }, 0)
+    }
+
+    @Test
     fun `native contacts select text open one menu and yield to scrolling`() {
         runTextTouch({ probe -> textTouchStep(probe) }, 1)
     }
@@ -95,7 +100,7 @@ internal class TextTouchProbe(
     val text =
         "one two é😀\nsecond line\nthird line\nfourth line\nfifth line\nsixth line\nseventh line"
     var model = TextEditorState(text)
-    val appearance =
+    var appearance =
         TextEditAppearance(
             fonts,
             textStyle {
@@ -117,6 +122,9 @@ internal class TextTouchProbe(
     val outer = ScrollState()
     var touch = TextTouchOptions(longPressDelay = Some(Duration.milliseconds(40L)))
     var pan = TouchScrollOptions()
+    var scrollPhysics = ScrollPhysicsOptions(ScrollBoundary.Hard)
+    var ui: UiWindow? = None
+    var viewportBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var menu =
         textContextMenu {
             mode = TextContextMenuMode.StandardNative
@@ -186,7 +194,8 @@ internal class TextTouchProbe(
             projection = projection,
             protectedText = protectedText,
             touch = touch,
-            touchScroll = pan
+            touchScroll = pan,
+            scrollPhysics = scrollPhysics
         )
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -215,13 +224,14 @@ internal class TextTouchProbe(
                         }
                     )
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(native, { scope -> TextTouchScene(this, scope = scope) })
+                ui = host.attach(native, { scope -> TextTouchScene(this, scope = scope) })
                 native.requestFocus()
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case Window(_, WindowEvent.Pointer(PointerEvent.Wheel(_, _, _, _))) -> received += 1
             case PopupCompleted(_, _) -> {
                 popup = false;
                 menus += 1

@@ -156,7 +156,11 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 `scrollArea(content) { state = Some(scroll); height = Some(240.0) }` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。offset 只发布最近 Accepted 的画面位置，wheel、拖动及翻页通过 `scroll.observeIntent` 交付 User 来源；整个内容树保持挂载，滚动不重建其描述。
 
-ScrollArea／VirtualList 默认沿共享 ScrollControl 接入直接触摸和笔尖，可在 Props 或 builder 设置 `touchScroll = TouchScrollOptions(enabled = true, threshold = 8.0, lockAxis = true)`。TouchScrollOptions 和 ScrollChain 均从 `scoop.ui` 导入；后者由 UI 统一供滚轮与触摸滚动使用。短距离 tap 保留原动作，过阈值后取消子项点击候选，嵌套父视口只消费实际剩余位移。VirtualList 在归属移到容器后正常回收离屏子项，接触不会把已经取消的旧行固定在内存中。活动接触保持已显示的滚动条，抬起后按原 idleDelay 隐藏；停留不持续请求空帧。配置热切换、禁用、换绑和卸载取消旧接触，新的键盘、程序或语义定位优先。用法与受控 native 队列验证见 [touch-scroll](tests-cones/touch-scroll/README.md)；软件惯性及回弹仍按后续滚动物理批次实现。
+ScrollArea／VirtualList 默认沿共享 ScrollControl 接入直接触摸和笔尖，可在 Props 或 builder 设置 `touchScroll = TouchScrollOptions(enabled = true, threshold = 8.0, lockAxis = true)`。TouchScrollOptions 和 ScrollChain 均从 `scoop.ui` 导入；后者由 UI 统一供滚轮与触摸滚动使用。短距离 tap 保留原动作，过阈值后取消子项点击候选，嵌套父视口只消费实际剩余位移。VirtualList 在归属移到容器后正常回收离屏子项，接触不会把已经取消的旧行固定在内存中。活动接触保持已显示的滚动条，抬起后按原 idleDelay 隐藏；停留不持续请求空帧。配置热切换、禁用、换绑和卸载取消旧接触，新的键盘、程序或语义定位优先。用法与受控 native 队列验证见 [touch-scroll](tests-cones/touch-scroll/README.md)；软件触摸惯性仍按接续批次实现。
+
+ScrollArea／VirtualList／MessageScroller、Input／Textarea／InputOtp 及对应 builder 使用 `scrollPhysics = ScrollPhysicsOptions(...)` 配置共享边界。`ScrollBoundary.Platform` 默认在 Darwin 回弹、Windows／Linux 硬边界；Hard 关闭效果，Elastic 显式开启。resistance、maxOverscroll、shortContent、stiffness 和 dampingRatio 分别控制阻力、最大局部位移、短内容及释放 spring。嵌套先消费实际余量，回弹不写入逻辑 offset 或虚拟索引。正文、命中、文本 caret 与语义几何共同使用 Accepted 呈现位移；固定滚动条继续表示合法范围。根 reduceMotion 与主题 MotionPreference.Reduced 都会立即收束效果，普通触摸和系统 momentum 继续滚动。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 保留输入配置。公开类型从 `scoop.ui` 导入，配置示例见 [UI README](../scoop.ui/README.md)。
+
+主题侧的显式减少动画在基础主题中设置：`tokens { motion { preference = MotionPreference.Reduced } }`。ThemeSource.read 会在此基础上合并各根偏好；withPreferences 用于解析一次有效外观，恢复默认偏好时仍返回它保留的基础主题。
 
 macOS 的 ScrollArea 与 VirtualList 使用 `semantics = ComponentSemantics(name = Some("内容"), automationId = Some("content"))` 覆盖容器名称和标识。共享滚动控制发布 ScrollArea 节点，内容后代保留自己的语义；VirtualList 的完整虚拟集合能力仍在实施。每个非零滚动轴提供实际 ScrollBar 范围、位置写入与增减动作；Input／Textarea 的轴沿同一编辑器视口，readOnly 不禁止滚动。视觉 Hidden 或闲置淡出不退休逻辑轴，只有实际呈现的条才发布自己的几何。范围来自 Accepted 快照，重新绑定先撤下旧范围。原生进程内和实窗验证分别见 [组件语义测试](tests-cones/accessibility/README.md)与[滚动场景](tests-cones/scroll-accessibility/README.md)。
 

@@ -78,6 +78,7 @@ public class MessageScroller public constructor(
                 this.scrollbars = input.scrollbars
                 this.scrollbar = input.scrollbar
                 this.scrollbarBehavior = input.scrollbarBehavior
+                this.scrollPhysics = input.scrollPhysics
                 this.chain = ScrollChain.Contain
             }
         val viewport =

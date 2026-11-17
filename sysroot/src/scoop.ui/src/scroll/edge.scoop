@@ -1,0 +1,154 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.max
+import scoop.math.min
+import scoop.surface.*
+
+/** One viewport's held stretch or release spring; it never changes ScrollSnapshot. */
+internal class ScrollEdge(
+    private val viewport: ScrollViewport,
+    private val animation: Animatable<Point>
+): Closeable {
+    private var pull = Point(0.0, 0.0)
+    private var releasing = false
+    val moving: Boolean get() = releasing
+    val held: Boolean get() = pull != Point(0.0, 0.0)
+
+    fun restoringFraction(amount: Point): Double =
+        max(
+            if (amount.x == 0.0)
+                0.0
+            else
+                scrollRestoringPart(pull.x, amount.x) / amount.x,
+            if (amount.y == 0.0)
+                0.0
+            else
+                scrollRestoringPart(pull.y, amount.y) / amount.y
+        )
+
+    fun sample(snapshot: ScrollSnapshot): Point {
+        val options = viewport.physics
+        if (viewport.motionReduced || !options.elastic)
+            return Point(0.0, 0.0)
+        val amount =
+            if (releasing)
+                animation.value
+            else
+                Point(
+                    scrollElasticDistance(pull.x, options),
+                    scrollElasticDistance(pull.y, options)
+                )
+        return Point(
+            edgeValue(amount.x, snapshot.offset.x, snapshot.maximum.x, options),
+            edgeValue(amount.y, snapshot.offset.y, snapshot.maximum.y, options)
+        )
+    }
+
+    fun restore(amount: Point): Point {
+        val used =
+            Point(scrollRestoringPart(pull.x, amount.x), scrollRestoringPart(pull.y, amount.y))
+        if (used != Point(0.0, 0.0)) {
+            pull = Point(pull.x + used.x, pull.y + used.y)
+            viewport.requestFrame()
+        }
+        return used
+    }
+
+    fun absorb(amount: Point, axes: ScrollAxes): Point {
+        val options = viewport.physics
+        if (viewport.motionReduced || !options.elastic)
+            return Point(0.0, 0.0)
+        val snapshot = viewport.state.current
+        val used =
+            Point(
+                if (axes.horizontal && (snapshot.maximum.x > 0.0 || options.shortContent))
+                    amount.x
+                else
+                    0.0,
+                if (axes.vertical && (snapshot.maximum.y > 0.0 || options.shortContent))
+                    amount.y
+                else
+                    0.0
+            )
+        if (used != Point(0.0, 0.0)) {
+            val next = Point(pull.x + used.x, pull.y + used.y)
+            checkScrollPoint(next)
+            pull = next
+            viewport.requestFrame()
+        }
+        return used
+    }
+
+    fun release() {
+        if (releasing || pull == Point(0.0, 0.0))
+            return
+        if (viewport.motionReduced || !viewport.physics.elastic) {
+            stop()
+            return
+        }
+        val state = viewport.state
+        val accepted = state.current
+        val start = sample(state.plan(accepted.viewport, accepted.content, accepted.padding))
+        pull = Point(0.0, 0.0)
+        if (start == Point(0.0, 0.0)) {
+            viewport.requestFrame()
+            return
+        }
+        animation.snapTo(start)
+        val options = viewport.physics
+        animation.animateTo(
+            Point(0.0, 0.0),
+            AnimationSpec.Spring(options.stiffness, options.dampingRatio, 0.1, 1.0)
+        )
+        releasing = true
+        viewport.state.changed()
+        viewport.requestFrame()
+    }
+
+    fun complete() {
+        if (releasing && animation.state == AnimationState.Finished) {
+            releasing = false
+            viewport.state.changed()
+        }
+    }
+
+    fun interruptRelease() {
+        if (releasing)
+            stop()
+    }
+
+    fun stop() {
+        val moving = releasing
+        val changed = moving || pull != Point(0.0, 0.0)
+        releasing = false
+        pull = Point(0.0, 0.0)
+        if (moving) {
+            animation.snapTo(Point(0.0, 0.0))
+            viewport.state.changed()
+        }
+        if (changed)
+            viewport.requestFrame()
+    }
+
+    public override fun close() {
+        stop()
+        animation.close()
+    }
+}
+
+private fun edgeValue(
+    amount: Double,
+    offset: Double,
+    maximum: Double,
+    options: ScrollPhysicsOptions
+): Double {
+    if (maximum == 0.0 && !options.shortContent)
+        return 0.0
+    val limit = options.maxOverscroll
+    if (amount > 0.0 && offset == 0.0)
+        return min(limit, amount)
+    if (amount < 0.0 && offset == maximum)
+        return max(-limit, amount)
+    return 0.0
+}

@@ -54,7 +54,8 @@ public class MessageScrollerProps public constructor(
     public val controls: View? = None,
     public val showControls: Boolean = true,
     public val placeholder: View? = None,
-    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 ) {
     init {
         nonnegative(spacing, "invalid message spacing")
@@ -86,6 +87,7 @@ public class MessageScrollerBuilder internal constructor() {
     public var showControls: Boolean = true
     public var placeholder: View? = None
     public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var key: ViewKey = ViewKey.Position
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit) {
         scrollbar = scrollbar.copy(configure)
@@ -116,6 +118,7 @@ public class MessageScrollerBuilder internal constructor() {
             controls,
             showControls,
             placeholder,
-            scrollbarBehavior
+            scrollbarBehavior,
+            scrollPhysics
         )
 }

@@ -94,6 +94,8 @@ macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快�
 
 滚轮默认行为可读取 `context.scrollRemaining`，并调用 `context.consumeScroll(lineStep) { localDelta -> ... }`，返回该容器实际消费的局部位移。lineStep 由容器提供；Surface 按本次事件固定的区域几何换算，消费后将残量还原到 Lines／Pixels，父容器再使用自己的步长和变换。Pixels 已完成一次 DPI 归一。原事件始终保留完整 delta，stopPropagation 不取消默认滚动；Contain 可在处理本层后调用 preventDefault。
 
+`consumeScroll` 与 `consumeContactMovement` 可在 apply 之前提供 `onRemainder = Some { remainder -> ... }`。最后一次成功的非 None 登记，在全部普通默认消费之后、事件完成通知之前运行一次，使用该接收者冻结的几何与单位，返回真正吸收的同向位移；零余量也通知。普通 None 消费者不撤销登记，Contain 的 preventDefault 保留本层已登记回调。路径失效／关闭或普通处理抛错时跳过，完成清理仍执行；不能保留 RoutedEventContext 给这个回调使用。UI 用此入口在父级消费之后处理最终弹性边界。
+
 连续 phase 和其后的 momentum 固定起始路由，接触结束后仍可沿原路径进入动量；普通离散 Wheel 按当次命中。源区域退休或模态切换用 ScrollCancelled 完整通知旧路径，后续动量保持空路径直到结束；它与鼠标按钮 Cancelled 分开，不会误结束另一段拖动。等待可能的动量不维持帧需求。
 
 验证使用以下普通测试 Cone：

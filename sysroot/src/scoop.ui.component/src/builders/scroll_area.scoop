@@ -22,6 +22,7 @@ public class ScrollAreaBuilder internal constructor() {
     public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
     public var semantics: ComponentSemantics = ComponentSemantics()
     public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var key: ViewKey = ViewKey.Position
 
     public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
@@ -58,7 +59,8 @@ public class ScrollAreaBuilder internal constructor() {
             focusOutline,
             scrollbarBehavior,
             semantics,
-            touchScroll
+            touchScroll,
+            scrollPhysics
         )
 }
 

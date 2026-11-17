@@ -9,7 +9,8 @@ internal class ModalBodyProps(
     val theme: Theme,
     val scrollState: ScrollState? = options.scrollState,
     val fillHeight: Boolean = true,
-    val touchScroll: TouchScrollOptions = TouchScrollOptions()
+    val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 )
 
 /** Reuses the eager viewport controller and retains the same body when scrolling is toggled. */
@@ -35,7 +36,8 @@ internal class ModalBody(private val props: Props<ModalBodyProps>, scope: Compon
             FocusOptions(tabStop = false),
             PaintCachePolicy.None,
             input.theme,
-            touchScroll = input.touchScroll
+            touchScroll = input.touchScroll,
+            scrollPhysics = input.scrollPhysics
         )
     }
     public override fun onMount() {

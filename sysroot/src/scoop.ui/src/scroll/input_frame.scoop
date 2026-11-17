@@ -1,0 +1,133 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.graphics.Rect
+import scoop.surface.InputScope
+
+internal class ScrollInputEntry(
+    val viewport: ScrollViewport,
+    val scope: InputScope,
+    val revision: ULong
+) {
+    val active: Boolean get() =
+        viewport.active &&
+            !scope.isClosed &&
+            scope.isInputAllowed &&
+            viewport.inputRevision ==
+            revision
+}
+
+/** Collected from the real Default route, never from a parallel UI input tree. */
+internal class ScrollInputFrame(private val root: UiRoot) {
+    private val entries = ArrayList<ScrollInputEntry>()
+    private var finished = false
+    private var restored = false
+
+    fun add(viewport: ScrollViewport, scope: InputScope): ScrollInputEntry {
+        val entry = ScrollInputEntry(viewport, scope, viewport.inputRevision)
+        entries.add(entry)
+        return entry
+    }
+
+    fun restore(entry: ScrollInputEntry, amount: Point): Point {
+        if (restored)
+            return Point(0.0, 0.0)
+        prune()
+        for (held in root.scrollEdges) {
+            if (!inputAncestor(held.scope, entry.scope))
+                continue
+            val start = inputWindowPoint(entry.scope, Point(0.0, 0.0)) ?: return Point(0.0, 0.0)
+            val end = inputWindowPoint(entry.scope, amount) ?: return Point(0.0, 0.0)
+            val localStart = inputLocalPoint(held.scope, start) ?: return Point(0.0, 0.0)
+            val localEnd = inputLocalPoint(held.scope, end) ?: return Point(0.0, 0.0)
+            val delta = Point(localEnd.x - localStart.x, localEnd.y - localStart.y)
+            val fraction = held.viewport.edge.restoringFraction(delta)
+            if (fraction > 0.0) {
+                restored = true
+                held.viewport.edge.restore(Point(delta.x * fraction, delta.y * fraction))
+                return Point(amount.x * fraction, amount.y * fraction)
+            }
+        }
+        return Point(0.0, 0.0)
+    }
+
+    private fun prune() {
+        var index = 0L
+        while (index < root.scrollEdges.size) {
+            val entry = root.scrollEdges[index]
+            if (!entry.active || !entry.viewport.edge.held)
+                root.scrollEdges.removeAt(index)
+            else
+                index += 1L
+        }
+    }
+
+    fun complete(
+        final: ScrollInputEntry,
+        amount: Point,
+        axes: ScrollAxes,
+        elastic: Boolean,
+        release: Boolean
+    ): Point {
+        if (finished)
+            return Point(0.0, 0.0)
+        finished = true
+        root.scrollInput = None
+        for (entry in entries)
+            if (entry.active && entry.viewport !== final.viewport)
+                entry.viewport.edge.stop()
+        if (!final.active)
+            return Point(0.0, 0.0)
+        val used =
+            if (elastic)
+                final.viewport.edge.absorb(amount, axes)
+            else
+                Point(0.0, 0.0)
+        if (!elastic)
+            final.viewport.edge.stop()
+        else
+            if (release)
+                final.viewport.edge.release()
+        prune()
+        var registered = false
+        for (entry in root.scrollEdges)
+            if (entry.viewport === final.viewport)
+                registered = true
+        if (!registered && final.viewport.edge.held)
+            root.scrollEdges.add(final)
+        return used
+    }
+
+    fun cancel() {
+        if (finished)
+            return
+        finished = true
+        for (entry in entries)
+            if (entry.active)
+                entry.viewport.edge.stop()
+    }
+}
+
+private fun inputAncestor(ancestor: InputScope, child: InputScope): Boolean {
+    var current = child
+    while (true) {
+        if (current === ancestor)
+            return true
+        current = current.parent ?: return false
+    }
+}
+
+private fun inputWindowPoint(scope: InputScope, point: Point): Point? =
+    when (scope.area) {
+        case Some(val area) -> when (area.toWindow(Rect(point.x, point.y, 0.0, 0.0))) {
+            case Some(val bounds) -> Some(Point(bounds.x, bounds.y))
+            case None -> None
+        }
+        case None -> Some(point)
+    }
+
+private fun inputLocalPoint(scope: InputScope, point: Point): Point? =
+    when (scope.area) {
+        case Some(val area) -> area.toLocal(point)
+        case None -> Some(point)
+    }

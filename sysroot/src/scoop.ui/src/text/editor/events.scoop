@@ -88,24 +88,15 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                 context.consume()
             }
         }
-        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+        case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
             host.revealNeeded = false
-            host.scroll.cancelAnimation()
-            context.consumeScroll(host.appearance.textStyle.fontSize) {
-                amount ->
-                val consumed =
-                    host.scroll.scrollBy(
-                        Point(
-                            -amount.x,
-                            if (host.options.multiline)
-                                -amount.y
-                            else
-                                0.0
-                        ),
-                        ScrollOrigin.User
-                    )
-                Point(-consumed.x, -consumed.y)
-            }
+            host.viewport.consumeScroll(
+                context,
+                host.appearance.textStyle.fontSize,
+                editorTouchAxes(host.options),
+                phase = phase,
+                momentumPhase = momentum
+            )
         }
         case Keyboard(val key) -> {
             if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)

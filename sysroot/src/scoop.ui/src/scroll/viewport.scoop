@@ -7,8 +7,12 @@ public class ScrollLayout internal constructor(
     internal val owner: ScrollViewport,
     internal val binding: ULong,
     internal val revision: ULong,
-    public val snapshot: ScrollSnapshot
-)
+    public val snapshot: ScrollSnapshot,
+    public val overscroll: Point
+) {
+    public val presentationOffset: Point get() =
+        Point(snapshot.offset.x - overscroll.x, snapshot.offset.y - overscroll.y)
+}
 
 private class ScrollMotion(val target: Point, val spec: AnimationSpec) {
     var started = false
@@ -16,9 +20,10 @@ private class ScrollMotion(val target: Point, val spec: AnimationSpec) {
 
 /** A mount-owned layout and animation registration for one ScrollState. */
 public class ScrollViewport internal constructor(
-    private val node: MountedNode,
+    internal val node: MountedNode,
     initial: ScrollState,
-    private val animation: Animatable<Point>
+    private val animation: Animatable<Point>,
+    edgeAnimation: Animatable<Point>
 ): Closeable {
     private var current = initial
     private var closed = false
@@ -26,6 +31,25 @@ public class ScrollViewport internal constructor(
     private var binding = 0UL
     private var motion: ScrollMotion? = None
     private var cachePolicy = PaintCachePolicy.None
+    private var physicsOptions = ScrollPhysicsOptions()
+    private var reduced = false
+    internal var inputRevision = 0UL
+    internal val edge = ScrollEdge(this, edgeAnimation)
+    private val preferences = node.root.preferences.observe { _ -> preferenceChanged() }
+    private var lastActivity = node.root.window.activity
+    private val activity =
+        node.scope.observeWindowActivity {
+            value -> {
+                val lost =
+                    (lastActivity.focused && !value.focused) ||
+                        (lastActivity.visible && !value.visible) ||
+                        (ready && !lastActivity.occluded && value.occluded)
+                lastActivity = value
+                if (lost)
+                    cancelAnimation()
+            }
+        }
+    private var inputWatch: ScrollViewportInput? = None
 
     init {
         current.attach(this)
@@ -40,7 +64,10 @@ public class ScrollViewport internal constructor(
             None
     internal fun belongsTo(owner: MountedNode): Boolean = active && node === owner
     internal fun contains(owner: MountedNode): Boolean = withinFocusScope(owner, node)
-    internal val moving: Boolean get() = active && (motion?.started != None)
+    internal val moving: Boolean get() = active && (motion?.started != None || edge.moving)
+    internal val positioning: Boolean get() = motion?.started != None
+    internal val motionReduced: Boolean get() =
+        reduced || (node.root.preferences.value.reduceMotion ?: false)
     internal fun matches(value: ScrollState, generation: ULong): Boolean =
         active && current === value && binding == generation
     public val isClosed: Boolean get() {
@@ -80,6 +107,54 @@ public class ScrollViewport internal constructor(
         cachePolicy = value
         node.request(UiInvalidation.Scene)
     }
+    public var physics: ScrollPhysicsOptions
+    get() {
+        node.root.checkThread();
+        return physicsOptions
+    }
+    set(value) {
+        checkOpen()
+        current.checkMutation()
+        if (sameScrollPhysics(physicsOptions, value))
+            return
+        physicsOptions = value
+        cancelAnimation()
+    }
+    public var reduceMotion: Boolean
+    get() {
+        node.root.checkThread();
+        return reduced
+    }
+    set(value) {
+        checkOpen()
+        current.checkMutation()
+        if (reduced == value)
+            return
+        reduced = value
+        preferenceChanged()
+    }
+    private fun preferenceChanged() {
+        if (!active || !motionReduced)
+            return
+        val target = motion?.target
+        cancelAnimation()
+        when (target) {
+            case Some(val value) -> {
+                current.request = ScrollRequest.Position(value)
+                requestFrame()
+            }
+            case None -> {}
+        }
+    }
+    internal fun watchInput(scope: InputScope) {
+        when (inputWatch) {
+            case Some(val previous) -> if (previous.scope === scope)
+                return
+            case None -> {}
+        }
+        inputWatch?.close()
+        inputWatch = Some(ScrollViewportInput(this, scope))
+    }
     private fun checkOpen() {
         node.root.checkThread()
         if (!active)
@@ -109,7 +184,7 @@ public class ScrollViewport internal constructor(
         when (adjustment) {
             case Some(val value) -> {
                 checkScrollPoint(value.offset)
-                if (value.requestRevision == current.revision && !moving)
+                if (value.requestRevision == current.revision && !positioning)
                     result =
                         ScrollSnapshot(
                             clampScroll(value.offset, viewport, extent),
@@ -120,7 +195,26 @@ public class ScrollViewport internal constructor(
             }
             case None -> {}
         }
-        return ScrollLayout(this, binding, current.revision, result)
+        val resized =
+            ready &&
+                (
+                    current.current.viewport !=
+                        result.viewport ||
+                        current.current.content !=
+                        result.content ||
+                        current.current.padding !=
+                        result.padding
+                )
+        return ScrollLayout(
+            this,
+            binding,
+            current.revision,
+            result,
+            if (resized)
+                Point(0.0, 0.0)
+            else
+                edge.sample(result)
+        )
     }
     public fun present(
         context: SceneContext,
@@ -168,11 +262,24 @@ public class ScrollViewport internal constructor(
                 state.revision &&
                 layout.revision ==
                 state.publishedRevision &&
-                !moving &&
+                !positioning &&
                 state.current.offset !=
                 offered.offset
         ready = true
-        state.publish(offered, layout.revision == state.revision && !moving, layout.revision)
+        if (
+            state.hasSnapshot &&
+                (
+                    state.current.viewport !=
+                        offered.viewport ||
+                        state.current.content !=
+                        offered.content ||
+                        state.current.padding !=
+                        offered.padding
+                )
+        )
+            edge.stop()
+        edge.complete()
+        state.publish(offered, layout.revision == state.revision && !positioning, layout.revision)
         when (motion) {
             case Some(val value) -> {
                 val target = clampScroll(value.target, offered.viewport, offered.content)
@@ -206,6 +313,11 @@ public class ScrollViewport internal constructor(
         cancelAnimation()
         current.revision += 1UL
         val token = current.revision
+        if (motionReduced) {
+            current.request = ScrollRequest.Position(target)
+            requestFrame()
+            return token
+        }
         if (
             ready &&
                 clampScroll(target, current.current.viewport, current.current.content) ==
@@ -242,6 +354,11 @@ public class ScrollViewport internal constructor(
         requestFrame()
     }
     internal fun cancelAnimation() {
+        inputRevision += 1UL
+        edge.stop()
+        cancelPositioning()
+    }
+    internal fun cancelPositioning() {
         when (motion) {
             case Some(_) -> {
                 current.revision += 1UL
@@ -265,9 +382,20 @@ public class ScrollViewport internal constructor(
         if (closed)
             return
         closed = true
+        var index = 0L
+        while (index < node.root.scrollEdges.size) {
+            if (node.root.scrollEdges[index].viewport === this)
+                node.root.scrollEdges.removeAt(index)
+            else
+                index += 1L
+        }
         if (ready)
             current.request = ScrollRequest.Position(current.current.offset)
         motion = None
+        inputWatch?.close()
+        preferences.close()
+        activity.close()
+        edge.close()
         animation.close()
         current.detach(this)
     }
