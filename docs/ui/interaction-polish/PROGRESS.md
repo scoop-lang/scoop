@@ -19,7 +19,7 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；双指 TransformGesture 的 21 步行为及 40 步取消窗口场景通过；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步和六类文本控件的 20 步场景通过，菜单与 accessibility 共用动作；其余控件、多击／选区端点、软键盘和完整设备矩阵继续实施 |
+| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按／多击已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；双指 TransformGesture 的 21 步行为及 40 步取消窗口场景通过；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步触摸与 69 步多击、六类文本控件的 64 步场景通过，菜单与 accessibility 共用动作；其余控件组合、选区端点、软键盘和完整设备矩阵继续实施 |
 | S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -442,3 +442,13 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI 规范、交互与 accessibility 设计、计划、库／测试／示例 README 和编程导航同步；UI API 文档生成后用 7 组查询核对选项、默认值、来源载荷及取消原因。UI、Style、四套主题与 Component 共 7 份开发产物按依赖更新，示例重新检查并构建；生产／测试源码检查、10 个 Scoop 文件格式检查、168 个本地 Markdown 目标和 diff 检查通过。7 份逐次 GUI 报告及测试应用包已清理，保留开发产物、API 文档、启动脚本与共享缓存。
 
 受控 native contact 队列的 macOS 实窗结果与用户已确认的真实触控板结果分开记录；真实触屏／笔、Windows／GTK 入口和读屏器仍待集中验收。公共手势、文本端点、多击、软键盘与其余完整计划继续推进。
+
+### 文本直接触摸的连续多击
+
+- TextTouchOptions 新增 multiTap（默认 true）和 multiTapInterval（默认 None，跟随系统 doubleClickInterval，未知时 500 ms）。同一宿主、相同 Touch／Pen 来源的连续成功短按按开始时间和窗口距离计数，第二次选词，第三次及以上选逻辑行；显示投影、grapheme 边界与范围算法复用鼠标选择。
+- ContactPress 共享计数、来源与取消规则，只保存上一次成功短按，不为间隔建立新定时器。域外接触、失败／被阻止的输入、第二触点、长按、配置变化、失焦、外部选区和正文修改都会打断序列；触摸选择自身的正常选区发布保留计数。行内链接消费的短按只激活动作，选区回调内再次修改或关闭仍清理旧状态。
+- aarch64-apple-darwin release 新增 69 步窗口场景通过，覆盖两类宿主、连续四次短按、Touch／Pen 切换、emoji、间隔／距离、开关、Accepted 缩放、长按、区间投影、受保护遮罩与回调重入。原 66 步触摸场景和键盘／鼠标／IME 综合场景分别在独立进程通过，配置用例验证默认值、独立开关与非法间隔。
+- Input、Textarea、InputOtp、InputGroup 两类输入及 ButtonGroup 输入框的触摸场景扩展为 64 步并通过，逐项检查二／三击以及 multiTap 关闭后的连续短按，继续覆盖启用、长按、None 长按和模型保留。本批合计 4 个独立窗口用例和 1 项配置用例通过，窗口用例均取得无失败的 end 和 complete 事件。
+- UI／Component 规范、交互与 accessibility 设计、计划、库／测试 README 和编程导航同步；UI API 文档及 3 组查询核对构造参数、默认值、只读属性和有效导入。UI、Style、四套主题与 Component 共 7 份开发产物按依赖更新，生产／测试源码检查、release 构建、14 个 Scoop 文件格式和 229 个本地 Markdown 目标及 diff 检查通过。临时测试应用与逐次报告已清理，保留开发产物、API 文档和共享缓存。
+
+本批验证经受控 native 队列进入 macOS 实窗，真实触屏／笔和 Windows／GTK 仍按集中平台轮次执行；文本选区端点、触摸数据拖放、通用长按／swipe、软键盘及其余完整计划继续推进。

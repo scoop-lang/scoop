@@ -552,7 +552,9 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 TextEditOptions.contextMenu 及 TextEditHost.showContextMenu 接入原生文本菜单，模式、选区、已接受锚点、目标绑定与收尾遵守[原生菜单规范第 6 节](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。默认 PreferSystem，无可复用系统项目时使用标准原生模板；Disabled 允许调用方完全接管上下文菜单。
 
-TextEditOptions.touch 为 TextTouchOptions(enabled=true, threshold=8, longPressDelay=Some(500 ms))，配置直接触摸／笔尖的点击和长按；threshold 是有限非负的窗口逻辑距离，长按时长非负，None 只关闭长按。普通 tap 在合法结束时按匹配当前文档／投影的 Accepted 布局放置 caret；长按取得原接触归属后选词并进入同一上下文菜单，具体选区策略见原生菜单规范第 6 节。移动超阈值后不恢复候选；第二触点、滚动接管、被阻止的输入、正文或绑定变化、禁用、失焦、隐藏／遮挡和卸载取消候选及 deadline。长按只执行一次，之后不补 tap；零时长仍通过 owner 的一次性 deadline，在接触尚有效时交付，不在按下回调中内联执行。
+TextEditOptions.touch 为 TextTouchOptions(enabled=true, threshold=8, longPressDelay=Some(500 ms), multiTap=true, multiTapInterval=None)，配置直接触摸／笔尖的点击、连续短按和长按；threshold 是有限非负的窗口逻辑距离，长按时长非负，None 只关闭长按。普通 tap 在合法结束时按匹配当前文档／投影的 Accepted 布局放置 caret；长按取得原接触归属后选词并进入同一上下文菜单，具体选区策略见原生菜单规范第 6 节。移动超阈值后不恢复候选；第二触点、滚动接管、被阻止的输入、正文或绑定变化、禁用、失焦、隐藏／遮挡和卸载取消候选及 deadline。长按只执行一次，之后不补 tap；零时长仍通过 owner 的一次性 deadline，在接触尚有效时交付，不在按下回调中内联执行。
+
+multiTap 启用时，同一宿主、相同 ContactKind 的连续成功短按按开始时刻的单调时间和 threshold 内的窗口距离计数；第二次选词，第三次及以上选逻辑行，继续复用鼠标选择的文本范围和投影映射。multiTapInterval 为显式非负间隔；None 读取当前系统 doubleClickInterval，未知时使用 500 ms，设置变化使旧序列失效。计数位于 UI 的共享 ContactPress，不伪造鼠标事件，也不改变 Window 的原生鼠标连续点击计数。失败／被阻止的接触、长按、其他输入、域外接触、外部选区／正文变化和前述取消条件都打断序列；触摸选择自身的正常选区发布保留序列。新按下仍须有匹配当前正文、修订和投影的 Accepted 布局；布局变换改变旧落点时不把它计为原位置的连续短按。关闭 multiTap 只使每次成功短按放置 caret，长按及键盘／语义选择入口独立。
 
 TextEditOptions.touchScroll 为 TouchScrollOptions()，独立配置同一编辑视口的直接滚动；多行使用 Both，单行只使用 Horizontal，Chain 允许父视口消费余量。文本按压与滚动共用原始接触，ScrollPan 开始时取消尚未识别的文本按压，长按接管后阻止该序列继续变成滚动。接触按下的自动聚焦保留正在登记的触摸候选，不为旧 caret 发起显露；tap 结束后再显露实际落点。位置、caret、选区、IME 和语义几何仍来自同一 ScrollViewport 与 Accepted 布局，不复制编辑模型。触摸选区端点和软件惯性按各自后续能力接入。
 
@@ -624,7 +626,7 @@ SelectableTextOptions.drag 同样默认为 TextDragOptions()，只允许导出 C
 
 SelectableTextOptions.contextMenu 默认为 TextContextMenuOptions()，与编辑宿主共用 Disabled／StandardNative／PreferSystem、选区策略及标准标签。showContextMenu()、右键／平台辅助点击和菜单键／Shift+F10 进入同一原生菜单，提供 Copy／SelectAll；要求匹配正文的 Accepted 几何和合法焦点／输入边界。选区内点击保留方向，选区外按配置保留、放置插入点或选词。打开停止拖选，不触发行内主按钮；会话、正文更新、关闭及迟到动作遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。
 
-SelectableTextOptions.touch 提供相同 TextTouchOptions；普通 tap 折叠到 Accepted 命中位置，长按选词或保留现有方向选区后使用原生 Copy／SelectAll 菜单。行内动作正常 tap 先由原子目标激活并消费结束，祖先不再折叠选区；长按取得文本祖先归属后取消原行内候选。只读宿主不创建自己的滚动状态，原始接触仍可由外层 ScrollPan 接管。两个文本宿主复用同一接触按压识别与取消规则。
+SelectableTextOptions.touch 提供相同 TextTouchOptions；普通 tap 折叠到 Accepted 命中位置，连续第二／第三次短按选择词／逻辑行，长按选词或保留现有方向选区后使用原生 Copy／SelectAll 菜单。行内动作正常 tap 先由原子目标激活并消费结束，祖先不再折叠选区或累计这次短按；长按取得文本祖先归属后取消原行内候选。只读宿主不创建自己的滚动状态，原始接触仍可由外层 ScrollPan 接管。两个文本宿主复用同一接触按压识别与取消规则，正文、选区通知和 accessibility 沿原宿主发布。
 
 `TextRangeAction(key, range, onActivate, enabled, focus)` 按稳定 key 保留嵌套区域、FocusTarget 和 Press；缺省焦点顺序跟随动作数组，显式 FocusOptions 独立。范围可以跨行，由布局 selection 返回的矩形合成一个 Path 命中区域，支持显式激活且不自行调用 URL 或 OS 服务。`TextRangeDecoration(range, background, underline)` 只画范围装饰，不创建交互区域。范围均为原始 StyledText 的合法 UTF-8 标量区间，动作非空且 key 唯一。
 

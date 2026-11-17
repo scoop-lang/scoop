@@ -10,6 +10,8 @@ macOS 实窗用例复用多个 TextEditHost 和一个 SelectableTextHost，覆�
 
 独立的文本触摸场景从 native 队列发送 Touch／Pen contacts，覆盖短按 grapheme 落点、长按选词和真实原生菜单命令、方向选区、内层／外层滚动及行内链接竞争。触摸开关、None 长按、菜单关闭、受保护投影、只读、缩放、阻止输入、第二触点、重绑、失焦和重入卸载均沿正常宿主验证；另从 accessibility 请求菜单，确认触摸配置不关闭语义动作。该受控事件测试不代替真实触屏设备验收。
 
+多击场景在另一个独立窗口进程中运行，69 步覆盖编辑／只读宿主的词和逻辑行选择、第四次短按、Touch／Pen 来源切换、组合字符与 emoji、间隔／距离、显式关闭、失败或域外接触、Accepted 缩放、长按、区间投影和受保护遮罩。行内链接连续短按只激活动作；外部选区修改及选择回调中的修改／关闭会打断旧计数。可用 `--filter 'touch multi taps select'` 单独执行；原 66 步触摸场景使用 `--filter 'native contacts select text'`，键盘／鼠标／IME 组合使用 `--filter 'native editing system IME'`。
+
 编辑宿主通过 updateTextEditor 发布语义，只读宿主在正常 update 和选择通知中调用 updateSelectableText。两个菜单场景从原生主队列调用公开 accessibilityPerformShowMenu，检查返回结果、实际 tracking、Copy／SelectAll／编辑项目和真实模型／剪贴板变化。菜单与普通右键／键盘入口使用同一目标、锚点、策略和会话，仍覆盖只读／禁用、受保护用途、焦点／文档变化及迟到命令。
 
 右键辅助事件显式设置原生按钮编号，避免 NSEvent 构造器保留左键编号；Shift+F10 携带 NSF10FunctionKey，避免把空字符串送入 AppKit 文本替换。每次菜单操作等待 PopupCompleted 后再进入下一阶段，保留原生 tracking 中的检查与修改，不把发送取消请求当成会话已经结束。禁用行为在宿主挂载期间检查，已卸载宿主另行检查调用拒绝；链接拖选从折叠选区开始，以覆盖普通扩选路径。

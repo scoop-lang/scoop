@@ -7,9 +7,9 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.window.*
 
-internal class ContactPressSample(val contact: ContactState, val position: Point)
+internal class ContactPressSample(val contact: ContactState, val position: Point, val count: Int)
 
-private class ContactPressCandidate(val start: ContactPressSample) {
+private class ContactPressCandidate(val start: ContactPressSample, val interval: Duration) {
     var latest = start.contact
     var claimed = false
 }
@@ -21,30 +21,54 @@ internal class ContactPress(
     private var enabled: Boolean,
     private var threshold: Double,
     private var delay: Duration?,
+    private var multiTap: Boolean,
+    private var interval: Duration?,
     private val ready: () -> Boolean,
-    private val tap: (ContactPressSample) -> Unit,
+    private val tap: (ContactPressSample) -> Boolean,
     private val hold: (ContactPressSample) -> Unit
 ): Closeable {
     private var closed = false
     private val contacts = ArrayList<ContactId>()
     private var candidate: ContactPressCandidate? = None
+    private var taps: ContactTapSequence? = None
     private var timer: WindowDeadline? = None
     private var moved = false
     private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
     private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
     private val finished = area.scope.addEventFinished { event -> finish(event) }
+    private val windowEvents =
+        scope.observeWindow(scope.nativeWindow) { event -> observeWindow(event) }
     private val activity =
         scope.observeWindowActivity {
             value -> if (!value.focused || !value.visible || value.occluded)
                 cancel()
         }
 
-    fun update(enabled: Boolean, threshold: Double, delay: Duration?) {
-        if (this.enabled != enabled || this.threshold != threshold || this.delay != delay)
+    fun update(
+        enabled: Boolean,
+        threshold: Double,
+        delay: Duration?,
+        multiTap: Boolean,
+        interval: Duration?
+    ) {
+        if (
+            this.enabled !=
+                enabled ||
+                this.threshold !=
+                threshold ||
+                this.delay !=
+                delay ||
+                this.multiTap !=
+                multiTap ||
+                this.interval !=
+                interval
+        )
             cancel()
         this.enabled = enabled
         this.threshold = threshold
         this.delay = delay
+        this.multiTap = multiTap
+        this.interval = interval
     }
 
     private fun allowed(): Boolean =
@@ -65,6 +89,7 @@ internal class ContactPress(
             return
         when (event) {
             case Contact(InputContactEvent.Cancelled(val id, _, _)) -> {
+                taps = None
                 forgetContact(contacts, id)
                 if (candidate?.start?.contact?.id == Some(id))
                     clear(false)
@@ -91,6 +116,25 @@ internal class ContactPress(
         }
     }
 
+    private fun observeWindow(event: WindowEvent) {
+        if (closed || area.isClosed)
+            return
+        when (event) {
+            case Contact(ContactEvent.Began(val value)) -> {
+                val point = value.pointer.logicalPosition
+                if (!area.hitTest(Point(point.x, point.y)))
+                    cancel()
+            }
+            case Pointer(PointerEvent.Button(_, _, ElementState.Pressed, _)) -> cancel()
+            case Pointer(PointerEvent.Wheel(_, _, _, _)) -> cancel()
+            case Keyboard(val value) -> if (value.state == ElementState.Pressed)
+                cancel()
+            case TextCommand(_) -> cancel()
+            case Gesture(_) -> cancel()
+            else -> {}
+        }
+    }
+
     private fun blockHeld(context: RoutedEventContext, value: ContactState) {
         val current = candidate ?: return
         if (current.claimed && current.start.contact.id == value.id) {
@@ -107,7 +151,18 @@ internal class ContactPress(
                 if (contacts.size != 1L || !allowed())
                     return
                 val point = local(value) ?: return
-                candidate = Some(ContactPressCandidate(ContactPressSample(value, point)))
+                val interval =
+                    this.interval ?:
+                        scope.interactionPreferences.doubleClickInterval ?:
+                        Duration.milliseconds(500L)
+                val count =
+                    if (multiTap)
+                        contactTapCount(area, taps, value, threshold, interval)
+                    else
+                        1
+                taps = None
+                candidate =
+                    Some(ContactPressCandidate(ContactPressSample(value, point, count), interval))
                 when (delay) {
                     case Some(val duration) -> {
                         val clock = timer ?: scope.createDeadline { expired() }
@@ -137,7 +192,10 @@ internal class ContactPress(
                 when (result) {
                     case Some(val value) -> {
                         context.consume()
-                        tap(value)
+                        if (multiTap)
+                            taps = Some(ContactTapSequence(current.start, current.interval))
+                        if (!tap(value))
+                            taps = None
                     }
                     case None -> {}
                 }
@@ -166,7 +224,7 @@ internal class ContactPress(
         val first = current.start.position
         if (hypot(origin.x - first.x, origin.y - first.y) > threshold)
             return None
-        return Some(ContactPressSample(value, point))
+        return Some(ContactPressSample(value, point, current.start.count))
     }
 
     private fun expired() {
@@ -222,7 +280,7 @@ internal class ContactPress(
                 when (candidate) {
                     case Some(val current) -> if (current.start.contact.id != value.id)
                         cancel()
-                    case None -> {}
+                    case None -> taps = None
                 }
             }
             else -> {}
@@ -230,8 +288,10 @@ internal class ContactPress(
     }
 
     fun cancel() {
-        if (!closed)
+        if (!closed) {
+            taps = None
             clear(true)
+        }
     }
 
     private fun clear(release: Boolean) {
@@ -250,10 +310,12 @@ internal class ContactPress(
         if (closed)
             return
         closed = true
+        taps = None
         var failure = cleanupUi(None) { clear(true) }
         contacts.clear()
         failure = cleanupUi(failure) { timer?.close() }
         failure = cleanupUi(failure) { activity.close() }
+        failure = cleanupUi(failure) { windowEvents.close() }
         failure = cleanupUi(failure) { events.close() }
         failure = cleanupUi(failure) { defaults.close() }
         failure = cleanupUi(failure) { finished.close() }

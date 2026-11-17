@@ -12,6 +12,13 @@ private class TextTouchOptionsTest {
         assertTrue(value.enabled)
         assertEquals(8.0, value.threshold)
         assertEquals(Some(Duration.milliseconds(500L)), value.longPressDelay)
+        assertTrue(value.multiTap)
+        assertEquals(None, value.multiTapInterval)
+        assertFalse(TextTouchOptions(multiTap = false).multiTap)
+        assertEquals(
+            Some(Duration.ZERO),
+            TextTouchOptions(multiTapInterval = Some(Duration.ZERO)).multiTapInterval
+        )
         assertEquals(None, TextTouchOptions(longPressDelay = None).longPressDelay)
         assertEquals(
             Some(Duration.ZERO),
@@ -22,6 +29,9 @@ private class TextTouchOptionsTest {
             assertFailsWith<IllegalArgumentException> { TextTouchOptions(threshold = threshold) }
         assertFailsWith<IllegalArgumentException> {
             TextTouchOptions(longPressDelay = Some(Duration.milliseconds(-1L)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TextTouchOptions(multiTapInterval = Some(Duration.milliseconds(-1L)))
         }
     }
 }

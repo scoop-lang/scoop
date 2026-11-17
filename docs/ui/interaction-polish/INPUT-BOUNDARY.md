@@ -82,6 +82,8 @@ UI 在这些事实和路由上组合 tap、long press、pan、pinch／rotate 等
 
 当前入口为 `InputEvent.Contact`、`InputScope.claimContacts(ids)` 和 `cancelContactClaim(id)`。组归属先整体发布，再取消原后代；失败仅回退本次新取得的触点。`beforePress` 将鼠标和触点的域外按下放入同一决策，source 保留真实来源。`InputActivity.hasContact` 跟踪当前归属；接触留在虚拟条目时保持该条目，父滚动接管并取消原后代后恢复正常回收。Press、Drag、ScrollPan、双指 TransformGesture 与两个文本宿主共用的内部 ContactPress 已作为实际消费者，后续识别器复用这些入口。TransformGesture 的直接接触计算位于 UI，与原生手势共享事件及变换样本，保留两个身份／种类，不向平台采集层增加新的识别分支。
 
+文本的连续短按也由 ContactPress 处理，消费既有 InputTime 和系统 doubleClickInterval；同一宿主中相同 ContactKind 的成功序列用于词／逻辑行选择。Window 继续交付原始接触和真实鼠标点击计数；触摸计数、取消和具体选择属于 UI，域外接触或其他输入会打断旧序列。
+
 直接滚动由 UI 的 `scope.scrollPan(area, viewport)` 识别阈值和锁轴，ScrollArea／VirtualList 沿共享 ScrollControl 接入。Surface 的 `consumeContactMovement` 只处理本次已获归属的位移与祖先剩余量，首次消费计入起点以来的完整距离，随后按相邻样本计算；几何转换与残量校验复用原滚轮基础。每次事件仅归属者可以先开放共享，普通 Drag 仍独占。新的定位、第二触点、配置变化与失效按现有取消通路收尾；该层不增加惯性时钟。
 
 ### 自定义手势的后续接入

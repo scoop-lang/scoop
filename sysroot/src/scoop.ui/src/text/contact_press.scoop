@@ -1,5 +1,6 @@
 package scoop.ui.text
 
+import scoop.graphics.text.*
 import scoop.surface.FocusOrigin
 import scoop.ui.*
 
@@ -10,6 +11,8 @@ internal fun createEditorContactPress(host: TextEditHost): ContactPress =
         host.options.enabled && host.options.touch.enabled,
         host.options.touch.threshold,
         host.options.touch.longPressDelay,
+        host.options.touch.multiTap,
+        host.options.touch.multiTapInterval,
         { editorTouchReady(host) },
         { sample -> editorTouchTap(host, sample) },
         { sample -> editorTouchHold(host, sample) }
@@ -29,20 +32,36 @@ internal fun editorTouchReady(host: TextEditHost): Boolean {
         host.current.text
 }
 
-private fun editorTouchTap(host: TextEditHost, sample: ContactPressSample) {
+private fun editorTouchTap(host: TextEditHost, sample: ContactPressSample): Boolean {
     val document = host.current
     if (!editorTouchReady(host) || !host.area.requestFocus(FocusOrigin.Pointer))
-        return
+        return false
     if (!editorTouchReady(host) || host.current !== document)
-        return
+        return false
     val frame = host.accepted!!
     val displayed = frame.layout.hitTest(sample.position)
     val position = frame.display.documentPosition(frame.display.mapping.reverse(displayed))
+    val unit = editorClickUnit(sample.count)
+    val range =
+        editorProjectedRange(
+            EditorInputLayout(frame.layout, frame.display, frame.caretStyle),
+            editorDragRange(frame.layout, displayed, unit)
+        )
+    val selection =
+        if (unit == EditorDragUnit.Character)
+            EditorSelection(position, position)
+        else
+            EditorSelection(
+                TextPosition(range.start),
+                TextPosition(range.end, TextAffinity.Upstream)
+            )
     editorStopDrag(host, false)
     host.perform(
-        { editorSetSelection(host, EditorSelection(position, position)) },
-        endComposition = true
+        { editorSetSelection(host, selection) },
+        endComposition = true,
+        cancelContacts = false
     )
+    return !host.closed
 }
 
 private fun editorTouchHold(host: TextEditHost, sample: ContactPressSample) {
@@ -57,6 +76,8 @@ internal fun createSelectableContactPress(host: SelectableTextHost): ContactPres
         host.options.enabled && host.options.touch.enabled,
         host.options.touch.threshold,
         host.options.touch.longPressDelay,
+        host.options.touch.multiTap,
+        host.options.touch.multiTapInterval,
         { selectableTouchReady(host) },
         { sample -> selectableTouchTap(host, sample) },
         { sample -> selectableTouchHold(host, sample) }
@@ -71,16 +92,28 @@ private fun selectableTouchReady(host: SelectableTextHost): Boolean {
     }
 }
 
-private fun selectableTouchTap(host: SelectableTextHost, sample: ContactPressSample) {
+private fun selectableTouchTap(host: SelectableTextHost, sample: ContactPressSample): Boolean {
     val document = host.content
     if (!selectableTouchReady(host) || !host.area.requestFocus(FocusOrigin.Pointer))
-        return
+        return false
     if (!selectableTouchReady(host) || host.content !== document)
-        return
-    val frame = host.inputFrame() ?: return
+        return false
+    val frame = host.inputFrame() ?: return false
     val position = frame.layout.hitTest(sample.position)
+    val unit = editorClickUnit(sample.count)
+    val range = editorDragRange(TextEditLayout(frame.layout), position, unit)
+    val selection =
+        if (unit == EditorDragUnit.Character)
+            EditorSelection(position, position)
+        else
+            EditorSelection(
+                TextPosition(range.start),
+                TextPosition(range.end, TextAffinity.Upstream)
+            )
     selectableStopDrag(host)
-    host.setSelection(position, position)
+    host.preferredX = None
+    host.publishSelection(selection, cancelContacts = false)
+    return !host.closed
 }
 
 private fun selectableTouchHold(host: SelectableTextHost, sample: ContactPressSample) {

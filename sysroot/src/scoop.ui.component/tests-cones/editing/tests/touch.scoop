@@ -163,6 +163,37 @@ internal class FieldTouchProbe {
             contact(100L + index + phase.toLong() * 10L, 2, point)
         }
     }
+    private fun tapField(index: Long) {
+        val point = Point(45.0, points[index].y)
+        val id = 600L + phase.toLong()
+        contact(id, 0, point)
+        contact(id, 2, point)
+    }
+    private fun multiTapField() {
+        val index = (phase - 20).toLong() / 4L
+        when ((phase - 20) % 4) {
+            0 -> tapField(index)
+            1 -> {
+                val range = models[index].selection.range
+                assertEquals(range.start, range.end)
+                tapField(index)
+            }
+            2 -> {
+                assertEquals(Utf8Range(0L, 4L), models[index].selection.range)
+                tapField(index)
+            }
+            else -> assertEquals(Utf8Range(0L, 4L), models[index].selection.range)
+        }
+    }
+    private fun singleTapField() {
+        val index = (phase - 45).toLong() / 3L
+        if ((phase - 45) % 3 < 2) {
+            tapField(index)
+        } else {
+            val range = models[index].selection.range
+            assertEquals(range.start, range.end)
+        }
+    }
     private fun step() {
         when (phase) {
             0 -> tapAll()
@@ -196,10 +227,34 @@ internal class FieldTouchProbe {
             }
             19 -> {
                 assertEquals(Utf8Selection(4L, 4L), models[0L].selection)
+                touch =
+                    TextTouchOptions(
+                        longPressDelay = None,
+                        multiTapInterval = Some(Duration.seconds(10L))
+                    )
+                for (model in models)
+                    model.setSelection(Utf8Selection(0L, 0L))
+                generation.value += 1
+            }
+            44 -> {
+                touch = TextTouchOptions(longPressDelay = None, multiTap = false)
+                for (model in models)
+                    model.setSelection(Utf8Selection(0L, 0L))
+                generation.value += 1
+            }
+            63 -> {
                 finished = true
                 window!!.requestDestroy()
             }
             else -> {
+                if (phase >= 20 && phase < 44) {
+                    multiTapField()
+                    return
+                }
+                if (phase >= 45 && phase < 63) {
+                    singleTapField()
+                    return
+                }
                 assertTrue(phase >= 4 && phase < 16)
                 val index = (phase - 4).toLong() / 2L
                 val point = Point(45.0, points[index].y)

@@ -7,12 +7,21 @@ import scoop.ui.requireUi
 public class TextTouchOptions public constructor(
     public val enabled: Boolean = true,
     public val threshold: Double = 8.0,
-    public val longPressDelay: Duration? = Some(Duration.milliseconds(500L))
+    public val longPressDelay: Duration? = Some(Duration.milliseconds(500L)),
+    public val multiTap: Boolean = true,
+    public val multiTapInterval: Duration? = None
 ) {
     init {
         requireUi(threshold.isFinite() && threshold >= 0.0, "invalid text touch threshold")
         when (longPressDelay) {
             case Some(val value) -> requireUi(value.floorSeconds >= 0L, "negative long press delay")
+            case None -> {}
+        }
+        when (multiTapInterval) {
+            case Some(val value) -> requireUi(
+                value.floorSeconds >= 0L,
+                "negative multi-tap interval"
+            )
             case None -> {}
         }
     }

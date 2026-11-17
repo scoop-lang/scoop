@@ -14,6 +14,15 @@ internal enum EditorDragUnit {
     Character, Word, Line
 }
 
+internal fun editorClickUnit(count: Int): EditorDragUnit =
+    if (count < 2)
+        EditorDragUnit.Character
+    else
+        if (count == 2)
+            EditorDragUnit.Word
+        else
+            EditorDragUnit.Line
+
 internal class EditorDrag(
     var windowPoint: Point,
     val unit: EditorDragUnit,
@@ -38,13 +47,10 @@ internal fun editorPress(host: TextEditHost, pointer: InputPointer, local: Point
     val position = input.display.documentPosition(input.display.mapping.reverse(displayed))
     val shift = pointer.state.modifiers.shift
     val unit =
-        if (shift || clicks < 2)
+        if (shift)
             EditorDragUnit.Character
         else
-            if (clicks == 2)
-                EditorDragUnit.Word
-            else
-                EditorDragUnit.Line
+            editorClickUnit(clicks)
     val range = editorProjectedRange(input, editorDragRange(layout, displayed, unit))
     val anchor =
         if (shift)

@@ -18,58 +18,70 @@ import scoop.window.native.*
 private class TextTouchWindowTest {
     @Test
     fun `native contacts select text open one menu and yield to scrolling`() {
-        @Unsafe
-        {
-            val clipboard = saveNativeClipboard() ?: fail(Some("cannot save clipboard"))
-            try {
-                FontCollection().use {
-                    fonts ->
-                    fonts.register(testSansBytes, "Host Test")
-                    val p = TextTouchProbe(fonts)
+        runTextTouch({ probe -> textTouchStep(probe) }, 1)
+    }
+
+    @Test
+    fun `touch multi taps select words and lines with shared cancellation and projection`() {
+        runTextTouch({ probe -> textTouchMultiTap(probe) }, 3)
+    }
+}
+
+private fun runTextTouch(step: (TextTouchProbe) -> Unit, links: Int) {
+    @Unsafe
+    {
+        val clipboard = saveNativeClipboard() ?: fail(Some("cannot save clipboard"))
+        try {
+            FontCollection().use {
+                fonts ->
+                fonts.register(testSansBytes, "Host Test")
+                val p = TextTouchProbe(fonts, step)
+                @Unsafe
+                {
+                    observeMenus()
+                }
+                try {
+                    UiHost { host, active, event -> p.event(host, active, event) }.use {
+                        host -> Application(
+                            applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                        ).run(host)
+                    }
+                    assertTrue(p.finished)
+                    assertEquals(links, p.links)
+                    assertTrue(p.editor!!.isClosed)
+                    assertTrue(p.selectable!!.isClosed)
+                    assertFalse(p.editor!!.scroll.isAttached)
+                    assertFalse(p.outer.isAttached)
+                    assertTrue(p.view!!.restored())
+                    assertFalse(p.frames!!.snapshot().required)
+                } catch (error: Throwable) {
+                    println(f"text touch phase=${p.phase}, links=${p.links}, menus=${p.menus}")
+                    println(
+                        f"selection=${p.model.selection.anchor}, ${
+                            p.model.selection.cursor
+                        }, scroll=${p.editor!!.scroll.offset.y}"
+                    )
+                    throw error
+                } finally {
                     @Unsafe
                     {
-                        observeMenus()
+                        endMenus()
                     }
-                    try {
-                        UiHost { host, active, event -> p.event(host, active, event) }.use {
-                            host -> Application(
-                                applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
-                            ).run(host)
-                        }
-                        assertTrue(p.finished)
-                        assertEquals(1, p.links)
-                        assertTrue(p.editor!!.isClosed)
-                        assertTrue(p.selectable!!.isClosed)
-                        assertFalse(p.editor!!.scroll.isAttached)
-                        assertFalse(p.outer.isAttached)
-                        assertTrue(p.view!!.restored())
-                        assertFalse(p.frames!!.snapshot().required)
-                    } catch (error: Throwable) {
-                        println(f"text touch phase=${p.phase}, links=${p.links}, menus=${p.menus}")
-                        println(
-                            f"selection=${p.model.selection.anchor}, ${
-                                p.model.selection.cursor
-                            }, scroll=${p.editor!!.scroll.offset.y}"
-                        )
-                        throw error
-                    } finally {
-                        @Unsafe
-                        {
-                            endMenus()
-                        }
-                        p.clock?.close()
-                        p.frames?.close()
-                        p.view?.close()
-                    }
+                    p.clock?.close()
+                    p.frames?.close()
+                    p.view?.close()
                 }
-            } finally {
-                assertEquals(0, restoreNativeClipboard(clipboard))
             }
+        } finally {
+            assertEquals(0, restoreNativeClipboard(clipboard))
         }
     }
 }
 
-internal class TextTouchProbe(val fonts: FontCollection) {
+internal class TextTouchProbe(
+    val fonts: FontCollection,
+    private val step: (TextTouchProbe) -> Unit
+) {
     val text =
         "one two é😀\nsecond line\nthird line\nfourth line\nfifth line\nsixth line\nseventh line"
     var model = TextEditorState(text)
@@ -120,6 +132,7 @@ internal class TextTouchProbe(val fonts: FontCollection) {
     var preventMove = false
     var preventEnd = false
     var closeOnSelection = false
+    var replaceOnSelection = false
     var scale = 1.0
     var editor: TextEditHost? = None
     var selectable: SelectableTextHost? = None
@@ -221,7 +234,7 @@ internal class TextTouchProbe(val fonts: FontCollection) {
                         _ ->
                         pending = false
                         if (!finished) {
-                            textTouchStep(this);
+                            step(this);
                             phase += 1
                         }
                     }
@@ -280,8 +293,11 @@ internal class TextTouchProbe(val fonts: FontCollection) {
     }
     fun tap(id: Long, byte: Long, readonly: Boolean = false) {
         val point = point(byte, readonly)
-        contact(id, 0, point)
-        contact(id, 2, point)
+        tapAt(id, point)
+    }
+    fun tapAt(id: Long, point: Point, pen: Boolean = false) {
+        contact(id, 0, point, pen)
+        contact(id, 2, point, pen)
     }
     fun hold(id: Long, byte: Long, readonly: Boolean = false, action: () -> Unit) {
         savedPoint = point(byte, readonly)

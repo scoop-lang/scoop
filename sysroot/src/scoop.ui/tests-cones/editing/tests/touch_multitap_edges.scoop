@@ -1,0 +1,229 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun textTouchMultiTapEdges(p: TextTouchProbe) {
+    when (p.phase) {
+        22 -> touchTap(p, 5L)
+        23 -> {
+            touchSelection(p, 5L, 5L)
+            p.preventBegin = true
+            touchTap(p, 5L)
+        }
+        24 -> {
+            touchSelection(p, 5L, 5L);
+            p.preventBegin = false;
+            touchTap(p, 5L)
+        }
+        25 -> {
+            touchSelection(p, 5L, 5L)
+            p.preventMove = true
+            val point = p.point(5L)
+            p.contact(400L, 0, point)
+            p.contact(400L, 1, point)
+            p.contact(400L, 2, point)
+        }
+        26 -> {
+            touchSelection(p, 5L, 5L);
+            p.preventMove = false;
+            touchTap(p, 5L)
+        }
+        27 -> {
+            touchSelection(p, 5L, 5L);
+            p.preventEnd = true;
+            touchTap(p, 5L)
+        }
+        28 -> {
+            touchSelection(p, 5L, 5L);
+            p.preventEnd = false;
+            touchTap(p, 5L)
+        }
+        29 -> {
+            touchSelection(p, 5L, 5L)
+            val point = p.point(5L)
+            p.contact(401L, 0, point)
+            p.contact(401L, 3, point)
+            p.contact(401L, 2, point)
+        }
+        30 -> {
+            touchSelection(p, 5L, 5L);
+            touchTap(p, 5L)
+        }
+        31 -> {
+            touchSelection(p, 5L, 5L)
+            val point = p.point(5L)
+            p.contact(402L, 0, point)
+            p.contact(403L, 0, point)
+            p.contact(402L, 2, point)
+            p.contact(403L, 2, point)
+        }
+        32 -> {
+            touchSelection(p, 5L, 5L);
+            touchTap(p, 5L)
+        }
+        33 -> {
+            touchSelection(p, 5L, 5L)
+            p.tapAt(404L, Point(480.0, 340.0))
+        }
+        34 -> touchTap(p, 5L)
+        35 -> {
+            touchSelection(p, 5L, 5L)
+            p.savedPoint = p.point(5L)
+            p.scale = 1.5
+            p.changed()
+        }
+        36 -> p.tapAt(405L, p.savedPoint)
+        37 -> {
+            assertTrue(p.model.selection.range.start == p.model.selection.range.end)
+            p.scale = 1.0
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = Some(Duration.milliseconds(30L)),
+                    multiTapInterval = Some(Duration.seconds(10L))
+                )
+            p.changed()
+        }
+        38 -> touchTap(p, 5L)
+        39 -> {
+            touchSelection(p, 5L, 5L)
+            p.savedPoint = p.point(5L)
+            p.contact(406L, 0, p.savedPoint)
+            p.pause(100L)
+        }
+        40 -> {
+            touchSelection(p, 4L, 7L)
+            p.noMenu()
+            p.contact(406L, 2, p.savedPoint)
+        }
+        41 -> touchTap(p, 5L)
+        42 -> {
+            touchSelection(p, 5L, 5L)
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTapInterval = Some(Duration.seconds(10L))
+                )
+            p.projection =
+                textProjection { _ -> [TextEditReplacement(Utf8Range(0L, 3L), "PREFIX")] }
+            p.model.setSelection(Utf8Selection(0L, 0L))
+            p.changed()
+        }
+        43 -> {
+            val caret = p.editor!!.layout.caret(TextPosition(2L))!!
+            val rect =
+                p.editor!!.area.toWindow(Rect(caret.x, caret.y + caret.height / 2.0, 0.0, 0.0))!!
+            p.savedPoint = Point(rect.x, rect.y)
+            p.tapAt(407L, p.savedPoint)
+        }
+        44 -> {
+            assertTrue(p.model.selection.range.start == p.model.selection.range.end)
+            p.tapAt(408L, p.savedPoint)
+        }
+        45 -> {
+            touchSelection(p, 0L, 3L)
+            assertEquals(p.text, p.model.text)
+            p.projection = textMask()
+            p.protectedText = true
+            p.model.setSelection(Utf8Selection(0L, 0L))
+            p.changed()
+        }
+        46 -> touchTap(p, 11L)
+        47 -> {
+            assertTrue(p.model.selection.range.start == p.model.selection.range.end)
+            touchTap(p, 11L)
+        }
+        48 -> {
+            assertTrue(p.model.selection.range.start < p.model.selection.range.end)
+            assertEquals(p.text, p.model.text)
+            touchTap(p, 11L)
+        }
+        49 -> {
+            touchSelection(p, 0L, 16L)
+            assertFalse(p.model.canUndo)
+            p.projection = textProjection()
+            p.protectedText = false
+            p.changed()
+        }
+        50 -> touchTap(p, 6L, readonly = true)
+        51 -> {
+            touchSelection(p, 6L, 6L, true);
+            touchTap(p, 6L, readonly = true)
+        }
+        52 -> {
+            touchSelection(p, 5L, 8L, true);
+            touchTap(p, 6L, readonly = true)
+        }
+        53 -> {
+            touchSelection(p, 0L, 17L, true)
+            p.selectable!!.setSelection(TextPosition(0L), TextPosition(0L))
+        }
+        54 -> touchTap(p, 6L, readonly = true)
+        55 -> {
+            touchSelection(p, 6L, 6L, true)
+            p.selectable!!.setSelection(TextPosition(4L), TextPosition(0L))
+        }
+        56 -> touchTap(p, 6L, readonly = true)
+        57 -> {
+            touchSelection(p, 6L, 6L, true);
+            touchTap(p, 6L, readonly = true)
+        }
+        58 -> {
+            touchSelection(p, 5L, 8L, true)
+            p.selectable!!.setSelection(TextPosition(3L), TextPosition(0L))
+        }
+        59 -> touchTap(p, 1L, readonly = true)
+        60 -> {
+            touchSelection(p, 3L, 0L, true);
+            assertEquals(1, p.links);
+            touchTap(p, 1L, readonly = true)
+        }
+        61 -> {
+            touchSelection(p, 3L, 0L, true);
+            assertEquals(2, p.links);
+            touchTap(p, 1L, readonly = true)
+        }
+        62 -> {
+            touchSelection(p, 3L, 0L, true);
+            assertEquals(3, p.links);
+            touchTap(p, 6L, readonly = true)
+        }
+        63 -> {
+            touchSelection(p, 6L, 6L, true);
+            touchTap(p, 6L, readonly = true)
+        }
+        64 -> {
+            touchSelection(p, 5L, 8L, true)
+            p.replaceOnSelection = true
+            touchTap(p, 6L, readonly = true)
+        }
+        65 -> {
+            touchSelection(p, 0L, 0L, true);
+            touchTap(p, 6L, readonly = true)
+        }
+        66 -> {
+            touchSelection(p, 6L, 6L, true)
+            p.closeOnSelection = true
+            touchTap(p, 6L, readonly = true)
+        }
+        67 -> {
+            assertTrue(p.gone)
+            assertTrue(p.editor!!.isClosed)
+            assertTrue(p.selectable!!.isClosed)
+            p.noMenu()
+            p.pause(80L)
+        }
+        68 -> {
+            p.noMenu()
+            assertEquals(3, p.links)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected multi-tap phase"))
+    }
+}

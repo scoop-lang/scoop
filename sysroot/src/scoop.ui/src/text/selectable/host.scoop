@@ -165,7 +165,9 @@ public class SelectableTextHost public constructor(
         touchPress.update(
             options.enabled && options.touch.enabled,
             options.touch.threshold,
-            options.touch.longPressDelay
+            options.touch.longPressDelay,
+            options.touch.multiTap,
+            options.touch.multiTapInterval
         )
         this.decorations = decorations
         changed = onSelectionChanged
@@ -215,10 +217,11 @@ public class SelectableTextHost public constructor(
         preferredX = None
         return publishSelection(EditorSelection(anchor, cursor))
     }
-    internal fun publishSelection(value: EditorSelection): Boolean {
+    internal fun publishSelection(value: EditorSelection, cancelContacts: Boolean = true): Boolean {
         if (selected.value == value)
             return false
-        touchPress.cancel()
+        if (cancelContacts)
+            touchPress.cancel()
         selected.value = value
         refreshMenuCommands()
         scope.requestFrame()

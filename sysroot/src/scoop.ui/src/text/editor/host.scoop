@@ -271,7 +271,9 @@ public class TextEditHost public constructor(
         touchPress.update(
             options.enabled && options.touch.enabled,
             options.touch.threshold,
-            options.touch.longPressDelay
+            options.touch.longPressDelay,
+            options.touch.multiTap,
+            options.touch.multiTapInterval
         )
         touchPan.update(editorTouchAxes(options), ScrollChain.Chain, editorTouchScroll(options))
         this.placeholder = placeholder
@@ -383,7 +385,8 @@ public class TextEditHost public constructor(
     internal fun perform(
         action: () -> Boolean,
         endComposition: Boolean = false,
-        notify: Boolean = true
+        notify: Boolean = true,
+        cancelContacts: Boolean = true
     ): Boolean {
         val before = current.text
         val beforeCommitted = current.committedText
@@ -396,7 +399,7 @@ public class TextEditHost public constructor(
                 performing = false
             }
         if (changed)
-            invalidate()
+            invalidate(cancelContacts || before != current.text)
         if (endComposition && composing)
             retireConnection()
         refreshMenuCommands()

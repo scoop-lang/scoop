@@ -156,13 +156,10 @@ private fun selectablePrepareDrag(
     val position = frame.layout.hitTest(point)
     val shift = pointer.state.modifiers.shift
     val unit =
-        if (shift || count < 2)
+        if (shift)
             EditorDragUnit.Character
         else
-            if (count == 2)
-                EditorDragUnit.Word
-            else
-                EditorDragUnit.Line
+            editorClickUnit(count)
     val range = editorDragRange(TextEditLayout(frame.layout), position, unit)
     val anchor =
         if (shift)

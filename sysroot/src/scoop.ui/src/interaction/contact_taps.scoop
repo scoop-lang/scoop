@@ -1,0 +1,37 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.hypot
+import scoop.surface.InputArea
+import scoop.time.Duration
+import scoop.window.*
+
+/** Only a completed tap can seed the next tap on the same mounted target. */
+internal class ContactTapSequence(val start: ContactPressSample, val interval: Duration)
+
+internal fun contactTapCount(
+    area: InputArea,
+    previous: ContactTapSequence?,
+    value: ContactState,
+    threshold: Double,
+    interval: Duration
+): Int {
+    val sequence = previous ?: return 1
+    val start = sequence.start
+    if (start.contact.kind != value.kind || sequence.interval != interval)
+        return 1
+    val elapsed = value.pointer.time.mark() - start.contact.pointer.time.mark()
+    if (elapsed < Duration.ZERO || elapsed > interval)
+        return 1
+    val first = start.contact.pointer.logicalPosition
+    val next = value.pointer.logicalPosition
+    if (hypot(next.x - first.x, next.y - first.y) > threshold)
+        return 1
+    val origin = area.toLocal(Point(first.x, first.y)) ?: return 1
+    if (hypot(origin.x - start.position.x, origin.y - start.position.y) > threshold)
+        return 1
+    return if (start.count < 3)
+        start.count + 1
+    else
+        3
+}

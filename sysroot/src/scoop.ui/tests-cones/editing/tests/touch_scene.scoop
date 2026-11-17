@@ -160,10 +160,16 @@ private class TouchReadonly(
             onSelectionChanged =
                 {
                     _,
-                    _ -> if (p.closeOnSelection) {
-                        host.close()
-                        p.gone = true
-                        p.changed()
+                    _ -> {
+                        if (p.replaceOnSelection) {
+                            p.replaceOnSelection = false
+                            host.setSelection(TextPosition(0L), TextPosition(0L))
+                        }
+                        if (p.closeOnSelection) {
+                            host.close()
+                            p.gone = true
+                            p.changed()
+                        }
                     }
                 }
         )

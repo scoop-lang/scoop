@@ -15,7 +15,7 @@
 | 多击选择 | 公共编辑器已有双击选词、三击选逻辑行、按词／行继续拖选，且已有实窗用例 | Windows 连续点击计数、Linux 系统阈值、平台真实事件及 Unicode／投影组合回归 |
 | 拖动 | 公共轴向 `Drag`；Window／AppKit source／target；UI DropArea 沿 Surface Accepted 输入路径接收，DragSource 接入阈值、延后准备、配对完成回调和挂载收尾 | 文本事务、预览细化及窗口内、同程序跨窗口、跨程序的完整系统会话与活动来源组合；已验证范围见实施记录 |
 | 文本拖放 | 已有拖选和越界自动滚动 | 从选区发起数据拖动、落点 caret、移动／复制、编辑策略与撤销 |
-| 触摸／手势 | 鼠标／滚轮、AppKit 原生手势、Surface 连续路由与 UI 内容变换；直接接触仍待接入 | 独立 contact、取消、触摸滚动、长按、缩放／旋转等手势，以及既有控件接入 |
+| 触摸／手势 | 原生手势与 contact 路由、成组接管、Press／Drag、直接滚动、文本短按／长按与多击、双指缩放／旋转已接入 | 通用长按／swipe、文本端点、软键盘、其余控件组合与完整设备验证 |
 | 视觉效果 | 动画、spring、部分控件回弹、主题 `Full／Reduced` | 通用滚动回弹、惯性来源去重、跟随系统减少动画；完善高对比度、缩放与命中体验 |
 | accessibility | 完整设计；Window 语义资源、AppKit 基础投影及 UI scope／逻辑发布／场景、关系、内容合并／忽略、精确命中、基础／只读文本控件、Switch／Toggle／RadioGroup／ToggleGroup、Field 注释关系／必填属性及滚动轴已接入，定向通过范围见实施记录 | 完成内置控件、复杂控件关系、Accepted 实窗验收、全文本／虚拟集合、三平台 provider 和实际客户端，并补本轮交互的语义动作、非拖动替代入口、文本菜单及拖放通知；完整范围见统一实施计划 |
 
@@ -233,6 +233,8 @@ AppKit 的公开 NSDraggingSession 不提供强制取消。Window 因而分开 c
 Drawer 起始区域按 Accepted 几何中的实际按下位置命中，把手和正文不依赖 hover。正文的 ScrollPan 与 Drawer Drag 使用同一阈值；claimAtBoundary=false 仅在初次接管时按范围和方向让出无余量的候选，已经开始滚动仍遵守原 Chain／Contain，不在同一序列中突然改为关闭抽屉。Carousel 的暂停条件直接观察整个区域的活动触点，不把焦点或拖动状态当作接触仍存在的替代。Resizable 的命中带可单独配置，面板布局与细分隔线保持原几何。
 
 文本宿主复用内部 ContactPress 处理 tap／长按，不增加公开识别器层。TextTouchOptions 单独配置开关、窗口距离阈值与可关闭的长按 deadline；TextEditOptions.touchScroll 复用 ScrollPan，滚动接管与文本接管沿同一 contact 归属取消竞争者。接触按下的自动聚焦保留候选，并停止显露旧 caret；实际 tap 或长按随后使用匹配文档和投影的 Accepted 布局。长按的最终操作仍进入既有文本菜单／选区命令，键盘和 accessibility 不受触摸开关影响。Press 在接触按下时只登记候选，激活时消费结束，允许文本祖先识别行内动作上的长按。
+
+连续短按也由同一 ContactPress 计数：multiTap 单独开关，multiTapInterval 缺省使用当前系统 doubleClickInterval，未知时为 500 ms；相同来源、间隔和距离都满足条件的第二／第三次成功短按复用词／逻辑行选择。宿主自己的选区发布保留连续计数，外部文档或选区修改、被阻止的输入、域外接触、长按及其他取消都会清除它。行内链接消费的短按不加入祖先文本的序列；没有额外的文本模型或多击定时器。
 
 TransformGesture 在 UI 中将双指缩放和旋转组合为同一会话，达到启用分量的阈值后成组取得两个接触，使用 Accepted 局部几何计算跨度、连续角度与质心；原生手势与直接接触共享样本和业务入口，input 保留真实来源。任一抬起正常结束；第三触点、失效几何、配置变化或系统取消收束整个配对，不将剩余手指改成旧子项的点击／拖动。可关闭直接接触并配置阈值，不改变窗口或整个应用的缩放。
 
