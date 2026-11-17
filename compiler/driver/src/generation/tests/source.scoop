@@ -51,3 +51,16 @@ class GPlanConflict : GPlanI, GPlanJ
 @GenerateWith("unknown", ["GPlanNotDeclared"]) class GPlanUnknown
 @GenerateWith(" ", []) class GPlanEmptyName
 @GenerateWith("onInterface", []) interface GPlanMisplaced {}
+
+interface GPlanBound<T : Hash> { fun bounded(): Int }
+
+@GenerateWith("conditional", ["GPlanGeneric<T.Companion>", "GPlanBound<T>"])
+class GPlanConditional<T> {
+    override interface GPlanGeneric<T.Companion> where T.Companion : ref {}
+    override interface GPlanBound<T> where T : Hash {}
+}
+
+@GenerateWith("conditionalReady", ["GPlanDefault"])
+class GPlanConditionalReady<T> {
+    override interface GPlanDefault where T : Hash {}
+}

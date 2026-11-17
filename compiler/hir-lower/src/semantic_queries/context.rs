@@ -51,7 +51,12 @@ impl Lowerer {
             owner,
             parameters,
             self.current_source_context,
-            operation,
+            |state| match context {
+                hir::SemanticContext::Function(function) => {
+                    state.with_inherited_method_condition(function, operation)
+                }
+                hir::SemanticContext::Nominal(_) => operation(state),
+            },
         )
     }
 

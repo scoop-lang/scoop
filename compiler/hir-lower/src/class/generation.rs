@@ -109,8 +109,51 @@ impl Lowerer {
             .push(source);
     }
 
-    pub(crate) fn query_owner_interfaces(&mut self, owner: hir::NominalOwner) -> Vec<TypeId> {
-        self.owner_interfaces(Owner::from_nominal_owner(owner))
+    pub(crate) fn resolve_implemented_interface(
+        &mut self,
+        owner: hir::NominalOwner,
+        syntax: &ast::TypeRef,
+    ) -> Result<hir::InterfaceSelection, Vec<ast::Diagnostic>> {
+        let context = hir::SemanticContext::Nominal(owner);
+        let owner = Owner::from_nominal_owner(owner);
+        let resolve = |state: &mut Self| {
+            state.type_query(context.into(), syntax.span, |state| {
+                state.resolve_type_ref(syntax)
+            })
+        };
+        let errors = match resolve(self) {
+            Ok(ty) => {
+                if !matches!(self.types[ty], Type::Interface(_)) {
+                    return Ok(hir::InterfaceSelection::NotInterface);
+                }
+                let selected = self
+                    .owner_conformances(owner)
+                    .iter()
+                    .find(|implementation| self.types_equal(ty, implementation.interface));
+                return Ok(selected
+                    .map_or(hir::InterfaceSelection::NotImplemented, |implementation| {
+                        hir::InterfaceSelection::Implemented(implementation.interface)
+                    }));
+            }
+            Err(errors) => errors,
+        };
+
+        // A projection or bounded type argument may only be well-formed in
+        // the implementation that declares it. Keep each domain independent.
+        let conditional: Vec<_> = self
+            .owner_conformances(owner)
+            .iter()
+            .filter_map(|implementation| {
+                Some((implementation.interface, implementation.condition.clone()?))
+            })
+            .collect();
+        for (interface, condition) in conditional {
+            let result = self.with_conditional_interface_assumptions(&condition, resolve);
+            if result.is_ok_and(|ty| self.types_equal(ty, interface)) {
+                return Ok(hir::InterfaceSelection::Implemented(interface));
+            }
+        }
+        Err(errors)
     }
 
     pub(crate) fn query_interface_requirements(

@@ -60,6 +60,8 @@ fun greeting(name: String?): String =
 
 跨 Cone 示例见 `language/visibility`；泛型和 companion 见 `language/generics`、`language/companion`。公开 codec 的示例见 `json/typed`。
 
+为条件接口生成方法时，把 `@GenerateWith("my.generator", ["I<T>"])` 写在实现类型或实际实现接口的 companion 上。`override interface I<T> where ...` 声明可用条件，生成正文和调用处都遵守该条件。派生类也可以选择从基类继承且仍需补齐的条件接口。
+
 ## 编译期文件与环境
 
 先查 `language/compiler-inputs`，按显示路径保存项目及资源。core 的 `scoop.compiler` 不进入默认 prelude，需显式导入 includeStr、includeBytes、includeDir 或 env。

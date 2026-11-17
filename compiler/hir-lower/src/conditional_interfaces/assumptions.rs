@@ -10,6 +10,27 @@ pub(super) struct ConditionalAssumptions {
 }
 
 impl Lowerer {
+    pub(crate) fn with_inherited_method_condition<R>(
+        &mut self,
+        function: hir::FunctionId,
+        operation: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        // A local block already contributes its bounds to the method binders.
+        // An inherited block can constrain a constructed base argument instead.
+        let guard = self.functions[function].method.and_then(|method| {
+            method
+                .availability
+                .filter(|guard| guard.owner != method.owner)
+        });
+        match guard {
+            Some(guard) => self.with_conditional_interface_assumptions(
+                &self.conditional_guard_application(guard),
+                operation,
+            ),
+            None => operation(self),
+        }
+    }
+
     pub(crate) fn with_conditional_interface_assumptions<R>(
         &mut self,
         condition: &hir::ConditionalInterfaceApplication,

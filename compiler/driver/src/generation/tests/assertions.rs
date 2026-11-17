@@ -7,7 +7,14 @@ pub(super) fn positive(queries: &mut dyn SemanticQueries, batches: &[GeneratorBa
             .iter()
             .map(|batch| batch.generator.as_str())
             .collect::<Vec<_>>(),
-        ["merge", "multi", "partial", "inherited", "generic"]
+        [
+            "merge",
+            "multi",
+            "partial",
+            "inherited",
+            "generic",
+            "conditional"
+        ]
     );
     let merge = &batches[0].tasks[0];
     assert_eq!(merge.bindings.len(), 2);
@@ -31,6 +38,9 @@ pub(super) fn positive(queries: &mut dyn SemanticQueries, batches: &[GeneratorBa
         generic["tasks"][0]["owner"]["arguments"][0],
         json!({"kind": "binder", "depth": 0, "index": 0})
     );
+    let conditional = &batches[5].tasks[0];
+    assert_eq!(conditional.bindings.len(), 2);
+    assert_eq!(conditional.methods.len(), 2);
     for batch in batches {
         let request = batch.request(queries).unwrap();
         assert_eq!(request["generator"], batch.generator);

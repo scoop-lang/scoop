@@ -31,6 +31,8 @@ impl hir::MethodBodyGenerator for Inspect {
                 "default",
                 "inherited",
                 "generic",
+                "conditional",
+                "conditionalReady",
             ],
         );
         let batches = plan::plan(queries, valid).unwrap();

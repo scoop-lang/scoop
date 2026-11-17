@@ -73,7 +73,7 @@ pub fn type_description(
         Shape::Parameter(parameter) => {
             json!({"kind": "parameter", "parameter": lexical_parameter(queries, function, parameter)?})
         }
-        Shape::Companion { host, .. } => {
+        Shape::Companion { host } => {
             json!({"kind": "companion", "host": lexical_parameter(queries, function, host)?})
         }
     };

@@ -13,10 +13,7 @@ pub enum SemanticTypeStructure {
     NativeFunctionPointer(FunctionType),
     GcLeafNativeFunctionPointer(FunctionType),
     Parameter(TypeParamDecl),
-    Companion {
-        host: TypeParamDecl,
-        bounds: CompanionBounds,
-    },
+    Companion { host: TypeParamDecl },
 }
 
 #[derive(Clone, Debug)]

@@ -101,6 +101,8 @@ def generated_source(method):
         return '// 中文前缀\n{ return "中文\\n\\"quoted\\"" } /* suffix */'
     if name == "echo":
         return "{ return value }"
+    if name == "guardedEcho":
+        return "{ val decoder: ValueDecoder<T> = T.Companion\n return value }"
     assert name == "value"
     return "{ return 42 }"
 

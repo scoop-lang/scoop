@@ -8,7 +8,9 @@ impl Lowerer {
         name: &str,
         lower: impl FnOnce(&mut Self) -> Vec<hir::Statement>,
     ) -> hir::Body {
-        let mut scope = self.with_function_scope(id, name, lower);
+        let mut scope = self.with_function_scope(id, name, |state| {
+            state.with_inherited_method_condition(id, lower)
+        });
         scope.entry.extend(scope.value);
         hir::Body {
             locals: scope.locals,

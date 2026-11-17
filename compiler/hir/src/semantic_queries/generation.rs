@@ -3,6 +3,13 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InterfaceSelection {
+    Implemented(TypeId),
+    NotImplemented,
+    NotInterface,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AppliedRequirement {
     pub interface: TypeId,
     pub declaration: InterfaceMethodReference,

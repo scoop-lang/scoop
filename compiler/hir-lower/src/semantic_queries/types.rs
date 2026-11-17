@@ -25,11 +25,11 @@ impl Lowerer {
             hir::Type::Param(parameter) => Shape::Parameter(self.query_parameter(parameter)?),
             hir::Type::Companion(parameter) => {
                 let host = self.query_parameter(parameter)?;
-                let bounds = host
-                    .companion
-                    .clone()
-                    .ok_or_else(|| unbound_parameter(parameter))?;
-                Shape::Companion { host, bounds }
+                let host_ty = self.intern_type(hir::Type::Param(parameter));
+                if host.companion.is_none() && !self.assumed_conditional_companion(host_ty) {
+                    return Err(unbound_parameter(parameter));
+                }
+                Shape::Companion { host }
             }
             hir::Type::Integer(_)
             | hir::Type::Boolean
