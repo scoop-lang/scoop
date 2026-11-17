@@ -23,8 +23,10 @@ internal class LazyItemEntry(
     var lastUsed: TimeMark
 ) {
     var selected = true
+    var semanticPins = 0
     val pinned: Boolean get() =
-        node.active && (node.scope.hasInputActivity || node.root.focus.hasPendingIn(node))
+        node.active &&
+            (semanticPins > 0 || node.scope.hasInputActivity || node.root.focus.hasPendingIn(node))
 }
 
 internal class LazyChildren(initial: ItemSource, private var capacity: Long) {

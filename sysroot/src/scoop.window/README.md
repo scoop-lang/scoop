@@ -100,7 +100,7 @@ Switch／ToggleButton 在 AppKit 使用 Button 加 Switch／Toggle 子角色，P
 
 当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、保留文本范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 
-逻辑列表使用 `SemanticRole.List` 与 `node.collection = Some(SemanticCollectionSnapshot(source))`。source 提供同一不可变快照的 count、稳定的 `SemanticItemKey`、反向索引和数据描述，查询不构造控件。`itemAt`／`itemForKey`／`find` 明确区分不存在、不支持和数据未知；名称与 automationId 搜索须显式声明能力。AppKit 可以按范围取得 rows；未实现条目没有估算坐标。已挂载行用 List 下的 Group 及 `collectionItem` 关联真实几何与子控件，回收 Group 不退休逻辑条目。移动 Group 到另一个父节点会清除原集合关联。重排保持被持有代理，删除使其永久失效；原生代理只弱缓存，不把普通查询变成长列表的常驻 View。完整 Realize／Reveal／Focus、其他平台及读屏器结果继续按 S7／S10／S11 记录。
+逻辑列表使用 `SemanticRole.List` 与 `node.collection = Some(SemanticCollectionSnapshot(source))`。source 提供同一不可变快照的 count、稳定的 `SemanticItemKey`、反向索引和数据描述，查询不构造控件。`itemAt`／`itemForKey`／`find` 明确区分不存在、不支持和数据未知；名称与 automationId 搜索须显式声明能力。AppKit 可以按范围取得 rows；未实现条目没有估算坐标。已挂载行用 List 下的 Group 及 `collectionItem` 关联真实几何与子控件，回收 Group 不退休逻辑条目。移动 Group 到另一个父节点会清除原集合关联。重排保持被持有代理，删除使其永久失效；原生代理只弱缓存，不把普通查询变成长列表的常驻 View。`collectionActions = SemanticCollectionActions(realize, reveal, focus)` 登记明确操作，查询仍只读。AppKit 提供 Realize Item／Scroll to Visible 自定义动作；只有真实能力已准备或 Accepted 场景已显露时才报告完成，等待期间为 Busy。条目聚焦须同时声明 `focusable = true` 并提供真实回调；公开 setter 依据真实焦点执行。其他平台与读屏器验收继续按 S7／S10／S11 记录。
 
 ## 多窗口、模态与窗框
 

@@ -19,29 +19,48 @@ import scoop.window.native.*
 private class SemanticRevealTest {
     @Test
     fun `native reveal waits for accepted nested geometry and preserves the editing target`() {
-        FontCollection().use {
-            fonts ->
-            fonts.register(testSansBytes, "UI Sans")
-            val probe = RevealProbe(TextEditAppearance(fonts, textStyle { families = ["UI Sans"] }))
-            try {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application().run(host)
-                }
-                assertTrue(probe.finished)
-                assertTrue(probe.sawInnerFrame)
-                assertEquals(1, probe.discarded)
-                assertTrue(probe.target!!.isClosed)
-                assertTrue(probe.editor!!.isClosed)
-                assertFalse(probe.outer.isAttached)
-                assertFalse(probe.inner.isAttached)
-            } finally {
-                probe.close()
+        verifyReveal(true)
+    }
+}
+
+@Test
+private class SemanticRevealWithoutActivationTest {
+    @Test
+    fun `native reveal completes nested geometry and cancellation without activation`() {
+        verifyReveal(false)
+    }
+}
+
+private fun verifyReveal(requireFocus: Boolean) {
+    FontCollection().use {
+        fonts ->
+        fonts.register(testSansBytes, "UI Sans")
+        val probe =
+            RevealProbe(
+                TextEditAppearance(fonts, textStyle { families = ["UI Sans"] }),
+                requireFocus
+            )
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
             }
+            assertTrue(probe.finished)
+            assertTrue(probe.sawInnerFrame)
+            assertEquals(1, probe.discarded)
+            assertTrue(probe.target!!.isClosed)
+            assertTrue(probe.editor!!.isClosed)
+            assertFalse(probe.outer.isAttached)
+            assertFalse(probe.inner.isAttached)
+        } finally {
+            probe.close()
         }
     }
 }
 
-internal class RevealProbe(val appearance: TextEditAppearance): Closeable {
+internal class RevealProbe(
+    val appearance: TextEditAppearance,
+    private val requireFocus: Boolean
+): Closeable {
     val model = TextEditorState("Keep this selection", Some(Utf8Selection(15L, 5L)))
     val outer = ScrollState()
     val inner = ScrollState()
@@ -106,11 +125,13 @@ internal class RevealProbe(val appearance: TextEditAppearance): Closeable {
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )
+                val activate = requireFocus
                 val native =
                     application.createWindow(
                         windowAttributes {
                             title = "Scoop semantic reveal"
                             size = LogicalSize(360.0, 260.0)
+                            requestActivation = activate
                         }
                     )
                 window = Some(native)
@@ -138,10 +159,18 @@ internal class RevealProbe(val appearance: TextEditAppearance): Closeable {
                             result -> completed(tag, result)
                         }
                     )
-                native.requestFocus()
+                if (requireFocus)
+                    native.requestFocus()
             }
             case AboutToWait -> {
-                if (accepted > 0 && !window!!.isFocused && !refocused && !ui!!.isClosed) {
+                if (
+                    requireFocus &&
+                        accepted >
+                        0 &&
+                        !window!!.isFocused &&
+                        !refocused &&
+                        !ui!!.isClosed
+                ) {
                     refocused = true
                     window!!.requestFocus()
                 }
@@ -150,7 +179,7 @@ internal class RevealProbe(val appearance: TextEditAppearance): Closeable {
                         !finished &&
                         committed ==
                         revision.value &&
-                        window!!.isFocused &&
+                        (!requireFocus || window!!.isFocused) &&
                         !frames!!.snapshot().required
                 )
                     advance()
@@ -190,7 +219,7 @@ internal class RevealProbe(val appearance: TextEditAppearance): Closeable {
     }
 
     private fun preserved() {
-        assertTrue(editor!!.focus.handle.isFocusActive)
+        assertEquals(requireFocus, editor!!.focus.handle.isFocusActive)
         assertEquals("Keep this selection", model.text)
         assertEquals(Utf8Selection(15L, 5L), model.selection)
     }
@@ -288,7 +317,8 @@ internal class RevealProbe(val appearance: TextEditAppearance): Closeable {
                 assertOffset(inner, Point(0.0, 0.0))
                 assertOffset(outer, Point(0.0, 0.0))
                 assertEquals(None, target!!.geometry!!.visibleBounds)
-                assertTrue(editor!!.focus.handle.requestFocus())
+                if (requireFocus)
+                    assertTrue(editor!!.focus.handle.requestFocus())
                 preserved()
                 discardNext = true
                 post(1, 0)

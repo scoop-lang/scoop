@@ -83,6 +83,15 @@ internal class RevealAttempt {
         for (boundary in path)
             remember(boundary, boundary.state.requestRevision)
     }
+    fun watch(viewport: ScrollViewport) {
+        val state = viewport.state
+        for (move in moves)
+            if (move.viewport === viewport) {
+                move.revision = state.requestRevision
+                return
+            }
+        moves.add(RevealMove(viewport, state, viewport.bindingRevision, state.requestRevision))
+    }
     fun retainFor(node: MountedNode) {
         var index = 0L
         while (index < moves.size) {

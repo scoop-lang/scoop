@@ -96,13 +96,21 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 `SemanticRole.List` 是逻辑集合容器。`SemanticItemKey` 以 Number(Long)／Text(String) 表达集合内稳定 key，区分数字和文本。`SemanticCollectionSource` 提供同一不可变快照的 count、keyAt、indexOfKey、describe 与 search；不从 View 构造函数推导元数据。`SemanticCollectionSnapshot(source)` 只保留描述源和已校验的实际 count，不枚举数据或创建每项对象。
 
-`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected 与 expanded；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
+`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded 与 focusable；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
 
 快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count 与 properties。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
 `AccessibilityNode.collection` 暂存一个可选快照，仅用于 List；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生轻量条目代理，弱缓存代理，不常驻 count 个对象或完整子 ID 数组。发布数据变化时只复核尚被引用的 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
 
-AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。Realize／Reveal／Focus 的完整接入仍按 S7 后续功能完成，不因数据查询可用而宣称已经交付。
+AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。
+
+### 3.5 虚拟条目的明确操作
+
+`AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus)`，仅用于 List。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
+
+Realize 的 Completed 表示实际行及其当前语义子树已挂载并发布，原生同步调用返回之前不得回收；它不承诺几何、滚动或焦点。Reveal 只有真实 Accepted 场景中目标已具有有效可见区域时才 Completed，准备或等待呈现期间为 Busy。Focus 选择该项实际支持的焦点目标，以实际活动键盘焦点完成；清除请求仍指向该 key 的真实目标，请求之间的先后与取消遵循原焦点控制器。窗口不在前台时，不把逻辑焦点或排队请求当作实际活动焦点。
+
+AppKit 用公开 NSAccessibilityCustomAction 提供“Realize Item”和“Scroll to Visible”，分别对应实际已登记能力，BOOL 只把 Completed 映射为 YES。聚焦使用公开 setAccessibilityFocused:；条目 getter 依据真实挂载子树中已发布的实际焦点，不借读取启动任何操作。旧动作、旧代理以及删除后重新使用同 key 均不能越过退休边界；动作对象不保活实际行或 Window。
 
 ## 4. AppKit 投影与验证
 

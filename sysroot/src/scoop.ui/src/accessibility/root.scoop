@@ -154,6 +154,14 @@ internal class RootSemantics(
         return drawing!!
     }
     fun reveal(handle: SemanticsHandle): SemanticActionResult = reveals.request(handle)
+    fun revealItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult =
+        reveals.requestItem(parent, entry)
+    fun cancelCollectionReveal(parent: SemanticsHandle) {
+        reveals.cancelCollection(parent)
+    }
+    fun cancelReveal() {
+        reveals.cancel()
+    }
 
     fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect, path: Array<ScrollReveal>) {
         frame().capture(handle, canvas, rect, path)

@@ -83,6 +83,7 @@ enum {
 @property(nonatomic, strong) SWAccessibilityTextGeometry *textGeometry;
 @property(nonatomic) int64_t itemCount;
 @property(nonatomic) uint64_t collectionRevision;
+@property(nonatomic) int32_t collectionActions;
 @property(nonatomic, copy) id itemKey;
 @end
 

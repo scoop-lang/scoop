@@ -21,6 +21,7 @@ public class SemanticsHandle internal constructor(
     private var merging = false
     internal var collectionSource: ItemSource? = None
     internal var collectionItems: ItemSemantics? = None
+    internal var collectionViewport: ScrollViewport? = None
     internal val generation: ULong get() = resource.contentRevision
 
     public val id: SemanticNodeId get() = resource.id
@@ -194,6 +195,7 @@ public class SemanticsHandle internal constructor(
         closed = true
         collectionSource = None
         collectionItems = None
+        collectionViewport = None
         when (owner.lazySemantics) {
             case Some(val current) -> if (current === this) {
                 owner.lazySemantics = None

@@ -34,7 +34,21 @@ public class AccessibilityNode internal constructor(
     internal var collectionValue: SemanticCollectionSnapshot? = None
     internal var collectionRevision = 0UL
     internal var publishedCollection: SemanticCollectionSnapshot? = None
+    internal var itemActions = SemanticCollectionActions()
     internal var itemKey: SemanticItemKey? = None
+
+    /** Operations on logical items; ordinary queries never invoke these callbacks. */
+    public var collectionActions: SemanticCollectionActions
+    get() {
+        checkOpen()
+        return itemActions
+    }
+    set(value) {
+        checkOpen()
+        requireWindow(role == SemanticRole.List, "semantic collections require the list role")
+        itemActions = value
+        provider.changed(this)
+    }
 
     /** Publishes a data source independently of the currently mounted row controls. */
     public var collection: SemanticCollectionSnapshot?

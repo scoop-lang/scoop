@@ -36,7 +36,11 @@ private class LazySemanticSource(
 }
 
 /** Binds one lazy mount's data-level list without constructing any of its rows. */
-public fun SemanticsHandle.updateCollection(source: ItemSource, items: ItemSemantics? = None) {
+public fun SemanticsHandle.updateCollection(
+    source: ItemSource,
+    items: ItemSemantics? = None,
+    viewport: ScrollViewport? = None
+) {
     checkOpen()
     checkSemanticsMutation()
     requireUi(role == SemanticRole.List, "lazy collection semantics require the list role")
@@ -44,6 +48,13 @@ public fun SemanticsHandle.updateCollection(source: ItemSource, items: ItemSeman
         owner.lazyItems ?:
             throw IllegalArgumentException(Some("collection semantics require a lazy element"))
     requireUi(lazy.uses(source), "semantic collection source differs from the lazy source")
+    when (viewport) {
+        case Some(val value) -> requireUi(
+            value.active && value.node === owner,
+            "semantic collection viewport belongs to another lazy mount"
+        )
+        case None -> {}
+    }
     when (items) {
         case Some(val value) -> requireUi(
             value.source === source,
@@ -64,14 +75,24 @@ public fun SemanticsHandle.updateCollection(source: ItemSource, items: ItemSeman
             case(None, None) -> true
             else -> false
         }
+    val sameViewport =
+        when ((collectionViewport, viewport)) {
+            case(Some(val before), Some(val after)) -> before === after
+            case(None, None) -> true
+            else -> false
+        }
     when (collectionSource) {
-        case Some(val before) -> if (before === source && sameItems)
+        case Some(val before) -> if (before === source && sameItems && sameViewport)
             return
         case None -> {}
     }
     resource.collection = Some(SemanticCollectionSnapshot(LazySemanticSource(source, items)))
     collectionSource = Some(source)
     collectionItems = items
+    if (!sameViewport)
+        controller.cancelCollectionReveal(this)
+    collectionViewport = viewport
+    resource.collectionActions = semanticCollectionActions(this)
     lazy.bindSemantics(this)
     controller.changed()
 }

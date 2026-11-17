@@ -2,7 +2,7 @@ package scoop.window.accessibility
 
 import scoop.window.*
 
-/** One narrow owner callback for immutable collection data, never for UI construction. */
+/** Queries remain read-only; explicit operations enter the existing owner action boundary. */
 internal class DarwinCollectionQueries(
     private val application: ApplicationOwner,
     provider: AccessibilityProvider
@@ -24,7 +24,8 @@ internal class DarwinCollectionQueries(
                     pointer,
                     node.id.number,
                     node.collectionValue?.count ?: -1L,
-                    node.collectionRevision
+                    node.collectionRevision,
+                    collectionActionBits(node.itemActions)
                 ),
                 "publish semantic collection"
             )
@@ -69,6 +70,26 @@ internal class DarwinCollectionQueries(
 private class CollectionQueryStatus {
     var value = 4
 }
+
+private fun collectionActionBits(actions: SemanticCollectionActions): Int =
+    (
+        when (actions.realize) {
+            case Some(_) -> 1;
+            case None -> 0
+        }
+    ) +
+        (
+            when (actions.reveal) {
+                case Some(_) -> 2;
+                case None -> 0
+            }
+        ) +
+        (
+            when (actions.focus) {
+                case Some(_) -> 4;
+                case None -> 0
+            }
+        )
 
 private fun collectionCallback(application: ApplicationOwner, provider: AccessibilityProvider):
 ForeignCallback<(Ptr<Unit>, Long, Int, Long, Int, Long, Ptr<UInt8>?, Long, Ptr<Unit>?) -> Int> {
@@ -116,6 +137,19 @@ private fun queryCollection(
     length: Long,
     reply: Ptr<Unit>?
 ): Int {
+    if (operation >= 3) {
+        val result =
+            application.performAccessibility {
+                val key =
+                    collectionKey(kind, number, bytes, length) ?:
+                        return@performAccessibility SemanticActionResult.InvalidArgument
+                provider.performCollection(owner, key, operation)
+            }
+        return if (result == SemanticActionResult.Completed)
+            1
+        else
+            0
+    }
     if (operation == 2) {
         try {
             val source = provider.collectionSource(owner, true) ?: return 4
@@ -231,7 +265,11 @@ private fun writeCollectionItem(reply: Ptr<Unit>, item: SemanticItem) {
                     1
                 else
                     0
-            }
+            },
+            if (props.focusable)
+                1
+            else
+                0
         )
     }
     withCollectionKey(item.key) {
@@ -279,7 +317,8 @@ private fun nativeCollectionSource(
     provider: Ptr<Unit>,
     number: Long,
     count: Long,
-    revision: ULong
+    revision: ULong,
+    actions: Int
 ): Long
 
 @Extern(name = "scoop_window_accessibility_collection_row")
@@ -299,7 +338,8 @@ private fun nativeCollectionItem(
     count: Long,
     enabled: Int,
     selected: Int,
-    expanded: Int
+    expanded: Int,
+    focusable: Int
 )
 
 @Extern(name = "scoop_window_accessibility_collection_item_key")

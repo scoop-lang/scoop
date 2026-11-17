@@ -90,11 +90,19 @@ grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从�
 
 ### 6.1 Lazy 集合的数据描述
 
-`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items)` 用于 LazyElement 自身的 List 节点；items 的 source 必须是相同对象。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
+`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items, viewport)` 用于 LazyElement 自身的 List 节点；items 的 source 必须是相同对象。可选 viewport 指定该 Lazy 挂载实际拥有的活动 ScrollViewport，用于远处条目的显露；不从估算位置创建另一条滚动路径。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
 
 查询通过只读 UI evaluation 执行 count／keyAt／indexOfKey／describe，不收集依赖，不调用 build；State、滚动、焦点和语义写入遵守现有 evaluation 禁止修改的合同。正常数据更新同时替换集合快照，不等下一次滚动。元数据与具体 View 寿命分离：仅已实现行有 Group 资源和真实子节点，回收时退休它们；逻辑条目代理由 Window 的集合投影持有。该 Group 的 Accepted 几何使用真实行布局及同一裁剪／滚动变换，未呈现行没有可点击坐标。
 
-VirtualList 增加可选 itemSemantics 配置并默认接入此集合路径；已有 ScrollArea、ScrollBar 和行内控件继续使用自身语义，不重复业务选择状态。普通元数据查询不会触发 Realize／Reveal／Focus。这三类动作的剩余接入仍按 S7 实施和验证。
+VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewport；已有 ScrollArea、ScrollBar 和行内控件继续使用自身语义，不重复业务选择状态。普通元数据查询不会触发 Realize／Reveal／Focus。
+
+### 6.2 Lazy 条目操作与暂时保留
+
+集合默认提供 Realize：经正常 owner 动作边界按 key 调用既有 LazyChildren 准备、挂载和语义发布，临时保留实例直到同步回调结束。仅创建所请求的行，不改变滚动位置或焦点；尚无 Accepted 场景时几何仍不可用。回调结束后恢复普通回收规则，不因原生代理或子对象被保留而固定整个 View。
+
+提供 viewport 时同时支持 Reveal。请求临时保留目标，将其纳入既有 LazyMeasureContext.pinnedItems；LazyElement 按原 pinned 合同测量、放置，几何继续来自 Accepted 场景。随后复用普通 SemanticRevealController 和 ScrollReveal，逐层显露并等待实际可见区域。初次布局之前也观察实际 viewport 与祖先滚动路径的定位意图，后来的滚动／换绑取消旧请求；删除、禁用、隐藏、替换操作、根关闭、失败或完成均释放保留。丢弃帧只等待新的实际提交，不提前报告成功。
+
+存在同挂载 LazyFocus 且描述明确声明 focusable 的条目支持 Focus；沿既有按 key 焦点搜索选择首个真实目标，必要时准备和显露。Completed 只对应目标子树中真实活动的键盘焦点，已登记但未完成为 Busy；不直接激活系统窗口。清除只显式取消该 key 的在途条目请求，并向该 key 的真实目标发起 clearFocus；不把目标转发到另一行，focusRevision 与请求替换遵守既有控制器规则。行内任意控件的操作继续由实际控件自身提供，数据描述不代替其 handler。
 
 ## 7. 验证边界
 

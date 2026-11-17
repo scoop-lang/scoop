@@ -32,6 +32,74 @@ private fun openCollectionProbe(root: NativeNode): Ptr<Unit> {
     }
 }
 
+/** Exercises explicit row operations in the same native owner boundary. */
+public class NativeCollectionActionProbe public constructor(
+    root: NativeNode,
+    proxy: ApplicationProxy,
+    returned: (Int) -> Unit,
+    completed: (Int, Int) -> Unit
+): Closeable {
+    private val pointer = openCollectionActionProbe(root)
+    private val callback = collectionActionProbeCallback(proxy, returned, completed)
+    public fun post(phase: Int) {
+        @Unsafe
+        {
+            nativeCollectionActionPost(pointer, phase, callback.function, callback.context)
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeCollectionActionClose(pointer)
+            releaseForeignCallback(callback)
+        }
+    }
+}
+
+private fun collectionActionProbeCallback(
+    proxy: ApplicationProxy,
+    returned: (Int) -> Unit,
+    completed: (Int, Int) -> Unit
+): ForeignCallback<(Ptr<Unit>, Int, Int) -> Int> {
+    @Unsafe
+    {
+        return foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
+            {
+                phase: Int, result: Int ->
+                if (result == 0)
+                    returned(phase)
+                if (phase < 0)
+                    return@foreignCallback 0
+                proxy.post { _ -> completed(phase, result) }
+                0
+            },
+            0,
+            ForeignCallbackMode.Reusable
+        )
+    }
+}
+
+private fun openCollectionActionProbe(root: NativeNode): Ptr<Unit> {
+    @Unsafe
+    {
+        return nativeCollectionActionProbe(root.pointer)
+    }
+}
+
+@Extern(name = "scoop_ui_collection_action_probe")
+private fun nativeCollectionActionProbe(root: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_ui_collection_action_post")
+private fun nativeCollectionActionPost(
+    probe: Ptr<Unit>,
+    phase: Int,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+)
+
+@Extern(name = "scoop_ui_collection_action_close")
+private fun nativeCollectionActionClose(probe: Ptr<Unit>)
+
 private fun collectionProbeCallback(proxy: ApplicationProxy, completed: (Int, Int) -> Unit):
 ForeignCallback<(Ptr<Unit>, Int, Int) -> Int> {
     @Unsafe

@@ -86,7 +86,11 @@ internal class VirtualListInk(
         when (collection) {
             case Some(val value) -> {
                 value.update(SemanticProperties(enabled = input.input.enabled))
-                value.updateCollection(input.input.source, input.input.itemSemantics)
+                value.updateCollection(
+                    input.input.source,
+                    input.input.itemSemantics,
+                    Some(control!!.viewport)
+                )
             }
             case None -> {}
         }

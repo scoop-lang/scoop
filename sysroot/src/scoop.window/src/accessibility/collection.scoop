@@ -26,7 +26,15 @@ public struct SemanticItemProperties(
     val value: String? = None,
     val enabled: Boolean = true,
     val selected: Boolean? = None,
-    val expanded: Boolean? = None
+    val expanded: Boolean? = None,
+    val focusable: Boolean = false
+)
+
+/** Explicit item operations, separate from immutable metadata queries. */
+public struct SemanticCollectionActions(
+    val realize: ((SemanticItemKey) -> SemanticActionResult)? = None,
+    val reveal: ((SemanticItemKey) -> SemanticActionResult)? = None,
+    val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
 )
 
 public struct SemanticItemSearch(val name: Boolean = false, val automationId: Boolean = false)

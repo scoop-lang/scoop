@@ -1,0 +1,135 @@
+package scoop.ui
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.window.accessibility.*
+
+/** Retains an actual row only while an explicit item operation needs it. */
+internal class SemanticItemRetention(val entry: LazyItemEntry): Closeable {
+    private var closed = false
+    init {
+        entry.semanticPins += 1
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        entry.semanticPins -= 1
+        if (entry.semanticPins == 0 && entry.node.active && entry.node.root.isOpen)
+            entry.node.parent?.request(UiInvalidation.Layout)
+    }
+}
+
+private class ItemOperation {
+    var retention: SemanticItemRetention? = None
+}
+
+internal fun semanticCollectionActions(handle: SemanticsHandle): SemanticCollectionActions {
+    val reveal: ((SemanticItemKey) -> SemanticActionResult)? =
+        when (handle.collectionViewport) {
+            case Some(_) -> Some { key -> performSemanticItem(handle, key, 4) }
+            case None -> None
+        }
+    val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? =
+        when (handle.owner.lazyFocus) {
+            case Some(_) -> Some {
+                key,
+                value -> performSemanticItem(
+                    handle,
+                    key,
+                    if (value)
+                        5
+                    else
+                        6
+                )
+            }
+            case None -> None
+        }
+    return SemanticCollectionActions(
+        Some { key -> performSemanticItem(handle, key, 3) },
+        reveal,
+        focus
+    )
+}
+
+internal fun itemViewKey(key: SemanticItemKey): ViewKey =
+    when (key) {
+        case Number(val value) -> ViewKey.Number(value)
+        case Text(val value) -> ViewKey.Text(value)
+    }
+
+private fun performSemanticItem(
+    handle: SemanticsHandle,
+    key: SemanticItemKey,
+    operation: Int
+): SemanticActionResult {
+    val request = ItemOperation()
+    try {
+        val result =
+            handle.controller.perform(handle) {
+                val items =
+                    handle.owner.lazyItems ?: return@perform SemanticActionResult.Unavailable
+                val actual = itemViewKey(key)
+                if (operation == 5 || operation == 6)
+                    return@perform focusSemanticItem(handle, actual, operation == 5)
+                val index = items.indexOf(actual) ?: return@perform SemanticActionResult.Unavailable
+                val entry =
+                    prepareUi<LazyItemEntry> {
+                        items.prepare(handle.owner, index, MonotonicTimeSource.markNow())
+                    }
+                if (!handle.active || !entry.node.active)
+                    return@perform SemanticActionResult.Unavailable
+                request.retention = Some(SemanticItemRetention(entry))
+                if (operation == 3)
+                    SemanticActionResult.Completed
+                else
+                    handle.controller.revealItem(handle, entry)
+            }
+        if (!handle.active)
+            return SemanticActionResult.Unavailable
+        when (request.retention) {
+            case Some(val value) -> if (!value.entry.node.active)
+                return SemanticActionResult.Unavailable
+            case None -> {}
+        }
+        return result
+    } catch (ended: UiLayoutEnded) {
+        return SemanticActionResult.Unavailable
+    } finally {
+        request.retention?.close()
+    }
+}
+
+private fun focusSemanticItem(
+    handle: SemanticsHandle,
+    key: ViewKey,
+    focused: Boolean
+): SemanticActionResult {
+    val owner = handle.owner.lazyFocus ?: return SemanticActionResult.Unsupported
+    if (!owner.active)
+        return SemanticActionResult.Unavailable
+    val entry = owner.entry(key)
+    if (!focused) {
+        if (owner.node.root.focus.itemKey(owner) == Some(key))
+            owner.cancelRequest()
+        when (entry) {
+            case Some(val value) -> for (target in focusOrder(value.node))
+                if (target.handle.hasFocus)
+                    target.handle.clearFocus()
+            case None -> {}
+        }
+        return SemanticActionResult.Completed
+    }
+    when (entry) {
+        case Some(val value) -> for (target in focusOrder(value.node))
+            if (target.handle.isFocusActive)
+                return SemanticActionResult.Completed
+        case None -> {}
+    }
+    if (owner.node.root.focus.itemKey(owner) == Some(key))
+        return SemanticActionResult.Busy
+    handle.controller.cancelReveal()
+    return if (owner.requestFocus(key))
+        SemanticActionResult.Busy
+    else
+        SemanticActionResult.Rejected
+}

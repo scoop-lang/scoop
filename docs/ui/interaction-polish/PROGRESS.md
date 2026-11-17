@@ -14,7 +14,7 @@
 
 ### 当前执行与封存项（2026-11-17）
 
-- 当前为一级，正在实现 S7 accessibility 虚拟集合；数据描述、稳定逻辑代理与实际行关联已完成本地验证，下一批接入原生 Realize／Reveal／Focus。随后按依赖关闭触摸／手势、动画与其余 accessibility 功能。二级三平台集中验收和三级配色均未解锁。
+- 当前为一级，正在实现 S7 accessibility 虚拟集合；共享模型与 AppKit 的数据查询、稳定逻辑代理、实际行关联和条目操作已接入，下一批处理现有 Command、Combobox、DataTable 等消费者的同源描述与集合关系。随后按依赖关闭触摸／手势、动画与其余 accessibility 功能。二级三平台集中验收和三级配色均未解锁。
 - 先前未提交的菜单／面板／Select 配色工作已经从工作树单独封存，保留于本地 stash `85242e2f60c3c76284d6e89377cd6356c3b4e78c`（`deferred-ui-colors-until-all-functions-and-three-platform-validation-20261117`）。三级解锁前不恢复、不继续测试或交付；此前已经提交的变更保留。
 - 封存前已结束的 Style 与 Component 定向配色检查／测试结果保留，不据此把配色算作功能完成。后续每批只更新最高未完成级别的当前项，复用输入未变化的验收结果，不重新尝试系统前台焦点激活。
 
@@ -28,7 +28,7 @@
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
 | S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接滚动、文本短按／长按／多击／选区把手、公共 LongPress／SwipeGesture 已接入；Resizable／Carousel／Drawer 的触点与鼠标场景、双指变换、公共手势及菜单组合通过；Carousel／Drawer 原生 swipe 的 27／41 步场景通过；用户确认真实触控板缩放／旋转正常。文本与菜单沿同一模型及 accessibility 动作；触摸数据拖放、其余控件组合、软键盘和完整设备矩阵继续实施 |
-| S7 | 进行中 | 数据级描述、稳定 key、查询与 AppKit 轻量逻辑代理已接入；VirtualList 的实际行子树、Accepted 几何和命中已关联，十万条数据及重排／删除／回收／关闭本地回归通过；原生 Realize／Reveal／Focus 和其他平台尚未完成 |
+| S7 | 进行中 | 数据描述、稳定 key、查询与 AppKit 轻量代理、真实行子树／几何／命中已接入；原生条目 Realize／Reveal 和 LazyFocus 接线、在途保留与取消本地回归通过；现有消费者、集合关系与其他平台仍待完成，完整读屏器／实际聚焦验收按平台矩阵继续 |
 | S9 | 进行中 | 弹性边界、直接接触惯性、嵌套交接及阅读锚点已交付；文本选区、主题偏好和文字缩放组合已验证。剩余停帧／通知等功能继续收尾；已交付配色保留，其余配色封存到三级 |
 | S10～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
@@ -562,4 +562,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - 现有 ScrollAccessibilityTest 定向回归通过，保留实际增减／比例写入、隐藏／显示、禁用、状态换绑、只读文本与关闭覆盖。测试按对应配置的 Accepted 帧推进，并等待淡入后真实几何，避免把完全透明的首帧当作可见滚动条；未调整生产滚动或焦点行为。
 - Scoop 格式化、Window／UI／Component 生产与相关测试语义检查、原生 Objective-C 严格编译通过。三层规范、库 README 与编程材料已同步，生成的三套 API 文档及符号查询通过。依赖按接口变化重建，原有输入、拖放、设备手势与焦点验收不重复执行。
 
-本批完成数据访问与生命周期；原生 Realize／Reveal／Focus、其余平台投影及外部客户端／读屏器验收尚未完成。下一批继续 S7 原生条目操作。
+本批完成数据访问与生命周期；条目操作由下面一批继续，整体 S7 保持进行中。
+
+### 虚拟条目的实例化、显露与在途保留
+
+- Window 的 SemanticCollectionActions 将明确操作与只读描述分开。AppKit 的 Realize Item／Scroll to Visible 使用公开自定义动作，聚焦使用公开 setter；执行时按当前 key、元数据、owner／模态／祖先与退休状态检查，普通查询不执行动作。数据的 focusable 缺省 false，只在有真实目标时声明。
+- UI Realize 复用 LazyChildren 的准备／挂载，在同步原生返回前发布实际行内控件；临时保留只延续到所需边界，随后按原回收规则释放。Reveal 绑定实际 ScrollViewport，纳入已有 pinnedItems，沿原 SemanticRevealController／ScrollReveal 等待 Accepted 可见区域；首帧之前同样观察后续定位意图。Focus 走现有 LazyFocus，清除定位到相同 key 的请求与真实目标，请求替换遵循原控制器。
+- macOS release 的 VirtualCollectionActionsTest 通过 11 个原生阶段，使用十万条数据、真实按钮行和 Unicode 文本 key。覆盖同步返回前的子树访问、旧按钮退休、实际显露后调用按钮、定位取消、聚焦请求与同一 native block 内取消、禁用拒绝、尚未呈现时重排、删除后重插入及在途关闭；累计创建少于 150，结束后实际挂载数为零。没有将聚焦排队或进程内方法调用记为真实前台焦点／外部读屏器通过。
+- 原 VirtualCollectionTest 定向复查通过，查询仍不增加 build；普通显露复用既有嵌套视口场景，以 SemanticRevealWithoutActivationTest 运行并通过，保留 Accepted／Discarded、逐层滚动、文本选区、拒绝、中断与关闭断言。已有活动焦点用例和设备输入结果继续复用。
+- Window、UI、Component 及两个相关测试 Cone 检查通过，Scoop 格式化和生产／测试 Objective-C 严格编译通过。规范、三层库说明、测试说明和编程材料已同步；Window／UI API 文档生成及新增签名查询通过。仅重建接口变更影响的依赖并运行相关窗口场景。
+
+下一批为现有虚拟列表消费者补同源描述和集合关系；S7、其余触摸／手势、动画功能与三平台 provider 继续实施。配色保持三级。

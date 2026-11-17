@@ -127,6 +127,7 @@ public class AccessibilityProvider internal constructor(
         node.active = false
         node.collectionValue = None
         node.publishedCollection = None
+        node.itemActions = SemanticCollectionActions()
         retireSemanticRelations(node)
         node.actions = SemanticActions()
         node.invalidateGeometry()
@@ -182,6 +183,49 @@ public class AccessibilityProvider internal constructor(
             None
         else
             node.publishedCollection
+    }
+
+    internal fun performCollection(number: Long, key: SemanticItemKey, operation: Int):
+    SemanticActionResult {
+        if (closed || owner.phase != WindowState.Open || owner.application.exiting)
+            return SemanticActionResult.Unavailable
+        if (owner.inputBlocked)
+            return SemanticActionResult.Rejected
+        if (publishing)
+            return SemanticActionResult.Busy
+        val node = nodes[number] ?: return SemanticActionResult.Unavailable
+        if (!node.canAct())
+            return SemanticActionResult.Rejected
+        val source = node.collectionValue ?: return SemanticActionResult.Unavailable
+        when (node.publishedCollection) {
+            case Some(val published) -> if (source !== published)
+                return SemanticActionResult.Unavailable
+            case None -> return SemanticActionResult.Unavailable
+        }
+        val item =
+            when (source.itemForKey(key)) {
+                case Found(val value) -> value
+                else -> return SemanticActionResult.Unavailable
+            }
+        if (!item.properties.enabled)
+            return SemanticActionResult.Rejected
+        if ((operation == 5 || operation == 6) && !item.properties.focusable)
+            return SemanticActionResult.Unsupported
+        val actions = node.itemActions
+        val result =
+            when (operation) {
+                case 3 -> actions.realize?.invoke(key) ?: SemanticActionResult.Unsupported
+                case 4 -> actions.reveal?.invoke(key) ?: SemanticActionResult.Unsupported
+                case 5 -> actions.focus?.invoke(key, true) ?: SemanticActionResult.Unsupported
+                case 6 -> actions.focus?.invoke(key, false) ?: SemanticActionResult.Unsupported
+                else -> SemanticActionResult.Unsupported
+            }
+        if (!closed && owner.phase == WindowState.Open)
+            publish()
+        return if (node.active)
+            result
+        else
+            SemanticActionResult.Unavailable
     }
 
     internal fun perform(
@@ -271,6 +315,9 @@ public class AccessibilityProvider internal constructor(
         for (node in nodes.values) {
             node.active = false
             node.actions = SemanticActions()
+            node.itemActions = SemanticCollectionActions()
+            node.collectionValue = None
+            node.publishedCollection = None
             node.invalidateGeometry()
             node.children.clear()
             node.parentNode = None

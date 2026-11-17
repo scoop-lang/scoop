@@ -1,6 +1,6 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09；2026-11-17 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2／S5／S7 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并／忽略、精确命中及纯文本选区／编辑已接入。虚拟集合的数据描述、轻量逻辑条目与真实挂载行关联已完成本地验证；原生 Realize／Reveal／Focus 仍待接入。正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。其余控件与复杂关系、保留文本范围和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
+日期：2026-11-09；2026-11-17 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2／S5／S7 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并／忽略、精确命中及纯文本选区／编辑已接入。虚拟集合的数据描述、轻量条目、真实行关联和 AppKit 条目操作已接入；现有消费者与集合关系继续实施，完整平台与读屏器验收尚未完成。正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。其余控件与复杂关系、保留文本范围和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
 
 完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 

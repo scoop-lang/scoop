@@ -4,7 +4,7 @@
 @property(nonatomic, copy) id key;
 @property(nonatomic, copy) NSString *name, *help, *identifier, *value;
 @property(nonatomic) int64_t index, count;
-@property(nonatomic) int32_t enabled, selected, expanded;
+@property(nonatomic) int32_t enabled, selected, expanded, focusable;
 @end
 @implementation SWAccessibilityItemData
 @end
@@ -249,6 +249,64 @@
                                            accessibilityHitTest:point]
                                      : nil;
 }
+- (BOOL)performItem:(int32_t)operation {
+  if (!self.isAccessibilityEnabled)
+    return NO;
+  int32_t flag = operation == 3 ? 1 : operation == 4 ? 2 : 4;
+  if (!(self.collection.state.collectionActions & flag) ||
+      ((flag == 4) && !self.itemData.focusable))
+    return NO;
+  return [self.collection query:operation index:0 key:self.key
+                          reply:nil] == 1 &&
+         self.isAccessibilityElement;
+}
+- (BOOL)realizeAccessibilityItem {
+  return [self performItem:3];
+}
+- (BOOL)revealAccessibilityItem {
+  return [self performItem:4];
+}
+- (NSArray<NSAccessibilityCustomAction *> *)accessibilityCustomActions {
+  if (!self.isAccessibilityEnabled)
+    return @[];
+  int32_t flags = self.collection.state.collectionActions;
+  NSMutableArray *actions = [NSMutableArray new];
+  if (flags & 1)
+    [actions addObject:[[NSAccessibilityCustomAction alloc]
+                           initWithName:@"Realize Item"
+                                 target:self
+                               selector:@selector(realizeAccessibilityItem)]];
+  if (flags & 2) {
+    NSString *name = @"Scroll to Visible";
+    if (@available(macOS 26.0, *)) {
+      NSString *localized = NSAccessibilityActionDescription(
+          NSAccessibilityScrollToVisibleAction);
+      if (localized.length)
+        name = localized;
+    }
+    [actions addObject:[[NSAccessibilityCustomAction alloc]
+                           initWithName:name
+                                 target:self
+                               selector:@selector(revealAccessibilityItem)]];
+  }
+  return actions;
+}
+- (void)setAccessibilityFocused:(BOOL)focused {
+  [self performItem:focused ? 5 : 6];
+}
+- (BOOL)isAccessibilityFocused {
+  if (!self.isAccessibilityElement ||
+      !self.collection.tree.view.window.isKeyWindow)
+    return NO;
+  SWAccessibilityNode *row = [self.collection mountedRow:self.key];
+  int64_t number = self.collection.tree.focused;
+  while (number && row) {
+    if (number == row.number)
+      return YES;
+    number = self.collection.tree.published[@(number)].data.parent;
+  }
+  return NO;
+}
 - (BOOL)isAccessibilitySelectorAllowed:(SEL)selector {
   if (!self.isAccessibilityElement)
     return NO;
@@ -259,7 +317,12 @@
   if (selector == @selector(accessibilityFrame))
     return [self.collection mountedRow:self.key].state.data.geometry != 0;
   if (selector == @selector(setAccessibilityFocused:) ||
-      selector == @selector(setAccessibilitySelected:) ||
+      selector == @selector(isAccessibilityFocused))
+    return self.itemData.focusable &&
+           (self.collection.state.collectionActions & 4);
+  if (selector == @selector(accessibilityCustomActions))
+    return (self.collection.state.collectionActions & 3) != 0;
+  if (selector == @selector(setAccessibilitySelected:) ||
       selector == @selector(setAccessibilityExpanded:) ||
       selector == @selector(setAccessibilityValue:))
     return NO;
@@ -368,14 +431,15 @@ void scoop_window_accessibility_collection_callback(
 }
 
 int64_t scoop_window_accessibility_collection(void *pointer, int64_t number,
-                                              int64_t count,
-                                              uint64_t revision) {
+                                              int64_t count, uint64_t revision,
+                                              int32_t actions) {
   SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
   SWAccessibilityState *state = tree.pending[@(number)];
   if (!state || count < -1 || (count >= 0 && state.data.role != 12))
     return -4;
   state.itemCount = count;
   state.collectionRevision = revision;
+  state.collectionActions = actions;
   return 0;
 }
 
@@ -394,13 +458,15 @@ int64_t scoop_window_accessibility_collection_row(void *pointer, int64_t node,
 void scoop_window_accessibility_collection_item(void *pointer, int64_t index,
                                                 int64_t count, int32_t enabled,
                                                 int32_t selected,
-                                                int32_t expanded) {
+                                                int32_t expanded,
+                                                int32_t focusable) {
   SWAccessibilityItemData *data = (__bridge SWAccessibilityItemData *)pointer;
   data.index = index;
   data.count = count;
   data.enabled = enabled;
   data.selected = selected;
   data.expanded = expanded;
+  data.focusable = focusable;
 }
 void scoop_window_accessibility_collection_item_key(void *pointer, int32_t kind,
                                                     int64_t number,
