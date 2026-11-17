@@ -68,15 +68,43 @@ fn exact_archive_and_framework_follow_only_selected_member_autolinks() {
             output.library = path;
             output.binary = binary;
         }
+        let mut roots = fixture.library_paths.clone();
+        if framework {
+            let mut relative = output.clone();
+            relative.library = relative.library.strip_prefix(&root).unwrap().to_owned();
+            relative.binary = relative.binary.strip_prefix(&root).unwrap().to_owned();
+            let mut unused = relative.clone();
+            unused.name = "UnselectedProduct".into();
+            unused.library = "libraries/absent.framework".into();
+            unused.binary = "libraries/absent.framework/absent".into();
+            unused
+                .settings
+                .libraries
+                .insert("UnselectedMissingLibrary".into());
+            std::fs::write(
+                root.join("native-outputs.json"),
+                serde_json::to_vec(&scoop_toolchain::native_output::NativeOutputsDescriptor {
+                    schema: 1,
+                    outputs: vec![relative, unused],
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            roots.push(root.clone());
+        }
         let linked = link_program(
             &fixture.closure,
             &fixture.runtime,
             &fixture.profile,
             ProgramLinkOptions {
-                native_outputs: std::slice::from_ref(&output),
+                native_outputs: if framework {
+                    &[]
+                } else {
+                    std::slice::from_ref(&output)
+                },
                 ..Default::default()
             },
-            &fixture.library_paths,
+            &roots,
             &root.join(if framework {
                 "framework-program"
             } else {
@@ -91,6 +119,8 @@ fn exact_archive_and_framework_follow_only_selected_member_autolinks() {
         assert_eq!(run.stdout, b"43\n");
         assert!(linked.plan_dump.contains("Chain"));
         assert!(!linked.plan_dump.contains("UnusedDependency"));
+        assert!(!linked.plan_dump.contains("UnselectedMissingLibrary"));
+        assert_eq!(linked.native_outputs.len(), 1);
         assert!(
             linked
                 .input_paths

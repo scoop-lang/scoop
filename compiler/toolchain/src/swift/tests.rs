@@ -117,6 +117,47 @@ public func resource() -> URL { Bundle.module.bundleURL }
     };
     let request = request(false);
     let first = build(&request);
+    let companion = temp.path().join("client.native");
+    let publish = |product: &SwiftProduct| {
+        crate::native_output::publish_native_outputs(
+            std::slice::from_ref(product),
+            &companion,
+            &temp.path().join("publication-cache"),
+        )
+        .unwrap()
+        .remove(0)
+    };
+    let published = publish(&first);
+    let published_mtime = published.binary.metadata().unwrap().modified().unwrap();
+    let description = std::fs::read_to_string(companion.join("native-outputs.json")).unwrap();
+    let descriptor: crate::native_output::NativeOutputsDescriptor =
+        serde_json::from_str(&description).unwrap();
+    for mut output in descriptor.outputs {
+        output
+            .map_paths(|path| {
+                assert!(
+                    path.is_relative(),
+                    "published path is absolute: {}",
+                    path.display()
+                );
+                Ok(path.to_path_buf())
+            })
+            .unwrap();
+    }
+    assert!(!description.contains("producer_key"));
+    assert_eq!(
+        crate::native_output::read_native_outputs(&companion)
+            .unwrap()
+            .unwrap()[0]
+            .binary,
+        published.binary
+    );
+    std::fs::write(companion.join("user-note.txt"), "keep this file").unwrap();
+    let hit = publish(&first);
+    assert_eq!(
+        hit.binary.metadata().unwrap().modified().unwrap(),
+        published_mtime
+    );
     assert!(first.output.binary.is_file());
     assert_eq!(first.output.resources.len(), 1);
     assert!(first.output.settings.libraries.contains("z"));
@@ -125,11 +166,21 @@ public func resource() -> URL { Bundle.module.bundleURL }
         request.prepare(false).unwrap(),
         PreparedSwiftBuild::Complete(_)
     ));
-    std::fs::write(resource, "changed resource only").unwrap();
+    std::fs::write(&resource, "changed resource only").unwrap();
     let updated = build(&request);
     assert_eq!(first.link_key, updated.link_key);
     assert_eq!(first.output.binary, updated.output.binary);
     assert_ne!(first.deployment_key, updated.deployment_key);
+    let resource_publication = publish(&updated);
+    assert_eq!(
+        resource_publication
+            .binary
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap(),
+        published_mtime
+    );
     let framework_manifest = manifest(true);
     let framework_request = SwiftBuildRequest::new(
         root,
@@ -169,6 +220,32 @@ public func resource() -> URL { Bundle.module.bundleURL }
         framework_request.prepare(false).unwrap(),
         PreparedSwiftBuild::Complete(_)
     ));
+    let published_framework = publish(&framework);
+    assert!(!published.binary.exists());
+    assert!(companion.join("user-note.txt").is_file());
+    let framework_mtime = published_framework
+        .binary
+        .metadata()
+        .unwrap()
+        .modified()
+        .unwrap();
+    std::fs::write(&resource, "second resource change").unwrap();
+    let updated_framework = build(&framework_request);
+    assert_eq!(framework.output.binary, updated_framework.output.binary);
+    assert_ne!(
+        framework.output.resources,
+        updated_framework.output.resources
+    );
+    let published_framework = publish(&updated_framework);
+    assert_eq!(
+        published_framework
+            .binary
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap(),
+        framework_mtime
+    );
     std::fs::write(header, "#define EXTRA 2026\nint helper(void);\n").unwrap();
     let header_changed = build(&request);
     assert_ne!(header_changed.link_key, updated.link_key);

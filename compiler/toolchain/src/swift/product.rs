@@ -130,7 +130,11 @@ pub(super) fn publish(
                 format: SwiftLibraryFormat::Library,
                 library: binary.files[0].clone(),
                 binary: binary.files[0].clone(),
-                dependencies: binary.files[1..].to_vec(),
+                dependencies: binary.files[1..]
+                    .iter()
+                    .cloned()
+                    .map(crate::NativeLibraryDependency::dylib)
+                    .collect::<Result<_, _>>()?,
                 resources: resources.files,
                 settings,
             },
@@ -198,8 +202,12 @@ fn layout_key(request: &SwiftBuildRequest, result: &Produced) -> Result<Digest25
         request.key.as_array(),
         &request.format,
         result.product.link_key.as_array(),
-        result.product.deployment_key.as_array(),
-        &result.required,
+        result
+            .modules
+            .iter()
+            .map(|p| scoop_protocol::HostPathCarrier::from_path(p))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(error)?,
     ))
 }
 
@@ -218,7 +226,7 @@ pub(super) fn lookup_layout(
             .join(format!("{key}.json")),
         |layout| outputs_exist(&layout.required),
     )?;
-    Ok(record.map(|record| record.result.product))
+    Ok(record.map(|record| with_resources(record.result.product, result)))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -239,7 +247,7 @@ pub(super) fn layout(
         error("framework requires one direct Swift module with the same name as the product")
     })?;
     let key = layout_key(request, result)?;
-    Ok(build_record::cached(&request.directory.join("layouts"), key, |layout: &Layout| outputs_exist(&layout.required), || {
+    Ok(with_resources(build_record::cached(&request.directory.join("layouts"), key, |layout: &Layout| outputs_exist(&layout.required), || {
         let directory = tempfile::Builder::new().prefix("framework").tempdir_in(&request.directory).map_err(error)?;
         let framework = directory.path().join(format!("{}.framework", request.product));
         let version = framework.join("Versions/A");
@@ -269,7 +277,13 @@ pub(super) fn layout(
         product.link_key = build_record::fingerprint(&(result.product.link_key.as_array(), &request.format))?;
         let _ = directory.keep();
         Ok(Record { inputs: Vec::new(), result: Layout { product, required } })
-    })?.result.product)
+    })?.result.product, result))
+}
+
+fn with_resources(mut product: SwiftProduct, result: &Produced) -> SwiftProduct {
+    product.output.resources = result.product.output.resources.clone();
+    product.deployment_key = result.product.deployment_key;
+    product
 }
 
 pub(super) fn copy(

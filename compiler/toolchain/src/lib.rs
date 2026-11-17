@@ -119,5 +119,5 @@ impl std::error::Error for ToolchainError {}
 pub use build_record::inputs::{Input as NativeInputMetadata, native_include_search_paths};
 pub use compiler::paired_compiler_machine_capability;
 
-mod native_output;
-pub use native_output::{NativeLibraryOutput, NativeLinkSettings};
+pub mod native_output;
+pub use native_output::{NativeLibraryDependency, NativeLibraryOutput, NativeLinkSettings};

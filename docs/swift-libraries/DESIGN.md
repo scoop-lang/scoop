@@ -1,6 +1,6 @@
 # Swift 原生库第一阶段设计
 
-状态：实施中。设计日期：2026-11-17。2026-11-18 已接入清单解析、逻辑 native 库投影、Swift 生产内核、driver 调度及 source 构建的库绑定／autolink／最终链接；配套目录、可重定位部署和完整验收尚待完成，见[实施记录](PROGRESS.md)。
+状态：实施中。设计日期：2026-11-17。2026-11-18 已接入清单解析、逻辑 native 库投影、Swift 生产内核、driver 调度、库绑定／autolink／最终链接，以及 `.slib` 配套目录和独立链接。静态库已使用 CoreText bridge 完成实际调用；可重定位动态部署和完整验收尚待完成，见[实施记录](PROGRESS.md)。
 
 本阶段闭环为：Swift package 中已有的 `@c` 函数 → Swift 工具生产原生库 → Scoop 最终链接 → 手写 `@Extern` 调用。Swift API 的自动分析、Swift 包装代码生成和 Scoop binding 生成属于下一阶段 bindgen。
 

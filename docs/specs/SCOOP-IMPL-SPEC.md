@@ -1445,6 +1445,8 @@ framework 仅对语言规范 12.2.5 的单直接模块 product 提供固定组�
 
 显式原生目录中的 `native-outputs.json` 提供库文件不能完整表达的实际链接要求及资源部署描述，尤其是静态 product 的 linkedLibrary／linkedFramework 设置；原生文件自身继续提供 autolink／目标／符号／装载信息。该描述不替换显式库绑定或放宽冲突规则，没有该文件的普通 library root 沿原规则使用。它不保存构建配方、源码、lock、摘要或成功凭证；仅在实际链接／部署需要时作普通格式读取，内容及文件选择作为正常输入记录，命中不重读复核。
 
+配套描述使用 schema 1：`outputs` 列出逻辑 product、library/framework 格式及 linkage、库／二进制相对路径、配套原生依赖、resource bundle 和链接设置。`libraries/` 保存实际库及 framework，`resources/` 保存原名 resource bundle；所有描述路径相对于该配套目录，使用现有 HostPathCarrier 表达。非系统依赖落实为配套文件，搜索位置改为配套 `libraries/`，不交付指向原源码或 scratch 的绝对搜索位置。描述和各文件按自己的输入更新，只删除本次输出集合明确退役的已发布文件，不清空整个配套目录。
+
 配套文件以目录内相对路径交付；实际非系统依赖随库发布，SDK／工具链依赖保留逻辑要求，不能依赖源码／scratch 的绝对搜索路径。独立链接只使用已选逻辑库对应的描述，不把目录中的其他条目全部转成库／资源依赖。
 
 `.slib` 只含现有逻辑 native requirements 与 C ABI 声明，不包含 Swift 配方、源码、锁文件、scratch 路径或整个 framework；单独的 `.slib` 不承诺替代配套文件。Swift 实现变化不改变手写声明的 HIR/MIR/LIR 语义；实际 native 文件和本次结果进入最终链接／部署更新输入。普通 C native 对象的既有嵌入方式不因本节改变。

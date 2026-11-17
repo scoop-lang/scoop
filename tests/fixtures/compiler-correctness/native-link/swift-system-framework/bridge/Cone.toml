@@ -1,0 +1,13 @@
+schema = 1
+
+[cone]
+group = "dev.swift"
+name = "system-bridge"
+version = "0.1.0"
+kind = "library"
+
+[[native.swift]]
+package = "native"
+product = "SystemBridge"
+linkage = "static"
+when = { os = "darwin" }

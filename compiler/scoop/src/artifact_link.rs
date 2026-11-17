@@ -41,6 +41,7 @@ pub struct LinkOutcome {
     pub runtime_index: PathBuf,
     pub link_plan_fingerprint: ResolvedLinkPlanFingerprint,
     pub link_plan: String,
+    pub native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
 }
 
 pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
@@ -120,6 +121,7 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
         .publish(&linked.path, None)
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     Ok(LinkOutcome {
+        native_outputs: linked.native_outputs,
         output: output.path().to_owned(),
         root,
         dependencies,

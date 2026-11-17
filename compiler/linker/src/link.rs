@@ -56,6 +56,7 @@ pub struct ProgramLinkOutput {
     pub plan_dump: String,
     /// Actual native files and lookup candidates used by this link.
     pub input_paths: Vec<PathBuf>,
+    pub native_outputs: Vec<scoop_toolchain::NativeLibraryOutput>,
 }
 
 pub fn link_program(
@@ -225,6 +226,7 @@ fn link_inputs(
         )
     })?;
     Ok(ProgramLinkOutput {
+        native_outputs: inputs.native_outputs.clone(),
         path: output,
         debug_file,
         import_library,

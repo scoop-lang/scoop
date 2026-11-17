@@ -93,6 +93,24 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 single-file run 允许第一个普通程序位置参数开始转发；为避免选项歧义，示例统一使用显式 `--`。从样例复制命令时，确认工作目录、文件名、运行前提和参数都对应当前项目。
 
+## macOS Swift staticlib bridge
+
+需要调用系统 framework 时，可以在普通库 Cone 中维护 Swift package，手写 `@c` 导出函数和 Scoop `@Extern` 声明。Swift 工具链须支持正式 `@c`（Swift 6.3+）及 Swift Build 后端，目标为 macOS AArch64 或 x86-64。在 Cone.toml 声明：
+
+```toml
+[[native.swift]]
+package = "native"
+product = "SystemBridge"
+linkage = "static"
+when = { os = "darwin" }
+```
+
+`Package.swift` 必须将该 product 显式声明为 `.static`。`@Extern(lib = "SystemBridge", name = "scoop_ct_font_size")` 使用相同 product 名和 Swift 导出名；跨 Cone 调用的 Scoop 声明须为 `public`，参数／返回值遵守既有 C ABI。`build/run/test` 自动构建传递源码 Cone 的 Swift products；可用 `--swift-toolchain` 选择工具链根。`.a` 不代表 Swift runtime 全静态，系统 framework 与 runtime 由实际 autolink 需求解析。
+
+Swift 源码、传递本地依赖、资源和 Package.resolved 加入更新检查；只改 Swift 实现时复用 Scoop `.slib`。清单／插件读取的额外文件和环境变量分别声明为 `inputs`、`env`；`Cone.lock` 与 Swift 的 `Package.resolved` 各自管理依赖选择。命中不调用 Swift、不检查远端新版本。
+
+库构建和 `--emit-slib` 交付相邻 `<stem>.native/`；搬迁时一起复制，并向 `scoop link` 传 `--library-path <stem>.native`，独立链接不构建 Swift。仓库中的 [CoreText bridge](../../../tests/fixtures/compiler-correctness/native-link/swift-system-framework/fixture.toml) 覆盖两个函数、依赖传递、Swift 变更与独立链接。动态库和资源部署仍在完善，当前静态系统 framework bridge 可按此路径接入；自动包装及 bindgen 属于下一阶段。
+
 ## 语言服务查询
 
 使用所选工具链配套的 `scoop-lsp`；先用 `scoop-lsp query --help` 确认该版本提供入口。在含 Cone.toml 的项目/workspace 目录运行：

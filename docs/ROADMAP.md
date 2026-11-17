@@ -798,7 +798,7 @@ Darwin self-image 前置已完成：按 runtime 内部地址定位自身 Mach-O�
 
 iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
 
-### Swift 原生库第一阶段（设计完成，待实现，2026-11-17，[设计](swift-libraries/DESIGN.md)）
+### Swift 原生库第一阶段（实施中，staticlib 调用已贯通，2026-11-18，[设计](swift-libraries/DESIGN.md)）
 
 第一阶段从 Swift package 已有的 `@c` 函数出发，经 Swift 工具生产 `.a`／`.dylib`／静态或动态 framework，接入 Scoop 最终链接及手写 `@Extern` 调用。首期为 macOS 宿主与现有两个 Darwin target；这与 Scoop native-app 自身的 framework 输出是不同能力。
 

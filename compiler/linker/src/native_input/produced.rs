@@ -18,18 +18,16 @@ impl NativeInputs {
                 }
             };
             self.bind(&output.name, &output.binary, kind)?;
-            for path in &output.dependencies {
-                let name = path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .and_then(|s| s.strip_prefix("lib"))
-                    .ok_or_else(|| {
-                        error(
-                            scoop_source::DiagnosticCode::E2305,
-                            format!("invalid produced dylib name {}", path.display()),
-                        )
-                    })?;
-                self.bind(name, path, NativeFileKind::Dylib)?;
+            for dependency in &output.dependencies {
+                let kind = match dependency.kind() {
+                    NativeLibraryKind::StaticArchive => NativeFileKind::Archive,
+                    NativeLibraryKind::Dynamic => NativeFileKind::Dylib,
+                    NativeLibraryKind::Framework => NativeFileKind::Framework,
+                    NativeLibraryKind::TargetDefault => {
+                        unreachable!("dependency has an explicit kind")
+                    }
+                };
+                self.bind(&dependency.name, &dependency.binary, kind)?;
             }
         }
         Ok(())

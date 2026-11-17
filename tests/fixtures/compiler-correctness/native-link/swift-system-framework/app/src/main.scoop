@@ -1,0 +1,11 @@
+package dev.swift.fontclient
+
+import dev.swift.systembridge.fontSize
+import dev.swift.systembridge.glyphCount
+
+fun main() {
+    @Unsafe {
+        println(fontSize(18.0) == 18.0)
+        println(glyphCount() > 0)
+    }
+}
