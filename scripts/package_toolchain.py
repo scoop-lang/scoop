@@ -16,8 +16,8 @@ import tomllib
 from pathlib import Path
 from urllib.parse import quote
 
-import build_scoop_bundle
 import build_scoop_api
+import build_scoop_bundle
 import build_scoop_example
 import package_debugger
 import package_licenses
@@ -40,7 +40,15 @@ from prepare_tray import LINK_INPUTS as TRAY_LINK_INPUTS
 from prepare_tray import TARGET as TRAY_TARGET
 from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
 
-TOOLS = ("scoop", "scoopc", "scoop-link", "scoop-lsp", "scoop-pm")
+TOOLS = (
+    "scoop",
+    "scoopc",
+    "scoop-link",
+    "scoop-lsp",
+    "scoop-pm",
+    "scoop-codec-generator",
+    "scoop-cli-generator",
+)
 
 
 def run_script(name, arguments, environment):
@@ -694,6 +702,8 @@ def main():
             "scoopc",
             "-p",
             "scoop-linker",
+            "-p",
+            "scoop-generators",
             "-p",
             "scoop-lsp",
             "-p",

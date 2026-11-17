@@ -97,6 +97,7 @@ def collect_bin(root, repository, host):
             "scoop",
             "scoopc",
             "scoop-linker",
+            "scoop-generators",
             "scoop-lsp",
             "scoop-pm",
             "scoop-example",
