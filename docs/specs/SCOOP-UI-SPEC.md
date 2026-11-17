@@ -556,7 +556,11 @@ TextEditOptions.touch 为 TextTouchOptions(enabled=true, threshold=8, longPressD
 
 multiTap 启用时，同一宿主、相同 ContactKind 的连续成功短按按开始时刻的单调时间和 threshold 内的窗口距离计数；第二次选词，第三次及以上选逻辑行，继续复用鼠标选择的文本范围和投影映射。multiTapInterval 为显式非负间隔；None 读取当前系统 doubleClickInterval，未知时使用 500 ms，设置变化使旧序列失效。计数位于 UI 的共享 ContactPress，不伪造鼠标事件，也不改变 Window 的原生鼠标连续点击计数。失败／被阻止的接触、长按、其他输入、域外接触、外部选区／正文变化和前述取消条件都打断序列；触摸选择自身的正常选区发布保留序列。新按下仍须有匹配当前正文、修订和投影的 Accepted 布局；布局变换改变旧落点时不把它计为原位置的连续短按。关闭 multiTap 只使每次成功短按放置 caret，长按及键盘／语义选择入口独立。
 
-TextEditOptions.touchScroll 为 TouchScrollOptions()，独立配置同一编辑视口的直接滚动；多行使用 Both，单行只使用 Horizontal，Chain 允许父视口消费余量。文本按压与滚动共用原始接触，ScrollPan 开始时取消尚未识别的文本按压，长按接管后阻止该序列继续变成滚动。接触按下的自动聚焦保留正在登记的触摸候选，不为旧 caret 发起显露；tap 结束后再显露实际落点。位置、caret、选区、IME 和语义几何仍来自同一 ScrollViewport 与 Accepted 布局，不复制编辑模型。触摸选区端点和软件惯性按各自后续能力接入。
+TextEditOptions.touchScroll 为 TouchScrollOptions()，独立配置同一编辑视口的直接滚动；多行使用 Both，单行只使用 Horizontal，Chain 允许父视口消费余量。文本按压与滚动共用原始接触，ScrollPan 开始时取消尚未识别的文本按压，长按接管后阻止该序列继续变成滚动。接触按下的自动聚焦保留正在登记的触摸候选，不为旧 caret 发起显露；tap 结束后再显露实际落点。位置、caret、选区、IME 和语义几何仍来自同一 ScrollViewport 与 Accepted 布局，不复制编辑模型。软件惯性按后续滚动物理能力接入。
+
+TextTouchOptions.selectionHandles 为 TextSelectionHandleOptions(enabled=true, radius=6, hitRadius=18, color=None)，配置触摸选择后的 caret／双端点把手；有限正半径、hitRadius 不小于 radius，显式颜色有限。编辑器默认沿 caretColor，只读宿主沿不透明 selectionColor。成功触摸选择显示，非触摸输入、外部模型／选区变更、失焦、禁用和关闭撤下；不新增焦点或语义节点。两类宿主的把手共用输入与呈现，按下／抬起仍传递短按，达到移动阈值后取得原接触归属。拖动固定另一端点，允许交叉；初始折叠把手始终移动 caret。最终位置、投影映射、取消和回调重入沿原选区发布，取消保留实际已完成的选择。
+
+把手绘制和输入使用同一场景 clip 与本次可见几何；动态夹紧不重放过期的缓存几何。命中半径独立于绘制半径，相邻把手的重叠命中带按中线分开。边缘滚动复用已有 Accepted 视口路径及 ScrollState，逐层消费可用余量，滚动后等待 Accepted 再更新命中；只读宿主不建立自己的滚动模型。一次性 deadline、原接触归属和滚动订阅在结束或取消时清理，外部定位和失效取消旧操作。完整规则与验收见[文本触摸选区端点方案](../ui/interaction-polish/TEXT-SELECTION-HANDLES.md)。
 
 TextEditOptions.acceptDrops 默认 true；当前 macOS 宿主可接收 Copy 或完整 Move 的文本／URL，临时落点 caret、边缘滚动、Accepted 模型与修订匹配及编辑事务见[文本拖入合同](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)，Move 的额外条件见该规范第 5 节。DragDrop 是独立的 TextEditSource，导入清洗复用 Paste 阶段；拒绝 Drop 保留尚未发布的 composition 候选，不采用原生输入必须确认批次时的拒绝发布路径。
 

@@ -1,5 +1,6 @@
 package scoop.ui.text
 
+import scoop.graphics.Color
 import scoop.time.Duration
 import scoop.ui.requireUi
 
@@ -9,7 +10,8 @@ public class TextTouchOptions public constructor(
     public val threshold: Double = 8.0,
     public val longPressDelay: Duration? = Some(Duration.milliseconds(500L)),
     public val multiTap: Boolean = true,
-    public val multiTapInterval: Duration? = None
+    public val multiTapInterval: Duration? = None,
+    public val selectionHandles: TextSelectionHandleOptions = TextSelectionHandleOptions()
 ) {
     init {
         requireUi(threshold.isFinite() && threshold >= 0.0, "invalid text touch threshold")
@@ -22,6 +24,23 @@ public class TextTouchOptions public constructor(
                 value.floorSeconds >= 0L,
                 "negative multi-tap interval"
             )
+            case None -> {}
+        }
+    }
+}
+
+/** Visible contact targets share the text host's selection and clipped geometry. */
+public class TextSelectionHandleOptions public constructor(
+    public val enabled: Boolean = true,
+    public val radius: Double = 6.0,
+    public val hitRadius: Double = 18.0,
+    public val color: Color? = None
+) {
+    init {
+        requireUi(radius.isFinite() && radius > 0.0, "invalid text handle radius")
+        requireUi(hitRadius.isFinite() && hitRadius >= radius, "invalid text handle hit radius")
+        when (color) {
+            case Some(val value) -> checkSelectableColor(value)
             case None -> {}
         }
     }

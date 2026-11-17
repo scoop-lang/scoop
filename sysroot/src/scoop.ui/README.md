@@ -241,6 +241,10 @@ macOS 的 TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`Te
 
 `multiTap = true` 让连续第二次短按选词、第三次及以上选逻辑行，范围与显示投影复用鼠标选择。`multiTapInterval = None` 跟随系统双击间隔，未知时使用 500 ms；显式值必须非负，`multiTap = false` 保留每次短按定位和独立长按。相同来源的成功短按才累计，间距不能超过 threshold；外部选区修改、失败输入、域外触摸、长按、滚动、配置变化及失焦会打断序列，触摸选择自身的正常发布保留计数。两个宿主共享识别和一次性 deadline；卸载后不保留候选或定时任务。
 
+`selectionHandles = TextSelectionHandleOptions()` 在触摸选择后显示 caret 或两个选区端点。`enabled = false` 单独关闭把手；`radius = 6.0` 和 `hitRadius = 18.0` 分别控制绘制与命中，须有限、为正且命中半径不小于绘制半径。`color = None` 沿编辑器 caretColor 或只读宿主的不透明 selectionColor。把手与当前文本共享裁剪，放大命中不会穿过视口；按下再松开仍参与短按／多击，移动达到 touch.threshold 才接管接触。
+
+拖动保留另一个端点，允许交叉和反向；从折叠选区开始则始终移动 caret。靠近视口边缘时沿现有滚动路径移动，等待新 Accepted 布局再计算落点，只读文本也可使用父视口。输入取消、外部定位、模型或选区修改、禁用和卸载会结束操作；鼠标、键盘及失焦撤下触摸把手。键盘和 accessibility 仍通过同一宿主读写选区，不需要模拟拖动。真实窗口覆盖见[文本编辑测试](tests-cones/editing/README.md)。
+
 `TextEditOptions.touchScroll` 独立接收 `scoop.ui.TouchScrollOptions`，默认让多行视口沿两个轴、单行视口沿横轴接收直接拖动，并向父视口交接边界残量；SelectableTextHost 借用外层滚动容器。关闭触摸选择不关闭滚动，也不影响键盘和 accessibility 的文本菜单入口。手指停留不轮询或持续绘制，触摸开始时不为旧 caret 改变视口。选区把手和释放惯性继续按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)实现。
 
 临时落点 caret 与边缘滚动使用当前模型／修订／投影的 Accepted 几何，拖动反馈不改变原选区或 IME。DragDrop 复用 Paste 和通用策略；Copy 可清洗或裁剪，Move 有损则拒绝。同文档 Move 一次编辑、一个 undo，落在原选区内不改变历史；其他目标接受 Move 后，来源重新确认正文修订并删除一次。onCompleted 的 TextDragResult.SourceRetained 明确表示目标已接收但源未删除。真实进程内 localData 关联文档，不能用相同文本或 local 标记猜测。示例见 [drop-target](examples/drop-target/README.md)，平台与协议范围见[文本拖放合同](../../../docs/specs/SCOOP-UI-DRAG-DROP-SPEC.md#5-文本选区拖出与移动)。

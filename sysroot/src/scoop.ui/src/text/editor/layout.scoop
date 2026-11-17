@@ -316,6 +316,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                     case None -> {}
                 }
             }
+            editorSelectionHandles(host, content, frame, viewport)
         }
     )
     context.onFrameComplete {
@@ -334,6 +335,9 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         previous?.close()
         host.dropTarget?.accepted()
         host.dataSource?.update()
+        host.touchHandles.accepted()
+        if (host.closed)
+            return@onFrameComplete
         if (host.current.revision == frame.revision) {
             if (
                 host.revealNeeded &&

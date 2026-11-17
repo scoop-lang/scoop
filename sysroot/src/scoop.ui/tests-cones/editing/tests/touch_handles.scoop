@@ -1,0 +1,247 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun textTouchHandles(p: TextTouchProbe) {
+    when (p.phase) {
+        0 -> {
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTapInterval = Some(Duration.seconds(10L))
+                )
+            p.menu = p.menu.copy { mode = TextContextMenuMode.Disabled }
+            p.changed()
+        }
+        1 -> touchTap(p, 5L)
+        2 -> {
+            touchSelection(p, 5L, 5L)
+            touchHandleBegin(p, 1000L)
+        }
+        3 -> touchHandleMove(p, 1000L, 11L)
+        4 -> {
+            touchSelection(p, 11L, 11L)
+            touchHandleEnd(p, 1000L)
+        }
+        5 -> {
+            touchSelection(p, 11L, 11L)
+            assertEquals(p.text, p.model.text)
+            assertTrue(editorDocument(p.window!!, p.model))
+            touchTap(p, 5L)
+        }
+        6 -> touchTap(p, 5L)
+        7 -> {
+            touchSelection(p, 4L, 7L)
+            touchHandleBegin(p, 1001L, anchor = true)
+            p.pause(500L)
+        }
+        8 -> touchHandleMove(p, 1001L, 0L)
+        9 -> {
+            touchSelection(p, 0L, 7L)
+            touchHandleMove(p, 1001L, 11L)
+        }
+        10 -> {
+            touchSelection(p, 11L, 7L)
+            touchHandleMove(p, 1001L, 7L)
+        }
+        11 -> {
+            touchSelection(p, 7L, 7L)
+            touchHandleMove(p, 1001L, 15L)
+        }
+        12 -> {
+            touchSelection(p, 15L, 7L)
+            touchHandleEnd(p, 1001L)
+        }
+        13 -> touchHandleBegin(p, 1002L)
+        14 -> touchHandleMove(p, 1002L, 4L)
+        15 -> {
+            touchSelection(p, 15L, 4L)
+            touchHandleEnd(p, 1002L)
+        }
+        16 -> {
+            touchSelection(p, 15L, 4L)
+            touchTap(p, 6L, readonly = true)
+        }
+        17 -> touchTap(p, 6L, readonly = true)
+        18 -> {
+            touchSelection(p, 5L, 8L, true)
+            touchHandleBegin(p, 1003L, anchor = true, readonly = true)
+            p.pause(500L)
+        }
+        19 -> touchHandleMove(p, 1003L, 12L, readonly = true)
+        20 -> {
+            touchSelection(p, 12L, 8L, true)
+            touchHandleMove(p, 1003L, 0L, readonly = true)
+        }
+        21 -> {
+            touchSelection(p, 0L, 8L, true)
+            touchHandleEnd(p, 1003L)
+        }
+        22 -> touchTap(p, 6L, readonly = true)
+        23 -> {
+            touchSelection(p, 6L, 6L, true)
+            touchHandleBegin(p, 1004L, readonly = true)
+        }
+        24 -> {
+            p.handlePointer = Point(p.handlePointer.x, 318.0)
+            p.contact(1004L, 1, p.handlePointer)
+            p.pause(150L) { touchHandleEnd(p, 1004L) }
+        }
+        25 -> {
+            assertTrue(p.outer.offset.y > 0.0)
+            assertTrue(p.selectable!!.selection.cursor > 17L)
+            assertEquals(p.selectable!!.selection.anchor, p.selectable!!.selection.cursor)
+            p.savedOffset = p.outer.offset
+            p.savedSelection = p.selectable!!.selection
+            p.pause(70L)
+        }
+        26 -> {
+            assertEquals(p.savedOffset, p.outer.offset)
+            assertEquals(p.savedSelection, p.selectable!!.selection)
+            p.savedPasses = p.passes
+            p.pause(70L)
+        }
+        27 -> {
+            assertEquals(p.savedPasses, p.passes)
+            assertEquals(p.savedOffset, p.outer.offset)
+            assertEquals(p.savedSelection, p.selectable!!.selection)
+            p.outer.scrollTo(Point(0.0, 0.0))
+            touchTap(p, 5L)
+        }
+        28 -> touchHandleBegin(p, 1005L)
+        29 -> {
+            p.handlePointer = Point(p.handlePointer.x, 118.0)
+            p.contact(1005L, 1, p.handlePointer)
+            p.pause(150L) { touchHandleEnd(p, 1005L) }
+        }
+        30 -> {
+            assertTrue(p.editor!!.scroll.offset.y > 0.0)
+            assertTrue(p.model.selection.cursor > 16L)
+            assertEquals(p.model.selection.anchor, p.model.selection.cursor)
+            p.savedOffset = p.editor!!.scroll.offset
+            p.savedSelection = p.model.selection
+            p.pause(70L)
+        }
+        31 -> {
+            assertEquals(p.savedOffset, p.editor!!.scroll.offset)
+            assertEquals(p.savedSelection, p.model.selection)
+            p.savedPasses = p.passes
+            p.pause(70L)
+        }
+        32 -> {
+            assertEquals(p.savedPasses, p.passes)
+            assertEquals(p.savedOffset, p.editor!!.scroll.offset)
+            assertEquals(p.savedSelection, p.model.selection)
+            p.model.setSelection(Utf8Selection(0L, 0L))
+            p.editor!!.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        else -> textTouchHandleCancellation(p)
+    }
+}
+
+internal fun touchHandleBegin(
+    p: TextTouchProbe,
+    id: Long,
+    anchor: Boolean = false,
+    readonly: Boolean = false
+) {
+    val a =
+        if (readonly)
+            p.selectable!!.anchor
+        else
+            p.model.anchor
+    val c =
+        if (readonly)
+            p.selectable!!.cursor
+        else
+            p.model.cursor
+    val start =
+        if (anchor)
+            a
+        else
+            c
+    val caret =
+        if (readonly)
+            p.paragraph!!.caret(start)!!
+        else
+            p.editor!!.caret(start)!!
+    val other =
+        if (readonly)
+            p.paragraph!!.caret(
+                if (anchor)
+                    c
+                else
+                    a
+            )!!
+        else
+            p.editor!!.caret(
+                if (anchor)
+                    c
+                else
+                    a
+            )!!
+    val area =
+        if (readonly)
+            p.selectable!!.area
+        else
+            p.editor!!.area
+    val direction =
+        if (a.byteOffset == c.byteOffset)
+            0.0
+        else
+            if (caret.x <= other.x)
+                -1.0
+            else
+                1.0
+    val radius = p.touch.selectionHandles.radius
+    val rect =
+        area.toWindow(
+            Rect(
+                caret.x + caret.width / 2.0 + direction * radius,
+                caret.y + caret.height + radius,
+                0.0,
+                0.0
+            )
+        )!!
+    val visible = area.visibleBounds!!
+    val inset = radius * p.scale
+    val point =
+        Point(
+            min(visible.x + visible.width - inset, max(visible.x + inset, rect.x)),
+            min(visible.y + visible.height - inset, max(visible.y + inset, rect.y))
+        )
+    val text = p.point(start.byteOffset, readonly)
+    p.handleGrab = Point(point.x - text.x, point.y - text.y)
+    p.handlePointer = point
+    p.contact(id, 0, point)
+}
+
+internal fun touchHandleMove(
+    p: TextTouchProbe,
+    id: Long,
+    byte: Long,
+    readonly: Boolean = false,
+    end: Boolean = false
+) {
+    val point = p.point(byte, readonly)
+    p.handlePointer = Point(point.x + p.handleGrab.x, point.y + p.handleGrab.y)
+    p.contact(
+        id,
+        if (end)
+            2
+        else
+            1,
+        p.handlePointer
+    )
+}
+
+internal fun touchHandleEnd(p: TextTouchProbe, id: Long) {
+    p.contact(id, 2, p.handlePointer)
+}

@@ -65,6 +65,9 @@ internal fun selectableContextMenu(
         else
             None
     selectableStopDrag(host)
+    host.preferredX = None
+    if (touch)
+        host.touchHandles.show()
     val placement =
         when (pointer) {
             case Some(val value) -> {
@@ -78,12 +81,18 @@ internal fun selectableContextMenu(
                     val position = frame.layout.hitTest(point)
                     if (textMenuSelectsWord(options, template, touch)) {
                         val word = frame.layout.wordRange(position)
-                        host.setSelection(
-                            TextPosition(word.start),
-                            TextPosition(word.end, TextAffinity.Upstream)
+                        host.publishSelection(
+                            EditorSelection(
+                                TextPosition(word.start),
+                                TextPosition(word.end, TextAffinity.Upstream)
+                            ),
+                            cancelContacts = !touch
                         )
                     } else
-                        host.setSelection(position, position)
+                        host.publishSelection(
+                            EditorSelection(position, position),
+                            cancelContacts = !touch
+                        )
                 }
                 PopupPlacement.Pointer(value.logicalPosition)
             }

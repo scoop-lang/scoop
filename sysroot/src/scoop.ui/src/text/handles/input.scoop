@@ -1,0 +1,172 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.math.hypot
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun textHandlePoint(value: ContactState): Point =
+    Point(value.pointer.logicalPosition.x, value.pointer.logicalPosition.y)
+
+internal fun textHandleObserve(
+    host: TextSelectionHandles,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (host.closed)
+        return
+    when (event) {
+        case Contact(InputContactEvent.Began(val value)) -> {
+            if (context.phase == RoutedPhase.Notification)
+                return
+            rememberContact(host.contacts, value.id)
+            if (host.contacts.size > 1L) {
+                // Releasing the first route must not admit this second begin as a fresh tap.
+                if (host.contact?.claimed ?: false)
+                    context.preventDefault()
+                host.clear(true)
+            }
+        }
+        case Contact(InputContactEvent.Cancelled(val id, _, _)) -> {
+            forgetContact(host.contacts, id)
+            if (host.contact?.start?.id == Some(id))
+                host.clear(false)
+        }
+        case FocusChanged(false) -> {
+            if (!host.area.scope.activity.hasFocus)
+                host.hide()
+        }
+        else -> {}
+    }
+}
+
+internal fun textHandleWindow(host: TextSelectionHandles, event: WindowEvent) {
+    if (host.closed || host.area.isClosed)
+        return
+    when (event) {
+        case Contact(ContactEvent.Began(val value)) -> {
+            if (!host.area.hitTest(textHandlePoint(value)))
+                host.hide()
+        }
+        case Pointer(PointerEvent.Button(_, _, ElementState.Pressed, _)) -> host.hide()
+        case Pointer(PointerEvent.Wheel(_, _, _, _)) -> host.hide()
+        case Keyboard(val value) -> {
+            if (value.state == ElementState.Pressed)
+                host.hide()
+        }
+        case TextCommand(_) -> host.hide()
+        case Gesture(_) -> host.hide()
+        else -> {}
+    }
+}
+
+internal fun textHandleInput(
+    host: TextSelectionHandles,
+    area: InputArea,
+    anchor: Boolean,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (host.closed)
+        return
+    when (event) {
+        case Contact(InputContactEvent.Began(val value)) -> {
+            if (!host.allowed() || !host.ready() || host.contacts.size != 1L)
+                return
+            val selection = host.selection()
+            val rect =
+                host.caret(
+                    if (anchor)
+                        selection.anchor
+                    else
+                        selection.cursor
+                ) ?:
+                    return
+            val caret =
+                host.area.toWindow(
+                    Rect(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0, 0.0, 0.0)
+                ) ?:
+                    return
+            val pointer = textHandlePoint(value)
+            host.contact =
+                Some(
+                    TextHandleContact(
+                        value,
+                        area,
+                        anchor,
+                        selection,
+                        Point(pointer.x - caret.x, pointer.y - caret.y)
+                    )
+                )
+        }
+        case Contact(InputContactEvent.Moved(val value)) -> {
+            host.moved = true
+            val current = host.contact ?: return
+            if (current.start.id != value.id)
+                return
+            current.latest = value
+            if (!current.claimed) {
+                val start = textHandlePoint(current.start)
+                val point = textHandlePoint(value)
+                val distance = hypot(point.x - start.x, point.y - start.y)
+                if (distance == 0.0 || distance < host.threshold)
+                    return
+                if (
+                    !host.allowed() ||
+                        !host.ready() ||
+                        !current.area.scope.claimContacts([value.id])
+                ) {
+                    host.clear(false)
+                    return
+                }
+                current.claimed = true
+                if (!host.same(current) || !host.allowed()) {
+                    current.area.scope.cancelContactClaim(value.id)
+                    return
+                }
+                host.takeContact()
+                if (!host.same(current) || !host.allowed())
+                    return
+                current.scroll = Some(TextHandleScroll(host.focus, host.area, { host.hide() }))
+            }
+            context.consume()
+            current.pendingHit = true
+            host.move(current)
+        }
+        case Contact(InputContactEvent.Ended(val value)) -> {
+            val current = host.contact ?: return
+            if (current.start.id != value.id)
+                return
+            if (!current.claimed) {
+                host.clear(false)
+                return
+            }
+            current.latest = value
+            current.ended = true
+            current.pendingHit = true
+            context.consume()
+            host.move(current)
+        }
+        else -> {}
+    }
+}
+
+internal fun textHandleFinished(host: TextSelectionHandles, event: InputEvent) {
+    if (host.closed)
+        return
+    when (event) {
+        case Contact(InputContactEvent.Moved(val value)) -> {
+            if (!host.moved && host.contact?.start?.id == Some(value.id))
+                host.clear(true)
+            host.moved = false
+        }
+        case Contact(InputContactEvent.Ended(val value)) -> {
+            forgetContact(host.contacts, value.id)
+            val current = host.contact ?: return
+            if (current.start.id == value.id && !current.ended)
+                host.clear(false)
+        }
+        else -> {}
+    }
+}

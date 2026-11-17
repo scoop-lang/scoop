@@ -25,6 +25,16 @@ private class TextTouchWindowTest {
     fun `touch multi taps select words and lines with shared cancellation and projection`() {
         runTextTouch({ probe -> textTouchMultiTap(probe) }, 3)
     }
+
+    @Test
+    fun `touch handles adjust directional selections and scroll accepted text viewports`() {
+        runTextTouch({ probe -> textTouchHandles(probe) }, 0)
+    }
+
+    @Test
+    fun `touch handles follow RTL and finish queued input without reviving cancelled routes`() {
+        runTextTouch({ probe -> textTouchHandleGeometry(probe) }, 0)
+    }
 }
 
 private fun runTextTouch(step: (TextTouchProbe) -> Unit, links: Int) {
@@ -155,6 +165,8 @@ internal class TextTouchProbe(
     var savedPoint = Point(0.0, 0.0)
     var savedSelection = Utf8Selection(0L, 0L)
     var savedOffset = Point(0.0, 0.0)
+    var handleGrab = Point(0.0, 0.0)
+    var handlePointer = Point(0.0, 0.0)
     var pending = false
     var waiting = false
     var popup = false

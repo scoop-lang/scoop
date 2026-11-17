@@ -75,6 +75,9 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     fun canReveal(target: FocusTarget): Boolean = target.available && scene.canReveal(target.area)
 
+    /** Borrowed only until the next accepted scene; text drags retain state bindings separately. */
+    fun textSelectionScrollPath(area: InputArea): Array<ScrollReveal> = scene.path(area)
+
     fun start() {
         registration =
             Some(

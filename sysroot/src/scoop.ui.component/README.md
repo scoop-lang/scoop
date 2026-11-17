@@ -112,6 +112,8 @@ SelectableStyledText 默认发布共享宿主的正文、选区和只读菜单�
 
 Input／Textarea／InputOtp 的 Props 和 builder 提供 `touch = TextTouchOptions()` 与 `touchScroll = TouchScrollOptions()`，分别从 `scoop.ui.text` 和 `scoop.ui` 导入。前者控制直接触摸／笔尖的短按定位、二／三击选择、窗口逻辑距离阈值和一次性长按，后者独立控制文本视口的拖动滚动。`multiTap` 默认 true，第二次短按选词、第三次及以上选逻辑行；`multiTapInterval` 默认 None，跟随系统双击间隔，未知时使用 500 ms，可设置显式非负值。`TextTouchOptions(longPressDelay = None)` 保留短按和多击，`multiTap = false` 只关闭连续计数，`enabled = false` 关闭文本触摸选择；菜单关闭时仍可长按选词，键盘与 accessibility 菜单保持可用。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传相同配置；只读富文本使用 SelectableTextOptions.touch。可运行场景见[共享文本宿主测试](../scoop.ui/tests-cones/editing/README.md)和[文本控件测试](tests-cones/editing/README.md)。
 
+上述 touch 配置还包含 `selectionHandles = TextSelectionHandleOptions()`，默认显示触摸选区的 caret／双端点把手，并通过已有视口做边缘滚动。可单独关闭 enabled，或设置 radius、hitRadius 与 color；关闭把手保留短按、多击和长按。把手不新增 Tab 焦点或语义节点，文本选择仍由控件的同一模型与 accessibility provider 发布。
+
 两个输入控件在有界父容器中占满宽度，可用 Frame 指定尺寸；Textarea 的 rows 决定建议高度，默认内缩按 body 字号／14 缩放为横向 10、纵向 8。description 放在边框外，invalid 使用当前主题的错误色，业务自行决定验证结果。TextFieldStyle 可覆盖表面、字体、选择及光标颜色；caretBlink 缺省跟随系统，显式 `caretBlink = Some(Duration.ZERO)` 保持光标可见；光标宽度也默认跟随根系统偏好。Textarea 的 Auto／Always 滚动条预留稳定空间，Hidden 不预留；paintCache 独立控制正文像素缓存。`tests-cones/editing` 覆盖实际控件、三套主题、模态 IME、滚动条和虚拟编辑项的保留／卸载。
 
 `inputGroup { input(editor); addon { text("https://") }; addon(InputGroupAlign.InlineEnd) { button("打开", onOpen) } }` 使用一个外框和一个实际编辑宿主。必须且只能提供一个 input／textarea／control；addon 支持 InlineStart／InlineEnd／BlockStart／BlockEnd 和自定义 View，button 默认 Ghost／Xs。点击 addon 空白或文字请求输入焦点，内部按钮独立激活和参与 Tab。相同 key 的 addon 换位置保留实例，根 fonts／theme 为未明确配置的内置内容提供默认值。

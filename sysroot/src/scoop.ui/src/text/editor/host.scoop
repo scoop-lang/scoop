@@ -80,6 +80,7 @@ public class TextEditHost public constructor(
             options = editorTouchScroll(initialOptions)
         )
     internal val touchPress = createEditorContactPress(this)
+    internal val touchHandles = createEditorSelectionHandles(this)
     private val touchScrollIntent =
         scroll.observeIntent {
             value -> when (value) {
@@ -254,6 +255,7 @@ public class TextEditHost public constructor(
         if (layoutChanged || restart || this.options.contextMenu != options.contextMenu) {
             touchPress.cancel()
             touchPan.cancel()
+            touchHandles.hide()
         }
         if (restart) {
             retireConnection()
@@ -276,6 +278,7 @@ public class TextEditHost public constructor(
             options.touch.multiTapInterval
         )
         touchPan.update(editorTouchAxes(options), ScrollChain.Chain, editorTouchScroll(options))
+        touchHandles.update(options.enabled, options.touch)
         this.placeholder = placeholder
         edited = onEdited
         submitted = onSubmit
@@ -351,12 +354,16 @@ public class TextEditHost public constructor(
         if (cancelContacts) {
             touchPress.cancel()
             touchPan.cancel()
+            touchHandles.hide()
         }
         preferredX = None
         if (!area.isClosed)
             area.setCaret(None, Some(current.revision))
         focus.node.root.focus.cancel(focus)
-        revealNeeded = area.isFocusActive && !focus.node.root.focus.pendingElsewhere(focus)
+        revealNeeded =
+            !(touchHandles.contact?.claimed ?: false) &&
+                area.isFocusActive &&
+                !focus.node.root.focus.pendingElsewhere(focus)
         revealRevision = focus.node.root.surface.focusRevision
         caretVisible = true
         blink.cancel()
@@ -442,6 +449,7 @@ public class TextEditHost public constructor(
         failure = cleanupUi(failure) { contextMenu.close() }
         failure = cleanupUi(failure) { touchPress.close() }
         failure = cleanupUi(failure) { touchPan.close() }
+        failure = cleanupUi(failure) { touchHandles.close() }
         failure = cleanupUi(failure) { touchScrollIntent.close() }
         failure = cleanupUi(failure) { preferenceObserver.close() }
         failure = cleanupUi(failure) { geometryObserver.close() }

@@ -72,6 +72,7 @@ internal class FieldTouchProbe {
     var pending = false
     var waiting = false
     var finished = false
+    var handleSelection = Utf8Selection(0L, 0L)
 
     init {
         for (family in theme.current.value.tokens.typography.body.families)
@@ -194,6 +195,32 @@ internal class FieldTouchProbe {
             assertEquals(range.start, range.end)
         }
     }
+    private fun handleField(start: Int, enabled: Boolean) {
+        val index = (phase - start).toLong() / 4L
+        val id = 1500L + index
+        val point = Point(45.0, points[index].y + 12.0)
+        val end = Point(330.0, point.y)
+        when ((phase - start) % 4) {
+            0 -> tapField(index)
+            1 -> {
+                handleSelection = models[index].selection
+                assertTrue(handleSelection.cursor < 4L)
+                contact(id, 0, point)
+            }
+            2 -> contact(id, 1, end)
+            else -> {
+                assertEquals(
+                    if (enabled)
+                        Utf8Selection(4L, 4L)
+                    else
+                        handleSelection,
+                    models[index].selection
+                )
+                assertTrue(focus[index].isFocusActive)
+                contact(id, 2, end)
+            }
+        }
+    }
     private fun step() {
         when (phase) {
             0 -> tapAll()
@@ -243,10 +270,31 @@ internal class FieldTouchProbe {
                 generation.value += 1
             }
             63 -> {
+                touch = TextTouchOptions(longPressDelay = None, multiTap = false)
+                generation.value += 1
+            }
+            88 -> {
+                touch =
+                    TextTouchOptions(
+                        longPressDelay = None,
+                        multiTap = false,
+                        selectionHandles = TextSelectionHandleOptions(enabled = false)
+                    )
+                generation.value += 1
+            }
+            113 -> {
                 finished = true
                 window!!.requestDestroy()
             }
             else -> {
+                if (phase >= 64 && phase < 88) {
+                    handleField(64, true)
+                    return
+                }
+                if (phase >= 89 && phase < 113) {
+                    handleField(89, false)
+                    return
+                }
                 if (phase >= 20 && phase < 44) {
                     multiTapField()
                     return

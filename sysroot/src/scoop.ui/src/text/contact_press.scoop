@@ -56,6 +56,7 @@ private fun editorTouchTap(host: TextEditHost, sample: ContactPressSample): Bool
                 TextPosition(range.end, TextAffinity.Upstream)
             )
     editorStopDrag(host, false)
+    host.touchHandles.show()
     host.perform(
         { editorSetSelection(host, selection) },
         endComposition = true,
@@ -83,7 +84,7 @@ internal fun createSelectableContactPress(host: SelectableTextHost): ContactPres
         { sample -> selectableTouchHold(host, sample) }
     )
 
-private fun selectableTouchReady(host: SelectableTextHost): Boolean {
+internal fun selectableTouchReady(host: SelectableTextHost): Boolean {
     if (host.closed || !host.scope.isMounted || host.contextMenu.pending)
         return false
     return when (host.inputFrame()) {
@@ -112,6 +113,7 @@ private fun selectableTouchTap(host: SelectableTextHost, sample: ContactPressSam
             )
     selectableStopDrag(host)
     host.preferredX = None
+    host.touchHandles.show()
     host.publishSelection(selection, cancelContacts = false)
     return !host.closed
 }

@@ -59,6 +59,8 @@ internal fun editorContextMenu(
         else
             None
     editorStopDrag(host, false)
+    if (touch)
+        host.touchHandles.show()
     val placement =
         when (pointer) {
             case Some(val value) -> {
@@ -87,7 +89,11 @@ internal fun editorContextMenu(
                                 )
                             EditorSelection(position, position)
                         }
-                    host.perform({ editorSetSelection(host, selection) }, endComposition = true)
+                    host.perform(
+                        { editorSetSelection(host, selection) },
+                        endComposition = true,
+                        cancelContacts = !touch
+                    )
                 }
                 PopupPlacement.Pointer(value.logicalPosition)
             }

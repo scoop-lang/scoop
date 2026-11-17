@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
 import scoop.surface.FrameContext
 import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
@@ -53,6 +54,22 @@ public class SceneContext internal constructor(
     internal val retainsTextDrawing: Boolean get() {
         checkActive()
         return epochs.size > 0L || paintCache != PaintCachePolicy.None
+    }
+    /** Text contact targets follow this frame's enclosing viewport clips. */
+    internal fun textHandleBounds(bounds: Rect): Rect? {
+        checkActive()
+        pass.cacheable = false
+        @Unsafe
+        {
+            val geometry = captureGeometry(frame.canvas, bounds)
+            try {
+                val visible = geometry.visibleBounds ?: return None
+                val local = localReveal(geometry, visible) ?: return None
+                return intersectReveal(bounds, local)
+            } finally {
+                geometry.close()
+            }
+        }
     }
     /** Captures current transform and clip without creating an input target. */
     public fun anchor(handle: LayoutAnchor, rect: Rect) {

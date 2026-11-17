@@ -12,6 +12,10 @@ macOS 实窗用例复用多个 TextEditHost 和一个 SelectableTextHost，覆�
 
 多击场景在另一个独立窗口进程中运行，69 步覆盖编辑／只读宿主的词和逻辑行选择、第四次短按、Touch／Pen 来源切换、组合字符与 emoji、间隔／距离、显式关闭、失败或域外接触、Accepted 缩放、长按、区间投影和受保护遮罩。行内链接连续短按只激活动作；外部选区修改及选择回调中的修改／关闭会打断旧计数。可用 `--filter 'touch multi taps select'` 单独执行；原 66 步触摸场景使用 `--filter 'native contacts select text'`，键盘／鼠标／IME 组合使用 `--filter 'native editing system IME'`。
 
+选区把手场景使用 `--filter 'touch handles adjust'`，从实际 caret 与绘制圆心发送接触，覆盖编辑／只读的 caret、两端、交叉、折叠、抓取补偿、组合字符与遮罩、缩放、父视口与编辑视口边缘滚动及结束停帧。阻止移动／结束、第二触点、外部修改和回调中的替换／关闭必须阻止迟到输入恢复旧选区；关闭把手仍保留普通短按。本场景继续使用真实宿主与 native 事件队列，不能代替真实触屏／笔的人工体验验收。
+
+另外使用 `--filter 'touch handles follow RTL'` 验证 RTL 端点、同一批输入中的移动与抬起、系统取消、显式外部定位、禁用及半径／颜色定制。最终释放在等待新布局时保留最后的窗口位置，Accepted 后完成一次实际选区更新；旧接触不能覆盖取消后的模型。
+
 编辑宿主通过 updateTextEditor 发布语义，只读宿主在正常 update 和选择通知中调用 updateSelectableText。两个菜单场景从原生主队列调用公开 accessibilityPerformShowMenu，检查返回结果、实际 tracking、Copy／SelectAll／编辑项目和真实模型／剪贴板变化。菜单与普通右键／键盘入口使用同一目标、锚点、策略和会话，仍覆盖只读／禁用、受保护用途、焦点／文档变化及迟到命令。
 
 右键辅助事件显式设置原生按钮编号，避免 NSEvent 构造器保留左键编号；Shift+F10 携带 NSF10FunctionKey，避免把空字符串送入 AppKit 文本替换。每次菜单操作等待 PopupCompleted 后再进入下一阶段，保留原生 tracking 中的检查与修改，不把发送取消请求当成会话已经结束。禁用行为在宿主挂载期间检查，已卸载宿主另行检查调用拒绝；链接拖选从折叠选区开始，以覆盖普通扩选路径。

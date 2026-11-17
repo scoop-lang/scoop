@@ -1,0 +1,277 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+internal class TextHandleContact(
+    val start: ContactState,
+    val area: InputArea,
+    val anchor: Boolean,
+    val initial: EditorSelection,
+    val grab: Point
+) {
+    val caretOnly = initial.anchor.byteOffset == initial.cursor.byteOffset
+    var latest = start
+    var claimed = false
+    var waiting = false
+    var pendingHit = false
+    var ended = false
+    var scroll: TextHandleScroll? = None
+}
+
+/** Two real text hosts share contact ownership without synthesizing mouse input. */
+internal class TextSelectionHandles(
+    internal val scope: ComponentScope,
+    internal val area: InputArea,
+    internal val focus: FocusTarget,
+    enabled: Boolean,
+    touch: TextTouchOptions,
+    internal val ready: () -> Boolean,
+    internal val selection: () -> EditorSelection,
+    internal val caret: (TextPosition) -> Rect?,
+    internal val hit: (Point) -> TextPosition,
+    private val select: (EditorSelection) -> Boolean,
+    internal val takeContact: () -> Unit
+): Closeable {
+    internal var enabled = enabled && touch.enabled && touch.selectionHandles.enabled
+    internal var options = touch.selectionHandles
+    internal var threshold = touch.threshold
+    internal var closed = false
+    internal var visible = false
+    internal var contact: TextHandleContact? = None
+    internal val contacts = ArrayList<ContactId>()
+    internal var moved = false
+    internal val anchorArea = scope.createArea(parent = Some(area))
+    internal val cursorArea = scope.createArea(parent = Some(area))
+    private val anchorEvents =
+        anchorArea.scope.addDefaultAction {
+            context,
+            event -> textHandleInput(this, anchorArea, true, context, event)
+        }
+    private val cursorEvents =
+        cursorArea.scope.addDefaultAction {
+            context,
+            event -> textHandleInput(this, cursorArea, false, context, event)
+        }
+    private val events =
+        area.scope.addEventHandler { context, event -> textHandleObserve(this, context, event) }
+    private val finished = area.scope.addEventFinished { event -> textHandleFinished(this, event) }
+    private val windowEvents =
+        scope.observeWindow(scope.nativeWindow) { event -> textHandleWindow(this, event) }
+    private val activity =
+        scope.observeWindowActivity {
+            value -> if (!value.focused || !value.visible || value.occluded)
+                hide()
+        }
+    private var timer: WindowDeadline? = None
+
+    internal fun allowed(): Boolean =
+        !closed &&
+            !area.isClosed &&
+            enabled &&
+            visible &&
+            scope.isMounted &&
+            area.scope.activity.hasFocus &&
+            area.scope.isInputAllowed &&
+            scope.nativeWindow.state ==
+            WindowState.Open &&
+            scope.nativeWindow.isFocused &&
+            scope.nativeWindow.isVisible &&
+            !scope.nativeWindow.isOccluded
+
+    fun update(enabled: Boolean, options: TextTouchOptions) {
+        val next = options.selectionHandles
+        val active = enabled && options.enabled && next.enabled
+        if (
+            this.enabled !=
+                active ||
+                threshold !=
+                options.threshold ||
+                this.options.radius !=
+                next.radius ||
+                this.options.hitRadius !=
+                next.hitRadius ||
+                this.options.color !=
+                next.color
+        )
+            hide()
+        this.enabled = active
+        this.options = next
+        threshold = options.threshold
+    }
+
+    fun show() {
+        if (!closed && enabled && !area.isClosed && area.scope.activity.hasFocus && !visible) {
+            visible = true
+            scope.requestFrame()
+        }
+    }
+
+    fun hide() {
+        val changed = visible
+        visible = false
+        clear(true)
+        if (changed && !closed && scope.isMounted)
+            scope.requestFrame()
+    }
+
+    internal fun same(value: TextHandleContact): Boolean =
+        when (contact) {
+            case Some(val current) -> current === value
+            case None -> false
+        }
+
+    internal fun clear(release: Boolean) {
+        val previous = contact
+        contact = None
+        moved = false
+        timer?.cancel()
+        when (previous) {
+            case Some(val current) -> {
+                var failure = cleanupUi(None) { current.scroll?.close() }
+                if (release && current.claimed && !current.area.isClosed)
+                    failure =
+                        cleanupUi(failure) {
+                            current.area.scope.cancelContactClaim(current.start.id)
+                        }
+                throwUi(failure)
+            }
+            case None -> {}
+        }
+    }
+
+    internal fun move(current: TextHandleContact) {
+        if (!same(current))
+            return
+        if (!allowed() || !(current.scroll?.valid() ?: true)) {
+            hide()
+            return
+        }
+        if (current.waiting)
+            return
+        if (!ready()) {
+            current.waiting = true
+            return
+        }
+        val pointer = textHandlePoint(current.latest)
+        val local = area.toLocal(Point(pointer.x - current.grab.x, pointer.y - current.grab.y))
+        val point =
+            when (local) {
+                case Some(val value) -> value
+                case None -> {
+                    hide()
+                    return
+                }
+            }
+        val position = hit(point)
+        val value =
+            if (current.caretOnly)
+                EditorSelection(position, position)
+            else
+                if (current.anchor)
+                    EditorSelection(position, current.initial.cursor)
+                else
+                    EditorSelection(current.initial.anchor, position)
+        current.pendingHit = false
+        try {
+            current.waiting = select(value)
+        } catch (error: Throwable) {
+            val failure = cleanupUi(Some(error)) { hide() }
+            throwUi(failure)
+            return
+        }
+        if (!same(current))
+            return
+        if (!allowed() || selection() != value) {
+            hide()
+            return
+        }
+        if (current.ended)
+            clear(false)
+        else
+            schedule(current)
+    }
+
+    fun accepted() {
+        val current = contact ?: return
+        if (!current.claimed)
+            return
+        if (!allowed() || !(current.scroll?.valid() ?: true)) {
+            hide()
+            return
+        }
+        if (!ready())
+            return
+        current.waiting = false
+        if (current.pendingHit)
+            move(current)
+        else
+            schedule(current)
+    }
+
+    private fun schedule(current: TextHandleContact) {
+        timer?.cancel()
+        if (
+            !same(current) ||
+                current.waiting ||
+                current.ended ||
+                !(current.scroll?.canMove(textHandlePoint(current.latest)) ?: false)
+        )
+            return
+        val clock = timer ?: scope.createDeadline { tick() }
+        timer = Some(clock)
+        clock.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(16L))
+    }
+
+    private fun tick() {
+        val current = contact ?: return
+        if (!allowed() || !ready() || !(current.scroll?.valid() ?: false)) {
+            hide()
+            return
+        }
+        try {
+            if (current.scroll!!.move(textHandlePoint(current.latest)) && same(current)) {
+                current.waiting = true
+                current.pendingHit = true
+            }
+        } catch (error: Throwable) {
+            val failure = cleanupUi(Some(error)) { hide() }
+            throwUi(failure)
+        }
+    }
+
+    fun scene(
+        context: SceneContext,
+        bounds: Rect,
+        selection: EditorSelection,
+        anchor: Rect?,
+        cursor: Rect?,
+        color: Color
+    ) {
+        textHandleScene(this, context, bounds, selection, anchor, cursor, color)
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        visible = false
+        var failure = cleanupUi(None) { clear(true) }
+        contacts.clear()
+        failure = cleanupUi(failure) { timer?.close() }
+        failure = cleanupUi(failure) { activity.close() }
+        failure = cleanupUi(failure) { windowEvents.close() }
+        failure = cleanupUi(failure) { events.close() }
+        failure = cleanupUi(failure) { finished.close() }
+        failure = cleanupUi(failure) { anchorEvents.close() }
+        failure = cleanupUi(failure) { cursorEvents.close() }
+        failure = cleanupUi(failure) { anchorArea.close() }
+        failure = cleanupUi(failure) { cursorArea.close() }
+        throwUi(failure)
+    }
+}

@@ -19,7 +19,7 @@
 | S4 | 进行中 | 共享滚动条行为、配置入口、命中、轨道跳转及重复操作、统一 Gutter／Overlay 与边缘显露已接入，43 项定向测试及 ScrollViewport／ScrollArea／VirtualList／TextControls 实窗回归通过；Window／AppKit 范围与滚动动作、UI 宿主和组件条已接入，原生方法与请求逻辑回归通过；已挂载节点的 Reveal、逐层 Accepted 完成及取消实窗通过，外部辅助技术、完整虚拟集合与其他平台仍待验收 |
 | S5 | 进行中 | 编辑／只读宿主的正文、选区、替代文字映射与 ShowContextMenu 已接入，Input／Textarea、SelectableStyledText／Typography 及包装自动发布宿主语义；macOS 原生方法与编辑策略定向测试通过；Field 标签／说明／错误和只读必填属性沿原连接发布；两类宿主的实际菜单呈现与编辑策略组合实窗回归通过；当前布局的文本范围／单位查询已接入，AppKit 实窗及独立 AX 文本范围／选区通知回归通过；保留范围、invalid／busy 等其余状态、复杂焦点与模态待继续 |
 | S6 | 进行中 | Window／AppKit source／target、UI Accepted 路由、文本选区拖出与 Copy／完整 Move 已接入；模型、来源准备和文本目标协议测试通过，用户已确认同框移动、区域复制、跨窗口及外部程序双向文本拖放正常；文件／活动来源生命周期／模态的完整系统矩阵及其他平台继续推进 |
-| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按／多击已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；双指 TransformGesture 的 21 步行为及 40 步取消窗口场景通过；用户确认真实触控板缩放／旋转正常；两类文本宿主的 66 步触摸与 69 步多击、六类文本控件的 64 步场景通过，菜单与 accessibility 共用动作；其余控件组合、选区端点、软键盘和完整设备矩阵继续实施 |
+| S8 | 进行中 | 原生手势、原始 contact 与成组归属、Press／Drag／Slider、直接触摸滚动及文本短按／长按／多击已接入；Resizable／Carousel／Drawer 的触点与鼠标窗口场景通过；双指 TransformGesture 的 21 步行为及 40 步取消窗口场景通过；用户确认真实触控板缩放／旋转正常；文本选区把手与边缘滚动的 73 步交互和 35 步 RTL／取消、六类文本控件的 114 步触摸、原 66 步触摸与 69 步多击回归通过，菜单与 accessibility 共用动作；触摸数据拖放、其余控件组合、软键盘和完整设备矩阵继续实施 |
 | S7、S9～S11 | 待开始 | 保持统一计划的完整范围，未将基础 API 交付视为上层交互或 provider 已完成 |
 
 ## 已交付变更
@@ -452,3 +452,14 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - UI／Component 规范、交互与 accessibility 设计、计划、库／测试 README 和编程导航同步；UI API 文档及 3 组查询核对构造参数、默认值、只读属性和有效导入。UI、Style、四套主题与 Component 共 7 份开发产物按依赖更新，生产／测试源码检查、release 构建、14 个 Scoop 文件格式和 229 个本地 Markdown 目标及 diff 检查通过。临时测试应用与逐次报告已清理，保留开发产物、API 文档和共享缓存。
 
 本批验证经受控 native 队列进入 macOS 实窗，真实触屏／笔和 Windows／GTK 仍按集中平台轮次执行；文本选区端点、触摸数据拖放、通用长按／swipe、软键盘及其余完整计划继续推进。
+
+### 文本选区把手与边缘滚动
+
+- TextTouchOptions.selectionHandles 接入 TextSelectionHandleOptions：enabled 默认 true，radius=6、hitRadius=18、color=None，独立控制把手显隐、绘制／命中半径及颜色。编辑器沿 caretColor，只读文本沿不透明 selectionColor；普通短按、多击、长按与键盘／语义选择保留各自入口。
+- 两类宿主共用非焦点子区域、接触归属与当前场景的绘制／裁剪。达到移动阈值才接管；折叠选区移动 caret，非空选区固定另一端并允许交叉。抓取补偿保留窗口坐标，范围和 affinity 使用原投影及布局。相邻把手分开绘制和命中，不建立新的文本模型、焦点或语义节点。
+- 边缘滚动借用现有 Accepted 视口路径，编辑器及只读父视口都沿真实 ScrollState 消费余量；每次滚动等待新布局，再按固定窗口位置更新选区。结束／取消清理归属、意图观察和一次性 deadline，外部定位及模型变化不复活旧操作。第二触点取消拖动时曾被重新当成普通短按，已修正并覆盖；无把手拖动时不拦截其他识别器的第二触点。
+- aarch64-apple-darwin release 的 73 步把手窗口场景和 35 步 RTL／取消场景通过，覆盖两端、反向／折叠、grapheme、遮罩、缩放、连续移动与最终释放、内／外视口滚动、停帧、阻止输入、系统／第二触点取消、外部定位／替换、禁用及回调关闭。六类文本控件场景扩展为 114 步并通过，逐项验证真实把手拖动和单独关闭后的短按行为。
+- 原 69 步多击、66 步触摸／菜单及键盘／鼠标／系统 IME 组合分别通过；本批合计 6 个独立窗口用例与 1 项配置用例通过。实际窗口截图核对编辑／只读双端点、默认颜色及视口裁剪。此结果来自 native 接触队列与真实窗口，不替代真实触屏／笔或读屏器验收。
+- UI／Component 规范、accessibility 设计、计划、库／测试 README 及编程导航已同步；生成 UI API 并完成 3 组构造器／属性／导入查询，7 份 UI／Style／主题／Component 开发产物更新。21 个 Scoop 文件格式、生产与实际消费者检查、release 构建及本地文档链接检查通过。临时应用包、截图工具及逐次报告清理，保留开发产物、API 文档和共享缓存。
+
+文本触摸数据拖放、通用 long press／swipe、软键盘、滚动物理与其余 accessibility 及跨平台计划继续推进；S8 和完整计划仍未结束。
