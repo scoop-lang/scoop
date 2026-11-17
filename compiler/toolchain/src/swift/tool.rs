@@ -10,7 +10,7 @@ pub(super) struct SwiftTools {
     swift: PathBuf,
     pub(super) root: PathBuf,
     pub(super) sdk: PathBuf,
-    triple: String,
+    architecture: &'static str,
     pub(super) minimum_os: DarwinPackedVersionV1,
 }
 
@@ -48,7 +48,7 @@ impl SwiftTools {
             swift,
             root,
             sdk: c.sdk_root().map_err(error)?.to_path_buf(),
-            triple: format!("{architecture}-apple-macosx{minimum_os}"),
+            architecture,
             minimum_os,
         })
     }
@@ -92,8 +92,8 @@ impl SwiftTools {
                     "--product",
                     &request.product,
                 ])
-                .arg("--triple")
-                .arg(&self.triple)
+                .arg("--arch")
+                .arg(self.architecture)
                 .arg("--sdk")
                 .arg(&self.sdk)
                 .arg("--toolchain")

@@ -3120,7 +3120,7 @@ env = ["SWIFTMATH_FEATURE"]
 ```
 
 - `package` 必需，指向含 Package.swift 的目录，使用相对 Cone 根的普通 native 路径规则，允许用于共用输入的 `..`；不接受 shell 展开或 glob。
-- `product` 必需，是 SwiftPM 的实际 library product 名，同时作为逻辑 native 库名。`linkage` 必需，为 `static` 或 `dynamic`；SwiftPM product 必须显式声明相同类型，automatic product 给出需要明确类型的诊断，不改写其清单或生成空壳 Swift target。
+- `product` 必需，是 SwiftPM 的实际 library product 名，同时作为逻辑 native 库名。`linkage` 必需，为 `static` 或 `dynamic`；SwiftPM product 必须显式声明相同类型，automatic product 不保证独立库，缺少匹配的 `.a`／`.dylib` 时报告所需产物；不分析或改写其清单，也不生成空壳 Swift target。
 - `format` 默认 `library`，也可为 `framework`。library 按 linkage 交付 `.a` 或 `.dylib`。framework 必需 `bundle_id`，且实际构建必须提供与 product 同名的 Swift 模块；模块可以有正常依赖。library 禁止 bundle_id。framework 可含静态或动态二进制，不能从目录后缀推导 linkage。
 - `when` 使用 12.2.2 的目标条件。先检查全部条目格式，再筛选；未选中时不读取包、检查输入存在性或启动 Swift。首期仅支持 macOS 宿主构建现有 Darwin AArch64／x86-64 target，其他匹配目标报告不支持，不回退宿主。
 - `inputs` 为可选附加文件／目录路径数组，按 Cone 根解析；`env` 为可选环境变量名数组；两者缺省为空。包根递归参与缓存更新；包外本地／editable 依赖、framework、宏／插件输入必须用 inputs 显式声明，Scoop 不分析可执行的 Package.swift 来推导依赖。环境的未设置、空值与具体值不同。更新规则见实现规范 2.7.1 和包管理规范 11.3。

@@ -30,6 +30,30 @@ pub(super) fn read<'a>(
         .next()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
     {
+        if let Some((platform, minimum)) =
+            crate::native_object::deployment_record(&command, endian)?
+        {
+            // Zippered inputs also describe Mac Catalyst; select macOS.
+            if platform == macho::PLATFORM_MACOS {
+                if minimum
+                    > profile
+                        .startup_toolchain()
+                        .profile()
+                        .contract()
+                        .deployment()
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
+                        .minimum_os()
+                        .packed()
+                {
+                    return Err(error(
+                        scoop_source::DiagnosticCode::E2305,
+                        "native dylib has incompatible platform/deployment",
+                    ));
+                }
+                builds += 1;
+            }
+            continue;
+        }
         match command.cmd() {
             macho::LC_ID_DYLIB
             | macho::LC_LOAD_DYLIB
@@ -84,37 +108,6 @@ pub(super) fn read<'a>(
                     .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
                     .to_owned(),
                 );
-            }
-            macho::LC_BUILD_VERSION => {
-                let build = command
-                    .build_version()
-                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
-                    .ok_or_else(|| {
-                        error(
-                            scoop_source::DiagnosticCode::E2305,
-                            "invalid native dylib build version",
-                        )
-                    })?;
-                // Zippered inputs also describe Mac Catalyst; select macOS.
-                if build.platform.get(endian) != macho::PLATFORM_MACOS {
-                    continue;
-                }
-                if build.minos.get(endian)
-                    > profile
-                        .startup_toolchain()
-                        .profile()
-                        .contract()
-                        .deployment()
-                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
-                        .minimum_os()
-                        .packed()
-                {
-                    return Err(error(
-                        scoop_source::DiagnosticCode::E2305,
-                        "native dylib has incompatible platform/deployment",
-                    ));
-                }
-                builds += 1;
             }
             macho::LC_DYLD_EXPORTS_TRIE => {
                 let data: &macho::LinkeditDataCommand<object::Endianness> = command
@@ -214,7 +207,7 @@ pub(super) fn read<'a>(
     if builds != 1 {
         return Err(error(
             scoop_source::DiagnosticCode::E2305,
-            "native dylib requires one macOS LC_BUILD_VERSION",
+            "native dylib requires one macOS deployment record",
         ));
     }
     Ok(Commands {

@@ -1247,9 +1247,9 @@ human 诊断采用源码片段展示：先输出 severity、可用的错误代�
 
 Swift 配方不进入已有 C/C++ native 对象键或 Scoop 源码编译键。library/static、library/dynamic、framework 分别向既有 native 要求表投影 StaticArchive、Dynamic、Framework；只有该投影变化才改变对应 Scoop 编译输入。Swift 源码、lock、flags／环境或二进制变化而投影未变时，复用既有 `.slib`，更新独立的原生链接／部署输入。实现不能因为原 `NativeConfig` 同时容纳配方就散列其全部字段作为语义键。
 
-**配置与工具。** `--swift-toolchain <path>` 选择含 `usr/bin/swift`、`usr/bin/swiftc` 和配套资源的根；缺省采用本次 Xcode 开发环境的默认工具链。Darwin SDK、canonical target、最低部署版本和 debug/release 显式传给 Swift，不能采用宿主默认目标。package/product、configuration、scratch、jobs 和输出参数由 driver 管理；直接传 argv，不经过 shell。SwiftPM 的编译 flags／traits 由包清单表达，本阶段不提供任意构建 hook。只交接普通机器码，不要求 Swift 内部 LLVM 与 Scoop 相同，不使用跨工具链 bitcode／LTO。
+**配置与工具。** `--swift-toolchain <path>` 选择含 `usr/bin/swift`、`usr/bin/swiftc` 和配套资源的根；缺省采用本次 Xcode 开发环境的默认工具链。Darwin SDK、目标架构和 debug/release 显式传给 Swift，不能采用宿主默认目标；本次最低部署版本传入环境，包自身的部署设置仍由 SwiftPM 管理。package/product、configuration、scratch、jobs 和输出参数由 driver 管理；直接传 argv，不经过 shell。SwiftPM 的编译 flags／traits 由包清单表达，本阶段不提供任意构建 hook。只交接普通机器码，不要求 Swift 内部 LLVM 与 Scoop 相同，不使用跨工具链 bitcode／LTO。
 
-首期明确选用 SwiftPM 的 Swift Build 后端（`--build-system swiftbuild`），所选工具必须支持它，不静默切换其他后端的输入／资源合同。AArch64、x86-64 分别使用带本次部署版本的 `arm64-apple-macosx<version>`、`x86_64-apple-macosx<version>` Swift triple。包要求的最低系统版本高于本次目标时报告不相容，不静默抬高最终程序基线。PM 共享 Git／registry 源码中的 Swift 根按包管理规范 6.3 消费随包 lock，scratch／下载／产物不得回写共享源码。
+首期明确选用 SwiftPM 的 Swift Build 后端（`--build-system swiftbuild`），所选工具必须支持它，不静默切换其他后端的输入／资源合同。AArch64、x86-64 分别使用 `--arch arm64`、`--arch x86_64`，配合选定 macOS SDK；不同时传互斥的 `--triple`，也不依赖该参数控制 Swift Build 的架构。SwiftPM 可以按包声明生成最低版本更低的库；实际产物要求的最低系统版本高于本次目标时由普通 native 消费检查报告不相容，不静默抬高最终程序基线，不解析 Package.swift 重建部署设置。PM 共享 Git／registry 源码中的 Swift 根按包管理规范 6.3 消费随包 lock，scratch／下载／产物不得回写共享源码。
 
 节点配置键由实际 package locator、product、linkage、format／bundle_id、目标与部署、SDK／工具链选择、profile、附加 inputs/env 及 adapter 格式版本构成。无关 source Cone identity 不妨碍相同配置共享；不同来源或配置不能仅凭同名 product 合并。工具的有效选择配置进入记录，实际发现与版本／target-info 查询在未命中后执行；继续遵守 2.7 不巡检整套工具文件或 SDK 的规则。
 
@@ -1422,7 +1422,7 @@ DSO 依赖查找使用显式 roots、provider 目录、实际 RPATH/RUNPATH 与�
 native-app 最终链接由 root `.slib` 的完整 entry 分支选择 shared-library profile，生成唯一公开 `scoop_app_init`，内部调用 `scoop_rt_init_native_app(images, image_count, native_app_entry, host_api, out_app_api, out_error, enable_stack_trace)`。默认输出为 Darwin `lib<name>.dylib`、ELF `lib<name>.so`、Windows `<name>.dll`；显式输出名原样保留。`build` 和 artifact-only `link` 共用此路径，`run` 报告需要 native host。`--install-name`／`--soname` 只适用于对应平台的 shared-library profile。Windows import library 和所需调试文件随最终产物一起发布，并作为缓存命中所需输出；新链接的 PE 必须在发布前检查实际 export 恰为 scoop_app_init。更新记录包含输出种类、实际 loader name 与 bootstrap 配置；未变化且输出齐备时直接复用，不读取命中动态库或 import library。
 
 
-ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v9`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
+ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v10`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
 
 面向用户的 native 缺失符号诊断显示声明请求的库名；Mach-O 动态 provider 的文本计划按实际 install name 排序，再以 provider identity 区分同名记录。对象内容变化不能仅因内容摘要的排序改变这部分报告顺序；真实链接顺序、绑定、依赖边和 canonical 内容编码保持原合同。
 
@@ -1454,7 +1454,7 @@ Swift bridge 需要的最终链接库／framework 由所属 Cone 在 `native.lib
 
 已要求的 Swift 库可从所选 SDK 的 `usr/lib/swift` 与所选 Swift 工具链正常资源目录解析，继续使用已有显式／系统 provider 优先级。SDK 的 arm64e 系统 stub 沿已有系统兼容映射消费，不据此放宽第三方机器库的架构检查。实际需要的 Core、Concurrency、StringProcessing、compatibility archives 和其他库均由输入决定，不建立只含 swiftCore 的固定名单。预解析及 LLD 必须消费同一组已选库，不在最后步骤回退宿主搜索。
 
-普通 Mach-O 对象、归档成员及 dylib 可以同时提供 macOS 与 Mac Catalyst 的 `LC_BUILD_VERSION`（zippered 输入，例如 Apple Swift compatibility archives）。Darwin 消费选择 macOS 记录检查最低部署版本，其他平台记录不使该输入失效；存在平台记录却没有 macOS 记录时拒绝，dylib 仍须有唯一的 macOS 部署记录。该规则不改变架构、符号或归档抽取检查，也不要求 Scoop 生产多平台输出；平台选择与 [LLVM Mach-O 输入处理](https://github.com/llvm/llvm-project/blob/main/lld/MachO/InputFiles.cpp)一致。
+普通 Mach-O 对象、归档成员及 dylib 可以同时提供 macOS 与 Mac Catalyst 的部署记录（zippered 输入，例如 Apple Swift compatibility archives）。Darwin 消费选择 macOS 记录检查最低部署版本；接受 `LC_BUILD_VERSION` 及等价的旧式 `LC_VERSION_MIN_MACOSX`，两种格式可分别描述不同平台。其他平台记录不使含 macOS 的输入失效；存在平台记录却没有 macOS 记录时拒绝，dylib 仍须有唯一的 macOS 部署记录。该规则不改变架构、符号或归档抽取检查，也不要求 Scoop 生产多平台输出；平台选择与 [LLVM Mach-O 输入处理](https://github.com/llvm/llvm-project/blob/main/lld/MachO/InputFiles.cpp)一致。
 
 动态输入的 weak-load、re-export、install name 与 rpath 按实际平台合同处理，不一律转成强依赖或忽略。保留普通目标、部署版本、符号定义／引用及外部 ABI 声明检查；不声称对象符号表能证明 Swift 实现满足声明类型。产品 linkage 与 runtime linkage 分开，首期使用目标支持的普通动态 Swift runtime 和实际需要的静态 compatibility archive，不提供 macOS 全静态 Swift runtime。
 

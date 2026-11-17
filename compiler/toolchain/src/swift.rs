@@ -116,7 +116,7 @@ impl SwiftBuildRequest {
         let package_key = build_record::fingerprint(&path(&package)?)?;
         // Layout is deliberately absent: a framework can reuse the same product.
         let key = build_record::fingerprint(&(
-            5u32,
+            6u32,
             path(&package)?,
             library.product().as_str(),
             library.linkage(),

@@ -1,6 +1,6 @@
 # Swift 原生库第一阶段设计
 
-状态：AArch64 实现与验收完成，x86-64 收尾中。2026-11-18 按用户决定收敛职责：SwiftPM 负责构建；Cone 显式声明缓存输入和最终链接依赖；bundle metadata 独立声明私有 framework。只在 bundle 阶段重定位动态库。先完成 AArch64，再统一验证 x86-64。进度见[实施记录](PROGRESS.md)。
+状态：第一阶段已完成，macOS AArch64／x86-64 验收通过。2026-11-18 按用户决定收敛职责：SwiftPM 负责构建；Cone 显式声明缓存输入和最终链接依赖；bundle metadata 独立声明私有 framework。只在 bundle 阶段重定位动态库。验收按 AArch64 → x86-64 顺序完成。范围与结果见[实施记录](PROGRESS.md)。
 
 本阶段优先实现系统／第三方 framework 的手写 Swift staticlib bridge：`@c` → `.a` → Scoop `@Extern` → 最终程序。bindgen、自动包装和 Swift 类型导入留到下一阶段。
 
@@ -42,7 +42,7 @@ when = { os = "darwin" }
 
 ## 3. Swift 构建与工具选择
 
-`--swift-toolchain` 可明确选择工具链，否则使用所选 Xcode 环境。SDK、target、最低系统版本、profile、product、scratch 和 jobs 由 driver 显式传给 `swift build --build-system swiftbuild`。真实产物路径通过工具结果取得。
+`--swift-toolchain` 可明确选择工具链，否则使用所选 Xcode 环境。SDK、目标架构、profile、product、scratch 和 jobs 由 driver 显式传给 `swift build --build-system swiftbuild`，架构使用 `--arch arm64`／`--arch x86_64`。本次最低系统版本传入环境，SwiftPM 仍管理包自身部署设置；实际库的最低版本须与最终目标相容，不能因此抬高最终程序基线。真实产物路径通过工具结果取得。
 
 Package.swift 是程序，由 SwiftPM 执行。Scoop 不解析它，也不调用 dump-package、describe、show-dependencies 推导缓存或链接依赖。构建失败按实际工具诊断返回；缺少要求的独立 `.a`／`.dylib` 或 framework 模块时报告所需产物。
 
@@ -106,7 +106,7 @@ bundle 复制私有 framework 到 `Contents/Frameworks`，保留版本目录和 
 
 ## 10. 诊断与验收
 
-先完成 AArch64，再统一处理 x86-64；当前不提前验证另一架构。定向覆盖：
+验收按 AArch64 → x86-64 顺序完成，定向覆盖：
 
 - CoreText handwritten staticlib bridge 两个 @c 函数，经依赖 Cone 的 public @Extern 调用；
 - 冷构建、无工具调用命中、Swift 修改复用 Scoop、显式本地依赖／头文件／资源／插件输入变化；

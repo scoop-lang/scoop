@@ -57,9 +57,14 @@
 
 验证：格式化和定向 clippy 通过（仅既有警告）；2 项 native object 测试通过，其中新测试用真实 clang 产出普通对象／dylib，覆盖多平台输入、仅 Catalyst 和 macOS 最低版本过高。实际 Swift staticlib 使用工具链的 runtime compatibility 选项生成真实引用，最终程序成功解析并链接 Compatibility50、51、56、Concurrency、DynamicReplacements，热复用和两个 CoreText @c 调用均通过。AArch64 本阶段能力与组合验收完成，下一批才开始 x86-64。
 
-## 后续工作与验收
+## x86-64 验收与第一阶段完成
 
-1. 统一修复和验证已记录的 x86-64 Swift target 问题。
-2. 最终合同与变更审查；bindgen 留到下一阶段。
+2026-11-18：AArch64 完成后开始统一验证 x86-64。Swift Build 改用明确的 `--arch arm64`／`--arch x86_64`；不再依赖未选中实际架构的 triple，也不混用互斥参数。SDK 和本次部署配置继续传给 Swift，包自己的最低版本由 SwiftPM 管理，最终按实际机器库检查相容性。Swift adapter 升为 6。
 
-每个大项完成后定向验证，提交、推送，再合并 origin/main。原始日志在仓库外，每轮清理不再使用的临时文件。
+补齐 Apple x86-64 compatibility archive 的实际格式：macOS 使用旧式 LC_VERSION_MIN_MACOSX，Catalyst 使用 LC_BUILD_VERSION。普通对象和 dylib 共用部署记录读取，保留非 macOS／过高最低版本的拒绝。source final cache 升为 v6，link plan 升为 v10，避免旧部署判断结果继续命中。
+
+验证：相关格式化／clippy 通过（新代码无警告）；真实 clang 对象／dylib 的两架构正反例通过，覆盖旧式及新式记录。x86-64 四组正式 Swift fixture 全部通过，共 43 个进程步骤；架构参数调整后的 AArch64 CoreText 回归通过 10 个步骤。x86-64 静态 framework、普通 dylib、动态 framework、Foundation 宏和实际 compatibility archives 均完成构建、热复用、目标架构及运行检查。两种动态产物的显式 bundle、热复用、复制 app 运行及签名通过；动态 framework 的 `.slib` 配套目录复制后，`scoop link` 和 `scoop-link` 均可运行。x86-64 weak-load fixture 通过 12 个步骤。最初两个架构参数互斥、旧式部署记录缺失及测试类型推导错误均已闭合。
+
+第一阶段已完成：macOS 两架构覆盖 `.a`／`.dylib`／静态和动态 framework，优先交付系统／第三方 framework 的手写 staticlib bridge。最终依赖显式属于 Cone；私有 framework 由 bundle metadata 独立列出，在打包副本上调整路径并签名，系统 framework 跳过。offline／frozen 只复用已有 Swift 结果，未命中须先正常构建。当前未验证其他平台，也不提供自动 Swift 包装、类型导入或 bindgen。
+
+后续进入独立的 bindgen 设计。本阶段各项已按要求提交、推送，并逐项合并检查 origin/main；原始日志和临时工程不进入仓库，完成后清理。未改动用户已有的 benchmark/results/2026-11-07 数据。
