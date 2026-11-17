@@ -43,7 +43,8 @@ public class NativeMenuButton public constructor(
                         trigger.focus,
                         variant = trigger.variant,
                         size = trigger.size,
-                        group = input.group
+                        group = input.group,
+                        semantics = trigger.semantics
                     ),
                     { current, mount -> Button(current, scope = mount) },
                     comparison = Some(buttonComparison)

@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.datetime.*
 import scoop.surface.FocusOrigin
 import scoop.ui.*
+import scoop.window.accessibility.*
 
 internal class CalendarMember(
     val page: CalendarPage,
@@ -184,26 +185,53 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         }
     }
     fun choose(member: CalendarMember) {
-        if (!active || !props.value.enabled || !member.data.enabled)
-            return
+        activate(member)
+    }
+    fun activate(member: CalendarMember): SemanticActionResult {
+        if (!active)
+            return SemanticActionResult.Unavailable
+        if (!props.value.enabled || !member.data.enabled)
+            return SemanticActionResult.Rejected
         val input = props.value
         val before = calendarRead(input.selection)
-        when (calendarActivate(before, pending.value, member.data.date, input.options.rules)) {
-            case Rejected -> {}
+        return when (
+            calendarActivate(before, pending.value, member.data.date, input.options.rules)
+        ) {
+            case Rejected -> SemanticActionResult.Rejected
             case Pending(val date) -> {
-                pending.value = Some(date);
+                pending.value = Some(date)
                 preview.value = Some(date)
+                SemanticActionResult.Completed
             }
             case Commit(val next) -> {
                 if (!calendarWrite(input.selection, next))
-                    return
+                    return SemanticActionResult.Rejected
                 val accepted = calendarRead(props.value.selection)
                 lastSelection = Some(accepted)
                 cancelRange()
                 if (!sameCalendarValue(before, accepted))
                     props.value.onValueChange(accepted)
+                SemanticActionResult.Completed
             }
         }
+    }
+    fun select(member: CalendarMember, selected: Boolean): SemanticActionResult {
+        if (!active)
+            return SemanticActionResult.Unavailable
+        if (!props.value.enabled || !member.data.enabled)
+            return SemanticActionResult.Rejected
+        if (calendarSelected(calendarRead(props.value.selection), member.data.date) == selected)
+            return SemanticActionResult.Completed
+        val result = activate(member)
+        return if (
+            result ==
+                SemanticActionResult.Completed &&
+                calendarSelected(calendarRead(props.value.selection), member.data.date) !=
+                selected
+        )
+            SemanticActionResult.Rejected
+        else
+            result
     }
     fun hover(date: LocalDate, entered: Boolean) {
         if (!active || !props.value.enabled || pending.value == None)

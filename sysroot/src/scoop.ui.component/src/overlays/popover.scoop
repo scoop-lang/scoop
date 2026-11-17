@@ -6,6 +6,7 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.column as popupColumn
 
 public class Popover public constructor(
@@ -14,6 +15,7 @@ public class Popover public constructor(
 ): Component(scope) {
     private val anchor = LayoutAnchor()
     private val localHandle = OverlayHandle()
+    private val semanticReference = SemanticsReference()
     private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
@@ -38,6 +40,15 @@ public class Popover public constructor(
             (input.handle ?: localHandle).requestClose()
         else
             setOpen(true)
+    }
+    private fun dismissSemantically(): SemanticActionResult {
+        if (!props.value.open.value)
+            return SemanticActionResult.Unavailable;
+        (props.value.handle ?: localHandle).requestClose()
+        return if (!props.value.open.value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     public override fun render(): View {
         val inputs = props
@@ -110,7 +121,18 @@ public class Popover public constructor(
                         input.theme,
                         value.focus,
                         variant = value.variant,
-                        size = value.size
+                        size = value.size,
+                        semantics =
+                            value.semantics.copy {
+                                relations =
+                                    semanticControls(
+                                        relations,
+                                        (
+                                            input.semantics.reference ?:
+                                                this @Popover.semanticReference
+                                        ).id
+                                    )
+                            }
                     ),
                     { current, mount -> Button(current, scope = mount) }
                 )
@@ -122,6 +144,14 @@ public class Popover public constructor(
             )
         val localAnchor = anchor
         val overlayHandle = input.handle ?: localHandle
+        val semantics =
+            input.semantics.copy {
+                if (name == None && relations.labelledBy.size == 0L)
+                    name = semanticCaption(input.title)
+                if (description == None)
+                    description = semanticCaption(input.description)
+                reference = Some(input.semantics.reference ?: this @Popover.semanticReference)
+            }
         val popup =
             portal(
                 binding({ props.value.open.value }, { value -> setOpen(value) }),
@@ -136,7 +166,20 @@ public class Popover public constructor(
                         )
                     ),
                     { current, mount -> PopupMotion(current, scope = mount) },
-                    [panel]
+                    [
+                        semanticContent(
+                            panel,
+                            SemanticRole.Dialog,
+                            semantics.properties(
+                                enabled = input.enabled,
+                                modal = input.mode == OverlayMode.Modal
+                            ),
+                            actions = SemanticActions(dismiss = Some { dismissSemantically() }),
+                            relations = semantics.relations,
+                            mergeLabels = false,
+                            reference = semantics.reference
+                        )
+                    ]
                 )
             ) {
                 placement =

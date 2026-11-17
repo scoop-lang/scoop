@@ -73,6 +73,7 @@ private class SelectableStyledTextInk(
     }
     private fun updateSemantics() {
         val input = props.value
+        semantics?.bindReference(input.semantics.reference)
         semantics?.updateSelectableText(
             host,
             input.semantics.properties(),

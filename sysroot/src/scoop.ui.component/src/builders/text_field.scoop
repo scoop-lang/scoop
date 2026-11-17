@@ -37,6 +37,7 @@ public open class InputBuilder internal constructor() {
     public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
     public var key: ViewKey = ViewKey.Position
     public var semantics: ComponentSemantics = ComponentSemantics()
+    public var expansion: TextFieldExpansion? = None
 
     public fun style(configure: TextFieldStyleBuilder.() -> Unit): Unit {
         style = style.copy(configure)
@@ -78,7 +79,8 @@ public open class InputBuilder internal constructor() {
             drag,
             touch,
             touchScroll,
-            scrollPhysics
+            scrollPhysics,
+            expansion
         )
 }
 

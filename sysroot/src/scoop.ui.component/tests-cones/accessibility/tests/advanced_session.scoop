@@ -1,0 +1,222 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.datetime.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class AdvancedComponentSemanticsTest {
+    @Test
+    fun `compound controls publish real states and reject refused changes without requiring activation`() {
+        val probe = AdvancedProbe()
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertEquals(2, probe.traceClicks)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class AdvancedProbe: Closeable {
+    val values = state<Array<Double>>([25.0])
+    val open = state(false)
+    val traceOpen = state(false)
+    val tab = state<String?>(Some("a"))
+    val page = state(1L)
+    val date = state<LocalDate?>(Some(LocalDate(2026, 11, 18)))
+    val protectedText = state(false)
+    val otp = TextEditorState("1234")
+    val document = TextEditorState("A😀BC")
+    var reject = false
+    var traceClicks = 0
+    var finished = false
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private var anchor: NativeTextAnchor? = None
+    private val retained = ArrayList<NativeNode>()
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop compound accessibility"
+                            requestActivation = false
+                            size = LogicalSize(860.0, 680.0)
+                        }
+                    )
+                ui = host.attach(window, { scope -> AdvancedRoot(this, scope) })
+                @Unsafe
+                {
+                    val lease = window.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        tree = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                calls =
+                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                later { initial() }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("compound accessibility timed out"))
+            else -> {}
+        }
+    }
+    private fun initial() {
+        val range = find("range")
+        assertTrue(range.text(2, Some("AXSlider")))
+        assertEquals(25L, range.numericValue)
+        assertEquals(0L, range.trait(2))
+        assertEquals(100L, range.trait(3))
+        assertEquals(40L, find("progress").numericValue)
+        assertEquals(0L, find("progress").trait(8))
+        assertEquals(0L, find("disclosure").trait(1))
+        assertEquals(1L, find("tabs").trait(4))
+        assertEquals(1L, find("tab-a").trait(0))
+        assertEquals(0L, find("tab-b").trait(0))
+        assertEquals(1L, find("otp").roleCount("AXTextField"))
+        assertEquals(0L, find("otp").count)
+        assertTrue(find("avatar").text(2, Some("AXImage")))
+        assertEquals(1L, find("calendar").roleCount("AXTable"))
+        assertEquals(1L, find("2026-11-18").trait(0))
+        assertEquals(2L, find("table").trait(5))
+        assertEquals(2L, find("table").trait(6))
+        assertEquals(2L, find("table").trait(7))
+        assertTrue(find("table").tableSpan())
+        anchor = Some(NativeTextAnchor(find("document"), 1L, 5L))
+        document.applyInput(
+            TextInputBatch(
+                None,
+                [TextInputOperation.Commit("X", TextReplacement.Range(Utf8Range(0L, 0L)))]
+            )
+        )
+        later {
+            assertTrue(anchor!!.matches(2L, 6L))
+            assertTrue(document.undo())
+            later {
+                assertTrue(anchor!!.matches(1L, 5L))
+                document.replaceAll("New document")
+                later {
+                    assertTrue(anchor!!.matches(-1L, -1L))
+                    calls!!.post(range, 0, action = 10)
+                }
+            }
+        }
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(
+            if (tag == 1 || tag == 4 || tag == 6)
+                0
+            else
+                1,
+            result
+        )
+        when (tag) {
+            case 0 -> {
+                assertEquals(30.0, values.value[0L])
+                reject = true
+                calls!!.post(find("range"), 1, action = 10)
+            }
+            case 1 -> {
+                assertEquals(30.0, values.value[0L])
+                reject = false
+                calls!!.post(find("tab-b"), 2)
+            }
+            case 2 -> {
+                assertEquals(Some("b"), tab.value)
+                assertEquals(1L, find("tab-b").trait(0))
+                calls!!.post(find("disclosure"), 3)
+            }
+            case 3 -> {
+                assertTrue(open.value)
+                assertEquals(1L, find("disclosure").trait(1))
+                reject = true
+                calls!!.post(find("disclosure"), 4)
+            }
+            case 4 -> {
+                assertTrue(open.value)
+                reject = false
+                calls!!.post(find("trace"), 5)
+            }
+            case 5 -> {
+                assertTrue(traceOpen.value)
+                assertEquals(1L, find("trace").trait(1))
+                reject = true
+                calls!!.post(find("trace"), 6)
+            }
+            case 6 -> {
+                assertTrue(traceOpen.value)
+                reject = false
+                calls!!.post(find("2026-11-19"), 7)
+            }
+            case 7 -> {
+                assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
+                assertEquals(1L, find("2026-11-19").trait(0))
+                calls!!.post(find("page-2"), 8)
+            }
+            case 8 -> {
+                assertEquals(2L, page.value)
+                assertEquals(1L, find("page-2").trait(0))
+                calls!!.post(find("otp"), 9, action = 1, value = "9876")
+            }
+            case 9 -> {
+                assertEquals("9876", otp.text)
+                protectedText.value = true
+                later {
+                    assertTrue(find("otp").text(1, None))
+                    assertFalse(find("otp").flag(5))
+                    ui!!.close()
+                    for (node in retained)
+                        assertFalse(node.flag(0))
+                    finished = true
+                    active!!.requestExit()
+                }
+            }
+            else -> fail(Some("unexpected compound accessibility phase"))
+        }
+    }
+    private fun find(id: String): NativeNode {
+        val node = tree!!.find(id) ?: fail(Some(f"missing semantic node: ${id}"))
+        retained.add(node)
+        return node
+    }
+    private fun later(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    public override fun close() {
+        calls?.close();
+        calls = None
+        anchor?.close();
+        anchor = None
+        for (node in retained)
+            node.close()
+        retained.clear()
+        tree?.close();
+        tree = None
+    }
+}

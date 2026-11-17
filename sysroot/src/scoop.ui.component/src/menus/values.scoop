@@ -8,6 +8,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.ShortcutChord
+import scoop.window.accessibility.*
 
 /** A command's identity and presentation; custom content has no independent input behavior. */
 public class MenuItemSpec public constructor(
@@ -20,7 +21,8 @@ public class MenuItemSpec public constructor(
     public val icon: View? = None,
     public val shortcut: ShortcutChord? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val style: ButtonStyle = buttonStyle()
+    public val style: ButtonStyle = buttonStyle(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public enum MenuEntry {
@@ -64,7 +66,8 @@ public class MenuOptions public constructor(
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
     typeahead: TypeaheadOptions? = None,
     public val submenuHover: HoverOptions =
-        HoverOptions(openDelay = Duration.milliseconds(100L), focus = false)
+        HoverOptions(openDelay = Duration.milliseconds(100L), focus = false),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     public val typeahead: TypeaheadOptions = typeahead ?: menuTypeahead()
     init {
@@ -100,14 +103,16 @@ internal fun menuEntry(menu: MenuContent, key: ViewKey): MenuEntry? {
     return None
 }
 
-/** Returns whether a successfully completed selection requests closing the chain. */
-internal fun activateMenu(entry: MenuEntry): Boolean {
+internal struct MenuActivationResult(val result: SemanticActionResult, val close: Boolean = false)
+
+/** Pointer, keyboard and accessibility share the same accepted selection. */
+internal fun activateMenu(entry: MenuEntry): MenuActivationResult {
     if (!(menuItem(entry)?.enabled ?: false))
-        return false
+        return MenuActivationResult(SemanticActionResult.Rejected)
     return when (entry) {
         case Action(_, val action, val close) -> {
             action();
-            close
+            MenuActivationResult(SemanticActionResult.Completed, close)
         }
         case Checkbox(_, val checked, val close, val changed) -> {
             val previous = checked.value
@@ -115,13 +120,26 @@ internal fun activateMenu(entry: MenuEntry): Boolean {
             val accepted = checked.value
             if (accepted != previous)
                 changed(accepted)
-            close && accepted != previous
+            MenuActivationResult(
+                if (accepted != previous)
+                    SemanticActionResult.Completed
+                else
+                    SemanticActionResult.Rejected,
+                close && accepted != previous
+            )
         }
         case Radio(_, val selected, val action, val close) -> {
             action();
-            close && selected()
+            val accepted = selected()
+            MenuActivationResult(
+                if (accepted)
+                    SemanticActionResult.Completed
+                else
+                    SemanticActionResult.Rejected,
+                close && accepted
+            )
         }
-        else -> false
+        else -> MenuActivationResult(SemanticActionResult.Unsupported)
     }
 }
 

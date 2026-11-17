@@ -19,28 +19,49 @@ internal const val initialText = "A😀é中\nZ"
 private class AccessibleEditorTest {
     @Test
     fun `native text ranges selection and writes share the editor and its policy`() {
-        FontCollection().use {
-            fonts ->
-            fonts.register(testSansBytes, "UI Sans")
-            val probe =
-                TextProbe(TextEditAppearance(fonts, textStyle { this.families = ["UI Sans"] }))
-            try {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application().run(host)
-                }
-                assertTrue(probe.finished)
-                assertTrue(probe.geometryChecked)
-                assertEquals(1, probe.mounts)
-                assertTrue(probe.editor!!.isClosed)
-                assertTrue(probe.semantic!!.isClosed)
-            } finally {
-                probe.close()
+        verifyEditor(true)
+    }
+}
+
+@Test
+private class AccessibleEditorWithoutSceneTest {
+    @Test
+    fun `logical text transactions and retained document updates need no drawable`() {
+        verifyEditor(false)
+    }
+}
+
+private fun verifyEditor(requireGeometry: Boolean) {
+    FontCollection().use {
+        fonts ->
+        fonts.register(testSansBytes, "UI Sans")
+        val probe =
+            TextProbe(
+                TextEditAppearance(fonts, textStyle { this.families = ["UI Sans"] }),
+                requireGeometry
+            )
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
             }
+            assertTrue(probe.finished)
+            assertEquals(requireGeometry, probe.geometryChecked)
+            assertEquals(1, probe.mounts)
+            assertTrue(probe.editor!!.isClosed)
+            assertTrue(probe.semantic!!.isClosed)
+        } catch (error: Throwable) {
+            println(f"editor action ${probe.lastAction}")
+            throw error
+        } finally {
+            probe.close()
         }
     }
 }
 
-internal class TextProbe(val appearance: TextEditAppearance): Closeable {
+internal class TextProbe(
+    val appearance: TextEditAppearance,
+    val requireGeometry: Boolean
+): Closeable {
     val model = state(TextEditorState(initialText, Some(Utf8Selection(11L, 1L))))
     val enabled = state(true)
     val readOnly = state(false)
@@ -56,6 +77,7 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
     var imports = 0
     var finished = false
     var geometryChecked = false
+    var lastAction = -2
     private var waitingGeometry = false
     val policy =
         textEditPolicy {
@@ -85,6 +107,7 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
     private var ui: UiWindow? = None
     private var calls: NativeCalls? = None
     private var node: NativeNode? = None
+    private var retained: NativeTextAnchor? = None
     private var previousRevision = 0L
 
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
@@ -154,8 +177,76 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
             assertTrue(node!!.selection(3L, 0L))
             assertEquals(0, measures)
             assertEquals(0, scenes)
-            waitingGeometry = true
-            window!!.setVisible(true)
+            if (requireGeometry) {
+                waitingGeometry = true
+                window!!.setVisible(true)
+            } else {
+                hiddenDocument()
+            }
+        }
+    }
+
+    private fun hiddenDocument() {
+        retained = Some(NativeTextAnchor(node!!, 1L, 5L))
+        assertTrue(
+            model.value.applyInput(
+                TextInputBatch(
+                    None,
+                    [TextInputOperation.Commit("X", TextReplacement.Range(Utf8Range(0L, 0L)))]
+                )
+            )
+        )
+        afterUpdate {
+            assertTrue(node!!.text(1, Some("X" + initialText)))
+            assertTrue(retained!!.matches(2L, 6L))
+            assertTrue(model.value.undo())
+            afterUpdate {
+                assertTrue(node!!.text(1, Some(initialText)))
+                assertTrue(retained!!.matches(1L, 5L))
+                model.value.replaceAll("reset")
+                afterUpdate {
+                    assertTrue(node!!.text(1, Some("reset")))
+                    assertTrue(retained!!.matches(-1L, -1L))
+                    retained!!.close()
+                    retained = Some(NativeTextAnchor(node!!, 0L, 2L))
+                    assertTrue(retained!!.matches(0L, 2L))
+                    protectedText.value = true
+                    afterUpdate {
+                        assertTrue(node!!.text(1, None))
+                        assertTrue(retained!!.matches(-1L, -1L))
+                        protectedText.value = false
+                        model.value = TextEditorState("replacement")
+                        afterUpdate {
+                            assertTrue(node!!.text(1, Some("replacement")))
+                            detachedDocument()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun detachedDocument() {
+        retained!!.close()
+        retained = Some(NativeTextAnchor(node!!, 0L, 2L))
+        assertTrue(retained!!.matches(0L, 2L))
+        semantic!!.update(SemanticProperties(value = Some("snapshot")))
+        afterUpdate {
+            assertTrue(node!!.text(1, Some("snapshot")))
+            assertTrue(retained!!.matches(-1L, -1L))
+            semantic!!.updateTextEditor(editor!!)
+            afterUpdate {
+                assertTrue(node!!.text(1, Some("replacement")))
+                assertTrue(retained!!.matches(-1L, -1L))
+                assertFalse(node!!.hasTextGeometry())
+                assertEquals(0, measures)
+                assertEquals(0, scenes)
+                ui!!.close()
+                assertFalse(node!!.flag(0))
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
         }
     }
 
@@ -202,6 +293,7 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
         }
         assertFalse(editor!!.focus.handle.hasFocus)
         geometryChecked = true
+        retained = Some(NativeTextAnchor(node!!, 12L, 13L))
         model.value.setSelection(Utf8Selection(initialText.byteLength, 1L))
         afterUpdate { externalGeometry() }
     }
@@ -235,6 +327,7 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
     }
 
     private fun completed(tag: Int, result: Int) {
+        lastAction = tag
         assertEquals(1, result)
         when (tag) {
             case - 1 -> {
@@ -254,11 +347,14 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
             case 1 -> {
                 assertEquals("A中é中\nZ", model.value.text)
                 assertTrue(node!!.text(1, Some(model.value.text)))
+                assertTrue(retained!!.matches(11L, 12L))
                 assertTrue(model.value.undo())
                 assertEquals(initialText, model.value.text)
+                assertTrue(retained!!.matches(-1L, -1L))
                 assertFalse(model.value.canUndo)
                 readOnly.value = true
                 afterUpdate {
+                    assertTrue(retained!!.matches(12L, 13L))
                     assertTrue(node!!.flag(6))
                     assertFalse(node!!.flag(7))
                     select(2, 3L, 2L)
@@ -378,6 +474,8 @@ internal class TextProbe(val appearance: TextEditAppearance): Closeable {
         assertTrue(active!!.proxy().post { _ -> action() })
     }
     public override fun close() {
+        retained?.close()
+        retained = None
         calls?.close()
         calls = None
         node?.close()

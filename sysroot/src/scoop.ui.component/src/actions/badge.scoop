@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public class BadgeProps public constructor(
     public val content: ButtonContent,
@@ -12,7 +13,8 @@ public class BadgeProps public constructor(
     public val invalid: Boolean = false,
     public val style: ButtonStyle = buttonStyle(),
     public val theme: ThemeSource? = None,
-    public val focus: FocusOptions = FocusOptions()
+    public val focus: FocusOptions = FocusOptions(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Badge public constructor(
@@ -61,6 +63,15 @@ private class BadgeAction(
             props.value.value.focus,
             { props.value.action() }
         )
+    private val semantics = createComponentSemantics(scope, SemanticRole.Button)
+    init {
+        semantics?.bindFocus(Some(control.focus))
+        when (semantics) {
+            case Some(val value) -> value.mergeLabels = true;
+            case None -> {}
+        }
+        scope.routeSemanticsChildren(semantics)
+    }
     private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     public override fun onMount() {
@@ -74,7 +85,8 @@ private class BadgeAction(
             themes,
             text,
             interaction,
-            ActionBehavior.Press(control, input.action, input.value.focus)
+            ActionBehavior.Press(control, input.action, input.value.focus),
+            semantics
         )
     }
 }
@@ -82,13 +94,28 @@ private class BadgeAction(
 private class BadgeDisplay(private val props: Props<BadgeProps>, scope: ComponentScope): Component(
     scope
 ) {
+    private val semantics = createComponentSemantics(scope, SemanticRole.Group)
+    init {
+        when (semantics) {
+            case Some(val value) -> value.mergeLabels = true;
+            case None -> {}
+        }
+        scope.routeSemanticsChildren(semantics)
+    }
     private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View =
-        badgeContent(props.value, themes, text, InteractionState(), ActionBehavior.Passive)
+        badgeContent(
+            props.value,
+            themes,
+            text,
+            InteractionState(),
+            ActionBehavior.Passive,
+            semantics
+        )
 }
 
 private fun badgeContent(
@@ -96,7 +123,8 @@ private fun badgeContent(
     themes: ThemeAccess,
     text: ActionTextStyle,
     interaction: InteractionState,
-    behavior: ActionBehavior
+    behavior: ActionBehavior,
+    semantics: SemanticsHandle?
 ): View {
     val theme = themes.read(input.theme)
     val shape = ActionShape.Badge
@@ -110,7 +138,16 @@ private fun badgeContent(
             actionLineHeight(shape)
         )
     return element(
-        ActionInkProps(theme, shape, input.variant, input.style, visual, behavior),
+        ActionInkProps(
+            theme,
+            shape,
+            input.variant,
+            input.style,
+            visual,
+            behavior,
+            semantics = semantics,
+            semanticOptions = input.semantics
+        ),
         { current, mount -> ActionInk(current, scope = mount) },
         [
             actionContent(

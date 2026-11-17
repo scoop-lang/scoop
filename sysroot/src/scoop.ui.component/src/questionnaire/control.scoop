@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.text.TextEditorState
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class QuestionnaireMember(
     val key: QuestionChoiceKey?,
@@ -63,6 +64,33 @@ internal class QuestionnaireControl(
         }
         if (changed)
             props.value.onAnswerChange(key)
+    }
+    fun selectSemantically(question: Question, choice: QuestionChoiceKey?): SemanticActionResult {
+        if (!scope.isMounted || props.value.state.activeKey != Some(question.key))
+            return SemanticActionResult.Unavailable
+        if (!enabled() || !question.enabled)
+            return SemanticActionResult.Rejected
+        val state = props.value.state
+        val before =
+            when (choice) {
+                case Some(val key) -> state.isSelected(question.key, key)
+                case None -> state.usesText(question.key)
+            }
+        val expected =
+            if (question.kind == QuestionKind.Multiple)
+                !before
+            else
+                true
+        select(question.key, choice)
+        val after =
+            when (choice) {
+                case Some(val key) -> state.isSelected(question.key, key)
+                case None -> state.usesText(question.key)
+            }
+        return if (after == expected)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun edited(key: QuestionKey) {
         if (!enabled())

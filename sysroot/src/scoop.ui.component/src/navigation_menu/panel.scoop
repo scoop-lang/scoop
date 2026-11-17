@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.row as navMenuRow
 
 internal class NavPanelInput(
@@ -18,6 +19,7 @@ internal class NavPanelControl(val props: Props<NavPanelInput>) {
     val anchor = LayoutAnchor()
     val layer = OverlayHandle()
     val link = HoverPopupLink()
+    val popupReference = SemanticsReference()
     val keyboard = state(false)
     val contentFocused = state(false)
     var contentFocus: FocusScope? = None
@@ -61,6 +63,20 @@ internal class NavPanelControl(val props: Props<NavPanelInput>) {
         props.value.root.setOpen(Some(props.value.key))
         if (opened && focus)
             contentFocus?.requestFocus()
+    }
+    fun expand(value: Boolean): SemanticActionResult {
+        if (!enabled)
+            return SemanticActionResult.Rejected
+        if (opened == value)
+            return SemanticActionResult.Completed
+        if (value)
+            show(false)
+        else
+            layer.requestClose()
+        return if (opened == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun toggle() {
         if (!enabled)
@@ -125,8 +141,12 @@ internal class NavMenuPanel(
                 else
                     root.fonts
             )
+        val popupSemantics =
+            input.semantics.copy {
+                reference = Some(input.semantics.reference ?: control.popupReference)
+            }
         val trigger =
-            component(
+            popupSemanticButton(
                 ButtonProps(
                     ButtonContent.Resolved {
                         content -> navMenuRow {
@@ -154,9 +174,15 @@ internal class NavMenuPanel(
                     root.theme,
                     choiceFocus(spec.focus, p.focus),
                     variant = spec.variant,
-                    size = spec.size
+                    size = spec.size,
+                    semantics =
+                        spec.semantics.copy {
+                            relations =
+                                semanticControls(relations, (popupSemantics.reference?.id ?: None))
+                        }
                 ),
-                { current, mount -> Button(current, scope = mount) }
+                opened,
+                { next -> control.expand(next) }
             )
         val palette = theme.tokens.palette
         val popup =
@@ -171,7 +197,15 @@ internal class NavMenuPanel(
                             { current, mount -> NavPanelContent(current, scope = mount) },
                             [
                                 panelFrame(
-                                    input.content,
+                                    semanticContent(
+                                        input.content,
+                                        SemanticRole.Group,
+                                        popupSemantics.properties(enabled = control.enabled),
+                                        SemanticActions(dismiss = Some { control.expand(false) }),
+                                        popupSemantics.relations,
+                                        mergeLabels = false,
+                                        reference = popupSemantics.reference
+                                    ),
                                     Insets.all(4.0 * d),
                                     styleOverride {
                                         background(Some(Paint(palette.popover.background)))

@@ -5,6 +5,7 @@ import scoop.surface.AnimationSpec
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.SemanticLive
 
 public enum ToastKind {
     Default, Success, Info, Warning, Error, Loading
@@ -39,7 +40,8 @@ public class ToastAction public constructor(
     public val focus: FocusOptions = FocusOptions(),
     public val style: ButtonStyle = buttonStyle(),
     public val variant: ButtonVariant = ButtonVariant.Outline,
-    public val size: ButtonSize = ButtonSize.Sm
+    public val size: ButtonSize = ButtonSize.Sm,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class ToastProps public constructor(
@@ -53,7 +55,10 @@ public class ToastProps public constructor(
     public val action: ToastAction? = None,
     public val closeFocus: FocusOptions = FocusOptions(),
     public val style: StyleOverride = styleOverride(),
-    public val onClosed: (ToastId, ToastCloseReason) -> Unit = { _, _ -> Unit }
+    public val onClosed: (ToastId, ToastCloseReason) -> Unit = { _, _ -> Unit },
+    public val semantics: ComponentSemantics = ComponentSemantics(live = SemanticLive.Polite),
+    public val closeSemantics: ComponentSemantics =
+        ComponentSemantics(name = Some("Dismiss notification"))
 ) {
     init {
         when (duration) {

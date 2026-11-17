@@ -131,9 +131,11 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
         if (handle.isClosed)
             return
         val input = value.input
+        handle.bindReference(input.semantics.reference)
         handle.update(
             input.semantics.properties(
                 enabled = input.enabled,
+                invalid = input.invalid,
                 required = field!!.isRequired(handle),
                 checked =
                     Some(

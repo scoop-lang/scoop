@@ -9,9 +9,9 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
 import scoop.window.*
+import scoop.window.accessibility.*
 import scoop.ui.component.row as menuRow
 import scoop.ui.component.label as menuLabel
-import scoop.ui.component.button as menuButton
 import scoop.ui.component.frame as menuFrame
 import scoop.ui.direction as menuDirection
 
@@ -31,6 +31,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
     private val anchor = LayoutAnchor()
     private val link = HoverPopupLink()
     private val submenu = OverlayHandle()
+    private val submenuSemantics = SemanticsReference()
     private val candidates = MenuFocus()
     private val keyboard = state(false)
     private val highlighted = state(false)
@@ -59,8 +60,38 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
             return
         when (input.entry) {
             case Submenu(_, _) -> enter()
-            else -> if (activateMenu(input.entry))
-                input.chain.close()
+            else -> {
+                activateSemantically()
+            }
+        }
+    }
+    private fun setExpanded(value: Boolean): SemanticActionResult {
+        val input = props.value
+        if (!input.options.enabled || !(menuItem(input.entry)?.enabled ?: false))
+            return SemanticActionResult.Rejected
+        when (input.entry) {
+            case Submenu(_, _) -> {
+                portalOpen.value = value
+                return if (open.value == value)
+                    SemanticActionResult.Completed
+                else
+                    SemanticActionResult.Rejected
+            }
+            else -> return SemanticActionResult.Unsupported
+        }
+    }
+    private fun activateSemantically(): SemanticActionResult {
+        val input = props.value
+        if (!input.options.enabled)
+            return SemanticActionResult.Rejected
+        when (input.entry) {
+            case Submenu(_, _) -> return setExpanded(true)
+            else -> {
+                val outcome = activateMenu(input.entry)
+                if (outcome.close)
+                    input.chain.close()
+                return outcome.result
+            }
         }
     }
     public override fun render(): View {
@@ -224,14 +255,58 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                 if (item.inset && item.style.surface.padding == None)
                     logicalPadding = Some(LogicalInsets(start = 22.0 * density))
             }
-        val action =
-            menuButton(child, { activate() }) {
-                enabled = input.options.enabled && item.enabled
-                focus = choiceFocus(item.focus, input.focus!!)
-                variant = ButtonVariant.Ghost
-                style = menuRowStyle(item.style, theme, item.destructive, active)
-                this.theme = input.options.theme
+        val semantics =
+            item.semantics.copy {
+                if (name == None && relations.labelledBy.size == 0L)
+                    name = Some(item.label)
+                if (isSub)
+                    relations = semanticControls(relations, this @MenuRow.submenuSemantics.id)
             }
+        val action =
+            semanticButton(
+                ButtonProps(
+                    ButtonContent.Custom(child),
+                    { activate() },
+                    enabled = input.options.enabled && item.enabled,
+                    focus = choiceFocus(item.focus, input.focus!!),
+                    variant = ButtonVariant.Ghost,
+                    style = menuRowStyle(item.style, theme, item.destructive, active),
+                    theme = input.options.theme,
+                    semantics = semantics
+                ),
+                SemanticRole.MenuItem,
+                semantics.properties(
+                    enabled = input.options.enabled && item.enabled,
+                    checked =
+                        if (indicator)
+                            Some(
+                                if (checked)
+                                    SemanticChecked.On
+                                else
+                                    SemanticChecked.Off
+                            )
+                        else
+                            None,
+                    expanded =
+                        if (isSub)
+                            Some(open.value)
+                        else
+                            None
+                ),
+                SemanticActions(
+                    invoke = Some { activateSemantically() },
+                    toggle =
+                        if (indicator)
+                            Some { activateSemantically() }
+                        else
+                            None,
+                    setExpanded =
+                        if (isSub)
+                            Some { value -> setExpanded(value) }
+                        else
+                            None
+                )
+            )
         val popup =
             when (input.entry) {
                 case Submenu(_, val content) -> component(
@@ -256,7 +331,14 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                                 _ ->
                                 keyboard.value = false
                                 link.dismiss()
-                            }
+                            },
+                        semantics =
+                            Some(
+                                ComponentSemantics(
+                                    name = Some(item.label),
+                                    reference = Some(submenuSemantics)
+                                )
+                            )
                     ),
                     { current, mount -> MenuPopup(current, scope = mount) }
                 )

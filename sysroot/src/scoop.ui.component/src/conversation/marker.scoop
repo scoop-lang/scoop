@@ -21,7 +21,8 @@ public class MarkerProps public constructor(
     public val focusOutline: OutlineStyle? = None,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class MarkerBuilder internal constructor(): ConversationActionBuilder() {
@@ -42,7 +43,8 @@ public class MarkerBuilder internal constructor(): ConversationActionBuilder() {
             focusOutline,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -107,7 +109,8 @@ public class Marker(private val props: Props<MarkerProps>, scope: ComponentScope
                 input.onClick,
                 input.enabled,
                 input.focus,
-                input.fonts
+                input.fonts,
+                semantics = input.semantics.copy { busy = busy || input.loading }
             )
         )
     }

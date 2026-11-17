@@ -34,7 +34,8 @@ public class AttachmentProps public constructor(
     public val focusOutline: OutlineStyle? = None,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class AttachmentBuilder internal constructor(): ConversationActionBuilder() {
@@ -81,7 +82,8 @@ public class AttachmentBuilder internal constructor(): ConversationActionBuilder
             focusOutline,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -295,7 +297,16 @@ public class Attachment(
                         input.onClick,
                         input.enabled,
                         input.focus,
-                        input.fonts
+                        input.fonts,
+                        semantics =
+                            input.semantics.copy {
+                                this.busy =
+                                    this.busy ||
+                                        input.state ==
+                                        AttachmentState.Uploading ||
+                                        input.state ==
+                                        AttachmentState.Processing
+                            }
                     )
                 )
             ]

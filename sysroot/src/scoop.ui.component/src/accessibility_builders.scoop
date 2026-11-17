@@ -1,0 +1,68 @@
+package scoop.ui.component
+
+import scoop.ui.SemanticsReference
+import scoop.window.accessibility.*
+
+/** Copies one complete value, preserving fields outside the caller's change. */
+public fun ComponentSemantics.copy(
+    configure: ComponentSemanticsBuilder.() -> Unit
+): ComponentSemantics {
+    val builder = ComponentSemanticsBuilder(this)
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class ComponentSemanticsBuilder internal constructor(source: ComponentSemantics) {
+    public var name: String? = source.name
+    public var description: String? = source.description
+    public var automationId: String? = source.automationId
+    public var error: String? = source.error
+    public var relations: SemanticRelations = source.relations
+    public var hidden: Boolean = source.hidden
+    public var ignored: Boolean = source.ignored
+    public var busy: Boolean = source.busy
+    public var live: SemanticLive = source.live
+    public var reference: SemanticsReference? = source.reference
+    internal fun snapshot(): ComponentSemantics =
+        ComponentSemantics(
+            name,
+            description,
+            automationId,
+            error,
+            relations,
+            hidden,
+            ignored,
+            busy,
+            live,
+            reference
+        )
+}
+
+/** Copies one complete value, preserving fields outside the caller's change. */
+internal fun SemanticRelations.copy(
+    configure: ComponentRelationsBuilder.() -> Unit
+): SemanticRelations {
+    val builder = ComponentRelationsBuilder(this)
+    builder.configure()
+    return builder.snapshot()
+}
+
+internal class ComponentRelationsBuilder internal constructor(source: SemanticRelations) {
+    internal var labelledBy: Array<SemanticNodeId> = source.labelledBy
+    internal var describedBy: Array<SemanticNodeId> = source.describedBy
+    internal var errorMessages: Array<SemanticNodeId> = source.errorMessages
+    internal var controls: Array<SemanticNodeId> = source.controls
+    internal var activeDescendant: SemanticDescendant? = source.activeDescendant
+    internal var rowHeaders: Array<SemanticNodeId> = source.rowHeaders
+    internal var columnHeaders: Array<SemanticNodeId> = source.columnHeaders
+    internal fun snapshot(): SemanticRelations =
+        SemanticRelations(
+            labelledBy,
+            describedBy,
+            errorMessages,
+            controls,
+            activeDescendant,
+            rowHeaders,
+            columnHeaders
+        )
+}

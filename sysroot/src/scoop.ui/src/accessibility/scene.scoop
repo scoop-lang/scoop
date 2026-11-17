@@ -55,7 +55,8 @@ internal class SemanticScene: Closeable {
         binding: SemanticTextBinding,
         canvas: Canvas,
         bounds: Rect,
-        source: NativeTextSource
+        source: NativeTextSource,
+        path: Array<ScrollReveal>
     ) {
         val handle = binding.handle
         requireUi(!text.containsKey(handle.id), "semantic text was already placed this frame")
@@ -70,7 +71,7 @@ internal class SemanticScene: Closeable {
                             source.withGeometry(scene) {
                                 native ->
                                 val placement =
-                                    SemanticTextPlacement(binding, handle.generation, native)
+                                    SemanticTextPlacement(binding, handle.generation, native, path)
                                 try {
                                     text[handle.id] = placement
                                 } catch (error: Throwable) {
@@ -141,6 +142,10 @@ internal class SemanticScene: Closeable {
     }
 
     fun apply(handle: SemanticsHandle) {
+        when (handle.textBinding) {
+            case Some(val binding) -> binding.path = None;
+            case None -> {}
+        }
         when (val placement = placements[handle.id]) {
             case Some(val value) -> if (value.generation == handle.generation) {
                 value.apply(handle.resource)
@@ -167,7 +172,8 @@ internal class SemanticScene: Closeable {
 private class SemanticTextPlacement(
     private val binding: SemanticTextBinding,
     private val generation: ULong,
-    private val native: NativeSemanticTextGeometry
+    private val native: NativeSemanticTextGeometry,
+    private val path: Array<ScrollReveal>
 ): Closeable {
     private var closed = false
     init {
@@ -181,6 +187,7 @@ private class SemanticTextPlacement(
             @Unsafe
             {
                 handle.resource.setTextGeometry(Some(native))
+                binding.path = Some(path)
             }
     }
     public override fun close() {

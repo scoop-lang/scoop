@@ -1,0 +1,50 @@
+package scoop.window.accessibility
+
+import scoop.collections.HashMap
+import scoop.window.requireWindow
+
+public struct SemanticGridColumn(
+    val key: SemanticItemKey,
+    val name: String? = None,
+    val header: SemanticNodeId? = None
+)
+
+/** Describes cells from the collection's immutable data snapshot, without building views. */
+public class SemanticGrid public constructor(
+    public val columns: Array<SemanticGridColumn>,
+    public val describe: (SemanticItemKey, Long) -> SemanticItemProperties?
+) {
+    private val indices = HashMap<SemanticItemKey, Long>()
+    init {
+        for (index in 0L ..< columns.size) {
+            requireWindow(indices[columns[index].key] == None, "duplicate semantic column key")
+            indices[columns[index].key] = index
+        }
+    }
+    public fun indexOf(key: SemanticItemKey): Long? = indices[key]
+}
+
+public struct SemanticTableSize(val rows: Long, val columns: Long) {
+    internal fun check() {
+        requireWindow(rows >= 0L && columns >= 0L, "negative semantic table size")
+    }
+}
+
+public struct SemanticTableCell(
+    val row: Long,
+    val column: Long,
+    val rowSpan: Long = 1L,
+    val columnSpan: Long = 1L,
+    val columnKey: SemanticItemKey? = None
+) {
+    internal fun check() {
+        requireWindow(
+            row >= 0L && column >= 0L && rowSpan > 0L && columnSpan > 0L,
+            "invalid semantic cell position"
+        )
+        requireWindow(
+            row <= Long.MAX_VALUE - rowSpan && column <= Long.MAX_VALUE - columnSpan,
+            "semantic cell span overflow"
+        )
+    }
+}

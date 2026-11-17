@@ -1,0 +1,114 @@
+package scoop.examples.accessibility
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as panelLabel
+import scoop.ui.component.table as panelTable
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.accessibility.SemanticLive
+
+fun main() {
+    context(ThemeSource(shadcnTheme())) {
+        runUiApplication("Scoop — accessibility", { scope -> SettingsPanel(scope) })
+    }
+}
+
+private class SettingsPanel(scope: ComponentScope): Component(scope) {
+    private val name = TextEditorState("Alex")
+    private val updates = state(true)
+    private val volume = state<Array<Double>>([35.0])
+    private val expanded = state(false)
+    private val confirmation = state(false)
+    private val message = state("No changes saved")
+    public override fun render(): View {
+        val name = this.name
+        val updates = this.updates
+        val volume = this.volume
+        val expanded = this.expanded
+        val message = this.message
+        val confirmation = this.confirmation
+        val content =
+            column {
+                this.input(name) {
+                    semantics =
+                        ComponentSemantics(
+                            name = Some("Display name"),
+                            automationId = Some("display-name")
+                        )
+                }
+                this.checkbox(updates.binding()) {
+                    semantics =
+                        ComponentSemantics(
+                            name = Some("Receive updates"),
+                            automationId = Some("updates")
+                        )
+                }
+                this.slider(volume.binding(), RangeSpec(0.0, 100.0, Some(5.0))) {
+                    semantics =
+                        ComponentSemantics(name = Some("Volume"), automationId = Some("volume"))
+                }
+                this.collapsible(
+                    expanded.binding(),
+                    panelLabel("Your preferences are stored by the application.")
+                ) {
+                    this.trigger("More information") {
+                        semantics = ComponentSemantics(automationId = Some("details"))
+                    }
+                }
+                this.add(
+                    panelTable {
+                        semantics =
+                            ComponentSemantics(
+                                name = Some("Delivery options"),
+                                automationId = Some("delivery-options")
+                            )
+                        this.header {
+                            this.row {
+                                this.head("Channel");
+                                this.head("Frequency")
+                            }
+                        }
+                        this.body {
+                            this.row {
+                                this.cell("Email");
+                                this.cell("Weekly")
+                            }
+                            this.row {
+                                this.cell("In app");
+                                this.cell("Daily")
+                            }
+                        }
+                    }
+                )
+                this.button(
+                    "Save",
+                    {
+                        message.value = "Preferences saved"
+                        confirmation.value = true
+                    }
+                ) { semantics = ComponentSemantics(automationId = Some("save")) }
+                this.label(message.value) {
+                    semantics =
+                        ComponentSemantics(
+                            automationId = Some("status"),
+                            live = SemanticLive.Polite
+                        )
+                }
+                this.dialog(
+                    confirmation.binding(),
+                    panelLabel("Your preferences have been saved.")
+                ) {
+                    this.title("Saved")
+                    semantics = ComponentSemantics(automationId = Some("confirmation"))
+                }
+                this.spacing = 12.0
+                this.alignment = CrossAlignment.Stretch
+            }
+        return scrollArea(content) {
+            semantics =
+                ComponentSemantics(name = Some("Preferences"), automationId = Some("preferences"))
+        }
+    }
+}

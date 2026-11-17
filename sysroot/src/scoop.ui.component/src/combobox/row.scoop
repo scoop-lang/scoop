@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 import scoop.ui.component.row as comboRow
 import scoop.ui.component.label as comboLabel
 
@@ -14,7 +15,7 @@ internal class ComboboxRows<T: Equals<T>>(
     val theme: Theme,
     val active: Binding<ViewKey?>,
     val highlight: (ViewKey) -> Unit,
-    val select: (ViewKey) -> Unit
+    val select: (ViewKey, Boolean) -> SemanticActionResult
 ): ItemSource {
     public override val count: Long get() = source.count
     public override fun keyAt(index: Long): ViewKey = source.keyAt(index)
@@ -32,7 +33,7 @@ private class ComboRowProps<T: Equals<T>>(
     val theme: Theme,
     val active: Binding<ViewKey?>,
     val highlight: (ViewKey) -> Unit,
-    val select: (ViewKey) -> Unit
+    val select: (ViewKey, Boolean) -> SemanticActionResult
 )
 
 private class ComboRow<T: Equals<T>>(
@@ -119,7 +120,23 @@ private class ComboRow<T: Equals<T>>(
                 alignment = CrossAlignment.Center
             }
         return element(
-            CandidateRowInkProps(item.choice.key, enabled, row.highlight, row.select),
+            CandidateRowInkProps(
+                item.choice.key,
+                item.choice.label,
+                enabled,
+                row.highlight,
+                row.select,
+                if (row.input.multiple)
+                    SemanticRole.Checkbox
+                else
+                    SemanticRole.RadioButton,
+                Some(
+                    if (selected)
+                        SemanticChecked.On
+                    else
+                        SemanticChecked.Off
+                )
+            ),
             { current, mount -> CandidateRowInk(current, scope = mount) },
             [
                 panelFrame(

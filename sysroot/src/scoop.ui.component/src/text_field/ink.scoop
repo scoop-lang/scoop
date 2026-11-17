@@ -143,18 +143,22 @@ internal class TextFieldInk(
                 None
             else
                 Some(input.description)
+        handle.bindReference(input.semantics.reference)
         handle.updateTextEditor(
             host,
             input.semantics.properties(
                 description = description,
                 required = field.isRequired(handle),
+                invalid = input.invalid,
+                expanded = input.expansion?.expanded,
                 error =
                     if (input.invalid)
                         description
                     else
                         None
             ),
-            field.relations(handle, input.semantics.relations)
+            field.relations(handle, input.semantics.relations),
+            input.expansion?.setExpanded
         )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

@@ -5,12 +5,15 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 public class WindowControlsProps public constructor(
     public val buttons: WindowButtons = WindowButtons(),
     public val size: ButtonSize = ButtonSize.IconSm,
     public val style: ButtonStyle = buttonStyle(),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val semantics: (WindowSystemButton, Boolean) -> ComponentSemantics =
+        ::windowControlSemantics
 )
 
 public class WindowControlsBuilder internal constructor() {
@@ -19,13 +22,21 @@ public class WindowControlsBuilder internal constructor() {
     public var style: ButtonStyle = buttonStyle()
     public var theme: ThemeSource? = None
     public var key: ViewKey = ViewKey.Position
+    public var semantics: (WindowSystemButton, Boolean) -> ComponentSemantics =
+        ::windowControlSemantics
 }
 
 public fun windowControls(configure: WindowControlsBuilder.() -> Unit = {}): View {
     val builder = WindowControlsBuilder()
     builder.configure()
     return component(
-        WindowControlsProps(builder.buttons, builder.size, builder.style, builder.theme),
+        WindowControlsProps(
+            builder.buttons,
+            builder.size,
+            builder.style,
+            builder.theme,
+            builder.semantics
+        ),
         { props, scope -> WindowControls(props, scope) },
         builder.key
     )
@@ -84,6 +95,11 @@ private class WindowControl(
     private val maximized = state(false)
     private val click: () -> Unit = { activate() }
     private val control = PressControl(scope, PressOptions(), FocusOptions(), click)
+    private val semantics = createComponentSemantics(scope, SemanticRole.Button)
+    init {
+        semantics?.bindFocus(Some(control.focus))
+        scope.routeSemanticsChildren(semantics)
+    }
     public override fun onMount() {
         themes.mount(props.value.appearance.theme)
         maximized.value = scope.nativeWindow.isMaximized ?: false
@@ -141,7 +157,9 @@ private class WindowControl(
                     ButtonVariant.Ghost,
                     appearance.style,
                     visual,
-                    ActionBehavior.Press(control, click, FocusOptions())
+                    ActionBehavior.Press(control, click, FocusOptions()),
+                    semantics = semantics,
+                    semanticOptions = appearance.semantics(input.button, maximized.value)
                 ),
                 { current, mount -> ActionInk(current, mount) },
                 [
@@ -193,3 +211,22 @@ private class WindowControlHit(
         context.children()
     }
 }
+
+/** Default accessible names for the current native window operation. */
+public fun windowControlSemantics(
+    button: WindowSystemButton,
+    maximized: Boolean
+): ComponentSemantics =
+    ComponentSemantics(
+        name =
+            Some(
+                when (button) {
+                    case Minimize -> "Minimize window"
+                    case Maximize -> if (maximized)
+                        "Restore window"
+                    else
+                        "Maximize window"
+                    case Close -> "Close window"
+                }
+            )
+    )

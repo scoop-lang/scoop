@@ -11,6 +11,7 @@ public class SemanticsHandle internal constructor(
     internal var parent: SemanticsHandle?
 ): Closeable {
     private var closed = false
+    private var references: Array<SemanticsReference> = []
     internal var properties = SemanticProperties()
     internal var actions = SemanticActions()
     private var declaredRelations = SemanticRelations()
@@ -18,6 +19,7 @@ public class SemanticsHandle internal constructor(
     internal var merged = false
     internal var revealPlacement: SemanticRevealPlacement? = None
     internal var textBinding: SemanticTextBinding? = None
+    internal var textChild: SemanticTextChildBinding? = None
     private var merging = false
     internal var collectionSource: ItemSource? = None
     internal var collectionItems: ItemSemantics? = None
@@ -51,24 +53,11 @@ public class SemanticsHandle internal constructor(
                 None
         )
             return false
-        return when (
-            (
-                actions.invoke,
-                actions.toggle,
-                actions.setValue,
-                actions.focus,
-                actions.setSelection,
-                actions.replaceText,
-                actions.showContextMenu,
-                actions.setScrollPosition,
-                actions.scrollBackward,
-                actions.scrollForward,
-                actions.reveal,
-                focus
-            )
-        ) {
-            case(None, None, None, None, None, None, None, None, None, None, None, None) -> true
-            else -> false
+        if (!actions.isEmpty)
+            return false
+        return when (focus) {
+            case None -> true;
+            case Some(_) -> false
         }
     }
     /** Current same-root references, with retired targets removed. */
@@ -87,6 +76,43 @@ public class SemanticsHandle internal constructor(
     public val geometry: SemanticGeometry? get() {
         checkOpen()
         return resource.geometry
+    }
+
+    public fun announce(text: String, priority: SemanticLive = SemanticLive.Polite) {
+        checkOpen()
+        checkSemanticsMutation()
+        if (!owner.scope.input.isInputAllowed)
+            return
+        resource.announce(text, priority)
+        controller.changed()
+    }
+
+    public fun bindReference(next: SemanticsReference?) {
+        bindReferences(
+            when (next) {
+                case Some(val value) -> [value];
+                case None -> []
+            }
+        )
+    }
+
+    /** Allows a component's public reference and its internal relationships to share one node. */
+    public fun bindReferences(next: Array<SemanticsReference>) {
+        checkOpen()
+        checkSemanticsMutation()
+        for (value in next)
+            value.checkTarget(this)
+        for (old in references) {
+            var retained = false
+            for (value in next)
+                if (value === old)
+                    retained = true
+            if (!retained)
+                old.detach(this)
+        }
+        for (value in next)
+            value.attach(this)
+        references = next
     }
 
     /** Replaces facts, callbacks and relations without changing identity or requesting a frame. */
@@ -140,7 +166,7 @@ public class SemanticsHandle internal constructor(
                 this.properties.hidden !=
                 properties.hidden
         resource.update(
-            semanticProperties(properties, merged),
+            semanticProperties(this, properties, merged),
             semanticActions(this, actions),
             if (declaredRelations == relations)
                 resource.relations
@@ -173,7 +199,7 @@ public class SemanticsHandle internal constructor(
         val candidate = mergeCandidate
         focus = target
         resource.update(
-            semanticProperties(properties, merged),
+            semanticProperties(this, properties, merged),
             semanticActions(this, actions),
             resource.relations
         )
@@ -193,6 +219,9 @@ public class SemanticsHandle internal constructor(
         if (closed)
             return
         closed = true
+        for (reference in references)
+            reference.detach(this)
+        references = []
         collectionSource = None
         collectionItems = None
         collectionViewport = None
@@ -209,6 +238,7 @@ public class SemanticsHandle internal constructor(
             case None -> {}
         }
         textBinding?.close()
+        textChild = None
         actions = SemanticActions()
         revealPlacement = None
         declaredRelations = SemanticRelations()

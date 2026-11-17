@@ -100,6 +100,8 @@ struct SWWindow {
   GtkWindowGroup *group;
   SWWindow *next;
   GtkWidget *window, *view, *toolbar, *header;
+  void *accessibility;
+  GtkAccessible *accessibility_socket;
   SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
   bool destroying;
@@ -140,7 +142,12 @@ enum {
   SW_ALT_GRAPH = 128,
   SW_ALT_GRAPH_KNOWN = 1u << 17
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern SWApplication *sw_application;
+void sw_accessibility_destroy(SWWindow *window);
+void sw_accessibility_geometry(SWWindow *window);
 void sw_preferences_start(SWApplication *app);
 void sw_preferences_stop(SWApplication *app);
 double sw_now(void);
@@ -202,4 +209,7 @@ void sw_monitors_changed(GListModel *model, guint position, guint removed,
 void sw_theme_changed(AdwStyleManager *manager, GParamSpec *pspec,
                       gpointer data);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

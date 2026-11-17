@@ -55,7 +55,8 @@ internal fun toastContents(input: ToastItemInput): View {
                     input.props.theme,
                     value.focus,
                     variant = value.variant,
-                    size = value.size
+                    size = value.size,
+                    semantics = value.semantics
                 ),
                 { current, mount -> Button(current, mount) }
             )
@@ -73,7 +74,8 @@ internal fun toastContents(input: ToastItemInput): View {
                     theme = input.props.theme,
                     focus = data.closeFocus,
                     variant = ButtonVariant.Ghost,
-                    size = ButtonSize.IconSm
+                    size = ButtonSize.IconSm,
+                    semantics = data.closeSemantics
                 ),
                 { current, mount -> Button(current, mount) }
             )
@@ -87,6 +89,11 @@ private class ToastPanel(private val props: Props<ToastItemInput>, scope: Compon
     Unit
 >(scope) {
     private val painter = scope.resource { StylePainter() }
+    private val semantics = ToastSemantics(scope) { props.value }
+    public override fun update(): UiInvalidation {
+        semantics.update()
+        return UiInvalidation.Layout
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -236,6 +243,7 @@ private class ToastPanel(private val props: Props<ToastItemInput>, scope: Compon
         return LayoutResult(LayoutMetrics(size), Unit)
     }
     public override fun scene(context: SceneContext, layout: Unit) {
+        semantics.scene(context)
         val input = props.value;
         val colors = input.theme.tokens.palette
         val visual =

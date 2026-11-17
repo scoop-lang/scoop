@@ -6,6 +6,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 
 internal class SelectPopupProps(
     val open: Binding<Boolean>,
@@ -59,7 +60,29 @@ internal class SelectPopup(
             element(
                 PopupMotionProps(input.options.enabled, 8.0 * density),
                 { current, mount -> PopupMotion(current, scope = mount) },
-                [panel]
+                [
+                    semanticContent(
+                        panel,
+                        SemanticRole.Menu,
+                        input.options.semantics.properties(
+                            enabled = input.options.enabled,
+                            modal = input.options.mode == OverlayMode.Modal
+                        ),
+                        SemanticActions(
+                            dismiss =
+                                Some {
+                                    input.handle.requestClose()
+                                    if (!inputs.value.open.value)
+                                        SemanticActionResult.Completed
+                                    else
+                                        SemanticActionResult.Rejected
+                                }
+                        ),
+                        relations = input.options.semantics.relations,
+                        mergeLabels = false,
+                        reference = input.options.semantics.reference
+                    )
+                ]
             )
         ) {
             placement =

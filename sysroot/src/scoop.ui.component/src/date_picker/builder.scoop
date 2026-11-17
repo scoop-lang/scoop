@@ -8,6 +8,10 @@ import scoop.ui.style.*
 
 public class DatePickerBuilder internal constructor() {
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var popupSemantics: ComponentSemantics = ComponentSemantics()
+    public var calendarButtonSemantics: ComponentSemantics =
+        ComponentSemantics(name = Some("Open calendar"))
     public var draft: DatePickerDraft? = None
     public var open: Binding<Boolean>? = None
     public var calendar: CalendarOptions = defaultCalendarOptions
@@ -87,7 +91,10 @@ public class DatePickerBuilder internal constructor() {
             onValueChange,
             onOpenChange,
             onCloseRequest,
-            onClosed
+            onClosed,
+            semantics,
+            popupSemantics,
+            calendarButtonSemantics
         )
 }
 

@@ -39,7 +39,8 @@ public class ResizableHandleOptions public constructor(
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
     public val style: StyleOverride = styleOverride(),
-    public val hitWidth: Double = 20.0
+    public val hitWidth: Double = 20.0,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         requireComponent(

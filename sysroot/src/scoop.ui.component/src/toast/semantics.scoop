@@ -1,0 +1,100 @@
+package scoop.ui.component
+
+import scoop.graphics.Rect
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+/** Notification content and dismissal share the mounted toast and its ordinary close path. */
+internal class ToastSemantics(
+    private val scope: ComponentScope,
+    private val read: () -> ToastItemInput
+) {
+    private val handle = createComponentSemantics(scope, SemanticRole.Group)
+    private var announced = false
+    private var message: String? = None
+    init {
+        scope.routeSemanticsChildren(handle)
+    }
+    fun update() {
+        val target = handle ?: return
+        val input = read()
+        val data = input.entry.data.value
+        val title = semanticCaption(Some(data.title))
+        val description = semanticCaption(data.description)
+        val caption =
+            when ((title, description)) {
+                case(Some(val first), Some(val second)) -> Some(first + "\n" + second)
+                case(Some(_), None) -> title
+                case(None, _) -> description
+            }
+        message =
+            when (val overrideName = data.semantics.name) {
+                case Some(_) -> overrideName
+                case None -> caption
+            }
+        target.mergeLabels = true
+        target.bindReference(data.semantics.reference)
+        val dismissible = data.dismiss.closeButton || data.dismiss.escape || data.dismiss.swipe
+        target.update(
+            data.semantics.properties(enabled = input.props.enabled).copy {
+                name = this @ToastSemantics.message
+                busy = data.semantics.busy || data.kind == ToastKind.Loading
+                hidden =
+                    data.semantics.hidden ||
+                        input.entry.closing.value !=
+                        None ||
+                        !(input.front || input.expanded)
+            },
+            SemanticActions(
+                dismiss =
+                    if (dismissible)
+                        Some { dismiss() }
+                    else
+                        None
+            ),
+            data.semantics.relations
+        )
+    }
+    private fun dismiss(): SemanticActionResult {
+        val input = read()
+        if (!scope.isMounted || input.entry.closing.value != None)
+            return SemanticActionResult.Unavailable
+        if (!input.props.enabled)
+            return SemanticActionResult.Rejected
+        return if (input.entry.model.close(input.entry.id, ToastCloseReason.Explicit))
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
+    fun scene(context: SceneContext) {
+        val target = handle ?: return
+        context.semantics(target, Rect(0.0, 0.0, context.size.width, context.size.height))
+        if (announced)
+            return
+        val input = read()
+        val data = input.entry.data.value
+        val text = message ?: return
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    !announced &&
+                    !target.isClosed &&
+                    input.entry.data.value ===
+                    data &&
+                    input.entry.closing.value ==
+                    None &&
+                    (input.front || input.expanded) &&
+                    !data.semantics.hidden &&
+                    !data.semantics.ignored &&
+                    scope.input.isInputAllowed &&
+                    (target.geometry?.visibleBounds ?: None) !=
+                    None
+            ) {
+                target.announce(text, data.semantics.live)
+                announced = true
+            }
+        }
+    }
+}

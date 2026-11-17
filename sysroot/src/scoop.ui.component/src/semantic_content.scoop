@@ -1,0 +1,79 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class SemanticContentProps(
+    val role: SemanticRole,
+    val properties: SemanticProperties,
+    val actions: SemanticActions,
+    val relations: SemanticRelations,
+    val mergeLabels: Boolean,
+    val reference: SemanticsReference?
+)
+
+/** Adds a semantic container to existing content, without adding an input owner. */
+private class SemanticContentInk(
+    private val props: Props<SemanticContentProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var semantics: SemanticsHandle? = None
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        when (semantics) {
+            case Some(val old) -> if (old.role != input.role) {
+                old.close()
+                semantics = None
+            }
+            case None -> {}
+        }
+        if (!panelPresent(semantics)) {
+            semantics = createComponentSemantics(scope, input.role)
+            scope.routeSemanticsChildren(semantics)
+        }
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.mergeLabels = input.mergeLabels
+                handle.bindReference(input.reference)
+                handle.update(input.properties, input.actions, input.relations)
+            }
+            case None -> {}
+        }
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
+        context.children()
+    }
+}
+
+internal fun semanticContent(
+    content: View,
+    role: SemanticRole,
+    properties: SemanticProperties,
+    actions: SemanticActions = SemanticActions(),
+    relations: SemanticRelations = SemanticRelations(),
+    mergeLabels: Boolean = true,
+    reference: SemanticsReference? = None,
+    key: ViewKey = ViewKey.Position
+): View =
+    element(
+        SemanticContentProps(role, properties, actions, relations, mergeLabels, reference),
+        { props, mount -> SemanticContentInk(props, scope = mount) },
+        [content],
+        key
+    )

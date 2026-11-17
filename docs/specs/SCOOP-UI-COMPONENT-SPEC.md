@@ -19,7 +19,7 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 ## 1. 定位与依赖
 
-控件行为、布局与绘制使用共享 Scoop 源码，不包含 OS native 代码或运行时平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。accessibility 资源的内部工厂按下层实际提供的目标能力选择源文件：Darwin 创建真实 UI 语义资源，尚无 provider 的目标不创建原生资源、不声明动作成功。Windows／Linux provider 仍为本轮待交付范围。Darwin、Windows、Linux GNU 的具体构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
+控件行为、布局与绘制使用共享 Scoop 源码，不包含 OS native 代码或运行时平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。accessibility 使用同一套 UI 语义资源，分别由下层 AppKit、Windows UIA 和 Linux AT-SPI provider 投影；未连接辅助技术服务不改变控件行为，也不伪造原生查询或动作成功。Darwin、Windows、Linux GNU 的具体构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
 
 `scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／math／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
 
@@ -35,6 +35,8 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 
 Label、Button、Checkbox、Switch／Toggle／RadioGroup／ToggleGroup、Input／Textarea、SelectableStyledText 与 Typography 的 Props 和 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
 
+`ComponentSemantics.copy { ... }` 通过 ComponentSemanticsBuilder 修改一份完整覆盖值，保留未指定字段和原 SemanticsReference；复制不创建节点、不改变绑定。内置组合控件用同一方式补充自己的名称、状态和实际关系，不丢弃应用覆盖。
+
 - Label 使用 Text，正文取 StyledText.toPlainText，包括行内 alternateText；行内交互子控件保留独立语义。名称覆盖不修改正文。正文投影按不可变内容身份复用，纯语义覆盖变化不重新测量段落。
 - Button 使用 Button，并合并自己声明的纯静态 Label 后代；名称优先显式覆盖、labelledBy，最后内容标签。Custom／Resolved 中的独立交互内容不被合并。Invoke 调用现有最新 onClick，不模拟指针或隐式获得焦点；仅换 handler 仍可复用渲染。
 - Checkbox 使用 Checkbox，checked 映射 Off／On／Mixed，Toggle 使用原有 nextCheckState 与 Binding；写入被拒绝时返回 Rejected，并继续报告实际值，不预先翻转语义状态。Boolean、自有状态及组合入口传递同一覆盖值。
@@ -49,6 +51,14 @@ ScrollAreaProps／ScrollAreaBuilder 与 VirtualListProps／VirtualListBuilder �
 条在正常 update 和视口 Accepted 回调之后更新范围、enabled 与动作；被禁用的轴和零范围退出阅读树，恢复使用原身份。Auto／Always／Hidden、闲置淡出及 hover 只决定实际条的外观和几何，不移除非零范围的滚动能力。条的 Scene 登记只使用实际绘制区域；未绘制时仍可操作逻辑轴，但没有条的点击位置。绑定变化撤下旧范围，位置发布不等待名称或文本改变；读写与普通滚动共用请求和意图规则。
 
 其余控件、完整表单状态、Reveal 与平台验收继续按[交互与无障碍计划](../ui/interaction-polish/PLAN.md)推进；本节不把基础控件接入等同于全控件或外部辅助技术验收。
+
+ComponentSemantics 另提供 busy=false 与 live=Off，供应用描述真实忙碌与动态区域；它们不改变控件输入资格。Input 的 invalid 独立于是否存在错误文字发布。Slider 的每个真实 thumb 提供 Slider、实际 FocusTarget、考虑邻项间距的数值上下限及步长；Props／builder 的 semantics 为默认值，thumb 的可选 semantics 可覆盖。SetNumber、Increment／Decrement 复用键盘的原 RangeSpec 移动及提交入口，受控 setter 拒绝不假报完成，不额外获得焦点。
+
+Progress 提供 ProgressBar 及实际 minimum／maximum／value，未知进度不提供 range。Props／builder 可用 ComponentSemantics 命名或显式启用 live；默认不随动画采样公告。名称优先显式语义，其次明确文字 label；自定义 label 不为取名而构造。Typography 的 H1～H4 提供对应 Heading 级别，普通可选正文保留原文本选择和行内操作，纯静态正文可合并，读出名称包含 alternateText。
+
+ComponentSemantics.reference 可借用当前真实控件的 SemanticsReference，不改变其身份或焦点。VirtualListHandle.semanticId 单独引用集合节点；Command／Combobox 的输入使用 controls 与按稳定 key 的 activeDescendant 关联当前结果，活动高亮不冒充 selected。Tabs 提供 TabGroup／Tab、实际 selected、当前面板的 controls／labelledBy；未选中的保留面板退出阅读树。Tab 的 Invoke／SetSelected(true) 调用原选择模型，重复选择保持状态，拒绝取消单个已选 Tab；受控拒绝返回 Rejected，不抢键盘焦点。
+
+自绘 Menu 的实际行使用 MenuItem，发布同一 checked／expanded 与名称，普通激活、复选／单选和子菜单展开沿原入口确认实际结果；菜单容器提供关闭动作。Disclosure 的真实按钮发布 expanded，SetExpanded 复用原受控开关并确认采纳，折叠但保留的正文隐藏。Dialog／Sheet／Drawer 提供 Dialog、标题／说明、真实 modal 与可执行的关闭动作；关闭仍遵守原 veto 和受控 Binding，不以隐藏绘图冒充关闭。上述语义继续绑定原 PressControl／FocusTarget，不建立第二个输入目标。
 
 ## 2. 控件与使用入口
 
@@ -1023,6 +1033,8 @@ active 缺省由本挂载持有，外部 active 则使用当前 Binding。有效
 
 默认外观为 popover 配色、12 圆角和 4 内边距；搜索输入用 InputGroup、32 高、8 圆角及 16 搜索图标。列表最大高度 288，滚动条隐藏、滚动残量限制在列表；组标题 12／500、muted 色，条目正文 14／20、逻辑水平 padding 8／垂直 6、4 圆角、图标 16；活动行 muted 背景，disabled 整行 50% 透明度，shortcut 为 12，未带 shortcut 的活动行显示末尾勾号。尺寸随主题正文密度缩放，RTL 解析逻辑顺序；单行省略的条目正文继承布局方向并沿逻辑 Start 对齐，平台快捷键保留 LTR。VirtualList 消费同一元数据，只有可见／overscan 项创建 View，活动项通过 scrollToItem 显露且不调用 focusItem；调用方可提供超大 Provided 来源。Dialog 通过普通 `dialog(open, command(...))` 组合，初始焦点指定该输入的 FocusHandle，动作和关闭策略由应用决定；借用编辑器／字体／滚动模型卸载后保留。
 
+Command 的 VirtualList 用同一 CommandRows 快照提供 ItemSemantics：实际命令的名称来自 label，enabled 来自命令与输入的实际资格；活动高亮不是业务选择，不发布为 selected 或键盘焦点。组标题仅在 PanelContent 有明确文字时提供名称，自定义 View 不为取名而构造。名称查询与离屏描述不 build、滚动或执行命令。实际挂载行提供 Button 语义并合并装饰文字；辅助技术沿同一按 key 选择入口执行当前命令及 onSelect，禁用／组合中拒绝，旧 key 不转发到另一项。该入口不请求输入焦点，指针与键盘原有焦点行为保留。
+
 ## 36. Combobox
 
 `combobox(value, choices, query) { ... }` 同时提供 `Binding<T?>` 单选及 `Binding<Array<T>>` 多选重载，`T: Equals<T>`，query 为调用方的唯一 TextEditorState。choices 接受 ChoiceSource<T> 或小规模 Array<Choice<T>>。ComboboxProps 保存 ComboboxSelection.Single／Multiple、source 和 InputProps；ComboboxBuilder<T> 继承 InputBuilder，输入样式、字体、焦点、标签、编辑策略和通知直接沿用。选择值、已提交 query、active key 和 open 为四份不同含义的状态；搜索和导航不写入选择，外部替换选择不打开弹窗，也不改写 query。
@@ -1036,6 +1048,8 @@ ComboboxFilter.Contains 为默认，使用 Unicode case-fold 后的 label／keyw
 inputPlacement 默认 Inline：InputGroup 包含搜索输入和可选展开／清空按钮，多选 chips 与输入在同一表面内换行；单选在空 query 时用当前值文字作为输入的前景色提示，实际 query 仍为空。Popup 模式由普通按钮显示值，搜索输入放在弹窗内；labelTarget 关联当前可见入口。showTrigger 默认 true，width=240、maxHeight=252，popupWidth 可独立指定，尺寸有限非负。open／active／scroll／listHandle／OverlayHandle 均可借用；默认点击输入或实际已提交编辑可打开，程序改 query 不自行打开。enabled=false 或 readOnly 禁止打开和选择；禁用与卸载取消 Press／导航，不关闭借用模型。
 
 弹窗使用同一 Portal 锚定入口，默认 Bottom／Start、gap=4、viewportPadding=8，popover 配色、8 圆角、1 像素 foreground 10% 边框、floating 阴影和 100ms 动画，Reduced Motion 复用主题。Inline 不把焦点移入列表，Popup 初始聚焦搜索并在关闭后恢复入口；Tab 关闭后沿原方向移出，Escape／外点／veto／退出重开沿用 Portal，不保存第二套关闭会话。候选行正文 14、垂直 padding=4、逻辑开始 padding=6、末尾勾号宽 16；组标题 12、muted、padding 8／6，列表 padding=4，活动行 accent 背景／前景、disabled 整行 50% 透明度。chips 为 21 高、12 字号、muted 背景、4 圆角，换行间距 4，最小输入宽 64；芯片旁的 Bare 输入仅按正文与水平 4 的内缩测量，32 的默认建议高度由 InputGroup 外框承担，不能再叠加一份独立输入高度。表面完整复用 InputGroup 的焦点环与 invalid。RTL 解析布局与段落方向，按钮值文字单行省略。popupStyle／triggerStyle 及行 style 提供通常的局部外观覆盖。
+
+Combobox 的条目描述读取本次筛选结果与 render 捕获的选择值，不能在已发布描述的 getter 中读取正在变化的 Binding。名称来自 Choice.label，selected 只表达实际领域值是否被选中；active 高亮与编辑焦点保持独立。单选实际行使用 RadioButton，重复选择不取消单选；多选使用 Checkbox，Press 切换该值，checked 与逻辑条目的 selected 来自同一选择模型。辅助技术复用选择入口及其 setter 采纳检查，拒绝时返回 Rejected 且不清 query、不关闭；正常采纳后仍执行原清查询、关闭与通知策略，不额外请求编辑焦点。描述／查询不创建离屏行；需操作远处条目时，沿已有 Realize／Reveal 取得真实行控件。
 
 ## 37. NavigationMenu
 
@@ -1173,6 +1187,8 @@ selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作
 DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。
 
 
+TableColumn 另提供可选 `semanticText: ((Row) -> String)? = None`，从同一不可变行数据返回可读文字；它与用于显示的 cell 工厂分开，不能为无障碍查询构造 View。DataTable 的 ItemSemantics 按稳定 key 发布当前页的行位置与实际 selected；行名称按可见列顺序连接明确提供的“header: semanticText”，没有任何描述时为未知而非假造文字。隐藏列不进入该摘要，提供的空文字仍是已知值。元数据读取只取得所查询行及其已声明描述，不扫描整表。实际行的选择 Checkbox 与表头全选 Checkbox 有明确操作名称，仍分别调用原 setSelected／selectPage，行内其他操作由原 cell 的真实控件提供。普通 Table 的任意 View 与尚无 semanticText 的列继续保留其实际挂载语义，不猜测内容。
+
 ## 46. Chart
 
 `chart(model) { ... }` 消费应用持有的 ChartModel。ChartData 保存有稳定 ChartDatumKey 的 datum 数组和有稳定 ChartSeriesKey 的系列数组；datum 有 label、可选数值 x 和供 Pie／Radial 扇区使用的可选颜色，系列有 label、逐 datum 的 `Double?`、可选颜色／图标和 Cartesian mark 覆盖。两种 key 是不同值类型，唯一性分别检查；系列长度必须匹配 datum，所有实际坐标有限，None 表示缺值。显示文字可以重复。ChartModel.replaceData 是普通应用动作；显隐状态独立于数据，持续存在的 key 保留显隐和配色槽，新的系列按声明次序取得五色 palette 槽，隐藏或重排不改变其他系列颜色。
@@ -1259,3 +1275,25 @@ questionnaire(state, onSubmit) 的 busy／enabled 是显式应用输入。默认
 windowChrome、windowDragRegion、windowResizeRegion、windowControls 的能力协商、原生区域、实际系统几何及关闭请求见[窗框组件规范](SCOOP-UI-WINDOW-CHROME-SPEC.md)。窗口／应用 scope 的工具窗口、类型化模态与文件面板控制器，以及打开／保存按钮见[原生窗口组件规范](SCOOP-UI-NATIVE-WINDOWS-SPEC.md)。控制器只销毁自己创建的窗口，借用和实际原生退休继续遵守 Window／UI 合同。
 
 nativeTrayIcon 在独立 scoop.ui.component.tray Cone 中实现相同的应用挂载协议，菜单复用上述公共描述；普通组件不依赖托盘或 Linux DBusMenu。独立 API、NativeMenuUseId 归属与资源收尾见[托盘组件规范](SCOOP-UI-TRAY-SPEC.md)。同一组功能最终由综合 desktop demo 展示，实施与三平台验证状态见[桌面能力实施记录](../desktop-ui/PROGRESS.md)。
+
+组合输入的 InputProps／InputBuilder 可带 TextFieldExpansion(expanded, setExpanded)，用于实际候选弹层的状态和请求入口；Combobox 自动提供该值，查询不会展开或转移焦点。Select、DropdownMenu 和 Combobox 触发器发布实际 expanded 与 controls 关系，辅助技术的展开／折叠请求沿原 open Binding 和关闭 veto，返回实际采纳结果。SelectProps／SelectBuilder 与 SelectItem／SelectItemBuilder 提供 ComponentSemantics，分别控制触发器和选项的命名及关系。
+
+## 53. 组合控件的默认语义
+
+所有默认语义来自控件当前数据和已接受布局，不通过重放鼠标事件实现动作。ComponentSemantics 可覆盖名称、描述、错误、关系和公告策略，不能覆盖真实 enabled、readOnly、selected、expanded 或编辑资格；自定义内容保留原交互后代。业务 Binding 拒绝改变或关闭回调否决请求时，语义动作也返回 Rejected。
+
+RadioGroup、Tabs、Calendar 等静态选择容器显式发布 Single／Multiple 和 required，不由原生 role 推测。ConversationActionBuilder 及对应 Bubble／Marker／Attachment 等 Props 接受 ComponentSemantics；可点击卡片使用实际 PressControl 的语义动作和焦点，失去动作时保留内容挂载、退休旧动作身份。Questionnaire 的 choice 卡片发布真实勾选或单选状态，正文、错误和提交按钮沿同一模型。MessageScroller 接受 ItemSemantics，未提供的离屏内容保持未知，查询不得调用 TranscriptItem.content。
+
+InputOtpProps／InputOtpBuilder 提供 semantics，整个 OTP 对应一个 TextField，复用同一 TextEditHost、字段标签／required／错误和选区，不为每个视觉槽创建独立文本输入。受保护内容、长度过滤、撤销、替换及拖放均沿原编辑策略。
+
+CalendarProps／CalendarBuilder 提供 semantics 和 daySemantics(CalendarDay)。月份对应有限 Table，每个视觉行对应 Row，星期标题、周号和日期携实际行列位置；日期默认使用完整 ISO 日期命名，可由 daySemantics 本地化，发布实际 selected、enabled 和 required。单选／多选的 setSelected 沿原选择约束，范围选择沿同一两次激活流程；未完成的预览不能冒充已选中范围。翻页按钮有明确名称，查询不翻页、不移动焦点。
+
+DatePickerProps／DatePickerBuilder 提供 semantics、popupSemantics。输入或触发按钮发布展开状态、当前文本／解析错误及 controls；日期弹层和 NavigationMenu 面板复用原 open、关闭请求及 veto，不建立第二套开关状态。图标触发器必须有可读名称。
+
+ToastProps／ToastBuilder 提供 semantics，默认 live=Polite，可明确改为 Assertive 或 Off；ToastAction 也可设置 semantics。每条通知具有独立 Group，标题和描述来自可读取内容，关闭动作沿原 ToastState，关闭按钮有明确名称。首次实际显示后只公告一次，内容后续变化使用同一节点的 live 更新；Loading 使用 busy 暂缓公告，关闭或模态域外节点不发迟到公告。叠放且内容未放置的通知不暴露不可操作的子按钮。
+
+ImageView、PathView、Spinner 和 Separator 的 Props／builder 提供 `semantics: ComponentSemantics? = None`，默认用于装饰。显式提供时分别发布 Image、无数值的 ProgressBar 和带方向的 Separator；应用提供有意义的名称，库不从像素或资源路径猜测替代文字。Avatar 默认 Image，名称沿 fallback 或显式 semantics，在图片加载成功后保留；交互 badge 后代仍独立存在。Breadcrumb 的链接发布 Link、当前项发布 selected；Pagination 的页项发布实际选中状态，图标形式的上一页／下一页仍使用配置文字命名。
+
+可调整宽度的表头为实际拖动区域发布带数值范围的竖向 Separator，名称包含列标题，步进与键盘保持一致；未接受布局时不声称已知当前宽度。最大宽度未设时使用有限 Double 的上限，不将当前窗口宽度当作列宽限制。语义调整经过同一列宽 Binding 并检查采纳结果。Sidebar rail 发布实际展开状态，WindowControls 的最小化／最大化／还原／关闭按钮可通过 semantics 回调命名；Badge、Item 和其他可点击卡片的语义动作复用原 PressControl。
+
+WindowControls 的默认命名函数 `windowControlSemantics(button, maximized)` 为公共函数，应用覆盖个别按钮时可继续调用它处理其余按钮。它只返回 ComponentSemantics，不创建窗口资源或执行窗口操作。

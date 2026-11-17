@@ -6,6 +6,7 @@ import scoop.graphics.Path
 import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
+import scoop.surface.InputBoundary
 import scoop.window.accessibility.*
 import scoop.ui.text.NativeTextSource
 
@@ -27,6 +28,7 @@ internal class RootSemantics(
     private var drawing: SemanticScene? = None
     private var focusedArea: InputArea? = None
     private var focusActive = false
+    private var boundary: InputBoundary? = None
     private val reveals = SemanticRevealController(root)
     private val observer = root.surface.input.observeActivity { focusChanged() }
 
@@ -79,6 +81,7 @@ internal class RootSemantics(
             SemanticContent(ordered).apply()
             content = false
         }
+        refreshSemanticTextChildren(ordered)
         reveals.check()
         var focused: AccessibilityNode? = None
         for (handle in handles) {
@@ -87,12 +90,26 @@ internal class RootSemantics(
                 break
             }
         }
+        for (handle in handles)
+            if (handle.active)
+                handle.refreshActivation()
         provider.focused = focused
         provider.publish()
         dirty = false
     }
 
     private fun focusChanged() {
+        val nextBoundary = root.surface.inputBoundary
+        val sameBoundary =
+            when ((boundary, nextBoundary)) {
+                case(Some(val before), Some(val after)) -> before === after
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameBoundary) {
+            boundary = nextBoundary
+            contentChanged()
+        }
         if (closed || !root.isOpen)
             return
         reveals.check()
@@ -153,6 +170,12 @@ internal class RootSemantics(
         }
         return drawing!!
     }
+    fun revealText(
+        handle: SemanticsHandle,
+        region: () -> Rect?,
+        horizontal: ScrollAlignment,
+        vertical: ScrollAlignment
+    ): SemanticActionResult = reveals.requestRegion(handle, region, horizontal, vertical)
     fun reveal(handle: SemanticsHandle): SemanticActionResult = reveals.request(handle)
     fun revealItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult =
         reveals.requestItem(parent, entry)
@@ -173,9 +196,10 @@ internal class RootSemantics(
         binding: SemanticTextBinding,
         canvas: Canvas,
         bounds: Rect,
-        source: NativeTextSource
+        source: NativeTextSource,
+        path: Array<ScrollReveal>
     ) {
-        frame().captureText(binding, canvas, bounds, source)
+        frame().captureText(binding, canvas, bounds, source, path)
     }
     fun complete(frame: FrameCompletion) {
         val scene = drawing
@@ -193,6 +217,10 @@ internal class RootSemantics(
                         case Some(val value) -> value.apply(handle)
                         case None -> {
                             handle.resource.geometry = None
+                            when (handle.textBinding) {
+                                case Some(val binding) -> binding.path = None;
+                                case None -> {}
+                            }
                             handle.revealPlacement = None
                         }
                     }

@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum AvatarSize {
     Sm, Default, Lg
@@ -24,7 +25,8 @@ public class AvatarProps public constructor(
     public val badge: AvatarBadge = AvatarBadge.None,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Avatar public constructor(
@@ -109,10 +111,19 @@ public class Avatar public constructor(
             case Some(val value) -> children.add(panelSlot(value, 1L));
             case None -> {}
         }
-        return element(
-            panelPresent(badge),
-            { current, mount -> AvatarLayout(current, scope = mount) },
-            children.toArray()
+        return semanticContent(
+            element(
+                panelPresent(badge),
+                { current, mount -> AvatarLayout(current, scope = mount) },
+                children.toArray()
+            ),
+            SemanticRole.Image,
+            input.semantics.properties().copy {
+                if (name == None && input.semantics.relations.labelledBy.size == 0L)
+                    name = candidateCaption(input.fallback)
+            },
+            relations = input.semantics.relations,
+            reference = input.semantics.reference
         )
     }
 }
@@ -155,6 +166,7 @@ public class AvatarBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var style: StyleOverride = styleOverride()
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun badge(color: Color? = None): Unit {
         badge = AvatarBadge.Dot(color)
     }
@@ -165,7 +177,7 @@ public class AvatarBuilder internal constructor() {
         style = style.copy(configure)
     }
     internal fun snapshot(fallback: PanelContent): AvatarProps =
-        AvatarProps(fallback, image, size, badge, fonts, theme, style)
+        AvatarProps(fallback, image, size, badge, fonts, theme, style, semantics)
 }
 
 public fun avatar(fallback: String, configure: AvatarBuilder.() -> Unit = {}): View =

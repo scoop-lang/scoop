@@ -1,0 +1,74 @@
+package scoop.tests.ui.accessibility.native
+
+public fun NativeNode.trait(field: Int): Long {
+    @Unsafe
+    {
+        return nativeTrait(pointer, field)
+    }
+}
+
+public fun NativeNode.roleCount(role: String): Long {
+    @Unsafe
+    {
+        return role.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                return@withUtf8Bytes nativeRoleCount(pointer, bytes, length)
+            }
+        }
+    }
+}
+
+public fun NativeNode.tableSpan(): Boolean {
+    @Unsafe
+    {
+        return nativeTableSpan(pointer) != 0
+    }
+}
+
+public class NativeTextAnchor public constructor(
+    node: NativeNode,
+    start: Long,
+    end: Long
+): Closeable {
+    private val pointer: Ptr<Unit> = retainRange(node, start, end)
+    public fun matches(start: Long, end: Long): Boolean {
+        @Unsafe
+        {
+            return nativeRangeMatches(pointer, start, end) != 0
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeRangeRelease(pointer)
+        }
+    }
+}
+
+private fun retainRange(node: NativeNode, start: Long, end: Long): Ptr<Unit> {
+    @Unsafe
+    {
+        return nativeRangeRetain(node.pointer, start, end) ?:
+            throw IllegalStateException(Some("text document was not published"))
+    }
+}
+
+@Extern(name = "scoop_ui_ax_trait")
+private fun nativeTrait(node: Ptr<Unit>, field: Int): Long
+
+@Extern(name = "scoop_ui_ax_role_count")
+private fun nativeRoleCount(node: Ptr<Unit>, bytes: Ptr<UInt8>, length: Long): Long
+
+@Extern(name = "scoop_ui_ax_table_span")
+private fun nativeTableSpan(node: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ui_ax_retain_text_range")
+private fun nativeRangeRetain(node: Ptr<Unit>, start: Long, end: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_retained_range")
+private fun nativeRangeMatches(range: Ptr<Unit>, start: Long, end: Long): Int
+
+@Extern(name = "scoop_ui_ax_release_range")
+private fun nativeRangeRelease(range: Ptr<Unit>)

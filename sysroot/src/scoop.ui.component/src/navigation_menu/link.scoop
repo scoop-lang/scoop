@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 
 public class NavigationMenuLink public constructor(
     private val props: Props<NavigationMenuLinkProps>,
@@ -18,7 +19,7 @@ public class NavigationMenuLink public constructor(
         val input = props.value
         val button = input.button
         val theme = themes.read(button.theme)
-        return component(
+        return semanticButton(
             ButtonProps(
                 button.content,
                 button.onClick,
@@ -33,7 +34,23 @@ public class NavigationMenuLink public constructor(
                 button.labelTarget,
                 button.semantics
             ),
-            { current, mount -> Button(current, scope = mount) }
+            SemanticRole.Link,
+            button.semantics.properties(
+                enabled = button.enabled,
+                invalid = button.invalid,
+                selected = Some(input.active)
+            ),
+            SemanticActions(
+                invoke =
+                    Some {
+                        if (!props.value.button.enabled)
+                            SemanticActionResult.Rejected
+                        else {
+                            props.value.button.onClick()
+                            SemanticActionResult.Completed
+                        }
+                    }
+            )
         )
     }
 }

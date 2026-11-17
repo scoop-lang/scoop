@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal fun questionnaireChoice(
     input: QuestionnaireProps,
@@ -119,7 +120,61 @@ internal fun questionnaireChoice(
                 Some({ owner.select(question.key, member.key) }),
                 input.enabled && !input.busy && member.enabled,
                 focus,
-                input.fonts
+                input.fonts,
+                semantics =
+                    ComponentSemantics(
+                        name = Some(title),
+                        description =
+                            if (description == "")
+                                None
+                            else
+                                Some(description)
+                    ),
+                semanticRole =
+                    Some(
+                        if (question.kind == QuestionKind.Multiple)
+                            SemanticRole.Checkbox
+                        else
+                            SemanticRole.RadioButton
+                    ),
+                semanticState =
+                    Some(
+                        SemanticProperties(
+                            name = Some(title),
+                            description =
+                                if (description == "")
+                                    None
+                                else
+                                    Some(description),
+                            enabled =
+                                input.enabled && !input.busy && question.enabled && member.enabled,
+                            checked =
+                                Some(
+                                    if (member.selected)
+                                        SemanticChecked.On
+                                    else
+                                        SemanticChecked.Off
+                                ),
+                            required = question.required,
+                            invalid = invalid,
+                            error =
+                                when (input.state.issue(question.key)) {
+                                    case Some(val issue) -> Some(input.strings.issue(issue))
+                                    case None -> None
+                                }
+                        )
+                    ),
+                semanticActions =
+                    Some(
+                        if (question.kind == QuestionKind.Multiple)
+                            SemanticActions(
+                                toggle = Some { owner.selectSemantically(question, member.key) }
+                            )
+                        else
+                            SemanticActions(
+                                invoke = Some { owner.selectSemantically(question, member.key) }
+                            )
+                    )
             )
         )
     )

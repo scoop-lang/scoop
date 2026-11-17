@@ -68,7 +68,7 @@ cxx = true
 include = [{ sysroot = "include" }, { sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
-cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
+cxx_flags = ["-std=c++17", "-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 
 [[native.sources]]
 path = "native/darwin/application.m"
@@ -87,11 +87,18 @@ path = "native/darwin/accessibility.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/accessibility_text_document.c"
+
+[[native.sources]]
 path = "native/darwin/accessibility_node.m"
 when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/accessibility_collection.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_grid.m"
 when = { os = "darwin" }
 
 [[native.sources]]
@@ -566,4 +573,156 @@ when = { os = "windows" }
 
 [[native.sources]]
 path = "native/linux/input/delivery.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/tree.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/tree.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/publication.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/publication.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/text.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/text.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/element.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/element.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/grid.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/grid.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/windows/accessibility/controls.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/dialog.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/grid.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/host.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/node.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/notifications.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/properties.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/scroll.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_content.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_navigation.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_provider.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_range.cpp"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "uiautomationcore"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "oleaut32"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/accessibility/cache.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/component.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/controls.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/dispatch.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/editable_text.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/host.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/hypertext.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/notifications.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/objects.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/properties.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/table.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/text.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/text_boundaries.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/text_geometry.cpp"
 when = { os = "linux", env = "gnu" }

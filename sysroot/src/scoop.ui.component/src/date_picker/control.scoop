@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.datetime.LocalDate
 import scoop.platform.time.MonotonicTimeSource
 import scoop.ui.*
+import scoop.window.accessibility.*
 
 internal class DatePickerBlur(val draft: DatePickerDraft, val revision: Long)
 
@@ -12,6 +13,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
     val anchor = LayoutAnchor()
     val layer = OverlayHandle()
     val calendar = CalendarHandle()
+    val popupReference = SemanticsReference()
     val open = binding({ props.value.open?.value ?: localOpen.value }, { value -> setOpen(value) })
     val focus: FocusHandle get() = props.value.focus.handle ?: ownFocus
     private var previousValue: CalendarValue? = None
@@ -33,7 +35,9 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
     }
     fun mount() {
         when (props.value.draft) {
-            case Some(val draft) -> if (draft.editor.text.byteLength == 0L && !draft.editor.isComposing)
+            case Some(val draft) -> if (
+                draft.editor.text.byteLength == 0L && !draft.editor.isComposing
+            )
                 draft.reset(text())
             case None -> {}
         }
@@ -105,6 +109,23 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
             return false
         layer.requestClose()
         return !open.value
+    }
+    fun expand(value: Boolean): SemanticActionResult {
+        if (!active)
+            return SemanticActionResult.Unavailable
+        if (!props.value.mutable)
+            return SemanticActionResult.Rejected
+        if (open.value == value)
+            return SemanticActionResult.Completed
+        return if (
+            if (value)
+                show()
+            else
+                close()
+        )
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun toggle() {
         if (open.value)

@@ -99,7 +99,7 @@ public class SceneContext internal constructor(
         checkActive()
         checkSemanticOwner(node, binding.handle)
         pass.cacheable = false
-        binding.handle.controller.captureText(binding, frame.canvas, bounds, source)
+        binding.handle.controller.captureText(binding, frame.canvas, bounds, source, scrollPath)
     }
     /** Runs after this frame ends, while this node remains mounted and its root remains open. */
     public fun onFrameComplete(action: (FrameCompletion) -> Unit) {

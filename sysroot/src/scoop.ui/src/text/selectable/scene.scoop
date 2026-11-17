@@ -85,6 +85,10 @@ internal fun selectableScene(
                 }
             frame.paths.add(shape)
             scene.place(action.area, shape)
+            when (action.semantics) {
+                case Some(val handle) -> scene.semantics(handle, shape)
+                case None -> {}
+            }
         }
         host.paragraph.scene(scene, measurement, ink, boxes)
         for (decoration in host.decorations) {

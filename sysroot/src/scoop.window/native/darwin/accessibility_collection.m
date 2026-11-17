@@ -1,32 +1,8 @@
-#import "accessibility.h"
-
-@interface SWAccessibilityItemData : NSObject
-@property(nonatomic, copy) id key;
-@property(nonatomic, copy) NSString *name, *help, *identifier, *value;
-@property(nonatomic) int64_t index, count;
-@property(nonatomic) int32_t enabled, selected, expanded, focusable;
-@end
+#import "accessibility_collection.h"
 @implementation SWAccessibilityItemData
 @end
 
-@interface SWAccessibilityVirtualItem : NSAccessibilityElement
-@property(nonatomic, weak) SWAccessibilityCollection *collection;
-@property(nonatomic, copy) id key;
-@property(nonatomic) BOOL retired;
-@property(nonatomic) uint64_t revision;
-@property(nonatomic, strong) SWAccessibilityItemData *cached;
-- (SWAccessibilityItemData *)itemData;
-@end
-
-@interface SWAccessibilityCollection ()
-@property(nonatomic, strong)
-    NSMapTable<id, SWAccessibilityVirtualItem *> *items;
-- (SWAccessibilityState *)state;
-- (SWAccessibilityNode *)mountedRow:(id)key;
-- (int32_t)query:(int32_t)operation
-           index:(int64_t)index
-             key:(id)key
-           reply:(SWAccessibilityItemData *)reply;
+@implementation SWAccessibilityColumnData
 @end
 
 @implementation SWAccessibilityTree (Collections)
@@ -149,12 +125,14 @@
       NSAccessibilityPostNotification(
           item, NSAccessibilityUIElementDestroyedNotification);
     }
+    [item refreshCells];
   }
 }
 - (void)retire {
   for (SWAccessibilityVirtualItem *item in self.items.objectEnumerator) {
     item.retired = YES;
     item.cached = nil;
+    [item refreshCells];
   }
   [self.items removeAllObjects];
   self.tree = nil;
@@ -233,6 +211,8 @@
 - (NSArray *)accessibilityChildren {
   if (!self.isAccessibilityElement)
     return @[];
+  if (self.collection.state.gridColumns.count)
+    return self.gridCells;
   SWAccessibilityNode *row = [self.collection mountedRow:self.key];
   return row ? row.accessibilityChildren : @[];
 }
@@ -252,7 +232,10 @@
 - (BOOL)performItem:(int32_t)operation {
   if (!self.isAccessibilityEnabled)
     return NO;
-  int32_t flag = operation == 3 ? 1 : operation == 4 ? 2 : 4;
+  int32_t flag = operation == 3   ? 1
+                 : operation == 4 ? 2
+                 : operation <= 6 ? 4
+                                  : 8;
   if (!(self.collection.state.collectionActions & flag) ||
       ((flag == 4) && !self.itemData.focusable))
     return NO;
@@ -294,6 +277,9 @@
 - (void)setAccessibilityFocused:(BOOL)focused {
   [self performItem:focused ? 5 : 6];
 }
+- (void)setAccessibilitySelected:(BOOL)selected {
+  [self performItem:selected ? 7 : 8];
+}
 - (BOOL)isAccessibilityFocused {
   if (!self.isAccessibilityElement ||
       !self.collection.tree.view.window.isKeyWindow)
@@ -322,8 +308,10 @@
            (self.collection.state.collectionActions & 4);
   if (selector == @selector(accessibilityCustomActions))
     return (self.collection.state.collectionActions & 3) != 0;
-  if (selector == @selector(setAccessibilitySelected:) ||
-      selector == @selector(setAccessibilityExpanded:) ||
+  if (selector == @selector(setAccessibilitySelected:))
+    return self.collection.state.selectionKind >= 0 &&
+           (self.collection.state.collectionActions & 8);
+  if (selector == @selector(setAccessibilityExpanded:) ||
       selector == @selector(setAccessibilityValue:))
     return NO;
   return [super isAccessibilitySelectorAllowed:selector];
@@ -435,11 +423,85 @@ int64_t scoop_window_accessibility_collection(void *pointer, int64_t number,
                                               int32_t actions) {
   SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
   SWAccessibilityState *state = tree.pending[@(number)];
-  if (!state || count < -1 || (count >= 0 && state.data.role != 12))
+  if (!state || count < -1 ||
+      (count >= 0 && state.data.role != 12 && state.data.role != 22))
     return -4;
   state.itemCount = count;
   state.collectionRevision = revision;
   state.collectionActions = actions;
+  return 0;
+}
+
+int64_t scoop_window_accessibility_collection_selection(void *pointer,
+                                                        int64_t owner,
+                                                        int32_t kind,
+                                                        int32_t required) {
+  SWAccessibilityState *state =
+      ((__bridge SWAccessibilityTree *)pointer).pending[@(owner)];
+  if (!state || (kind != 0 && kind != 1))
+    return -4;
+  state.selectionKind = kind;
+  state.selectionRequired = required != 0;
+  return 0;
+}
+
+int64_t scoop_window_accessibility_collection_selected(
+    void *pointer, int64_t owner, int32_t kind, int64_t number,
+    const uint8_t *text, int64_t length) {
+  SWAccessibilityState *state =
+      ((__bridge SWAccessibilityTree *)pointer).pending[@(owner)];
+  id key = itemKey(kind, number, text, length);
+  if (!state || state.selectionKind < 0 || !key)
+    return -4;
+  [state.selectedKeys addObject:key];
+  return 0;
+}
+
+int64_t scoop_window_accessibility_collection_column(
+    void *pointer, int64_t owner, int64_t index, int32_t kind, int64_t number,
+    const uint8_t *text, int64_t length, int64_t header) {
+  SWAccessibilityState *state =
+      ((__bridge SWAccessibilityTree *)pointer).pending[@(owner)];
+  id key = itemKey(kind, number, text, length);
+  if (!state || state.data.role != 22 ||
+      index != (int64_t)state.gridColumns.count || !key)
+    return -4;
+  SWAccessibilityColumnData *column = [SWAccessibilityColumnData new];
+  column.key = key;
+  column.header = header;
+  [state.gridColumns addObject:column];
+  return 0;
+}
+
+int64_t scoop_window_accessibility_collection_column_name(void *pointer,
+                                                          int64_t owner,
+                                                          int64_t index,
+                                                          const uint8_t *text,
+                                                          int64_t length) {
+  SWAccessibilityState *state =
+      ((__bridge SWAccessibilityTree *)pointer).pending[@(owner)];
+  if (!state || index < 0 || index >= (int64_t)state.gridColumns.count ||
+      length < 0)
+    return -4;
+  NSString *name = [[NSString alloc] initWithBytes:text
+                                            length:(NSUInteger)length
+                                          encoding:NSUTF8StringEncoding];
+  if (!name)
+    return -4;
+  state.gridColumns[(NSUInteger)index].name = name;
+  return 0;
+}
+
+int64_t scoop_window_accessibility_collection_cell(void *pointer, int64_t owner,
+                                                   int32_t kind, int64_t number,
+                                                   const uint8_t *text,
+                                                   int64_t length) {
+  SWAccessibilityState *state =
+      ((__bridge SWAccessibilityTree *)pointer).pending[@(owner)];
+  id key = itemKey(kind, number, text, length);
+  if (!state || !key)
+    return -4;
+  state.cellColumnKey = key;
   return 0;
 }
 
@@ -497,4 +559,33 @@ void scoop_window_accessibility_collection_item_text(void *pointer,
     data.value = value;
     break;
   }
+}
+
+int64_t scoop_window_accessibility_collection_active(
+    void *pointer, int64_t number, int64_t collection, int32_t kind,
+    int64_t key_number, const uint8_t *bytes, int64_t length) {
+  @autoreleasepool {
+    SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
+    SWAccessibilityState *state = tree.pending[@(number)];
+    if (!state || tree.closed)
+      return -4;
+    id key = kind == 0 ? @(key_number)
+             : kind == 1 && length >= 0
+                 ? [[NSString alloc] initWithBytes:bytes
+                                            length:(NSUInteger)length
+                                          encoding:NSUTF8StringEncoding]
+                 : nil;
+    if (!key)
+      return 1;
+    state.activeCollection = collection;
+    state.activeKey = key;
+    return 0;
+  }
+}
+
+SWAccessibilityBytes
+scoop_window_accessibility_collection_search(void *pointer) {
+  NSData *search = ((__bridge SWAccessibilityItemData *)pointer).search;
+  return (SWAccessibilityBytes){search.bytes,
+                                search ? (int64_t)search.length : -1};
 }

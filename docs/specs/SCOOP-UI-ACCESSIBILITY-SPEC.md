@@ -14,6 +14,8 @@
 
 关闭单个 UI handle 只退休这个资源。框架先把仍由其他活动 scope／handle 拥有的直接语义子节点接到其原父级，清除已关闭的子项路由，然后按当前挂载关系重新发布；不会因替换父角色而误退役仍存活的子控件。显式子节点对已关闭父资源的引用同样移向原父级。真正卸载时，该挂载及其后代各自的资源全部退休。UI 不暴露底层 AccessibilityNode，避免绕过此归属规则。
 
+`SemanticsReference` 是跨声明位置借用同一挂载语义身份的轻量引用；`id` 可参与正常 render 依赖，未绑定或退休后为 None。`SemanticsHandle.bindReference(reference)` 只允许该 reference 绑定一个活动节点，换绑与关闭同步撤下旧引用，不产生焦点、View 或延迟重试。Component 的真实控件可以提供该引用供 controls／label／active descendant 关系使用。
+
 ## 2. 属性、动作与逻辑发布
 
 `handle.update(properties, actions = SemanticActions(), relations = SemanticRelations())` 替换 Window SemanticProperties、最新动作与关系；关系使用同一活动根的 handle.id，不改变角色、身份、父子归属或业务状态。检查、名称／说明／错误解析、只读／禁用／受保护文本规则沿底层公共合同。名称或值改变立即使旧几何失效；只替换同能力处理器不要求绘制，也不重复原生属性通知。render／measure／scene／draw 不能创建、更新或关闭语义资源；Scene 只登记几何，挂载构造与正常 update 可修改资源。
@@ -26,6 +28,8 @@
 
 `handle.bindFocus(target: FocusTarget?)` 借用本挂载的实际 FocusTarget，None 解除绑定；同一目标不能同时绑定两个活动语义节点。绑定使 provider 的 focused 反映真实活动键盘焦点，查询不改变焦点。若 actions 未显式提供 focus，绑定提供经 FocusHandle 的聚焦／解除焦点动作；需要后续布局显露的请求返回 Busy，直到实际获得焦点才可返回 Completed，不把排队成功当成聚焦完成。目标关闭后不再报告焦点，动作返回 Unavailable。显式 focus handler 仍使用绑定目标作为实际焦点事实。
 
+数值、选择、展开和关闭动作同样经 SemanticsHandle 的真实根动作边界执行，复用所属控件的业务入口。`SemanticsHandle.announce(text, priority = SemanticLive.Polite)` 只提交同一窗口的公告；实际模态／隐藏状态及同一发布周期的合并沿 Window 合同，读取节点不公告。Component 的 busy／live 仅描述应用状态，不自动创建验证器或禁止输入。
+
 ## 3. 内容合并与忽略
 
 SemanticProperties.ignored 仅忽略当前语义节点，hidden 排除其语义子树；它们不修改真实布局、输入或键盘焦点。忽略的包装保留后代的身份和阅读顺序，祖先禁用／隐藏仍约束后代动作。没有语义资源的布局继续默认透明，不需要为透明布局额外创建节点。
@@ -37,6 +41,8 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 合并名称采用显式 name、有效 labelledBy、已知内容文字的顺序，空字符串与未知分开。即使有显式名称覆盖，已经声明合并的静态标签仍避免重复进入导航。由内容声明产生的 fallback 引用不混入 handle.relations；根借用 Window contentLabels 发布并随结构、动作、焦点绑定和隐藏策略变化更新。合并、忽略和恢复均不退休节点，不请求 drawable；纯标签文字变化沿既有名称依赖更新，不重走挂载树。
 
 动作、焦点或结构变化使文本不再适合合并时，同一次逻辑发布恢复该节点并保留其真实动作。先撤下已改变的旧内容引用，再安装本次引用，避免合法重排被中间状态的旧关系干扰；实际名称循环仍按 Window 的 publish 合同报告。UI 根通过现有错误边界处理非法声明，不发布半棵原生树。内容名称变化沿 contentRevision 拒绝不匹配的旧场景。
+
+当前 AllInput 模态边界也限制语义阅读：边界外的兄弟内容隐藏，连接模态子树所需的逻辑祖先仅作为忽略包装保留，边界内仍沿原阅读关系。FocusOnly 边界不隐藏背景。边界建立、退出和换绑沿现有 InputBoundary 的 owner／Accepted 时序更新，不能等一次键盘焦点变化才生效。保留但已折叠的内容由其真实容器发布 hidden，不把普通 disabled 控件从阅读树移除。
 
 ## 4. 场景与几何
 
@@ -60,7 +66,9 @@ Scene 登记同时保存当次 ScrollViewport 路径，Rect 缓存重放重新�
 
 ## 5. 文本编辑宿主
 
-`scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations())` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。
+保留文本范围跟随 TextEditorState 的实际编辑事务，与哪个宿主获得编辑焦点无关。各宿主按需登记自己拥有的 SemanticTextDocument；同一模型的输入、程序修改、undo／redo 和正文重置更新所有已登记文档的端点，复用该次事务的偏移映射，不复制正文或历史。换绑、进入保护模式及关闭宿主时撤销登记并退休旧范围；模型不因此取得宿主的输入或焦点所有权。
+
+`scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations(), setExpanded = None)` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。
 
 动作捕获该次模型身份与 revision；模型替换、正文或选区发生尚未发布的修改时返回 Unavailable，不能修改新的焦点文档。同一模型实际获得新状态后沿正常更新发布，再返回结果。SetValue／ReplaceText 使用 TextEditSource.Accessibility，经过单行归一化、外来文本清洗、transform、accepts、长度与组合事务，并形成独立 undo 项；Reject 返回 Rejected，Transform 返回实际结果。选区修改通过同一 composition 结束与策略事务，普通只读选择允许，disabled 或输入边界不允许时拒绝。读取、选择与编辑不隐式抢焦点，Focus 仍走绑定的真实 FocusTarget。
 
@@ -72,13 +80,13 @@ updateSelectableText 借用 host，不改写它的 onSelectionChanged。调用�
 
 主题、选区前景或窗口活动外观变化不改正文、选区及语义身份，不因重绘重复发送文本／选择通知。文字缩放更新同一宿主的排版，仍只在匹配内容的 Accepted 场景发布新范围几何；逻辑焦点、模型与历史保留。
 
-正文与选区可在无 drawable 时发布。updateTextEditor／updateSelectableText 同时绑定当前宿主的范围查询来源；宿主在真实文字绘制处登记自己的局部视口、变换和 clip，根与节点位置一起在匹配内容版本的 Accepted 场景发布，Discarded 和过期候选释放自己的引用。未登记节点位置或文字、内容失配、解除绑定及关闭时不保留旧文本几何。普通 handle.update 解除专用宿主绑定；重新调用对应宿主入口可恢复。场景登记不创建 InputArea，也不修改正文、选区或真实焦点。
+正文与选区可在无 drawable 时发布。updateTextEditor／updateSelectableText 同时绑定当前宿主的范围查询来源；宿主在真实文字绘制处登记自己的局部视口、变换和 clip，根与节点位置一起在匹配内容版本的 Accepted 场景发布，Discarded 和过期候选释放自己的引用。未登记节点位置或文字、内容失配、解除绑定及关闭时不保留旧文本几何。普通 handle.update 解除专用宿主及跟踪文档绑定，客户端的旧范围永久失效；重新调用对应宿主入口可恢复绑定，但不能复活旧范围。场景登记不创建 InputArea，也不修改正文、选区或真实焦点。
 
 排版查询通过 graphics.text 的 withNativeLayout 保留同一 TextLayout，几何使用 graphics 的 withNativeGeometry；原生 getter 不调用 Scoop、measure 或 render。文字来源按实际布局、正文与投影复用，单纯滚动／变换仅产生新的场景几何引用，不每帧复制正文、边界表或重建排版。文本编辑的 displayRange、选区 affinity、TextProjection 区间、OTP 的实际 cell／caret，以及可选文本的 alternateText 区间都来自既有宿主数据；不另造布局或可写文本模型。
 
 grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从实际排版映射回正文，软换行不变成正文换行。编辑器范围几何使用同一 displayRange 端点规则，投影中没有实际显示的范围不可用；可选文本的非空替代文字范围向外覆盖整个行内对象，caret 使用下游端点。按点查询返回该显示片段实际代表的正文范围，行内对象可以对应完整替代文字；无文本长度的装饰不制造正文字符。矩形保留实际 bidi 片段，原生 AppKit 按平台协议取其外接矩形；精确可见范围仍使用同一 Canvas clip，而非矩形重叠或采样点。
 
-受保护用途既不绑定原文范围也不向 native 发布正文长度或来源表；视觉显隐不改变这一点。两个专用入口把实际 cursor 的 TextAffinity 转为 SemanticProperties.cursorAffinity，软换行前一行末与后一行首不因字节偏移相同而混淆。仅选区或 cursor 偏向变化可复用与当前正文匹配的 Accepted 排版，正文变化立即撤下旧查询，不能把新偏移应用于旧文字。retained range 和行内子控件语义继续按 S5／S7 接入，同步见 Window 文本合同。
+受保护用途既不绑定原文范围也不向 native 发布正文长度或来源表；视觉显隐不改变这一点。两个专用入口把实际 cursor 的 TextAffinity 转为 SemanticProperties.cursorAffinity，软换行前一行末与后一行首不因字节偏移相同而混淆。仅选区或 cursor 偏向变化可复用与当前正文匹配的 Accepted 排版，正文变化立即撤下旧查询，不能把新偏移应用于旧文字。保留范围与行内子控件沿 Window 的文本范围及文本子对象合同发布，各平台实际验证范围见实施记录。
 
 ## 6. 滚动条节点
 
@@ -109,3 +117,7 @@ VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewp
 用真实第三方 Element 验证无 InputArea 的文本、多节点、透明挂载、子项路由、重排／角色替换、最新 handler、禁用／隐藏／模态限制、自删与关根、跨根错误和旧对象退休。无 drawable 的属性更新必须独立验证；场景缓存命中、Accepted／Discarded、裁剪、未放置和属性与候选帧不匹配必须通过实际场景验证。
 
 原生方法的进程内调用、外部 AX 客户端与 VoiceOver 分别记录。检查与构建不能代替实窗通过；其他平台只在其 provider 与实际工具验收后声明支持。
+
+编辑框可另传 setExpanded，用于有实际候选弹层的组合输入；expanded 属性描述当前已采纳的弹层状态，动作仍受原编辑宿主和输入边界约束，不替代编辑事务。UI 发布时为绑定的真实 InputArea 检查可点击点；未呈现、模态外、禁用、遮挡或找不到实际命中位置时不提供该点。
+
+SelectableText 的 TextRangeAction 以稳定 key 创建 Link 语义，名称取当前公开文本范围，调用沿实际动作与 Accepted 输入资格；每个动作保留独立焦点和精确路径。内联 View 的发生位置以稳定 InlineKey 保留 Group 语义及原交互后代，替代文本给出其名称。两者在正常语义发布时与当前宿主正文建立范围映射；正文不匹配、被保护、换绑或卸载时撤下旧映射，不用场景读取修改语义树。原生文本查询可定位内联子项，且不会创建另一套输入行为。

@@ -6,6 +6,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.accessibility.*
 
 internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentScope): Element<
     OtpDrawing
@@ -22,11 +23,14 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
                 value.onInteractionChanged
             )
         }
-    private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
+    private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
+    private val field =
+        scope.resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
     private val painters = scope.resource { ThemePainterCache() }
 
     init {
         scope.routeChildren(host.area)
+        scope.routeSemanticsChildren(semantics)
     }
 
     public override fun update(): UiInvalidation {
@@ -52,14 +56,37 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
                 }
         )
         field.update(input.labelTarget, input.enabled)
+        updateSemantics()
         painters.get(props.value.theme)
         return UiInvalidation.Layout
+    }
+    private fun updateSemantics() {
+        val handle = semantics ?: return
+        if (handle.isClosed)
+            return
+        val input = props.value.input
+        handle.bindReference(input.semantics.reference)
+        handle.updateTextEditor(
+            host,
+            input.semantics.properties(
+                required = field.isRequired(handle),
+                invalid = input.invalid
+            ),
+            field.relations(handle, input.semantics.relations)
+        )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         OtpDrawing
     > = measureOtp(this, context, constraints)
     public override fun scene(context: SceneContext, current: OtpDrawing) {
         val value = props.value
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         val painter = painters.get(value.theme)
         val adapter = host
         val offset = current.editor.scrollSnapshot.offset

@@ -7,6 +7,7 @@ import scoop.window.*
 internal interface AccessibilityProjection: Closeable {
     fun publish(changed: Collection<AccessibilityNode>, removed: Array<Long>, focused: Long)
     fun retire(number: Long)
+    fun announce(number: Long, text: String, priority: SemanticLive)
 }
 
 /** Stages owner-thread semantic changes and publishes them independently of drawing. */
@@ -16,6 +17,7 @@ public class AccessibilityProvider internal constructor(
     private val nodes = HashMap<Long, AccessibilityNode>()
     private val pending = HashMap<Long, AccessibilityNode>()
     private val removed = ArrayList<Long>()
+    private val announcements = HashMap<Long, SemanticAnnouncement>()
     internal val roots = ArrayList<AccessibilityNode>()
     private var focus: AccessibilityNode? = None
     private var focusChanged = false
@@ -124,9 +126,12 @@ public class AccessibilityProvider internal constructor(
     }
 
     internal fun retire(node: AccessibilityNode) {
+        announcements.remove(node.id.number)
         node.active = false
         node.collectionValue = None
         node.publishedCollection = None
+        node.documentValue = None
+        node.documentRevision = 0UL
         node.itemActions = SemanticCollectionActions()
         retireSemanticRelations(node)
         node.actions = SemanticActions()
@@ -151,21 +156,62 @@ public class AccessibilityProvider internal constructor(
     /** Publishes only staged changes. A native getter never observes a partial publication. */
     public fun publish() {
         checkOpen()
-        if (pending.size == 0L && removed.size == 0L && !focusChanged)
+        if (pending.size == 0L && removed.size == 0L && !focusChanged && announcements.size == 0L)
             return
         publishing = true
         try {
-            for (node in pending.values)
+            for (node in pending.values) {
                 resolveSemanticText(node)
+                val message = node.announcementText
+                if (
+                    node.hasPublished &&
+                        node.properties.live !=
+                        SemanticLive.Off &&
+                        message !=
+                        node.publishedMessage
+                ) {
+                    when (message) {
+                        case Some(val text) -> announcements[node.id.number] =
+                            SemanticAnnouncement(text, node.properties.live)
+                        case None -> {}
+                    }
+                }
+            }
             projection!!.publish(pending.values, removed.toArray(), focus?.id?.number ?: 0L)
-            for (node in pending.values)
+            for (node in pending.values) {
                 node.publishedCollection = node.collectionValue
+                node.publishedMessage = node.announcementText
+                node.hasPublished = true
+            }
             pending.clear()
             removed.clear()
             focusChanged = false
+            val delivered = ArrayList<Long>()
+            for (entry in announcements.entries) {
+                val node = nodes[entry.key]
+                when (node) {
+                    case Some(val target) -> if (!target.canAnnounce() || owner.inputBlocked) {
+                        delivered.add(entry.key)
+                    } else
+                        if (!target.announcementBusy) {
+                            projection!!.announce(entry.key, entry.value.text, entry.value.priority)
+                            delivered.add(entry.key)
+                        }
+                    case None -> delivered.add(entry.key)
+                }
+            }
+            for (number in delivered)
+                announcements.remove(number)
         } finally {
             publishing = false
         }
+    }
+
+    internal fun announce(node: AccessibilityNode, text: String, priority: SemanticLive) {
+        if (priority == SemanticLive.Off || !node.canAnnounce() || owner.inputBlocked)
+            return
+        announcements[node.id.number] = SemanticAnnouncement(text, priority)
+        changed(node)
     }
 
     internal fun collectionSource(number: Long, candidate: Boolean): SemanticCollectionSnapshot? {
@@ -218,6 +264,16 @@ public class AccessibilityProvider internal constructor(
                 case 4 -> actions.reveal?.invoke(key) ?: SemanticActionResult.Unsupported
                 case 5 -> actions.focus?.invoke(key, true) ?: SemanticActionResult.Unsupported
                 case 6 -> actions.focus?.invoke(key, false) ?: SemanticActionResult.Unsupported
+                case 7 -> when (source.selection) {
+                    case Some(_) -> actions.setSelected?.invoke(key, true) ?:
+                        SemanticActionResult.Unsupported
+                    case None -> SemanticActionResult.Unsupported
+                }
+                case 8 -> when (source.selection) {
+                    case Some(_) -> actions.setSelected?.invoke(key, operation == 7) ?:
+                        SemanticActionResult.Unsupported
+                    case None -> SemanticActionResult.Unsupported
+                }
                 else -> SemanticActionResult.Unsupported
             }
         if (!closed && owner.phase == WindowState.Open)
@@ -253,7 +309,7 @@ public class AccessibilityProvider internal constructor(
             if (action == 8 && (!position.isFinite() || position < 0.0 || position > 1.0))
                 return SemanticActionResult.InvalidArgument
         }
-        if (action == 5 || action == 6) {
+        if (action == 5 || action == 6 || action == 21) {
             if (node.contentRevision != revision)
                 return SemanticActionResult.Unavailable
             if (node.properties.protectedText || node.properties.value == None)
@@ -267,6 +323,21 @@ public class AccessibilityProvider internal constructor(
                 return SemanticActionResult.Unavailable
         }
         val actions = node.actions
+        if (action >= 12 && action <= 18 && node.properties.readOnly)
+            return SemanticActionResult.Rejected
+        if (action >= 12 && action <= 14) {
+            val range = node.properties.range ?: return SemanticActionResult.Unsupported
+            if (
+                action ==
+                    12 &&
+                    (!position.isFinite() || position < range.minimum || position > range.maximum)
+            )
+                return SemanticActionResult.InvalidArgument
+        }
+        if ((action == 15 || action == 16) && node.properties.selected == None)
+            return SemanticActionResult.Unsupported
+        if ((action == 17 || action == 18) && node.properties.expanded == None)
+            return SemanticActionResult.Unsupported
         val result =
             when (action) {
                 case 0 -> actions.invoke?.invoke() ?: SemanticActionResult.Unsupported
@@ -300,6 +371,19 @@ public class AccessibilityProvider internal constructor(
                 case 9 -> actions.scrollBackward?.invoke() ?: SemanticActionResult.Unsupported
                 case 10 -> actions.scrollForward?.invoke() ?: SemanticActionResult.Unsupported
                 case 11 -> actions.reveal?.invoke() ?: SemanticActionResult.Unsupported
+                case 12 -> actions.setNumber?.invoke(position) ?: SemanticActionResult.Unsupported
+                case 13 -> actions.increment?.invoke() ?: SemanticActionResult.Unsupported
+                case 14 -> actions.decrement?.invoke() ?: SemanticActionResult.Unsupported
+                case 15 -> actions.setSelected?.invoke(true) ?: SemanticActionResult.Unsupported
+                case 16 -> actions.setSelected?.invoke(false) ?: SemanticActionResult.Unsupported
+                case 17 -> actions.setExpanded?.invoke(true) ?: SemanticActionResult.Unsupported
+                case 18 -> actions.setExpanded?.invoke(false) ?: SemanticActionResult.Unsupported
+                case 21 -> when (val scroll = semanticTextScroll(position)) {
+                    case Some(val value) -> actions.revealText?.invoke(selection.range, value) ?:
+                        SemanticActionResult.Unsupported
+                    case None -> SemanticActionResult.InvalidArgument
+                }
+                case 19 -> actions.dismiss?.invoke() ?: SemanticActionResult.Unsupported
                 else -> SemanticActionResult.Unsupported
             }
         if (!closed && owner.phase == WindowState.Open)
@@ -318,6 +402,8 @@ public class AccessibilityProvider internal constructor(
             node.itemActions = SemanticCollectionActions()
             node.collectionValue = None
             node.publishedCollection = None
+            node.documentValue = None
+            node.documentRevision = 0UL
             node.invalidateGeometry()
             node.children.clear()
             node.parentNode = None
@@ -330,6 +416,7 @@ public class AccessibilityProvider internal constructor(
         }
         nodes.clear()
         pending.clear()
+        announcements.clear()
         removed.clear()
         roots.clear()
         focus = None

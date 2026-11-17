@@ -95,7 +95,10 @@ public class FieldTarget public constructor() {
                 declared.errorMessages
             else
                 errors.toArray(),
-            declared.controls
+            declared.controls,
+            declared.activeDescendant,
+            declared.rowHeaders,
+            declared.columnHeaders
         )
     }
 }

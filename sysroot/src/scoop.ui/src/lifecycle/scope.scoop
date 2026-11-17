@@ -83,6 +83,8 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(handle)
         return handle
     }
+    internal fun semanticAncestor(): SemanticsHandle? = inheritedSemantics(node)
+
     internal fun forgetSemantics(handle: SemanticsHandle) {
         resources.forget(handle)
     }

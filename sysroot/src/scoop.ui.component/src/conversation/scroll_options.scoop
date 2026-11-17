@@ -55,7 +55,10 @@ public class MessageScrollerProps public constructor(
     public val showControls: Boolean = true,
     public val placeholder: View? = None,
     public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
-    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val itemSemantics: ItemSemantics? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val collectionSemantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(spacing, "invalid message spacing")
@@ -69,6 +72,13 @@ public class MessageScrollerProps public constructor(
             case None -> {}
         }
         itemEstimate(itemExtent)
+        when (itemSemantics) {
+            case Some(val items) -> requireComponent(
+                items.source === source,
+                "message semantics must describe the same transcript snapshot"
+            )
+            case None -> {}
+        }
     }
 }
 
@@ -89,6 +99,9 @@ public class MessageScrollerBuilder internal constructor() {
     public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
     public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var key: ViewKey = ViewKey.Position
+    public var itemSemantics: ItemSemantics? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var collectionSemantics: ComponentSemantics = ComponentSemantics()
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit) {
         scrollbar = scrollbar.copy(configure)
     }
@@ -119,6 +132,9 @@ public class MessageScrollerBuilder internal constructor() {
             showControls,
             placeholder,
             scrollbarBehavior,
-            scrollPhysics
+            scrollPhysics,
+            itemSemantics,
+            semantics,
+            collectionSemantics
         )
 }

@@ -84,11 +84,8 @@ public fun SemanticsHandle.updateSelectableText(
             None
         else
             Some(host.semantics),
-        SemanticProperties(
-            name = properties.name,
-            description = properties.description,
-            automationId = properties.automationId,
-            value = snapshot?.text,
+        properties.copy {
+            value = snapshot?.text
             selection =
                 when (snapshot) {
                     case None -> None
@@ -98,24 +95,35 @@ public fun SemanticsHandle.updateSelectableText(
                             text.mapping.forward(host.cursor).byteOffset
                         )
                     )
-                },
-            enabled = properties.enabled && host.options.enabled,
-            readOnly = true,
-            protectedText = properties.protectedText,
-            hidden = properties.hidden,
-            error = properties.error,
-            ignored = properties.ignored,
-            required = properties.required,
-            scroll = properties.scroll,
+                }
+            enabled = properties.enabled && host.options.enabled
+            readOnly = true
+            protectedText = properties.protectedText
             cursorAffinity =
                 if (!properties.protectedText && host.cursor.affinity == TextAffinity.Upstream)
                     SemanticTextAffinity.Upstream
                 else
                     SemanticTextAffinity.Downstream
+        },
+        SemanticActions(
+            setSelection = select,
+            showContextMenu = showContextMenu,
+            revealText =
+                when (snapshot) {
+                    case Some(val text) -> Some {
+                        range,
+                        scroll -> if (!available())
+                            SemanticActionResult.Unavailable
+                        else
+                            semanticSelectableReveal(this, host, text, range, scroll)
+                    }
+                    case None -> None
+                }
         ),
-        SemanticActions(setSelection = select, showContextMenu = showContextMenu),
         relations
     )
+    for (action in host.actions)
+        action.refreshSemantics()
 }
 
 /** Immutable derived text is reused while pointer selection changes. */

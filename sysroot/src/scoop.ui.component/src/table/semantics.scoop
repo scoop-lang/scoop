@@ -1,0 +1,22 @@
+package scoop.ui.component
+
+/** A row summary only uses explicit text readers from its visible columns. */
+internal fun <Row> dataTableRowText(columns: Array<TableColumn<Row>>, row: Row): String? {
+    var result = ""
+    var described = false
+    for (column in columns) {
+        when (column.semanticText) {
+            case Some(val text) -> {
+                if (described)
+                    result += "; "
+                result += column.header + ": " + text(row)
+                described = true
+            }
+            case None -> {}
+        }
+    }
+    return if (described)
+        Some(result)
+    else
+        None
+}

@@ -1,6 +1,10 @@
 # 自绘基础控件
 
-Label、Button、Checkbox、Switch、Toggle、RadioGroup、ToggleGroup、Input／Textarea、SelectableStyledText 与 Typography 已接入默认语义。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored；角色、checked、禁用、只读、文本和动作仍取实际控件。当前原生资源使用 macOS provider，其他平台及其余控件按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续接入。
+基础输入、选择、数值、菜单、Tab、模态、日期、表格、虚拟集合及会话控件使用同一默认语义入口。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored、busy／live；角色、checked／selected／expanded、禁用、只读、正文与动作取实际控件。三个桌面平台共用组件声明，AppKit／UIA／AT-SPI 的实际验收范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。完整消费者见[无障碍设置示例](examples/accessibility/README.md)。
+
+已有覆盖值可用 `semantics.copy { busy = true }` 派生，receiver 为 ComponentSemanticsBuilder；未指定字段与原 reference 完整保留。复制不会创建节点或替控件执行业务动作。
+
+WindowControls 的 `semantics(button, maximized)` 回调可为系统窗口按钮命名；只覆盖部分按钮时，其余按钮可返回 `windowControlSemantics(button, maximized)` 保留默认名称。
 
 ```kotlin
 import scoop.ui.View
@@ -16,6 +20,12 @@ fun saveButton(onSave: () -> Unit): View =
 ```
 
 Button 默认从自己可合并的静态 Label 取得名称，独立交互后代继续可访问；显式 name（包括空串）优先于 labelledBy 和内容标签。Label 正文保留 StyledText 的行内 alternateText，覆盖名称不替换正文。Checkbox 的原生切换使用真实 Binding，拒绝写入不会先翻转语义状态。ButtonGroup、InputGroup、Command、Combobox、Sidebar 和原生文件按钮的相关包装继续传递覆盖值。
+
+`ComponentSemantics.reference = Some(SemanticsReference())` 可给关系的目标提供稳定引用；其 id 在真实挂载后可用，卸载时清空。Field、弹层触发器、Tab、候选项、表头等内置连接自行维护引用，通常无需手动管理。Dialog／Sheet／Drawer 的语义遵守同一模态输入边界，背景旧引用不能执行动作，dismiss 仍经过关闭 veto。
+
+Slider 发布真实数值范围、步长与调整动作；Progress 的未知值不伪装成零。Select／Combobox／NavigationMenu 和 DatePicker 发布实际 expanded 与 controls；Tabs、Calendar、Pagination 发布真实选择状态。OTP 只有一个 TextField，视觉槽位不拆成多个输入。Calendar 的 daySemantics 可本地化完整日期名称；静态 Table 发布行、列、跨度与表头关系。DataTable 的 semanticText／条目描述读取数据，不调用 cell View 构造函数；Command、Combobox、VirtualList 和 MessageScroller 使用同源集合快照。
+
+Toast 默认 live=Polite，首次实际显示后公告一次；Loading 暂缓，关闭、遮挡于模态背景或退休后不发迟到公告。普通 Label 等控件的 live 默认为 Off，应用可为实际状态消息明确启用。ImageView／PathView／Spinner／Separator 默认装饰，只有显式提供 semantics 才导出；Avatar 默认保留图像替代名称。可点击 Badge、Item、Bubble、Attachment、Trace 和问卷选项复用原操作与受控绑定，不通过模拟鼠标触发。
 
 Switch／Toggle 读取实际布尔绑定；RadioGroup 通过原选择入口选择，重复激活已选项不会取消或重复调用 setter。RadioGroup／ToggleGroup 的组和条目均可设置 semantics；重排沿原 key 保留节点，删除后旧引用失效，单选／多选规则不变。Switch 和 Radio 条目沿 FieldTarget 接入标签、说明、错误与 required。用法及运行范围见[选择控件语义测试](tests-cones/choice-accessibility/README.md)。
 

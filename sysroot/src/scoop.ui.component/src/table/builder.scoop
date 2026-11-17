@@ -14,7 +14,8 @@ public class TableCellProps public constructor(
     public val span: Long = 1L,
     public val alignment: AxisAlignment = AxisAlignment.Start,
     public val header: Boolean = false,
-    public val key: ViewKey = ViewKey.Position
+    public val key: ViewKey = ViewKey.Position,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class TableRowProps public constructor(
@@ -32,10 +33,12 @@ public class TableProps public constructor(
     public val width: Double? = None,
     public val enabled: Boolean = true,
     public val fonts: FontCollection? = None,
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class TableCellBuilder internal constructor() {
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var span: Long = 1L
     public var alignment: AxisAlignment = AxisAlignment.Start
     public var key: ViewKey = ViewKey.Position
@@ -69,7 +72,16 @@ public class TableRowBuilder internal constructor() {
     ) {
         val builder = TableCellBuilder()
         builder.configure()
-        cells.add(TableCellProps(content, builder.span, builder.alignment, header, builder.key))
+        cells.add(
+            TableCellProps(
+                content,
+                builder.span,
+                builder.alignment,
+                header,
+                builder.key,
+                builder.semantics
+            )
+        )
     }
     internal fun snapshot(section: TableSection, key: ViewKey): TableRowProps =
         TableRowProps(cells.toArray(), section, selected, key)
@@ -85,6 +97,7 @@ public class TableSectionBuilder internal constructor(private val section: Table
 }
 
 public class TableBuilder internal constructor() {
+    public var semantics: ComponentSemantics = ComponentSemantics()
     private val rows = ArrayList<TableRowProps>()
     private var caption: PanelContent? = None
     public var columns: Array<TableColumnSize>? = None
@@ -126,7 +139,7 @@ public class TableBuilder internal constructor() {
                 count += cell.span
         val sizes = columns ?: Array<TableColumnSize>(count) { _ -> TableColumnSize() }
         return component(
-            TableProps(values, sizes, caption, horizontal, width, enabled, fonts, theme),
+            TableProps(values, sizes, caption, horizontal, width, enabled, fonts, theme, semantics),
             { props, scope -> Table(props, scope) },
             key
         )

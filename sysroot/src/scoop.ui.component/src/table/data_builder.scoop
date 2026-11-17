@@ -23,7 +23,8 @@ public class DataTableProps<Row> public constructor(
     public val width: Double? = None,
     public val enabled: Boolean = true,
     public val fonts: FontCollection? = None,
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(bodyHeight, "invalid data table height")
@@ -58,6 +59,7 @@ public class DataTableBuilder internal constructor() {
     public var enabled: Boolean = true
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     public fun toolbar(view: View) {
         toolbar = Some(view)
@@ -90,7 +92,8 @@ public class DataTableBuilder internal constructor() {
             width,
             enabled,
             fonts,
-            theme
+            theme,
+            semantics
         )
 }
 

@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class TabControlProps(
     val content: ButtonContent,
@@ -12,7 +13,9 @@ internal class TabControlProps(
     val style: ButtonStyle,
     val focus: FocusOptions,
     val theme: Theme,
-    val activate: () -> Unit
+    val activate: () -> Unit,
+    val select: () -> SemanticActionResult,
+    val semantics: ComponentSemantics
 )
 
 internal class TabControl(
@@ -27,6 +30,17 @@ internal class TabControl(
             { props.value.activate() }
         )
     private val text = ActionTextStyle()
+    private val semantics = createComponentSemantics(scope, SemanticRole.Tab)
+    init {
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.bindFocus(Some(control.focus))
+                handle.mergeLabels = true
+                scope.routeSemanticsChildren(Some(handle))
+            }
+            case None -> {}
+        }
+    }
 
     public override fun render(): View {
         val input = props.value
@@ -57,7 +71,29 @@ internal class TabControl(
                         ButtonVariant.Ghost,
                         input.style,
                         visual,
-                        ActionBehavior.Press(control, input.activate, input.focus)
+                        ActionBehavior.Press(control, input.activate, input.focus),
+                        semantics = semantics,
+                        semanticOptions = input.semantics,
+                        semanticState =
+                            Some(
+                                input.semantics.properties(
+                                    enabled = input.enabled,
+                                    selected = Some(input.selected)
+                                )
+                            ),
+                        semanticActions =
+                            Some(
+                                SemanticActions(
+                                    invoke = Some(input.select),
+                                    setSelected =
+                                        Some {
+                                            value -> if (value)
+                                                input.select()
+                                            else
+                                                SemanticActionResult.Rejected
+                                        }
+                                )
+                            )
                     ),
                     { current, mount -> ActionInk(current, scope = mount) },
                     [

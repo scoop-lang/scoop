@@ -24,6 +24,7 @@ internal class SemanticTextBinding(
     val handle: SemanticsHandle,
     val host: SemanticTextHost
 ): Closeable {
+    var path: Array<ScrollReveal>? = None
     private var closed = false
     val active: Boolean get() = !closed
 
@@ -31,11 +32,13 @@ internal class SemanticTextBinding(
         if (!active)
             return
         closed = true
+        path = None
         handle.textBinding = None
         host.binding = None
         host.source?.close()
         host.source = None
         if (handle.active) {
+            handle.resource.textDocument = None
             @Unsafe
             {
                 handle.resource.setTextGeometry(None)

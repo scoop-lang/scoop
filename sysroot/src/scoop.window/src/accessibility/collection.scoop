@@ -1,6 +1,7 @@
 package scoop.window.accessibility
 
 import scoop.window.requireWindow
+import scoop.collections.HashSet
 
 /** Stable identity within one collection, independent of its current position. */
 public enum SemanticItemKey: Equals<SemanticItemKey>, Hash {
@@ -34,8 +35,26 @@ public struct SemanticItemProperties(
 public struct SemanticCollectionActions(
     val realize: ((SemanticItemKey) -> SemanticActionResult)? = None,
     val reveal: ((SemanticItemKey) -> SemanticActionResult)? = None,
-    val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
+    val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
+    val setSelected: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
 )
+
+/** An immutable selection snapshot whose size is proportional to the selection. */
+public class SemanticCollectionSelection public constructor(
+    public val keys: Array<SemanticItemKey>,
+    public val multiple: Boolean = false,
+    public val required: Boolean = false
+) {
+    private val selected = HashSet<SemanticItemKey>()
+    init {
+        requireWindow(multiple || keys.size <= 1L, "single selection has multiple items")
+        for (key in keys) {
+            requireWindow(!selected.contains(key), "duplicate selected item key")
+            selected.add(key)
+        }
+    }
+    public fun contains(key: SemanticItemKey): Boolean = selected.contains(key)
+}
 
 public struct SemanticItemSearch(val name: Boolean = false, val automationId: Boolean = false)
 
@@ -65,12 +84,27 @@ public enum SemanticItemResult {
 
 /** Retains only the source; explicit queries do not allocate an entire item tree. */
 public class SemanticCollectionSnapshot public constructor(
-    private val source: SemanticCollectionSource
+    private val source: SemanticCollectionSource,
+    public val selection: SemanticCollectionSelection? = None,
+    public val grid: SemanticGrid? = None
 ) {
     public val count: Long = source.count
     public val search: SemanticItemSearch = source.search
+    internal val hasSelection: Boolean get() =
+        when (selection) {
+            case Some(_) -> true
+            case None -> false
+        }
     init {
         requireWindow(count >= 0L, "negative semantic collection count")
+        when (selection) {
+            case Some(val value) -> for (key in value.keys)
+                requireWindow(
+                    indexOf(key) != None,
+                    "selected key is not in the collection snapshot"
+                )
+            case None -> {}
+        }
     }
 
     public fun itemAt(index: Long): SemanticItemResult {
@@ -101,7 +135,30 @@ public class SemanticCollectionSnapshot public constructor(
 
     private fun described(key: SemanticItemKey, index: Long): SemanticItemResult {
         val properties = source.describe(index) ?: return SemanticItemResult.Unavailable
-        return SemanticItemResult.Found(SemanticItem(key, index, count, properties))
+        val actual =
+            when (selection) {
+                case Some(val selected) -> SemanticItemProperties(
+                    properties.name,
+                    properties.description,
+                    properties.automationId,
+                    properties.value,
+                    properties.enabled,
+                    Some(selected.contains(key)),
+                    properties.expanded,
+                    properties.focusable
+                )
+                case None -> properties
+            }
+        return SemanticItemResult.Found(SemanticItem(key, index, count, actual))
+    }
+
+    public fun cellForKey(row: SemanticItemKey, column: SemanticItemKey): SemanticItemResult {
+        if (indexOf(row) == None)
+            return SemanticItemResult.NotFound
+        val table = grid ?: return SemanticItemResult.Unsupported
+        val index = table.indexOf(column) ?: return SemanticItemResult.NotFound
+        val properties = table.describe(row, index) ?: return SemanticItemResult.Unavailable
+        return SemanticItemResult.Found(SemanticItem(column, index, table.columns.size, properties))
     }
 
     /** Searches after a key in this snapshot, without retaining a positional cursor. */

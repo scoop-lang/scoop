@@ -35,6 +35,7 @@ public class InputOtpBuilder internal constructor() {
     public var contextMenu: TextContextMenuOptions = TextContextMenuOptions()
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onComplete: (TextEditorState) -> Unit = { _ -> Unit }
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     private val parts = ArrayList<(ThemeSource?) -> InputOtpPart>()
     public fun group(configure: InputOtpGroupBuilder.() -> Unit) {
@@ -85,7 +86,8 @@ public class InputOtpBuilder internal constructor() {
             drag,
             touch,
             touchScroll,
-            scrollPhysics
+            scrollPhysics,
+            semantics
         )
 }
 

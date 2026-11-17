@@ -302,9 +302,11 @@ private class CheckboxInk(
         val handle = value.semantics ?: return
         if (handle.isClosed)
             return
+        handle.bindReference(value.input.semantics.reference)
         handle.update(
             value.input.semantics.properties(
                 enabled = value.input.enabled,
+                invalid = value.input.invalid,
                 required = field!!.isRequired(handle),
                 checked =
                     Some(

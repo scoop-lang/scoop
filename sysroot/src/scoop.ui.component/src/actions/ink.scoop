@@ -21,13 +21,17 @@ internal class ActionInkProps(
     val actionable: Boolean = true,
     val semantics: SemanticsHandle? = None,
     val semanticOptions: ComponentSemantics = ComponentSemantics(),
-    val semanticToggle: (() -> SemanticActionResult)? = None
+    val semanticToggle: (() -> SemanticActionResult)? = None,
+    val semanticState: SemanticProperties? = None,
+    val semanticActions: SemanticActions? = None,
+    val prepareSemantics: (() -> SemanticsHandle?)? = None
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
 internal class ActionInk(private val props: Props<ActionInkProps>, scope: ComponentScope): Element<
     SurfaceMetrics
 >(scope) {
+    private var currentSemantics: SemanticsHandle? = None
     private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
@@ -42,6 +46,11 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
     }
     public override fun update(): UiInvalidation {
         val value = props.value
+        currentSemantics =
+            when (value.prepareSemantics) {
+                case Some(val prepare) -> prepare()
+                case None -> value.semantics
+            }
         when (value.behavior) {
             case Press(val owner, val action, val focus) -> {
                 val control = owner
@@ -56,16 +65,16 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                     field =
                         Some(
                             scope.resource {
-                                FieldLink(scope, control.area, control.focus, value.semantics) {
+                                FieldLink(scope, control.area, control.focus, currentSemantics) {
                                     updateSemantics()
                                 }
                             }
                         )
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
-                updateSemantics()
             }
             case Passive -> {}
         }
+        updateSemantics()
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,
@@ -91,39 +100,54 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
     }
     private fun updateSemantics() {
         val value = props.value
-        val handle = value.semantics ?: return
+        val handle = currentSemantics ?: return
         if (handle.isClosed)
             return
+        handle.bindReference(value.semanticOptions.reference)
         when (value.behavior) {
             case Press(_, val action, _) -> handle.update(
-                value.semanticOptions.properties(
-                    enabled = value.visual.interaction.enabled && value.actionable,
-                    required = field?.isRequired(handle) ?: false,
-                    checked =
-                        when (value.shape) {
-                            case Toggle(_, _, val pressed) -> Some(
-                                if (pressed)
-                                    SemanticChecked.On
-                                else
-                                    SemanticChecked.Off
-                            )
-                            else -> None
-                        }
-                ),
-                when (val toggle = value.semanticToggle) {
-                    case Some(_) -> SemanticActions(toggle = toggle)
-                    case None -> SemanticActions(
-                        invoke =
-                            Some {
-                                action();
-                                SemanticActionResult.Completed
+                value.semanticState?.copy {
+                    required =
+                        value.semanticState!!.required ||
+                            (this @ActionInk.field?.isRequired(handle) ?: false)
+                } ?:
+                    value.semanticOptions.properties(
+                        enabled = value.visual.interaction.enabled && value.actionable,
+                        invalid = value.visual.interaction.invalid,
+                        required = this @ActionInk.field?.isRequired(handle) ?: false,
+                        checked =
+                            when (value.shape) {
+                                case Toggle(_, _, val pressed) -> Some(
+                                    if (pressed)
+                                        SemanticChecked.On
+                                    else
+                                        SemanticChecked.Off
+                                )
+                                else -> None
                             }
-                    )
-                },
+                    ),
+                value.semanticActions ?:
+                    if (!value.actionable)
+                        SemanticActions()
+                    else
+                        when (val toggle = value.semanticToggle) {
+                            case Some(_) -> SemanticActions(toggle = toggle)
+                            case None -> SemanticActions(
+                                invoke =
+                                    Some {
+                                        action();
+                                        SemanticActionResult.Completed
+                                    }
+                            )
+                        },
                 field?.relations(handle, value.semanticOptions.relations) ?:
                     value.semanticOptions.relations
             )
-            case Passive -> {}
+            case Passive -> handle.update(
+                value.semanticState ?:
+                    value.semanticOptions.properties(enabled = value.visual.interaction.enabled),
+                relations = value.semanticOptions.relations
+            )
         }
     }
     private fun metrics(value: ActionInkProps, direction: LayoutDirection): SurfaceMetrics =
@@ -206,7 +230,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                 context.layoutDirection
             )
         val painter = painters!!.get(value.theme)
-        when (val handle = value.semantics) {
+        when (val handle = currentSemantics) {
             case Some(val semantic) -> context.semantics(semantic, geometry.bounds)
             case None -> {}
         }

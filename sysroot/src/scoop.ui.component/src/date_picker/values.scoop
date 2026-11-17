@@ -63,7 +63,11 @@ public class DatePickerProps public constructor(
     public val onValueChange: (CalendarValue) -> Unit = {},
     public val onOpenChange: (Boolean) -> Unit = {},
     public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
-    public val onClosed: (OverlayCloseReason) -> Unit = {}
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val popupSemantics: ComponentSemantics = ComponentSemantics(),
+    public val calendarButtonSemantics: ComponentSemantics =
+        ComponentSemantics(name = Some("Open calendar"))
 ) {
     init {
         when (selection) {

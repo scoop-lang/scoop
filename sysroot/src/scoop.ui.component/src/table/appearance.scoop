@@ -84,10 +84,16 @@ internal class TableAppearance(
     fun cell(
         cell: TableCellProps,
         key: ViewKey = ViewKey.Position,
-        emphasized: Boolean = false
+        emphasized: Boolean = false,
+        semantics: TableCellSemantics? = None
     ): View =
         element(
-            TableCellLayout(padding, cell.alignment, cell.header || emphasized),
+            TableCellLayout(
+                padding,
+                cell.alignment,
+                cell.header || emphasized,
+                semantics ?: basicCellSemantics(cell)
+            ),
             { props, scope -> TableCellInk(props, scope) },
             [content(cell.content, cell.header || emphasized)],
             key

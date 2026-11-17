@@ -7,6 +7,7 @@ import scoop.surface.Easing
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.column as modalColumn
 
 public class Dialog public constructor(
@@ -46,6 +47,7 @@ public class Sheet public constructor(
 internal class ModalContent(private val read: () -> ModalInput, scope: ComponentScope) {
     private val themes = ThemeAccess(scope)
     private val localHandle = OverlayHandle()
+    private val semanticReference = SemanticsReference()
     private val cancelFocus = FocusHandle()
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
@@ -54,6 +56,15 @@ internal class ModalContent(private val read: () -> ModalInput, scope: Component
     }
     private fun close() {
         (read().options.handle ?: localHandle).requestClose()
+    }
+    private fun dismissSemantically(): SemanticActionResult {
+        if (!read().open.value)
+            return SemanticActionResult.Unavailable
+        close()
+        return if (!read().open.value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     private fun setOpen(next: Boolean) {
         val previous = read().open.value
@@ -387,8 +398,30 @@ internal class ModalContent(private val read: () -> ModalInput, scope: Component
                 case Drawer(val props, _) -> props.mode
                 else -> OverlayMode.Modal
             }
+        val semantics =
+            options.semantics.copy {
+                if (name == None && relations.labelledBy.size == 0L)
+                    name = semanticCaption(options.title)
+                if (description == None)
+                    description = semanticCaption(options.description)
+                reference =
+                    Some(options.semantics.reference ?: this @ModalContent.semanticReference)
+            }
+        val semanticSurface =
+            semanticContent(
+                surface,
+                SemanticRole.Dialog,
+                semantics.properties(
+                    enabled = options.enabled,
+                    modal = overlayMode == OverlayMode.Modal
+                ),
+                actions = SemanticActions(dismiss = Some { dismissSemantically() }),
+                relations = semantics.relations,
+                mergeLabels = false,
+                reference = semantics.reference
+            )
         val popup =
-            portal(binding({ read().open.value }, { next -> setOpen(next) }), surface) {
+            portal(binding({ read().open.value }, { next -> setOpen(next) }), semanticSurface) {
                 placement = OverlayPlacement.Viewport(viewportPadding = 0.0)
                 mode = overlayMode
                 handle = Some(overlayHandle)
@@ -400,7 +433,24 @@ internal class ModalContent(private val read: () -> ModalInput, scope: Component
             }
         val trigger =
             when (options.trigger) {
-                case Some(val spec) -> modalButton(spec, { activate() }, options)
+                case Some(val spec) -> modalButton(
+                    spec,
+                    { activate() },
+                    options,
+                    semantics =
+                        Some(
+                            spec.semantics.copy {
+                                relations =
+                                    semanticControls(
+                                        relations,
+                                        (
+                                            options.semantics.reference ?:
+                                                this @ModalContent.semanticReference
+                                        ).id
+                                    )
+                            }
+                        )
+                )
                 case None -> empty()
             }
         return element({ mount -> ModalTriggerLayout(scope = mount) }, [trigger, popup])
@@ -422,7 +472,8 @@ private fun modalButton(
     input: PopupTriggerSpec,
     action: () -> Unit,
     options: ModalOptions,
-    focus: FocusOptions? = None
+    focus: FocusOptions? = None,
+    semantics: ComponentSemantics? = None
 ): View =
     component(
         ButtonProps(
@@ -440,7 +491,8 @@ private fun modalButton(
             options.theme,
             focus ?: input.focus,
             variant = input.variant,
-            size = input.size
+            size = input.size,
+            semantics = semantics ?: input.semantics
         ),
         { current, mount -> Button(current, scope = mount) }
     )

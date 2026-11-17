@@ -1,0 +1,146 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.SemanticTextDocument
+
+internal fun TextEditHost.semanticTextDocument(): SemanticTextDocument? {
+    if (options.protectedText)
+        return None
+    when (semanticDocument) {
+        case Some(_) -> {}
+        case None -> {
+            val document = SemanticTextDocument(current.text.byteLength)
+            current.semanticDocuments.add(document)
+            semanticDocument = Some(document)
+        }
+    }
+    return semanticDocument
+}
+
+internal fun TextEditHost.retireSemanticDocument() {
+    val document = semanticDocument ?: return
+    semanticDocument = None
+    for (index in 0L ..< current.semanticDocuments.size) {
+        if (current.semanticDocuments[index] === document) {
+            current.semanticDocuments.removeAt(index)
+            break
+        }
+    }
+    document.close()
+}
+
+internal fun editorDifferenceMap(before: EditorValue, after: EditorValue): EditorOffsetMap {
+    val edits = ArrayList<EditorDelta>()
+    appendEditorDelta(edits, before, after, EditorEditKind.Separate)
+    return EditorReplacementMap(
+        Array<TextEditReplacement>(edits.size) {
+            index ->
+            val edit = edits[index]
+            TextEditReplacement(
+                Utf8Range(edit.start, edit.start + edit.removed.byteLength),
+                edit.inserted
+            )
+        }
+    )
+}
+
+private class SemanticMappingFailure {
+    var error: Throwable? = None
+}
+
+internal fun editorOperationMap(
+    before: EditorValue,
+    after: EditorValue,
+    operation: TextInputOperation
+): EditorOffsetMap {
+    if (before.input.surroundingText == after.input.surroundingText)
+        return EditorIdentityMap()
+    return when (operation) {
+        case Commit(val text, val replacement) -> EditorReplacementMap(
+            [TextEditReplacement(editorReplacementRange(before, replacement), text)]
+        )
+        case Preedit(val text, _, val replacement) -> if (text.byteLength > 0L)
+            EditorReplacementMap(
+                [TextEditReplacement(editorReplacementRange(before, replacement), text)]
+            )
+        else
+            editorDifferenceMap(before, after)
+        case DeleteSurrounding(val previous, val following) -> {
+            val range = before.input.selection.range
+            EditorReplacementMap(
+                [
+                    TextEditReplacement(Utf8Range(range.start - previous, range.start), ""),
+                    TextEditReplacement(Utf8Range(range.end, range.end + following), "")
+                ]
+            )
+        }
+        else -> editorDifferenceMap(before, after)
+    }
+}
+
+/** The native document owns endpoints, while this transaction supplies the existing mapping. */
+internal fun mapEditorSemanticDocuments(
+    state: TextEditorState,
+    before: EditorValue,
+    after: EditorValue,
+    change: EditorHistoryChange,
+    explicit: EditorOffsetMap?
+) {
+    if (
+        state.semanticDocuments.size ==
+            0L ||
+            before.input.surroundingText ==
+            after.input.surroundingText
+    )
+        return
+    when (change) {
+        case Reset -> {
+            for (document in state.semanticDocuments)
+                document.reset(after.input.surroundingText.byteLength)
+            return
+        }
+        else -> {}
+    }
+    val mapping = explicit ?: editorDifferenceMap(before, after)
+    val failure = SemanticMappingFailure()
+    @Unsafe
+    {
+        val callback =
+            foreignCallback<(Ptr<Unit>, Long, Int) -> Long>(
+                {
+                    offset: Long,
+                    affinity: Int -> try {
+                        mapping.forward(
+                            TextPosition(
+                                offset,
+                                if (affinity == 0)
+                                    TextAffinity.Upstream
+                                else
+                                    TextAffinity.Downstream
+                            )
+                        ).byteOffset
+                    } catch (error: Throwable) {
+                        failure.error = Some(error);
+                        -1L
+                    }
+                },
+                0,
+                ForeignCallbackMode.Reusable
+            )
+        try {
+            for (document in state.semanticDocuments)
+                document.mapOffsets(
+                    after.input.surroundingText.byteLength,
+                    callback.function,
+                    callback.context
+                )
+        } catch (error: Throwable) {
+            throw failure.error ?: error
+        }
+        finally {
+            releaseForeignCallback(callback)
+        }
+    }
+}

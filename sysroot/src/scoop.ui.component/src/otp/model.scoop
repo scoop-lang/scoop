@@ -44,7 +44,8 @@ public class InputOtpProps public constructor(
     public val drag: TextDragOptions = TextDragOptions(),
     public val touch: TextTouchOptions = TextTouchOptions(),
     public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
-    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         requireComponent(length > 0L, "OTP length must be positive")

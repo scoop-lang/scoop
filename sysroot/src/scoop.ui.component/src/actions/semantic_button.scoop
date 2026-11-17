@@ -1,0 +1,71 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+private class SemanticButtonProps(
+    val input: ButtonProps,
+    val role: SemanticRole,
+    val state: SemanticProperties,
+    val actions: SemanticActions
+)
+
+private class SemanticButton(
+    private val props: Props<SemanticButtonProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val button =
+        ButtonControl(
+            { props.value.input },
+            scope,
+            props.value.role,
+            { Some(props.value.state) },
+            { Some(props.value.actions) }
+        )
+    public override fun onMount() {
+        button.mount()
+    }
+    public override fun render(): View = button.render()
+}
+
+/** Uses the ordinary button's layout, press, focus and visual state for semantic variants. */
+internal fun semanticButton(
+    input: ButtonProps,
+    role: SemanticRole,
+    state: SemanticProperties,
+    actions: SemanticActions
+): View =
+    component(
+        SemanticButtonProps(input, role, state, actions),
+        { props, mount -> SemanticButton(props, scope = mount) },
+        // A role change retires its identity even when the surrounding component is reused.
+        key =
+            ViewKey.Number(
+                when (role) {
+                    case Button -> 2L
+                    case Link -> 13L
+                    case MenuItem -> 18L
+                    case Cell -> 23L
+                    case Disclosure -> 26L
+                    else -> throw IllegalArgumentException(
+                        Some("unsupported semantic button variant")
+                    )
+                }
+            )
+    )
+
+internal fun popupSemanticButton(
+    input: ButtonProps,
+    expanded: Boolean,
+    change: (Boolean) -> SemanticActionResult
+): View =
+    semanticButton(
+        input,
+        SemanticRole.Button,
+        input.semantics.properties(
+            enabled = input.enabled,
+            invalid = input.invalid,
+            expanded = Some(expanded)
+        ),
+        SemanticActions(invoke = Some { change(!expanded) }, setExpanded = Some(change))
+    )

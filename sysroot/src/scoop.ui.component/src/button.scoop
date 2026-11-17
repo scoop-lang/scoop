@@ -5,7 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.InlineView
-import scoop.window.accessibility.SemanticRole
+import scoop.window.accessibility.*
 
 public enum ButtonContent {
     Label(LabelProps), Custom(View), Resolved((ActionContentStyle) -> View)
@@ -30,12 +30,25 @@ public class Button public constructor(
     private val props: Props<ButtonProps>,
     scope: ComponentScope
 ): Component(scope) {
+    private val button = ButtonControl({ props.value }, scope)
+    public override fun onMount() {
+        button.mount()
+    }
+    public override fun render(): View = button.render()
+}
+
+internal class ButtonControl(
+    private val read: () -> ButtonProps,
+    private val scope: ComponentScope,
+    role: SemanticRole = SemanticRole.Button,
+    private val semanticState: () -> SemanticProperties? = { None },
+    private val semanticActions: () -> SemanticActions? = { None }
+) {
     private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
-    private val click: () -> Unit = { props.value.onClick() }
-    private val control =
-        PressControl(scope, PressOptions(props.value.enabled), props.value.focus, click)
-    private val semantics = createComponentSemantics(scope, SemanticRole.Button)
+    private val click: () -> Unit = { read().onClick() }
+    private val control = PressControl(scope, PressOptions(read().enabled), read().focus, click)
+    private val semantics = createComponentSemantics(scope, role)
     init {
         when (semantics) {
             case Some(val handle) -> {
@@ -46,11 +59,11 @@ public class Button public constructor(
             case None -> {}
         }
     }
-    public override fun onMount() {
-        themes.mount(props.value.theme)
+    fun mount() {
+        themes.mount(read().theme)
     }
-    public override fun render(): View {
-        val input = props.value
+    fun render(): View {
+        val input = read()
         val theme = themes.read(input.theme)
         val interaction = control.press.interaction
         val visual =
@@ -75,7 +88,9 @@ public class Button public constructor(
                 input.group,
                 input.labelTarget,
                 semantics = semantics,
-                semanticOptions = input.semantics
+                semanticOptions = input.semantics,
+                semanticState = semanticState(),
+                semanticActions = semanticActions()
             ),
             { current, mount -> ActionInk(current, scope = mount) },
             [

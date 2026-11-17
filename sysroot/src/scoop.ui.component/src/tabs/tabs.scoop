@@ -4,6 +4,12 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
+
+private class TabRelations(val key: ViewKey) {
+    val trigger = SemanticsReference()
+    val panel = SemanticsReference()
+}
 
 public class Tabs<T: Equals<T>> public constructor(
     private val props: Props<TabsProps<T>>,
@@ -11,6 +17,7 @@ public class Tabs<T: Equals<T>> public constructor(
 ): Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess(scope)
+    private var links: Array<TabRelations> = []
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -18,11 +25,39 @@ public class Tabs<T: Equals<T>> public constructor(
         if (selectTab(props.value, key))
             props.value.onValueChange(props.value.selected.value)
     }
+    private fun selectSemantically(key: ViewKey): SemanticActionResult {
+        val input = props.value
+        if (!input.enabled)
+            return SemanticActionResult.Rejected
+        for (entry in input.entries) {
+            if (entry.choice.key != key)
+                continue
+            if (!entry.choice.enabled)
+                return SemanticActionResult.Rejected
+            select(key)
+            return if (props.value.selected.value == Some(entry.choice.value))
+                SemanticActionResult.Completed
+            else
+                SemanticActionResult.Rejected
+        }
+        return SemanticActionResult.Unavailable
+    }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
         val density = theme.tokens.typography.action.fontSize / 14.0
         val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].choice.key }
+        val previous = links
+        links =
+            Array<TabRelations>(keys.size) {
+                index ->
+                var found: TabRelations? = None
+                for (entry in previous)
+                    if (entry.key == keys[index])
+                        found = Some(entry)
+                found ?: TabRelations(keys[index])
+            }
+        val links = this.links
         val focus =
             handles.resolve(
                 keys,
@@ -81,7 +116,14 @@ public class Tabs<T: Equals<T>> public constructor(
                         entry.triggerStyle ?: buttonStyle { this.kind = SurfaceKind.Plain },
                         choiceFocus(entry.focus, focus[index]),
                         theme,
-                        { select(key) }
+                        { select(key) },
+                        { selectSemantically(key) },
+                        entry.semantics.copy {
+                            if (name == None && relations.labelledBy.size == 0L)
+                                name = Some(entry.choice.label)
+                            reference = Some(entry.semantics.reference ?: links[index].trigger)
+                            relations = semanticControls(relations, links[index].panel.id)
+                        }
                     ),
                     { current, mount -> TabControl(current, scope = mount) }
                 )
@@ -132,26 +174,53 @@ public class Tabs<T: Equals<T>> public constructor(
                             (entry.retention ?: input.retention) ==
                             ContentRetention.KeepMounted
                     )
-                        [panelFrame(entry.content, visual = entry.panelStyle)]
+                        [
+                            semanticContent(
+                                panelFrame(entry.content, visual = entry.panelStyle),
+                                SemanticRole.Group,
+                                SemanticProperties(hidden = !active),
+                                relations =
+                                    SemanticRelations(
+                                        labelledBy =
+                                            semanticIds(
+                                                (
+                                                    entry.semantics.reference ?:
+                                                        links[index].trigger
+                                                ).id
+                                            )
+                                    ),
+                                mergeLabels = false,
+                                reference = Some(links[index].panel)
+                            )
+                        ]
                     else
                         [],
                     keys[index]
                 )
             }
-        return panelFrame(
-            element(
-                TabsLayoutProps(input.axis, input.spacing),
-                { current, mount -> TabsLayout(current, scope = mount) },
-                [
-                    header,
-                    element(
-                        selected,
-                        { current, mount -> TabPanels(current, scope = mount) },
-                        panels
-                    )
-                ]
+        return semanticContent(
+            panelFrame(
+                element(
+                    TabsLayoutProps(input.axis, input.spacing),
+                    { current, mount -> TabsLayout(current, scope = mount) },
+                    [
+                        header,
+                        element(
+                            selected,
+                            { current, mount -> TabPanels(current, scope = mount) },
+                            panels
+                        )
+                    ]
+                ),
+                visual = input.style
             ),
-            visual = input.style
+            SemanticRole.TabGroup,
+            input.semantics.properties(enabled = input.enabled, required = true).copy {
+                selectionMode = Some(SemanticSelectionMode.Single)
+            },
+            relations = input.semantics.relations,
+            mergeLabels = false,
+            reference = input.semantics.reference
         )
     }
 }

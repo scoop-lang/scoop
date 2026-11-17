@@ -30,7 +30,9 @@ public class PaginationProps public constructor(
     public val previousFocus: FocusOptions = FocusOptions(),
     public val nextFocus: FocusOptions = FocusOptions(),
     public val pageFocus: (Long) -> FocusOptions = { _ -> FocusOptions() },
-    public val onValueChange: (Long) -> Unit = {}
+    public val onValueChange: (Long) -> Unit = {},
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val pageSemantics: (Long) -> ComponentSemantics = { _ -> ComponentSemantics() }
 ) {
     init {
         validatePagination(pageCount, siblings, boundaries)

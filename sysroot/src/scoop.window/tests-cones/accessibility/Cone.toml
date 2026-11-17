@@ -10,6 +10,9 @@ kind = "library"
 path = "test-darwin"
 when = { os = "darwin" }
 
+[[test.sources]]
+path = "tests"
+
 [test-dependencies]
 "scoop:scoop.window" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.graphics" = "0.1.0"
@@ -18,6 +21,8 @@ when = { os = "darwin" }
 "scoop:scoop.test" = "0.1.0"
 
 [native]
+cxx = true
+cxx_flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 
 [[native.sources]]
@@ -43,4 +48,26 @@ when = { os = "darwin" }
 [[native.libraries]]
 name = "AppKit"
 kind = "framework"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/text_document.cpp"
+
+[[native.sources]]
+path = "native/projection.cpp"
+
+[[native.sources]]
+path = "../../native/accessibility/tree.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "../../native/accessibility/element.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "../../native/accessibility/grid.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "../../native/accessibility/text.cpp"
 when = { os = "darwin" }

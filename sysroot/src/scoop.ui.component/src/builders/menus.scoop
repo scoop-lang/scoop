@@ -19,6 +19,7 @@ public open class MenuOptionsBuilder internal constructor() {
     public var submenuHover: HoverOptions =
         HoverOptions(openDelay = Duration.milliseconds(100L), focus = false)
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: StyleOverrideBuilder.() -> Unit) {
         style = style.copy(configure)
     }
@@ -36,7 +37,8 @@ public open class MenuOptionsBuilder internal constructor() {
             style,
             transition,
             Some(typeahead),
-            submenuHover
+            submenuHover,
+            semantics
         )
 }
 

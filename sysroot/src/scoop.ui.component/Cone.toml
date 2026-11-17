@@ -9,18 +9,6 @@ kind = "library"
 path = "src"
 when = { os = ["darwin", "windows"] }
 
-[[sources]]
-path = "platform/darwin"
-when = { os = "darwin" }
-
-[[sources]]
-path = "platform/without-accessibility"
-when = { os = "windows" }
-
-[[sources]]
-path = "platform/without-accessibility"
-when = { os = "linux", env = "gnu" }
-
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"

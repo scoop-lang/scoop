@@ -1,0 +1,49 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.window.Utf8Range
+import scoop.window.accessibility.*
+
+internal class SemanticTextChildBinding(
+    val parent: SemanticsHandle,
+    val text: String,
+    val range: Utf8Range
+)
+
+internal fun refreshSemanticTextChildren(handles: Array<SemanticsHandle>) {
+    val entries = HashMap<SemanticNodeId, ArrayList<SemanticTextChild>>()
+    for (handle in handles) {
+        if (!handle.active)
+            continue
+        val binding = handle.textChild ?: continue
+        val parent = binding.parent
+        if (
+            !parent.active ||
+                parent.properties.protectedText ||
+                parent.properties.value !=
+                Some(binding.text)
+        )
+            continue
+        var ancestor = handle.parent
+        var descendant = false
+        while (true) {
+            val current = ancestor ?: break
+            if (current === parent) {
+                descendant = true;
+                break
+            }
+            ancestor = current.parent
+        }
+        if (!descendant)
+            continue
+        val children = entries[parent.id] ?: ArrayList<SemanticTextChild>()
+        children.add(SemanticTextChild(handle.id, binding.range))
+        entries[parent.id] = children
+    }
+    for (handle in handles)
+        if (
+            handle.active &&
+                (handle.role == SemanticRole.Text || handle.role == SemanticRole.TextField)
+        )
+            handle.resource.textChildren = entries[handle.id]?.toArray() ?: []
+}

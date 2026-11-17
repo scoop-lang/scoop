@@ -5,12 +5,14 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class TableResizeInput(
     val width: Binding<Double?>,
     val size: TableColumnSize,
     val appearance: TableAppearance,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val name: String
 )
 
 private class TableResizeGesture(
@@ -44,6 +46,7 @@ internal class TableResizeHeader(
             }
         }
     private val focus = scope.focusTarget(area)
+    private val semantics = createComponentSemantics(scope, SemanticRole.Separator)
     private val drag =
         scope.drag(
             area,
@@ -52,6 +55,7 @@ internal class TableResizeHeader(
             { event -> receive(event) }
         )
     init {
+        semantics?.bindFocus(Some(focus))
         area.scope.defaultAction =
             {
                 context,
@@ -107,6 +111,67 @@ internal class TableResizeHeader(
                 -1.0
         props.value.width.value =
             Some(props.value.size.constrain(lowerBound(width + sign * 10.0, 0.0)))
+    }
+    private fun setNumber(value: Double): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!props.value.enabled)
+            return SemanticActionResult.Rejected
+        if (!value.isFinite() || value < 0.0)
+            return SemanticActionResult.InvalidArgument
+        if (accepted == None)
+            return SemanticActionResult.Unavailable
+        cancel()
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        val next = props.value.size.constrain(value)
+        props.value.width.value = Some(next)
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        return if (props.value.width.value == Some(next))
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
+    private fun stepNumber(amount: Double): SemanticActionResult {
+        val current =
+            props.value.width.value ?: (accepted ?: return SemanticActionResult.Unavailable)
+        return setNumber(lowerBound(current + amount, 0.0))
+    }
+    private fun updateSemantics() {
+        val input = props.value
+        val current =
+            when (accepted) {
+                case Some(val width) -> Some(input.size.constrain(input.width.value ?: width))
+                case None -> None
+            }
+        semantics?.update(
+            SemanticProperties(
+                name = Some(input.name),
+                enabled = input.enabled,
+                orientation = Some(SemanticOrientation.Vertical),
+                range =
+                    when (current) {
+                        case Some(val width) -> Some(
+                            SemanticValueRange(
+                                input.size.minimum,
+                                input.size.maximum ?: Double.MAX_VALUE,
+                                width,
+                                10.0
+                            )
+                        )
+                        case None -> None
+                    }
+            ),
+            if (current != None)
+                SemanticActions(
+                    setNumber = Some { value -> setNumber(value) },
+                    increment = Some { stepNumber(10.0) },
+                    decrement = Some { stepNumber(-10.0) }
+                )
+            else
+                SemanticActions()
+        )
     }
     private fun receive(event: DragEvent) {
         when (event) {
@@ -188,6 +253,7 @@ internal class TableResizeHeader(
             { event -> receive(event) }
         )
         area.scope.enabled = props.value.enabled
+        updateSemantics()
         updateCursor()
         return UiInvalidation.Layout
     }
@@ -212,6 +278,7 @@ internal class TableResizeHeader(
                         None
                 if (accepted == None)
                     cancel()
+                updateSemantics()
             }
         }
         context.children()
@@ -228,6 +295,10 @@ internal class TableResizeHeader(
                 lowerBound(size.height - 8.0 * density, 0.0)
             )
         context.place(area, bounds)
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, bounds)
+            case None -> {}
+        }
         if (area.scope.isHovered || area.isFocusVisible || drag.isDragging)
             context.draw {
                 paint ->

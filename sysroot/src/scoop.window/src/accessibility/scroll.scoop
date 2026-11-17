@@ -11,7 +11,8 @@ public struct SemanticScrollRange(
     val orientation: SemanticOrientation,
     val offset: Double,
     val viewport: Double,
-    val content: Double
+    val content: Double,
+    val lineStep: Double? = None
 ) {
     public val maximum: Double get() =
         if (content > viewport)
@@ -20,6 +21,13 @@ public struct SemanticScrollRange(
             0.0
 
     internal fun check() {
+        when (lineStep) {
+            case Some(val step) -> requireWindow(
+                step.isFinite() && step > 0.0,
+                "invalid semantic scroll step"
+            );
+            case None -> {}
+        }
         requireWindow(
             offset.isFinite() &&
                 viewport.isFinite() &&

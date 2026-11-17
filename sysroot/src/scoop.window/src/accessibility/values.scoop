@@ -20,7 +20,12 @@ public class SemanticNodeId internal constructor(
 
 /** Roles implemented by the initial native content provider. */
 public enum SemanticRole {
-    Group, Text, Button, Checkbox, TextField, ScrollArea, ScrollBar, Switch, ToggleButton, RadioButton, RadioGroup, Image, List
+    Group, Text, Button, Checkbox, TextField, ScrollArea, ScrollBar, Switch, ToggleButton, RadioButton, RadioGroup, Image, List,
+    Link, Heading, Slider, ProgressBar, Menu, MenuItem, TabGroup, Tab, Dialog, Table, Cell, RowHeader, ColumnHeader, Disclosure, Separator, Row
+}
+
+public enum SemanticSelectionMode {
+    Single, Multiple
 }
 
 public enum SemanticChecked {
@@ -48,11 +53,35 @@ public struct SemanticProperties(
     val selection: Utf8Selection? = None,
     val required: Boolean = false,
     val scroll: SemanticScrollRange? = None,
-    val cursorAffinity: SemanticTextAffinity = SemanticTextAffinity.Downstream
+    val cursorAffinity: SemanticTextAffinity = SemanticTextAffinity.Downstream,
+    val selected: Boolean? = None,
+    val expanded: Boolean? = None,
+    val invalid: Boolean = false,
+    val busy: Boolean = false,
+    val modal: Boolean = false,
+    val headingLevel: Int? = None,
+    val range: SemanticValueRange? = None,
+    val url: String? = None,
+    val live: SemanticLive = SemanticLive.Off,
+    val table: SemanticTableSize? = None,
+    val cell: SemanticTableCell? = None,
+    val orientation: SemanticOrientation? = None,
+    val selectionMode: SemanticSelectionMode? = None
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")
         scroll?.check()
+        range?.check()
+        table?.check()
+        cell?.check()
+        requireWindow(
+            range == None || (value == None && scroll == None),
+            "numeric ranges cannot publish text or scroll values"
+        )
+        when (headingLevel) {
+            case Some(val level) -> requireWindow(level >= 1 && level <= 6, "invalid heading level")
+            case None -> {}
+        }
         requireWindow(scroll == None || value == None, "scroll ranges cannot publish text values")
         when (selection) {
             case Some(val selected) -> {
@@ -68,17 +97,56 @@ public struct SemanticProperties(
 }
 
 /** Ordered references in one active provider; they do not change parenthood or focus. */
+public enum SemanticDescendant: Equals<SemanticDescendant> {
+    Node(SemanticNodeId), Item(SemanticNodeId, SemanticItemKey)
+    public override operator fun equals(other: SemanticDescendant): Boolean =
+        when ((this, other)) {
+            case(Node(val left), Node(val right)) -> left == right
+            case(Item(val left, val key), Item(val right, val otherKey)) -> left ==
+                right &&
+                key ==
+                otherKey
+            else -> false
+        }
+    internal val node: SemanticNodeId get() =
+        when (this) {
+            case Node(val id) -> id
+            case Item(val id, _) -> id
+        }
+}
+
 public struct SemanticRelations(
     val labelledBy: Array<SemanticNodeId> = [],
     val describedBy: Array<SemanticNodeId> = [],
     val errorMessages: Array<SemanticNodeId> = [],
-    val controls: Array<SemanticNodeId> = []
+    val controls: Array<SemanticNodeId> = [],
+    val activeDescendant: SemanticDescendant? = None,
+    val rowHeaders: Array<SemanticNodeId> = [],
+    val columnHeaders: Array<SemanticNodeId> = []
 ): Equals<SemanticRelations> {
     public override operator fun equals(other: SemanticRelations): Boolean =
         sameSemanticIds(labelledBy, other.labelledBy) &&
             sameSemanticIds(describedBy, other.describedBy) &&
             sameSemanticIds(errorMessages, other.errorMessages) &&
-            sameSemanticIds(controls, other.controls)
+            sameSemanticIds(controls, other.controls) &&
+            activeDescendant ==
+            other.activeDescendant &&
+            sameSemanticIds(rowHeaders, other.rowHeaders) &&
+            sameSemanticIds(columnHeaders, other.columnHeaders)
+
+    internal val references: Array<Array<SemanticNodeId>> get() =
+        [
+            labelledBy,
+            describedBy,
+            errorMessages,
+            controls,
+            rowHeaders,
+            columnHeaders,
+            when (activeDescendant) {
+                case Some(val value) -> [value.node];
+                case None -> []
+            }
+        ]
 }
 
 internal fun sameSemanticIds(left: Array<SemanticNodeId>, right: Array<SemanticNodeId>): Boolean {
@@ -150,8 +218,16 @@ public struct SemanticActions(
     val scrollBackward: (() -> SemanticActionResult)? = None,
     val scrollForward: (() -> SemanticActionResult)? = None,
     /** Completes only when matching accepted geometry is visible, without changing focus. */
-    val reveal: (() -> SemanticActionResult)? = None
+    val reveal: (() -> SemanticActionResult)? = None,
+    val setNumber: ((Double) -> SemanticActionResult)? = None,
+    val increment: (() -> SemanticActionResult)? = None,
+    val decrement: (() -> SemanticActionResult)? = None,
+    val setSelected: ((Boolean) -> SemanticActionResult)? = None,
+    val setExpanded: ((Boolean) -> SemanticActionResult)? = None,
+    val dismiss: (() -> SemanticActionResult)? = None,
+    val revealText: ((Utf8Range, SemanticTextScroll) -> SemanticActionResult)? = None
 ) {
+    public val isEmpty: Boolean get() = capabilities == 0
     internal val capabilities: Int get() {
         var result = 0
         when (invoke) {
@@ -196,6 +272,34 @@ public struct SemanticActions(
         }
         when (reveal) {
             case Some(_) -> result += 1024;
+            case None -> {}
+        }
+        when (setNumber) {
+            case Some(_) -> result += 2048;
+            case None -> {}
+        }
+        when (increment) {
+            case Some(_) -> result += 4096;
+            case None -> {}
+        }
+        when (decrement) {
+            case Some(_) -> result += 8192;
+            case None -> {}
+        }
+        when (setSelected) {
+            case Some(_) -> result += 16384;
+            case None -> {}
+        }
+        when (setExpanded) {
+            case Some(_) -> result += 32768;
+            case None -> {}
+        }
+        when (dismiss) {
+            case Some(_) -> result += 65536;
+            case None -> {}
+        }
+        when (revealText) {
+            case Some(_) -> result += 131072;
             case None -> {}
         }
         return result

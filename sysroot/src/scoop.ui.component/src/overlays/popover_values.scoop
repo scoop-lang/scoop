@@ -13,7 +13,8 @@ public class PopupTriggerSpec public constructor(
     public val size: ButtonSize = ButtonSize.Default,
     public val style: ButtonStyle = buttonStyle(),
     public val focus: FocusOptions = FocusOptions(),
-    public val fonts: FontCollection? = None
+    public val fonts: FontCollection? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class PopoverProps public constructor(
@@ -42,7 +43,8 @@ public class PopoverProps public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val style: StyleOverride = styleOverride(),
-    public val arrow: PopupArrow? = None
+    public val arrow: PopupArrow? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         if (!panelPresent(trigger) && !panelPresent(anchor))

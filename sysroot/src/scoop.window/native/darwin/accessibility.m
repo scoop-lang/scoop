@@ -20,6 +20,18 @@
 @end
 
 @implementation SWAccessibilityState
+- (void)setTextDocument:(SWTextDocument *)document
+               revision:(uint64_t)revision
+                  epoch:(uint64_t)epoch {
+  sw_text_document_retain(document);
+  sw_text_document_release(_textDocument);
+  _textDocument = document;
+  _documentRevision = revision;
+  _documentEpoch = epoch;
+}
+- (void)dealloc {
+  sw_text_document_release(_textDocument);
+}
 - (instancetype)init {
   if ((self = [super init]))
     _itemCount = -1;
@@ -125,14 +137,65 @@ int64_t scoop_window_accessibility_put(void *pointer,
       state.data = data;
       state.selection = NSMakeRange(NSNotFound, 0);
       state.labels = [NSMutableArray new];
+      state.textChildren = [NSMutableArray new];
       state.controls = [NSMutableArray new];
       state.titleFor = [NSMutableArray new];
+      state.descriptions = [NSMutableArray new];
+      state.errors = [NSMutableArray new];
+      state.rowHeaders = [NSMutableArray new];
+      state.columnHeaders = [NSMutableArray new];
+      state.itemCount = -1;
+      state.selectionKind = -1;
+      state.selectedKeys = [NSMutableArray new];
+      state.gridColumns = [NSMutableArray new];
       tree.pending[@(data.number)] = state;
       return 0;
     } @catch (NSException *exception) {
       return 1;
     }
   }
+}
+
+int64_t scoop_window_accessibility_text_child(void *pointer, int64_t number,
+                                              int64_t child, int64_t start,
+                                              int64_t end) {
+  @autoreleasepool {
+    @try {
+      SWAccessibilityState *state =
+          ((__bridge SWAccessibilityTree *)pointer).pending[@(number)];
+      if (!state)
+        return -4;
+      [state.textChildren addObject:@{
+        @"node" : @(child),
+        @"start" : @(start),
+        @"end" : @(end)
+      }];
+      return 0;
+    } @catch (NSException *exception) {
+      return 1;
+    }
+  }
+}
+
+int64_t scoop_window_accessibility_document(void *pointer, int64_t number,
+                                            void *document, uint64_t revision,
+                                            uint64_t epoch) {
+  SWAccessibilityState *state =
+      ((__bridge SWAccessibilityTree *)pointer).pending[@(number)];
+  if (!state)
+    return -4;
+  if (document) {
+    SWTextDocumentState snapshot = sw_text_document_state(document);
+    if (!snapshot.alive || !revision || snapshot.revision < revision ||
+        (state.data.flags & SWAXProtected) || !state.value ||
+        (snapshot.revision == revision &&
+         snapshot.length !=
+             (int64_t)[state.value
+                 lengthOfBytesUsingEncoding:NSUTF8StringEncoding]))
+      return -4;
+  }
+  [state setTextDocument:document revision:revision epoch:epoch];
+  return 0;
 }
 
 int64_t scoop_window_accessibility_hit(void *pointer, int64_t number,
@@ -207,6 +270,9 @@ int64_t scoop_window_accessibility_text(void *pointer, int64_t number,
       case 4:
         state.error = value;
         break;
+      case 5:
+        state.url = value;
+        break;
       default:
         return 1;
       }
@@ -235,6 +301,21 @@ int64_t scoop_window_accessibility_relation(void *pointer, int64_t number,
       case 2:
         [state.titleFor addObject:@(target)];
         break;
+      case 3:
+        [state.descriptions addObject:@(target)];
+        break;
+      case 4:
+        [state.errors addObject:@(target)];
+        break;
+      case 5:
+        [state.rowHeaders addObject:@(target)];
+        break;
+      case 6:
+        [state.columnHeaders addObject:@(target)];
+        break;
+      case 7:
+        state.activeNode = target;
+        break;
       default:
         return 1;
       }
@@ -259,8 +340,8 @@ int64_t scoop_window_accessibility_remove(void *pointer, int64_t number) {
   }
 }
 
-static BOOL same(NSString *left, NSString *right) {
-  return left == right || [left isEqualToString:right];
+static BOOL same(id left, id right) {
+  return left == right || [left isEqual:right];
 }
 
 static NSDictionary<NSNumber *, NSArray<NSNumber *> *> *
@@ -296,14 +377,28 @@ static void notify(id node, SWAccessibilityState *old,
                                     NSAccessibilityTitleChangedNotification);
   if (old.data.scroll_orientation != next.data.scroll_orientation ||
       ((old.data.flags ^ next.data.flags) & SWAXRequired) ||
-      old.data.actions != next.data.actions || !same(old.help, next.help) ||
-      !same(old.error, next.error) ||
+      old.data.actions != next.data.actions ||
+      old.data.heading_level != next.data.heading_level ||
+      old.data.expanded != next.data.expanded || !same(old.url, next.url) ||
+      !same(old.help, next.help) || !same(old.error, next.error) ||
       ![old.labels isEqualToArray:next.labels] ||
       ![old.controls isEqualToArray:next.controls] ||
       ![old.titleFor isEqualToArray:next.titleFor])
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityLayoutChangedNotification);
+  if (old.activeNode != next.activeNode ||
+      old.activeCollection != next.activeCollection ||
+      !same(old.activeKey, next.activeKey) ||
+      ![old.rowHeaders isEqualToArray:next.rowHeaders] ||
+      ![old.columnHeaders isEqualToArray:next.columnHeaders])
+    NSAccessibilityPostNotification(node,
+                                    NSAccessibilityLayoutChangedNotification);
   if (!same(old.value, next.value) || old.data.checked != next.data.checked ||
+      old.data.has_range != next.data.has_range ||
+      old.data.minimum != next.data.minimum ||
+      old.data.maximum != next.data.maximum ||
+      old.data.number_value != next.data.number_value ||
+      old.data.number_step != next.data.number_step ||
       old.data.scroll_offset != next.data.scroll_offset ||
       old.data.scroll_viewport != next.data.scroll_viewport ||
       old.data.scroll_content != next.data.scroll_content ||
@@ -311,6 +406,10 @@ static void notify(id node, SWAccessibilityState *old,
           (next.data.flags & ~(SWAXRequired | SWAXCursorUpstream)))
     NSAccessibilityPostNotification(node,
                                     NSAccessibilityValueChangedNotification);
+  if (old.data.selected != next.data.selected ||
+      ![old.selectedKeys isEqualToArray:next.selectedKeys])
+    NSAccessibilityPostNotification(
+        node, NSAccessibilitySelectedChildrenChangedNotification);
   if ((next.data.role == 1 || next.data.role == 4) &&
       !(next.data.flags & SWAXProtected) &&
       (!NSEqualRanges(old.selection, next.selection) ||
@@ -384,6 +483,7 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
       tree.focused = focused;
       BOOL rootChanged =
           sw_accessibility_collections_commit(tree, previous, changes, removed);
+      sw_accessibility_grid_commit(tree);
       tree.pending = nil;
       tree.removed = nil;
       for (NSNumber *number in changes) {
@@ -451,4 +551,29 @@ void scoop_window_accessibility_close(void *pointer) {
   tree.hitOrder = @[];
   tree.pending = nil;
   tree.removed = nil;
+}
+
+void scoop_window_accessibility_announce(void *pointer, int64_t number,
+                                         const uint8_t *bytes, int64_t length,
+                                         int32_t priority) {
+  @autoreleasepool {
+    SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
+    SWAccessibilityNode *node = [tree element:number];
+    if (![NSThread isMainThread] || tree.closed ||
+        !node.isAccessibilityElement ||
+        (node.state.data.flags & (SWAXProtected | SWAXBusy)) || length < 0)
+      return;
+    NSString *text = [[NSString alloc] initWithBytes:bytes
+                                              length:(NSUInteger)length
+                                            encoding:NSUTF8StringEncoding];
+    if (!text)
+      return;
+    NSAccessibilityPostNotificationWithUserInfo(
+        NSApp, NSAccessibilityAnnouncementRequestedNotification, @{
+          NSAccessibilityAnnouncementKey : text,
+          NSAccessibilityPriorityKey :
+              @(priority == 2 ? NSAccessibilityPriorityHigh
+                              : NSAccessibilityPriorityMedium)
+        });
+  }
 }

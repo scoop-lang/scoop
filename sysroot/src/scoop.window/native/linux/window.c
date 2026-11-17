@@ -11,7 +11,19 @@ typedef struct {
   SWWindow *owner;
 } SWContent;
 typedef GtkWidgetClass SWContentClass;
-G_DEFINE_TYPE(SWContent, sw_content, GTK_TYPE_WIDGET)
+static GtkAccessible *content_accessible_child(GtkAccessible *accessible) {
+  SWWindow *window = ((SWContent *)accessible)->owner;
+  if (window && window->accessibility_socket)
+    return g_object_ref(window->accessibility_socket);
+  GtkWidget *child = gtk_widget_get_first_child(GTK_WIDGET(accessible));
+  return child ? g_object_ref(GTK_ACCESSIBLE(child)) : NULL;
+}
+static void content_accessible_init(GtkAccessibleInterface *iface) {
+  iface->get_first_accessible_child = content_accessible_child;
+}
+G_DEFINE_TYPE_WITH_CODE(SWContent, sw_content, GTK_TYPE_WIDGET,
+                        G_IMPLEMENT_INTERFACE(GTK_TYPE_ACCESSIBLE,
+                                              content_accessible_init))
 
 static void content_measure(GtkWidget *widget, GtkOrientation orientation,
                             int for_size, int *minimum, int *natural,
@@ -88,6 +100,7 @@ void sw_snapshot_update(SWWindow *window) {
   }
   sw_focus(window, gtk_window_is_active(GTK_WINDOW(window->window)));
   sw_desktop_bounds(window);
+  sw_accessibility_geometry(window);
 }
 static void changed(GObject *object, GParamSpec *pspec, gpointer data) {
   sw_snapshot_update(data);
@@ -231,6 +244,7 @@ void scoop_window_destroy(SWWindow *window) {
     link = &(*link)->next;
   if (*link)
     *link = window->next;
+  sw_accessibility_destroy(window);
   window->destroying = true;
   if (window->frame_idle)
     g_source_remove(window->frame_idle);

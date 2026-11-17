@@ -5,6 +5,7 @@ import scoop.graphics.text.TextAlignment
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public class DropdownMenu public constructor(
     private val props: Props<DropdownMenuProps>,
@@ -56,6 +57,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
     private val link = HoverPopupLink()
     private val handle = OverlayHandle()
     private val triggerFocus = FocusHandle()
+    private val popupReference = SemanticsReference()
     private val candidates = MenuFocus()
     private val themes = ThemeAccess(scope)
     private val last = state(false)
@@ -128,6 +130,24 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
         else
             show(None, false)
     }
+    private fun semanticOpen(value: Boolean): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!read().options.enabled)
+            return SemanticActionResult.Rejected
+        if (open.value == value)
+            return SemanticActionResult.Completed
+        if (value) {
+            point.value = None
+            last.value = false
+            setOpen(true)
+        } else
+            close()
+        return if (open.value == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
     fun render(): View {
         val input = read()
         val theme = themes.read(input.options.theme)
@@ -139,7 +159,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
             }
         val child =
             when (input.trigger) {
-                case Button(val value, val group) -> component(
+                case Button(val value, val group) -> popupSemanticButton(
                     ButtonProps(
                         navigationLabel(
                             value.content,
@@ -156,12 +176,41 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
                         choiceFocus(value.focus, value.focus.handle ?: triggerFocus),
                         variant = value.variant,
                         size = value.size,
-                        group = group
+                        group = group,
+                        semantics =
+                            value.semantics.copy {
+                                relations =
+                                    semanticControls(
+                                        relations,
+                                        (
+                                            input.options.semantics.reference ?:
+                                                this @MenuRoot.popupReference
+                                        ).id
+                                    )
+                            }
                     ),
-                    { current, mount -> Button(current, scope = mount) }
+                    open.value,
+                    { value -> semanticOpen(value) }
                 )
                 case Anchor(_) -> empty()
-                case Context(val view) -> view
+                case Context(val view) -> semanticContent(
+                    view,
+                    SemanticRole.Group,
+                    SemanticProperties(
+                        enabled = input.options.enabled,
+                        expanded = Some(open.value)
+                    ),
+                    SemanticActions(
+                        showContextMenu = Some { semanticOpen(true) },
+                        setExpanded = Some { value -> semanticOpen(value) }
+                    ),
+                    relations =
+                        semanticControls(
+                            SemanticRelations(),
+                            (input.options.semantics.reference ?: this @MenuRoot.popupReference).id
+                        ),
+                    mergeLabels = false
+                )
             }
         val position =
             when (point.value) {
@@ -207,7 +256,13 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
                     anchorVisibility = input.anchorVisibility,
                     link = Some(link),
                     onCloseRequest = { reason -> read().onCloseRequest(reason) },
-                    onClosed = { reason -> closed(reason) }
+                    onClosed = { reason -> closed(reason) },
+                    semantics =
+                        Some(
+                            input.options.semantics.copy {
+                                reference = Some(reference ?: this @MenuRoot.popupReference)
+                            }
+                        )
                 ),
                 { current, mount -> MenuPopup(current, scope = mount) }
             )

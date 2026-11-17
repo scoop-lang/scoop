@@ -1,0 +1,56 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+/** The accessible data table reads the same immutable series and datum keys as the plot. */
+internal class ChartSemanticSource(
+    private val snapshot: ChartSnapshot,
+    private val enabled: Boolean
+): SemanticCollectionSource {
+    public override val count: Long get() = snapshot.data.datums.size
+    public override val search: SemanticItemSearch get() = SemanticItemSearch(name = true)
+    public override fun keyAt(index: Long): SemanticItemKey =
+        SemanticItemKey.Text(snapshot.data.datums[index].key.value)
+    public override fun indexOfKey(key: SemanticItemKey): Long? =
+        when (key) {
+            case Text(val value) -> snapshot.data.indexOfDatum(ChartDatumKey(value))
+            case Number(_) -> None
+        }
+    public override fun describe(index: Long): SemanticItemProperties? =
+        Some(
+            SemanticItemProperties(
+                name = Some(snapshot.data.datums[index].label),
+                enabled = enabled
+            )
+        )
+    fun grid(): SemanticGrid =
+        SemanticGrid(
+            Array<SemanticGridColumn>(snapshot.visible.size) {
+                column ->
+                val series = snapshot.data.series[snapshot.visible[column]]
+                SemanticGridColumn(SemanticItemKey.Text(series.key.value), Some(series.label))
+            },
+            { key, column -> cell(key, column) }
+        )
+    private fun cell(key: SemanticItemKey, column: Long): SemanticItemProperties? {
+        val row = indexOfKey(key) ?: return None
+        val series = snapshot.data.series[snapshot.visible[column]]
+        return Some(
+            SemanticItemProperties(
+                name = Some(snapshot.data.datums[row].label + ", " + series.label),
+                value =
+                    when (series.values[row]) {
+                        case Some(val value) -> Some(f"${value}");
+                        case None -> None
+                    },
+                description =
+                    if (series.values[row] == None)
+                        Some("No value")
+                    else
+                        None,
+                enabled = enabled
+            )
+        )
+    }
+}

@@ -26,6 +26,7 @@ public open class HoverPopupBuilder internal constructor() {
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
     public var style: StyleOverride = styleOverride()
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     public fun style(configure: StyleOverrideBuilder.() -> Unit) {
         style = style.copy(configure)
@@ -60,7 +61,8 @@ public class TooltipBuilder internal constructor(): HoverPopupBuilder() {
             onClosed,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -95,7 +97,8 @@ public class HoverCardBuilder internal constructor(): HoverPopupBuilder() {
             onClosed,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 

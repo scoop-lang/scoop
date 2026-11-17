@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.Point
 import scoop.graphics.Rect
 import scoop.ui.*
+import scoop.window.accessibility.*
 import scoop.ui.style.*
 import scoop.ui.style.style as baseStyle
 
@@ -84,8 +85,14 @@ private class ChoiceNavigation(
         scope.input.enabled = props.value.enabled
         navigation!!.options = props.value.navigation
         val value = props.value
+        value.semantics?.bindReference(value.semanticOptions.reference)
         value.semantics?.update(
-            value.semanticOptions.properties(enabled = value.enabled),
+            value.semanticOptions.properties(enabled = value.enabled).copy {
+                if (value.semantics?.role == Some(SemanticRole.RadioGroup)) {
+                    selectionMode = Some(SemanticSelectionMode.Single)
+                    required = true
+                }
+            },
             relations = value.semanticOptions.relations
         )
         return UiInvalidation.Layout

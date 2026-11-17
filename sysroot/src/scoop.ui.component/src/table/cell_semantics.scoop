@@ -1,0 +1,153 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class TableCellSemantics(
+    val role: SemanticRole,
+    val properties: SemanticProperties,
+    val relations: SemanticRelations,
+    val reference: SemanticsReference? = None
+)
+
+internal fun basicCellSemantics(
+    input: TableCellProps,
+    position: SemanticTableCell? = None,
+    headers: Array<SemanticNodeId> = [],
+    reference: SemanticsReference? = None,
+    role: SemanticRole? = None
+): TableCellSemantics =
+    TableCellSemantics(
+        role ?:
+            if (input.header)
+                SemanticRole.ColumnHeader
+            else
+                SemanticRole.Cell,
+        input.semantics.properties().copy {
+            this.cell = position
+            if (name == None && input.semantics.relations.labelledBy.size == 0L)
+                name = candidateCaption(input.content)
+        },
+        input.semantics.relations.copy { columnHeaders = mergeSemanticIds(columnHeaders, headers) },
+        when (reference) {
+            case Some(_) -> reference;
+            case None -> input.semantics.reference
+        }
+    )
+
+private class TableHeaderTarget(
+    val row: ViewKey,
+    val key: ViewKey,
+    val column: Long,
+    val span: Long,
+    val columnHeader: Boolean,
+    val reference: SemanticsReference
+)
+
+/** Keeps real header identities across normal table updates and column spans. */
+internal class TableHeaderSemantics {
+    private var targets: Array<TableHeaderTarget> = []
+    fun update(rows: Array<TableRowProps>) {
+        val next = ArrayList<TableHeaderTarget>()
+        for (rowIndex in 0L ..< rows.size) {
+            val row = rows[rowIndex]
+            val rowKey =
+                if (row.key == ViewKey.Position)
+                    ViewKey.Number(rowIndex)
+                else
+                    row.key
+            var column = 0L
+            for (cell in row.cells) {
+                if (cell.header || row.section == TableSection.Header) {
+                    val key =
+                        if (cell.key == ViewKey.Position)
+                            ViewKey.Number(column)
+                        else
+                            cell.key
+                    var reference = cell.semantics.reference
+                    if (!panelPresent(reference))
+                        for (old in targets)
+                            if (old.row == rowKey && old.key == key)
+                                reference = Some(old.reference)
+                    next.add(
+                        TableHeaderTarget(
+                            rowKey,
+                            key,
+                            column,
+                            cell.span,
+                            row.section == TableSection.Header,
+                            reference ?: SemanticsReference()
+                        )
+                    )
+                }
+                column += cell.span
+            }
+        }
+        targets = next.toArray()
+    }
+    fun cell(row: TableRowProps, rowIndex: Long, index: Long): TableCellSemantics {
+        val cell = row.cells[index]
+        val rowKey =
+            if (row.key == ViewKey.Position)
+                ViewKey.Number(rowIndex)
+            else
+                row.key
+        var column = 0L
+        for (at in 0L ..< index)
+            column += row.cells[at].span
+        val key =
+            if (cell.key == ViewKey.Position)
+                ViewKey.Number(column)
+            else
+                cell.key
+        var reference = cell.semantics.reference
+        val rowHeaders = ArrayList<SemanticNodeId>()
+        val columnHeaders = ArrayList<SemanticNodeId>()
+        for (target in targets) {
+            if (target.row == rowKey && target.key == key)
+                reference = Some(target.reference)
+            else
+                when (target.reference.id) {
+                    case Some(val id) -> {
+                        if (
+                            target.columnHeader &&
+                                column <
+                                target.column +
+                                target.span &&
+                                target.column <
+                                column +
+                                cell.span
+                        )
+                            columnHeaders.add(id)
+                        if (!target.columnHeader && target.row == rowKey)
+                            rowHeaders.add(id)
+                    }
+                    case None -> {}
+                }
+        }
+        val facts =
+            basicCellSemantics(
+                cell,
+                Some(SemanticTableCell(rowIndex, column, columnSpan = cell.span)),
+                columnHeaders.toArray(),
+                reference,
+                Some(
+                    if (row.section == TableSection.Header)
+                        SemanticRole.ColumnHeader
+                    else
+                        if (cell.header)
+                            SemanticRole.RowHeader
+                        else
+                            SemanticRole.Cell
+                )
+            )
+        return TableCellSemantics(
+            facts.role,
+            facts.properties,
+            facts.relations.copy {
+                this.rowHeaders = mergeSemanticIds(facts.relations.rowHeaders, rowHeaders.toArray())
+            },
+            facts.reference
+        )
+    }
+}

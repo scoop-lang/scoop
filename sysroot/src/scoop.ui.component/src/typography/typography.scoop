@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.accessibility.*
 
 public enum TypographyContent {
     Plain(String), Styled(StyledText), Fragments(Array<TextSpan>)
@@ -42,6 +43,19 @@ public class Typography public constructor(
         val theme = themes.read(input.theme)
         val content =
             typographyContent(input.content, typographyStyle(input.role, theme), input.textStyle)
+        val heading =
+            when (input.role) {
+                case H1 -> Some(1)
+                case H2 -> Some(2)
+                case H3 -> Some(3)
+                case H4 -> Some(4)
+                else -> None
+            }
+        val textSemantics =
+            if (heading != None)
+                input.semantics.copy { reference = None }
+            else
+                input.semantics
         val body =
             if (input.selectable)
                 selectableStyledText(content) {
@@ -53,14 +67,14 @@ public class Typography public constructor(
                     this.actions = input.actions
                     this.decorations = input.decorations
                     this.onSelectionChanged = input.onSelectionChanged
-                    this.semantics = input.semantics
+                    this.semantics = textSemantics
                 }
             else
                 label(content) {
                     this.fonts = input.fonts
                     this.settings = input.settings
                     this.inlines = input.inlines
-                    this.semantics = input.semantics
+                    this.semantics = textSemantics
                 }
         val framed =
             frame(body) {
@@ -71,6 +85,20 @@ public class Typography public constructor(
                 this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
                 this.style = typographyDecoration(input.role, theme).then(input.style)
             }
+        when (heading) {
+            case Some(val level) -> return semanticContent(
+                framed,
+                SemanticRole.Heading,
+                input.semantics.properties().copy {
+                    headingLevel = Some(level)
+                    if (name == None && input.semantics.relations.labelledBy.size == 0L)
+                        name = Some(content.toPlainText())
+                },
+                relations = input.semantics.relations,
+                reference = input.semantics.reference
+            )
+            case None -> {}
+        }
         return if (input.role == TypographyRole.InlineCode)
             element({ mount -> InlineCodeWidth(scope = mount) }, [framed])
         else

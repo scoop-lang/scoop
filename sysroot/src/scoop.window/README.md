@@ -35,7 +35,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
 | 输入 | 物理键、当前布局逻辑键、重复、左右修饰键、未知键码、指针位置／按钮、序列取消、行／像素滚轮及 momentum、单调输入时间、基础光标和区域内隐藏 |
 | 文本 | 普通文字与 IME 共用编辑批次；marked／preedit、commit、候选窗位置、失焦及禁用时撤销组合 |
-| 无障碍基础 | macOS 的 `scoop.window.accessibility` 内容 provider、节点属性／几何发布、纯文本范围／选区与实际动作；已呈现文本几何可查询；完整 UI 及其他平台仍在实施 |
+| 无障碍 | `scoop.window.accessibility` 的属性、状态、关系、文本／范围、集合与真实动作；AppKit、Windows UIA、Linux AT-SPI 共用模型，具体构建、客户端和设备验证范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md) |
 | 绘制 | 合并重绘请求；隐藏／遮挡／零尺寸时保留 dirty；显式 native lease |
 
 `Window` 操作和原生句柄查询都要求 owner 线程。`RequestStatus.Requested` 表示已向系统提交请求，实际结果由事件或快照确认；例如焦点请求不保证系统一定授予焦点。
@@ -68,9 +68,17 @@ Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交
 
 ## 无障碍内容投影
 
-在 macOS 导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。
+数值使用 `SemanticValueRange`，进度未知时保持 None。静态容器用 `selectionMode = Some(SemanticSelectionMode.Single)` 或 Multiple 声明真实选择模式，required 指定必选；虚拟集合改用 `SemanticCollectionSelection` 的稳定 keys，两者不同时设置。`SemanticGrid` 描述稳定列及按 key 读取的单元格，静态表格使用 `SemanticTableSize`／`SemanticTableCell` 的实际坐标和跨度。描述查询不创建条目 View。
 
-本批角色包括 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar、Switch、ToggleButton、RadioButton、RadioGroup 与 Image。Image 使用原生图像角色、替代名称与实际几何，不隐含点击或焦点动作。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；checked 用于 Checkbox／Switch／ToggleButton／RadioButton，Mixed 仅用于 Checkbox；protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 按实际提供的 invoke、toggle、setValue、focus、setSelection 或 replaceText 回调公布能力；focus 的 Boolean 区分请求聚焦与解除焦点。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
+`SemanticRelations.activeDescendant` 可以引用 Node 或集合 Item，和实际键盘焦点分开；rowHeaders／columnHeaders 指向真实表头。`invalid`、`busy`、`modal` 与 `headingLevel` 发布真实状态。`live` 默认为 Off，Polite／Assertive 合并同一节点的最新公告；首次挂载不自动播报，节点或祖先 busy 时延迟，隐藏、模态背景和受保护内容抑制公告。需要明确通知时调用 `node.announce(...)`。
+
+需要保留文本范围的自绘宿主可将 `SemanticTextDocument` 绑定到 `node.textDocument`。它只保存端点和版本，普通编辑用现有偏移映射更新，全文换绑用 reset，关闭后旧范围不可用；UI 的 TextEditHost 自动维护它。`textChildren` 显式关联正文中的 UTF-8 区间与实际语义后代，供内联操作和原生文本内对象查询。`revealText(range, SemanticTextScroll(...))` 沿实际文本几何显露范围，不修改选区。
+
+Windows 查询通过 HWND 内容根与 UIA pattern 暴露；Linux 通过 GTK 公开的 AT-SPI socket 接到原生窗口树，复用原 GMainContext。Wayland 无法提供全局屏幕原点时，该坐标查询返回 NotSupported；D-Bus 不能表达正文中的 NUL，也不会截断后冒充完整文本。完整合同见[窗口无障碍规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，平台验证范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
+
+导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。macOS 使用 AppKit，Windows 使用 UIA，Linux GNU 使用 GTK 内容容器内的 AT-SPI 子树；实现与平台验收的状态分别记录。
+
+角色覆盖文本、按钮、选择控件、滚动、图像、Link／Heading、数值、菜单／Tab／Dialog、List／Table／Row／Cell／表头、Disclosure 与 Separator。Image 使用替代名称和实际几何，不隐含点击或焦点动作。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；selected／expanded／checked 只发布实际适用的状态，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 只公布实际回调；setNumber／increment／decrement、setSelected、setExpanded、dismiss 与文本／滚动动作均进入已有控制器。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
 Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。`cursorAffinity: SemanticTextAffinity` 默认 Downstream，保留活动 cursor 在软换行边界的实际偏向；AppKit 光标行号读取该偏向，按 index 请求则默认 Downstream。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 
@@ -83,6 +91,8 @@ Text／TextField 的已知非保护 value 同时提供纯文本正文；`selecti
 `SemanticRelations(labelledBy = [label.id], describedBy = [hint.id], errorMessages = [error.id], controls = [target.id])` 使用同一 provider 的活动节点，保持数组顺序，替换时拒绝重复与自身引用。显式 name／description／error（包括空字符串）优先，否则由对应标签文字解析；静态 Text 的非受保护 value 可以被用作标签文字，未知与已知空文字分开。实际采用的名称依赖环在 publish 时拒绝，保留之前的原生投影，可修正后重试；显式名称已覆盖的依赖不构成实际名称环。目标改名更新依赖者，关闭目标清理引用；`node.relations` 返回清理后的关系。名称依赖变化同样清除旧几何并递增 `contentRevision`，调用方不能用旧版本场景重新发布位置。hidden 标签可贡献显式引用的文字，但不恢复到导航树中。
 
 `node.contentLabels = [text.id]` 提供独立的内容名称回退，优先级低于显式 name 和 labelledBy 的已知文字，普通 update 不清空它；内容引用同样按身份维护和清理。调用方用 `SemanticProperties(ignored = true)` 忽略当前节点并展开其后代，用 hidden 排除整棵子树。忽略／恢复保留原身份，旧引用不能执行被忽略节点的动作；后代仍受祖先禁用和隐藏约束。Window 不因 contentLabels 自动忽略目标，UI 的 mergeLabels 按实际内容决定合并。
+
+修改已有属性可用 `properties.copy { busy = true }`，receiver 为 SemanticPropertiesBuilder；未指定的字段完整保留，返回新的不可变值。复制不发布变更，调用 `node.update` 时仍统一验证实际角色与属性组合。
 
 这些资源要求 owner 线程。原生动作在普通 owner 回调之间同步执行，重入返回 Busy，不递归 pump 或布局；异常沿应用现有退出路径报告。节点 close 退休子树，provider close 退休全部节点；窗口进入 Closing 自动关闭 provider。客户端持有的旧原生对象不再执行动作；重新附着产生新身份。
 

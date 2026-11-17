@@ -16,9 +16,17 @@ private class PendingSemanticReveal(
     val handle: SemanticsHandle,
     private var initial: SemanticRevealPlacement?,
     val collection: SemanticsHandle? = None,
-    val retention: SemanticItemRetention? = None
+    val retention: SemanticItemRetention? = None,
+    val region: (() -> Rect?)? = None,
+    val horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+    val vertical: ScrollAlignment = ScrollAlignment.Nearest
 ) {
     val attempt = RevealAttempt()
+    val hasRegion: Boolean get() =
+        when (region) {
+            case Some(_) -> true
+            case None -> false
+        }
     val awaitingScene: Boolean get() =
         when (initial) {
             case Some(_) -> false
@@ -96,6 +104,31 @@ internal class SemanticRevealController(private val root: UiRoot) {
             }
         install(value)
         return advance(value, placement)
+    }
+
+    fun requestRegion(
+        handle: SemanticsHandle,
+        region: () -> Rect?,
+        horizontal: ScrollAlignment,
+        vertical: ScrollAlignment
+    ): SemanticActionResult {
+        when (val result = eligibility(handle, None, None)) {
+            case Some(val value) -> return value;
+            case None -> {}
+        }
+        val scene = placement(handle, true) ?: return SemanticActionResult.Unavailable
+        if (region() == None)
+            return SemanticActionResult.Unavailable
+        val value =
+            PendingSemanticReveal(
+                handle,
+                Some(scene),
+                region = Some(region),
+                horizontal = horizontal,
+                vertical = vertical
+            )
+        install(value)
+        return advance(value, scene)
     }
 
     fun requestItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult {
@@ -183,7 +216,7 @@ internal class SemanticRevealController(private val root: UiRoot) {
             cancel()
             return
         }
-        when (placement(value.handle)) {
+        when (placement(value.handle, value.hasRegion)) {
             case Some(val scene) -> {
                 if (value.awaitingScene)
                     value.begin(scene)
@@ -236,7 +269,21 @@ internal class SemanticRevealController(private val root: UiRoot) {
         value: PendingSemanticReveal,
         scene: SemanticRevealPlacement
     ): SemanticActionResult {
-        val progress = value.attempt.advance(scene.path, scene.bounds, scene.visible)
+        val bounds =
+            when (val region = value.region) {
+                case Some(val read) -> when (read()) {
+                    case Some(val rect) -> rect
+                    case None -> {
+                        finish(value)
+                        return SemanticActionResult.Unavailable
+                    }
+                }
+                case None -> scene.bounds
+            }
+        val visible =
+            scene.visible && (!value.hasRegion || intersectReveal(bounds, scene.bounds) != None)
+        val progress =
+            value.attempt.advance(scene.path, bounds, visible, value.horizontal, value.vertical)
         // Scroll intent observers may retire the target or replace the request synchronously.
         when (current(value)) {
             case None -> {
@@ -285,20 +332,30 @@ internal class SemanticRevealController(private val root: UiRoot) {
             case None -> return None
         }
         when (value.handle.actions.reveal) {
-            case Some(_) -> return None
+            case Some(_) -> if (!value.hasRegion)
+                return None
             case None -> {}
         }
-        val scene = placement(value.handle) ?: return None
+        val scene = placement(value.handle, value.hasRegion) ?: return None
         return if (value.matches(scene))
             Some(scene)
         else
             None
     }
 
-    private fun placement(handle: SemanticsHandle): SemanticRevealPlacement? {
+    private fun placement(
+        handle: SemanticsHandle,
+        text: Boolean = false
+    ): SemanticRevealPlacement? {
         val scene = handle.revealPlacement ?: return None
         if (scene.generation != handle.generation || handle.resource.geometry == None)
             return None
+        if (text) {
+            val path = (handle.textBinding?.path ?: None) ?: return None
+            return Some(
+                SemanticRevealPlacement(scene.generation, path, scene.bounds, scene.visible)
+            )
+        }
         return Some(scene)
     }
 

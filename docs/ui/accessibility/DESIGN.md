@@ -1,6 +1,6 @@
 # UI 无障碍访问、自动化与 AI computer use 设计
 
-日期：2026-11-09；2026-11-17 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。状态：S0／S2／S5／S7 实施中。本文确定完整目标合同与技术边界；低层 Window 语义资源、AppKit 基础投影以及 UI scope／场景、关系、内容合并／忽略、精确命中及纯文本选区／编辑已接入。虚拟集合的数据描述、轻量条目、真实行关联和 AppKit 条目操作已接入；现有消费者与集合关系继续实施，完整平台与读屏器验收尚未完成。正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范。其余控件与复杂关系、保留文本范围和其他平台 provider 仍待完成，不能据本文判断完整 accessibility 已可用。调研依据、现有源码入口与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围见[实施记录](../interaction-polish/PROGRESS.md)。
+日期：2026-11-09；2026-11-18 配合 [UI 交互细节打磨](../interaction-polish/DESIGN.md)复核更新。本文确定完整目标合同与技术边界。Window 共享模型、AppKit／UIA／AT-SPI 投影、UI scope／Accepted 场景、复杂关系、文本范围与子对象、虚拟集合及现有控件接入已完成整批实现与 macOS 定向验证；Windows／Linux、外部客户端与读屏器的完整验收仍按计划执行。正式接口见 [Window](../../specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)和 [UI](../../specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)规范，源码与平台资料见[调研记录](../ACCESSIBILITY-RESEARCH.md)，实际通过范围和待验项见[实施记录](../interaction-polish/PROGRESS.md)。
 
 完整实施任务、依赖和验收统一见 [UI 交互打磨与 accessibility 实施计划](../interaction-polish/PLAN.md)。计划的 S0～S11 覆盖本文全部能力；第 12.2 节的 P0～P5 保留为设计来源分组，实际推进与状态记录使用统一计划。
 
@@ -110,9 +110,9 @@ Button 等控件可以合并自己的非交互标签内容，避免同时朗读�
 
 控件 Props 增加统一的小型语义覆盖值，允许名称、说明、automationId 和必要关系覆盖；角色、动作和核心状态由实际控件行为提供。覆盖值不允许把不可编辑文本宣称为可编辑，或绕过 disabled 状态执行动作。
 
-当前基础控件、Switch／Toggle／RadioGroup／ToggleGroup、SelectableStyledText／Typography 及 Field 注释使用 `ComponentSemantics`，Props 与 builder 均提供 semantics；实际接入及包装透传合同见 [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。Button 的纯标签合并、Checkbox 的真实 Binding 结果、两类文本宿主及 FieldTarget 的标签／说明／错误关系沿前述公共语义路径。Field 的 required 沿同一目标发布只读必填属性；同窗口的活跃来源增删直接更新目标，不增加校验或覆盖业务模型，已由属性表达的提示文字退出阅读树。invalid／busy、其余表单状态和控件仍按统一计划继续，原生方法、实窗和外部辅助技术分别记录验证状态。
+当前控件通过 `ComponentSemantics` 接入基础编辑与选择、Field 注释、Slider／Progress、菜单／Tabs／Dialog、Calendar／DatePicker、表格／Chart、Command／Combobox、虚拟列表和会话内容；Props 与 builder 提供覆盖入口。实际接入及包装透传合同见 [Component spec](../../specs/SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。Button 的纯标签合并、Checkbox 的真实 Binding 结果、两类文本宿主及 FieldTarget 的标签／说明／错误关系沿前述公共语义路径。Field 的 required 沿同一目标发布只读必填属性；同窗口的活跃来源增删直接更新目标，不增加校验或覆盖业务模型，已由属性表达的提示文字退出阅读树。invalid／busy、组合控件状态与三平台投影沿同一模型接入，原生方法、实窗和外部辅助技术分别记录验证状态。
 
-共享 ScrollControl 已为 ScrollArea／VirtualList 及其组合提供容器语义和原焦点目标，文本条归入原 TextField。ScrollBar 节点通过 updateScrollBar 借用原视口，只发布已接受的 offset／viewport／content；原生比例写入与增减进入同一 ScrollState 的 User 请求。视觉隐藏不退休非零轴，未呈现的条没有几何；绑定替换先撤下旧范围。已挂载语义节点的默认 Reveal 使用 Scene 捕获的原 ScrollReveal 路径，不要求 InputArea 或焦点；逐层等待 Accepted 后才可报告可见，完整虚拟集合另按统一计划接入。原生方法、实窗与外部辅助技术的实际结果分别见实施记录。
+共享 ScrollControl 已为 ScrollArea／VirtualList 及其组合提供容器语义和原焦点目标，文本条归入原 TextField。ScrollBar 节点通过 updateScrollBar 借用原视口，只发布已接受的 offset／viewport／content；原生比例写入与增减进入同一 ScrollState 的 User 请求。视觉隐藏不退休非零轴，未呈现的条没有几何；绑定替换先撤下旧范围。已挂载语义节点的默认 Reveal 使用 Scene 捕获的原 ScrollReveal 路径，不要求 InputArea 或焦点；逐层等待 Accepted 后才可报告可见，虚拟集合使用共享的稳定条目与显露入口。原生方法、实窗与外部辅助技术的实际结果分别见实施记录。
 
 | 控件组 | 默认语义与接入 |
 | --- | --- |
@@ -337,7 +337,7 @@ Linux D-Bus 方法可保留调用并在 owner 完成后回复；Windows COM 调�
 
 macOS 的独立 AX 客户端已验证基础属性、实际动作、焦点与退休。AppKit 的 AXUIElementPerformAction 可以在禁用动作被拒绝后仍返回 kAXErrorSuccess，标准 NSButton 对照也复现；该系统确认不代表业务 Completed。库提供的 BOOL／公共结果仍按实际完成返回，跨进程客户端另读当前值和有效目标，具体边界见 Window 无障碍规范。窗口的 AXFocused 不等于子节点焦点，实际对象通过应用的 AXFocusedWindow／AXFocusedUIElement 核对。
 
-内部请求状态仅服务当前调用的完成、失败与关闭清理，不新增公共 future／RPC 服务。同步 Realize 和跨线程关闭必须在平台原型阶段验证，不能等到所有控件改造后才发现 owner 无法推进。
+内部请求状态仅服务当前调用的完成、失败与关闭清理，不新增公共 future／RPC 服务。同步 Realize、跨线程关闭和 GTK 接入使用同一领域的集中验证场景，按完整实现、整轮验证、集中修复的节奏推进；单个平台原型不能替代最终消费者验收。
 
 本轮原生文本菜单和数据拖放同样存在同步查询／动作与 tracking loop。与其共同核查已有 owner 的可进入边界，复用必要的派发保护，不各建一套可重入事件循环。原生菜单条目或 drop callback 触发 UI 修改时仍不能进入正在执行的 render／layout；各协议分别满足自身返回合同，不因共用执行入口而统一返回“已排队”。
 
@@ -369,13 +369,13 @@ placeholder 仅提供其实际支持的能力，不支持的完整属性按 UIA 
 
 ### 10.3 Linux
 
-复用当前 GTK 4.18、libadwaita、GIO／GLib 与 owner 的 GMainContext。优先验证以公共 `GtkAccessible` 接入自绘对象，并使用适用的 AccessibleText／AccessibleRange 接口。不能把在线更新版 GTK 文档中的新增 API 直接加入 4.18 基线。
+复用 GTK 4.18、libadwaita、GIO／GLib 与 owner 的 GMainContext。正式路线为 GIO／GDBus 自绘子树，通过公开 GtkAtSpiSocket 接到实际 GTK 内容对象；GtkAtSpiSocket 自 GTK 4.14 提供，属于当前基线。不能把在线更新版 GTK 文档中的新增 API 直接加入 4.18 基线。
 
 已经核查的 GTK 4.18 源码表明：普通实现 `GtkAccessible` 的 GObject 不自动获得完整 AT-SPI Action，Component 的 GrabFocus 及 EditableText 也存在接入限制。因此“实现 GtkAccessible 后所有动作自然可用”不是本设计的前提。
 
-P0 用按钮、可编辑文本、焦点和虚拟条目验证完整路径，同时验证与 GTK 窗口、菜单、对话框树的衔接。公共 GTK 接口如果不能闭合这些能力，后续正式实现选择通过既有 GIO／GDBus 提供自绘子树的 AT-SPI provider，并验证其树嫁接；不依赖 GTK 私有 API，也不同时维护两套表达同一子树的生产实现。
+GDBus provider 提供实际 Action、Component／焦点、Text／EditableText、Value、Selection、Table 与 Hypertext 操作，沿 Window owner 调用现有控制器。GTK 继续拥有窗口、菜单和文件面板，应用根来自 GTK 的 AT-SPI 树；不建立第二个应用根，不依赖 GTK 私有 API，也不维护表达同一自绘子树的平行实现。
 
-直接 D-Bus 路线的树嫁接目前未经实测，不能预先标为已解决。如果两条路线都不能在现有基线上满足要求，先记录具体平台阻塞并调整该平台方案，不把缺少 Action／焦点的原型称为 Linux 完整支持。
+树嫁接、辅助技术操作及关闭时序仍须在集中平台阶段实际验收；目前不据代码接线宣称 Linux 已通过。Wayland 没有公开的全局原点时，屏幕坐标查询明确返回不支持，窗口及父对象坐标继续可用；协议不能表示的 NUL 字符串或越界整数不截断或假报，单个对象的限制不阻止其余通知和退休清理。
 
 AT-SPI 映射区分 VISIBLE 与 SHOWING；大集合只在正确提供 active-descendant 等配套行为后使用 MANAGES_DESCENDANTS。`libatspi` 是客户端库，不能作为已经实现 provider 的依据。提供语义接口也不等于取得 Wayland 全局截图或输入注入能力。
 
@@ -425,7 +425,7 @@ AT-SPI 映射区分 VISIBLE 与 SHOWING；大集合只在正确提供 active-des
 
 P0 不要求提前实现全部控件，但同步动作与 GTK 接入结论必须足以支持后续路线。Windows 后端未完成的相关基础单独列出依赖，不用 macOS 通过代替其他平台验收。
 
-统一计划从 S0 验证原生边界、S2 交付公共语义与 macOS 基础闭环；S5 完成文本／表单／焦点，S7 完成虚拟集合，S10 跟随公共接口完成其余平台，S11 覆盖全部已有控件及工具使用。系统偏好与纯键盘视觉体验可独立先交付，不能因 Linux provider 路线尚未确定而推迟所有平台的这些修复；后者仍保留为核心交付的未完成项。
+统一计划从 S0 验证原生边界、S2 交付公共语义与 macOS 基础闭环；S5 完成文本／表单／焦点，S7 完成虚拟集合，S10 跟随公共接口完成其余平台，S11 覆盖全部已有控件及工具使用。Linux provider 已选择公开 GtkAtSpiSocket 与 GDBus 路线；Windows／Linux 的实际平台验收仍是核心交付的未完成项。实现与本地验证按完整领域推进，远程平台集中验收的安排见统一计划。
 
 ### 12.3 必要验证
 

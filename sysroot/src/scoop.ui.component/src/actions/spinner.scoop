@@ -8,6 +8,7 @@ import scoop.math.min
 import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.window.accessibility.*
 import scoop.ui.style.*
 
 public class SpinnerProps public constructor(
@@ -15,7 +16,8 @@ public class SpinnerProps public constructor(
     public val color: Color? = None,
     public val running: Boolean = true,
     public val period: Duration = Duration.seconds(1L),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val semantics: ComponentSemantics? = None
 ) {
     init {
         when (size) {
@@ -39,16 +41,27 @@ public class Spinner public constructor(
         val theme = themes.read(input.theme)
         val size = input.size ?: theme.tokens.typography.action.fontSize * 16.0 / 14.0
         val motion = theme.tokens.motion.resolve(Some(AnimationSpec.Tween(input.period)))
-        return element(
-            SpinnerInkProps(
-                size,
-                input.color ?: theme.tokens.typography.action.color,
-                input.running && size > 0.0,
-                input.period,
-                motion
-            ),
-            { current, mount -> SpinnerInk(current, scope = mount) }
-        )
+        val content =
+            element(
+                SpinnerInkProps(
+                    size,
+                    input.color ?: theme.tokens.typography.action.color,
+                    input.running && size > 0.0,
+                    input.period,
+                    motion
+                ),
+                { current, mount -> SpinnerInk(current, scope = mount) }
+            )
+        return when (input.semantics) {
+            case Some(val options) -> semanticContent(
+                content,
+                SemanticRole.ProgressBar,
+                options.properties(readOnly = true).copy { busy = input.running || options.busy },
+                relations = options.relations,
+                reference = options.reference
+            )
+            case None -> content
+        }
     }
 }
 

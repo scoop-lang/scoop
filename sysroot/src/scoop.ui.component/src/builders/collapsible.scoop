@@ -15,6 +15,7 @@ public class TriggerBuilder internal constructor(
     public var style: ButtonStyle? = None
     public var focus: FocusOptions = FocusOptions()
     public var fonts: FontCollection? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: ButtonStyleBuilder.() -> Unit) {
         style = Some((style ?: buttonStyle { this.kind = SurfaceKind.Plain }).copy(configure))
     }
@@ -22,7 +23,7 @@ public class TriggerBuilder internal constructor(
         focus = focus.copy(configure)
     }
     internal fun snapshot(): TriggerSpec =
-        TriggerSpec(content, enabled, indicator, variant, style, focus, fonts)
+        TriggerSpec(content, enabled, indicator, variant, style, focus, fonts, semantics)
 }
 
 public class CollapsibleBuilder internal constructor() {

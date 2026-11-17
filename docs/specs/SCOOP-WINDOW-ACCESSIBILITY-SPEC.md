@@ -4,7 +4,9 @@
 
 ## 1. 包、身份与寿命
 
-`scoop.window.accessibility` 属于 Window Cone，不依赖 Surface、UI 或控件。SemanticRole、SemanticProperties、SemanticActions、SemanticActionResult、SemanticGeometry 与 SemanticNodeId 为公共值；AccessibilityProvider 和 AccessibilityNode 为 owner 线程资源。首批 `Window.createAccessibilityProvider()` 在 Darwin 暴露并实际连接 AppKit；其他平台沿同一接口接入自己的原生实现，不放置空 provider 或成功占位返回。
+`scoop.window.accessibility` 属于 Window Cone，不依赖 Surface、UI 或控件。SemanticRole、SemanticProperties、SemanticActions、SemanticActionResult、SemanticGeometry 与 SemanticNodeId 为公共值；AccessibilityProvider 和 AccessibilityNode 为 owner 线程资源。`Window.createAccessibilityProvider()` 使用统一的差量发布与 owner 动作接口；Darwin 连接 AppKit，Windows 连接 UIA，Linux GNU 连接 AT-SPI。后两者的实现与验收仍按进度记录独立核实，不放置空 provider 或成功占位返回。
+
+`SemanticProperties.copy { ... }` 用 SemanticPropertiesBuilder 修改一份完整属性快照，未指定的字段保留原值，返回值仍不可变。复制本身不发布或执行动作；角色及属性组合在节点 update 的同一边界检查。UI 宿主和组合控件用此入口保留应用提供的状态与关系之外的属性，避免只更新文本或可见性时遗漏其他字段。
 
 每个 Window 同时至多有一个内容 provider。createAccessibilityProvider 要求 Open；重复附着报 IllegalStateException。createNode(role, parent = None) 创建节点并返回 AccessibilityNode，parent=None 表示内容根下的直接子项。角色在该节点生命期固定；更换角色需退休并重新创建。节点 id 的窗口所属标识独立于原生地址，序号在窗口生命期递增、不复用；关闭 provider 后重新附着仍延续序号。不同应用运行产生的 WindowId 数字相同也不使旧语义 id 相等。
 
@@ -37,6 +39,20 @@ node.geometry 保存值型 bounds／visibleBounds；只赋矩形不提供精确�
 setGeometry 在验证几何后为节点持有一个引用；原生投影在发布时独立保留自己的引用，调用方可在 setGeometry 返回后释放借用。替换、名称／值失效、退休和关闭释放对应引用，准备失败时旧原生投影仍有自己的有效快照。普通 geometry 赋值明确替换为仅有矩形的几何并清除旧命中；None 同时清除位置与命中。Window 不检查 Path 或重建 clip 引擎，第三方 renderer 可提供自己的实际原生命中实现。
 
 命中顺序使用场景 order，值较大者在上，同值按节点创建顺序确定；它与阅读顺序分别保存。命中忽略 hidden 子树及已退休对象，ignored 自身命中映射到最近未忽略祖先，独立后代仍可成为结果。disabled 对象仍可被辅助技术定位和读取，动作继续按 enabled 拒绝。缺少有效命中快照时不根据 bounds 猜测结果，也不把矩形中心声明为有效激活点。
+
+SemanticRelations 还提供 `activeDescendant: SemanticDescendant?` 以及 rowHeaders／columnHeaders。SemanticDescendant.Node 引用同一 provider 的活动节点，Item(collection, key) 引用同一 provider 中集合的稳定逻辑条目；它们不改变键盘焦点或选择。节点退休自动清除引用，条目删除后不解析成同位置的新项。表头关系只引用实际语义节点，重排更新顺序但保留身份。原生端以各平台的活动后代与关联元素合同表达，不能为表达活动项发送虚假键盘焦点通知。
+
+### 2.1 控件状态与数值范围
+
+角色还包括 Link、Heading、Slider、ProgressBar、Menu、MenuItem、TabGroup、Tab、Dialog、Table、Cell、RowHeader、ColumnHeader、Disclosure 与 Separator，用于实际存在的相应控件。角色本身不授予动作。SemanticProperties 的 selected／expanded 为可选布尔值，None 表示不适用；invalid、busy、modal 默认 false，分别表达实际校验结果、业务忙碌与真实模态边界，不自动建立验证器、禁用控件或阻塞输入。headingLevel 为 1～6 的可选整数，仅用于 Heading；url 是 Link 的可选目标，不因提供 URL 自动执行导航。
+
+`SemanticValueRange(minimum, maximum, value, step = 0)` 表达有限数值，minimum ≤ value ≤ maximum、step ≥ 0。SemanticProperties.range 用于 Slider／ProgressBar／可调整 Separator 的实际数值；ProgressBar 的 None 表示进度未知，不伪造零进度。范围与文本 value 不同时发布。数值写入／增减只在真实 handler 存在时公布；请求不改变键盘焦点。范围、选择和展开变化发送相应原生通知，静止状态不重复通知。
+
+`SemanticActions.setNumber(Double)`、increment／decrement、setSelected(Boolean)、setExpanded(Boolean)、dismiss 分别对应实际数值、选择、展开和关闭业务入口。写入要求适用状态存在，readOnly／disabled／模态／退休检查与原动作相同。数值越界或非有限返回 InvalidArgument；实际控件仍按原步长和 setter 采纳规则处理。Completed 只表示请求被实际业务入口采纳；拒绝受控 setter 返回 Rejected。
+
+### 2.2 公告与动态区域
+
+`SemanticLive.Off／Polite／Assertive` 表达公告优先级，SemanticProperties.live 默认 Off。`AccessibilityNode.announce(text, priority = Polite)` 是显式公告，不隐含焦点移动；同一 owner 发布周期内同一节点的新公告替换旧公告。live 非 Off 的节点在已首次发布后名称／公开值变化时公告最新公开值或名称；节点或祖先 busy 期间合并，解除 busy 后发布最新消息。隐藏、退休、模态背景和 protectedText 不公告；首次挂载与普通几何／hover／动画更新不公告。文本不得包含未公开的受保护内容。原生端按公开公告／通知接口映射优先级，不增加定时轮询。
 
 ## 3. 动作与同步边界
 
@@ -76,6 +92,14 @@ NativeSemanticTextRange 保存 start、end、status；其 status 和 boxes 返�
 
 AppKit 通过公开的 RangeForIndex、RangeForPosition、BoundsForRange、LineForIndex、RangeForLine、InsertionPointLineNumber 和 VisibleCharacterRange 读取上述投影。平台边界与同一已发布 NSString 做 UTF-8／UTF-16 转换，拒绝越界和切断 surrogate 的参数；BoundsForRange 取所有实际矩形的外接矩形并经当前 NSView／NSWindow 转为屏幕坐标。getter 不请求帧、不抢焦点、不改选区或文档；没有匹配文本几何时相关 selector 不公布，正文读取继续可用。文本几何从不可用变为可用或被撤下时发送布局变化，普通相同帧重放不因此重复通知。
 
+#### 3.1.2 客户端保留的文本范围
+
+`SemanticTextDocument` 只跟踪文档身份、UTF-8 长度、版本及仍被客户端持有的端点，不保存正文或编辑历史。编辑器在实际事务提交时复用偏移映射调整端点；插入点的 Upstream 留在插入内容之前，Downstream 跟随其后；被删除范围内的端点折叠到替换边界，倒置的范围折叠为 caret。折叠后两端共用起点 affinity，后续插入不将 caret 意外扩展为选区。全文替换、文档换绑、受保护用途切换及宿主关闭使旧范围永久失效。文档版本与节点已发布正文不一致时返回暂不可用，不能在旧正文上解释新端点；几何仍要求同一正文的 Accepted 排版。
+
+`AccessibilityNode.textDocument` 绑定这份跟踪状态；不绑定时仍可读取当前快照的文本，但保留范围在正文版本变化后失效。原生范围引用不保活 Window、Scoop 文档或编辑宿主。native 更新偏移的同步回调是只读映射，不重入跟踪对象或调用 UI 行为；窗口关闭撤销提供者，晚释放的范围只清理自己的原生资源。
+
+模型事务可先于下一次逻辑发布推进跟踪文档，期间仍允许发布上一正文版本的场景或其他属性；这属于正常的暂不可用阶段，不能因此使窗口发布失败。原生投影保留该节点对应的文档版本，不把它改为当前版本来解释旧正文。只有正文与文档版本相同时才核对长度并允许保留范围操作；零版本或尚不存在的未来版本仍属无效参数。这个过渡不需要正文历史、强制绘制或输入焦点。
+
 ### 3.2 滚动范围与动作
 
 SemanticRole.ScrollBar 表达实际滚动轴，使用 `SemanticProperties.scroll: SemanticScrollRange? = None` 发布范围。SemanticScrollRange 包含 orientation: SemanticOrientation（Horizontal／Vertical）、offset、viewport、content；后三者为有限非负 Double，offset 不超过 `maximum = max(content - viewport, 0)`。单位沿窗口逻辑坐标。None 表示尚无范围；已知零范围与未知不同。该属性仅用于 ScrollBar，不能同时提供字符串 value。范围变化不改变正文版本或节点几何。
@@ -100,13 +124,17 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count 与 properties。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
-`AccessibilityNode.collection` 暂存一个可选快照，仅用于 List；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生轻量条目代理，弱缓存代理，不常驻 count 个对象或完整子 ID 数组。发布数据变化时只复核尚被引用的 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
+`AccessibilityNode.collection` 暂存一个可选快照，用于 List 或 Table；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生轻量条目代理，弱缓存代理，不常驻 count 个对象或完整子 ID 数组。发布数据变化时只复核尚被引用的 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
 
 AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。
 
+集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列实际选中且属于该快照的稳定 key；原生查询不为取得选中项扫描整个集合。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。
+
+`SemanticGrid` 给 Table 集合提供稳定列 key、标题及可选实际表头引用，并通过 `(rowKey, columnIndex)` 查询轻量单元格描述。行身份仍属于集合，单元格身份由行 key 和列 key 组成；索引只表示当前坐标。查询不构造 cell View，未知描述返回 Unavailable；列或行删除永久退休对应旧代理。已挂载单元格用 `SemanticTableCell` 声明真实行列位置与跨度，`SemanticTableSize` 描述静态表格尺寸。窗口层不缓存第二份业务表格。Table 和 List 共用集合的发布、按需代理及明确操作边界。
+
 ### 3.5 虚拟条目的明确操作
 
-`AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus)`，仅用于 List。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
+`AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus, setSelected)`，用于 List 或 Table。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
 
 Realize 的 Completed 表示实际行及其当前语义子树已挂载并发布，原生同步调用返回之前不得回收；它不承诺几何、滚动或焦点。Reveal 只有真实 Accepted 场景中目标已具有有效可见区域时才 Completed，准备或等待呈现期间为 Busy。Focus 选择该项实际支持的焦点目标，以实际活动键盘焦点完成；清除请求仍指向该 key 的真实目标，请求之间的先后与取消遵循原焦点控制器。窗口不在前台时，不把逻辑焦点或排队请求当作实际活动焦点。
 
@@ -122,4 +150,24 @@ AppKit 以 accessibilityLabel／Title 发布解析后的名称；只有一个有
 
 忽略节点的 AppKit Children／Parent 使用同一份已发布阅读关系折叠包装，不能丢掉其独立交互后代。原生端仅在父子／阅读顺序变化时更新子项索引，名称、几何和透明度更新不重建该索引。忽略与恢复分别发送适用结构通知，不发送退休通知。
 
-AppKit 的 accessibilityHitTest 从屏幕点经当前 NSWindow／NSView 转为窗口逻辑坐标，按已发布的场景顺序调用 native contains；内容 view 与 provider 根使用同一入口。节点内查询限于该语义子树，根查询覆盖全部内容；窗口内没有命中子项时返回内容根，窗口外或失活时无结果。更新窗口位置或 DPI 使用现有坐标换算，查询不请求帧。命中索引只在快照有无、节点增删或场景顺序变化时更新；名称、错误和普通 handler 更新不重排索引。激活点查询仍须另行满足实际输入资格和可点击位置合同，本批不开放未经验证的 ActivationPoint。
+AppKit 的 accessibilityHitTest 从屏幕点经当前 NSWindow／NSView 转为窗口逻辑坐标，按已发布的场景顺序调用 native contains；内容 view 与 provider 根使用同一入口。节点内查询限于该语义子树，根查询覆盖全部内容；窗口内没有命中子项时返回内容根，窗口外或失活时无结果。更新窗口位置或 DPI 使用现有坐标换算，查询不请求帧。命中索引只在快照有无、节点增删或场景顺序变化时更新；名称、错误和普通 handler 更新不重排索引。`AccessibilityNode.activationPoint` 可登记经过真实输入路由确认的窗口逻辑坐标；它必须位于当前 visibleBounds 和 native hit 快照内，改变或撤下几何时同步清空。调用方负责当前 enabled、模态边界和前景遮挡的输入资格。平台只读取已发布的点并转换屏幕坐标，不在 getter 中尝试点击或布局；未知时不声明 ActivationPoint／ClickablePoint。UI 在正常发布时对已接受的实际 InputArea 做有界候选点命中，确认失败则保持 None。
+
+## 平台原生投影与线程边界
+
+`SemanticProperties.selectionMode: SemanticSelectionMode?` 为实际挂载子项的选择容器声明 Single／Multiple；required 表示是否必须保留选择。它只用于 Group／List／RadioGroup／TabGroup／Table，不能与同一节点的虚拟集合选择快照同时声明。没有声明的普通列表不自动变成选择容器，平台不能从 role 猜测是否必选或多选。静态容器只遍历已挂载的选择后代，嵌套选择容器具有独立边界；虚拟集合仍从已发布的 selected keys 查询，不创建条目 View。
+
+Windows 使用 HWND 的 WM_GETOBJECT 返回 UIA Simple／Fragment／FragmentRoot。静态事实在原生不可变快照内读取；Action、按需集合描述和显式集合操作通过窗口 owner 消息调用原入口，不在 COM 线程调用 Scoop。同步等待不启动私有事件循环；owner 重入、发布中和关闭分别按既有 Busy／Unavailable 拒绝。COM 对象仅保留原生树和文档范围，窗口关闭使后续调用返回元素不可用。RuntimeId 使用窗口投影实例与稳定节点／按需代理身份，删除后复用 key 不复活旧对象。
+
+Windows 的屏幕坐标使用当前 HWND 客户区原点和 DPI 转换；UIA ClickablePoint 只转换已验证的 activationPoint。TextRange 使用 UTF-8 文档端点，UIA 与 AT-SPI 的文本参数按各自单位转换；普通 retained range 在同文档编辑时更新端点，替换或关闭后不可用。范围查询只读同一发布正文和匹配的原生布局；没有相应布局时，不假造字符边界或位置。
+
+Linux 的内容投影使用 GIO 的 AT-SPI D-Bus 协议，在既有 GMainContext 处理请求，未变化时不轮询。GTK 4.18 的 GtkAccessibleText 不支持 SetSelection，Component 不支持 GrabFocus；这些能力必须通过真实输入／编辑入口接入，不能用可见 role 代替完整 provider。
+
+Linux 使用 GTK 4.14 起公开的 gtk_at_spi_socket_new 和 gtk_accessible_set_accessible_parent，把 GDBus 内容根作为原 GTK 内容容器的 accessible child。根处理 Socket.Embedded 记录 GTK 提供的父引用；Application 引用沿 GTK 根返回，菜单／文件面板继续使用其原 GTK provider。该衔接不调用 GTK 私有 API，也不注册第二个表示相同窗口的应用根。
+
+AT-SPI 的 D-Bus 对象路径没有逐对象 Release。Linux 只保留已请求或已通知的导出对象，按客户端总线退出释放相关引用，窗口关闭时撤销导出并关闭该窗口的协议连接。逻辑集合更新后的缓存通知在既有 GMainContext 中合并处理，只刷新已导出的条目，不在 publish 的回调中查询业务数据。名称、状态或索引变化不退休稳定 key，删除则发送 defunct 和 RemoveAccessible。
+
+桌面未提供会话／accessibility bus 或明确设置 GTK_A11Y=none 时，不导出 AT-SPI 内容，普通窗口仍可运行；其他连接失败照常报告。X11 屏幕原点使用实际原生坐标，Wayland 无法提供全局屏幕原点时明确返回 NotSupported，窗口和父节点坐标仍可查询。D-Bus string 无法表达内含 NUL 的文本，此类查询返回 NotSupported；无法表达的文本通知不截断或伪造正文，也不导致整个应用退出。
+
+文本动作 `revealText(range, scroll)` 显露指定 UTF-8 范围而不改变选区或焦点。SemanticTextScroll(horizontal, vertical) 使用 Start／Center／End／Nearest 描述最近滚动视口的对齐，其外层视口只做必要显露。动作使用同一内容版本校验、真实已呈现排版与滚动路径；等待新 Accepted 几何时返回 Busy，期间文档变化、隐藏、输入边界或新滚动意图使请求取消。正文版本独立于名称和说明版本；仅名称变化不会使未跟踪文档的文本范围失效。
+
+`AccessibilityNode.textChildren` 用 `SemanticTextChild(node, range)` 将当前公开正文中的 UTF-8 范围关联到实际语义后代，用于内联控件与文本内动作。每个后代只能登记一次，范围必须属于当前正文；正文改变时清空旧映射，后代退休时移除对应条目。查询只沿已发布映射，不从控件矩形猜测字符位置。Windows TextPattern.RangeFromChild／TextRange.GetChildren 和 Linux Hypertext 使用这份映射；正文、独立交互后代和替代文本保持各自真实身份。

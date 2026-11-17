@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class ChartInkProps(
     val input: ChartProps,
@@ -25,8 +26,10 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     private val area =
         scope.createArea(focusable = true) { context, event -> notify(context, event) }
     private val focus = scope.focusTarget(area, props.value.input.focus)
+    private val semantics = createComponentSemantics(scope, SemanticRole.Table)
     init {
         scope.routeChildren(area)
+        semantics?.bindFocus(Some(focus))
         area.scope.defaultAction =
             {
                 context,
@@ -132,7 +135,65 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     public override fun update(): UiInvalidation {
         area.scope.enabled = props.value.input.enabled
         focus.options = props.value.input.focus
+        val input = props.value.input
+        val snapshot = input.model.snapshot
+        val source = ChartSemanticSource(snapshot, input.enabled)
+        val selected = ArrayList<SemanticItemKey>()
+        when (props.value.active.value) {
+            case Some(val value) -> if (snapshot.data.indexOfDatum(value.datum) != None)
+                selected.add(SemanticItemKey.Text(value.datum.value))
+            case None -> {}
+        }
+        semantics?.bindReference(input.semantics.reference)
+        semantics?.update(
+            input.semantics.properties(enabled = input.enabled),
+            relations = input.semantics.relations
+        )
+        semantics?.updateDataCollection(
+            SemanticCollectionSnapshot(
+                source,
+                Some(SemanticCollectionSelection(selected.toArray())),
+                Some(source.grid())
+            ),
+            SemanticCollectionActions(
+                setSelected = Some { key, value -> selectSemantically(key, value) }
+            )
+        )
         return UiInvalidation.Layout
+    }
+    private fun selectSemantically(key: SemanticItemKey, selected: Boolean): SemanticActionResult {
+        val input = props.value
+        if (!input.input.enabled)
+            return SemanticActionResult.Rejected
+        val datum =
+            when (key) {
+                case Text(val text) -> ChartDatumKey(text);
+                case Number(_) -> return SemanticActionResult.Unavailable
+            }
+        val snapshot = input.input.model.snapshot
+        if (snapshot.data.indexOfDatum(datum) == None || snapshot.visible.size == 0L)
+            return SemanticActionResult.Unavailable
+        val current = input.active.value
+        if (!selected) {
+            if (current?.datum == Some(datum))
+                select(None)
+            return if (input.active.value?.datum != Some(datum))
+                SemanticActionResult.Completed
+            else
+                SemanticActionResult.Rejected
+        }
+        var series = snapshot.data.series[snapshot.visible[0L]].key
+        when (current) {
+            case Some(val value) -> if (input.input.model.isVisible(value.series))
+                series = value.series;
+            case None -> {}
+        }
+        val next = ChartSelection(series, datum)
+        select(Some(next))
+        return if (input.active.value == Some(next))
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ChartGeometry
@@ -208,6 +269,10 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     public override fun scene(context: SceneContext, geometry: ChartGeometry) {
         val plan = props.value.plan
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, bounds);
+            case None -> {}
+        }
         val presented = geometry.plot.width > 0.0 && geometry.plot.height > 0.0
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {

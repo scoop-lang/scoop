@@ -34,11 +34,15 @@ internal class ScrollReveal(
             )
         )
     }
-    fun needsMove(rect: Rect): Boolean {
+    fun needsMove(
+        rect: Rect,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ): Boolean {
         if (layout.overscroll != Point(0.0, 0.0))
             return true
         val snapshot = layout.snapshot
-        val wanted = snapshot.revealedOffset(rect)
+        val wanted = snapshot.revealedOffset(rect, horizontal, vertical)
         val visible =
             when (
                 intersectReveal(
@@ -132,7 +136,13 @@ internal class RevealAttempt {
                 return RevealProgress.Unavailable
         return advance(scene.path(area), rect, area.canFocus)
     }
-    fun advance(route: Array<ScrollReveal>, bounds: Rect, visible: Boolean): RevealProgress {
+    fun advance(
+        route: Array<ScrollReveal>,
+        bounds: Rect,
+        visible: Boolean,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ): RevealProgress {
         if (!isCurrent)
             return RevealProgress.Cancelled
         var rect = bounds
@@ -147,9 +157,19 @@ internal class RevealAttempt {
             val local = boundary.local(rect) ?: return RevealProgress.Unavailable
             if (!boundary.current)
                 return RevealProgress.Waiting
-            if (boundary.needsMove(local)) {
+            val h =
+                if (index == route.size - 1L)
+                    horizontal
+                else
+                    ScrollAlignment.Nearest
+            val v =
+                if (index == route.size - 1L)
+                    vertical
+                else
+                    ScrollAlignment.Nearest
+            if (boundary.needsMove(local, h, v)) {
                 val revision =
-                    boundary.state.position(boundary.layout.snapshot.revealedOffset(local))
+                    boundary.state.position(boundary.layout.snapshot.revealedOffset(local, h, v))
                 remember(boundary, revision)
                 return RevealProgress.Moved
             }

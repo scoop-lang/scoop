@@ -12,6 +12,7 @@ public open class PopupTriggerBuilder internal constructor() {
     public var style: ButtonStyle = buttonStyle()
     public var focus: FocusOptions = FocusOptions()
     public var fonts: FontCollection? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: ButtonStyleBuilder.() -> Unit) {
         style = style.copy(configure)
     }
@@ -19,7 +20,7 @@ public open class PopupTriggerBuilder internal constructor() {
         focus = focus.copy(configure)
     }
     internal fun snapshot(content: ButtonContent): PopupTriggerSpec =
-        PopupTriggerSpec(content, enabled, variant, size, style, focus, fonts)
+        PopupTriggerSpec(content, enabled, variant, size, style, focus, fonts, semantics)
 }
 
 public class PopoverBuilder internal constructor(): PanelBuilder() {
@@ -42,6 +43,7 @@ public class PopoverBuilder internal constructor(): PanelBuilder() {
     public var onOpenChange: (Boolean) -> Unit = {}
     public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
     public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun trigger(text: String, configure: PopupTriggerBuilder.() -> Unit = {}) {
         setTrigger(ButtonContent.Label(LabelProps(LabelText.Plain(text, None))), configure)
     }
@@ -89,7 +91,8 @@ public class PopoverBuilder internal constructor(): PanelBuilder() {
             fonts,
             theme,
             style,
-            arrow
+            arrow,
+            semantics
         )
 }
 

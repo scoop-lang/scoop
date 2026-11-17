@@ -83,7 +83,10 @@ public class CalendarProps public constructor(
     public val weekNumber: ((String) -> View)? = None,
     public val footer: View? = None,
     public val onValueChange: (CalendarValue) -> Unit = {},
-    public val onPageChange: (LocalDate) -> Unit = {}
+    public val onPageChange: (LocalDate) -> Unit = {},
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val daySemantics: (CalendarDay) -> ComponentSemantics =
+        { day -> ComponentSemantics(name = Some(day.data.date.toString())) }
 )
 
 public class CalendarHandle public constructor() {

@@ -1,0 +1,45 @@
+package scoop.ui
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.window.accessibility.SemanticNodeId
+
+/** A render-observable reference to one actual mounted semantic node. */
+public class SemanticsReference public constructor(): Equals<SemanticsReference> {
+    private val thread = currentThreadId()
+    private val current = state<SemanticNodeId?>(None)
+    private var owner: SemanticsHandle? = None
+    public val id: SemanticNodeId? get() {
+        checkThread()
+        return current.value
+    }
+    public override operator fun equals(other: SemanticsReference): Boolean = this === other
+    private fun checkThread() {
+        if (currentThreadId() != thread)
+            throw IllegalStateException(Some("semantic reference used from another thread"))
+    }
+    internal fun checkTarget(handle: SemanticsHandle) {
+        checkThread()
+        when (owner) {
+            case Some(val previous) -> requireUi(
+                previous === handle || previous.isClosed,
+                "semantic reference already has an active target"
+            )
+            case None -> {}
+        }
+    }
+    internal fun attach(handle: SemanticsHandle) {
+        checkTarget(handle)
+        owner = Some(handle)
+        current.value = Some(handle.id)
+    }
+    internal fun detach(handle: SemanticsHandle) {
+        checkThread()
+        when (owner) {
+            case Some(val previous) -> if (previous === handle) {
+                owner = None
+                current.value = None
+            }
+            case None -> {}
+        }
+    }
+}

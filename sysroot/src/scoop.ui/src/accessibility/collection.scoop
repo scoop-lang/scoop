@@ -6,7 +6,10 @@ import scoop.window.accessibility.*
 public class ItemSemantics public constructor(
     public val source: ItemSource,
     public val describe: (Long) -> SemanticItemProperties?,
-    public val search: SemanticItemSearch = SemanticItemSearch()
+    public val search: SemanticItemSearch = SemanticItemSearch(),
+    public val selection: SemanticCollectionSelection? = None,
+    public val setSelected: ((ViewKey, Boolean) -> SemanticActionResult)? = None,
+    public val grid: SemanticGrid? = None
 )
 
 private class LazySemanticSource(
@@ -35,6 +38,48 @@ private class LazySemanticSource(
         }
 }
 
+/** Data-only semantics for an existing drawing, such as a chart, without a lazy view tree. */
+public fun SemanticsHandle.updateDataCollection(
+    snapshot: SemanticCollectionSnapshot,
+    actions: SemanticCollectionActions = SemanticCollectionActions()
+) {
+    checkOpen()
+    checkSemanticsMutation()
+    when (owner.lazyItems) {
+        case Some(_) -> throw IllegalArgumentException(
+            Some("lazy elements must use updateCollection")
+        );
+        case None -> {}
+    }
+    resource.collection = Some(snapshot)
+    resource.collectionActions =
+        SemanticCollectionActions(
+            when (actions.realize) {
+                case Some(val action) -> Some { key -> controller.perform(this) { action(key) } };
+                case None -> None
+            },
+            when (actions.reveal) {
+                case Some(val action) -> Some { key -> controller.perform(this) { action(key) } };
+                case None -> None
+            },
+            when (actions.focus) {
+                case Some(val action) -> Some {
+                    key,
+                    value -> controller.perform(this) { action(key, value) }
+                };
+                case None -> None
+            },
+            when (actions.setSelected) {
+                case Some(val action) -> Some {
+                    key,
+                    value -> controller.perform(this) { action(key, value) }
+                };
+                case None -> None
+            }
+        )
+    controller.changed()
+}
+
 /** Binds one lazy mount's data-level list without constructing any of its rows. */
 public fun SemanticsHandle.updateCollection(
     source: ItemSource,
@@ -43,7 +88,10 @@ public fun SemanticsHandle.updateCollection(
 ) {
     checkOpen()
     checkSemanticsMutation()
-    requireUi(role == SemanticRole.List, "lazy collection semantics require the list role")
+    requireUi(
+        role == SemanticRole.List || role == SemanticRole.Table,
+        "lazy collection requires a list or table role"
+    )
     val lazy =
         owner.lazyItems ?:
             throw IllegalArgumentException(Some("collection semantics require a lazy element"))
@@ -86,7 +134,22 @@ public fun SemanticsHandle.updateCollection(
             return
         case None -> {}
     }
-    resource.collection = Some(SemanticCollectionSnapshot(LazySemanticSource(source, items)))
+    resource.collection =
+        Some(
+            SemanticCollectionSnapshot(
+                LazySemanticSource(source, items),
+                selection =
+                    when (items) {
+                        case Some(val value) -> value.selection;
+                        case None -> None
+                    },
+                grid =
+                    when (items) {
+                        case Some(val value) -> value.grid;
+                        case None -> None
+                    }
+            )
+        )
     collectionSource = Some(source)
     collectionItems = items
     if (!sameViewport)

@@ -3,6 +3,7 @@ package scoop.ui
 import scoop.collections.HashMap
 import scoop.collections.HashSet
 import scoop.window.accessibility.*
+import scoop.surface.InputScope
 
 /** Reconciles declared content only when its membership or eligibility changes. */
 internal class SemanticContent(private val ordered: Array<SemanticsHandle>) {
@@ -15,7 +16,7 @@ internal class SemanticContent(private val ordered: Array<SemanticsHandle>) {
         for (handle in ordered) {
             if (!handle.active)
                 continue
-            var hidden = handle.properties.hidden
+            var hidden = handle.properties.hidden || semanticInputExposure(handle) == 2
             when (val parent = handle.parent) {
                 case Some(val value) -> {
                     val siblings =
@@ -72,14 +73,12 @@ internal class SemanticContent(private val ordered: Array<SemanticsHandle>) {
             if (!handle.active)
                 continue
             val ignored = merged.contains(handle.id)
-            if (handle.merged != ignored) {
-                handle.merged = ignored
-                handle.resource.update(
-                    semanticProperties(handle.properties, ignored),
-                    semanticActions(handle, handle.actions),
-                    handle.resource.relations
-                )
-            }
+            handle.merged = ignored
+            handle.resource.update(
+                semanticProperties(handle, handle.properties, ignored),
+                semanticActions(handle, handle.actions),
+                handle.resource.relations
+            )
             handle.resource.contentLabels = content[handle.id]!!
         }
     }
@@ -94,24 +93,36 @@ private fun sameContent(before: Array<SemanticNodeId>, after: Array<SemanticNode
     return true
 }
 
-internal fun semanticProperties(value: SemanticProperties, merged: Boolean): SemanticProperties {
-    if (!merged || value.ignored)
-        return value
-    return SemanticProperties(
-        name = value.name,
-        description = value.description,
-        automationId = value.automationId,
-        value = value.value,
-        enabled = value.enabled,
-        readOnly = value.readOnly,
-        protectedText = value.protectedText,
-        checked = value.checked,
-        hidden = value.hidden,
-        error = value.error,
-        ignored = true,
-        selection = value.selection,
-        required = value.required,
-        scroll = value.scroll,
-        cursorAffinity = value.cursorAffinity
-    )
+internal fun semanticProperties(
+    handle: SemanticsHandle,
+    value: SemanticProperties,
+    merged: Boolean
+): SemanticProperties {
+    val exposure = semanticInputExposure(handle)
+    return value.copy {
+        ignored = value.ignored || merged || exposure == 1
+        hidden = value.hidden || exposure == 2
+    }
+}
+
+private fun semanticWithin(child: InputScope, parent: InputScope): Boolean {
+    var current: InputScope? = Some(child)
+    while (true) {
+        val scope = current ?: return false
+        if (scope === parent)
+            return true
+        current = scope.parent
+    }
+}
+
+/** Keeps only ancestry needed to connect the currently admitted modal subtree. */
+private fun semanticInputExposure(handle: SemanticsHandle): Int {
+    val boundary = handle.owner.root.surface.inputBoundary ?: return 0
+    val scope = handle.owner.scope.input
+    if (semanticWithin(scope, boundary.input))
+        return 0
+    return if (semanticWithin(boundary.input, scope))
+        1
+    else
+        2
 }

@@ -1,14 +1,20 @@
 # UI 交互打磨与 accessibility 实施计划
 
-日期：2026-11-17。状态：S0～S9 进行中，S10～S11 待开始；实际交付与平台验证见[实施记录](PROGRESS.md)。
+日期：2026-11-18。状态：accessibility 领域的整批实现与 macOS 定向验证完成，继续一级剩余交互功能；实际交付与平台验证见[实施记录](PROGRESS.md)。
 
 本计划统一安排[交互打磨设计](DESIGN.md)与[accessibility 设计](../accessibility/DESIGN.md)的实现、消费者迁移和验收。两份设计规定行为与技术边界，本文规定任务拆分、依赖、交付顺序和完成条件；设计中的 U0～U5、P0～P5 仅作为来源分组对照，后续按本文记录实施状态。
 
 目标是在当前桌面 GUI 平台上形成完整可用的交互与无障碍能力：macOS、Windows、Linux GNU 的 Wayland／X11。沿用普通 Scoop Cone、既有 owner、场景提交、文本模型和 native 后端；不增加 UI 专用编译器／runtime 机制。accessibility 沿用 C／Objective-C／C++ 选型，不新增 Rust 依赖或采用 AccessKit；App Intents 与 Swift 互操作维持独立后续范围。
 
-## 当前待办与强制执行顺序
+## 当前待办与执行顺序
 
-以下优先级高于批次编号及旧的“下一步”描述；S0～S11 仍用于拆分功能，不能据此提前开展低优先级工作。**当前执行一级：S7 accessibility 虚拟集合。共享模型与 AppKit 的数据查询、实际行关联及条目操作已接入；接下来为现有 Command、Combobox、DataTable 等消费者接入同源描述和集合关系。**
+先补功能缺口，再完成三个平台的功能验证，最后处理配色；S0～S11 是范围索引，不要求逐小项切换开发和测试。**accessibility 已按整个领域完成实现与本地集中验证；下一领域是触摸／手势，完成其全部功能缺口后再集中测试。**
+
+### 按领域开发与验证
+
+以开发效率为首要目标。accessibility、触摸／手势、动画及其余交互分别按完整领域推进：先完成该领域全部已知功能实现与必要的规范／消费者更新，再统一构建和执行该领域测试。每轮测试汇总全部已发现缺陷，完成这些缺陷的修复后才进入下一轮；不再为单个接口或单个控件反复执行整条依赖构建和回归。开发中的格式化与源码核对正常进行，已有通过且输入未变的结果复用。
+
+accessibility 本轮实现队列覆盖 S2／S4／S5／S7／S10／S11 的相关功能：集合状态及行列／层级／活动项关系；文本保留范围、表单状态与公告；控件默认语义、实际操作及模态边界；AppKit、Windows UIA、Linux AT-SPI 的对应能力。测试准备可随实现补齐，但功能实现齐备前不启动测试轮次。手势和动画继续沿同一节奏，配色仍在全部功能及三平台验证之后。
 
 | 优先级 | 工作 | 开始条件 | 当前状态 |
 | --- | --- | --- | --- |
@@ -18,12 +24,11 @@
 
 ### 一级待办：功能
 
-- [ ] S7：虚拟集合描述、稳定条目身份、查询与 Realize／Reveal／Focus、回收和删除生命周期。
+- [x] Accessibility：完成 S2／S4／S5／S7／S10／S11 的相关功能实现，包括三平台 provider、完整文本范围、表单／模态、公告、集合／表格、已有控件与第三方入口；macOS 本轮 22 项定向测试和示例构建通过。其他平台的目标构建、外部客户端及真实读屏器结果仍在二级验收，不能由本项替代。
 - [ ] S8：触摸数据拖放、软键盘及遮挡处理、原生与合成鼠标去重、剩余控件触摸组合和键盘／语义等价操作；保留已确定的自定义手势扩展边界。
 - [ ] S9 功能部分：剩余动画、闪烁、自动隐藏和按住重复操作的中断、减少动画、停帧与通知合同。
-- [ ] S0～S6：关闭各批次仍未完成的功能项，包括文本范围保持、表单／模态语义及拖放来源与目标生命周期。
-- [ ] S10：完成 Windows UIA、Linux AT-SPI 及相关公共模型／macOS provider 的实际能力。
-- [ ] S11 功能部分：补齐现有控件与第三方入口的语义、动作、键盘与触摸能力，完成对应规范、消费者和本地必要验证。
+- [ ] S0～S6：关闭各批次仍未完成的交互功能，包括系统文本服务的实际可接入部分、输入组合及拖放来源与目标生命周期。
+- [ ] S11 剩余功能：收齐现有控件的键盘／触摸等价操作和跨功能组合，完成对应规范、消费者和本地必要验证。
 
 ### 二级待办：三个平台的功能验证
 
@@ -70,7 +75,7 @@
 2. 已具备的多击选择、轴向 Drag、文本编辑、菜单角色、焦点、虚拟化和动画作为复用基础。以实际缺口修改，不重复建编辑模型、输入树、时钟或业务状态。
 3. accessibility 从 S0／S2 开始，文本、滚动、拖放、触摸在自己的批次中接入已具备的语义能力；不能把所有 provider 工作集中到最后。
 4. 依赖表示相关接口或原型结论已具备，不要求等待同一批次中无关平台和任务。一个平台的局部问题只阻塞依赖它的工作；三平台核心交付的未完成状态必须保留。
-5. 每批完成一组变更后先格式化、lint／check，再执行定向测试。普通库行为用所属 Cone 的 release 测试；只在真实 CLI、ABI、产物或外部进程合同需要时使用 fixture。
+5. 按完整领域收齐实现、消费者、测试源码与材料，再统一格式化、lint／check 和定向测试；每轮收集全部已发现缺陷，集中修完后开始下一轮。普通库行为用所属 Cone 的 release 测试；只在真实 CLI、ABI、产物或外部进程合同需要时使用 fixture。
 6. 批次完成包含规范、实现、实际消费者和必要验证。实现已写但 native／设备验证未做，应分别记录；文档完成、构建通过或检查器能显示节点均不能替代交互验收。
 7. 实施状态记录批次、实际目标、通过范围、未闭合问题和下一步。原始日志、截图批次和逐次报告放仓库外，不生成重复的验收归档。
 8. 验证限于本次实际变更，复用输入未变化的已通过结果。系统前台激活策略造成的焦点获取限制记录为环境条件，不反复启动窗口、调整激活或等待脚本、要求人工聚焦，也不阻塞无关变更交付；只有实际涉及焦点行为的变更才安排相应的定向检查。
@@ -93,7 +98,7 @@
 | S10 | Windows／Linux 完整 provider | S0.5 对应平台结论、S2；文本／集合随 S5／S7 接入 | P4 |
 | S11 | 全控件覆盖、跨平台组合与工具验收 | S1～S10 的相关能力及第 5 节核查结果 | P5、U5 的总体验收 |
 
-批次依赖用于一级内部选择可推进的功能：复用 S0～S6 已交付能力，当前先推进 S7，再关闭 S8／S9 与其他批次的剩余功能。S10 的实现随公共接口接入，S11 持续补控件覆盖；集中远程平台验收按二级执行。S9 的配色部分独立留到三级，不以批次顺序提前开展。
+批次依赖用于一级内部选择可推进的功能：accessibility 相关实现与本地适用验证已集中完成，接着按领域关闭 S8／S9 与其他批次的剩余功能。S10 的三平台实现已随公共接口接入，S11 继续收齐跨功能组合；集中远程平台验收按二级执行。S9 的配色部分独立留到三级，不以批次顺序提前开展。
 
 这一依赖安排允许不互相依赖的工作分别进行，不预设人员数量或日历工期。S0 的难点结论明确后，可按实际实现与设备验证进度安排日期。
 
@@ -133,16 +138,16 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 ### S2 公共语义模型与 macOS 基础闭环
 
-当前进展：Window 与 AppKit 基础投影、UI scope／子项路由／逻辑发布／场景登记、名称／说明／错误／controls 关系、内容合并／忽略以及原生精确命中已接入。Label、Button、Checkbox、Switch／Toggle／RadioGroup／ToggleGroup、Input／Textarea、SelectableStyledText、Typography、ScrollArea 与 VirtualList 滚动容器已提供默认语义及统一覆盖值，组合控件可由后代 Element 登记祖先资源的几何。具体运行与构建范围见[实施记录](PROGRESS.md)；Accepted 场景、缓存及精确命中的 macOS 实窗回归已通过；基础独立 AX 客户端的动作、焦点和退休回归已通过；其余控件、复杂控件关系、激活点与完整外部／读屏器验收仍待继续，不据基础资源交付标记本批完成。
+当前进展：Window 共享模型与 AppKit 投影、UI scope／逻辑发布／场景登记、复杂关系、内容合并／忽略、原生精确命中和实际激活点已接入，已有控件使用同一默认语义及覆盖入口。功能实现与 macOS 定向验证已完成，Accepted 场景、缓存和基础独立 AX 客户端的既有通过结果复用；完整外部客户端／读屏器验收仍在二级，不由下面的实现勾选代替。具体范围见[实施记录](PROGRESS.md)。
 
 **主要范围：** UI scope／挂载／host／scene，Window 的 `accessibility` 包与 AppKit 后端，基础控件。先改 UI、Window、Component 及必要的 Surface spec。
 
-- [ ] 实现语义资源、带窗口归属的 typed identity、属性／动作更新和 scope 收尾；一个挂载可产生零个、一个或多个节点，角色替换与退休不复用旧引用。
-- [ ] 提供角色、名称、说明、值、状态、关系、automationId、阅读顺序和真实能力；落实透明布局、标签合并、忽略当前节点／排除子树，独立交互后代不被合并掉。
-- [ ] 普通 owner 更新后发布一致的属性／结构；语义变化不要求 drawable。SceneCommand 记录几何并参与缓存，Accepted 才发布新位置，Discarded 与不匹配布局不产生虚假点击点。
-- [ ] 将 Invoke／Toggle／SetValue／Focus 等实际动作接入现有 handler、Binding 和焦点；区分完成、拒绝、不支持、参数错误与目标不可用，处理 handler 自删／关窗与异常。
-- [ ] 实现 AppKit 根和原生对象、坐标转换、通知、查询／动作边界及迟到对象释放；与 Window、原生菜单／对话框的树连接且不重复导出。
-- [ ] 接入 Label、Button、Checkbox、Input、一个滚动容器及普通第三方 Element；其余平台基于已确认接口开始适配。
+- [x] 实现语义资源、带窗口归属的 typed identity、属性／动作更新和 scope 收尾；一个挂载可产生零个、一个或多个节点，角色替换与退休不复用旧引用。
+- [x] 提供角色、名称、说明、值、状态、关系、automationId、阅读顺序和真实能力；落实透明布局、标签合并、忽略当前节点／排除子树，独立交互后代不被合并掉。
+- [x] 普通 owner 更新后发布一致的属性／结构；语义变化不要求 drawable。SceneCommand 记录几何并参与缓存，Accepted 才发布新位置，Discarded 与不匹配布局不产生虚假点击点。
+- [x] 将 Invoke／Toggle／SetValue／Focus 等实际动作接入现有 handler、Binding 和焦点；区分完成、拒绝、不支持、参数错误与目标不可用，处理 handler 自删／关窗与异常。
+- [x] 实现 AppKit 根和原生对象、坐标转换、通知、查询／动作边界及迟到对象释放；与 Window、原生菜单／对话框的树连接且不重复导出。
+- [x] 接入 Label、Button、Checkbox、Input、一个滚动容器及普通第三方 Element；其余平台基于已确认接口开始适配。
 
 **通过条件：** VoiceOver 和外部 AX 客户端可以读取、激活、修改字段及观察结果；disabled、hidden、绑定拒绝、根解除／重附着和客户端保留旧对象均正确。单纯属性变更不触发绘图，场景缓存命中不丢语义登记。
 
@@ -168,28 +173,28 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 
 **主要范围：** UI scroll、Component 共享 ScrollControl／ScrollBarControl、Textarea、VirtualList、主题 metrics／geometry／painter。先改 UI、Component、Theme spec。
 
-- [ ] 分开可见条件、平台预设、Overlay／固定 gutter、出现触发、闲置时间、淡入淡出；与已有 Auto／Always／Hidden 的实际含义完成统一迁移。
-- [ ] 独立配置 idle／hover／drag 宽度、颜色／透明度及展开／收缩过渡；每项可关闭，显式参数与平台默认值规则一致。
-- [ ] 分开绘制和最小命中厚度，增加不截获正文点击的边缘唤醒；隐藏条不保留透明点击屏障，重新出现仍等 Accepted。
-- [ ] 处理 hover、按住、thumb 拖动、滚动相位／momentum、键盘活动和闲置 deadline；补轨道分页／跳转、箭头及按住重复，拖动保留抓取比例。
-- [ ] ScrollArea／VirtualList／Textarea 及现有组合共用规则；gutter 不因过渡抖动，Overlay 遮挡计入 caret／焦点显露，保留 RTL／双轴角部行为。
-- [ ] 通过 S2 接入容器范围、位置、Scroll／Reveal 与条的适用语义；视觉自动隐藏不退休容器或移除滚动能力，不按每帧透明度重建语义树。
+- [x] 分开可见条件、平台预设、Overlay／固定 gutter、出现触发、闲置时间、淡入淡出；与已有 Auto／Always／Hidden 的实际含义完成统一迁移。
+- [x] 独立配置 idle／hover／drag 宽度、颜色／透明度及展开／收缩过渡；每项可关闭，显式参数与平台默认值规则一致。
+- [x] 分开绘制和最小命中厚度，增加不截获正文点击的边缘唤醒；隐藏条不保留透明点击屏障，重新出现仍等 Accepted。
+- [x] 处理 hover、按住、thumb 拖动、滚动相位／momentum、键盘活动和闲置 deadline；补轨道分页／跳转、箭头及按住重复，拖动保留抓取比例。
+- [x] ScrollArea／VirtualList／Textarea 及现有组合共用规则；gutter 不因过渡抖动，Overlay 遮挡计入 caret／焦点显露，保留 RTL／双轴角部行为。
+- [x] 通过 S2 接入容器范围、位置、Scroll／Reveal 与条的适用语义；视觉自动隐藏不退休容器或移除滚动能力，不按每帧透明度重建语义树。
 
 **通过条件：** 效果分别开关／定制、系统常显／减少动画热切换、零范围／窄视口、嵌套和编辑器均正确；没有 hover 的使用方式仍可滚动，静止隐藏后无连续帧或周期轮询。
 
 ### S5 accessibility 文本、表单、焦点与模态
 
-当前进展：Window／AppKit 已接入纯文本正文、UTF-16 范围读取、单选区、实际写入和 ShowContextMenu。UI 的 updateTextEditor 复用既有模型、策略、composition 和撤销历史，updateSelectableText 接入只读正文与行内替代文字选区；两个宿主共用原菜单会话。Input／Textarea、SelectableStyledText 及 Typography 的内置宿主和包装已自动接入，选择通知保留最新业务回调，切换只读选择分支退休旧对象。FieldTarget 已复用原连接发布标签／说明／错误关系与只读 required 属性，注释／必填来源更新和换绑不需要重新创建控件。已呈现范围几何／单位查询、两类宿主的 AppKit 实窗及独立 AX 范围／选区通知回归已接入，实际通过范围见[实施记录](PROGRESS.md)。保留范围、invalid／busy 等其余状态、复杂焦点与模态仍待继续。
+当前进展：正文／单位查询、真实编辑与菜单、保留范围和端点映射、表单状态与关系、选择／展开、公告及模态边界已接入同一业务模型。AppKit 当前范围、无 drawable 的模型事务和原生编辑动作验证通过；三平台投影实现齐备，完整外部客户端／读屏器与目标平台验收仍在二级。实际通过范围见[实施记录](PROGRESS.md)。
 
 **主要范围：** 共享语义模型、TextEditorState／TextEditHost／TextLayout、focus／overlay、Field 与选择类控件、已接通的 provider。先改 UI／Component／Window 与实际受影响的文本 spec。
 
-- [ ] 接入正文／范围读取、选区读取与设置、按点定位、范围矩形、词／行等单位以及实际可用的写入；UTF-8、UTF-16 和 AT-SPI 字符偏移正确转换。
-- [ ] 明确 retained range 的文档身份、端点 affinity、插入／删除后的调整及失效；复用编辑差量，不永久保存全文历史。新正文不使用旧布局几何。
-- [ ] Accessibility 编辑进入同一只读检查、受保护状态、策略、composition 和 undo；密码明文不出现在 value、范围、通知或诊断快照中，视觉显隐不解除保护。
-- [ ] Field 的 label／description／error、required／invalid／busy 以及对应关系进入语义树；图标按钮命名和装饰去重正确。
-- [ ] 分离键盘焦点、active descendant、选择和辅助技术阅读位置；完善 Tabs、Menu、Combobox、Dialog／Portal、同窗口／原生模态及关闭后的恢复。
-- [ ] 接入 ShowContextMenu 和 S3 的真实菜单；原生菜单提供自己的语义，UI 保持目标关系；文本／selection／focus 变化按实际结果发布且不重复通知。
-- [ ] 增加必要 live region／announcement，保留优先级和合并规则；普通进度、hover 和动画采样不自动逐次播报。S6／S8 后续操作继续复用此接口。
+- [x] 接入正文／范围读取、选区读取与设置、按点定位、范围矩形、词／行等单位以及实际可用的写入；UTF-8、UTF-16 和 AT-SPI 字符偏移正确转换。
+- [x] 明确 retained range 的文档身份、端点 affinity、插入／删除后的调整及失效；复用编辑差量，不永久保存全文历史。新正文不使用旧布局几何。
+- [x] Accessibility 编辑进入同一只读检查、受保护状态、策略、composition 和 undo；密码明文不出现在 value、范围、通知或诊断快照中，视觉显隐不解除保护。
+- [x] Field 的 label／description／error、required／invalid／busy 以及对应关系进入语义树；图标按钮命名和装饰去重正确。
+- [x] 分离键盘焦点、active descendant、选择和辅助技术阅读位置；完善 Tabs、Menu、Combobox、Dialog／Portal、同窗口／原生模态及关闭后的恢复。
+- [x] 接入 ShowContextMenu 和 S3 的真实菜单；原生菜单提供自己的语义，UI 保持目标关系；文本／selection／focus 变化按实际结果发布且不重复通知。
+- [x] 增加必要 live region／announcement，保留优先级和合并规则；普通进度、hover 和动画采样不自动逐次播报。S6／S8 后续操作继续复用此接口。
 
 **通过条件：** 真实辅助技术能填写、阅读、选择、编辑、撤销、打开菜单与模态，并能理解错误和说明；受控写入拒绝不假报成功。读取属性不抢焦点，模态背景不能通过语义动作绕过限制。
 
@@ -224,9 +229,9 @@ Linux 原型必须验证 Action、GrabFocus、EditableText 和原生树衔接，
 - [x] Window 提供按 key／序号查询和属性 Find；AppKit rows／children 支持有界范围读取与实际 visibleRows。查询不 build／滚动／聚焦，描述暂不可用不伪报截断成功。
 - [x] 共享模型与 AppKit 接通 Realize、Reveal、Focus；Realize 返回前实际子树可用，Reveal 等待 Accepted 可见区域，Focus 接入真实 LazyFocus。原生条目操作、在途重排／关闭、后续定位取消已通过；聚焦覆盖请求、取消和禁用拒绝，不把排队当作活动焦点。其他平台及正向读屏器组合仍待 S10／集中验收。
 - [x] 复用现有 lazy、滚动和焦点控制器；普通客户端引用只保留轻量代理，具体实例按真实焦点、编辑及在途操作需要保留。取消、删除和根关闭优先，不复活旧 key；释放后的实际回收与全部实例关闭已验证。
-- [ ] 将数据描述与实际选择状态接入现有 Command、Combobox、DataTable 等消费者，按已有控制器提供操作，不让描述源读取正在改变的业务状态或推测任意 View 的内容。
-- [ ] 区分 hidden、离屏、折叠、未实例化与删除；补集合位置／数量、行列／层级／标题关系及适用 active descendant，具体行内控件由真实挂载提供能力。
-- [ ] 平台接入按其实际模型处理 rows／visibleRows、ItemContainer／VirtualizedItem、VISIBLE／SHOWING 等；不能把三者压成统一的可见布尔值。
+- [x] 将数据描述与实际选择状态接入现有 Command、Combobox、DataTable 等消费者，按已有控制器提供操作，不让描述源读取正在改变的业务状态或推测任意 View 的内容。
+- [x] 区分 hidden、离屏、折叠、未实例化与删除；补集合位置／数量、行列／层级／标题关系及适用 active descendant，具体行内控件由真实挂载提供能力。
+- [x] 平台接入按其实际模型处理 rows／visibleRows、ItemContainer／VirtualizedItem、VISIBLE／SHOWING 等；不能把三者压成统一的可见布尔值。
 
 **通过条件：** 十万条、约二十行可见的列表接入时保持局部实例化；外部客户端能找到远处条目并按需显露／操作，排序、过滤、删除不串项。S6 的拖放与正在编辑项、重排／回收组合在 S11 共同验收。
 
@@ -281,13 +286,15 @@ S9 的功能部分继续进行；弹性边界、共享几何、直接接触惯�
 
 ### S10 Windows／Linux 完整 provider
 
+当前进展：下面四项平台实现已完成；本轮本机检查覆盖共享 C++17 模型，Windows／Linux 的目标构建和实际运行按二级集中验收，不据实现勾选宣称相应平台通过。
+
 **主要范围：** Window C／C++／GTK／GIO native，共享语义值与实际控件映射。沿 S2 的公共接口跟随 S5／S7，不增加平台专用上层控件源码。
 
-- [ ] Windows 通过 HWND／WM_GETOBJECT 接入 Simple、Fragment、FragmentRoot；完成 RuntimeId、导航、焦点、屏幕物理坐标、COM apartment／跨线程查询与关闭。
-- [ ] 按实际能力接入 Invoke、Toggle、Value、RangeValue、Selection／SelectionItem、ExpandCollapse、Scroll／ScrollItem、Text／TextRange、ItemContainer／VirtualizedItem；有实际行列／标题语义的表格接入 Grid／GridItem、Table／TableItem，文本访问与写入能力分别处理。
-- [ ] Linux 实施 S0 选定的单一路线，补 Action、Component／焦点、文本／编辑、范围与集合；与 GTK 窗口、菜单、文件面板树正确衔接，遵守 GTK 4.18 基线。
-- [ ] 完成 AT-SPI 偏移与状态映射、按需代理、通知和 GMainContext／D-Bus 生命周期；明确同步返回、异步回复、重入和客户端保留旧对象的行为。
-- [ ] 每接入一类能力就复用对应共享测试场景，修复公共模型的实际平台问题；不以注册 provider 成功代替动作、文本和虚拟化可用。
+- [x] Windows 通过 HWND／WM_GETOBJECT 接入 Simple、Fragment、FragmentRoot；完成 RuntimeId、导航、焦点、屏幕物理坐标、COM apartment／跨线程查询与关闭。
+- [x] 按实际能力接入 Invoke、Toggle、Value、RangeValue、Selection／SelectionItem、ExpandCollapse、Scroll／ScrollItem、Text／TextRange、ItemContainer／VirtualizedItem；有实际行列／标题语义的表格接入 Grid／GridItem、Table／TableItem，文本访问与写入能力分别处理。
+- [x] Linux 实施 S0 选定的单一路线，补 Action、Component／焦点、文本／编辑、范围与集合；与 GTK 窗口、菜单、文件面板树正确衔接，遵守 GTK 4.18 基线。
+- [x] 完成 AT-SPI 偏移与状态映射、按需代理、通知和 GMainContext／D-Bus 生命周期；明确同步返回、异步回复、重入和客户端保留旧对象的行为。
+- [ ] 三平台相关能力全部接入后集中复用共享测试场景，按轮次修完发现的问题；不以注册 provider 成功代替动作、文本和虚拟化可用。
 
 **通过条件：** Narrator／UIA 与 Orca／AT-SPI 能完成和 macOS 相同的实际任务；Linux Wayland／X11 分别验证。核心动作或文本能力缺失时该平台保持未完成，不因系统文本附加服务允许回退而一并豁免。
 
@@ -296,7 +303,7 @@ S9 的功能部分继续进行；弹性边界、共享几何、直接接触惯�
 **主要范围：** 当前已交付控件、公共自绘入口、示例／编程材料、三平台真实交互与外部客户端。
 
 - [ ] 对照[现有控件目录](../shadcn/CATALOG.md)和实际实现，逐项检查角色、名称、值／状态、关系、集合信息、动作、键盘与触摸入口；记录复用到的公共实现，修复缺口。未存在的控件不因设计列举而新增。
-- [ ] 特别覆盖表单、菜单／选择器、日期／表格、Toast／进度、图表数据说明、会话／附件／问卷、装饰图标与内容合并；可切换主题不改变业务语义。
+- [x] 默认语义覆盖表单、菜单／选择器、日期／表格、Toast／进度、图表数据说明、会话／附件／问卷、装饰图标与内容合并；可切换主题不改变业务语义。本地集中验证见实施记录，键盘／触摸及跨功能矩阵继续在其余任务完成。
 - [ ] 保持一个共享的交互展示场景：配置面板、单／多行编辑、长文／虚拟列表、可重排项、图像变换、第二窗口、文本／文件接收区和模态；通过公共 API 组合，不在示例中补平台缺口。
 - [ ] 完成第 6 节矩阵与第 7 节端到端任务；重点补拖放×虚拟化、菜单×IME、触摸×选择、回弹×语义几何、设置变化×动态内容及关闭重入。
 - [ ] 使用 VoiceOver、Narrator、Orca 和对应外部原生客户端分别核对导航／动作／文本／通知；第三方 Element 使用相同公开接口，直接 Surface 消费者可经低层 provider 接入。

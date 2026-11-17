@@ -6,6 +6,7 @@ import scoop.platform.concurrent.currentThreadId
 import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
+import scoop.window.accessibility.SemanticTextDocument
 
 /** One mounted plain-text view, using the existing input, layout and scroll owners. */
 public class TextEditHost public constructor(
@@ -47,6 +48,7 @@ public class TextEditHost public constructor(
     internal var staged: EditorFrame? = None
     internal var accepted: EditorFrame? = None
     internal val semantics = SemanticTextHost()
+    internal var semanticDocument: SemanticTextDocument? = None
     internal var semanticLayout: EditorSemanticLayout? = None
     internal var revealNeeded = false
     internal var revealRevision = 0UL
@@ -270,6 +272,9 @@ public class TextEditHost public constructor(
         }
         if (rebound)
             contextMenu.cancel()
+        if (rebound || this.options.protectedText != options.protectedText) {
+            retireSemanticDocument()
+        }
         current = state
         this.appearance = appearance
         this.options = options
@@ -450,6 +455,7 @@ public class TextEditHost public constructor(
         val owned = current.detachHost(this)
         var failure: Throwable? = None
         failure = cleanupUi(failure) { semantics.close() }
+        failure = cleanupUi(failure) { retireSemanticDocument() }
         semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
         failure = cleanupUi(failure) { touchPress.close() }

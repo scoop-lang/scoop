@@ -37,3 +37,7 @@ when = { os = "darwin" }
 [[native.sources]]
 path = "native/text_geometry.m"
 when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/traits.m"
+when = { os = "darwin" }

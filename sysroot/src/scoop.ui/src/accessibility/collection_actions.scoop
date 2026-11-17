@@ -47,7 +47,19 @@ internal fun semanticCollectionActions(handle: SemanticsHandle): SemanticCollect
     return SemanticCollectionActions(
         Some { key -> performSemanticItem(handle, key, 3) },
         reveal,
-        focus
+        focus,
+        when (handle.collectionItems) {
+            case Some(val items) -> when (items.setSelected) {
+                case Some(val select) -> Some {
+                    key,
+                    selected -> handle.controller.perform(handle) {
+                        select(itemViewKey(key), selected)
+                    }
+                }
+                case None -> None
+            }
+            case None -> None
+        }
     )
 }
 

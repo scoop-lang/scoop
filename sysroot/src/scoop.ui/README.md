@@ -61,7 +61,7 @@ ApplicationScope 和 ComponentScope 均提供 application、uiHost、resource、
 LazyElement 可为自己的 List 节点调用 `updateCollection(source, items, viewport)`，其中可选 `ItemSemantics(source, describe, search)` 必须绑定同一 ItemSource 快照。数据描述在只读 evaluation 内查询，不执行 build 或写入 UI State；未提供描述时名称未知，只公布实际身份与集合位置。框架只给已挂载行建立具体语义子树，行回收不删除数据级条目；实际几何沿同一 Accepted 场景发布。Realize 经原挂载流程仅准备请求行，在原生返回边界前保留真实子树，随后恢复回收。可选 viewport 必须是本 Lazy 挂载实际拥有的 ScrollViewport；显露通过原 pinnedItems 测量／放置，并复用 Accepted 滚动路径，完成或取消后释放保留。数据声明 focusable 且已绑定 LazyFocus 时，条目聚焦沿真实按 key 焦点路径。Component 的 VirtualList 自动绑定这些控制器。
 
 
-macOS 的 `ComponentScope.semantics` 在构造／挂载时登记 `SemanticsHandle`；角色、属性与动作从 `scoop.window.accessibility` 导入。一个挂载可以有多个节点，普通布局默认透明，`routeSemanticsChildren` 指定子挂载的语义父级。下面的包装不改变子项布局，也不为语义登记创建 InputArea：
+`ComponentScope.semantics` 在构造／挂载时登记 `SemanticsHandle`；角色、属性与动作从 `scoop.window.accessibility` 导入，三个桌面平台使用同一声明。一个挂载可以有多个节点，普通布局默认透明，`routeSemanticsChildren` 指定子挂载的语义父级。下面的包装不改变子项布局，也不为语义登记创建 InputArea：
 
 ```scoop
 import scoop.graphics.*
@@ -106,13 +106,15 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 自定义编辑 Element 可在正常 update 中调用 `semantic.updateTextEditor(host, properties, relations)`，扩展函数从 `scoop.ui.text` 导入。semantic 必须是同一挂载的 TextField；host 仍由原作用域管理。名称、说明、错误、required 和关系来自参数，正文、方向选区与实际焦点来自现有 TextEditHost。required 描述实际表单要求，不通过祖先自动继承，也不执行校验；两个文本投影与静态标签合并均保留它。禁用、只读和 protectedText 使用两者共同施加的限制；受保护用途即使明文显示或显式允许复制，也不向原生查询发布正文／长度／选区。调用方沿原 State 依赖更新控件；仅修改选区不要求新的几何。
 
-原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。匹配 Accepted 排版的正文几何、按点／词行查询已接入；retained range 继续随 S5 推进。
+原生写入使用 `TextEditSource.Accessibility`，先执行与 Paste 相同的外来文本清洗，再应用统一的 transform、字符／长度策略和撤销事务；只读、拒绝、模型换绑或尚未发布的版本变化不会写入旧目标。只读文本仍可选择；选择不会抢键盘焦点。选择结束 composition 使用 EditCommand，不作为外来文本再次清洗。AppKit 的 UTF-16 单范围与公共 UTF-8 选区相互转换，范围读取不会切断 surrogate。匹配 Accepted 排版的正文几何和按点／词行查询沿同一宿主提供；保留范围由 SemanticTextDocument 追踪编辑端点，换绑、保护或关闭后失效，不保存全文历史。
 
 只读富文本 Element 使用 `semantic.updateSelectableText(host, properties, relations)`，semantic 为同一挂载的 Text 角色。正文包含 StyledText 的 alternateText，选区沿既有区间映射转换；选择替代文字的一部分时，宿主选择完整行内对象，caret 落到对象下游。它不改写宿主的选择通知；在正常 update 和 onSelectionChanged 中刷新语义，业务通知继续由调用方执行。同一不可变内容的正文／映射会复用，单纯拖选不重新复制全文；内容换绑、受保护发布与关闭清理该投影。标记为受保护时不公布正文或选区，也不提供写入动作。
 
 两个宿主都会在菜单模式未禁用时提供 ShowContextMenu。该明确动作可先请求真实焦点，再使用已经提交的 caret／选区锚点打开同一个菜单会话；等待焦点或已有会话结束返回 Busy，无有效锚点或当前资格时拒绝。读取或选择仍不抢焦点。菜单项目、复制策略、文档换绑和迟到动作沿原宿主规则；原生菜单继续提供自己的 accessibility 树。用例见[只读语义文本](tests-cones/accessibility-selectable/README.md)与[文本编辑实窗](tests-cones/editing/README.md)。
 
-当前登记工厂与 Window 的 AppKit provider 一同按目标源码提供；尚未接入的 Windows／Linux provider、内置控件默认语义、复杂控件关系、完整文本查询、虚拟集合和外部读屏器验收继续执行[统一计划](../../../docs/ui/interaction-polish/PLAN.md)。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
+`SemanticsReference` 持有实际挂载节点的可观察 id，可通过 `handle.bindReference` 或 `bindReferences` 绑定；关闭或换绑会清除旧身份。把这些 id 用于 `SemanticRelations`，即可让标签、说明、错误、controls、activeDescendant 和表头随真实目标更新。文本宿主沿同一文档维护保留范围，并把行内动作与替代文字对应到实际语义子对象；显露文字使用 Accepted 文本布局与原滚动视口，不另设编辑模型。
+
+登记工厂共用于 AppKit、Windows UIA 和 Linux AT-SPI。三平台构建、外部客户端与读屏器的验证范围分别记录于[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，实现存在不等于已完成平台验收。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
 自定义滚动条可在同一挂载创建 ScrollBar 节点，并在正常 update 以及视口 Accepted 完成回调之后调用 `semantic.updateScrollBar(viewport, SemanticOrientation.Vertical, lineStep = 40.0)`；方向从 `scoop.window.accessibility` 导入，扩展函数位于 scoop.ui。文本编辑器的同名重载从 scoop.ui.text 导入，首参数为 TextEditHost，继续借用其原视口。范围来自真实 Accepted 快照，尚无范围或零范围时忽略条节点。动作沿原 ScrollState 的 User 请求，连续写入保留另一轴的待处理位置；换绑后旧回调不可操作新状态。滚动请求登记与位置呈现分别处理，视觉自动隐藏不移除逻辑能力。
 

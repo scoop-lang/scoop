@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.column as calendarColumn
 import scoop.ui.component.row as calendarRow
 
@@ -14,6 +15,7 @@ public class Calendar public constructor(
     private val control = CalendarControl(props, scope)
     private val themes = ThemeAccess(scope)
     private val appearances = CalendarAppearanceCache()
+    private val semanticHeaders = ArrayList<CalendarSemanticHeaders>()
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -28,6 +30,8 @@ public class Calendar public constructor(
             else
                 8L
         val width = appearance.cell * columns.toDouble()
+        while (semanticHeaders.size < snapshot.pages.size)
+            semanticHeaders.add(CalendarSemanticHeaders())
         val months =
             Array<View>(snapshot.pages.size) {
                 index ->
@@ -44,7 +48,13 @@ public class Calendar public constructor(
                                 appearance
                             )
                         )
-                        val days = this @Calendar.monthGrid(page, snapshot, appearance)
+                        val days =
+                            this @Calendar.monthGrid(
+                                page,
+                                snapshot,
+                                appearance,
+                                this @Calendar.semanticHeaders[index]
+                            )
                         this.add(
                             when (input.monthGrid) {
                                 case Some(val build) -> build(page, days);
@@ -81,27 +91,37 @@ public class Calendar public constructor(
                 this.spacing = 12.0 * appearance.density
                 this.alignment = CrossAlignment.Start
             }
-        return element(
-            CalendarEventsInput(control, snapshot),
-            { value, scope -> CalendarEvents(value, scope) },
-            [
-                panelFrame(
-                    content,
-                    Insets.all(8.0 * appearance.density),
-                    styleOverride {
-                        this.background(
-                            Some(Paint(appearance.theme.tokens.palette.background.background))
-                        )
-                        this.corners(Corners.all(appearance.theme.tokens.corners.large))
-                    }.then(input.style)
-                )
-            ]
+        val result =
+            element(
+                CalendarEventsInput(control, snapshot),
+                { value, scope -> CalendarEvents(value, scope) },
+                [
+                    panelFrame(
+                        content,
+                        Insets.all(8.0 * appearance.density),
+                        styleOverride {
+                            this.background(
+                                Some(Paint(appearance.theme.tokens.palette.background.background))
+                            )
+                            this.corners(Corners.all(appearance.theme.tokens.corners.large))
+                        }.then(input.style)
+                    )
+                ]
+            )
+        return semanticContent(
+            result,
+            SemanticRole.Group,
+            input.semantics.properties(enabled = input.enabled),
+            relations = input.semantics.relations,
+            mergeLabels = false,
+            reference = input.semantics.reference
         )
     }
     private fun monthGrid(
         page: CalendarPage,
         snapshot: CalendarSnapshot,
-        appearance: CalendarAppearance
+        appearance: CalendarAppearance,
+        headers: CalendarSemanticHeaders
     ): View {
         val input = props.value
         val numbered = input.options.weekNumbers != CalendarWeekNumbers.None
@@ -111,15 +131,25 @@ public class Calendar public constructor(
             else
                 0L
         val entries = ArrayList<GridItem>()
+        while (headers.weeks.size < page.weeks.size)
+            headers.weeks.add(SemanticsReference())
         val start = input.options.request(page.anchor).weekStart.isoDayNumber
         for (column in 0L ..< 7L) {
             val weekday = (start.toLong() - 1L + column) % 7L
             entries.add(
                 GridItem(
-                    calendarLabel(
-                        input.options.locale.weekdays[weekday],
-                        appearance.weekday,
-                        input.fonts
+                    semanticContent(
+                        calendarLabel(
+                            input.options.locale.weekdays[weekday],
+                            appearance.weekday,
+                            input.fonts
+                        ),
+                        SemanticRole.ColumnHeader,
+                        SemanticProperties(
+                            name = Some(input.options.locale.weekdays[weekday]),
+                            cell = Some(SemanticTableCell(0L, column + offset))
+                        ),
+                        reference = Some(headers.weekdays[column])
                     ),
                     column + offset,
                     0L,
@@ -136,7 +166,22 @@ public class Calendar public constructor(
                         case Some(val build) -> build(text);
                         case None -> calendarLabel(text, appearance.weekday, input.fonts)
                     }
-                entries.add(GridItem(content, 0L, row + 1L, vertical = CrossAlignment.Center))
+                entries.add(
+                    GridItem(
+                        semanticContent(
+                            content,
+                            SemanticRole.RowHeader,
+                            SemanticProperties(
+                                name = Some(text),
+                                cell = Some(SemanticTableCell(row + 1L, 0L))
+                            ),
+                            reference = Some(headers.weeks[row])
+                        ),
+                        0L,
+                        row + 1L,
+                        vertical = CrossAlignment.Center
+                    )
+                )
             }
             for (column in 0L ..< 7L)
                 when (week.days[column]) {
@@ -159,8 +204,9 @@ public class Calendar public constructor(
                                 snapshot.preview,
                                 active.focus
                             )
+                        val semantic = input.daySemantics(day)
                         val button =
-                            component(
+                            semanticButton(
                                 ButtonProps(
                                     ButtonContent.Resolved {
                                         style -> when (input.day) {
@@ -178,9 +224,43 @@ public class Calendar public constructor(
                                     input.theme,
                                     active.options.copy { this.handle = Some(active.focus) },
                                     variant = ButtonVariant.Ghost,
-                                    size = ButtonSize.Icon
+                                    size = ButtonSize.Icon,
+                                    semantics =
+                                        semantic.copy {
+                                            relations =
+                                                semantic.relations.copy {
+                                                    columnHeaders =
+                                                        mergeSemanticIds(
+                                                            columnHeaders,
+                                                            semanticIds(headers.weekdays[column].id)
+                                                        )
+                                                    if (numbered)
+                                                        rowHeaders =
+                                                            mergeSemanticIds(
+                                                                rowHeaders,
+                                                                semanticIds(headers.weeks[row].id)
+                                                            )
+                                                }
+                                        }
                                 ),
-                                { value, scope -> Button(value, scope) }
+                                SemanticRole.Cell,
+                                semantic.properties(
+                                    enabled = day.enabled,
+                                    selected = Some(day.selected),
+                                    required = input.options.rules.required
+                                ).copy {
+                                    cell = Some(SemanticTableCell(row + 1L, column + offset))
+                                },
+                                SemanticActions(
+                                    invoke = Some { control.activate(active) },
+                                    setSelected =
+                                        when (input.selection) {
+                                            case Range(_) -> None
+                                            else -> Some {
+                                                selected -> control.select(active, selected)
+                                            }
+                                        }
+                                )
                             )
                         val content =
                             element(
@@ -195,19 +275,64 @@ public class Calendar public constructor(
                 }
         }
         val grid =
-            GridProps(
-                Array<GridTrack>(7L + offset) { _ -> GridTrack.Fraction(1.0) },
-                Array<GridTrack>(page.weeks.size + 1L) {
-                    index -> GridTrack.Fixed(
-                        if (index == 0L)
-                            20.0 * appearance.density
-                        else
-                            appearance.cell
+            calendarColumn {
+                for (row in 0L ..< page.weeks.size + 1L) {
+                    val cells = ArrayList<GridItem>()
+                    for (entry in entries)
+                        if (entry.row == row)
+                            cells.add(
+                                GridItem(
+                                    entry.content,
+                                    entry.column,
+                                    0L,
+                                    entry.columnSpan,
+                                    entry.rowSpan,
+                                    entry.horizontal,
+                                    entry.vertical
+                                )
+                            )
+                    val rowGrid =
+                        GridProps(
+                            Array<GridTrack>(7L + offset) { _ -> GridTrack.Fraction(1.0) },
+                            [
+                                GridTrack.Fixed(
+                                    if (row == 0L)
+                                        20.0 * appearance.density
+                                    else
+                                        appearance.cell
+                                )
+                            ],
+                            cells.toArray()
+                        )
+                    this.add(
+                        semanticContent(
+                            component(rowGrid, { value, scope -> Grid(value, scope) }),
+                            SemanticRole.Row,
+                            SemanticProperties(enabled = input.enabled),
+                            mergeLabels = false,
+                            key = ViewKey.Number(row)
+                        )
                     )
-                },
-                entries.toArray(),
-                rowGap = 8.0 * appearance.density
-            )
-        return component(grid, { value, scope -> Grid(value, scope) })
+                }
+                this.spacing = 8.0 * appearance.density
+                this.alignment = CrossAlignment.Stretch
+            }
+        return semanticContent(
+            grid,
+            SemanticRole.Table,
+            SemanticProperties(
+                name = Some(page.caption),
+                enabled = input.enabled,
+                table = Some(SemanticTableSize(page.weeks.size + 1L, 7L + offset)),
+                required = input.options.rules.required,
+                selectionMode =
+                    when (input.selection) {
+                        case Range(_) -> None
+                        case Multiple(_) -> Some(SemanticSelectionMode.Multiple)
+                        case Single(_) -> Some(SemanticSelectionMode.Single)
+                    }
+            ),
+            mergeLabels = false
+        )
     }
 }

@@ -21,6 +21,7 @@ public open class ModalBuilder internal constructor(): PanelBuilder() {
     public var onOpenChange: (Boolean) -> Unit = {}
     public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
     public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun trigger(text: String, configure: PopupTriggerBuilder.() -> Unit = {}) {
         trigger =
             Some(
@@ -68,7 +69,8 @@ public open class ModalBuilder internal constructor(): PanelBuilder() {
             fonts,
             theme,
             style,
-            contentPadding
+            contentPadding,
+            semantics
         )
 }
 

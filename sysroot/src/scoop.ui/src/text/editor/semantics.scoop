@@ -10,7 +10,8 @@ import scoop.window.accessibility.*
 public fun SemanticsHandle.updateTextEditor(
     host: TextEditHost,
     properties: SemanticProperties = SemanticProperties(),
-    relations: SemanticRelations = SemanticRelations()
+    relations: SemanticRelations = SemanticRelations(),
+    setExpanded: ((Boolean) -> SemanticActionResult)? = None
 ) {
     checkOpen()
     checkSemanticsMutation()
@@ -98,42 +99,65 @@ public fun SemanticsHandle.updateTextEditor(
             None
         else
             Some(host.semantics),
-        SemanticProperties(
-            name = properties.name,
-            description = properties.description,
-            automationId = properties.automationId,
+        properties.copy {
             value =
                 if (protectedText)
                     None
                 else
-                    Some(model.text),
+                    Some(model.text)
             selection =
                 if (protectedText)
                     None
                 else
-                    Some(model.selection),
-            enabled = properties.enabled && host.options.enabled,
-            readOnly = readOnly,
-            protectedText = protectedText,
-            hidden = properties.hidden,
-            error = properties.error,
-            ignored = properties.ignored,
-            required = properties.required,
-            scroll = properties.scroll,
+                    Some(model.selection)
+            enabled = properties.enabled && host.options.enabled
+            this.readOnly = readOnly
+            this.protectedText = protectedText
             cursorAffinity =
                 if (!protectedText && model.cursor.affinity == TextAffinity.Upstream)
                     SemanticTextAffinity.Upstream
                 else
                     SemanticTextAffinity.Downstream
-        ),
+        },
         SemanticActions(
             setValue = setValue,
             setSelection = select,
             replaceText = replace,
-            showContextMenu = showContextMenu
+            showContextMenu = showContextMenu,
+            revealText =
+                if (protectedText)
+                    None
+                else
+                    Some {
+                        range,
+                        scroll -> if (!available())
+                            SemanticActionResult.Unavailable
+                        else
+                            semanticEditorReveal(this, host, range, scroll)
+                    },
+            setExpanded =
+                when (setExpanded) {
+                    case Some(val change) -> Some {
+                        value -> if (!available())
+                            SemanticActionResult.Unavailable
+                        else
+                            if (!writable())
+                                SemanticActionResult.Rejected
+                            else
+                                change(value)
+                    }
+                    case None -> None
+                }
         ),
         relations
     )
+    if (protectedText)
+        host.retireSemanticDocument()
+    resource.textDocument =
+        if (protectedText)
+            None
+        else
+            host.semanticTextDocument()
 }
 
 private fun semanticEditorReplace(

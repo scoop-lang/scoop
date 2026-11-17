@@ -103,6 +103,7 @@ internal class ScrollControl(
         )
         focus.options = value.focus
         area.scope.enabled = value.enabled
+        semantics?.bindReference(value.semantics.reference)
         semantics?.update(
             value.semantics.properties(enabled = value.enabled),
             relations = value.semantics.relations

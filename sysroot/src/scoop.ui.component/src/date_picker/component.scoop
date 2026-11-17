@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.column as dateColumn
 import scoop.ui.component.row as dateRow
 import scoop.ui.component.button as dateButton
@@ -24,6 +25,14 @@ public class DatePicker public constructor(
         val theme = themes.read(input.theme)
         val selected = calendarRead(input.selection)
         val open = control.open.value
+        val popupSemantics =
+            input.popupSemantics.copy {
+                reference = Some(input.popupSemantics.reference ?: control.popupReference)
+            }
+        val semantics =
+            input.semantics.copy {
+                relations = semanticControls(relations, (popupSemantics.reference?.id ?: None))
+            }
         val d = theme.tokens.typography.body.fontSize / 14.0
         val focusVisual = InteractionVisual(focusVisible = true)
         val buttonRing =
@@ -137,7 +146,8 @@ public class DatePicker public constructor(
                     onClosed = { reason -> control.closed(reason) },
                     fonts = input.fonts,
                     theme = input.theme,
-                    style = input.popupStyle
+                    style = input.popupStyle,
+                    semantics = popupSemantics
                 ),
                 { props, scope -> Popover(props, scope) }
             )
@@ -145,7 +155,7 @@ public class DatePicker public constructor(
             when (input.draft) {
                 case None -> {
                     val text = control.text()
-                    component(
+                    popupSemanticButton(
                         ButtonProps(
                             ButtonContent.Resolved {
                                 style -> dateRow {
@@ -171,9 +181,11 @@ public class DatePicker public constructor(
                             input.focus.copy { this.handle = Some(control.focus) },
                             input.invalid,
                             ButtonVariant.Outline,
-                            labelTarget = input.labelTarget
+                            labelTarget = input.labelTarget,
+                            semantics = semantics
                         ),
-                        { props, scope -> Button(props, scope) }
+                        open,
+                        { next -> control.expand(next) }
                     )
                 }
                 case Some(val draft) -> dateColumn {
@@ -199,24 +211,54 @@ public class DatePicker public constructor(
                                                 control.commit();
                                                 Unit
                                             },
-                                        labelTarget = input.labelTarget
+                                        labelTarget = input.labelTarget,
+                                        semantics =
+                                            semantics.copy {
+                                                error =
+                                                    when (val supplied = input.semantics.error) {
+                                                        case Some(_) -> supplied
+                                                        case None -> draft.error
+                                                    }
+                                            },
+                                        expansion =
+                                            Some(
+                                                TextFieldExpansion(
+                                                    open,
+                                                    { next -> control.expand(next) }
+                                                )
+                                            )
                                     ),
                                     { props, scope -> Input(props, scope) },
                                     ViewKey.Text("input")
                                 )
                             ) { this.grow = 1.0 }
                             this.item(
-                                dateButton(
-                                    { style -> dateCalendarIcon(style.iconSize, style.text.color) },
-                                    { control.toggle() }
-                                ) {
-                                    this.enabled = input.mutable
-                                    this.variant = ButtonVariant.Outline
-                                    this.size = ButtonSize.Icon
-                                    this.style = input.buttonStyle
-                                    this.theme = input.theme
-                                    this.key = ViewKey.Text("trigger")
-                                }
+                                popupSemanticButton(
+                                    ButtonProps(
+                                        ButtonContent.Resolved {
+                                            style -> dateCalendarIcon(
+                                                style.iconSize,
+                                                style.text.color
+                                            )
+                                        },
+                                        { control.toggle() },
+                                        enabled = input.mutable,
+                                        variant = ButtonVariant.Outline,
+                                        size = ButtonSize.Icon,
+                                        style = input.buttonStyle,
+                                        theme = input.theme,
+                                        semantics =
+                                            input.calendarButtonSemantics.copy {
+                                                relations =
+                                                    semanticControls(
+                                                        relations,
+                                                        (popupSemantics.reference?.id ?: None)
+                                                    )
+                                            }
+                                    ),
+                                    open,
+                                    { next -> control.expand(next) }
+                                )
                             ) { this.shrink = 0.0 }
                             this.spacing = lowerBound(6.0 * d, buttonRing + inputRing)
                             this.alignment = CrossAlignment.Center

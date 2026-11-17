@@ -5,6 +5,7 @@ import scoop.graphics.*
 import scoop.surface.InputArea
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class CarouselOwner(initialIndex: Long) {
     var group: InputArea? = None
@@ -36,6 +37,26 @@ public class Carousel public constructor(
     public override fun onMount() {
         themes.mount(props.value.theme);
     }
+    private fun selectSemantically(key: ViewKey, selected: Boolean): SemanticActionResult {
+        if (!props.value.enabled)
+            return SemanticActionResult.Rejected
+        val index = props.value.source.indexOfKey(key) ?: return SemanticActionResult.Unavailable
+        val current =
+            carouselSelected(keys, props.value.selected?.value, owner.key.value, owner.fallback)
+        if (!selected)
+            return if (current != index)
+                SemanticActionResult.Completed
+            else
+                SemanticActionResult.Rejected
+        val control = owner.control ?: return SemanticActionResult.Unavailable
+        control.select(index, true)
+        val accepted =
+            carouselSelected(keys, props.value.selected?.value, owner.key.value, owner.fallback)
+        return if (accepted == index)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
     public override fun render(): View {
         val value = props.value
         val same =
@@ -64,11 +85,29 @@ public class Carousel public constructor(
         val input = CarouselInput(value, keys, selected, themes.read(value.theme), owner)
         val items =
             Array<View>(keys.size) {
-                index -> element(
-                    input.items[index],
-                    { current, mount -> CarouselItemLayout(current, scope = mount) },
-                    [content[index]],
-                    key = keys[index]
+                index ->
+                val key = keys[index]
+                val slide =
+                    element(
+                        input.items[index],
+                        { current, mount -> CarouselItemLayout(current, scope = mount) },
+                        [content[index]],
+                        key = keys[index]
+                    )
+                semanticContent(
+                    slide,
+                    SemanticRole.Row,
+                    SemanticProperties(
+                        name = Some(f"Slide ${index + 1L} of ${keys.size}"),
+                        enabled = value.enabled,
+                        selected = Some(selected == index)
+                    ),
+                    actions =
+                        SemanticActions(
+                            setSelected = Some { selected -> selectSemantically(key, selected) }
+                        ),
+                    mergeLabels = false,
+                    key = key
                 )
             }
         val state = owner.snapshot.value
@@ -129,7 +168,18 @@ private fun carouselButton(input: CarouselInput, next: Boolean, available: Boole
             input.props.theme,
             options.focus,
             variant = ButtonVariant.Outline,
-            size = ButtonSize.IconSm
+            size = ButtonSize.IconSm,
+            semantics =
+                options.semantics.copy {
+                    if (name == None && relations.labelledBy.size == 0L)
+                        name =
+                            Some(
+                                if (next)
+                                    "Next slide"
+                                else
+                                    "Previous slide"
+                            )
+                }
         ),
         { current, mount -> Button(current, scope = mount) },
         key =

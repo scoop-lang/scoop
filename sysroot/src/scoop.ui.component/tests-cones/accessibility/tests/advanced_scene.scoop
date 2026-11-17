@@ -1,0 +1,134 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.datetime.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as semanticColumn
+import scoop.ui.component.label as semanticLabel
+import scoop.ui.component.table as semanticTable
+import scoop.ui.component.tabs as semanticTabs
+import scoop.ui.style.*
+
+internal fun advancedSemantics(id: String, name: String): ComponentSemantics =
+    ComponentSemantics(name = Some(name), automationId = Some(id))
+
+internal class AdvancedRoot(private val p: AdvancedProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        return row {
+            this.add(
+                semanticColumn {
+                    this.slider(
+                        binding(
+                            { p.values.value },
+                            {
+                                value -> if (!p.reject)
+                                    p.values.value = value
+                            }
+                        ),
+                        RangeSpec(0.0, 100.0, Some(5.0))
+                    ) { semantics = advancedSemantics("range", "Volume") }
+                    this.progress(40.0) { semantics = advancedSemantics("progress", "Download") }
+                    this.collapsible(
+                        binding(
+                            { p.open.value },
+                            {
+                                value -> if (!p.reject)
+                                    p.open.value = value
+                            }
+                        ),
+                        semanticLabel("Details")
+                    ) {
+                        this.trigger("Details") {
+                            semantics = advancedSemantics("disclosure", "Details")
+                        }
+                        this.transition(None)
+                    }
+                    this.add(
+                        semanticTabs(
+                            binding(
+                                { p.tab.value },
+                                {
+                                    value -> if (!p.reject)
+                                        p.tab.value = value
+                                }
+                            )
+                        ) {
+                            semantics = advancedSemantics("tabs", "Sections")
+                            this.item(
+                                Choice(ViewKey.Text("a"), "a", "First"),
+                                semanticLabel("First panel")
+                            ) { semantics = advancedSemantics("tab-a", "First") }
+                            this.item(
+                                Choice(ViewKey.Text("b"), "b", "Second"),
+                                semanticLabel("Second panel")
+                            ) { semantics = advancedSemantics("tab-b", "Second") }
+                        }
+                    )
+                    this.inputOtp(p.otp, 4L) {
+                        semantics = advancedSemantics("otp", "Verification code")
+                        protectedText = p.protectedText.value
+                    }
+                    this.input(p.document) {
+                        semantics = advancedSemantics("document", "Tracked text")
+                    }
+                    this.trace("Step", semanticLabel("Step body")) {
+                        semantics = advancedSemantics("trace", "Step")
+                        open =
+                            Some(
+                                binding(
+                                    { p.traceOpen.value },
+                                    {
+                                        value -> if (!p.reject)
+                                            p.traceOpen.value = value
+                                    }
+                                )
+                            )
+                        onClick = Some { p.traceClicks += 1 }
+                    }
+                    this.pagination(p.page.binding(), 3L) {
+                        semantics = advancedSemantics("pages", "Pages")
+                        pageSemantics =
+                            { number -> advancedSemantics(f"page-${number}", f"Page ${number}") }
+                    }
+                    this.avatar("User") { semantics = advancedSemantics("avatar", "Profile") }
+                    this.spacing = 8.0
+                    this.alignment = CrossAlignment.Stretch
+                }
+            )
+            this.add(
+                semanticColumn {
+                    this.calendar(
+                        CalendarSelection.Single(p.date.binding()),
+                        LocalDate(2026, 11, 1)
+                    ) {
+                        semantics = advancedSemantics("calendar", "Appointment")
+                        weekNumbers = CalendarWeekNumbers.Iso
+                        daySemantics =
+                            {
+                                day -> advancedSemantics(
+                                    day.data.date.toString(),
+                                    day.data.date.toString()
+                                )
+                            }
+                    }
+                    this.add(
+                        semanticTable {
+                            semantics = advancedSemantics("table", "Records")
+                            this.header {
+                                this.row {
+                                    this.head("First");
+                                    this.head("Second")
+                                }
+                            }
+                            this.body { this.row { this.cell("Joined") { span = 2L } } }
+                        }
+                    )
+                    this.spacing = 8.0
+                }
+            )
+            this.spacing = 20.0
+            this.alignment = CrossAlignment.Start
+        }
+    }
+}

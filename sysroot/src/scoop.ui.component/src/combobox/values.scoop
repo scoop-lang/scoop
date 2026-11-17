@@ -50,7 +50,8 @@ public class ComboboxProps<T: Equals<T>> public constructor(
     public val onValuesChange: (Array<T>) -> Unit = {},
     public val onOpenChange: (Boolean) -> Unit = {},
     public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
-    public val onClosed: (OverlayCloseReason) -> Unit = {}
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val triggerSemantics: ComponentSemantics = ComponentSemantics()
 ) {
     public val query: TextEditorState get() = input.state
     public val mutable: Boolean get() = input.enabled && !input.readOnly

@@ -92,9 +92,46 @@ internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions):
         position,
         backward,
         forward,
-        reveal
+        reveal,
+        when (actions.setNumber) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> None
+        },
+        semanticVoidAction(handle, actions.increment),
+        semanticVoidAction(handle, actions.decrement),
+        semanticBooleanAction(handle, actions.setSelected),
+        semanticBooleanAction(handle, actions.setExpanded),
+        semanticVoidAction(handle, actions.dismiss),
+        when (actions.revealText) {
+            case Some(val action) -> Some {
+                range,
+                scroll -> handle.controller.perform(handle) { action(range, scroll) }
+            }
+            case None -> None
+        }
     )
 }
+
+private fun semanticVoidAction(handle: SemanticsHandle, action: (() -> SemanticActionResult)?): (
+    () -> SemanticActionResult
+)? =
+    when (action) {
+        case Some(val callback) -> Some { handle.controller.perform(handle, callback) }
+        case None -> None
+    }
+
+private fun semanticBooleanAction(
+    handle: SemanticsHandle,
+    action: ((Boolean) -> SemanticActionResult)?
+): ((Boolean) -> SemanticActionResult)? =
+    when (action) {
+        case Some(val callback) -> Some {
+            value -> handle.controller.perform(handle) { callback(value) }
+        }
+        case None -> None
+    }
 
 private fun semanticFocus(handle: SemanticsHandle, focused: Boolean): SemanticActionResult {
     val target = handle.focus ?: return SemanticActionResult.Unavailable

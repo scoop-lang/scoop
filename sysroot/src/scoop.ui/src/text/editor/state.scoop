@@ -3,6 +3,7 @@ package scoop.ui.text
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.window.*
+import scoop.window.accessibility.SemanticTextDocument
 
 /** Observable plain text and edit history, independent of any mounted editor. */
 public class TextEditorState public constructor(
@@ -14,6 +15,7 @@ public class TextEditorState public constructor(
     internal var composition: EditorComposition? = None
     internal var contentRevision = 0L
     private var activeHost: TextEditHost? = None
+    internal val semanticDocuments = ArrayList<SemanticTextDocument>()
 
     internal fun checkHost(host: TextEditHost) {
         storage.checkMutation()
@@ -180,7 +182,8 @@ public class TextEditorState public constructor(
         next: EditorValue,
         baseline: EditorComposition?,
         change: EditorHistoryChange,
-        forceRevision: Boolean = false
+        forceRevision: Boolean = false,
+        mapping: EditorOffsetMap? = None
     ): Boolean {
         val previous = storage.value
         val a = previous.input
@@ -216,6 +219,7 @@ public class TextEditorState public constructor(
                 }
             }
         val changed = value != previous || compositionChanged
+        mapEditorSemanticDocuments(this, previous, value, change, mapping)
         val changedHistory = history.apply(change)
         composition = baseline
         if (a.surroundingText != b.surroundingText)

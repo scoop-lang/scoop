@@ -1,90 +1,52 @@
 #ifndef SCOOP_WINDOW_DARWIN_ACCESSIBILITY_H
 #define SCOOP_WINDOW_DARWIN_ACCESSIBILITY_H
 
+#include "../accessibility_text_document.h"
 #import "window.h"
 
-typedef int32_t (*SWAccessibilityCallback)(void *, int64_t, int32_t,
-                                           const uint8_t *, int64_t, int64_t,
-                                           int64_t, uint64_t, double);
-typedef int32_t (*SWAccessibilityCollectionCallback)(void *, int64_t, int32_t,
-                                                     int64_t, int32_t, int64_t,
-                                                     const uint8_t *, int64_t,
-                                                     void *);
-
-typedef struct {
-  int64_t number, parent, order, scene_order;
-  uint64_t content_revision;
-  int64_t anchor, cursor;
-  int32_t role, flags, actions, checked, geometry, visible, scroll_orientation;
-  double x, y, width, height;
-  double visible_x, visible_y, visible_width, visible_height;
-  double scroll_offset, scroll_viewport, scroll_content;
-} SWAccessibilityData;
-
-typedef struct {
-  void *context;
-  void (*retain)(void *);
-  void (*release)(void *);
-  int32_t (*contains)(void *, double, double);
-} SWAccessibilityHitData;
+#include "../accessibility_abi.h"
 
 @interface SWAccessibilityHitGeometry : NSObject
 - (instancetype)initWithValue:(SWAccessibilityHitData)value;
 - (BOOL)containsPoint:(NSPoint)point;
 @end
 
-typedef struct {
-  int64_t start, end;
-  int32_t status;
-} SWAccessibilityTextRange;
-
-typedef void (*SWAccessibilityTextBoxVisitor)(void *, double, double, double,
-                                              double);
-
-typedef struct {
-  void *context;
-  void (*retain)(void *);
-  void (*release)(void *);
-  SWAccessibilityTextRange (*range)(void *, int64_t, int32_t, int32_t);
-  SWAccessibilityTextRange (*line_range)(void *, int64_t);
-  int64_t (*line_index)(void *, int64_t, int32_t);
-  SWAccessibilityTextRange (*range_at_point)(void *, double, double);
-  int32_t (*boxes)(void *, int64_t, int64_t, void *,
-                   SWAccessibilityTextBoxVisitor);
-  SWAccessibilityTextRange (*visible_range)(void *);
-} SWAccessibilityTextData;
-
 @interface SWAccessibilityTextGeometry : NSObject
 @property(nonatomic, readonly) SWAccessibilityTextData value;
 - (instancetype)initWithValue:(SWAccessibilityTextData)value;
 @end
 
-enum {
-  SWAXEnabled = 1,
-  SWAXReadOnly = 2,
-  SWAXProtected = 4,
-  SWAXHidden = 8,
-  SWAXNamed = 16,
-  SWAXIgnored = 32,
-  SWAXRequired = 64,
-  SWAXCursorUpstream = 128
-};
-
 @class SWAccessibilityTree;
 @class SWAccessibilityCollection;
+@class SWAccessibilityColumnData;
 
 @interface SWAccessibilityState : NSObject
 @property(nonatomic) SWAccessibilityData data;
 @property(nonatomic) NSRange selection;
-@property(nonatomic, copy) NSString *name, *help, *error, *identifier, *value;
+@property(nonatomic, copy) NSString *name, *help, *error, *identifier, *value,
+    *url;
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *labels, *controls,
-    *titleFor;
+    *titleFor, *descriptions, *errors, *rowHeaders, *columnHeaders;
+@property(nonatomic) int64_t activeNode, activeCollection;
+@property(nonatomic, strong) NSMutableArray<NSDictionary *> *textChildren;
+@property(nonatomic, copy) id activeKey;
 @property(nonatomic, strong) SWAccessibilityHitGeometry *hit;
 @property(nonatomic, strong) SWAccessibilityTextGeometry *textGeometry;
+@property(nonatomic, readonly) SWTextDocument *textDocument;
+@property(nonatomic, readonly) uint64_t documentRevision, documentEpoch;
+- (void)setTextDocument:(SWTextDocument *)document
+               revision:(uint64_t)revision
+                  epoch:(uint64_t)epoch;
 @property(nonatomic) int64_t itemCount;
 @property(nonatomic) uint64_t collectionRevision;
 @property(nonatomic) int32_t collectionActions;
 @property(nonatomic, copy) id itemKey;
+@property(nonatomic, copy) id cellColumnKey;
+@property(nonatomic) int32_t selectionKind;
+@property(nonatomic) BOOL selectionRequired;
+@property(nonatomic, strong) NSMutableArray *selectedKeys;
+@property(nonatomic, strong)
+    NSMutableArray<SWAccessibilityColumnData *> *gridColumns;
 @end
 
 @interface SWAccessibilityNode : NSAccessibilityElement
@@ -117,6 +79,8 @@ enum {
 @property(nonatomic) void *collectionContext;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWAccessibilityCollection *> *collections;
+@property(nonatomic, strong)
+    NSMutableDictionary<NSNumber *, NSMapTable *> *tableColumns;
 @property(nonatomic) BOOL closed;
 @property(nonatomic) int64_t focused;
 @property(nonatomic, strong) SWAccessibilityNode *root;
@@ -157,5 +121,6 @@ BOOL sw_accessibility_collections_commit(
     NSSet<NSNumber *> *removed);
 
 id sw_accessibility_focused(SWView *view);
+void sw_accessibility_grid_commit(SWAccessibilityTree *tree);
 
 #endif

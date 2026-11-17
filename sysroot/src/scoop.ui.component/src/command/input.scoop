@@ -5,8 +5,15 @@ import scoop.icons.lucide.search as searchIcon
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 
-internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme): View {
+internal fun commandInput(
+    input: CommandProps,
+    focus: FocusHandle,
+    theme: Theme,
+    collection: SemanticNodeId?,
+    active: ViewKey?
+): View {
     val field = input.input
     val density = theme.tokens.typography.body.fontSize / 14.0
     val editor =
@@ -35,7 +42,7 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
             field.chrome,
             field.contextMenu,
             field.protectedText,
-            field.semantics,
+            candidateInputSemantics(field.semantics, collection, active),
             field.acceptDrops,
             field.drag,
             field.touch,

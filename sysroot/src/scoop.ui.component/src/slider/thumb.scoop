@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class SliderThumbProps(
     val input: SliderInput,
@@ -22,6 +23,7 @@ internal class SliderThumb(
     private var field: FieldLink? = None
     private var painters: ThemePainterCache? = None
     private var motion: InteractionMotion? = None
+    private val semantics = createComponentSemantics(scope, SemanticRole.Slider)
     private fun options(): SliderThumbOptions {
         val input = props.value
         return if (input.input.props.thumbs.size == 0L)
@@ -32,7 +34,13 @@ internal class SliderThumb(
     public override fun onMount() {
         area = Some(scope.createArea(focusable = true) { context, event -> notify(context, event) })
         focus = Some(scope.focusTarget(area!!, options().focus))
-        field = Some(scope.resource { FieldLink(scope, area!!, focus!!) })
+        semantics?.bindFocus(focus)
+        field =
+            Some(
+                scope.resource {
+                    FieldLink(scope, area!!, focus!!, semantics) { updateSemantics() }
+                }
+            )
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, visual()))
         scope.resource {
@@ -97,6 +105,7 @@ internal class SliderThumb(
             },
             input.props.enabled
         )
+        updateSemantics()
         refresh()
         painters!!.get(input.theme)
         val side =
@@ -107,6 +116,52 @@ internal class SliderThumb(
             UiInvalidation.Layout
         else
             UiInvalidation.Scene
+    }
+    private fun updateSemantics() {
+        val handle = semantics ?: return
+        val current = props.value
+        val input = current.input
+        val local = options().semantics ?: input.props.semantics
+        handle.bindReference(
+            if (panelPresent(options().semantics) || current.index == 0L)
+                local.reference
+            else
+                None
+        )
+        val bounds = input.props.range.thumbLimits(input.values, current.index)
+        handle.update(
+            local.properties(
+                enabled = input.props.enabled,
+                invalid = input.props.invalid,
+                required = field!!.isRequired(handle),
+                range =
+                    Some(
+                        SemanticValueRange(
+                            bounds.minimum,
+                            bounds.maximum,
+                            input.values[current.index],
+                            input.props.range.step ?: input.props.keyboardStep!!
+                        )
+                    )
+            ).copy {
+                orientation =
+                    Some(
+                        if (input.props.orientation == Orientation.Horizontal)
+                            SemanticOrientation.Horizontal
+                        else
+                            SemanticOrientation.Vertical
+                    )
+            },
+            SemanticActions(
+                setNumber =
+                    Some { value -> props.value.control.setNumber(props.value.index, value) },
+                increment =
+                    Some { props.value.control.adjust(props.value.index, SliderKey.Step(1.0)) },
+                decrement =
+                    Some { props.value.control.adjust(props.value.index, SliderKey.Step(-1.0)) }
+            ),
+            field!!.relations(handle, local.relations)
+        )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -120,6 +175,13 @@ internal class SliderThumb(
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value.input
         val size = context.size
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, size.width, size.height)
+            )
+            case None -> {}
+        }
         val base = motion!!.sample(visual())
         val ring =
             base.focusVisible ||

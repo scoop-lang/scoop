@@ -93,3 +93,74 @@ private class SemanticCollectionTest {
         assertFailsWith<IllegalArgumentException> { invalid.itemAt(1L) }
     }
 }
+
+private class CellDescriptions {
+    var count = 0
+}
+
+@Test
+private class SemanticGridTest {
+    @Test
+    fun `selection snapshots and cells follow stable row and column keys`() {
+        val a = SemanticItemKey.Number(1L)
+        val b = SemanticItemKey.Number(2L)
+        val title = SemanticItemKey.Text("title")
+        val details = SemanticItemKey.Text("details")
+        val source = CollectionSource([a, b], [Some("A"), Some("B")])
+        val cells = CellDescriptions()
+        val grid =
+            SemanticGrid([SemanticGridColumn(title, Some("Title")), SemanticGridColumn(details)]) {
+                row, column ->
+                cells.count += 1
+                if (row == b && column == 1L)
+                    None
+                else
+                    Some(
+                        SemanticItemProperties(
+                            name =
+                                Some(
+                                    if (row == a)
+                                        "A title"
+                                    else
+                                        "B title"
+                                )
+                        )
+                    )
+            }
+        val snapshot =
+            SemanticCollectionSnapshot(
+                source,
+                Some(SemanticCollectionSelection([a], required = true)),
+                Some(grid)
+            )
+        assertEquals(0, cells.count)
+        assertEquals(0, source.descriptions)
+        assertEquals(Some(true), item(snapshot.itemAt(0L)).properties.selected)
+        assertEquals(Some(false), item(snapshot.itemAt(1L)).properties.selected)
+        assertEquals(Some("A title"), item(snapshot.cellForKey(a, title)).properties.name)
+        assertEquals(SemanticItemResult.Unavailable, snapshot.cellForKey(b, details))
+        assertEquals(
+            SemanticItemResult.NotFound,
+            snapshot.cellForKey(SemanticItemKey.Number(9L), title)
+        )
+        assertEquals(
+            SemanticItemResult.NotFound,
+            snapshot.cellForKey(a, SemanticItemKey.Text("missing"))
+        )
+        assertEquals(2, cells.count)
+        assertEquals(2, source.descriptions)
+        assertFailsWith<IllegalArgumentException> { SemanticCollectionSelection([a, b]) }
+        assertFailsWith<IllegalArgumentException> {
+            SemanticCollectionSelection([a, a], multiple = true)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SemanticCollectionSnapshot(
+                source,
+                Some(SemanticCollectionSelection([SemanticItemKey.Number(9L)]))
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SemanticGrid([SemanticGridColumn(title), SemanticGridColumn(title)]) { _, _ -> None }
+        }
+    }
+}

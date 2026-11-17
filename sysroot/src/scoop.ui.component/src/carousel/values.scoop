@@ -33,7 +33,8 @@ public class CarouselButtonOptions public constructor(
     public val visible: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
     public val style: ButtonStyle = buttonStyle(),
-    public val content: View? = None
+    public val content: View? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public struct CarouselSnapshot(
@@ -68,7 +69,8 @@ public class CarouselProps public constructor(
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
     public val onSelect: (Long, ViewKey) -> Unit = { _, _ -> Unit },
     public val onDragCancel: (DragCancelReason) -> Unit = {},
-    public val nativeSwipe: Boolean = true
+    public val nativeSwipe: Boolean = true,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         requireComponent(source.count >= 0L, "negative carousel item count")

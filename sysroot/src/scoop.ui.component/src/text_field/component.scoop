@@ -23,7 +23,8 @@ internal class TextFieldInput(
     val group: GroupPosition?,
     val chrome: TextFieldChrome,
     val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
-    val semantics: ComponentSemantics = ComponentSemantics()
+    val semantics: ComponentSemantics = ComponentSemantics(),
+    val expansion: TextFieldExpansion? = None
 )
 
 /** Shares composition while keeping the two public component identities distinct. */

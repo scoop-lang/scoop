@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum ContentRetention {
     Dispose, KeepMounted
@@ -34,18 +35,24 @@ public class Collapsible public constructor(
 ): Component(scope) {
     private val themes = ThemeAccess(scope)
     private val motion = scope.presence(props.value.open.value)
+    private val triggerSemantics = SemanticsReference()
+    private val bodySemantics = SemanticsReference()
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
-    private fun toggle() {
+    private fun setOpen(value: Boolean): SemanticActionResult {
         val input = props.value
         if (!input.enabled || !(input.trigger?.enabled ?: false))
-            return
+            return SemanticActionResult.Rejected
         val previous = input.open.value
-        input.open.value = !previous
+        input.open.value = value
         val accepted = input.open.value
         if (accepted != previous)
             props.value.onOpenChange(accepted)
+        return if (accepted == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     public override fun render(): View {
         val input = props.value
@@ -73,7 +80,13 @@ public class Collapsible public constructor(
                     input.theme,
                     presence,
                     open,
-                    { toggle() }
+                    { props.value.open.value },
+                    { value -> setOpen(value) },
+                    value.semantics.copy {
+                        reference =
+                            Some(value.semantics.reference ?: this @Collapsible.triggerSemantics)
+                        relations = semanticControls(relations, this @Collapsible.bodySemantics.id)
+                    }
                 )
                 case None -> empty()
             }
@@ -90,7 +103,19 @@ public class Collapsible public constructor(
                 [
                     trigger,
                     element(
-                        DisclosureBodyProps(presence, open, shown, input.enabled),
+                        DisclosureBodyProps(
+                            presence,
+                            open,
+                            shown,
+                            input.enabled,
+                            Some(bodySemantics),
+                            when (input.trigger) {
+                                case Some(val spec) -> (
+                                    spec.semantics.reference ?: triggerSemantics
+                                ).id
+                                case None -> None
+                            }
+                        ),
                         { current, mount -> DisclosureBody(current, scope = mount) },
                         if (shown || input.retention == ContentRetention.KeepMounted)
                             [input.content]

@@ -295,6 +295,25 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
       case 13:
         result = performCustomAction(retainedAction);
         break;
+      case 14:
+        [node setAccessibilityExpanded:YES];
+        result = 1;
+        break;
+      case 15:
+        [node setAccessibilityExpanded:NO];
+        result = 1;
+        break;
+      case 16:
+        [node setAccessibilitySelected:YES];
+        result = 1;
+        break;
+      case 17:
+        [node setAccessibilitySelected:NO];
+        result = 1;
+        break;
+      case 18:
+        result = [node accessibilityPerformCancel];
+        break;
       default:
         result = -1;
       }

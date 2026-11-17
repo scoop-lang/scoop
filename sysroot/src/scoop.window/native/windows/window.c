@@ -92,10 +92,12 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   if (window->input_blocked && sw_modal_input_message(msg))
     return 0;
   LRESULT result;
-  if (!window->destroying && (sw_frame_message(window, msg, wp, lp, &result) ||
-                              sw_menu_message(window, msg, wp, lp, &result) ||
-                              sw_text(window, msg, wp, lp, &result) ||
-                              sw_input(window, msg, wp, lp, &result)))
+  if (!window->destroying &&
+      (sw_accessibility_message(window, msg, wp, lp, &result) ||
+       sw_frame_message(window, msg, wp, lp, &result) ||
+       sw_menu_message(window, msg, wp, lp, &result) ||
+       sw_text(window, msg, wp, lp, &result) ||
+       sw_input(window, msg, wp, lp, &result)))
     return result;
   switch (msg) {
   case WM_CLOSE:
@@ -232,6 +234,7 @@ SWSnapshot scoop_window_snapshot(SWWindow *window) {
 }
 void scoop_window_destroy(SWWindow *window) {
   window->destroying = true;
+  sw_accessibility_destroy(window);
   sw_text_window_destroy(window);
   DestroyWindow(window->hwnd);
   sw_input_destroy(window);

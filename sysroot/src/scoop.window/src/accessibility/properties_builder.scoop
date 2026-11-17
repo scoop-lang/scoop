@@ -1,0 +1,75 @@
+package scoop.window.accessibility
+
+import scoop.window.Utf8Selection
+
+/** Copies a complete immutable snapshot without publishing it or executing actions. */
+public fun SemanticProperties.copy(
+    configure: SemanticPropertiesBuilder.() -> Unit
+): SemanticProperties {
+    val builder = SemanticPropertiesBuilder(this)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable staging for one property copy; node update validates the resulting snapshot. */
+public class SemanticPropertiesBuilder internal constructor(source: SemanticProperties) {
+    public var name: String? = source.name
+    public var description: String? = source.description
+    public var automationId: String? = source.automationId
+    public var value: String? = source.value
+    public var enabled: Boolean = source.enabled
+    public var readOnly: Boolean = source.readOnly
+    public var protectedText: Boolean = source.protectedText
+    public var checked: SemanticChecked? = source.checked
+    public var hidden: Boolean = source.hidden
+    public var error: String? = source.error
+    public var ignored: Boolean = source.ignored
+    public var selection: Utf8Selection? = source.selection
+    public var required: Boolean = source.required
+    public var scroll: SemanticScrollRange? = source.scroll
+    public var cursorAffinity: SemanticTextAffinity = source.cursorAffinity
+    public var selected: Boolean? = source.selected
+    public var expanded: Boolean? = source.expanded
+    public var invalid: Boolean = source.invalid
+    public var busy: Boolean = source.busy
+    public var modal: Boolean = source.modal
+    public var headingLevel: Int? = source.headingLevel
+    public var range: SemanticValueRange? = source.range
+    public var url: String? = source.url
+    public var live: SemanticLive = source.live
+    public var table: SemanticTableSize? = source.table
+    public var cell: SemanticTableCell? = source.cell
+    public var orientation: SemanticOrientation? = source.orientation
+    public var selectionMode: SemanticSelectionMode? = source.selectionMode
+    internal fun snapshot(): SemanticProperties =
+        SemanticProperties(
+            name,
+            description,
+            automationId,
+            value,
+            enabled,
+            readOnly,
+            protectedText,
+            checked,
+            hidden,
+            error,
+            ignored,
+            selection,
+            required,
+            scroll,
+            cursorAffinity,
+            selected,
+            expanded,
+            invalid,
+            busy,
+            modal,
+            headingLevel,
+            range,
+            url,
+            live,
+            table,
+            cell,
+            orientation,
+            selectionMode
+        )
+}

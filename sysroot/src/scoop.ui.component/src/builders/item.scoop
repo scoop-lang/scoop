@@ -6,6 +6,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 
 public class ItemBuilder internal constructor(): PanelBuilder() {
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var media: View? = None
     public var actions: View? = None
     public var header: View? = None
@@ -64,7 +65,8 @@ public class ItemBuilder internal constructor(): PanelBuilder() {
             transition,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 

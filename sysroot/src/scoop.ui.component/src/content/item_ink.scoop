@@ -5,12 +5,14 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class ItemInkProps(
     val input: ItemProps,
     val theme: Theme,
     val visual: InteractionVisual,
-    val behavior: ActionBehavior
+    val behavior: ActionBehavior,
+    val semantics: SemanticsHandle?
 )
 
 internal fun itemOptions(
@@ -96,6 +98,28 @@ internal class ItemInk(private val props: Props<ItemInkProps>, scope: ComponentS
                 control.focus.options = focus
             }
         }
+        value.semantics?.bindReference(value.input.semantics.reference)
+        value.semantics?.update(
+            value.input.semantics.properties(
+                enabled = value.input.enabled,
+                description = semanticCaption(value.input.description)
+            ).copy {
+                if (name == None)
+                    name = semanticCaption(value.input.title)
+            },
+            actions =
+                when (value.behavior) {
+                    case Press(_, val action, _) -> SemanticActions(
+                        invoke =
+                            Some {
+                                action();
+                                SemanticActionResult.Completed
+                            }
+                    )
+                    case Passive -> SemanticActions()
+                },
+            relations = value.input.semantics.relations
+        )
         val transition =
             value.theme.tokens.motion.resolve(
                 value.input.transition.resolve(
@@ -169,6 +193,10 @@ internal class ItemInk(private val props: Props<ItemInkProps>, scope: ComponentS
                 itemOptions(value.input, value.theme, state.interaction, actionable),
                 context.layoutDirection
             )
+        when (value.semantics) {
+            case Some(val handle) -> context.semantics(handle, surface.bounds)
+            case None -> {}
+        }
         val painter = painters!!.get(value.theme)
         if (surface.opacity < 1.0)
             context.saveLayer(surface.opacity)

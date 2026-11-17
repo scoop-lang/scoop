@@ -50,9 +50,28 @@ internal fun <T: Equals<T>> comboPopup(
                 Insets(8.0 * d, 8.0 * d, 8.0 * d, 8.0 * d)
             )
         )
-    else
+    else {
+        val rows = control.rows(source, theme)
+        val selected = comboValues(input.selection)
         children.add(
-            virtualList(control.rows(source, theme), ItemExtent.Variable(28.0 * d)) {
+            virtualList(rows, ItemExtent.Variable(28.0 * d)) {
+                itemSemantics =
+                    Some(
+                        ItemSemantics(
+                            rows,
+                            {
+                                index -> comboItemSemantics(
+                                    source.entryAt(index),
+                                    selected,
+                                    input.mutable
+                                )
+                            },
+                            selection =
+                                Some(comboSelectionSemantics(source, selected, input.multiple)),
+                            setSelected =
+                                Some { key, value -> control.select(key, false, Some(value)) }
+                        )
+                    )
                 state = Some(control.scroll);
                 handle = Some(control.list);
                 this.theme = input.input.theme
@@ -64,6 +83,7 @@ internal fun <T: Equals<T>> comboPopup(
                 overscan = 28.0 * d
             }
         )
+    }
     val height =
         if (noResults)
             input.maxHeight * d

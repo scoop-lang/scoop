@@ -6,6 +6,7 @@ import scoop.ui.style.*
 
 public class BreadcrumbItemBuilder internal constructor() {
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var enabled: Boolean = true
     public var focus: FocusOptions = FocusOptions()
     public var maxWidth: Double? = None
@@ -17,7 +18,7 @@ public class BreadcrumbItemBuilder internal constructor() {
         style = Some((style ?: buttonStyle()).copy(configure))
     }
     internal fun snapshot(content: BreadcrumbContent): BreadcrumbEntry =
-        BreadcrumbEntry(content, key, enabled, focus, maxWidth, style)
+        BreadcrumbEntry(content, key, enabled, focus, maxWidth, style, semantics)
 }
 
 public class BreadcrumbBuilder internal constructor() {
@@ -30,6 +31,7 @@ public class BreadcrumbBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var style: StyleOverride = styleOverride()
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun add(entry: BreadcrumbEntry) {
         entries.add(entry)
     }
@@ -114,7 +116,8 @@ public class BreadcrumbBuilder internal constructor() {
             enabled,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 

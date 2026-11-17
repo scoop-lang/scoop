@@ -19,6 +19,7 @@ public class SidebarBuilder internal constructor() {
     public var mobileWidth: Double = 288.0
     public var breakpoint: Double = 768.0
     public var rail: Boolean = false
+    public var railSemantics: ComponentSemantics = ComponentSemantics(name = Some("Toggle sidebar"))
     public var enabled: Boolean = true
     public var scrollState: ScrollState? = None
     public var focus: OverlayFocusOptions = OverlayFocusOptions()
@@ -80,7 +81,8 @@ public class SidebarBuilder internal constructor() {
             fonts,
             theme,
             style,
-            insetStyle
+            insetStyle,
+            railSemantics
         )
 }
 

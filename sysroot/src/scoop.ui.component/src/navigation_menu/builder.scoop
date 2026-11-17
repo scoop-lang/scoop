@@ -39,13 +39,15 @@ public class NavigationMenuPanelBuilder internal constructor(): PopupTriggerBuil
     public var width: Double = 360.0
     public var initialFocus: FocusHandle? = None
     public var panelStyle: StyleOverride = styleOverride()
+    public var panelSemantics: ComponentSemantics = ComponentSemantics()
     internal fun snapshot(trigger: ButtonContent, content: View): NavigationMenuPanelProps =
         NavigationMenuPanelProps(
-            PopupTriggerSpec(trigger, enabled, variant, size, style, focus, fonts),
+            PopupTriggerSpec(trigger, enabled, variant, size, style, focus, fonts, semantics),
             content,
             width,
             initialFocus,
-            panelStyle
+            panelStyle,
+            panelSemantics
         )
 }
 

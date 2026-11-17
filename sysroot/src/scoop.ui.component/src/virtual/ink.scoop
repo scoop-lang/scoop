@@ -67,12 +67,31 @@ internal class VirtualListInk(
     }
     public override fun onMount() {
         control = Some(ScrollControl(scope) { props.value.controls })
-        collection = createComponentSemantics(scope, SemanticRole.List, control!!.semantics)
+        updateCollectionRole()
+        focus = Some(scope.lazyFocus(control!!.viewport))
+    }
+    private fun updateCollectionRole() {
+        val table =
+            when (props.value.input.itemSemantics) {
+                case Some(val items) -> panelPresent(items.grid)
+                case None -> false
+            }
+        val role =
+            if (table)
+                SemanticRole.Table
+            else
+                SemanticRole.List
         when (collection) {
-            case Some(val value) -> scope.routeSemanticsChildren(Some(value))
+            case Some(val old) -> if (old.role == role)
+                return
+            else {
+                old.close();
+                collection = None
+            }
             case None -> {}
         }
-        focus = Some(scope.lazyFocus(control!!.viewport))
+        collection = createComponentSemantics(scope, role, control!!.semantics)
+        scope.routeSemanticsChildren(collection)
     }
     public override fun update(): UiInvalidation {
         val input = props.value
@@ -83,9 +102,24 @@ internal class VirtualListInk(
             case FillViewport -> {}
         }
         control!!.update()
+        updateCollectionRole()
         when (collection) {
             case Some(val value) -> {
-                value.update(SemanticProperties(enabled = input.input.enabled))
+                val options = input.input.collectionSemantics
+                val references = ArrayList<SemanticsReference>()
+                when (input.input.handle) {
+                    case Some(val handle) -> references.add(handle.semanticTarget);
+                    case None -> {}
+                }
+                when (options.reference) {
+                    case Some(val target) -> references.add(target);
+                    case None -> {}
+                }
+                value.bindReferences(references.toArray())
+                value.update(
+                    options.properties(enabled = input.input.enabled),
+                    relations = options.relations
+                )
                 value.updateCollection(
                     input.input.source,
                     input.input.itemSemantics,

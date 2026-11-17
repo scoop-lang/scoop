@@ -3,14 +3,18 @@
 使用配套工具链和当前 Window／Surface／UI 开发产物运行：
 
 ```sh
-scoop test sysroot/src/scoop.ui/tests-cones/accessibility-text --release
+scoop test sysroot/src/scoop.ui/tests-cones/accessibility-text --release --filter .AccessibleEditorWithoutSceneTest
+scoop test sysroot/src/scoop.ui/tests-cones/accessibility-text --release --filter .AccessibleEditorTest
+scoop test sysroot/src/scoop.ui/tests-cones/accessibility-text --release --filter .AccessibleTextGeometryTest
 ```
 
-macOS 用例将同一挂载的 TextField 语义与 TextEditHost 通过 updateTextEditor 接入。共用 native 辅助只调用公开 NSAccessibility 协议；通过实际模型、策略计数、undo 和发布结果验证动作，不把无返回值 setter 的调用当作写入成功。
+macOS 用例将同一挂载的 TextField 语义与 TextEditHost 通过 updateTextEditor 接入。正文、几何查询与动作调用公开 NSAccessibility 协议；保留范围辅助持有生产代码的原生文档端点，用于核对编辑事务的实际偏移映射。通过实际模型、策略计数、undo 和发布结果验证动作，不把无返回值 setter 的调用当作写入成功。
 
 覆盖 emoji、组合字符与中文的 UTF-8／UTF-16 转换、方向选区、正文／选中文本／attributed string 读取、空范围、越界与 surrogate 中间端点拒绝；单范围设置和多范围拒绝、只读选择、禁用／只读写入拒绝、外来文本清洗、单行／最大长度／Reject、撤销、composition 收尾，以及受保护文本的读取限制和允许的全文替换。属性在隐藏窗口中无需 measure／scene 就能发布；选择不会抢焦点，关闭后保留的原生对象不能读到旧正文或修改模型。
 
 范围几何用例额外验证 AppKit 字符／行／按点查询、surrogate 拒绝、组合字符、caret 行号、软换行同一偏移的上下游切换、可见范围与实际选区矩形；真实窗口覆盖滚动、缩放、丢弃帧、正文先于布局更新、普通 update 解除绑定、恢复、缺少节点／文字登记和宿主关闭。测试通过与真实布局、模型和原生对象对照，不在 getter 中取得焦点。每个 Application 用例在独立进程运行。
+
+`AccessibleEditorWithoutSceneTest` 在首帧前隐藏窗口，通过实际 TextEditorState 执行插入、undo 和全文替换，核对正文与保留范围同步、重置退休、保护模式切换、模型换绑、解除并恢复宿主绑定和关闭；全程没有 measure／scene，不需要编辑焦点或 drawable。编辑动作场景还检查模型已经撤销、逻辑正文尚未更新时范围暂不可用，下一次发布后恢复正确端点。所有窗口均不请求系统前台激活。
 
 独立 AX 模式使用 [native/client.c](native/client.c)，以公开 AXUIElement API 验证正文、字符／行／可见范围、StringForRange／AttributedStringForRange、范围矩形与按点定位。预期矩形来自实际 TextEditHost 排版和 Accepted 输入几何，再转换为 AX 的屏幕坐标。客户端通过 AXObserver 检查反向选区改为同范围正向选区时的一次选择通知、活动光标行号、没有正文通知，以及重复设置不重复通知。应用随后核对真实模型、焦点和后续编辑行为。
 

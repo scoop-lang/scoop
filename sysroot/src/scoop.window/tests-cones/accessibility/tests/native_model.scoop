@@ -1,0 +1,47 @@
+package scoop.tests.window.accessibility
+
+import scoop.test.*
+
+@Test
+private class SemanticNativeModelTest {
+    @Test
+    fun `retained ranges track edits atomically and retire on reset or close`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeDocument())
+        }
+    }
+    @Test
+    fun `logical rows and cells survive recycling but never revive deleted keys`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeIdentity())
+        }
+    }
+    @Test
+    fun `static selection respects nested containers and hidden descendants`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeSelection())
+        }
+    }
+    @Test
+    fun `native text offsets reject split surrogate and utf8 sequences`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeTextUnits())
+        }
+    }
+}
+
+@Extern(name = "scoop_ax_test_document")
+private fun nativeDocument(): Int
+
+@Extern(name = "scoop_ax_test_projection_identity")
+private fun nativeIdentity(): Int
+
+@Extern(name = "scoop_ax_test_projection_selection")
+private fun nativeSelection(): Int
+
+@Extern(name = "scoop_ax_test_text_units")
+private fun nativeTextUnits(): Int

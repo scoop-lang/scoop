@@ -1,4 +1,4 @@
-#import "accessibility.h"
+#import "accessibility_collection.h"
 #include <math.h>
 
 @implementation SWAccessibilityNode
@@ -30,14 +30,44 @@
   SWAccessibilityState *state = self.state;
   if (!state)
     return nil;
-  NSAccessibilityRole roles[] = {
-      NSAccessibilityGroupRole,      NSAccessibilityStaticTextRole,
-      NSAccessibilityButtonRole,     NSAccessibilityCheckBoxRole,
-      NSAccessibilityTextFieldRole,  NSAccessibilityScrollAreaRole,
-      NSAccessibilityScrollBarRole,  NSAccessibilityButtonRole,
-      NSAccessibilityButtonRole,     NSAccessibilityRadioButtonRole,
-      NSAccessibilityRadioGroupRole, NSAccessibilityImageRole,
-      NSAccessibilityListRole};
+  if (state.data.role == 4 && state.data.expanded >= 0)
+    return NSAccessibilityComboBoxRole;
+  if (state.data.role == 2 && state.data.expanded >= 0)
+    return NSAccessibilityPopUpButtonRole;
+  if (state.data.role == 14) {
+    if (@available(macOS 26.0, *))
+      return NSAccessibilityHeadingRole;
+    return NSAccessibilityStaticTextRole;
+  }
+  NSAccessibilityRole roles[] = {NSAccessibilityGroupRole,
+                                 NSAccessibilityStaticTextRole,
+                                 NSAccessibilityButtonRole,
+                                 NSAccessibilityCheckBoxRole,
+                                 NSAccessibilityTextFieldRole,
+                                 NSAccessibilityScrollAreaRole,
+                                 NSAccessibilityScrollBarRole,
+                                 NSAccessibilityButtonRole,
+                                 NSAccessibilityButtonRole,
+                                 NSAccessibilityRadioButtonRole,
+                                 NSAccessibilityRadioGroupRole,
+                                 NSAccessibilityImageRole,
+                                 NSAccessibilityListRole,
+                                 NSAccessibilityLinkRole,
+                                 NSAccessibilityStaticTextRole,
+                                 NSAccessibilitySliderRole,
+                                 NSAccessibilityProgressIndicatorRole,
+                                 NSAccessibilityMenuRole,
+                                 NSAccessibilityMenuItemRole,
+                                 NSAccessibilityTabGroupRole,
+                                 NSAccessibilityRadioButtonRole,
+                                 NSAccessibilityGroupRole,
+                                 NSAccessibilityTableRole,
+                                 NSAccessibilityCellRole,
+                                 NSAccessibilityCellRole,
+                                 NSAccessibilityCellRole,
+                                 NSAccessibilityDisclosureTriangleRole,
+                                 NSAccessibilitySplitterRole,
+                                 NSAccessibilityRowRole};
   return roles[state.data.role];
 }
 - (NSString *)accessibilitySubrole {
@@ -48,11 +78,16 @@
     return NSAccessibilitySwitchSubrole;
   if (state.data.role == 8)
     return NSAccessibilityToggleSubrole;
+  if (state.data.role == 20)
+    return NSAccessibilityTabButtonSubrole;
+  if (state.data.role == 21)
+    return NSAccessibilityDialogSubrole;
   return nil;
 }
 - (BOOL)usesToggleAction {
   int32_t role = self.state.data.role;
-  return role == 3 || role == 7 || role == 8;
+  return role == 3 || role == 7 || role == 8 ||
+         (role == 18 && self.state.data.checked >= 0);
 }
 - (NSString *)accessibilityLabel {
   return self.state.name;
@@ -101,7 +136,26 @@
       }];
 }
 - (NSArray *)accessibilityLinkedUIElements {
-  return [self relatedElements:self.state.controls];
+  SWAccessibilityState *state = self.state;
+  NSMutableArray *result = [[self relatedElements:state.controls] mutableCopy];
+  id active = state.activeNode ? [self.tree element:state.activeNode]
+              : state.activeCollection
+                  ? [[self.tree collection:state.activeCollection]
+                        itemForKey:state.activeKey]
+                  : nil;
+  if ([active isAccessibilityElement] && ![result containsObject:active])
+    [result addObject:active];
+  return result;
+}
+- (NSArray *)accessibilityRowHeaderUIElements {
+  return self.state.data.role == 22
+             ? sw_accessibility_table_headers(self, YES)
+             : [self relatedElements:self.state.rowHeaders];
+}
+- (NSArray *)accessibilityColumnHeaderUIElements {
+  return self.state.data.role == 22
+             ? sw_accessibility_table_headers(self, NO)
+             : [self relatedElements:self.state.columnHeaders];
 }
 - (NSString *)accessibilityIdentifier {
   return self.state.identifier;
@@ -112,11 +166,74 @@
 - (BOOL)isAccessibilityRequired {
   return (self.state.data.flags & SWAXRequired) != 0;
 }
+- (BOOL)isAccessibilityModal {
+  return (self.state.data.flags & SWAXModal) != 0;
+}
+- (BOOL)isAccessibilitySelected {
+  return self.state.data.selected == 1;
+}
+- (BOOL)isAccessibilityExpanded {
+  return self.state.data.expanded == 1;
+}
+- (NSURL *)accessibilityURL {
+  NSString *url = self.state.url;
+  return url ? [NSURL URLWithString:url] : nil;
+}
+- (NSString *)accessibilityValueDescription {
+  SWAccessibilityData data = self.state.data;
+  if ((data.flags & SWAXInvalid) && (data.flags & SWAXBusy))
+    return @"Invalid, busy";
+  if (data.flags & SWAXInvalid)
+    return @"Invalid";
+  return (data.flags & SWAXBusy) ? @"Busy" : nil;
+}
+- (NSArray *)accessibilitySelectedChildren {
+  NSMutableArray *selected = [NSMutableArray new];
+  SWAccessibilityCollection *collection = [self.tree collection:self.number];
+  if (collection) {
+    for (id key in self.state.selectedKeys) {
+      id item = [collection itemForKey:key];
+      if ([item isAccessibilityElement])
+        [selected addObject:item];
+    }
+    return selected;
+  }
+  NSMutableArray *pending = [self.accessibilityChildren mutableCopy];
+  while (pending.count) {
+    id item = pending.lastObject;
+    [pending removeLastObject];
+    if (![item isKindOfClass:SWAccessibilityNode.class])
+      continue;
+    SWAccessibilityState *state = ((SWAccessibilityNode *)item).state;
+    if (state.data.selected == 1 ||
+        (state.data.role == 9 && state.data.checked == 1))
+      [selected insertObject:item atIndex:0];
+    else if (state.selectionKind < 0 && state.itemCount < 0)
+      [pending addObjectsFromArray:[item accessibilityChildren]];
+  }
+  return selected;
+}
+- (NSArray *)accessibilityTabs {
+  if (self.state.data.role != 19)
+    return nil;
+  NSMutableArray *tabs = [NSMutableArray new];
+  for (id item in self.accessibilityChildren)
+    if ([item isKindOfClass:SWAccessibilityNode.class] &&
+        ((SWAccessibilityNode *)item).state.data.role == 20)
+      [tabs addObject:item];
+  return tabs;
+}
 - (id)accessibilityValue {
   SWAccessibilityState *state = self.state;
   if (!state || (state.data.flags & SWAXProtected))
     return nil;
-  if (state.data.scroll_orientation) {
+  if (state.data.has_range)
+    return @(state.data.number_value);
+  if (state.data.role == 14)
+    return state.data.heading_level ? @(state.data.heading_level) : nil;
+  if (state.data.role == 20)
+    return @(state.data.selected == 1);
+  if (state.data.role == 6) {
     double maximum =
         fmax(state.data.scroll_content - state.data.scroll_viewport, 0);
     return @(maximum > 0 ? state.data.scroll_offset / maximum : 0);
@@ -124,11 +241,14 @@
   return state.data.checked >= 0 ? @(state.data.checked) : state.value;
 }
 - (id)accessibilityMinValue {
-  return self.state.data.scroll_orientation ? @0.0 : nil;
+  SWAccessibilityData data = self.state.data;
+  return data.has_range ? @(data.minimum) : data.role == 6 ? @0.0 : nil;
 }
 - (id)accessibilityMaxValue {
   SWAccessibilityData data = self.state.data;
-  return data.scroll_orientation
+  if (data.has_range)
+    return @(data.maximum);
+  return data.role == 6
              ? @(data.scroll_content > data.scroll_viewport ? 1.0 : 0.0)
              : nil;
 }
@@ -183,6 +303,9 @@
     SWAccessibilityState *ancestor = self.tree.published[@(parent)];
     if (!ancestor)
       return nil;
+    id cell = sw_accessibility_virtual_cell(self.tree, parent);
+    if (cell)
+      return cell;
     if (ancestor.itemKey) {
       id item = [[self.tree collection:ancestor.data.parent]
           itemForKey:ancestor.itemKey];
@@ -241,15 +364,16 @@
   return visible;
 }
 - (NSInteger)accessibilityRowCount {
-  return MAX(self.state.itemCount, 0);
+  if (self.state.data.role == 12 && self.state.itemCount < 0)
+    return (NSInteger)sw_accessibility_table_rows(self, NO).count;
+  return self.state.itemCount >= 0 ? self.state.itemCount
+                                   : MAX(self.state.data.table_rows, 0);
 }
 - (NSArray *)accessibilityRows {
-  return [[self.tree collection:self.number]
-      rowsFrom:0
-         count:(NSUInteger)MAX(self.state.itemCount, 0)];
+  return sw_accessibility_table_rows(self, NO);
 }
 - (NSArray *)accessibilityVisibleRows {
-  return [self.tree collection:self.number].visibleRows;
+  return sw_accessibility_table_rows(self, YES);
 }
 - (NSUInteger)accessibilityArrayAttributeCount:
     (NSAccessibilityAttributeName)attribute {
@@ -284,6 +408,16 @@
     return NSZeroRect;
   return NSAccessibilityFrameInView(
       view, NSMakeRect(data.x, data.y, data.width, data.height));
+}
+- (NSPoint)accessibilityActivationPoint {
+  SWView *view = self.tree.view;
+  SWAccessibilityData data = self.state.data;
+  if (!data.activation || !self.isAccessibilityEnabled || !view.window)
+    return NSZeroPoint;
+  NSPoint point =
+      [view convertPoint:NSMakePoint(data.activation_x, data.activation_y)
+                  toView:nil];
+  return [view.window convertPointToScreen:point];
 }
 - (BOOL)isWithin:(int64_t)ancestor {
   int64_t number = self.number;
@@ -324,7 +458,7 @@
       node = [tree element:node.state.data.parent];
     }
     if (node.isAccessibilityElement)
-      return node;
+      return sw_accessibility_virtual_cell(tree, node.number) ?: node;
   }
   return self.number == 0 ? self : nil;
 }
@@ -381,7 +515,16 @@
 }
 - (void)setAccessibilityValue:(id)value {
   SWAccessibilityState *state = self.state;
-  if (state.data.scroll_orientation) {
+  if (state.data.has_range) {
+    if ((state.data.actions & 2048) && !(state.data.flags & SWAXReadOnly) &&
+        [value isKindOfClass:NSNumber.class])
+      [self perform:12
+               text:nil
+              range:NSMakeRange(NSNotFound, 0)
+           position:[value doubleValue]];
+    return;
+  }
+  if (state.data.role == 6) {
     if ((state.data.actions & 128) && !(state.data.flags & SWAXReadOnly) &&
         [value isKindOfClass:NSNumber.class])
       [self perform:8
@@ -397,17 +540,32 @@
   [self perform:2 text:value];
 }
 - (BOOL)accessibilityPerformDecrement {
-  return self.state.data.scroll_orientation &&
-         (self.state.data.actions & 256) && [self perform:9 text:nil] == 1;
+  if (self.state.data.has_range)
+    return (self.state.data.actions & 8192) && [self perform:14 text:nil] == 1;
+  return self.state.data.role == 6 && (self.state.data.actions & 256) &&
+         [self perform:9 text:nil] == 1;
 }
 - (BOOL)accessibilityPerformIncrement {
-  return self.state.data.scroll_orientation &&
-         (self.state.data.actions & 512) && [self perform:10 text:nil] == 1;
+  if (self.state.data.has_range)
+    return (self.state.data.actions & 4096) && [self perform:13 text:nil] == 1;
+  return self.state.data.role == 6 && (self.state.data.actions & 512) &&
+         [self perform:10 text:nil] == 1;
 }
 - (BOOL)accessibilityPerformShowMenu {
   if (!(self.state.data.actions & 64))
     return NO;
   return [self perform:7 text:nil] == 1;
+}
+- (void)setAccessibilitySelected:(BOOL)selected {
+  if (self.state.data.selected >= 0 && (self.state.data.actions & 16384))
+    [self perform:selected ? 15 : 16 text:nil];
+}
+- (void)setAccessibilityExpanded:(BOOL)expanded {
+  if (self.state.data.expanded >= 0 && (self.state.data.actions & 32768))
+    [self perform:expanded ? 17 : 18 text:nil];
+}
+- (BOOL)accessibilityPerformCancel {
+  return (self.state.data.actions & 65536) && [self perform:19 text:nil] == 1;
 }
 - (BOOL)revealAccessibilityNode {
   if (!(self.state.data.actions & 1024))
@@ -437,10 +595,38 @@
   if (selector == @selector(accessibilityRows) ||
       selector == @selector(accessibilityVisibleRows) ||
       selector == @selector(accessibilityRowCount))
-    return self.state.itemCount >= 0 && self.isAccessibilityElement;
+    return (self.state.itemCount >= 0 || self.state.data.role == 12 ||
+            self.state.data.role == 22) &&
+           self.isAccessibilityElement;
   SWAccessibilityState *state = self.state;
   if (!state)
     return NO;
+  if (selector == @selector(accessibilityColumns) ||
+      selector == @selector(accessibilityColumnCount) ||
+      selector == @selector(accessibilityCellForColumn:row:) ||
+      selector == @selector(accessibilitySelectedRows))
+    return self.isAccessibilityElement && state.data.role == 22;
+  if (selector == @selector(accessibilityIndex))
+    return self.isAccessibilityElement && state.data.role == 28;
+  if (selector == @selector(accessibilityRowIndexRange) ||
+      selector == @selector(accessibilityColumnIndexRange))
+    return self.isAccessibilityElement && state.data.cell_row >= 0;
+  if (selector == @selector(accessibilitySelectedChildren))
+    return self.isAccessibilityElement && state.selectionKind >= 0;
+  if (selector == @selector(isAccessibilitySelected))
+    return self.isAccessibilityElement && state.data.selected >= 0;
+  if (selector == @selector(isAccessibilityExpanded))
+    return self.isAccessibilityElement && state.data.expanded >= 0;
+  if (selector == @selector(setAccessibilitySelected:))
+    return self.isAccessibilityEnabled && state.data.selected >= 0 &&
+           !(state.data.flags & SWAXReadOnly) && (state.data.actions & 16384);
+  if (selector == @selector(setAccessibilityExpanded:))
+    return self.isAccessibilityEnabled && state.data.expanded >= 0 &&
+           !(state.data.flags & SWAXReadOnly) && (state.data.actions & 32768);
+  if (selector == @selector(accessibilityPerformCancel))
+    return self.isAccessibilityEnabled && (state.data.actions & 65536);
+  if (selector == @selector(accessibilityTabs))
+    return self.isAccessibilityElement && state.data.role == 19;
   if (selector == @selector(isAccessibilityRequired))
     return self.isAccessibilityElement;
   if (selector == @selector(accessibilityPerformPress))
@@ -448,11 +634,15 @@
            (state.data.actions & (self.usesToggleAction ? 3 : 1)) != 0;
   if (selector == @selector(setAccessibilityValue:))
     return self.isAccessibilityEnabled &&
-           (state.data.actions & (state.data.scroll_orientation ? 128 : 4)) &&
+           (state.data.actions & (state.data.has_range   ? 2048
+                                  : state.data.role == 6 ? 128
+                                                         : 4)) &&
            !(state.data.flags & SWAXReadOnly);
   if (selector == @selector(accessibilityMinValue) ||
-      selector == @selector(accessibilityMaxValue) ||
-      selector == @selector(accessibilityOrientation))
+      selector == @selector(accessibilityMaxValue))
+    return self.isAccessibilityElement &&
+           (state.data.has_range || state.data.role == 6);
+  if (selector == @selector(accessibilityOrientation))
     return self.isAccessibilityElement && state.data.scroll_orientation;
   if (selector == @selector(accessibilityHorizontalScrollBar))
     return self.accessibilityHorizontalScrollBar != nil;
@@ -460,10 +650,16 @@
     return self.accessibilityVerticalScrollBar != nil;
   if (selector == @selector(accessibilityPerformDecrement) ||
       selector == @selector(accessibilityPerformIncrement))
-    return self.isAccessibilityEnabled && state.data.scroll_orientation &&
+    return self.isAccessibilityEnabled &&
+           (state.data.has_range || state.data.role == 6) &&
            !(state.data.flags & SWAXReadOnly) &&
            (state.data.actions &
-            (selector == @selector(accessibilityPerformDecrement) ? 256 : 512));
+            (state.data.has_range
+                 ? (selector == @selector(accessibilityPerformDecrement) ? 8192
+                                                                         : 4096)
+                 : (selector == @selector(accessibilityPerformDecrement)
+                        ? 256
+                        : 512)));
   if (selector == @selector(setAccessibilityFocused:))
     return self.isAccessibilityEnabled && (state.data.actions & 8);
   if (selector == @selector(accessibilityPerformShowMenu))
@@ -473,7 +669,7 @@
   if (selector == @selector(accessibilityFrame))
     return self.number == 0 || state.data.geometry;
   if (selector == @selector(accessibilityActivationPoint))
-    return NO;
+    return self.isAccessibilityEnabled && state.data.activation;
   if (selector == @selector(accessibilityHitTest:))
     return [self participatesInAccessibility];
   if (selector == @selector(accessibilityNumberOfCharacters) ||

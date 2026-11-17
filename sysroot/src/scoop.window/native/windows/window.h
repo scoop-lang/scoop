@@ -96,6 +96,7 @@ typedef struct SWWindow {
   SWInputState input;
   int64_t text_connection;
   void *text;
+  void *accessibility;
   SWMenu *menu_bar, *popup_menu;
 } SWWindow;
 
@@ -111,7 +112,17 @@ int64_t scoop_window_clear_ime_caret(void *pointer);
 int64_t scoop_window_text_count(SWEvent *event);
 SWTextEditData scoop_window_text_edit(SWEvent *event, int64_t index);
 
-enum { SW_WAKE = WM_APP + 1, SW_READY, SW_TEXT_LOCK, SW_PREFERENCES };
+enum {
+  SW_WAKE = WM_APP + 1,
+  SW_READY,
+  SW_TEXT_LOCK,
+  SW_PREFERENCES,
+  SW_ACCESSIBILITY
+};
+
+bool sw_accessibility_message(SWWindow *window, UINT message, WPARAM wparam,
+                              LPARAM lparam, LRESULT *result);
+void sw_accessibility_destroy(SWWindow *window);
 
 int64_t sw_preferences_start(SWApplication *app);
 void sw_preferences_stop(SWApplication *app);

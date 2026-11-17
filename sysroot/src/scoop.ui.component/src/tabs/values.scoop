@@ -19,7 +19,8 @@ public class TabEntry<T: Equals<T>> public constructor(
     public val focus: FocusOptions = FocusOptions(),
     public val retention: ContentRetention? = None,
     public val triggerStyle: ButtonStyle? = None,
-    public val panelStyle: StyleOverride = styleOverride()
+    public val panelStyle: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class TabsProps<T: Equals<T>> public constructor(
@@ -36,7 +37,8 @@ public class TabsProps<T: Equals<T>> public constructor(
     public val theme: ThemeSource? = None,
     public val style: StyleOverride = styleOverride(),
     public val listStyle: StyleOverride = styleOverride(),
-    public val onValueChange: (T?) -> Unit = {}
+    public val onValueChange: (T?) -> Unit = {},
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(spacing, "tabs spacing must be finite and nonnegative")
